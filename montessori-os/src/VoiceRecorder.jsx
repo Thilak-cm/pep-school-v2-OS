@@ -25,15 +25,32 @@ const VoiceRecorder = () => {
 
   const startRecording = async () => {
     try {
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone access with specific constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100
+        } 
+      });
       
-      // Create MediaRecorder instance
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      // Get supported MIME types
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : MediaRecorder.isTypeSupported('audio/webm') 
+        ? 'audio/webm' 
+        : 'audio/mp4';
+      
+      // Create MediaRecorder instance with proper MIME type
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
+      
+      console.log('MediaRecorder created with MIME type:', mimeType);
+      console.log('MediaRecorder state:', mediaRecorderRef.current.state);
 
       // Handle data available event
       mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log('Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
@@ -41,8 +58,17 @@ const VoiceRecorder = () => {
 
       // Handle stop event
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        // Use the actual MIME type from MediaRecorder or default to webm
+        const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm;codecs=opus';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const audioUrl = URL.createObjectURL(audioBlob);
+        
+        console.log('Recording stopped:', {
+          mimeType,
+          blobSize: audioBlob.size,
+          chunksCount: audioChunksRef.current.length,
+          audioUrl
+        });
         
         setAudioBlob(audioBlob);
         setAudioUrl(audioUrl);
