@@ -5,7 +5,7 @@ import { auth, provider } from "./firebase";
 function SignIn() {
   const handleSignIn = async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider);
       // No need for alert, the app will automatically transition
     } catch (error) {
       alert("Sign in failed: " + error.message);

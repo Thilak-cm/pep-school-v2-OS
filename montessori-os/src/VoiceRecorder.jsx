@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { transcribeAudio, validateAudioForTranscription } from './speechToText';
 
 const VoiceRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -6,6 +7,9 @@ const VoiceRecorder = () => {
   const [audioUrl, setAudioUrl] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [transcription, setTranscription] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState('');
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
@@ -73,6 +77,9 @@ const VoiceRecorder = () => {
         setAudioBlob(audioBlob);
         setAudioUrl(audioUrl);
         
+        // Automatically start transcription
+        handleTranscription(audioBlob);
+        
         // Stop all audio tracks
         stream.getTracks().forEach(track => track.stop());
       };
@@ -135,6 +142,32 @@ const VoiceRecorder = () => {
     setAudioUrl(null);
     setRecordingTime(0);
     setIsPlaying(false);
+    setTranscription('');
+    setTranscriptionError('');
+  };
+
+  const handleTranscription = async (audioBlob) => {
+    if (!validateAudioForTranscription(audioBlob)) {
+      setTranscriptionError('Audio file is not suitable for transcription.');
+      return;
+    }
+
+    setIsTranscribing(true);
+    setTranscriptionError('');
+
+    try {
+      const transcribedText = await transcribeAudio(audioBlob);
+      setTranscription(transcribedText);
+      
+      if (!transcribedText) {
+        setTranscriptionError('No speech detected in the recording.');
+      }
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      setTranscriptionError(`Transcription failed: ${error.message}`);
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const formatTime = (seconds) => {
@@ -426,6 +459,179 @@ const VoiceRecorder = () => {
         </div>
       )}
 
+      {/* Transcription Section */}
+      {(audioUrl || isTranscribing || transcription || transcriptionError) && (
+        <div style={{ 
+          padding: '24px',
+          backgroundColor: '#f0f9ff',
+          borderTop: '1px solid #e2e8f0'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px'
+          }}>
+            <h4 style={{
+              margin: 0,
+              color: '#1e293b',
+              fontSize: '1rem',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Transcription
+            </h4>
+            {isTranscribing && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#059669',
+                fontSize: '0.875rem'
+              }}>
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  border: '2px solid #059669',
+                  borderTop: '2px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+                Processing...
+              </div>
+            )}
+          </div>
+
+          {/* Transcription Content */}
+          {isTranscribing && (
+            <div style={{
+              padding: '16px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              textAlign: 'center',
+              color: '#64748b'
+            }}>
+              Converting speech to text...
+            </div>
+          )}
+
+          {transcriptionError && (
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#fef2f2',
+              borderRadius: '8px',
+              border: '1px solid #fecaca',
+              color: '#dc2626',
+              fontSize: '0.875rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Error
+              </div>
+              {transcriptionError}
+            </div>
+          )}
+
+          {transcription && !isTranscribing && !transcriptionError && (
+            <div style={{
+              padding: '16px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                color: '#1e293b',
+                fontSize: '0.875rem',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {transcription}
+              </div>
+            </div>
+          )}
+
+          {/* Transcription Actions */}
+          {transcription && !isTranscribing && (
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              justifyContent: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <button 
+                onClick={() => navigator.clipboard.writeText(transcription)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4f46e5',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#4338ca';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = '#4f46e5';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M8 4V2C8 1.44772 8.44772 1 9 1H15C15.5523 1 16 1.44772 16 2V4M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Copy Text
+              </button>
+              
+              <button 
+                onClick={() => handleTranscription(audioBlob)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#047857';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = '#059669';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 4V2C4 1.44772 4.44772 1 5 1H19C19.5523 1 20 1.44772 20 2V4M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M16 2V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 2V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* CSS Animations */}
       <style jsx>{`
         @keyframes pulse {
@@ -437,6 +643,11 @@ const VoiceRecorder = () => {
             opacity: 0.5;
             transform: scale(1.1);
           }
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </div>
