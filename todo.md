@@ -20,9 +20,9 @@
   - [ ] Render audio transcription in timeline view
 
 - [ ] **3. Implement** - Classrooms + Students CRUD with sample data
-  - [ ] Design Firestore data structure for classrooms & students
+  - [x] Design Firestore data structure for classrooms & students
+  - [x] Build Firestore collections and add sample/seed data for all core collections
   - [ ] Build CRUD operations for Classrooms
-  - [ ] Create sample/seed data for testing
   - [ ] Test data persistence and retrieval
 
 ---
@@ -38,15 +38,15 @@
 - [x] Set up development and production environments
 
 ### Core Data Models
-- [ ] Design and implement Firestore data structure:
-  - [ ] `classrooms` collection
-  - [ ] `students` collection  
-  - [ ] `observations` collection
-  - [ ] `attendance` collection
-  - [ ] `assessments` collection
-  - [ ] `tags` collection
+- [x] Design and implement Firestore data structure:
+  - [x] `classrooms` collection
+  - [x] `students` collection  
+  - [x] `observations` collection
+  - [x] `attendance` collection
+  - [x] `assessments` collection
+  - [x] `tags` collection
 - [ ] Implement Firestore security rules for access control
-- [ ] Create sample/seed data for development
+- [x] Create sample/seed data for development
 
 ### Basic CRUD Operations
 - [ ] CRUD operations for Classrooms

@@ -29,12 +29,17 @@ function App() {
   if (loading) {
     return (
       <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        fontSize: '18px',
-        backgroundColor: '#f8fafc'
+        width: '375px',
+        height: '812px',
+        margin: '40px auto',
+        boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+        borderRadius: '32px',
+        overflow: 'hidden',
+        backgroundColor: '#f8fafc',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
       }}>
         <div style={{
           display: 'flex',
@@ -59,56 +64,79 @@ function App() {
   // Landing Page - Not Authenticated
   if (!user) {
     return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '50px 20px',
-        maxWidth: '600px',
-        margin: '0 auto',
-        minHeight: '100vh',
+      <div style={{
+        width: '375px',
+        height: '812px',
+        margin: '40px auto',
+        boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+        borderRadius: '32px',
+        overflow: 'hidden',
+        backgroundColor: '#f8fafc',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        backgroundColor: '#f8fafc'
+        alignItems: 'center',
       }}>
-        <img 
-          src="/pep-logo.png" 
-          alt="Pep School Logo" 
-          style={{ 
-            width: '150px', 
-            height: 'auto', 
-            marginBottom: '30px',
-            filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
-          }}
-        />
-        <h1 style={{ 
-          color: '#1e293b', 
-          marginBottom: '20px',
-          fontSize: '2.5rem',
-          fontWeight: '700',
-          lineHeight: '1.2'
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          padding: '48px 32px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxWidth: '400px',
+          width: '100%',
         }}>
-          Welcome to Pep School V2 OS!
-        </h1>
-        <p style={{ 
-          color: '#64748b', 
-          marginBottom: '40px',
-          fontSize: '1.2rem',
-          lineHeight: '1.6',
-          maxWidth: '500px',
-          margin: '0 auto 40px auto'
-        }}>
-          Streamline your teaching workflow
-        </p>
-        <SignIn />
+          <img 
+            src="/pep-logo.png" 
+            alt="Pep School Logo" 
+            style={{ 
+              width: '120px', 
+              height: '120px', 
+              marginBottom: '32px',
+              filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
+            }}
+          />
+          <h1 style={{ 
+            color: '#1e293b', 
+            marginBottom: '20px',
+            fontSize: '2rem',
+            fontWeight: '700',
+            lineHeight: '1.2',
+            textAlign: 'center',
+          }}>
+            Welcome to Pep School V2 OS!
+          </h1>
+          <p style={{ 
+            color: '#64748b', 
+            marginBottom: '40px',
+            fontSize: '1.1rem',
+            lineHeight: '1.6',
+            maxWidth: '320px',
+            textAlign: 'center',
+          }}>
+            Streamline your teaching workflow
+          </p>
+          <SignIn />
+        </div>
       </div>
     );
   }
 
   // Authenticated - Show Main App
   return (
-    <div style={{ 
+    <div style={{
+      width: '375px',
+      height: '812px',
+      margin: '40px auto',
+      boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+      borderRadius: '32px',
+      overflow: 'hidden',
+      backgroundColor: '#f8fafc',
       minHeight: '100vh',
-      backgroundColor: '#f8fafc'
+      display: 'flex',
+      flexDirection: 'column',
     }}>
       {/* Header */}
       <div style={{ 
