@@ -1,0 +1,187 @@
+---
+alwaysApply: true
+---
+
+# Environment Setup & Development Workflow
+
+## 🚨 **CRITICAL: Conda Environment**
+
+### **ALWAYS activate conda environment first**
+```bash
+# ALWAYS run this before any development work
+conda activate pep-venv
+
+# Verify environment is active (should show (pep-venv) in prompt)
+```
+
+### **NEVER install packages in base environment**
+```bash
+# ❌ WRONG - Don't do this
+conda activate base
+npm install @mui/material
+
+# ✅ CORRECT - Always do this
+conda activate pep-venv
+npm install @mui/material
+```
+
+## 🔧 **Development Commands**
+
+### **Starting Development**
+```bash
+# 1. ALWAYS activate conda environment
+conda activate pep-venv
+
+# 2. Navigate to project directory
+cd montessori-os
+
+# 3. Install dependencies (if needed)
+npm install
+
+# 4. Start development server
+npm run dev
+```
+
+### **Package Management**
+```bash
+# ALWAYS activate conda environment first
+conda activate pep-venv
+
+# Install new packages
+npm install package-name
+
+# Install dev dependencies
+npm install --save-dev package-name
+
+# Update packages
+npm update
+```
+
+### **Building & Deployment**
+```bash
+# Build for production
+conda activate pep-venv
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## 📱 **Mobile Testing**
+
+### **Browser Dev Tools**
+1. Open Chrome DevTools (F12)
+2. Click "Toggle device toolbar" (Ctrl+Shift+M)
+3. Select "iPhone 13 mini" from device dropdown
+4. Verify dimensions: 375×812px
+
+### **Required Testing**
+- **ALWAYS** test on iPhone 13 mini viewport
+- **ALWAYS** test voice recording functionality
+- **ALWAYS** test Google Sign-in flow
+- **ALWAYS** verify mobile touch interactions
+
+## 🎯 **Project Structure**
+
+```
+montessori-os/
+├── src/
+│   ├── components/          # Reusable MUI components
+│   ├── App.jsx             # Main app container (375px width)
+│   ├── AppHeader.jsx       # MUI AppBar with user menu
+│   ├── SignIn.jsx          # Google SSO with MUI Button
+│   ├── VoiceRecorder.jsx   # Audio recording with transcription
+│   ├── main.jsx            # MUI ThemeProvider setup
+│   ├── firebase.js         # Firebase configuration
+│   └── App.css             # Minimal custom styles
+├── public/
+│   └── pep-logo.png        # Project logo
+├── package.json            # Dependencies (MUI, Firebase)
+└── vite.config.js          # Vite configuration
+```
+
+## 🔍 **Code Quality Checks**
+
+### **Before Committing**
+1. **ALWAYS** verify conda environment is active
+2. **ALWAYS** test on mobile viewport (375×812px)
+3. **ALWAYS** ensure MUI components are used
+4. **ALWAYS** check for proper accessibility
+5. **ALWAYS** verify voice recording works
+6. **ALWAYS** test Google Sign-in flow
+
+### **Common Issues**
+```bash
+# If packages aren't found
+conda activate pep-venv
+npm install
+
+# If dev server won't start
+conda activate pep-venv
+npm run dev
+
+# If build fails
+conda activate pep-venv
+npm run build
+```
+
+## 📋 **Development Checklist**
+
+### **New Feature Development**
+- [ ] Activate conda environment: `conda activate pep-venv`
+- [ ] Use MUI components only (no custom CSS)
+- [ ] Design for 375×812px mobile container
+- [ ] Test voice recording functionality
+- [ ] Include proper accessibility (`aria-label`)
+- [ ] Test on mobile viewport
+- [ ] Follow established component patterns
+
+### **Component Creation**
+- [ ] Use MUI components as building blocks
+- [ ] Follow mobile-first responsive design
+- [ ] Include error handling
+- [ ] Add loading states
+- [ ] Test touch interactions
+- [ ] Verify accessibility
+
+### **Environment Verification**
+- [ ] Conda environment is active: `(pep-venv)`
+- [ ] All dependencies installed: `npm install`
+- [ ] Dev server running: `npm run dev`
+- [ ] Mobile viewport testing: 375×812px
+- [ ] Voice recording functional
+- [ ] Google Sign-in working
+
+## 🚨 **Troubleshooting**
+
+### **Environment Issues**
+```bash
+# If conda environment doesn't exist
+conda create -n pep-venv python=3.9
+conda activate pep-venv
+npm install
+
+# If packages are missing
+conda activate pep-venv
+npm install
+
+# If dev server fails
+conda activate pep-venv
+npm run dev
+```
+
+### **Mobile Layout Issues**
+- Verify container width is exactly 375px
+- Check that app is centered with margins
+- Ensure touch targets are minimum 44px
+- Test on actual mobile device if possible
+
+### **MUI Component Issues**
+- Import components from `@mui/material`
+- Import icons from `@mui/icons-material`
+- Use `sx` prop instead of inline styles
+- Follow established component patterns
+
+---
+
+**Remember**: The conda environment and mobile-first design are non-negotiable. Every development session must start with `conda ac

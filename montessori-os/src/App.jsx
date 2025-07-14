@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import VoiceRecorder from "./VoiceRecorder";
-import './App.css'
+import AppHeader from "./AppHeader";
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  CircularProgress, 
+  Paper,
+  Card,
+  CardContent
+} from "@mui/material";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -14,7 +23,6 @@ function App() {
       setUser(currentUser);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -26,258 +34,194 @@ function App() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ 
-        width: '375px',
-        height: '812px',
-        margin: '40px auto',
-        boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-        borderRadius: '32px',
-        overflow: 'hidden',
-        backgroundColor: '#f8fafc',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '20px'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '4px solid #e2e8f0',
-            borderTop: '4px solid #4f46e5',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }}></div>
-          <span style={{ color: '#64748b' }}>Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Landing Page - Not Authenticated
-  if (!user) {
-    return (
-      <div style={{
-        width: '375px',
-        height: '812px',
-        margin: '40px auto',
-        boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-        borderRadius: '32px',
-        overflow: 'hidden',
-        backgroundColor: '#f8fafc',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          padding: '48px 32px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          maxWidth: '400px',
-          width: '100%',
-        }}>
-          <img 
-            src="/pep-logo.png" 
-            alt="Pep School Logo" 
-            style={{ 
-              width: '120px', 
-              height: '120px', 
-              marginBottom: '32px',
-              filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
-            }}
-          />
-          <h1 style={{ 
-            color: '#1e293b', 
-            marginBottom: '20px',
-            fontSize: '2rem',
-            fontWeight: '700',
-            lineHeight: '1.2',
-            textAlign: 'center',
-          }}>
-            Welcome to Pep School V2 OS!
-          </h1>
-          <p style={{ 
-            color: '#64748b', 
-            marginBottom: '40px',
-            fontSize: '1.1rem',
-            lineHeight: '1.6',
-            maxWidth: '320px',
-            textAlign: 'center',
-          }}>
-            Streamline your teaching workflow
-          </p>
-          <SignIn />
-        </div>
-      </div>
-    );
-  }
-
-  // Authenticated - Show Main App
+  // Centering container for all app states
   return (
-    <div style={{
-      width: '375px',
-      height: '812px',
-      margin: '40px auto',
-      boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-      borderRadius: '32px',
-      overflow: 'hidden',
-      backgroundColor: '#f8fafc',
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Header */}
-      <div style={{ 
-        backgroundColor: 'white',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-        borderBottom: '1px solid #e2e8f0'
-      }}>
-        <div style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: '16px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img 
-              src="/pep-logo.png" 
-              alt="Pep School Logo" 
-              style={{ 
-                width: '40px', 
-                height: 'auto',
-                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+    <Box
+      sx={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f8fafc',
+      }}
+    >
+      {/* Loading State */}
+      {loading && (
+        <Box
+          sx={{
+            width: '375px',
+            height: '812px',
+            boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+            borderRadius: '32px',
+            overflow: 'scroll',
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '20px'
+            }}
+          >
+            <CircularProgress 
+              size={40}
+              sx={{ 
+                color: '#4f46e5',
+                '& .MuiCircularProgress-circle': {
+                  strokeLinecap: 'round',
+                }
               }}
             />
-            <h1 style={{ 
-              margin: 0, 
-              color: '#1e293b',
-              fontSize: '1.5rem',
-              fontWeight: '600'
-            }}>
-              Montessori Observation Hub
-            </h1>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ 
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Loading...
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* Unauthenticated State */}
+      {!loading && !user && (
+        <Box
+          sx={{
+            width: '375px',
+            height: '812px',
+            boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+            borderRadius: '32px',
+            overflow: 'scroll',
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Card
+            sx={{
+              borderRadius: '16px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+              padding: '48px 32px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: '8px',
-              color: '#64748b',
-              fontSize: '14px'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: '#4f46e5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '12px',
-                fontWeight: '600'
-              }}>
-                {user.displayName?.charAt(0) || 'U'}
-              </div>
-              <span style={{ fontWeight: '500' }}>
-                {user.displayName}
-              </span>
-            </div>
-            <button 
-              onClick={handleSignOut}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)'
+              maxWidth: '100%',
+              width: '100%',
+              backgroundColor: 'white'
+            }}
+          >
+            <Box
+              component="img"
+              src="/pep-logo.png"
+              alt="Pep School Logo"
+              sx={{
+                width: '120px',
+                height: '120px',
+                marginBottom: '32px',
+                filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
               }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#dc2626';
-                e.target.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#ef4444';
-                e.target.style.transform = 'translateY(0)';
+            />
+            <Typography
+              variant="h3"
+              component="h1"
+              sx={{
+                color: '#1e293b',
+                marginBottom: '20px',
+                fontSize: '2rem',
+                fontWeight: '700',
+                lineHeight: '1.2',
+                textAlign: 'center',
               }}
             >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </div>
+              Welcome to Pep School V2 OS!
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                color: '#64748b',
+                marginBottom: '40px',
+                fontSize: '1.1rem',
+                lineHeight: '1.6',
+                maxWidth: '100%',
+                textAlign: 'center',
+              }}
+            >
+              Streamline your teaching workflow
+            </Typography>
+            <SignIn />
+          </Card>
+        </Box>
+      )}
 
-      {/* Main Content */}
-      <div style={{ 
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '40px 24px'
-      }}>
-        <div style={{ 
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '24px'
-        }}>
-          {/* Welcome Section */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: '20px'
-          }}>
-            <h2 style={{
-              color: '#1e293b',
-              fontSize: '1.875rem',
-              fontWeight: '600',
-              margin: '0 0 8px 0'
-            }}>
-              Capture Your Observations
-            </h2>
-            <p style={{
-              color: '#64748b',
-              fontSize: '1.1rem',
-              margin: 0,
-              lineHeight: '1.6'
-            }}>
-              Record voice notes up to 30 seconds for easy classroom documentation
-            </p>
-          </div>
+      {/* Authenticated State */}
+      {!loading && user && (
+        <Box
+          sx={{
+            width: '375px',
+            height: '812px',
+            backgroundColor: '#f8fafc',
+            boxShadow: '0 0 24px rgba(0,0,0,0.10)',
+            borderRadius: '32px',
+            overflow: 'scroll',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Header */}
+          <AppHeader user={user} onSignOut={handleSignOut} />
 
-          {/* Voice Recorder - Now styled better */}
-          <VoiceRecorder />
-          
-          {/* Quick Stats or Tips */}
-          
-        </div>
-      </div>
+          {/* Main Content */}
+          <Container maxWidth={false} sx={{ py: 3, px: 2, maxWidth: '375px' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 3
+              }}
+            >
+              {/* Welcome Section */}
+              <Box sx={{ textAlign: 'center', marginBottom: '20px' }}>
+                <Typography
+                  variant="h4"
+                  component="h2"
+                  sx={{
+                    color: '#1e293b',
+                    fontSize: '1.875rem',
+                    fontWeight: '600',
+                    margin: '0 0 8px 0'
+                  }}
+                >
+                  Observation Hub
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: '#64748b',
+                    fontSize: '1.1rem',
+                    margin: 0,
+                    lineHeight: '1.6'
+                  }}
+                >
+                  Record voice notes up to 30 seconds for easy classroom documentation
+                </Typography>
+              </Box>
 
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+              {/* Voice Recorder - Now styled better */}
+              <VoiceRecorder />
+              
+              {/* Quick Stats or Tips */}
+              
+            </Box>
+          </Container>
+        </Box>
+      )}
+    </Box>
   );
 }
 

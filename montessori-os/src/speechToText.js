@@ -58,7 +58,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     const requestBody = {
       config: {
         encoding: 'WEBM_OPUS', // Adjust based on your audio format
-        sampleRateHertz: 44100,
         languageCode: languageCode,
         enableAutomaticPunctuation: true,
         enableWordTimeOffsets: false,

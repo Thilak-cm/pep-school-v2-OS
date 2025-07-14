@@ -1,0 +1,195 @@
+---
+alwaysApply: true
+---
+
+# Montessori Observation Hub - Project Rules
+
+## 🚨 **NON-NEGOTIABLES**
+
+### **Environment Setup**
+- **ALWAYS** use `conda activate pep-venv` before any npm commands
+- **NEVER** install packages in base conda environment
+- **ALWAYS** verify conda environment is active before development
+
+### **Mobile-First Design Constraints**
+- **ALWAYS** design for iPhone 13 mini dimensions: **375px width × 812px height**
+- **ALWAYS** center the app container with margins on larger screens
+- **NEVER** exceed 375px width for the main app container
+- **ALWAYS** use mobile-first responsive design patterns
+- **ALWAYS** test on mobile viewport first
+
+## 🎯 **Project Overview**
+
+This is a **Montessori Observation Hub** - a mobile-first web app for teachers to capture, browse, and report classroom observations. Target: 50 teachers, 12-14 classrooms, 1-3 admins.
+
+### **Tech Stack**
+- Frontend: React + Vite PWA
+- Backend: Firebase (Auth, Firestore, Cloud Functions)
+- STT: Google Speech-to-Text API
+- Design: Material-UI (MUI) components
+- Charts: Chart.js or Canvas
+
+## 🎨 **Design System**
+
+### **MUI Components Only**
+- **ALWAYS** use MUI components instead of custom CSS
+- **ALWAYS** use the custom theme defined in [main.jsx](mdc:src/main.jsx)
+- **NEVER** use inline styles - use `sx` prop instead
+- **ALWAYS** follow the established patterns in converted components
+
+### **Color Palette**
+- Primary: `#4f46e5` (Indigo) - Main brand color
+- Secondary: `#059669` (Green) - Success actions
+- Error: `#dc2626` (Red) - Errors and destructive actions
+- Warning: `#f59e0b` (Amber) - Warnings
+- Info: `#3b82f6` (Blue) - Information
+
+### **Typography**
+- Font Family: Inter, Roboto, Helvetica, Arial
+- Headings: Bold weights (600-700)
+- Body Text: Regular weight, optimized for readability
+
+## 📱 **Mobile Layout Requirements**
+
+### **Container Structure**
+```jsx
+// ALWAYS use this container pattern
+<Box sx={{
+  width: '375px',
+  height: '812px',
+  margin: '40px auto',
+  overflow: 'hidden',
+  backgroundColor: '#f8fafc',
+  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
+}}>
+```
+
+### **Responsive Patterns**
+- Use MUI breakpoints: `xs`, `sm`, `md`, `lg`, `xl`
+- Stack elements vertically on mobile
+- Hide non-essential elements on mobile
+- Touch-friendly button sizes (minimum 44px)
+
+## 🏗️ **Component Architecture**
+
+### **Existing Components**
+- [App.jsx](mdc:src/App.jsx) - Main app container with mobile constraints
+- [AppHeader.jsx](mdc:src/AppHeader.jsx) - MUI AppBar with user menu
+- [SignIn.jsx](mdc:src/SignIn.jsx) - Google SSO with MUI Button
+- [VoiceRecorder.jsx](mdc:src/VoiceRecorder.jsx) - Audio recording with transcription
+- [StudentTimeline.jsx](mdc:src/components/StudentTimeline.jsx) - Example component for future features
+
+### **Component Guidelines**
+- **ALWAYS** use MUI components as building blocks
+- **ALWAYS** include proper accessibility with `aria-label`
+- **ALWAYS** use semantic HTML with `component` prop
+- **ALWAYS** test on mobile viewport first
+
+## 📊 **Data Model (Firestore)**
+
+### **Collections**
+```typescript
+classrooms: { id, name, teacher_ids[] }
+students: { uid, name, dob, classroom_id, status }
+observations: { id, student_uid, staff_uid, timestamp, text, tags[], starred?, edited_at? }
+attendance: { date, student_uid, present }
+assessments: { id, student_uid, assessment_type, result, date }
+tags: { id, name, description }
+```
+
+### **Access Control**
+- Teachers: Can create observations for assigned classrooms
+- Teachers: Can edit/delete own observations within 24h
+- Admins: Can read all data, manage rosters
+
+## 🚀 **Feature Requirements (from PRD)**
+
+### **v1.0 Must-Have Features**
+- ✅ Google Sign-in (implemented)
+- ✅ Voice recording ≤ 30 seconds (implemented)
+- ✅ Speech-to-text transcription (implemented)
+- 🔄 Tag picker (curriculum areas)
+- 🔄 Quick group selection (multi-child tagging)
+- 🔄 Student timeline (reverse chronological)
+- 🔄 Edit/delete observations within 24h
+- 🔄 Admin bulk upload (Google Sheets)
+- 🔄 Live dashboard (observation volume, curriculum coverage)
+- 🔄 Report generation (Google Docs)
+- 🔄 Child portfolio (spider chart)
+
+### **v1.5 Enhanced Features**
+- ⭐ Star "Magic Moments" → auto-draft email to parents
+- 🤖 AI-powered "Next Step" suggestions
+- 🏆 Classroom activity badge (note count/week)
+- 🔔 Silent push if inactive for 10 days
+- 📊 Tag usage heatmap
+- 📤 CSV export for filtered notes
+
+## 🎯 **Success Metrics**
+
+### **v1.0 Targets**
+- ≥ 80% pilot teachers log ≥ 2 notes in Week 2
+- Report generation ≤ 2 minutes
+
+### **v1.5 Targets**
+- ≥ 90% teachers log ≥ 2 notes/week by Week 4
+- <10% unused tags (data hygiene)
+
+## 📋 **Development Guidelines**
+
+### **When Creating New Components**
+1. **ALWAYS** start with mobile-first design (375px width)
+2. **ALWAYS** use MUI components from the theme
+3. **ALWAYS** follow patterns from existing components
+4. **ALWAYS** include proper error handling
+5. **ALWAYS** test voice recording functionality
+6. **ALWAYS** ensure accessibility compliance
+
+### **When Adding Features**
+1. **ALWAYS** check the PRD for feature requirements
+2. **ALWAYS** follow the established data model
+3. **ALWAYS** implement proper access control
+4. **ALWAYS** test on mobile devices
+5. **ALWAYS** maintain the 30-second recording limit
+
+### **Code Quality**
+- **ALWAYS** use meaningful component and variable names
+- **ALWAYS** include proper error boundaries
+- **ALWAYS** handle loading states
+- **ALWAYS** provide user feedback for actions
+- **ALWAYS** follow React best practices
+
+## 🔧 **Environment Setup Commands**
+
+```bash
+# ALWAYS activate conda environment first
+conda activate pep-venv
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## 📚 **Reference Files**
+
+- [PRD](mdc:prd.md) - Product Requirements Document
+- [TODO](mdc:todo.md) - Development task list
+- [MUI Guidelines](mdc:MUI_GUIDELINES.md) - Design system documentation
+- [Firebase Config](mdc:src/firebase.js) - Firebase setup
+- [Theme Configuration](mdc:src/main.jsx) - MUI theme setup
+
+---
+
+**Remember**: This is a mobile-first Montessori observation app. Every decision should prioritize the mobile experience and teacher workflow efficiency.
+description:
+globs:
+alwaysApply: false
+---
+s

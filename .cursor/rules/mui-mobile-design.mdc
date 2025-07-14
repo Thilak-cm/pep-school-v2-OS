@@ -1,0 +1,224 @@
+---
+alwaysApply: true
+---
+
+# MUI Mobile Design Rules
+
+## 📱 **Mobile Container Pattern**
+
+**ALWAYS** use this exact container pattern for every page:
+
+```jsx
+<Box sx={{
+  width: '375px',
+  height: '812px',
+  margin: '40px auto',
+  overflow: 'hidden',
+  backgroundColor: '#f8fafc',
+  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
+}}>
+  {/* Page content */}
+</Box>
+```
+
+## 🎨 **MUI Component Usage**
+
+### **Layout Components**
+```jsx
+// ALWAYS use these for layout
+import { Box, Container, Grid, Paper } from '@mui/material';
+
+// For flexible layouts
+<Box sx={{ display: 'flex', gap: 2, p: 3 }}>
+
+// For page containers
+<Container maxWidth="lg" sx={{ py: 4 }}>
+
+// For responsive grids
+<Grid container spacing={2}>
+  <Grid item xs={12} md={6}>
+```
+
+### **Typography**
+```jsx
+// ALWAYS use semantic variants
+<Typography variant="h4" component="h1">Main Heading</Typography>
+<Typography variant="body1" color="text.secondary">Body text</Typography>
+<Typography variant="caption">Small text</Typography>
+```
+
+### **Buttons**
+```jsx
+// Primary actions
+<Button variant="contained" startIcon={<Add />}>
+  Add Observation
+</Button>
+
+// Secondary actions
+<Button variant="outlined" startIcon={<Save />}>
+  Save Draft
+</Button>
+
+// Text buttons for less important actions
+<Button variant="text" color="error">
+  Delete
+</Button>
+```
+
+### **Cards**
+```jsx
+<Card sx={{ borderRadius: 2 }}>
+  <CardContent>
+    <Typography variant="h6">Card Title</Typography>
+    <Typography variant="body2">Card content</Typography>
+  </CardContent>
+  <CardActions>
+    <Button size="small">Action</Button>
+  </CardActions>
+</Card>
+```
+
+### **Forms**
+```jsx
+// Text inputs
+<TextField
+  fullWidth
+  label="Observation Text"
+  multiline
+  rows={4}
+  placeholder="Enter your observation..."
+/>
+
+// Select dropdowns
+<FormControl fullWidth>
+  <InputLabel>Curriculum Area</InputLabel>
+  <Select value={value} label="Curriculum Area">
+    <MenuItem value="practical-life">Practical Life</MenuItem>
+    <MenuItem value="language">Language</MenuItem>
+  </Select>
+</FormControl>
+```
+
+## 🚫 **What NOT to Do**
+
+### **NEVER use inline styles**
+```jsx
+// ❌ WRONG
+<div style={{ padding: '16px', backgroundColor: 'white' }}>
+
+// ✅ CORRECT
+<Box sx={{ p: 2, backgroundColor: 'white' }}>
+```
+
+### **NEVER exceed 375px width**
+```jsx
+// ❌ WRONG
+<Box sx={{ width: '500px' }}>
+
+// ✅ CORRECT
+<Box sx={{ width: '375px' }}>
+```
+
+### **NEVER use custom CSS classes**
+```jsx
+// ❌ WRONG
+<div className="custom-styles">
+
+// ✅ CORRECT
+<Box sx={{ /* styles here */ }}>
+```
+
+## 📱 **Mobile-First Responsive Patterns**
+
+### **Hide elements on mobile**
+```jsx
+<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>
+  Desktop only text
+</Typography>
+```
+
+### **Stack vertically on mobile**
+```jsx
+<Box sx={{ 
+  flexDirection: { xs: 'column', md: 'row' },
+  gap: { xs: 1, md: 2 }
+}}>
+```
+
+### **Touch-friendly sizing**
+```jsx
+// Minimum 44px for touch targets
+<IconButton sx={{ minWidth: 44, minHeight: 44 }}>
+  <Settings />
+</IconButton>
+```
+
+## 🎯 **Theme Colors**
+
+**ALWAYS** use theme colors instead of hardcoded values:
+
+```jsx
+// ✅ CORRECT
+<Typography color="text.secondary">Secondary text</Typography>
+<Button color="primary">Primary action</Button>
+<Alert severity="error">Error message</Alert>
+
+// ❌ WRONG
+<Typography sx={{ color: '#64748b' }}>Hardcoded color</Typography>
+```
+
+## 🔧 **Accessibility Requirements**
+
+### **Always include aria-labels**
+```jsx
+<IconButton aria-label="Start recording">
+  <Mic />
+</IconButton>
+
+<Button aria-label="Delete observation">
+  <Delete />
+</Button>
+```
+
+### **Use semantic HTML**
+```jsx
+<Typography component="h1" variant="h4">
+  Page Title
+</Typography>
+```
+
+## 📏 **Spacing System**
+
+Use MUI's spacing system (8px base):
+- `1` = 8px
+- `2` = 16px  
+- `3` = 24px
+- `4` = 32px
+
+```jsx
+<Box sx={{ p: 2, m: 1, gap: 2 }}>
+  <Typography sx={{ mb: 2 }}>Content</Typography>
+</Box>
+```
+
+## 🎨 **Icons**
+
+**ALWAYS** use Material Icons from `@mui/icons-material`:
+
+```jsx
+import { Mic, Stop, PlayArrow, Settings, Delete } from '@mui/icons-material';
+
+<IconButton>
+  <Mic />
+</IconButton>
+```
+
+---
+
+**Remember**: Every component must work perfectly on iPhone 13 mini (375×812px) and use MUI components exclusively.
+description:
+globs:
+alwaysApply: false
+---

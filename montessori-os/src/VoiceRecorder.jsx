@@ -1,5 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { transcribeAudio, validateAudioForTranscription } from './speechToText';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  IconButton,
+  Chip,
+  Alert,
+  CircularProgress,
+  Paper,
+  Divider
+} from '@mui/material';
+import {
+  Mic,
+  Stop,
+  PlayArrow,
+  Pause,
+  Refresh,
+  ContentCopy,
+  CheckCircle,
+  Error,
+  Warning
+} from '@mui/icons-material';
 
 const VoiceRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -177,187 +201,201 @@ const VoiceRecorder = () => {
   };
 
   return (
-    <div style={{ 
-      maxWidth: '500px', 
-      width: '100%',
-      backgroundColor: 'white',
-      borderRadius: '16px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #e2e8f0',
-      overflow: 'hidden'
-    }}>
+    <Card
+      sx={{
+        maxWidth: '100%',
+        width: '100%',
+        borderRadius: '16px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e2e8f0',
+        overflow: 'hidden'
+      }}
+    >
       {/* Header */}
-      <div style={{
-        padding: '24px 24px 16px 24px',
-        textAlign: 'center',
-        borderBottom: '1px solid #f1f5f9'
-      }}>
-        <h3 style={{
-          margin: '0 0 8px 0',
-          color: '#1e293b',
-          fontSize: '1.25rem',
-          fontWeight: '600'
-        }}>
+      <CardContent sx={{ pb: 2, textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+        <Typography
+          variant="h6"
+          component="h3"
+          sx={{
+            margin: '0 0 8px 0',
+            color: '#1e293b',
+            fontWeight: '600'
+          }}
+        >
           Voice Recorder
-        </h3>
-        <p style={{
-          margin: 0,
-          color: '#64748b',
-          fontSize: '0.9rem'
-        }}>
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            margin: 0,
+            color: '#64748b',
+            fontSize: '0.9rem'
+          }}
+        >
           Record up to 30 seconds of audio
-        </p>
-      </div>
+        </Typography>
+      </CardContent>
       
       {/* Recording Status */}
-      <div style={{ 
-        padding: '24px',
-        textAlign: 'center',
-        backgroundColor: isRecording ? '#fef3f2' : '#f8fafc'
-      }}>
-        <div style={{ 
-          fontSize: '2rem', 
-          fontWeight: '700',
-          color: isRecording ? '#dc2626' : '#1e293b',
-          marginBottom: '12px',
-          fontFamily: 'monospace'
-        }}>
+      <Box
+        sx={{
+          padding: 3,
+          textAlign: 'center',
+          backgroundColor: isRecording ? '#fef3f2' : '#f8fafc'
+        }}
+      >
+        <Typography
+          variant="h3"
+          sx={{
+            fontSize: '2rem',
+            fontWeight: '700',
+            color: isRecording ? '#dc2626' : '#1e293b',
+            marginBottom: '12px',
+            fontFamily: 'monospace'
+          }}
+        >
           {formatTime(recordingTime)} / {formatTime(MAX_RECORDING_TIME)}
-        </div>
+        </Typography>
         
         {/* Recording Indicator */}
         {isRecording && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            marginBottom: '16px'
-          }}>
-            <div style={{ 
-              width: '12px', 
-              height: '12px', 
-              backgroundColor: '#dc2626',
-              borderRadius: '50%',
-              animation: 'pulse 2s ease-in-out infinite'
-            }}></div>
-            <span style={{
-              color: '#dc2626',
-              fontSize: '0.9rem',
-              fontWeight: '500'
-            }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1,
+              marginBottom: 2
+            }}
+          >
+            <Box
+              sx={{
+                width: '12px',
+                height: '12px',
+                backgroundColor: '#dc2626',
+                borderRadius: '50%',
+                animation: 'pulse 2s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': {
+                    opacity: 1,
+                    transform: 'scale(1)',
+                  },
+                  '50%': {
+                    opacity: 0.5,
+                    transform: 'scale(1.1)',
+                  },
+                },
+              }}
+            />
+            <Typography
+              sx={{
+                color: '#dc2626',
+                fontSize: '0.9rem',
+                fontWeight: '500'
+              }}
+            >
               Recording...
-            </span>
-          </div>
+            </Typography>
+          </Box>
         )}
 
         {/* Recording Controls */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center',
-          gap: '12px'
-        }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 1.5
+          }}
+        >
           {!isRecording ? (
-            <button 
+            <Button
+              variant="contained"
               onClick={startRecording}
-              style={{
-                padding: '16px 32px',
+              startIcon={<Mic />}
+              sx={{
                 backgroundColor: '#4f46e5',
                 color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
+                padding: '16px 32px',
                 fontSize: '1rem',
                 fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#4338ca';
-                e.target.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#4f46e5';
-                e.target.style.transform = 'translateY(0)';
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#4338ca',
+                  transform: 'translateY(-1px)',
+                },
+                transition: 'all 0.2s ease'
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2C13.1 2 14 2.9 14 4V12C14 13.1 13.1 14 12 14C10.9 14 10 13.1 10 12V4C10 2.9 10.9 2 12 2Z" fill="currentColor"/>
-                <path d="M19 10V12C19 15.87 15.87 19 12 19C8.13 19 5 15.87 5 12V10H7V12C7 14.76 9.24 17 12 17C14.76 17 17 14.76 17 12V10H19Z" fill="currentColor"/>
-                <path d="M10 21H14V23H10V21Z" fill="currentColor"/>
-              </svg>
               Start Recording
-            </button>
+            </Button>
           ) : (
-            <button 
+            <Button
+              variant="contained"
               onClick={stopRecording}
-              style={{
-                padding: '16px 32px',
+              startIcon={<Stop />}
+              sx={{
                 backgroundColor: '#dc2626',
                 color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
+                padding: '16px 32px',
                 fontSize: '1rem',
                 fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#b91c1c';
-                e.target.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#dc2626';
-                e.target.style.transform = 'translateY(0)';
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#b91c1c',
+                  transform: 'translateY(-1px)',
+                },
+                transition: 'all 0.2s ease'
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
-              </svg>
               Stop Recording
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Audio Playback */}
       {audioUrl && (
-        <div style={{ 
-          padding: '24px',
-          backgroundColor: '#f8fafc',
-          borderTop: '1px solid #e2e8f0'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '16px'
-          }}>
-            <h4 style={{
-              margin: 0,
-              color: '#1e293b',
-              fontSize: '1rem',
-              fontWeight: '600'
-            }}>
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f8fafc',
+            borderTop: '1px solid #e2e8f0'
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 2
+            }}
+          >
+            <Typography
+              variant="h6"
+              component="h4"
+              sx={{
+                margin: 0,
+                color: '#1e293b',
+                fontSize: '1rem',
+                fontWeight: '600'
+              }}
+            >
               Recorded Audio
-            </h4>
-            <span style={{
-              color: '#64748b',
-              fontSize: '0.875rem',
-              backgroundColor: '#e2e8f0',
-              padding: '2px 8px',
-              borderRadius: '4px'
-            }}>
-              {audioBlob ? (audioBlob.size / 1024).toFixed(1) : 0} KB
-            </span>
-          </div>
+            </Typography>
+            <Chip
+              label={`${audioBlob ? (audioBlob.size / 1024).toFixed(1) : 0} KB`}
+              size="small"
+              sx={{
+                backgroundColor: '#e2e8f0',
+                color: '#64748b',
+                fontSize: '0.875rem'
+              }}
+            />
+          </Box>
           
           <audio 
             ref={audioRef}
@@ -371,286 +409,230 @@ const VoiceRecorder = () => {
             controls
           />
           
-          <div style={{ 
-            display: 'flex', 
-            gap: '8px', 
-            justifyContent: 'center',
-            flexWrap: 'wrap'
-          }}>
-            <button 
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1,
+              justifyContent: 'center',
+              flexWrap: 'wrap'
+            }}
+          >
+            <Button
+              variant="contained"
               onClick={playAudio}
               disabled={isPlaying}
-              style={{
-                padding: '8px 16px',
+              startIcon={<PlayArrow />}
+              size="small"
+              sx={{
                 backgroundColor: isPlaying ? '#e2e8f0' : '#059669',
                 color: isPlaying ? '#64748b' : 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: isPlaying ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s ease'
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: isPlaying ? '#e2e8f0' : '#047857',
+                },
+                '&:disabled': {
+                  backgroundColor: '#e2e8f0',
+                  color: '#64748b'
+                }
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
-              </svg>
               Play
-            </button>
+            </Button>
             
-            <button 
+            <Button
+              variant="contained"
               onClick={stopAudio}
               disabled={!isPlaying}
-              style={{
-                padding: '8px 16px',
+              startIcon={<Pause />}
+              size="small"
+              sx={{
                 backgroundColor: !isPlaying ? '#e2e8f0' : '#f59e0b',
                 color: !isPlaying ? '#64748b' : 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: !isPlaying ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s ease'
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: !isPlaying ? '#e2e8f0' : '#d97706',
+                },
+                '&:disabled': {
+                  backgroundColor: '#e2e8f0',
+                  color: '#64748b'
+                }
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
-              </svg>
               Stop
-            </button>
+            </Button>
             
-            <button 
+            <Button
+              variant="contained"
               onClick={resetRecording}
-              style={{
-                padding: '8px 16px',
+              startIcon={<Refresh />}
+              size="small"
+              sx={{
                 backgroundColor: '#64748b',
                 color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#475569';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = '#64748b';
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#475569',
+                }
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M3 6H21V8H3V6Z" fill="currentColor"/>
-                <path d="M8 11H16V13H8V11Z" fill="currentColor"/>
-                <path d="M8 16H13V18H8V16Z" fill="currentColor"/>
-              </svg>
               Reset
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Box>
+        </Box>
       )}
 
       {/* Transcription Section */}
       {(audioUrl || isTranscribing || transcription || transcriptionError) && (
-        <div style={{ 
-          padding: '24px',
-          backgroundColor: '#f0f9ff',
-          borderTop: '1px solid #e2e8f0'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '16px'
-          }}>
-            <h4 style={{
-              margin: 0,
-              color: '#1e293b',
-              fontSize: '1rem',
-              fontWeight: '600',
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f0f9ff',
+            borderTop: '1px solid #e2e8f0'
+          }}
+        >
+          <Box
+            sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Transcription
-            </h4>
-            {isTranscribing && (
-              <div style={{
+              justifyContent: 'space-between',
+              marginBottom: 2
+            }}
+          >
+            <Typography
+              variant="h6"
+              component="h4"
+              sx={{
+                margin: 0,
+                color: '#1e293b',
+                fontSize: '1rem',
+                fontWeight: '600',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                color: '#059669',
-                fontSize: '0.875rem'
-              }}>
-                <div style={{
-                  width: '12px',
-                  height: '12px',
-                  border: '2px solid #059669',
-                  borderTop: '2px solid transparent',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }}></div>
+                gap: 1
+              }}
+            >
+              <CheckCircle sx={{ fontSize: 16 }} />
+              Transcription
+            </Typography>
+            {isTranscribing && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  color: '#059669',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <CircularProgress size={12} sx={{ color: '#059669' }} />
                 Processing...
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
 
           {/* Transcription Content */}
           {isTranscribing && (
-            <div style={{
-              padding: '16px',
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              textAlign: 'center',
-              color: '#64748b'
-            }}>
+            <Paper
+              sx={{
+                padding: 2,
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                textAlign: 'center',
+                color: '#64748b'
+              }}
+            >
               Converting speech to text...
-            </div>
+            </Paper>
           )}
 
           {transcriptionError && (
-            <div style={{
-              padding: '16px',
-              backgroundColor: '#fef2f2',
-              borderRadius: '8px',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
-              fontSize: '0.875rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Error
-              </div>
+            <Alert
+              severity="error"
+              icon={<Error />}
+              sx={{
+                marginBottom: 2,
+                '& .MuiAlert-message': {
+                  fontSize: '0.875rem'
+                }
+              }}
+            >
               {transcriptionError}
-            </div>
+            </Alert>
           )}
 
           {transcription && !isTranscribing && !transcriptionError && (
-            <div style={{
-              padding: '16px',
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              marginBottom: '16px'
-            }}>
-              <div style={{
-                color: '#1e293b',
-                fontSize: '0.875rem',
-                lineHeight: '1.6',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
+            <Paper
+              sx={{
+                padding: 2,
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                marginBottom: 2
+              }}
+            >
+              <Typography
+                sx={{
+                  color: '#1e293b',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.6',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
                 {transcription}
-              </div>
-            </div>
+              </Typography>
+            </Paper>
           )}
 
           {/* Transcription Actions */}
           {transcription && !isTranscribing && (
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              justifyContent: 'center',
-              flexWrap: 'wrap'
-            }}>
-              <button 
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1,
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}
+            >
+              <Button
+                variant="contained"
                 onClick={() => navigator.clipboard.writeText(transcription)}
-                style={{
-                  padding: '8px 16px',
+                startIcon={<ContentCopy />}
+                size="small"
+                sx={{
                   backgroundColor: '#4f46e5',
                   color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#4338ca';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#4f46e5';
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                  }
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M8 4V2C8 1.44772 8.44772 1 9 1H15C15.5523 1 16 1.44772 16 2V4M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
                 Copy Text
-              </button>
+              </Button>
               
-              <button 
+              <Button
+                variant="contained"
                 onClick={() => handleTranscription(audioBlob)}
-                style={{
-                  padding: '8px 16px',
+                startIcon={<Refresh />}
+                size="small"
+                sx={{
                   backgroundColor: '#059669',
                   color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#047857';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#059669';
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#047857',
+                  }
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 4V2C4 1.44772 4.44772 1 5 1H19C19.5523 1 20 1.44772 20 2V4M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M16 2V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M8 2V4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
                 Retry
-              </button>
-            </div>
+              </Button>
+            </Box>
           )}
-        </div>
+        </Box>
       )}
-
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { 
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 0.5;
-            transform: scale(1.1);
-          }
-        }
-        
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+    </Card>
   );
 };
 
