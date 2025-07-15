@@ -15,9 +15,9 @@
 - [ ] **2. Proof-of-concept** - Capture 30s audio, transcribe to Firestore, render in timeline
   - [x] Set up basic React + Firebase project
   - [x] Implement voice recording (30s limit)
-  - [ ] Integrate Google Speech-to-Text API
-  - [ ] Store transcription in Firestore
-  - [ ] Render audio transcription in timeline view
+  - [x] Integrate Google Speech-to-Text API (complete and tested)
+  - [ ] Store transcription in Firestore (next step)
+  - [ ] Render audio transcription in timeline view (next step)
 
 - [ ] **3. Implement** - Classrooms + Students CRUD with sample data
   - [x] Design Firestore data structure for classrooms & students
