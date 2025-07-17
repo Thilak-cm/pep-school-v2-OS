@@ -13,7 +13,7 @@ import { ArrowBack } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-function StudentList({ classroom, onBack }) {
+function StudentList({ classroom, onBack, onSelectStudent }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,7 +72,7 @@ function StudentList({ classroom, onBack }) {
       ) : (
         <List>
           {students.map((stu) => (
-            <ListItem key={stu.id} aria-label={stu.name}>
+            <ListItem key={stu.id} aria-label={stu.name} button onClick={() => onSelectStudent(stu)}>
               <ListItemText
                 primary={stu.name}
                 secondary={`UID: ${stu.uid || stu.id} • DOB: ${formatDob(stu.dob)}`}

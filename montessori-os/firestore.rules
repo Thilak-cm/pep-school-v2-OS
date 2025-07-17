@@ -1,1 +1,26 @@
- 
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Read access for authenticated users (teachers & admins)
+    match /observations/{observationId} {
+      allow read: if request.auth != null;
+
+      // Create voice/text observation
+      allow create: if request.auth != null
+        && request.resource.data.student_uid is string
+        && request.resource.data.type in ['voice', 'text']
+        && request.resource.data.timestamp == request.time;
+
+      // Author can edit/delete within 24h
+      allow update, delete: if request.auth != null
+        && request.auth.uid == resource.data.staff_uid
+        && request.time < resource.data.timestamp + duration.value(24, 'h');
+    }
+
+    // Allow teachers / admins to read student & classroom metadata
+    match /{document=**} {
+      allow read: if request.auth != null;
+    }
+  }
+} 

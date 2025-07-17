@@ -25,7 +25,7 @@ import {
   Warning
 } from '@mui/icons-material';
 
-const VoiceRecorder = () => {
+const VoiceRecorder = ({ onSave }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -168,6 +168,12 @@ const VoiceRecorder = () => {
     setIsPlaying(false);
     setTranscription('');
     setTranscriptionError('');
+  };
+
+  const handleSave = () => {
+    if (onSave && audioBlob) {
+      onSave(audioBlob, recordingTime);
+    }
   };
 
   const handleTranscription = async (audioBlob) => {
@@ -478,6 +484,17 @@ const VoiceRecorder = () => {
               Reset
             </Button>
           </Box>
+
+          {audioBlob && (
+            <Button
+              fullWidth
+              variant="contained"
+              sx={{ mt: 2, textTransform: 'none' }}
+              onClick={handleSave}
+            >
+              Save Voice Note
+            </Button>
+          )}
         </Box>
       )}
 
