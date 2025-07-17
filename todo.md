@@ -5,15 +5,15 @@
 ### Focus: Build Complete Teacher & Admin Flows (Weeks 1-3)
 - [ ] **1. Teacher Flow Implementation** - Complete end-to-end teacher experience
   - [x] Google sign-in (already implemented)
-  - [ ] Classroom list view
-  - [ ] Student list view (filtered by classroom)
+  - [x] Classroom list view
+  - [x] Student list view (filtered by classroom)
   - [ ] Student timeline view (reverse chronological)
   - [ ] Add note functionality (voice ≤5 min OR text input)
   - [ ] Tag picker component (curriculum areas)
   - [ ] Save observation to Firestore
 
 - [ ] **2. Admin Flow Implementation** - Complete end-to-end admin experience
-  - [ ] Admin panel access (role-based routing)
+  - [x] Admin panel access (role-based routing)
   - [ ] Bulk upload interface (Google Sheets integration)
   - [ ] Report generation (date range → Google Doc)
   - [ ] Search & filter notes across school (tag/date/teacher)
@@ -23,7 +23,7 @@
   - [x] Implement voice recording (30s limit)
   - [x] Integrate Google Speech-to-Text API (complete and tested)
   - [ ] Store observations in Firestore with proper structure
-  - [ ] Implement role-based authentication (teacher vs admin)
+  - [x] Implement role-based authentication (teacher vs admin)
   - [ ] Add sample data for testing flows
 
 ---

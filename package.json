@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "firebase-admin": "^13.4.0",
-    "googleapis": "^152.0.0"
-  }
-}
