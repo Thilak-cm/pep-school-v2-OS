@@ -1,29 +1,30 @@
 # Montessori Observation Hub - Development Todo List
 
-## 🎯 **IMMEDIATE PRIORITY - Next 3 Tasks**
+## 🎯 **IMMEDIATE PRIORITY - Complete User Flows**
 
-### Intern Focus (Weeks 1-3)
-- [ ] **1. Wireframes** - Mock 7 core screens in Figma & review
-  - [ ] Login/Dashboard screen
-  - [ ] Observation capture screen (voice + text)
-  - [ ] Student timeline screen
-  - [ ] Tag picker screen
-  - [ ] Admin dashboard screen
-  - [ ] Report generation screen
-  - [ ] Student portfolio screen
+### Focus: Build Complete Teacher & Admin Flows (Weeks 1-3)
+- [ ] **1. Teacher Flow Implementation** - Complete end-to-end teacher experience
+  - [x] Google sign-in (already implemented)
+  - [ ] Classroom list view
+  - [ ] Student list view (filtered by classroom)
+  - [ ] Student timeline view (reverse chronological)
+  - [ ] Add note functionality (voice ≤5 min OR text input)
+  - [ ] Tag picker component (curriculum areas)
+  - [ ] Save observation to Firestore
 
-- [ ] **2. Proof-of-concept** - Capture 30s audio, transcribe to Firestore, render in timeline
+- [ ] **2. Admin Flow Implementation** - Complete end-to-end admin experience
+  - [ ] Admin panel access (role-based routing)
+  - [ ] Bulk upload interface (Google Sheets integration)
+  - [ ] Report generation (date range → Google Doc)
+  - [ ] Search & filter notes across school (tag/date/teacher)
+
+- [ ] **3. Core Infrastructure** - Foundation for both flows
   - [x] Set up basic React + Firebase project
   - [x] Implement voice recording (30s limit)
   - [x] Integrate Google Speech-to-Text API (complete and tested)
-  - [ ] Store transcription in Firestore (next step)
-  - [ ] Render audio transcription in timeline view (next step)
-
-- [ ] **3. Implement** - Classrooms + Students CRUD with sample data
-  - [x] Design Firestore data structure for classrooms & students
-  - [x] Build Firestore collections and add sample/seed data for all core collections
-  - [ ] Build CRUD operations for Classrooms
-  - [ ] Test data persistence and retrieval
+  - [ ] Store observations in Firestore with proper structure
+  - [ ] Implement role-based authentication (teacher vs admin)
+  - [ ] Add sample data for testing flows
 
 ---
 
@@ -34,7 +35,7 @@
 - [x] Set up Firebase project (Auth, Firestore, Cloud Functions)
 - [x] Configure Google SSO authentication
 - [x] Set up project repository with proper structure
-- [ ] Configure environment variables and secrets
+- [x] Configure environment variables and secrets
 - [x] Set up development and production environments
 
 ### Core Data Models
@@ -153,21 +154,12 @@
 
 ## 🎨 **Design & UX Tasks**
 
-### Mockups & Design
-- [ ] Create 7 core screen mockups in Figma:
-  - [ ] Login/Dashboard screen
-  - [ ] Observation capture screen
-  - [ ] Student timeline screen
-  - [ ] Tag picker screen
-  - [ ] Admin dashboard screen
-  - [ ] Report generation screen
-  - [ ] Student portfolio screen
-
-### Mobile-First Design
-- [ ] Ensure responsive design for mobile devices
-- [ ] Optimize voice capture UX for mobile
-- [ ] Design intuitive navigation flow
-- [ ] Create loading states and error handling
+### User Flow Implementation
+- [ ] **Teacher Flow**: Google sign-in → Classroom list → Student list → Student timeline → Add note (voice/text) → Pick tags → Save
+- [ ] **Admin Flow**: Google sign-in → Admin panel → Bulk upload (Google Sheets) → Generate report (date range → Google Doc) → Search & filter notes
+- [ ] **Mobile-First Design**: Ensure all flows work perfectly on iPhone 13 mini (375×812px)
+- [ ] **Navigation**: Intuitive flow between screens with proper loading states
+- [ ] **Error Handling**: User-friendly error messages and recovery flows
 
 ---
 

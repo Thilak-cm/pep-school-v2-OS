@@ -54,7 +54,7 @@ function App() {
             height: '812px',
             boxShadow: '0 0 24px rgba(0,0,0,0.10)',
             borderRadius: '32px',
-            overflow: 'scroll',
+            overflow: 'hidden',
             backgroundColor: '#f8fafc',
             display: 'flex',
             flexDirection: 'column',
@@ -70,7 +70,7 @@ function App() {
               gap: '20px'
             }}
           >
-            <CircularProgress 
+            <CircularProgress
               size={40}
               sx={{ 
                 color: '#4f46e5',
@@ -94,7 +94,7 @@ function App() {
             height: '812px',
             boxShadow: '0 0 24px rgba(0,0,0,0.10)',
             borderRadius: '32px',
-            overflow: 'scroll',
+            overflow: 'hidden',
             backgroundColor: '#f8fafc',
             display: 'flex',
             flexDirection: 'column',
@@ -167,7 +167,7 @@ function App() {
             backgroundColor: '#f8fafc',
             boxShadow: '0 0 24px rgba(0,0,0,0.10)',
             borderRadius: '32px',
-            overflow: 'scroll',
+            overflow: 'auto',
             display: 'flex',
             flexDirection: 'column',
           }}
