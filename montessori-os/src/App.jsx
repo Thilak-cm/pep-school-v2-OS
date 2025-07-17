@@ -1,22 +1,27 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import SignIn from "./SignIn";
-import VoiceRecorder from "./VoiceRecorder";
 import AppHeader from "./AppHeader";
+import AdminPanel from "./components/AdminPanel";
+import ClassroomList from "./components/ClassroomList";
+import StudentList from "./components/StudentList";
+import { db } from "./firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { 
   Box, 
   Container, 
   Typography, 
   CircularProgress, 
-  Paper,
-  Card,
-  CardContent
+  Card
 } from "@mui/material";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState(null); // 'admin' | 'teacher'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList'
+  const [selectedClassroom, setSelectedClassroom] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -26,6 +31,34 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const fetchRole = async () => {
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', user.email));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const userDoc = qSnap.docs[0].data();
+          setRole(userDoc.type);
+          if (userDoc.type === 'admin') {
+            setScreen('adminPanel');
+          } else {
+            setScreen('teacher'); // placeholder for future teacher flow
+          }
+        } else {
+          // Fallback if no user profile
+          setRole('teacher');
+          setScreen('teacher');
+        }
+      } catch (err) {
+        console.error('Error fetching user role', err);
+        setRole('teacher');
+        setScreen('teacher');
+      }
+    };
+    fetchRole();
+  }, [user]);
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -33,6 +66,13 @@ function App() {
       console.error("Error signing out:", error);
     }
   };
+
+  // Determine page title
+  let pageTitle = '';
+  if (screen === 'adminPanel') pageTitle = 'Admin Panel';
+  else if (screen === 'classroomList') pageTitle = 'All Classrooms';
+  else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
+  else if (screen === 'teacher') pageTitle = 'Teacher Home';
 
   // Centering container for all app states
   return (
@@ -173,51 +213,40 @@ function App() {
           }}
         >
           {/* Header */}
-          <AppHeader user={user} onSignOut={handleSignOut} />
+          <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
 
           {/* Main Content */}
-          <Container maxWidth={false} sx={{ py: 3, px: 2, maxWidth: '375px' }}>
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3
-              }}
-            >
-              {/* Welcome Section */}
-              <Box sx={{ textAlign: 'center', marginBottom: '20px' }}>
-                <Typography
-                  variant="h4"
-                  component="h2"
-                  sx={{
-                    color: '#1e293b',
-                    fontSize: '1.875rem',
-                    fontWeight: '600',
-                    margin: '0 0 8px 0'
-                  }}
-                >
-                  Observation Hub
-                </Typography>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: '#64748b',
-                    fontSize: '1.1rem',
-                    margin: 0,
-                    lineHeight: '1.6'
-                  }}
-                >
-                  Record voice notes up to 30 seconds for easy classroom documentation
-                </Typography>
-              </Box>
+          <Container maxWidth={false} sx={{ py: 3, px: 2, maxWidth: '375px', flexGrow: 1 }}>
+            {screen === 'adminPanel' && (
+              <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
+            )}
 
-              {/* Voice Recorder - Now styled better */}
-              <VoiceRecorder />
-              
-              {/* Quick Stats or Tips */}
-              
-            </Box>
+            {screen === 'classroomList' && (
+              <ClassroomList
+                onBack={() => setScreen('adminPanel')}
+                onSelectClassroom={(cls) => {
+                  setSelectedClassroom(cls);
+                  setScreen('studentList');
+                }}
+              />
+            )}
+
+            {screen === 'studentList' && (
+              <StudentList
+                classroom={selectedClassroom}
+                onBack={() => setScreen('classroomList')}
+              />
+            )}
+
+            {screen === 'teacher' && (
+              <Typography variant="body1">Teacher view coming soon</Typography>
+            )}
+
+            {screen === 'loading' && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+              </Box>
+            )}
           </Container>
         </Box>
       )}

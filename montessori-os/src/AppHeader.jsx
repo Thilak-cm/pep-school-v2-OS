@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import { Settings, Logout } from "@mui/icons-material";
 
-function AppHeader({ user, onSignOut }) {
+function AppHeader({ user, onSignOut, title = '' }) {
   const [anchorEl, setAnchorEl] = useState(null);
 
   useEffect(() => {
@@ -44,7 +44,7 @@ function AppHeader({ user, onSignOut }) {
     >
       <Container maxWidth={false} sx={{ maxWidth: '100%' }}>
         <Toolbar sx={{ px: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, gap: 1 }}>
             <Box
               component="img"
               src="/pep-logo.png"
@@ -56,44 +56,20 @@ function AppHeader({ user, onSignOut }) {
               }}
             />
             <Typography
-              variant="h5"
+              variant="h6"
               component="h1"
               sx={{
                 color: '#1e293b',
                 fontWeight: 600,
-                display: { xs: 'none', sm: 'block' }
+                ml: 1
               }}
             >
+              {title}
             </Typography>
           </Box>
 
-          {/* User avatar and settings */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Avatar
-                sx={{
-                  bgcolor: '#4f46e5',
-                  width: 32,
-                  height: 32,
-                  fontSize: '0.75rem',
-                  fontWeight: 600
-                }}
-              >
-                {user.displayName?.charAt(0) || 'U'}
-              </Avatar>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#64748b',
-                  fontWeight: 500,
-                  display: { xs: 'none', sm: 'block' }
-                }}
-              >
-                {user.displayName}
-              </Typography>
-            </Box>
-
-            {/* Settings Icon */}
+          {/* Settings Icon */}
+          <Box>
             <IconButton
               onClick={e => setAnchorEl(e.currentTarget)}
               sx={{
@@ -106,8 +82,7 @@ function AppHeader({ user, onSignOut }) {
             >
               <Settings />
             </IconButton>
-
-            {/* Dropdown Menu */}
+          {/* Dropdown Menu */}
             <Menu
               open={Boolean(anchorEl)}
               anchorEl={anchorEl}
