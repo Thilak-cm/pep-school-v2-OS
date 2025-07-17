@@ -24,7 +24,7 @@
   - [x] Integrate Google Speech-to-Text API (complete and tested)
   - [ ] Store observations in Firestore with proper structure
   - [x] Implement role-based authentication (teacher vs admin)
-  - [ ] Add sample data for testing flows
+  - [x] Add sample data for testing flows
 
 ---
 
