@@ -7,10 +7,10 @@
   - [x] Google sign-in (already implemented)
   - [x] Classroom list view
   - [x] Student list view (filtered by classroom)
-  - [ ] Student timeline view (reverse chronological)
-  - [ ] Add note functionality (voice ≤5 min OR text input)
+  - [x] Student timeline view (reverse chronological)
+  - [x] Add note functionality (voice ≤5 min OR text input)
   - [ ] Tag picker component (curriculum areas)
-  - [ ] Save observation to Firestore
+  - [x] Save observation to Firestore
 
 - [ ] **2. Admin Flow Implementation** - Complete end-to-end admin experience
   - [x] Admin panel access (role-based routing)
@@ -22,7 +22,7 @@
   - [x] Set up basic React + Firebase project
   - [x] Implement voice recording (30s limit)
   - [x] Integrate Google Speech-to-Text API (complete and tested)
-  - [ ] Store observations in Firestore with proper structure
+  - [x] Store observations in Firestore with proper structure
   - [x] Implement role-based authentication (teacher vs admin)
   - [x] Add sample data for testing flows
 
@@ -46,7 +46,7 @@
   - [x] `attendance` collection
   - [x] `assessments` collection
   - [x] `tags` collection
-- [ ] Implement Firestore security rules for access control
+- [x] Implement Firestore security rules for access control
 - [x] Create sample/seed data for development
 
 ### Basic CRUD Operations
@@ -59,11 +59,11 @@
 ## 👩‍🏫 **Phase 2: Core Teacher Features** (Weeks 3-5)
 
 ### Voice & Text Capture
-- [ ] Implement voice recording functionality (≤ 5 min)
-- [ ] Integrate Google Speech-to-Text API
-- [ ] Create text input alternative for observations
-- [ ] Build 30s audio capture POC
-- [ ] Test transcription accuracy and store in Firestore
+- [x] Implement voice recording functionality (≤ 5 min)
+- [x] Integrate Google Speech-to-Text API
+- [x] Create text input alternative for observations
+- [x] Build 30s audio capture POC
+- [x] Test transcription accuracy and store in Firestore
 
 ### Tagging System
 - [ ] Create tag picker component (curriculum areas)
@@ -78,12 +78,12 @@
 - [ ] Add search/filter functionality for students
 
 ### Timeline & Viewing
-- [ ] Create student timeline view (reverse chronological)
+- [x] Create student timeline view (reverse chronological)
 - [ ] Implement filter by tag functionality
 - [ ] Implement filter by date range
 - [ ] Add observation editing (within 24h window)
 - [ ] Add observation deletion (within 24h window)
-- [ ] Render timeline with transcribed observations
+- [x] Render timeline with transcribed observations
 
 ---
 

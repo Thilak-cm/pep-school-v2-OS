@@ -4,9 +4,8 @@ import {
   Box,
   Typography,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
+  Card,
+  CardContent,
   CircularProgress,
 } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
@@ -70,21 +69,35 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
           <CircularProgress size={32} />
         </Box>
       ) : (
-        <List>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {students.map((stu) => (
-            <ListItem key={stu.id} aria-label={stu.name} button onClick={() => onSelectStudent(stu)}>
-              <ListItemText
-                primary={stu.name}
-                secondary={`UID: ${stu.uid || stu.id} • DOB: ${formatDob(stu.dob)}`}
-              />
-            </ListItem>
+            <Card
+              key={stu.id}
+              onClick={() => onSelectStudent(stu)}
+              sx={{
+                cursor: 'pointer',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                },
+              }}
+              aria-label={`Open student ${stu.name}`}
+            >
+              <CardContent>
+                <Typography variant="h6" component="h3">
+                  {stu.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  UID: {stu.uid || stu.id} • DOB: {formatDob(stu.dob)}
+                </Typography>
+              </CardContent>
+            </Card>
           ))}
           {students.length === 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               No students found in this classroom.
             </Typography>
           )}
-        </List>
+        </Box>
       )}
     </Box>
   );
