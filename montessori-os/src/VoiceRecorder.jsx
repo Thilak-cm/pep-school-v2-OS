@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { transcribeAudio, validateAudioForTranscription } from './speechToText';
+import { db } from './firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import {
   Box,
   Card,
@@ -24,8 +26,11 @@ import {
   CheckCircle,
   Error,
   Warning,
-  Close
+  Close,
+  InfoOutlined
 } from '@mui/icons-material';
+import Popover from '@mui/material/Popover';
+import Checkbox from '@mui/material/Checkbox';
 
 const VoiceRecorder = ({ onSave }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -36,6 +41,12 @@ const VoiceRecorder = ({ onSave }) => {
   const [transcription, setTranscription] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState('');
+
+  // Tag picker state
+  const [tags, setTags] = useState([]); // [{id, name, description}]
+  const [selectedTags, setSelectedTags] = useState([]); // [id]
+  const [infoAnchorEl, setInfoAnchorEl] = useState(null); // anchor for popover
+  const [infoTag, setInfoTag] = useState(null); // tag object
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
@@ -51,6 +62,20 @@ const VoiceRecorder = ({ onSave }) => {
         clearInterval(timerRef.current);
       }
     };
+  }, []);
+
+  // Fetch tags from Firestore on mount
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const qSnap = await getDocs(collection(db, 'tags'));
+        const tagList = qSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setTags(tagList);
+      } catch (err) {
+        console.error('Error fetching tags', err);
+      }
+    };
+    fetchTags();
   }, []);
 
   const startRecording = async () => {
@@ -172,9 +197,23 @@ const VoiceRecorder = ({ onSave }) => {
     setTranscriptionError('');
   };
 
+  const handleTagToggle = (tagId) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
+  const handleInfoClick = (event, tag) => {
+    setInfoAnchorEl(event.currentTarget);
+    setInfoTag(tag);
+  };
+  const handleInfoClose = () => {
+    setInfoAnchorEl(null);
+    setInfoTag(null);
+  };
+
   const handleSave = () => {
     if (onSave && audioBlob) {
-      onSave(audioBlob, recordingTime);
+      onSave(audioBlob, recordingTime, selectedTags); // pass tags
     }
   };
 
@@ -647,6 +686,57 @@ const VoiceRecorder = ({ onSave }) => {
               >
                 Retry
               </Button>
+            </Box>
+          )}
+
+          {/* Tag Picker Section */}
+          {transcription && !isTranscribing && !transcriptionError && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                Pick tags <span style={{ color: '#64748b', fontWeight: 400 }}>(Recommended)</span>
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {tags.map((tag) => (
+                  <Box key={tag.id} sx={{ display: 'flex', alignItems: 'center', mr: 1, mb: 1 }}>
+                    <Checkbox
+                      checked={selectedTags.includes(tag.id)}
+                      onChange={() => handleTagToggle(tag.id)}
+                      color="primary"
+                      inputProps={{ 'aria-label': `Select tag ${tag.name}` }}
+                      sx={{ p: 0, mr: 0.5 }}
+                    />
+                    <Chip
+                      label={tag.name}
+                      onClick={() => handleTagToggle(tag.id)}
+                      color={selectedTags.includes(tag.id) ? 'primary' : 'default'}
+                      sx={{ cursor: 'pointer', mr: 0.5 }}
+                    />
+                    <IconButton
+                      size="small"
+                      aria-label={`Info about ${tag.name}`}
+                      onClick={(e) => handleInfoClick(e, tag)}
+                      sx={{ ml: 0.5 }}
+                    >
+                      <InfoOutlined fontSize="small" />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Box>
+              <Popover
+                open={Boolean(infoAnchorEl)}
+                anchorEl={infoAnchorEl}
+                onClose={handleInfoClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                PaperProps={{ sx: { p: 2, maxWidth: 260 } }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  {infoTag?.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {infoTag?.description}
+                </Typography>
+              </Popover>
             </Box>
           )}
         </Box>
