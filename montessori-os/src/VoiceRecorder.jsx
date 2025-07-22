@@ -11,7 +11,8 @@ import {
   Alert,
   CircularProgress,
   Paper,
-  Divider
+  Divider,
+  Dialog
 } from '@mui/material';
 import {
   Mic,
@@ -22,7 +23,8 @@ import {
   ContentCopy,
   CheckCircle,
   Error,
-  Warning
+  Warning,
+  Close
 } from '@mui/icons-material';
 
 const VoiceRecorder = ({ onSave }) => {
@@ -653,4 +655,52 @@ const VoiceRecorder = ({ onSave }) => {
   );
 };
 
-export default VoiceRecorder; 
+const VoiceRecorderWrapper = (props) => {
+  // If dialog prop is true, render inside a Dialog
+  if (props.dialog) {
+    const { open, onClose, onSave, DialogProps = {}, ...rest } = props;
+    const handleSave = (blob, duration) => {
+      if (onSave) onSave(blob, duration);
+      if (onClose) onClose();
+    };
+    const showCloseButton = DialogProps.showCloseButton;
+    const closeButtonSx = DialogProps.closeButtonSx || { position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } };
+    const closeIconSx = DialogProps.closeIconSx || { fontSize: 28 };
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{
+          sx: {
+            maxWidth: 343,
+            width: 'calc(100% - 32px)',
+            mx: 'auto',
+            borderRadius: 3,
+            ...((DialogProps.PaperProps && DialogProps.PaperProps.sx) || {})
+          },
+          ...((DialogProps && DialogProps.PaperProps) || {})
+        }}
+        {...DialogProps}
+      >
+        <Box sx={{ position: 'relative', pt: 5 }}>
+          {showCloseButton && (
+            <IconButton
+              aria-label="Close"
+              onClick={onClose}
+              sx={closeButtonSx}
+            >
+              <Close sx={closeIconSx} />
+            </IconButton>
+          )}
+          <VoiceRecorder onSave={handleSave} {...rest} />
+        </Box>
+      </Dialog>
+    );
+  }
+  // Otherwise, render as normal
+  return <VoiceRecorder {...props} />;
+};
+
+export default VoiceRecorderWrapper; 

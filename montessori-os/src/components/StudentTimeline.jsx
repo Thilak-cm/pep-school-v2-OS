@@ -8,19 +8,21 @@ import {
   ListItem,
   ListItemText,
   CircularProgress,
-  Fab
+  Fab,
+  Dialog
 } from '@mui/material';
-import { ArrowBack, Mic } from '@mui/icons-material';
+import { ArrowBack, Add, Image, TextFields, KeyboardVoice, Close } from '@mui/icons-material';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { storage } from '../firebase';
 import { ref, uploadBytes } from 'firebase/storage';
-import VoiceRecorderDialog from './VoiceRecorderDialog';
+import VoiceRecorder from '../VoiceRecorder';
 
 function StudentTimeline({ student, onBack }) {
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [noteTypeDialogOpen, setNoteTypeDialogOpen] = useState(false);
+  const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!student) return;
@@ -89,16 +91,95 @@ function StudentTimeline({ student, onBack }) {
         </List>
       )}
 
-      {/* Voice note FAB (functionality implemented in next tasks) */}
+      {/* Add Note FAB */}
       <Fab
         color="primary"
-        sx={{ position: 'fixed', bottom: 80, right: 'calc(50% - 28px)' }}
-        aria-label="Add voice note"
-        onClick={() => setDialogOpen(true)}
+        sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1200 }}
+        aria-label="Add note"
+        onClick={() => setNoteTypeDialogOpen(true)}
       >
-        <Mic />
+        <Add />
       </Fab>
-      <VoiceRecorderDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSave={handleSaveVoice} />
+
+      {/* Note Type Selection Dialog */}
+      <Dialog
+        open={noteTypeDialogOpen}
+        onClose={() => setNoteTypeDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{
+          sx: {
+            maxWidth: 343,
+            width: 'calc(100% - 32px)',
+            mx: 'auto',
+            borderRadius: 3
+          }
+        }}
+      >
+        <Box sx={{ position: 'relative', p: 3, pt: 8, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+          <IconButton
+            aria-label="Close"
+            onClick={() => setNoteTypeDialogOpen(false)}
+            sx={{ position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } }}
+          >
+            <Close sx={{ fontSize: 28 }} />
+          </IconButton>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            What type of note do you want to add?
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+            {/* Image Note (coming soon) */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0.5, border: '1px solid #e2e8f0', borderRadius: 2, p: 2, width: '100%' }}>
+              <Image sx={{ fontSize: 32 }} />
+              <Box>
+                <Typography variant="body1">Image</Typography>
+                <Typography variant="caption" color="text.secondary">Coming soon</Typography>
+              </Box>
+            </Box>
+            {/* Text Note (coming soon) */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0.5, border: '1px solid #e2e8f0', borderRadius: 2, p: 2, width: '100%' }}>
+              <TextFields sx={{ fontSize: 32 }} />
+              <Box>
+                <Typography variant="body1">Text Note</Typography>
+                <Typography variant="caption" color="text.secondary">Coming soon</Typography>
+              </Box>
+            </Box>
+            {/* Voice Note (active) */}
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid #4f46e5', borderRadius: 2, p: 2, width: '100%', cursor: 'pointer', backgroundColor: '#f8fafc', '&:hover': { backgroundColor: '#eef2ff' } }}
+              onClick={() => { setNoteTypeDialogOpen(false); setVoiceDialogOpen(true); }}
+              aria-label="Add voice note"
+            >
+              <KeyboardVoice sx={{ fontSize: 32, color: '#4f46e5' }} />
+              <Box>
+                <Typography variant="body1" sx={{ color: '#4f46e5' }}>Voice Note</Typography>
+                <Typography variant="caption" color="text.secondary">Record audio note</Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* Voice Recorder Dialog */}
+      <VoiceRecorder
+        dialog
+        open={voiceDialogOpen}
+        onClose={() => setVoiceDialogOpen(false)}
+        onSave={handleSaveVoice}
+        DialogProps={{
+          PaperProps: {
+            sx: {
+              maxWidth: 343,
+              width: 'calc(100% - 32px)',
+              mx: 'auto',
+              borderRadius: 3
+            }
+          },
+          showCloseButton: true,
+          closeButtonSx: { position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } },
+          closeIconSx: { fontSize: 28 }
+        }}
+      />
     </Box>
   );
 }
