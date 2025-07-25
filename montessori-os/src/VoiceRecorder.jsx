@@ -283,261 +283,9 @@ const VoiceRecorder = ({ onSave }) => {
         </Typography>
       </CardContent>
       
-      {/* Recording Status */}
-      <Box
-        sx={{
-          padding: 3,
-          textAlign: 'center',
-          backgroundColor: isRecording ? '#fef3f2' : '#f8fafc'
-        }}
-      >
-        <Typography
-          variant="h3"
-          sx={{
-            fontSize: '2rem',
-            fontWeight: '700',
-            color: isRecording ? '#dc2626' : '#1e293b',
-            marginBottom: '12px',
-            fontFamily: 'monospace'
-          }}
-        >
-          {formatTime(recordingTime)} / {formatTime(MAX_RECORDING_TIME)}
-        </Typography>
-        
-        {/* Recording Indicator */}
-        {isRecording && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 1,
-              marginBottom: 2
-            }}
-          >
-            <Box
-              sx={{
-                width: '12px',
-                height: '12px',
-                backgroundColor: '#dc2626',
-                borderRadius: '50%',
-                animation: 'pulse 2s ease-in-out infinite',
-                '@keyframes pulse': {
-                  '0%, 100%': {
-                    opacity: 1,
-                    transform: 'scale(1)',
-                  },
-                  '50%': {
-                    opacity: 0.5,
-                    transform: 'scale(1.1)',
-                  },
-                },
-              }}
-            />
-            <Typography
-              sx={{
-                color: '#dc2626',
-                fontSize: '0.9rem',
-                fontWeight: '500'
-              }}
-            >
-              Recording...
-            </Typography>
-          </Box>
-        )}
 
-        {/* Recording Controls */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 1.5
-          }}
-        >
-          {!isRecording ? (
-            <Button
-              variant="contained"
-              onClick={startRecording}
-              startIcon={<Mic />}
-              sx={{
-                backgroundColor: '#4f46e5',
-                color: 'white',
-                padding: '16px 32px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                borderRadius: '12px',
-                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: '#4338ca',
-                  transform: 'translateY(-1px)',
-                },
-                transition: 'all 0.2s ease'
-              }}
-            >
-              Start Recording
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              onClick={stopRecording}
-              startIcon={<Stop />}
-              sx={{
-                backgroundColor: '#dc2626',
-                color: 'white',
-                padding: '16px 32px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                borderRadius: '12px',
-                boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: '#b91c1c',
-                  transform: 'translateY(-1px)',
-                },
-                transition: 'all 0.2s ease'
-              }}
-            >
-              Stop Recording
-            </Button>
-          )}
-        </Box>
-      </Box>
 
-      {/* Audio Playback */}
-      {audioUrl && (
-        <Box
-          sx={{
-            padding: 3,
-            backgroundColor: '#f8fafc',
-            borderTop: '1px solid #e2e8f0'
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 2
-            }}
-          >
-            <Typography
-              variant="h6"
-              component="h4"
-              sx={{
-                margin: 0,
-                color: '#1e293b',
-                fontSize: '1rem',
-                fontWeight: '600'
-              }}
-            >
-              Recorded Audio
-            </Typography>
-            <Chip
-              label={`${audioBlob ? (audioBlob.size / 1024).toFixed(1) : 0} KB`}
-              size="small"
-              sx={{
-                backgroundColor: '#e2e8f0',
-                color: '#64748b',
-                fontSize: '0.875rem'
-              }}
-            />
-          </Box>
-          
-          <audio 
-            ref={audioRef}
-            src={audioUrl}
-            onEnded={() => setIsPlaying(false)}
-            style={{ 
-              width: '100%', 
-              marginBottom: '16px',
-              borderRadius: '8px'
-            }}
-            controls
-          />
-          
-          <Box
-            sx={{
-              display: 'flex',
-              gap: 1,
-              justifyContent: 'center',
-              flexWrap: 'wrap'
-            }}
-          >
-            <Button
-              variant="contained"
-              onClick={playAudio}
-              disabled={isPlaying}
-              startIcon={<PlayArrow />}
-              size="small"
-              sx={{
-                backgroundColor: isPlaying ? '#e2e8f0' : '#059669',
-                color: isPlaying ? '#64748b' : 'white',
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: isPlaying ? '#e2e8f0' : '#047857',
-                },
-                '&:disabled': {
-                  backgroundColor: '#e2e8f0',
-                  color: '#64748b'
-                }
-              }}
-            >
-              Play
-            </Button>
-            
-            <Button
-              variant="contained"
-              onClick={stopAudio}
-              disabled={!isPlaying}
-              startIcon={<Pause />}
-              size="small"
-              sx={{
-                backgroundColor: !isPlaying ? '#e2e8f0' : '#f59e0b',
-                color: !isPlaying ? '#64748b' : 'white',
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: !isPlaying ? '#e2e8f0' : '#d97706',
-                },
-                '&:disabled': {
-                  backgroundColor: '#e2e8f0',
-                  color: '#64748b'
-                }
-              }}
-            >
-              Stop
-            </Button>
-            
-            <Button
-              variant="contained"
-              onClick={resetRecording}
-              startIcon={<Refresh />}
-              size="small"
-              sx={{
-                backgroundColor: '#64748b',
-                color: 'white',
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: '#475569',
-                }
-              }}
-            >
-              Reset
-            </Button>
-          </Box>
 
-          {audioBlob && (
-            <Button
-              fullWidth
-              variant="contained"
-              sx={{ mt: 2, textTransform: 'none' }}
-              onClick={handleSave}
-            >
-              Save Voice Note
-            </Button>
-          )}
-        </Box>
-      )}
 
       {/* Transcription Section */}
       {(audioUrl || isTranscribing || transcription || transcriptionError) && (
@@ -684,7 +432,7 @@ const VoiceRecorder = ({ onSave }) => {
                   }
                 }}
               >
-                Retry
+                Retry Audio Recording
               </Button>
             </Box>
           )}
@@ -737,6 +485,44 @@ const VoiceRecorder = ({ onSave }) => {
                   {infoTag?.description}
                 </Typography>
               </Popover>
+            </Box>
+          )}
+
+          {/* Submit Note Button */}
+          {transcription && !isTranscribing && !transcriptionError && audioBlob && (
+            <Box 
+              sx={{ 
+                position: 'sticky',
+                bottom: 0,
+                backgroundColor: '#f0f9ff',
+                borderTop: '1px solid #e2e8f0',
+                padding: '16px',
+                margin: '0 -24px -24px -24px', // Extend to edges
+                zIndex: 1
+              }}
+            >
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSave}
+                sx={{
+                  backgroundColor: '#4f46e5',
+                  color: 'white',
+                  padding: '16px 32px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                    transform: 'translateY(-1px)',
+                  },
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Submit Note
+              </Button>
             </Box>
           )}
         </Box>

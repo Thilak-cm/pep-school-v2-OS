@@ -9,7 +9,7 @@
   - [x] Student list view (filtered by classroom)
   - [x] Student timeline view (reverse chronological)
   - [x] Add note functionality (voice ≤5 min OR text input)
-  - [ ] Tag picker component (curriculum areas)
+  - [x] Tag picker component (curriculum areas)
   - [x] Save observation to Firestore
 
 - [ ] **2. Admin Flow Implementation** - Complete end-to-end admin experience

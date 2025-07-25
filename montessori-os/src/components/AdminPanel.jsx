@@ -55,6 +55,18 @@ function AdminPanel({ onViewClassrooms }) {
           </Typography>
         </CardContent>
       </Card>
+
+      {/* Add User (Admin/Teacher) - Coming Soon */}
+      <Card aria-label="Add user coming soon" sx={{ opacity: 0.5 }}>
+        <CardContent>
+          <Typography variant="h6" component="h2">
+            Add User (Admin / Teacher)
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Feature coming soon
+          </Typography>
+        </CardContent>
+      </Card>
     </Box>
   );
 }

@@ -2,25 +2,78 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Read access for authenticated users (teachers & admins)
-    match /observations/{observationId} {
-      allow read: if request.auth != null;
+    function isPepUser() {
+      return request.auth != null
+        && request.auth.token.email.matches('.*@pepschoolv2\\.com$')
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
 
-      // Create voice/text observation
-      allow create: if request.auth != null
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isPepUser() && userDoc().data.type == 'admin';
+    }
+
+    function isTeacher() {
+      return isPepUser() && userDoc().data.type == 'teacher';
+    }
+
+    // =========================
+    // Generic access
+    // =========================
+    match /users/{uid} {
+      allow read: if isAdmin(); // Only admins can read user directory
+      allow write: if false;    // Managed by backend/admin only
+    }
+
+    // -------------------------
+    // Observations Collection
+    // -------------------------
+    match /observations/{obsId} {
+      // Admins can read anything
+      allow read: if isAdmin();
+
+      // Teachers can read their classroom students' observations (simplified: allow read all)
+      allow read: if isTeacher();
+
+      // Create observation (voice/text) by teachers or admins
+      allow create: if (isTeacher() || isAdmin())
         && request.resource.data.student_uid is string
         && request.resource.data.type in ['voice', 'text']
         && request.resource.data.timestamp == request.time;
 
       // Author can edit/delete within 24h
-      allow update, delete: if request.auth != null
+      allow update, delete: if (isTeacher() || isAdmin())
         && request.auth.uid == resource.data.staff_uid
         && request.time < resource.data.timestamp + duration.value(24, 'h');
     }
 
-    // Allow teachers / admins to read student & classroom metadata
+    // -------------------------
+    // Classrooms & Students metadata (read-only for now)
+    // -------------------------
+    match /classrooms/{id} {
+      allow read: if isPepUser();
+      allow write: if isAdmin();
+    }
+
+    match /students/{id} {
+      allow read: if isPepUser();
+      allow write: if isAdmin();
+    }
+
+    // -------------------------
+    // Access Logs (read/write restricted)
+    // -------------------------
+    match /access_logs/{logId} {
+      allow create: if isPepUser(); // Client may create log if desired (but currently done via Cloud Function)
+      allow read, update, delete: if false; // No client reads
+    }
+
+    // Fallback deny
     match /{document=**} {
-      allow read: if request.auth != null;
+      allow read, write: if false;
     }
   }
 } 

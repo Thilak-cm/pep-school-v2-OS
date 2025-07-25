@@ -8,7 +8,7 @@ import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import { db } from "./firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { 
   Box, 
   Container, 
@@ -17,6 +17,7 @@ import {
   Card
 } from "@mui/material";
 import VersionBadge from "./components/VersionBadge";
+import AccessDenied from './AccessDenied';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -25,6 +26,7 @@ function App() {
   const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [unauthorized, setUnauthorized] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -36,30 +38,62 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    const fetchRole = async () => {
+
+    const logUnauthorized = async (reason) => {
+      try {
+        await addDoc(collection(db, 'access_logs'), {
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          reason,
+          timestamp: serverTimestamp(),
+          userAgent: navigator.userAgent,
+        });
+      } catch (err) {
+        console.error('Error logging unauthorized access', err);
+      }
+    };
+
+    const validateAccess = async () => {
+      // Domain check
+      if (!user.email.endsWith('@pepschoolv2.com')) {
+        await logUnauthorized('invalid_domain');
+        setUnauthorized(true);
+        setScreen('accessDenied');
+        return;
+      }
+
       try {
         const q = query(collection(db, 'users'), where('email', '==', user.email));
         const qSnap = await getDocs(q);
-        if (!qSnap.empty) {
-          const userDoc = qSnap.docs[0].data();
-          setRole(userDoc.type);
-          if (userDoc.type === 'admin') {
-            setScreen('adminPanel');
-          } else {
-            setScreen('teacher'); // placeholder for future teacher flow
-          }
+        if (qSnap.empty) {
+          await logUnauthorized('not_in_users_collection');
+          setUnauthorized(true);
+          setScreen('accessDenied');
+          return;
+        }
+        const userDoc = qSnap.docs[0].data();
+        if (!userDoc.type) {
+          await logUnauthorized('missing_role');
+          setUnauthorized(true);
+          setScreen('accessDenied');
+          return;
+        }
+        setRole(userDoc.type);
+        if (userDoc.type === 'admin') {
+          setScreen('adminPanel');
         } else {
-          // Fallback if no user profile
-          setRole('teacher');
           setScreen('teacher');
         }
       } catch (err) {
-        console.error('Error fetching user role', err);
-        setRole('teacher');
-        setScreen('teacher');
+        console.error('Access validation error', err);
+        await logUnauthorized('validation_error');
+        setUnauthorized(true);
+        setScreen('accessDenied');
       }
     };
-    fetchRole();
+
+    validateAccess();
   }, [user]);
 
   const handleSignOut = async () => {
@@ -222,8 +256,10 @@ function App() {
               position: 'relative',
             }}
           >
-            {/* Header */}
-            <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
+            {/* Header (hidden on Access Denied) */}
+            {screen !== 'accessDenied' && (
+              <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
+            )}
 
             {/* Main Content */}
             <Container maxWidth={false} sx={{ py: 3, px: 2, maxWidth: '375px', flexGrow: 1 }}>
@@ -259,8 +295,12 @@ function App() {
                 />
               )}
 
-              {screen === 'teacher' && (
+              {screen === 'teacher' && !unauthorized && (
                 <Typography variant="body1">Teacher view coming soon</Typography>
+              )}
+
+              {screen === 'accessDenied' && (
+                <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
               )}
 
               {screen === 'loading' && (
