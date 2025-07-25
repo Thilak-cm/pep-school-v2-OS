@@ -27,7 +27,8 @@ import {
   Error,
   Warning,
   Close,
-  InfoOutlined
+  InfoOutlined,
+  Delete
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
@@ -157,7 +158,15 @@ const VoiceRecorder = ({ onSave }) => {
 
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      alert('Error accessing microphone. Please check permissions.');
+      
+      // Handle specific permission errors
+      if (error.name === 'NotAllowedError') {
+        alert('Microphone access denied. Please enable microphone permissions in your browser settings to use this feature.');
+      } else if (error.name === 'NotFoundError') {
+        alert('No microphone found. Please connect a microphone and try again.');
+      } else {
+        alert(`Error accessing microphone: ${error.message}. Please check your microphone permissions and try again.`);
+      }
     }
   };
 
@@ -282,10 +291,158 @@ const VoiceRecorder = ({ onSave }) => {
           Record up to 30 seconds of audio
         </Typography>
       </CardContent>
-      
 
+      {/* Recording Controls - Show immediately if no audio recorded yet */}
+      {!audioUrl && (
+        <Box
+          sx={{
+            padding: 3,
+            textAlign: 'center',
+            backgroundColor: isRecording ? '#fef3f2' : '#f8fafc'
+          }}
+        >
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: '2rem',
+              fontWeight: '700',
+              color: isRecording ? '#dc2626' : '#1e293b',
+              marginBottom: '12px',
+              fontFamily: 'monospace'
+            }}
+          >
+            {formatTime(recordingTime)} / {formatTime(MAX_RECORDING_TIME)}
+          </Typography>
+          
+          {/* Recording Indicator */}
+          {isRecording && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                marginBottom: 2
+              }}
+            >
+              <Box
+                sx={{
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: '#dc2626',
+                  borderRadius: '50%',
+                  animation: 'pulse 2s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': {
+                      opacity: 1,
+                      transform: 'scale(1)',
+                    },
+                    '50%': {
+                      opacity: 0.5,
+                      transform: 'scale(1.1)',
+                    },
+                  },
+                }}
+              />
+              <Typography
+                sx={{
+                  color: '#dc2626',
+                  fontSize: '0.9rem',
+                  fontWeight: '500'
+                }}
+              >
+                Recording...
+              </Typography>
+            </Box>
+          )}
 
+          {/* Recording Controls */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 1.5
+            }}
+          >
+            {!isRecording ? (
+              <Button
+                variant="contained"
+                onClick={startRecording}
+                startIcon={<Mic />}
+                sx={{
+                  backgroundColor: '#4f46e5',
+                  color: 'white',
+                  padding: '16px 32px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                    transform: 'translateY(-1px)',
+                  },
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Start Recording
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={stopRecording}
+                startIcon={<Stop />}
+                sx={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  padding: '16px 32px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                    transform: 'translateY(-1px)',
+                  },
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Stop Recording
+              </Button>
+            )}
+          </Box>
+        </Box>
+      )}
 
+      {/* Retry Button */}
+      {audioUrl && (
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f8fafc',
+            borderTop: '1px solid #e2e8f0',
+            textAlign: 'center'
+          }}
+        >
+          <Button
+            variant="contained"
+            onClick={resetRecording}
+            startIcon={<Refresh />}
+            size="small"
+            sx={{
+              backgroundColor: '#64748b',
+              color: 'white',
+              textTransform: 'none',
+              '&:hover': {
+                backgroundColor: '#475569',
+              }
+            }}
+          >
+            Retry
+          </Button>
+        </Box>
+      )}
 
       {/* Transcription Section */}
       {(audioUrl || isTranscribing || transcription || transcriptionError) && (
@@ -418,22 +575,7 @@ const VoiceRecorder = ({ onSave }) => {
                 Copy Text
               </Button>
               
-              <Button
-                variant="contained"
-                onClick={() => handleTranscription(audioBlob)}
-                startIcon={<Refresh />}
-                size="small"
-                sx={{
-                  backgroundColor: '#059669',
-                  color: 'white',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#047857',
-                  }
-                }}
-              >
-                Retry Audio Recording
-              </Button>
+
             </Box>
           )}
 
@@ -498,9 +640,33 @@ const VoiceRecorder = ({ onSave }) => {
                 borderTop: '1px solid #e2e8f0',
                 padding: '16px',
                 margin: '0 -24px -24px -24px', // Extend to edges
-                zIndex: 1
+                zIndex: 1,
+                display: 'flex',
+                gap: 2,
+                alignItems: 'center'
               }}
             >
+              <IconButton
+                onClick={() => {
+                  resetRecording();
+                  // Close dialog and return to timeline
+                  if (props.onClose) {
+                    props.onClose();
+                  }
+                }}
+                sx={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  width: 48,
+                  height: 48,
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                  }
+                }}
+                aria-label="Delete and return to timeline"
+              >
+                <Delete />
+              </IconButton>
               <Button
                 fullWidth
                 variant="contained"

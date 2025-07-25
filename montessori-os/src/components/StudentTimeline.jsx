@@ -39,7 +39,7 @@ function StudentTimeline({ student, onBack }) {
     return () => unsub();
   }, [student]);
 
-  const handleSaveVoice = async (blob, duration) => {
+  const handleSaveVoice = async (blob, duration, selectedTags = []) => {
     try {
       // create placeholder doc
       const docRef = await addDoc(collection(db, 'observations'), {
@@ -49,14 +49,18 @@ function StudentTimeline({ student, onBack }) {
         timestamp: serverTimestamp(),
         text: '(transcribing...)',
         duration_sec: duration,
-        tags: [],
+        tags: selectedTags,
         type: 'voice'
       });
       const storageRef = ref(storage, `voice_notes/${student.uid || student.id}/${docRef.id}.webm`);
       await uploadBytes(storageRef, blob);
       // Cloud Function will handle transcription and update doc
+      
+      // Close the voice dialog and return to timeline
+      setVoiceDialogOpen(false);
     } catch (err) {
       console.error('upload err', err);
+      alert('Error saving voice note. Please try again.');
     }
   };
 
