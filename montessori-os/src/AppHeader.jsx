@@ -9,12 +9,26 @@ import {
   MenuItem, 
   Divider,
   Box,
-  Container
+  Container,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
+  Slide,
+  Backdrop
 } from "@mui/material";
-import { Settings, Logout } from "@mui/icons-material";
+import { 
+  Menu as MenuIcon, 
+  Settings, 
+  Logout, 
+  Person 
+} from "@mui/icons-material";
 
 function AppHeader({ user, onSignOut, title = '' }) {
   const [anchorEl, setAnchorEl] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     // Close menu on outside click
@@ -33,18 +47,81 @@ function AppHeader({ user, onSignOut, title = '' }) {
     };
   }, [anchorEl]);
 
+  const handleDrawerToggle = () => {
+    setDrawerOpen(!drawerOpen);
+  };
+
+  const handleSignOut = () => {
+    setDrawerOpen(false);
+    onSignOut();
+  };
+
+  const menuItems = [
+    {
+      text: 'Profile',
+      icon: <Person />,
+      onClick: () => {
+        setDrawerOpen(false);
+        // TODO: Navigate to profile page
+      }
+    },
+    {
+      text: 'Settings',
+      icon: <Settings />,
+      onClick: () => {
+        setDrawerOpen(false);
+        // TODO: Navigate to settings page
+      }
+    },
+    {
+      text: 'Log Out',
+      icon: <Logout />,
+      onClick: handleSignOut,
+      color: '#ef4444'
+    }
+  ];
+
   return (
-    <AppBar 
-      position="static" 
-      elevation={1}
-      sx={{ 
-        backgroundColor: 'white',
-        borderBottom: '1px solid #e2e8f0'
-      }}
-    >
-      <Container maxWidth={false} sx={{ maxWidth: '100%' }}>
-        <Toolbar sx={{ px: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, gap: 1 }}>
+    <>
+      <AppBar 
+        position="static" 
+        elevation={1}
+        sx={{ 
+          backgroundColor: 'white',
+          borderBottom: '1px solid #e2e8f0'
+        }}
+      >
+        <Container maxWidth={false} sx={{ maxWidth: '100%' }}>
+          <Toolbar sx={{ px: 2 }}>
+            {/* Menu Button */}
+            <IconButton
+              onClick={handleDrawerToggle}
+              sx={{
+                color: '#64748b',
+                mr: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(100, 116, 139, 0.08)'
+                }
+              }}
+              aria-label="Open menu"
+            >
+              <MenuIcon />
+            </IconButton>
+
+            <Typography
+              variant="h6"
+              component="h1"
+              sx={{
+                color: '#1e293b',
+                fontWeight: 600,
+                flexGrow: 1,
+                textAlign: 'center'
+              }}
+            >
+              {title}
+            </Typography>
+
+            {/* Logo moved to right end */}
             <Box
               component="img"
               src="/pep-logo.png"
@@ -55,100 +132,106 @@ function AppHeader({ user, onSignOut, title = '' }) {
                 filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
               }}
             />
-            <Typography
-              variant="h6"
-              component="h1"
-              sx={{
-                color: '#1e293b',
-                fontWeight: 600,
-                ml: 1
-              }}
-            >
-              {title}
-            </Typography>
-          </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
 
-          {/* Settings Icon */}
-          <Box>
-            <IconButton
-              onClick={e => setAnchorEl(e.currentTarget)}
-              sx={{
-                color: '#64748b',
-                '&:hover': {
-                  backgroundColor: 'rgba(100, 116, 139, 0.08)'
-                }
-              }}
-              aria-label="Settings"
-            >
-              <Settings />
-            </IconButton>
-          {/* Dropdown Menu */}
-            <Menu
-              open={Boolean(anchorEl)}
-              anchorEl={anchorEl}
-              onClose={() => setAnchorEl(null)}
-              anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'right',
-              }}
-              transformOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
-              }}
-              PaperProps={{
-                sx: {
-                  mt: 1,
-                  minWidth: 200,
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e2e8f0'
-                }
-              }}
-            >
-              <MenuItem disabled sx={{ fontWeight: 600, cursor: 'default' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                  <Avatar
-                    sx={{
-                      bgcolor: '#4f46e5',
-                      width: 28,
-                      height: 28,
-                      fontSize: '0.8125rem',
-                      fontWeight: 700
-                    }}
-                  >
-                    {user.displayName?.charAt(0) || 'U'}
-                  </Avatar>
-                  <Typography variant="body2">
-                    {user.displayName}
-                  </Typography>
-                </Box>
-              </MenuItem>
-              
-              <Divider />
-              
-              <MenuItem disabled sx={{ color: '#64748b' }}>
-                Settings (coming soon)
-              </MenuItem>
-              
-              <Divider />
-              
-              <MenuItem 
-                onClick={onSignOut}
-                sx={{ 
-                  color: '#ef4444', 
-                  fontWeight: 600,
-                  '&:hover': {
-                    backgroundColor: 'rgba(239, 68, 68, 0.08)'
-                  }
+      {/* Mobile-First Drawer - Contained within 375px boundaries */}
+      <Backdrop
+        open={drawerOpen}
+        onClick={handleDrawerToggle}
+        sx={{ 
+          zIndex: 1200,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}
+      />
+      
+      <Slide direction="right" in={drawerOpen} mountOnEnter unmountOnExit>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '280px',
+            height: '100%',
+            backgroundColor: '#ffffff',
+            borderRight: '1px solid #e2e8f0',
+            zIndex: 1300,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <Box sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+            {/* User Profile Section */}
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2, 
+              mb: 3,
+              p: 2,
+              backgroundColor: '#f8fafc',
+              borderRadius: 2
+            }}>
+              <Avatar
+                sx={{
+                  bgcolor: '#4f46e5',
+                  width: 48,
+                  height: 48,
+                  fontSize: '1.125rem',
+                  fontWeight: 700
                 }}
               >
-                <Logout sx={{ mr: 1, fontSize: 20 }} />
-                Sign Out
-              </MenuItem>
-            </Menu>
+                {user.displayName?.charAt(0) || 'U'}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                  {user.displayName || 'User'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b' }}>
+                  {user.email}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Menu Items */}
+            <List sx={{ p: 0 }}>
+              {menuItems.map((item, index) => (
+                <ListItem key={item.text} sx={{ p: 0, mb: 1 }}>
+                  <ListItemButton
+                    onClick={item.onClick}
+                    sx={{
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: item.color === '#ef4444' 
+                          ? 'rgba(239, 68, 68, 0.08)' 
+                          : 'rgba(79, 70, 229, 0.08)'
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ 
+                      color: item.color || '#64748b',
+                      minWidth: 40
+                    }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text}
+                      sx={{
+                        '& .MuiListItemText-primary': {
+                          fontWeight: item.color === '#ef4444' ? 600 : 500,
+                          color: item.color || '#1e293b'
+                        }
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
           </Box>
-        </Toolbar>
-      </Container>
-    </AppBar>
+        </Box>
+      </Slide>
+    </>
   );
 }
 
