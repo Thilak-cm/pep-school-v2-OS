@@ -7,22 +7,15 @@ import {
   List,
   ListItem,
   ListItemText,
-  CircularProgress,
-  Fab,
-  Dialog
+  CircularProgress
 } from '@mui/material';
-import { ArrowBack, Add, Image, TextFields, KeyboardVoice, Close } from '@mui/icons-material';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ArrowBack } from '@mui/icons-material';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { storage } from '../firebase';
-import { ref, uploadBytes } from 'firebase/storage';
-import VoiceRecorder from '../VoiceRecorder';
 
 function StudentTimeline({ student, onBack }) {
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [noteTypeDialogOpen, setNoteTypeDialogOpen] = useState(false);
-  const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!student) return;
@@ -38,31 +31,6 @@ function StudentTimeline({ student, onBack }) {
     });
     return () => unsub();
   }, [student]);
-
-  const handleSaveVoice = async (blob, duration, selectedTags = []) => {
-    try {
-      // create placeholder doc
-      const docRef = await addDoc(collection(db, 'observations'), {
-        student_uid: student.uid || student.id,
-        staff_uid: 'admin-1',
-        classroom_id: null,
-        timestamp: serverTimestamp(),
-        text: '(transcribing...)',
-        duration_sec: duration,
-        tags: selectedTags,
-        type: 'voice'
-      });
-      const storageRef = ref(storage, `voice_notes/${student.uid || student.id}/${docRef.id}.webm`);
-      await uploadBytes(storageRef, blob);
-      // Cloud Function will handle transcription and update doc
-      
-      // Close the voice dialog and return to timeline
-      setVoiceDialogOpen(false);
-    } catch (err) {
-      console.error('upload err', err);
-      alert('Error saving voice note. Please try again.');
-    }
-  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
@@ -95,95 +63,7 @@ function StudentTimeline({ student, onBack }) {
         </List>
       )}
 
-      {/* Add Note FAB */}
-      <Fab
-        color="primary"
-        sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1200 }}
-        aria-label="Add note"
-        onClick={() => setNoteTypeDialogOpen(true)}
-      >
-        <Add />
-      </Fab>
-
-      {/* Note Type Selection Dialog */}
-      <Dialog
-        open={noteTypeDialogOpen}
-        onClose={() => setNoteTypeDialogOpen(false)}
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{
-          sx: {
-            maxWidth: 343,
-            width: 'calc(100% - 32px)',
-            mx: 'auto',
-            borderRadius: 3
-          }
-        }}
-      >
-        <Box sx={{ position: 'relative', p: 3, pt: 8, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-          <IconButton
-            aria-label="Close"
-            onClick={() => setNoteTypeDialogOpen(false)}
-            sx={{ position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } }}
-          >
-            <Close sx={{ fontSize: 28 }} />
-          </IconButton>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            What type of note do you want to add?
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
-            {/* Image Note (coming soon) */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0.5, border: '1px solid #e2e8f0', borderRadius: 2, p: 2, width: '100%' }}>
-              <Image sx={{ fontSize: 32 }} />
-              <Box>
-                <Typography variant="body1">Image</Typography>
-                <Typography variant="caption" color="text.secondary">Coming soon</Typography>
-              </Box>
-            </Box>
-            {/* Text Note (coming soon) */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0.5, border: '1px solid #e2e8f0', borderRadius: 2, p: 2, width: '100%' }}>
-              <TextFields sx={{ fontSize: 32 }} />
-              <Box>
-                <Typography variant="body1">Text Note</Typography>
-                <Typography variant="caption" color="text.secondary">Coming soon</Typography>
-              </Box>
-            </Box>
-            {/* Voice Note (active) */}
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid #4f46e5', borderRadius: 2, p: 2, width: '100%', cursor: 'pointer', backgroundColor: '#f8fafc', '&:hover': { backgroundColor: '#eef2ff' } }}
-              onClick={() => { setNoteTypeDialogOpen(false); setVoiceDialogOpen(true); }}
-              aria-label="Add voice note"
-            >
-              <KeyboardVoice sx={{ fontSize: 32, color: '#4f46e5' }} />
-              <Box>
-                <Typography variant="body1" sx={{ color: '#4f46e5' }}>Voice Note</Typography>
-                <Typography variant="caption" color="text.secondary">Record audio note</Typography>
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-      </Dialog>
-
-      {/* Voice Recorder Dialog */}
-      <VoiceRecorder
-        dialog
-        open={voiceDialogOpen}
-        onClose={() => setVoiceDialogOpen(false)}
-        onSave={handleSaveVoice}
-        DialogProps={{
-          PaperProps: {
-            sx: {
-              maxWidth: 343,
-              width: 'calc(100% - 32px)',
-              mx: 'auto',
-              borderRadius: 3
-            }
-          },
-          showCloseButton: true,
-          closeButtonSx: { position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } },
-          closeIconSx: { fontSize: 28 }
-        }}
-      />
+      {/* Note creation handled by global FAB */}
     </Box>
   );
 }

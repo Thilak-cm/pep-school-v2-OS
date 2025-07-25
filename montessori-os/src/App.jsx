@@ -18,6 +18,8 @@ import {
 } from "@mui/material";
 import VersionBadge from "./components/VersionBadge";
 import AccessDenied from './AccessDenied';
+import AddNoteFab from './components/AddNoteFab';
+import AddNoteModal from './components/AddNoteModal';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -27,6 +29,7 @@ function App() {
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [addNoteOpen, setAddNoteOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -309,6 +312,15 @@ function App() {
                 </Box>
               )}
             </Container>
+            {/* Global Add Note FAB */}
+            <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
+            <AddNoteModal
+              open={addNoteOpen}
+              onClose={() => setAddNoteOpen(false)}
+              initialClassrooms={selectedClassroom ? [selectedClassroom.id] : []}
+              initialStudents={selectedStudent ? [selectedStudent.uid || selectedStudent.id] : []}
+              currentUser={user}
+            />
             <VersionBadge />
           </Box>
         )}
