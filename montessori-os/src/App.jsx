@@ -317,7 +317,6 @@ function App() {
             <AddNoteModal
               open={addNoteOpen}
               onClose={() => setAddNoteOpen(false)}
-              initialClassrooms={selectedClassroom ? [selectedClassroom.id] : []}
               initialStudents={selectedStudent ? [selectedStudent.uid || selectedStudent.id] : []}
               currentUser={user}
             />

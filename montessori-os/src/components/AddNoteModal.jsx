@@ -39,7 +39,6 @@ function AddNoteModal({
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordedDuration, setRecordedDuration] = useState(0);
-  const [selectedClassrooms, setSelectedClassrooms] = useState(initialClassrooms);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +63,6 @@ function AddNoteModal({
       const promises = selectedStudents.map(async (stuId) => {
         const docRef = await addDoc(collection(db, 'observations'), {
           student_uid: stuId,
-          classroom_id: selectedClassrooms[0] || null,
           staff_uid: currentUser?.uid || 'unknown',
           timestamp: serverTimestamp(),
           text: '(transcribing...)',
@@ -233,8 +231,6 @@ function AddNoteModal({
         <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Typography variant="h6">Select classroom(s) and student(s)</Typography>
           <ClassroomStudentPicker
-            selectedClassrooms={selectedClassrooms}
-            onClassroomsChange={setSelectedClassrooms}
             selectedStudents={selectedStudents}
             onStudentsChange={setSelectedStudents}
           />
@@ -242,7 +238,7 @@ function AddNoteModal({
             <Button variant="text" onClick={() => setStep(STEP_RECORD)}>Back</Button>
             <Button
               variant="contained"
-              disabled={saving || selectedClassrooms.length === 0 || selectedStudents.length === 0}
+              disabled={saving || selectedStudents.length === 0}
               onClick={handleRecipientsNext}
             >
               {saving ? <CircularProgress size={24} /> : 'Save'}
