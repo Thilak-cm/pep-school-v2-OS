@@ -347,8 +347,10 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB */}
-              <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
+              {/* Global Add Note FAB - hidden on profile page */}
+              {screen !== 'profile' && (
+                <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
+              )}
               <AddNoteModal
                 open={addNoteOpen}
                 onClose={() => setAddNoteOpen(false)}
