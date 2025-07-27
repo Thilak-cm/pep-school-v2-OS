@@ -208,7 +208,7 @@ function AddNoteModal({
           height: { xs: '100vh', sm: 'auto' },
           maxWidth: { xs: 'none', sm: 400 },
           maxHeight: { xs: 'none', sm: '90vh' },
-          margin: { xs: 0, sm: 'auto' },
+          margin: 'auto',
           borderRadius: { xs: 0, sm: 3 },
           overflow: 'hidden',
           display: 'flex',
@@ -217,7 +217,10 @@ function AddNoteModal({
       }}
       sx={{
         '& .MuiDialog-container': {
-          alignItems: { xs: 'stretch', sm: 'center' }
+          alignItems: 'center',
+          justifyContent: 'center',
+          display: 'flex',
+          padding: 0
         }
       }}
     >
