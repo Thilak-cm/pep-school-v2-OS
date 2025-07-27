@@ -18,7 +18,7 @@ import {
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const STEP_NOTE_TYPE = 'noteType';
@@ -71,9 +71,14 @@ function AddNoteModal({
     try {
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
+        // Get student data to find classroomId
+        const studentDoc = await getDoc(doc(db, 'students', stuId));
+        const studentData = studentDoc.data();
+        
         await addDoc(collection(db, 'observations'), {
           studentId: stuId,
           teacherId: currentUser?.uid || 'unknown',
+          classroomId: studentData?.classroomId || 'unknown',
           timestamp: serverTimestamp(),
           text: transcriptionData.text,
           duration: transcriptionData.duration,
@@ -85,7 +90,9 @@ function AddNoteModal({
           isStarred: false,
           isPrivate: false,
           isDraft: false,
-          editCount: 0
+          editCount: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
       });
       await Promise.all(promises);
