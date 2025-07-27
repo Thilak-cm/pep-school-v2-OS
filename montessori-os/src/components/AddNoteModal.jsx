@@ -19,8 +19,6 @@ import {
 import VoiceRecorder from '../VoiceRecorder';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { storage } from '../firebase';
-import { ref, uploadBytes } from 'firebase/storage';
 import { db } from '../firebase';
 
 const STEP_NOTE_TYPE = 'noteType';
@@ -37,8 +35,7 @@ function AddNoteModal({
   currentUser
 }) {
   const [step, setStep] = useState(STEP_NOTE_TYPE);
-  const [recordedBlob, setRecordedBlob] = useState(null);
-  const [recordedDuration, setRecordedDuration] = useState(0);
+  const [transcriptionData, setTranscriptionData] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +47,7 @@ function AddNoteModal({
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
     // Reset all state when closing
-    setRecordedBlob(null);
-    setRecordedDuration(0);
+    setTranscriptionData(null);
     setSelectedStudents(initialStudents);
     setSaving(false);
     onClose();
@@ -61,27 +57,36 @@ function AddNoteModal({
     setStep(STEP_RECORD);
   };
 
-  const handleVoiceSave = (blob, duration, selectedTags = []) => {
-    setRecordedBlob(blob);
-    setRecordedDuration(duration);
+  const handleVoiceSave = (transcriptionData) => {
+    setTranscriptionData(transcriptionData);
     setStep(STEP_RECIPIENTS);
   };
 
   const handleRecipientsNext = async () => {
+    if (!transcriptionData) {
+      alert('No transcription data available. Please try recording again.');
+      return;
+    }
+
     try {
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
-        const docRef = await addDoc(collection(db, 'observations'), {
+        await addDoc(collection(db, 'observations'), {
           studentId: stuId,
           teacherId: currentUser?.uid || 'unknown',
           timestamp: serverTimestamp(),
-          text: '(transcribing...)',
-          duration: recordedDuration,
+          text: transcriptionData.text,
+          duration: transcriptionData.duration,
+          sttConfidence: transcriptionData.sttConfidence,
+          sttAlternatives: transcriptionData.sttAlternatives,
+          languageCode: transcriptionData.languageCode,
           tags: [],
-          type: 'voice'
+          type: 'voice',
+          isStarred: false,
+          isPrivate: false,
+          isDraft: false,
+          editCount: 0
         });
-        const storageRef = ref(storage, `voice_notes/${stuId}/${docRef.id}.webm`);
-        await uploadBytes(storageRef, recordedBlob);
       });
       await Promise.all(promises);
       handleClose();

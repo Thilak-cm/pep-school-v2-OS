@@ -90,16 +90,35 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     const result = await response.json();
     console.log('Transcription result:', result);
 
-    // Extract transcribed text
+    // Extract transcribed text and metadata
     if (result.results && result.results.length > 0) {
       const transcript = result.results
         .map(result => result.alternatives?.[0]?.transcript)
         .filter(Boolean)
         .join(' ');
       
-      return transcript.trim();
+      // Get confidence scores
+      const confidenceScores = result.results
+        .map(result => result.alternatives?.[0]?.confidence)
+        .filter(score => score !== undefined);
+      
+      const avgConfidence = confidenceScores.length > 0 
+        ? confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length 
+        : null;
+
+      return {
+        text: transcript.trim(),
+        confidence: avgConfidence,
+        alternatives: result.results.map(r => r.alternatives?.[0]).filter(Boolean),
+        languageCode: languageCode
+      };
     } else {
-      return ''; // No speech detected
+      return {
+        text: '', // No speech detected
+        confidence: null,
+        alternatives: [],
+        languageCode: languageCode
+      };
     }
 
   } catch (error) {

@@ -40,6 +40,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [transcription, setTranscription] = useState('');
+  const [transcriptionData, setTranscriptionData] = useState(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState('');
 
@@ -183,12 +184,31 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     setRecordingTime(0);
     setIsPlaying(false);
     setTranscription('');
+    setTranscriptionData(null);
     setTranscriptionError('');
   };
 
+  const retryTranscription = () => {
+    if (audioBlob) {
+      setTranscriptionError('');
+      setTranscription('');
+      setTranscriptionData(null);
+      handleTranscription(audioBlob);
+    }
+  };
+
   const handleSave = () => {
-    if (onSave) {
-      onSave(audioBlob, recordingTime, []);
+    // Only allow save if transcription is complete and successful
+    if (onSave && transcription && !isTranscribing && !transcriptionError && transcriptionData) {
+      // Pass complete transcription data instead of audio blob
+      onSave({
+        text: transcription,
+        duration: recordingTime,
+        sttConfidence: transcriptionData.confidence,
+        sttAlternatives: transcriptionData.alternatives,
+        languageCode: transcriptionData.languageCode,
+        timestamp: new Date()
+      });
     }
   };
 
@@ -202,10 +222,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     setTranscriptionError('');
 
     try {
-      const transcribedText = await transcribeAudio(audioBlob);
-      setTranscription(transcribedText);
+      const transcriptionResult = await transcribeAudio(audioBlob);
+      setTranscriptionData(transcriptionResult);
+      setTranscription(transcriptionResult.text);
       
-      if (!transcribedText) {
+      if (!transcriptionResult.text) {
         setTranscriptionError('No speech detected in the recording.');
       }
     } catch (error) {
@@ -463,7 +484,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
           {isTranscribing && (
             <Paper
               sx={{
-                padding: 2,
+                padding: 3,
                 backgroundColor: 'white',
                 borderRadius: '8px',
                 border: '1px solid #e2e8f0',
@@ -471,23 +492,69 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 color: '#64748b'
               }}
             >
-              Converting speech to text...
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                <CircularProgress size={16} sx={{ color: '#059669' }} />
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Converting speech to text...
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                This may take a few seconds
+              </Typography>
             </Paper>
           )}
 
           {transcriptionError && (
-            <Alert
-              severity="error"
-              icon={<Error />}
-              sx={{
-                marginBottom: 2,
-                '& .MuiAlert-message': {
-                  fontSize: '0.875rem'
-                }
-              }}
-            >
-              {transcriptionError}
-            </Alert>
+            <>
+              <Alert
+                severity="error"
+                icon={<Error />}
+                sx={{
+                  marginBottom: 2,
+                  '& .MuiAlert-message': {
+                    fontSize: '0.875rem'
+                  }
+                }}
+              >
+                {transcriptionError}
+              </Alert>
+              <Box sx={{ textAlign: 'center', mb: 2 }}>
+                <Button
+                  variant="contained"
+                  onClick={retryTranscription}
+                  startIcon={<Refresh />}
+                  size="small"
+                  sx={{
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    textTransform: 'none',
+                    mr: 1,
+                    '&:hover': {
+                      backgroundColor: '#b91c1c',
+                    }
+                  }}
+                >
+                  Retry Transcription
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={resetRecording}
+                  startIcon={<Mic />}
+                  size="small"
+                  sx={{
+                    borderColor: '#64748b',
+                    color: '#64748b',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#475569',
+                      color: '#475569',
+                    }
+                  }}
+                >
+                  Record Again
+                </Button>
+              </Box>
+            </>
           )}
 
           {transcription && !isTranscribing && !transcriptionError && (
@@ -546,15 +613,18 @@ const VoiceRecorder = ({ onSave, onNext }) => {
           )}
 
           {/* Recording complete - ready for next step */}
-          {transcription && (
+          {transcription && !isTranscribing && !transcriptionError && (
             <Box sx={{ mt: 3, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Recording complete. Click Next to continue.
+                Transcription complete. Click Next to continue.
               </Typography>
               {onNext && (
                 <Button
                   variant="contained"
-                  onClick={onNext}
+                  onClick={() => {
+                    handleSave(); // Save transcription data
+                    onNext(); // Move to next step
+                  }}
                   sx={{
                     backgroundColor: '#4f46e5',
                     color: 'white',
