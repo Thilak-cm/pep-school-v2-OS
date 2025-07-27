@@ -155,32 +155,40 @@ function AppHeader({ user, onSignOut, title = '', onNavigate }) {
         </Container>
       </Box>
 
-      {/* Mobile-First Drawer - Contained within 375px boundaries */}
+      {/* Mobile-First Drawer - Contained within app boundaries */}
       <Backdrop
         open={drawerOpen}
         onClick={handleDrawerToggle}
         sx={{ 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
           zIndex: 1250, // Above header (1100) but below FAB (1300)
-          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          opacity: drawerOpen ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: drawerOpen ? 'auto' : 'none',
         }}
       />
       
-      <Slide direction="right" in={drawerOpen} mountOnEnter unmountOnExit>
-        <Box
-          sx={{
-            position: 'fixed', // Changed from absolute to fixed for better positioning
-            top: 0,
-            left: 0,
-            width: '280px',
-            height: '100vh', // Use full viewport height
-            backgroundColor: '#ffffff',
-            borderRight: '1px solid #e2e8f0',
-            zIndex: 1260, // Above backdrop (1250)
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '280px',
+          height: '100%',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid #e2e8f0',
+          zIndex: 1260,
+          overflow: 'hidden',
+          display: drawerOpen ? 'flex' : 'none',
+          flexDirection: 'column',
+          boxShadow: '4px 0 20px rgba(0, 0, 0, 0.15)',
+        }}
+      >
           <Box sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
             {/* User Profile Section */}
             <Box sx={{ 
@@ -249,7 +257,6 @@ function AppHeader({ user, onSignOut, title = '', onNavigate }) {
             </List>
           </Box>
         </Box>
-      </Slide>
     </>
   );
 }

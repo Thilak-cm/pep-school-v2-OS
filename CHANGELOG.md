@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tag picker system for curriculum areas
 - Student timeline with filtering
 
+## [1.1.3] - 2025-07-27
+
+### Fixed
+- Sidebar menu popup positioning and backdrop behavior
+- Menu overlay now properly covers content without interference
+- Added shadow depth to sidebar for better visual separation
+
+### Changed
+- Removed User ID from profile page for privacy protection
+- Improved sidebar menu z-index hierarchy and positioning
+
+### Security
+- User ID no longer publicly displayed in profile (internal use only)
+
+## [1.1.2] - 2025-07-27
+
+### Fixed
+- Version management script bug showing incorrect old/new version numbers
+
+### Technical
+- Fixed version script logging to display correct version transitions
+
 ## [1.1.1] - 2025-07-27
 
 ### Added

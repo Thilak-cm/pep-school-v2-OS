@@ -122,34 +122,6 @@ const ProfilePage = ({ user, role, onBack }) => {
             </Box>
           </Box>
 
-          {/* User ID */}
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            p: 3,
-            borderBottom: '1px solid #f1f5f9'
-          }}>
-            <Person sx={{ color: '#64748b', mr: 3, fontSize: 24 }} />
-            <Box>
-              <Typography variant="caption" sx={{ 
-                color: '#64748b',
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-                fontWeight: 600
-              }}>
-                User ID
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: '#1e293b',
-                fontFamily: 'monospace',
-                mt: 0.5,
-                wordBreak: 'break-all'
-              }}>
-                {user?.uid}
-              </Typography>
-            </Box>
-          </Box>
-
           {/* Account Type */}
           <Box sx={{ 
             display: 'flex', 
