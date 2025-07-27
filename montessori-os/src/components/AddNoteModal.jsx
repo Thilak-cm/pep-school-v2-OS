@@ -8,7 +8,8 @@ import {
   Button,
   Stepper,
   Step,
-  StepLabel
+  StepLabel,
+  TextField
 } from '@mui/material';
 import {
   Close,
@@ -21,11 +22,81 @@ import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
+// TextInput Component
+function TextInput({ onSave, onNext, onBack }) {
+  const [text, setText] = useState('');
+  const [wordCount, setWordCount] = useState(0);
+
+  const handleTextChange = (event) => {
+    const newText = event.target.value;
+    setText(newText);
+    setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
+  };
+
+  const handleSave = () => {
+    if (!text.trim()) {
+      alert('Please enter some text before continuing.');
+      return;
+    }
+    onSave({ text: text.trim() });
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Typography variant="h6" sx={{ textAlign: 'center', mb: 2 }}>
+        Write your observation
+      </Typography>
+      
+      <TextField
+        multiline
+        rows={6}
+        fullWidth
+        value={text}
+        onChange={handleTextChange}
+        placeholder="Enter your observation here..."
+        variant="outlined"
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 2,
+          }
+        }}
+      />
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Button 
+          variant="text" 
+          onClick={onBack}
+          sx={{ color: '#64748b' }}
+        >
+          Back
+        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            {wordCount} word{wordCount !== 1 ? 's' : ''}
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!text.trim()}
+            sx={{
+              backgroundColor: '#4f46e5',
+              '&:hover': { backgroundColor: '#4338ca' }
+            }}
+          >
+            Next
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
 const STEP_NOTE_TYPE = 'noteType';
 const STEP_RECORD = 'record';
+const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
 
-const steps = ['Type', 'Record', 'Recipients'];
+const steps = ['Type', 'Input', 'Recipients'];
 
 function AddNoteModal({
   open,
@@ -36,6 +107,7 @@ function AddNoteModal({
 }) {
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [transcriptionData, setTranscriptionData] = useState(null);
+  const [textData, setTextData] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [saving, setSaving] = useState(false);
 
@@ -48,6 +120,7 @@ function AddNoteModal({
     setStep(STEP_NOTE_TYPE);
     // Reset all state when closing
     setTranscriptionData(null);
+    setTextData(null);
     setSelectedStudents(initialStudents);
     setSaving(false);
     onClose();
@@ -57,14 +130,24 @@ function AddNoteModal({
     setStep(STEP_RECORD);
   };
 
+  const handleSelectText = () => {
+    setStep(STEP_TEXT_INPUT);
+  };
+
   const handleVoiceSave = (transcriptionData) => {
     setTranscriptionData(transcriptionData);
     setStep(STEP_RECIPIENTS);
   };
 
+  const handleTextSave = (textData) => {
+    setTextData(textData);
+    setStep(STEP_RECIPIENTS);
+  };
+
   const handleRecipientsNext = async () => {
-    if (!transcriptionData) {
-      alert('No transcription data available. Please try recording again.');
+    const noteData = transcriptionData || textData;
+    if (!noteData) {
+      alert('No note data available. Please try again.');
       return;
     }
 
@@ -75,25 +158,31 @@ function AddNoteModal({
         const studentDoc = await getDoc(doc(db, 'students', stuId));
         const studentData = studentDoc.data();
         
-        await addDoc(collection(db, 'observations'), {
+        const observationData = {
           studentId: stuId,
           teacherId: currentUser?.uid || 'unknown',
           classroomId: studentData?.classroomId || 'unknown',
           timestamp: serverTimestamp(),
-          text: transcriptionData.text,
-          duration: transcriptionData.duration,
-          sttConfidence: transcriptionData.sttConfidence,
-          sttAlternatives: transcriptionData.sttAlternatives,
-          languageCode: transcriptionData.languageCode,
+          text: noteData.text,
           tags: [],
-          type: 'voice',
+          type: transcriptionData ? 'voice' : 'text',
           isStarred: false,
           isPrivate: false,
           isDraft: false,
           editCount: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        };
+
+        // Add voice-specific fields only for voice notes
+        if (transcriptionData) {
+          observationData.duration = transcriptionData.duration;
+          observationData.sttConfidence = transcriptionData.sttConfidence;
+          observationData.sttAlternatives = transcriptionData.sttAlternatives;
+          observationData.languageCode = transcriptionData.languageCode;
+        }
+        
+        await addDoc(collection(db, 'observations'), observationData);
       });
       await Promise.all(promises);
       handleClose();
@@ -122,7 +211,10 @@ function AddNoteModal({
       }}
     >
       <Box sx={{ px: 3, pt: 3 }}>
-        <Stepper activeStep={step === STEP_NOTE_TYPE ? 0 : step === STEP_RECORD ? 1 : 2} alternativeLabel>
+        <Stepper activeStep={
+          step === STEP_NOTE_TYPE ? 0 : 
+          (step === STEP_RECORD || step === STEP_TEXT_INPUT) ? 1 : 2
+        } alternativeLabel>
           {steps.map((label) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
@@ -188,24 +280,33 @@ function AddNoteModal({
                 </Typography>
               </Box>
             </Box>
-            {/* Text Note (coming soon) */}
+            {/* Text Note (active) */}
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
-                opacity: 0.5,
                 border: '1px solid #e2e8f0',
                 borderRadius: 2,
                 p: 2,
-                width: '100%'
+                width: '100%',
+                cursor: 'pointer',
+                backgroundColor: 'white',
+                '&:hover': { 
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #4f46e5'
+                }
               }}
+              onClick={handleSelectText}
+              aria-label="Add text note"
             >
-              <TextFields sx={{ fontSize: 32 }} />
+              <TextFields sx={{ fontSize: 32, color: '#64748b' }} />
               <Box>
-                <Typography variant="body1">Text Note</Typography>
+                <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                  Text Note
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Coming soon
+                  Write text note
                 </Typography>
               </Box>
             </Box>
@@ -215,20 +316,23 @@ function AddNoteModal({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
-                border: '1px solid #4f46e5',
+                border: '1px solid #e2e8f0',
                 borderRadius: 2,
                 p: 2,
                 width: '100%',
                 cursor: 'pointer',
-                backgroundColor: '#f8fafc',
-                '&:hover': { backgroundColor: '#eef2ff' }
+                backgroundColor: 'white',
+                '&:hover': { 
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #4f46e5'
+                }
               }}
               onClick={handleSelectVoice}
               aria-label="Add voice note"
             >
-              <KeyboardVoice sx={{ fontSize: 32, color: '#4f46e5' }} />
+              <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
               <Box>
-                <Typography variant="body1" sx={{ color: '#4f46e5' }}>
+                <Typography variant="body1" sx={{ color: '#1e293b' }}>
                   Voice Note
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -249,6 +353,16 @@ function AddNoteModal({
         </Box>
       )}
 
+      {step === STEP_TEXT_INPUT && (
+        <Box sx={{ p: 3 }}>
+          <TextInput 
+            onSave={handleTextSave} 
+            onNext={() => setStep(STEP_RECIPIENTS)}
+            onBack={() => setStep(STEP_NOTE_TYPE)}
+          />
+        </Box>
+      )}
+
       {step === STEP_RECIPIENTS && (
         <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Typography variant="h6">Select classroom(s) and student(s)</Typography>
@@ -257,7 +371,12 @@ function AddNoteModal({
             onStudentsChange={setSelectedStudents}
           />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-            <Button variant="text" onClick={() => setStep(STEP_RECORD)}>Back</Button>
+            <Button 
+              variant="text" 
+              onClick={() => setStep(transcriptionData ? STEP_RECORD : STEP_TEXT_INPUT)}
+            >
+              Back
+            </Button>
             <Button
               variant="contained"
               disabled={saving || selectedStudents.length === 0}
