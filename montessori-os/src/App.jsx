@@ -7,6 +7,7 @@ import AdminPanel from "./components/AdminPanel";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
+import ProfilePage from "./components/ProfilePage";
 import { db } from "./firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { 
@@ -25,7 +26,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline' | 'profile'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -114,6 +115,7 @@ function App() {
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'timeline') pageTitle = `${selectedStudent?.name || 'Student'} Timeline`;
   else if (screen === 'teacher') pageTitle = 'Teacher Home';
+  else if (screen === 'profile') pageTitle = 'Profile';
 
   // Mobile-first responsive container
   return (
@@ -258,7 +260,16 @@ function App() {
             <>
               {/* Sticky Header (outside scrollable content) */}
               {screen !== 'accessDenied' && (
-                <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
+                <AppHeader 
+                  user={user} 
+                  onSignOut={handleSignOut} 
+                  title={pageTitle}
+                  onNavigate={(path) => {
+                    if (path === '/profile') {
+                      setScreen('profile');
+                    }
+                  }}
+                />
               )}
 
               {/* Scrollable Main Content */}
@@ -312,6 +323,14 @@ function App() {
 
                   {screen === 'teacher' && !unauthorized && (
                     <Typography variant="body1">Teacher view coming soon</Typography>
+                  )}
+
+                  {screen === 'profile' && (
+                    <ProfilePage
+                      user={user}
+                      role={role}
+                      onBack={() => setScreen(role === 'admin' ? 'adminPanel' : 'teacher')}
+                    />
                   )}
 
                   {screen === 'accessDenied' && (

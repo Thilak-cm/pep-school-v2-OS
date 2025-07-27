@@ -26,7 +26,7 @@ import {
   Person 
 } from "@mui/icons-material";
 
-function AppHeader({ user, onSignOut, title = '' }) {
+function AppHeader({ user, onSignOut, title = '', onNavigate }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -62,7 +62,7 @@ function AppHeader({ user, onSignOut, title = '' }) {
       icon: <Person />,
       onClick: () => {
         setDrawerOpen(false);
-        // TODO: Navigate to profile page
+        onNavigate('/profile');
       }
     },
     {
