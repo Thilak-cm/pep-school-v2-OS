@@ -317,7 +317,7 @@ function App() {
             <AddNoteModal
               open={addNoteOpen}
               onClose={() => setAddNoteOpen(false)}
-              initialStudents={selectedStudent ? [selectedStudent.uid || selectedStudent.id] : []}
+              initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.sid || selectedStudent.id] : []}
               currentUser={user}
             />
             <VersionBadge />

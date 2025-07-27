@@ -86,7 +86,7 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
                   {stu.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  UID: {stu.uid || stu.id} • DOB: {formatDob(stu.dateOfBirth)}
+                  UID: {stu.sid || stu.id} • DOB: {formatDob(stu.dateOfBirth)}
                 </Typography>
               </CardContent>
             </Card>

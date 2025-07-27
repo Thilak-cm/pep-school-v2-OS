@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   Box,
@@ -42,8 +42,18 @@ function AddNoteModal({
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [saving, setSaving] = useState(false);
 
+  // Update selectedStudents when initialStudents prop changes
+  useEffect(() => {
+    setSelectedStudents(initialStudents);
+  }, [initialStudents]);
+
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
+    // Reset all state when closing
+    setRecordedBlob(null);
+    setRecordedDuration(0);
+    setSelectedStudents(initialStudents);
+    setSaving(false);
     onClose();
   };
 
@@ -62,11 +72,11 @@ function AddNoteModal({
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
         const docRef = await addDoc(collection(db, 'observations'), {
-          student_uid: stuId,
-          staff_uid: currentUser?.uid || 'unknown',
+          studentId: stuId,
+          teacherId: currentUser?.uid || 'unknown',
           timestamp: serverTimestamp(),
           text: '(transcribing...)',
-          duration_sec: recordedDuration,
+          duration: recordedDuration,
           tags: [],
           type: 'voice'
         });
