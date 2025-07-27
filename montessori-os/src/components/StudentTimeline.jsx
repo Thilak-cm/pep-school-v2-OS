@@ -21,7 +21,7 @@ function StudentTimeline({ student, onBack }) {
     if (!student) return;
     const q = query(
       collection(db, 'observations'),
-      where('student_uid', '==', student.uid || student.id),
+      where('studentId', '==', student.sid || student.id),
       orderBy('timestamp', 'desc')
     );
     const unsub = onSnapshot(q, (snap) => {

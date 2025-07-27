@@ -76,14 +76,14 @@ function App() {
           return;
         }
         const userDoc = qSnap.docs[0].data();
-        if (!userDoc.type) {
+        if (!userDoc.role) {
           await logUnauthorized('missing_role');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
-        setRole(userDoc.type);
-        if (userDoc.type === 'admin') {
+        setRole(userDoc.role);
+        if (userDoc.role === 'admin') {
           setScreen('adminPanel');
         } else {
           setScreen('teacher');

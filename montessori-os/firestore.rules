@@ -13,11 +13,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isPepUser() && userDoc().data.type == 'admin';
+      return isPepUser() && userDoc().data.role == 'admin';
     }
 
     function isTeacher() {
-      return isPepUser() && userDoc().data.type == 'teacher';
+      return isPepUser() && userDoc().data.role == 'teacher';
     }
 
     // =========================

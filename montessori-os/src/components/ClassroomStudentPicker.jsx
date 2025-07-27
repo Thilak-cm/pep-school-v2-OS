@@ -60,30 +60,30 @@ function ClassroomStudentPicker({
         
         // Add classroom name to each student for display
         const studentsWithClassroom = studentList.map(student => {
-          // Handle different classroom_id formats
+          // Handle different classroomId formats
           let classroomId;
-          if (student.classroom_id) {
-            if (typeof student.classroom_id === 'object' && student.classroom_id.id) {
+          if (student.classroomId) {
+            if (typeof student.classroomId === 'object' && student.classroomId.id) {
               // DocumentReference object
-              classroomId = student.classroom_id.id;
-            } else if (typeof student.classroom_id === 'string') {
+              classroomId = student.classroomId.id;
+            } else if (typeof student.classroomId === 'string') {
               // String format - could be just ID or full path
-              classroomId = student.classroom_id.includes('/') 
-                ? student.classroom_id.split('/').pop() 
-                : student.classroom_id;
+              classroomId = student.classroomId.includes('/') 
+                ? student.classroomId.split('/').pop() 
+                : student.classroomId;
             } else {
-              classroomId = student.classroom_id;
+              classroomId = student.classroomId;
             }
           }
           
           const classroom = classList.find(c => c.id === classroomId);
-          console.log(`Student ${student.name}: classroom_id=${student.classroom_id}, parsed=${classroomId}, found=${classroom?.name || 'NOT FOUND'}`);
+          console.log(`Student ${student.name}: classroomId=${student.classroomId}, parsed=${classroomId}, found=${classroom?.name || 'NOT FOUND'}`);
           
-          return {
-            ...student,
-            classroom_name: classroom?.name || 'Unknown Classroom',
-            classroom_id: classroomId
-          };
+                      return {
+              ...student,
+              classroom_name: classroom?.name || 'Unknown Classroom',
+              classroomId: classroomId
+            };
         });
         
         setAllStudents(studentsWithClassroom);
@@ -125,7 +125,7 @@ function ClassroomStudentPicker({
     
     // Then add students to their respective classrooms
     allStudents.forEach(student => {
-      const classroomId = student.classroom_id;
+      const classroomId = student.classroomId;
       if (grouped[classroomId]) {
         grouped[classroomId].students.push(student);
       } else {

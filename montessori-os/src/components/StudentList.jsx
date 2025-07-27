@@ -37,10 +37,9 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
     const fetchStudents = async () => {
       if (!classroom) return;
       try {
-        const classRef = doc(db, 'classrooms', classroom.id);
         const q = query(
           collection(db, 'students'),
-          where('classroom_id', '==', classRef)
+          where('classroomId', '==', classroom.id)
         );
         const qSnap = await getDocs(q);
         const list = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -87,7 +86,7 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
                   {stu.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  UID: {stu.uid || stu.id} • DOB: {formatDob(stu.dob)}
+                  UID: {stu.uid || stu.id} • DOB: {formatDob(stu.dateOfBirth)}
                 </Typography>
               </CardContent>
             </Card>
