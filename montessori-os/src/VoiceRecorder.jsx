@@ -49,7 +49,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  const MAX_RECORDING_TIME = 30; // 30 seconds
+  const MAX_RECORDING_TIME = 15; // 15 seconds (Google Speech-to-Text sync limit)
 
   useEffect(() => {
     // Cleanup function
@@ -127,7 +127,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         setRecordingTime((prevTime) => {
           const newTime = prevTime + 1;
           
-          // Auto-stop at 30 seconds
+          // Auto-stop at 15 seconds
           if (newTime >= MAX_RECORDING_TIME) {
             stopRecording();
             return MAX_RECORDING_TIME;
@@ -275,7 +275,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
             fontSize: '0.9rem'
           }}
         >
-          Record up to 30 seconds of audio
+          Record up to 15 seconds of audio
         </Typography>
       </CardContent>
 

@@ -13,6 +13,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tag picker system for curriculum areas
 - Student timeline with filtering
 
+## [1.3.0] - 2025-07-27
+
+### Added
+- Note editing functionality with role-based permissions
+- Edit button in observation detail dialog
+- Inline text editing with save/cancel actions
+- Permission system: admins can edit any note, teachers can edit their own notes
+- Real-time dialog updates after saving edits
+- Edit metadata tracking (edit count and last edited timestamp)
+
+### Changed
+- Voice recording limit reduced from 30 seconds to 15 seconds
+- Updated UI text and timer display to reflect new recording limit
+- Improved user experience with instant feedback after editing
+
+### Fixed
+- Duplicate CircularProgress import error in StudentTimeline component
+- Auto-refresh issue where edited content wasn't immediately visible in dialog
+- Google Speech-to-Text API sync limit compatibility
+
+### Technical
+- Enhanced StudentTimeline component with edit functionality
+- Added updateDoc and serverTimestamp imports from firebase/firestore
+- Implemented permission checking logic (canEditObservation)
+- Added TextField component for inline editing
+- Real-time synchronization between Firestore updates and dialog state
+- Optimized recording duration for Speech-to-Text API reliability
+
+### Security
+- Role-based access control for note editing
+- Admin users can edit any observation note
+- Teachers can only edit notes they created
+- Secure Firestore updates with proper error handling
+
 ## [1.2.0] - 2025-07-27
 
 ### Added

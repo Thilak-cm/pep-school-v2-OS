@@ -16,10 +16,11 @@ import {
   DialogActions,
   Button,
   Chip,
-  Divider
+  Divider,
+  TextField
 } from '@mui/material';
-import { ArrowBack, Mic, TextFields, Star, Edit, AccessTime, Delete } from '@mui/icons-material';
-import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { ArrowBack, Mic, TextFields, Star, Edit, AccessTime, Delete, Save, Cancel } from '@mui/icons-material';
+import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function StudentTimeline({ student, onBack, currentUser, userRole }) {
@@ -29,6 +30,9 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!student) return;
@@ -72,6 +76,16 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     };
   }, [student]);
 
+  // Sync selectedObservation with updated observations data
+  useEffect(() => {
+    if (selectedObservation && observations.length > 0) {
+      const updatedObservation = observations.find(obs => obs.id === selectedObservation.id);
+      if (updatedObservation && updatedObservation.text !== selectedObservation.text) {
+        setSelectedObservation(updatedObservation);
+      }
+    }
+  }, [observations, selectedObservation]);
+
   const handleObservationClick = (observation) => {
     setSelectedObservation(observation);
     setDetailDialogOpen(true);
@@ -80,6 +94,8 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const handleCloseDialog = () => {
     setDetailDialogOpen(false);
     setSelectedObservation(null);
+    setEditing(false);
+    setEditText('');
   };
 
   const handleDeleteClick = () => {
@@ -111,6 +127,49 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     if (!currentUser || !observation) return false;
     // Admin can delete any note, or teacher can delete their own note
     return userRole === 'admin' || observation.teacherId === currentUser.uid;
+  };
+
+  const canEditObservation = (observation) => {
+    if (!currentUser || !observation) return false;
+    // Admin can edit any note, or teacher can edit their own note
+    return userRole === 'admin' || observation.teacherId === currentUser.uid;
+  };
+
+  const handleEditClick = () => {
+    if (selectedObservation) {
+      setEditText(selectedObservation.text || '');
+      setEditing(true);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!selectedObservation || !editText.trim()) return;
+
+    try {
+      setSaving(true);
+      const updateData = {
+        text: editText.trim(),
+        editCount: (selectedObservation.editCount || 0) + 1,
+        updatedAt: serverTimestamp(),
+        lastEditedBy: currentUser.uid,
+        lastEditedAt: serverTimestamp()
+      };
+
+      await updateDoc(doc(db, 'observations', selectedObservation.id), updateData);
+      
+      setEditing(false);
+      setEditText('');
+    } catch (error) {
+      console.error('Error updating observation:', error);
+      alert('Error saving changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditing(false);
+    setEditText('');
   };
 
   const formatTimestamp = (timestamp) => {
@@ -213,9 +272,27 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               </Box>
             </DialogTitle>
             <DialogContent sx={{ pb: 2 }}>
-              <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.6 }}>
-                {selectedObservation.text}
-              </Typography>
+              {editing ? (
+                <TextField
+                  multiline
+                  rows={4}
+                  fullWidth
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  placeholder="Edit your observation..."
+                  variant="outlined"
+                  sx={{
+                    mb: 3,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                    }
+                  }}
+                />
+              ) : (
+                <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.6 }}>
+                  {selectedObservation.text}
+                </Typography>
+              )}
               
               <Divider sx={{ my: 2 }} />
               
@@ -270,19 +347,55 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-              <Button onClick={handleCloseDialog} variant="outlined" sx={{ flex: 1 }}>
-                Close
-              </Button>
-              {canDeleteObservation(selectedObservation) && (
-                <Button 
-                  onClick={handleDeleteClick} 
-                  variant="outlined" 
-                  color="error"
-                  startIcon={<Delete />}
-                  sx={{ flex: 1 }}
-                >
-                  Delete
-                </Button>
+              {editing ? (
+                <>
+                  <Button 
+                    onClick={handleEditCancel} 
+                    variant="outlined" 
+                    sx={{ flex: 1 }}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleEditSave} 
+                    variant="contained" 
+                    color="primary"
+                    startIcon={saving ? <CircularProgress size={16} /> : <Save />}
+                    sx={{ flex: 1 }}
+                    disabled={saving || !editText.trim()}
+                  >
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleCloseDialog} variant="outlined" sx={{ flex: 1 }}>
+                    Close
+                  </Button>
+                  {canEditObservation(selectedObservation) && (
+                    <Button 
+                      onClick={handleEditClick} 
+                      variant="outlined" 
+                      color="primary"
+                      startIcon={<Edit />}
+                      sx={{ flex: 1 }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  {canDeleteObservation(selectedObservation) && (
+                    <Button 
+                      onClick={handleDeleteClick} 
+                      variant="outlined" 
+                      color="error"
+                      startIcon={<Delete />}
+                      sx={{ flex: 1 }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </>
               )}
             </DialogActions>
           </>
