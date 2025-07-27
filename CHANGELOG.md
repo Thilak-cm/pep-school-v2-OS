@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tag picker system for curriculum areas
 - Student timeline with filtering
 
+## [1.1.4] - 2025-07-27
+
+### Fixed
+- AddNoteModal centering issues on mobile and desktop
+- Modal alignment now properly centered on all screen sizes
+- Removed transform positioning that caused right-alignment
+- Improved Dialog container styling for consistent centering
+
+### Technical
+- Updated Dialog PaperProps to use margin: auto for proper centering
+- Added padding: 0 to Dialog container to prevent alignment interference
+- Simplified modal positioning approach for better reliability
+
 ## [1.1.3] - 2025-07-27
 
 ### Fixed
