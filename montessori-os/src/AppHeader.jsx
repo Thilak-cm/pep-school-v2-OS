@@ -83,16 +83,35 @@ function AppHeader({ user, onSignOut, title = '' }) {
 
   return (
     <>
-      <AppBar 
-        position="static" 
-        elevation={1}
+      <Box
+        component="header"
         sx={{ 
+          position: 'sticky',
+          top: 0,
+          zIndex: 1100,
           backgroundColor: 'white',
-          borderBottom: '1px solid #e2e8f0'
+          borderBottom: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          // Debug: make it more visible
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            backgroundColor: '#4f46e5',
+            opacity: 0.3,
+          }
         }}
       >
         <Container maxWidth={false} sx={{ maxWidth: '100%' }}>
-          <Toolbar sx={{ px: 2 }}>
+          <Box sx={{ 
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: 64, // Standard toolbar height
+            px: 2,
+          }}>
             {/* Menu Button */}
             <IconButton
               onClick={handleDrawerToggle}
@@ -132,16 +151,16 @@ function AppHeader({ user, onSignOut, title = '' }) {
                 filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
               }}
             />
-          </Toolbar>
+          </Box>
         </Container>
-      </AppBar>
+      </Box>
 
       {/* Mobile-First Drawer - Contained within 375px boundaries */}
       <Backdrop
         open={drawerOpen}
         onClick={handleDrawerToggle}
         sx={{ 
-          zIndex: 1200,
+          zIndex: 1250, // Above header (1100) but below FAB (1300)
           backgroundColor: 'rgba(0, 0, 0, 0.5)'
         }}
       />
@@ -149,14 +168,14 @@ function AppHeader({ user, onSignOut, title = '' }) {
       <Slide direction="right" in={drawerOpen} mountOnEnter unmountOnExit>
         <Box
           sx={{
-            position: 'absolute',
+            position: 'fixed', // Changed from absolute to fixed for better positioning
             top: 0,
             left: 0,
             width: '280px',
-            height: '100%',
+            height: '100vh', // Use full viewport height
             backgroundColor: '#ffffff',
             borderRight: '1px solid #e2e8f0',
-            zIndex: 1300,
+            zIndex: 1260, // Above backdrop (1250)
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column'

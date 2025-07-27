@@ -138,7 +138,7 @@ function App() {
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            overflow: 'auto',
+            // Removed overflow: 'auto' from here - it breaks sticky positioning
             
             // Desktop: add shadow and border radius
             '@media (min-width: 600px)': {
@@ -256,66 +256,74 @@ function App() {
           {/* Authenticated State */}
           {!loading && user && (
             <>
-              {/* Header (hidden on Access Denied) */}
+              {/* Sticky Header (outside scrollable content) */}
               {screen !== 'accessDenied' && (
                 <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
               )}
 
-              {/* Main Content */}
+              {/* Scrollable Main Content */}
               <Box
                 sx={{
                   flex: 1,
-                  padding: { xs: 2, sm: 3 },
                   overflow: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
                 }}
               >
-                {screen === 'adminPanel' && (
-                  <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
-                )}
+                <Box
+                  sx={{
+                    padding: { xs: 2, sm: 3 },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 'fit-content',
+                  }}
+                >
+                  {screen === 'adminPanel' && (
+                    <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
+                  )}
 
-                {screen === 'classroomList' && (
-                  <ClassroomList
-                    onBack={() => setScreen('adminPanel')}
-                    onSelectClassroom={(cls) => {
-                      setSelectedClassroom(cls);
-                      setScreen('studentList');
-                    }}
-                  />
-                )}
+                  {screen === 'classroomList' && (
+                    <ClassroomList
+                      onBack={() => setScreen('adminPanel')}
+                      onSelectClassroom={(cls) => {
+                        setSelectedClassroom(cls);
+                        setScreen('studentList');
+                      }}
+                    />
+                  )}
 
-                {screen === 'studentList' && (
-                  <StudentList
-                    classroom={selectedClassroom}
-                    onBack={() => setScreen('classroomList')}
-                    onSelectStudent={(stu) => {
-                      setSelectedStudent(stu);
-                      setScreen('timeline');
-                    }}
-                  />
-                )}
+                  {screen === 'studentList' && (
+                    <StudentList
+                      classroom={selectedClassroom}
+                      onBack={() => setScreen('classroomList')}
+                      onSelectStudent={(stu) => {
+                        setSelectedStudent(stu);
+                        setScreen('timeline');
+                      }}
+                    />
+                  )}
 
-                {screen === 'timeline' && (
-                  <StudentTimeline
-                    student={selectedStudent}
-                    onBack={() => setScreen('studentList')}
-                  />
-                )}
+                  {screen === 'timeline' && (
+                    <StudentTimeline
+                      student={selectedStudent}
+                      onBack={() => setScreen('studentList')}
+                    />
+                  )}
 
-                {screen === 'teacher' && !unauthorized && (
-                  <Typography variant="body1">Teacher view coming soon</Typography>
-                )}
+                  {screen === 'teacher' && !unauthorized && (
+                    <Typography variant="body1">Teacher view coming soon</Typography>
+                  )}
 
-                {screen === 'accessDenied' && (
-                  <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
-                )}
+                  {screen === 'accessDenied' && (
+                    <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
+                  )}
 
-                {screen === 'loading' && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                    <CircularProgress />
-                  </Box>
-                )}
+                  {screen === 'loading' && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                      <CircularProgress />
+                    </Box>
+                  )}
+                </Box>
               </Box>
 
               {/* Global Add Note FAB */}
