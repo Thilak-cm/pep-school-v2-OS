@@ -200,17 +200,36 @@ function AddNoteModal({
       onClose={handleClose}
       fullWidth
       maxWidth="xs"
+      scroll="body"
       PaperProps={{
         sx: {
-          maxWidth: 343,
-          width: 'calc(100% - 32px)',
-          mx: 'auto',
-          borderRadius: 3,
-          overflow: 'visible'
+          // Mobile: full screen modal
+          width: { xs: '100vw', sm: 'calc(100% - 32px)' },
+          height: { xs: '100vh', sm: 'auto' },
+          maxWidth: { xs: 'none', sm: 400 },
+          maxHeight: { xs: 'none', sm: '90vh' },
+          margin: { xs: 0, sm: 'auto' },
+          borderRadius: { xs: 0, sm: 3 },
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }
+      }}
+      sx={{
+        '& .MuiDialog-container': {
+          alignItems: { xs: 'stretch', sm: 'center' }
         }
       }}
     >
-      <Box sx={{ px: 3, pt: 3 }}>
+      {/* Fixed Header with Stepper */}
+      <Box sx={{ 
+        px: 3, 
+        pt: 3, 
+        pb: 1,
+        borderBottom: '1px solid #e2e8f0',
+        backgroundColor: 'white',
+        zIndex: 1
+      }}>
         <Stepper activeStep={
           step === STEP_NOTE_TYPE ? 0 : 
           (step === STEP_RECORD || step === STEP_TEXT_INPUT) ? 1 : 2
@@ -223,170 +242,198 @@ function AddNoteModal({
         </Stepper>
       </Box>
 
-      {step === STEP_NOTE_TYPE && (
-        <Box
-          sx={{
-            position: 'relative',
-            p: 3,
-            pt: 8,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            alignItems: 'center'
-          }}
-        >
-          <IconButton
-            aria-label="Close"
-            onClick={handleClose}
-            sx={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              color: '#1e293b',
-              '&:hover': { backgroundColor: '#f1f5f9' }
-            }}
-          >
-            <Close sx={{ fontSize: 28 }} />
-          </IconButton>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            What type of note do you want to add?
-          </Typography>
+      {/* Scrollable Content */}
+      <Box sx={{ 
+        flex: 1, 
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
+              position: 'relative',
+              p: 3,
+              pt: 2,
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
-              width: '100%'
+              alignItems: 'center',
+              minHeight: 'fit-content'
             }}
           >
-            {/* Image Note (coming soon) */}
+            <IconButton
+              aria-label="Close"
+              onClick={handleClose}
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 12,
+                color: '#1e293b',
+                '&:hover': { backgroundColor: '#f1f5f9' }
+              }}
+            >
+              <Close sx={{ fontSize: 28 }} />
+            </IconButton>
+            <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+              What type of note do you want to add?
+            </Typography>
             <Box
               sx={{
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 gap: 2,
-                opacity: 0.5,
-                border: '1px solid #e2e8f0',
-                borderRadius: 2,
-                p: 2,
                 width: '100%'
               }}
             >
-              <Image sx={{ fontSize: 32 }} />
-              <Box>
-                <Typography variant="body1">Image</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Coming soon
-                </Typography>
+              {/* Image Note (coming soon) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  opacity: 0.5,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 2,
+                  p: 2,
+                  width: '100%'
+                }}
+              >
+                <Image sx={{ fontSize: 32 }} />
+                <Box>
+                  <Typography variant="body1">Image</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Coming soon
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
-            {/* Text Note (active) */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                border: '1px solid #e2e8f0',
-                borderRadius: 2,
-                p: 2,
-                width: '100%',
-                cursor: 'pointer',
-                backgroundColor: 'white',
-                '&:hover': { 
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #4f46e5'
-                }
-              }}
-              onClick={handleSelectText}
-              aria-label="Add text note"
-            >
-              <TextFields sx={{ fontSize: 32, color: '#64748b' }} />
-              <Box>
-                <Typography variant="body1" sx={{ color: '#1e293b' }}>
-                  Text Note
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Write text note
-                </Typography>
+              {/* Text Note (active) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 2,
+                  p: 2,
+                  width: '100%',
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #4f46e5'
+                  }
+                }}
+                onClick={handleSelectText}
+                aria-label="Add text note"
+              >
+                <TextFields sx={{ fontSize: 32, color: '#64748b' }} />
+                <Box>
+                  <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    Text Note
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Write text note
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
-            {/* Voice Note (active) */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                border: '1px solid #e2e8f0',
-                borderRadius: 2,
-                p: 2,
-                width: '100%',
-                cursor: 'pointer',
-                backgroundColor: 'white',
-                '&:hover': { 
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #4f46e5'
-                }
-              }}
-              onClick={handleSelectVoice}
-              aria-label="Add voice note"
-            >
-              <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
-              <Box>
-                <Typography variant="body1" sx={{ color: '#1e293b' }}>
-                  Voice Note
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Record audio note
-                </Typography>
+              {/* Voice Note (active) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 2,
+                  p: 2,
+                  width: '100%',
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #4f46e5'
+                  }
+                }}
+                onClick={handleSelectVoice}
+                aria-label="Add voice note"
+              >
+                <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
+                <Box>
+                  <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    Voice Note
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Record audio note
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           </Box>
-        </Box>
-      )}
+        )}
 
-      {step === STEP_RECORD && (
-        <Box sx={{ p: 3 }}>
-          <VoiceRecorder 
-            onSave={handleVoiceSave} 
-            onNext={() => setStep(STEP_RECIPIENTS)}
-          />
-        </Box>
-      )}
-
-      {step === STEP_TEXT_INPUT && (
-        <Box sx={{ p: 3 }}>
-          <TextInput 
-            onSave={handleTextSave} 
-            onNext={() => setStep(STEP_RECIPIENTS)}
-            onBack={() => setStep(STEP_NOTE_TYPE)}
-          />
-        </Box>
-      )}
-
-      {step === STEP_RECIPIENTS && (
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <Typography variant="h6">Select classroom(s) and student(s)</Typography>
-          <ClassroomStudentPicker
-            selectedStudents={selectedStudents}
-            onStudentsChange={setSelectedStudents}
-          />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-            <Button 
-              variant="text" 
-              onClick={() => setStep(transcriptionData ? STEP_RECORD : STEP_TEXT_INPUT)}
-            >
-              Back
-            </Button>
-            <Button
-              variant="contained"
-              disabled={saving || selectedStudents.length === 0}
-              onClick={handleRecipientsNext}
-            >
-              {saving ? <CircularProgress size={24} /> : 'Save'}
-            </Button>
+        {step === STEP_RECORD && (
+          <Box sx={{ p: 3, flex: 1 }}>
+            <VoiceRecorder 
+              onSave={handleVoiceSave} 
+              onNext={() => setStep(STEP_RECIPIENTS)}
+            />
           </Box>
-        </Box>
-      )}
+        )}
+
+        {step === STEP_TEXT_INPUT && (
+          <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <TextInput 
+              onSave={handleTextSave} 
+              onNext={() => setStep(STEP_RECIPIENTS)}
+              onBack={() => setStep(STEP_NOTE_TYPE)}
+            />
+          </Box>
+        )}
+
+        {step === STEP_RECIPIENTS && (
+          <Box sx={{ 
+            p: 3, 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 3,
+            minHeight: 'fit-content'
+          }}>
+            <Typography variant="h6">Select classroom(s) and student(s)</Typography>
+            <Box sx={{ flex: 1, minHeight: 300 }}>
+              <ClassroomStudentPicker
+                selectedStudents={selectedStudents}
+                onStudentsChange={setSelectedStudents}
+              />
+            </Box>
+            {/* Fixed bottom action bar */}
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              pt: 2,
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: 'white',
+              position: 'sticky',
+              bottom: 0,
+            }}>
+              <Button 
+                variant="text" 
+                onClick={() => setStep(transcriptionData ? STEP_RECORD : STEP_TEXT_INPUT)}
+              >
+                Back
+              </Button>
+              <Button
+                variant="contained"
+                disabled={saving || selectedStudents.length === 0}
+                onClick={handleRecipientsNext}
+                sx={{ minWidth: 120 }}
+              >
+                {saving ? <CircularProgress size={24} /> : 'Save Note'}
+              </Button>
+            </Box>
+          </Box>
+        )}
+      </Box>
     </Dialog>
   );
 }

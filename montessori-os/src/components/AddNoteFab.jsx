@@ -17,7 +17,20 @@ const AddNoteFab = ({ onClick, showLabel = false, sx = {} }) => {
       variant={showLabel ? 'extended' : 'circular'}
       onClick={onClick}
       aria-label="Add note"
-      sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1200, ...sx }}
+      sx={{ 
+        position: 'fixed',
+        bottom: { xs: 24, sm: 32 },
+        right: { xs: 16, sm: 24 },
+        zIndex: 1300, // Higher than modal backdrop
+        // Ensure minimum touch target size
+        minWidth: { xs: 56, sm: showLabel ? 'auto' : 56 },
+        minHeight: { xs: 56, sm: 56 },
+        // Mobile safe area handling
+        '@supports (padding: env(safe-area-inset-bottom))': {
+          bottom: 'calc(24px + env(safe-area-inset-bottom))'
+        },
+        ...sx 
+      }}
     >
       <Add sx={{ mr: showLabel ? 1 : 0 }} />
       {showLabel && 'Add Note'}

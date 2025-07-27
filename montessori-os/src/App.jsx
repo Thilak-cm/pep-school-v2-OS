@@ -115,7 +115,7 @@ function App() {
   else if (screen === 'timeline') pageTitle = `${selectedStudent?.name || 'Student'} Timeline`;
   else if (screen === 'teacher') pageTitle = 'Teacher Home';
 
-  // Centering container for all app states
+  // Mobile-first responsive container
   return (
     <>
       <Box
@@ -128,201 +128,208 @@ function App() {
           backgroundColor: '#f8fafc',
         }}
       >
-        {/* Loading State */}
-        {loading && (
-          <Box
-            sx={{
-              width: '375px',
-              height: '812px',
-              boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-              borderRadius: '32px',
-              overflow: 'hidden',
-              backgroundColor: '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              position: 'relative',
-            }}
-          >
+        <Box
+          sx={{
+            // Mobile: use viewport dimensions but allow scrolling
+            width: { xs: '100vw', sm: '420px' },
+            minHeight: { xs: '100vh', sm: '800px' },
+            maxHeight: { xs: 'none', sm: '90vh' },
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'auto',
+            
+            // Desktop: add shadow and border radius
+            '@media (min-width: 600px)': {
+              borderRadius: '24px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            }
+          }}
+        >
+          {/* Loading State */}
+          {loading && (
             <Box
               sx={{
+                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
+                justifyContent: 'center',
                 alignItems: 'center',
-                gap: '20px'
-              }}
-            >
-              <CircularProgress
-                size={40}
-                sx={{ 
-                  color: '#4f46e5',
-                  '& .MuiCircularProgress-circle': {
-                    strokeLinecap: 'round',
-                  }
-                }}
-              />
-              <Typography variant="body1" sx={{ color: '#64748b' }}>
-                Loading...
-              </Typography>
-            </Box>
-            <VersionBadge />
-          </Box>
-        )}
-
-        {/* Unauthenticated State */}
-        {!loading && !user && (
-          <Box
-            sx={{
-              width: '375px',
-              height: '812px',
-              boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-              borderRadius: '32px',
-              overflow: 'hidden',
-              backgroundColor: '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              position: 'relative',
-            }}
-          >
-            <Card
-              sx={{
-                borderRadius: '16px',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                padding: '48px 32px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                maxWidth: '100%',
-                width: '100%',
-                backgroundColor: 'white'
+                padding: 3,
               }}
             >
               <Box
-                component="img"
-                src="/pep-logo.png"
-                alt="Pep School Logo"
                 sx={{
-                  width: '120px',
-                  height: '120px',
-                  marginBottom: '32px',
-                  filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 3
                 }}
+              >
+                <CircularProgress
+                  size={40}
+                  sx={{ 
+                    color: '#4f46e5',
+                    '& .MuiCircularProgress-circle': {
+                      strokeLinecap: 'round',
+                    }
+                  }}
+                />
+                <Typography variant="body1" sx={{ color: '#64748b' }}>
+                  Loading...
+                </Typography>
+              </Box>
+              <VersionBadge />
+            </Box>
+          )}
+
+          {/* Unauthenticated State */}
+          {!loading && !user && (
+            <Box
+              sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 3,
+                position: 'relative',
+              }}
+            >
+              <Card
+                sx={{
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                  padding: { xs: '32px 24px', sm: '48px 32px' },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  width: '100%',
+                  maxWidth: '350px',
+                  backgroundColor: 'white'
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/pep-logo.png"
+                  alt="Pep School Logo"
+                  sx={{
+                    width: { xs: '100px', sm: '120px' },
+                    height: { xs: '100px', sm: '120px' },
+                    marginBottom: '32px',
+                    filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
+                  }}
+                />
+                <Typography
+                  variant="h3"
+                  component="h1"
+                  sx={{
+                    color: '#1e293b',
+                    marginBottom: '20px',
+                    fontSize: { xs: '1.75rem', sm: '2rem' },
+                    fontWeight: '700',
+                    lineHeight: '1.2',
+                    textAlign: 'center',
+                  }}
+                >
+                  Welcome to Pep School V2 OS!
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: '#64748b',
+                    marginBottom: '40px',
+                    fontSize: { xs: '1rem', sm: '1.1rem' },
+                    lineHeight: '1.6',
+                    textAlign: 'center',
+                  }}
+                >
+                  Streamline your teaching workflow
+                </Typography>
+                <SignIn />
+              </Card>
+              <VersionBadge />
+            </Box>
+          )}
+
+          {/* Authenticated State */}
+          {!loading && user && (
+            <>
+              {/* Header (hidden on Access Denied) */}
+              {screen !== 'accessDenied' && (
+                <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
+              )}
+
+              {/* Main Content */}
+              <Box
+                sx={{
+                  flex: 1,
+                  padding: { xs: 2, sm: 3 },
+                  overflow: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                {screen === 'adminPanel' && (
+                  <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
+                )}
+
+                {screen === 'classroomList' && (
+                  <ClassroomList
+                    onBack={() => setScreen('adminPanel')}
+                    onSelectClassroom={(cls) => {
+                      setSelectedClassroom(cls);
+                      setScreen('studentList');
+                    }}
+                  />
+                )}
+
+                {screen === 'studentList' && (
+                  <StudentList
+                    classroom={selectedClassroom}
+                    onBack={() => setScreen('classroomList')}
+                    onSelectStudent={(stu) => {
+                      setSelectedStudent(stu);
+                      setScreen('timeline');
+                    }}
+                  />
+                )}
+
+                {screen === 'timeline' && (
+                  <StudentTimeline
+                    student={selectedStudent}
+                    onBack={() => setScreen('studentList')}
+                  />
+                )}
+
+                {screen === 'teacher' && !unauthorized && (
+                  <Typography variant="body1">Teacher view coming soon</Typography>
+                )}
+
+                {screen === 'accessDenied' && (
+                  <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
+                )}
+
+                {screen === 'loading' && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+              </Box>
+
+              {/* Global Add Note FAB */}
+              <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
+              <AddNoteModal
+                open={addNoteOpen}
+                onClose={() => setAddNoteOpen(false)}
+                initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.sid || selectedStudent.id] : []}
+                currentUser={user}
               />
-              <Typography
-                variant="h3"
-                component="h1"
-                sx={{
-                  color: '#1e293b',
-                  marginBottom: '20px',
-                  fontSize: '2rem',
-                  fontWeight: '700',
-                  lineHeight: '1.2',
-                  textAlign: 'center',
-                }}
-              >
-                Welcome to Pep School V2 OS!
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  color: '#64748b',
-                  marginBottom: '40px',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.6',
-                  maxWidth: '100%',
-                  textAlign: 'center',
-                }}
-              >
-                Streamline your teaching workflow
-              </Typography>
-              <SignIn />
-            </Card>
-            <VersionBadge />
-          </Box>
-        )}
-
-        {/* Authenticated State */}
-        {!loading && user && (
-          <Box
-            sx={{
-              width: '375px',
-              height: '812px',
-              backgroundColor: '#f8fafc',
-              boxShadow: '0 0 24px rgba(0,0,0,0.10)',
-              borderRadius: '32px',
-              overflow: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-            }}
-          >
-            {/* Header (hidden on Access Denied) */}
-            {screen !== 'accessDenied' && (
-              <AppHeader user={user} onSignOut={handleSignOut} title={pageTitle} />
-            )}
-
-            {/* Main Content */}
-            <Container maxWidth={false} sx={{ py: 3, px: 2, maxWidth: '375px', flexGrow: 1 }}>
-              {screen === 'adminPanel' && (
-                <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
-              )}
-
-              {screen === 'classroomList' && (
-                <ClassroomList
-                  onBack={() => setScreen('adminPanel')}
-                  onSelectClassroom={(cls) => {
-                    setSelectedClassroom(cls);
-                    setScreen('studentList');
-                  }}
-                />
-              )}
-
-              {screen === 'studentList' && (
-                <StudentList
-                  classroom={selectedClassroom}
-                  onBack={() => setScreen('classroomList')}
-                  onSelectStudent={(stu) => {
-                    setSelectedStudent(stu);
-                    setScreen('timeline');
-                  }}
-                />
-              )}
-
-              {screen === 'timeline' && (
-                <StudentTimeline
-                  student={selectedStudent}
-                  onBack={() => setScreen('studentList')}
-                />
-              )}
-
-              {screen === 'teacher' && !unauthorized && (
-                <Typography variant="body1">Teacher view coming soon</Typography>
-              )}
-
-              {screen === 'accessDenied' && (
-                <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
-              )}
-
-              {screen === 'loading' && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <CircularProgress />
-                </Box>
-              )}
-            </Container>
-            {/* Global Add Note FAB */}
-            <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
-            <AddNoteModal
-              open={addNoteOpen}
-              onClose={() => setAddNoteOpen(false)}
-              initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.sid || selectedStudent.id] : []}
-              currentUser={user}
-            />
-            <VersionBadge />
-          </Box>
-        )}
+              <VersionBadge />
+            </>
+          )}
+        </Box>
       </Box>
     </>
   );
