@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tag picker system for curriculum areas
 - Student timeline with filtering
 
+## [1.2.0] - 2025-07-27
+
+### Added
+- Note deletion functionality with role-based permissions
+- Delete button in observation detail dialog
+- Confirmation dialog for note deletion with preview
+- Permission system: admins can delete any note, teachers can delete their own notes
+- Visual feedback during deletion process
+
+### Security
+- Role-based access control for note deletion
+- Admin users can delete any observation note
+- Teachers can only delete notes they created
+- Secure Firestore deletion with proper error handling
+
+### Technical
+- Enhanced StudentTimeline component with delete functionality
+- Added deleteDoc import from firebase/firestore
+- Implemented permission checking logic (canDeleteObservation)
+- Added loading states and error handling for deletion
+- Automatic timeline refresh after successful deletion
+
 ## [1.1.4] - 2025-07-27
 
 ### Fixed

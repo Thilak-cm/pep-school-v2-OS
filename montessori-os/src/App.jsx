@@ -318,6 +318,8 @@ function App() {
                     <StudentTimeline
                       student={selectedStudent}
                       onBack={() => setScreen('studentList')}
+                      currentUser={user}
+                      userRole={role}
                     />
                   )}
 
