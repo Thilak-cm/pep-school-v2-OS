@@ -1,10 +1,10 @@
-import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, applicationDefault } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 // import { getStorage } from 'firebase-admin/storage';
-import * as functions from 'firebase-functions';
+import * as functions from "firebase-functions";
 // import { v4 as uuidv4 } from 'uuid';
-import speech from '@google-cloud/speech';
-import nodemailer from 'nodemailer';
+import speech from "@google-cloud/speech";
+import nodemailer from "nodemailer";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -17,28 +17,28 @@ const smtpUser = functions.config().smtp?.user;
 const smtpPass = functions.config().smtp?.pass;
 const transporter = (smtpUser && smtpPass)
   ? nodemailer.createTransport({
-      service: 'gmail',
+      service: "gmail",
       auth: { user: smtpUser, pass: smtpPass },
     })
   : null;
 
 export const transcribeVoiceNote = functions.storage
   .object()
-  .filter({ contentType: 'audio/webm' })
+  .filter({ contentType: "audio/webm" })
   .onFinalize(async (object) => {
     const filePath = object.name; // voice_notes/{studentUid}/{docId}.webm
-    if (!filePath.startsWith('voice_notes/')) return;
+    if (!filePath.startsWith("voice_notes/")) return;
 
-    const [fileName] = filePath.split('/');
-    const docId = fileName.replace('.webm', '');
+    const [fileName] = filePath.split("/");
+    const docId = fileName.replace(".webm", "");
 
     // Generate gs:// uri
     const gcsUri = `gs://${object.bucket}/${filePath}`;
 
     const config = {
-      encoding: 'WEBM_OPUS',
+      encoding: "WEBM_OPUS",
       sampleRateHertz: 48000,
-      languageCode: 'en-US',
+      languageCode: "en-US",
     };
 
     const audio = {
@@ -50,41 +50,41 @@ export const transcribeVoiceNote = functions.storage
       const [response] = await operation.promise();
       const transcript = response.results
         .map(r => r.alternatives[0].transcript)
-        .join(' ');
+        .join(" ");
       const confidence = response.results[0]?.alternatives[0]?.confidence || 0;
 
-      await db.collection('observations').doc(docId).update({
+      await db.collection("observations").doc(docId).update({
         text: transcript,
         stt_confidence: confidence,
         audio_url: gcsUri,
       });
     } catch (err) {
-      console.error('STT error', err);
-      await db.collection('observations').doc(docId).update({
-        text: '(transcription failed)',
+      console.error("STT error", err);
+      await db.collection("observations").doc(docId).update({
+        text: "(transcription failed)",
       });
     }
   });
 
 export const notifyAdminsOnUnauthorized = functions.firestore
-  .document('access_logs/{logId}')
-  .onCreate(async (snap, context) => {
+  .document("access_logs/{logId}")
+  .onCreate(async (snap) => {
     const logData = snap.data();
 
     try {
       // Fetch all admin users
-      const adminSnap = await db.collection('users').where('type', '==', 'admin').get();
+      const adminSnap = await db.collection("users").where("type", "==", "admin").get();
       const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
 
       if (!transporter || adminEmails.length === 0) {
-        console.warn('Email transporter not configured or no admin emails found');
+        console.warn("Email transporter not configured or no admin emails found");
         return;
       }
 
       const mailOptions = {
         from: smtpUser,
-        to: adminEmails.join(','),
-        subject: 'Unauthorized Access Attempt Detected',
+        to: adminEmails.join(","),
+        subject: "Unauthorized Access Attempt Detected",
         text: `An unauthorized user attempted to access the Montessori Observation Hub.\n\n` +
               `Email: ${logData.email}\n` +
               `Display Name: ${logData.displayName}\n` +
@@ -94,8 +94,8 @@ export const notifyAdminsOnUnauthorized = functions.firestore
       };
 
       await transporter.sendMail(mailOptions);
-      console.log('Unauthorized access email sent to admins');
+      console.log("Unauthorized access email sent to admins");
     } catch (err) {
-      console.error('Failed to send unauthorized access email', err);
+      console.error("Failed to send unauthorized access email", err);
     }
   }); 
