@@ -125,14 +125,14 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
   const canDeleteObservation = (observation) => {
     if (!currentUser || !observation) return false;
-    // Admin can delete any note, or teacher can delete their own note
-    return userRole === 'admin' || observation.teacherId === currentUser.uid;
+    // Only admin can delete notes
+    return userRole === 'admin';
   };
 
   const canEditObservation = (observation) => {
     if (!currentUser || !observation) return false;
-    // Admin can edit any note, or teacher can edit their own note
-    return userRole === 'admin' || observation.teacherId === currentUser.uid;
+    // Only admin can edit notes
+    return userRole === 'admin';
   };
 
   const handleEditClick = () => {

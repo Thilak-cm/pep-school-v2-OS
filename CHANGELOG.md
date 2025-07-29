@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Restricted observation editing and deleting to admin users only
+- Teachers can no longer edit or delete any observations (admin-only permissions)
+
 ### Planned
 - Development toggle (phone/desktop/responsive views)
 - Individual component responsiveness improvements
