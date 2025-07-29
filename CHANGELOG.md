@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Creator information displayed in observation detail modal
+- Shows "Created by" field with teacher's Google display name
+- New observations now store teacher name and email for better UX
+
 ### Changed
 - Restricted observation editing and deleting to admin users only
 - Teachers can no longer edit or delete any observations (admin-only permissions)

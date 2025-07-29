@@ -19,7 +19,7 @@ import {
   Divider,
   TextField
 } from '@mui/material';
-import { ArrowBack, Mic, TextFields, Star, Edit, AccessTime, Delete, Save, Cancel } from '@mui/icons-material';
+import { ArrowBack, Mic, TextFields, Star, Edit, AccessTime, Delete, Save, Cancel, Person } from '@mui/icons-material';
 import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -301,6 +301,13 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                   <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
                   <Typography variant="body2" color="text.secondary">
                     {formatTimestamp(selectedObservation.timestamp)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Created by: {selectedObservation.teacherName || selectedObservation.teacherEmail || 'Unknown Teacher'}
                   </Typography>
                 </Box>
                 

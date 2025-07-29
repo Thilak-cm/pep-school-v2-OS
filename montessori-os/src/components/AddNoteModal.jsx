@@ -161,6 +161,8 @@ function AddNoteModal({
         const observationData = {
           studentId: stuId,
           teacherId: currentUser?.uid || 'unknown',
+          teacherName: currentUser?.displayName || 'Unknown Teacher',
+          teacherEmail: currentUser?.email || 'unknown@email.com',
           classroomId: studentData?.classroomId || 'unknown',
           timestamp: serverTimestamp(),
           text: noteData.text,
