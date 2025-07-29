@@ -19,4 +19,3 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
           projectId: pep-os
-          entryPoint: ./montessori-os

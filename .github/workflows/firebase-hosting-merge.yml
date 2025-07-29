@@ -18,4 +18,3 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
           channelId: live
           projectId: pep-os
-          entryPoint: ./montessori-os
