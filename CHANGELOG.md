@@ -8,19 +8,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Creator information displayed in observation detail modal
-- Shows "Created by" field with teacher's Google display name
-- New observations now store teacher name and email for better UX
+- Note reassignment functionality with student selection modal
+- "Assigned To" metadata line in observation detail dialog
 
-### Changed
-- Restricted observation editing and deleting to admin users only
-- Teachers can no longer edit or delete any observations (admin-only permissions)
+### Fixed
+- Observation detail dialog button spacing and text cutoff issues
+- React console errors from missing Material-UI imports
+- Dialog state management conflicts during reassignment
+
+### Improved
+- Inline edit and reassign buttons next to relevant metadata
+- Streamlined dialog layout with contextual actions
+- Mobile-friendly button positioning preventing text truncation
 
 ### Planned
 - Development toggle (phone/desktop/responsive views)
 - Individual component responsiveness improvements
 - Tag picker system for curriculum areas
-- Student timeline with filtering
+
+## [1.4.0] - 2025-01-09
+
+### Added
+- Creator information displayed in observation detail modal
+- Shows "Created by" field with teacher's Google display name
+- New observations now store teacher name and email for better UX
+- Comprehensive filtering system for student timeline observations
+- Filter by date range (from/to dates) with date picker controls
+- Filter by creator (teacher) with dropdown of all available creators
+- Filter by observation type (voice/text notes)
+- Combination filtering supporting multiple simultaneous criteria
+- Filter toggle button with active filter indicator chip
+- Clear all filters functionality with one-click reset
+- Real-time filter results counter showing filtered observation count
+
+### Changed
+- Restricted observation editing and deleting to admin users only
+- Teachers can no longer edit or delete any observations (admin-only permissions)
+- Student timeline now displays filtered results instead of all observations
+- Enhanced header with filter controls and result indicators
+
+### Technical
+- Added filter state management with date range, creator, and type filters
+- Implemented real-time filtering with useEffect dependencies
+- Added unique creator extraction from observation data
+- Enhanced UI with collapsible filter panel using Material-UI components
+- Improved user experience with filter persistence and visual feedback
+
+### Security
+- Centralized observation editing and deletion to admin users only
+- Enhanced permission system for content moderation and oversight
 
 ## [1.3.1] - 2025-01-08
 
