@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tag picker system for curriculum areas
 - Student timeline with filtering
 
+## [1.3.1] - 2025-01-08
+
+### Fixed
+- Production deployment pipeline (GitHub Actions workflows)
+- Blank production site due to missing Firebase environment variables
+- Duplicate workflow runs from empty staging configuration file
+- Firebase configuration not being available during production builds
+
+### Changed
+- Improved CI/CD workflow with GitHub secrets management for environment variables
+- Updated deployment workflows to use repository secrets for Firebase configuration
+- Cleaned up workflow files for single-run efficiency
+- Established main branch as production deployment trigger
+
+### Technical
+- Added environment variable mapping in GitHub Actions workflows
+- Configured VITE_FIREBASE_* secrets in repository settings
+- Removed empty firebase-hosting-dev-staging.yml workflow file
+- Enhanced deployment pipeline reliability and consistency
+
+### Security
+- Moved Firebase configuration from committed files to GitHub repository secrets
+- Implemented proper environment variable management for production deployments
+- Secured API keys and configuration through GitHub Actions secret store
+
 ## [1.3.0] - 2025-07-27
 
 ### Added
