@@ -4,11 +4,6 @@ import {
   Box,
   Typography,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemButton,
   CircularProgress,
   Card,
   CardContent,
@@ -24,12 +19,21 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Paper,
-  Collapse
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  ListItemButton
 } from '@mui/material';
-import { ArrowBack, Mic, TextFields, Star, Edit, AccessTime, Delete, Save, Cancel, Person, FilterList, Clear, SwapHoriz, Close } from '@mui/icons-material';
+import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList } from '@mui/icons-material';
 import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+
+// Import new modular components
+import FilterPanel from './FilterPanel';
+import useObservationFilters from '../hooks/useObservationFilters';
+import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils';
+import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
 
 function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [observations, setObservations] = useState([]);
@@ -42,23 +46,24 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
   
-  // Filter states
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    creator: '',
-    type: ''
-  });
-  const [uniqueCreators, setUniqueCreators] = useState([]);
-  const [filteredObservations, setFilteredObservations] = useState([]);
-  
   // Reassignment states
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
   const [selectedStudentForReassign, setSelectedStudentForReassign] = useState(null);
   const [reassigning, setReassigning] = useState(false);
   const [allStudents, setAllStudents] = useState([]);
+
+  // Use the filter hook instead of local state
+  const {
+    showFilters,
+    filters,
+    uniqueCreators,
+    filteredObservations,
+    hasActiveFilters,
+    handleFilterChange,
+    handleClearFilters,
+    toggleFilters
+  } = useObservationFilters(observations);
 
   useEffect(() => {
     if (!student) return;
@@ -111,52 +116,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       }
     }
   }, [observations, selectedObservation]);
-
-  // Extract unique creators and apply filters
-  useEffect(() => {
-    // Extract unique creators
-    const creators = [...new Set(observations.map(obs => 
-      obs.teacherName || obs.teacherEmail || 'Unknown Teacher'
-    ))].sort();
-    setUniqueCreators(creators);
-
-    // Apply filters
-    let filtered = [...observations];
-
-    // Date filters
-    if (filters.dateFrom) {
-      const fromDate = new Date(filters.dateFrom);
-      fromDate.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(obs => {
-        const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
-        return obsDate >= fromDate;
-      });
-    }
-
-    if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(obs => {
-        const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
-        return obsDate <= toDate;
-      });
-    }
-
-    // Creator filter
-    if (filters.creator) {
-      filtered = filtered.filter(obs => {
-        const creator = obs.teacherName || obs.teacherEmail || 'Unknown Teacher';
-        return creator === filters.creator;
-      });
-    }
-
-    // Type filter
-    if (filters.type) {
-      filtered = filtered.filter(obs => obs.type === filters.type);
-    }
-
-    setFilteredObservations(filtered);
-  }, [observations, filters]);
 
   // Load all students for reassignment with classroom info
   useEffect(() => {
@@ -233,24 +192,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
   const handleDeleteCancel = () => {
     setDeleteConfirmOpen(false);
-  };
-
-  const canDeleteObservation = (observation) => {
-    if (!currentUser || !observation) return false;
-    // Only admin can delete notes
-    return userRole === 'admin';
-  };
-
-  const canEditObservation = (observation) => {
-    if (!currentUser || !observation) return false;
-    // Only admin can edit notes
-    return userRole === 'admin';
-  };
-
-  const canReassignObservation = (observation) => {
-    if (!currentUser || !observation) return false;
-    // Only the creator can reassign notes (both teachers and admins)
-    return observation.teacherId === currentUser.uid;
   };
 
   const handleEditClick = () => {
@@ -339,42 +280,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     setSelectedStudentForReassign(null);
   };
 
-  // Filter handlers
-  const handleFilterChange = (filterType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
-  };
-
-  const handleClearFilters = () => {
-    setFilters({
-      dateFrom: '',
-      dateTo: '',
-      creator: '',
-      type: ''
-    });
-  };
-
-  const hasActiveFilters = () => {
-    return filters.dateFrom || filters.dateTo || filters.creator || filters.type;
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'No timestamp';
-    if (timestamp.seconds) {
-      return new Date(timestamp.seconds * 1000).toLocaleString();
-    }
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleString();
-    }
-    return 'Invalid timestamp';
-  };
-
-  const getObservationTypeIcon = (type) => {
-    return type === 'voice' ? <Mic sx={{ fontSize: 16 }} /> : <TextFields sx={{ fontSize: 16 }} />;
-  };
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
       {/* Header */}
@@ -383,7 +288,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           <ArrowBack />
         </IconButton>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {hasActiveFilters() && (
+          {hasActiveFilters && (
             <Chip 
               label={`${filteredObservations.length} filtered`}
               size="small"
@@ -393,8 +298,8 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           )}
           <IconButton 
             aria-label="Toggle filters" 
-            onClick={() => setShowFilters(!showFilters)}
-            color={hasActiveFilters() ? 'primary' : 'default'}
+            onClick={toggleFilters}
+            color={hasActiveFilters ? 'primary' : 'default'}
           >
             <FilterList />
           </IconButton>
@@ -402,81 +307,16 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       </Box>
 
       {/* Filter Panel */}
-      <Collapse in={showFilters}>
-        <Paper sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                Filter Observations
-              </Typography>
-              {hasActiveFilters() && (
-                <Button
-                  startIcon={<Clear />}
-                  size="small"
-                  onClick={handleClearFilters}
-                  color="secondary"
-                >
-                  Clear All
-                </Button>
-              )}
-            </Box>
-            
-            {/* Date Range */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="From Date"
-                type="date"
-                size="small"
-                value={filters.dateFrom}
-                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                size="small"
-                value={filters.dateTo}
-                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
-            </Box>
-            
-            {/* Creator and Type */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Creator</InputLabel>
-                <Select
-                  value={filters.creator}
-                  label="Creator"
-                  onChange={(e) => handleFilterChange('creator', e.target.value)}
-                >
-                  <MenuItem value="">All Creators</MenuItem>
-                  {uniqueCreators.map((creator) => (
-                    <MenuItem key={creator} value={creator}>
-                      {creator}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Type</InputLabel>
-                <Select
-                  value={filters.type}
-                  label="Type"
-                  onChange={(e) => handleFilterChange('type', e.target.value)}
-                >
-                  <MenuItem value="">All Types</MenuItem>
-                  <MenuItem value="voice">Voice Notes</MenuItem>
-                  <MenuItem value="text">Text Notes</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-          </Box>
-        </Paper>
-      </Collapse>
+      <FilterPanel
+        showFilters={showFilters}
+        filters={filters}
+        uniqueCreators={uniqueCreators}
+        hasActiveFilters={hasActiveFilters}
+        filteredCount={filteredObservations.length}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        onToggleFilters={toggleFilters}
+      />
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -502,7 +342,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
                   {getObservationTypeIcon(obs.type)}
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                    {obs.type === 'voice' ? 'Voice Note' : 'Text Note'}
+                    {getObservationTypeText(obs.type)}
                   </Typography>
                   {obs.isStarred && (
                     <Star sx={{ fontSize: 16, color: '#f59e0b', ml: 'auto' }} />
@@ -555,7 +395,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {getObservationTypeIcon(selectedObservation.type)}
                   <Typography variant="h6">
-                    {selectedObservation.type === 'voice' ? 'Voice Observation' : 'Text Observation'}
+                    {getObservationTypeText(selectedObservation.type)}
                   </Typography>
                 </Box>
                 <IconButton
@@ -628,7 +468,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                       Edit count: {selectedObservation.editCount || 0}
                     </Typography>
                   </Box>
-                  {canEditObservation(selectedObservation) && (
+                  {canEditObservation(selectedObservation, currentUser, userRole) && (
                     <Button 
                       onClick={handleEditClick} 
                       size="small"
@@ -648,7 +488,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                       Assigned To: {student?.name || 'Unknown Student'}
                     </Typography>
                   </Box>
-                  {canReassignObservation(selectedObservation) && (
+                  {canReassignObservation(selectedObservation, currentUser, userRole) && (
                     <Button 
                       onClick={handleReassignClick} 
                       size="small"
@@ -687,7 +527,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 </Box>
               </Box>
             </DialogContent>
-            {(editing || canDeleteObservation(selectedObservation)) && (
+            {(editing || canDeleteObservation(selectedObservation, currentUser, userRole)) && (
               <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
                 {editing ? (
                   <>
@@ -711,7 +551,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                     </Button>
                   </>
                 ) : (
-                  canDeleteObservation(selectedObservation) && (
+                  canDeleteObservation(selectedObservation, currentUser, userRole) && (
                     <Button 
                       onClick={handleDeleteClick} 
                       variant="outlined" 
