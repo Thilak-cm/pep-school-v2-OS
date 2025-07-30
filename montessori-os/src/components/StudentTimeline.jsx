@@ -32,7 +32,7 @@ import { db } from '../firebase';
 // Import new modular components
 import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
-import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils';
+import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
 
 function StudentTimeline({ student, onBack, currentUser, userRole }) {
