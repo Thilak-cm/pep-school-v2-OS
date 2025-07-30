@@ -8,6 +8,7 @@ import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import ProfilePage from "./components/ProfilePage";
+import StatsPage from "./components/StatsPage";
 import { db } from "./firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { 
@@ -26,7 +27,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline' | 'profile'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -116,6 +117,7 @@ function App() {
   else if (screen === 'timeline') pageTitle = `${selectedStudent?.name || 'Student'} Timeline`;
   else if (screen === 'teacher') pageTitle = 'Teacher Home';
   else if (screen === 'profile') pageTitle = 'Profile';
+  else if (screen === 'stats') pageTitle = 'Statistics';
 
   // Mobile-first responsive container
   return (
@@ -267,6 +269,8 @@ function App() {
                   onNavigate={(path) => {
                     if (path === '/profile') {
                       setScreen('profile');
+                    } else if (path === '/stats') {
+                      setScreen('stats');
                     }
                   }}
                 />
@@ -335,6 +339,14 @@ function App() {
                     />
                   )}
 
+                  {screen === 'stats' && (
+                    <StatsPage
+                      user={user}
+                      role={role}
+                      onBack={() => setScreen(role === 'admin' ? 'adminPanel' : 'teacher')}
+                    />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -347,8 +359,8 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB - hidden on profile page */}
-              {screen !== 'profile' && (
+              {/* Global Add Note FAB - hidden on profile and stats pages */}
+              {screen !== 'profile' && screen !== 'stats' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

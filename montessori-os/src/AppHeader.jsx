@@ -23,7 +23,8 @@ import {
   Menu as MenuIcon, 
   Settings, 
   Logout, 
-  Person 
+  Person,
+  BarChart
 } from "@mui/icons-material";
 
 function AppHeader({ user, onSignOut, title = '', onNavigate }) {
@@ -63,6 +64,14 @@ function AppHeader({ user, onSignOut, title = '', onNavigate }) {
       onClick: () => {
         setDrawerOpen(false);
         onNavigate('/profile');
+      }
+    },
+    {
+      text: 'Statistics',
+      icon: <BarChart />,
+      onClick: () => {
+        setDrawerOpen(false);
+        onNavigate('/stats');
       }
     },
     {

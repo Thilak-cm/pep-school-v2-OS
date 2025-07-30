@@ -5,9 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] - 2025-01-09
 
 ### Added
+- Statistics menu item in sidebar navigation with BarChart icon
+- Complete routing integration for Statistics page (`/stats` route)
+- Statistics page navigation with proper back button functionality
+- Integration of StatsPage component into main app navigation system
+- Comprehensive statistics and analytics system with real-time data visualization
+- Interactive pie chart for note type distribution using Recharts library
+- Student ranking system with proper name fetching from Firestore database
+- Teacher activity analytics with admin-only access control
+- Weekly activity progress bars showing note-taking trends over 4 weeks
+- Dedicated StatsPage component for analytics and visualizations
 - Note reassignment functionality with student selection modal
 - "Assigned To" metadata line in observation detail dialog
 - Modular filter system with reusable components
@@ -17,25 +27,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Permission utility functions (`observationPermissions.js`)
 
 ### Changed
+- Migrated statistics and analytics from ProfilePage to dedicated StatsPage component
+- Streamlined ProfilePage to focus only on user account information
+- Enhanced ProfilePage layout with email under profile photo and simplified role display
+- Removed redundant account details card and authentication provider information
+- Updated App.jsx to include stats screen state and navigation handling
+- Enhanced page title logic to display "Statistics" for stats page
 - Refactored StudentTimeline component from 942 to ~800 lines through modularization
 - Extracted filter logic into dedicated hook with performance optimizations
 - Separated permission checks into utility functions for better reusability
 - Improved code organization with single responsibility principle
 
 ### Fixed
+- "Unknown Student" display issue by properly fetching student names from Firestore
+- Student name resolution in statistics by implementing batch student data fetching
 - Observation detail dialog button spacing and text cutoff issues
 - React console errors from missing Material-UI imports
 - Dialog state management conflicts during reassignment
 
 ### Improved
-- Inline edit and reassign buttons next to relevant metadata
-- Streamlined dialog layout with contextual actions
-- Mobile-friendly button positioning preventing text truncation
-- Code maintainability through modular architecture
+- Profile page information hierarchy with email display under profile photo
+- Role display simplified from chip to colored text for cleaner appearance
+- Statistics visualization with interactive pie charts and progress bars
+- Mobile-friendly analytics with responsive design and touch interactions
+- Code maintainability through modular architecture and component separation
 - Component reusability across different observation views
 - Testability with isolated, focused modules
+- Loading states and error handling for data fetching operations
+- Navigation consistency with proper screen state management
 
 ### Technical
+- Created `src/components/StatsPage.jsx` with comprehensive analytics functionality
+- Implemented Recharts integration for interactive data visualizations
+- Added batch student data fetching for proper name resolution in statistics
+- Enhanced ProfilePage with simplified layout and better information hierarchy
+- Updated App.jsx navigation system to support stats page routing
 - Created `src/hooks/useObservationFilters.js` with memoized filter logic
 - Added `src/components/FilterPanel.jsx` as standalone filter UI component
 - Implemented `src/utils/observationUtils.js` for formatting and display helpers
@@ -43,6 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optimized filter performance with `useMemo` hooks
 - Reduced code duplication by ~140+ lines through extraction
 - Enhanced separation of concerns in StudentTimeline component
+
+### Security
+- Proper student name resolution from Firestore database
+- Admin-only access to teacher activity analytics
+- Secure data fetching with error handling and loading states
 
 ### Planned
 - Further modularization: Dialog components extraction
