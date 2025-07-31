@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
-import AdminPanel from "./components/AdminPanel";
+import LandingPage from "./components/LandingPage";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -27,7 +27,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'adminPanel' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -86,9 +86,9 @@ function App() {
         }
         setRole(userDoc.role);
         if (userDoc.role === 'admin') {
-          setScreen('adminPanel');
+          setScreen('landingPage');
         } else {
-          setScreen('teacher');
+          setScreen('landingPage');
         }
       } catch (err) {
         console.error('Access validation error', err);
@@ -111,11 +111,10 @@ function App() {
 
   // Determine page title
   let pageTitle = '';
-  if (screen === 'adminPanel') pageTitle = 'Admin Panel';
-  else if (screen === 'classroomList') pageTitle = 'All Classrooms';
+  if (screen === 'landingPage') pageTitle = role === 'teacher' ? 'Teacher Panel' : 'Admin Panel';
+  else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'timeline') pageTitle = `${selectedStudent?.name || 'Student'} Timeline`;
-  else if (screen === 'teacher') pageTitle = 'Teacher Home';
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
 
@@ -273,6 +272,7 @@ function App() {
                       setScreen('stats');
                     }
                   }}
+                  onHome={() => setScreen('landingPage')}
                 />
               )}
 
@@ -293,24 +293,30 @@ function App() {
                     minHeight: 'fit-content',
                   }}
                 >
-                  {screen === 'adminPanel' && (
-                    <AdminPanel onViewClassrooms={() => setScreen('classroomList')} />
+                  {screen === 'landingPage' && (
+                    <LandingPage 
+                      onViewClassrooms={() => setScreen('classroomList')}
+                      userRole={role}
+                      currentUser={user}
+                    />
                   )}
 
                   {screen === 'classroomList' && (
                     <ClassroomList
-                      onBack={() => setScreen('adminPanel')}
+                      onBack={() => setScreen('landingPage')}
                       onSelectClassroom={(cls) => {
                         setSelectedClassroom(cls);
                         setScreen('studentList');
                       }}
+                      currentUser={user}
+                      userRole={role}
                     />
                   )}
 
                   {screen === 'studentList' && (
                     <StudentList
                       classroom={selectedClassroom}
-                      onBack={() => setScreen('classroomList')}
+                      onBack={() => setScreen(role === 'admin' ? 'classroomList' : 'teacherClassroomList')}
                       onSelectStudent={(stu) => {
                         setSelectedStudent(stu);
                         setScreen('timeline');
@@ -327,15 +333,13 @@ function App() {
                     />
                   )}
 
-                  {screen === 'teacher' && !unauthorized && (
-                    <Typography variant="body1">Teacher view coming soon</Typography>
-                  )}
+
 
                   {screen === 'profile' && (
                     <ProfilePage
                       user={user}
                       role={role}
-                      onBack={() => setScreen(role === 'admin' ? 'adminPanel' : 'teacher')}
+                      onBack={() => setScreen('landingPage')}
                     />
                   )}
 
@@ -343,7 +347,7 @@ function App() {
                     <StatsPage
                       user={user}
                       role={role}
-                      onBack={() => setScreen(role === 'admin' ? 'adminPanel' : 'teacher')}
+                      onBack={() => setScreen('landingPage')}
                     />
                   )}
 

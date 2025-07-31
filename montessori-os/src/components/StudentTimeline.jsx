@@ -296,13 +296,16 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               variant="outlined"
             />
           )}
-          <IconButton 
-            aria-label="Toggle filters" 
+          <Button
+            startIcon={<FilterList />}
             onClick={toggleFilters}
+            variant={hasActiveFilters ? 'contained' : 'outlined'}
             color={hasActiveFilters ? 'primary' : 'default'}
+            size="small"
+            aria-label="Toggle filters"
           >
-            <FilterList />
-          </IconButton>
+            Filters
+          </Button>
         </Box>
       </Box>
 

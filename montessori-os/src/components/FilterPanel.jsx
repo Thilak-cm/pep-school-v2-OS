@@ -12,7 +12,7 @@ import {
   Collapse,
   Chip
 } from '@mui/material';
-import { Clear, FilterList } from '@mui/icons-material';
+import { Clear } from '@mui/icons-material';
 
 /**
  * FilterPanel component for observation filtering
@@ -50,16 +50,6 @@ const FilterPanel = ({
             />
           )}
         </Box>
-        <Button
-          startIcon={<FilterList />}
-          onClick={onToggleFilters}
-          variant={hasActiveFilters ? 'contained' : 'outlined'}
-          color={hasActiveFilters ? 'primary' : 'default'}
-          size="small"
-          aria-label="Toggle filters"
-        >
-          Filters
-        </Button>
       </Box>
 
       {/* Filter Panel */}

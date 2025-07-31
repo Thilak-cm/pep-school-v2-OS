@@ -24,10 +24,11 @@ import {
   Settings, 
   Logout, 
   Person,
-  BarChart
+  BarChart,
+  Home
 } from "@mui/icons-material";
 
-function AppHeader({ user, onSignOut, title = '', onNavigate }) {
+function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -126,7 +127,7 @@ function AppHeader({ user, onSignOut, title = '', onNavigate }) {
               onClick={handleDrawerToggle}
               sx={{
                 color: '#64748b',
-                mr: 2,
+                mr: 1,
                 '&:hover': {
                   backgroundColor: 'rgba(100, 116, 139, 0.08)'
                 }
@@ -134,6 +135,21 @@ function AppHeader({ user, onSignOut, title = '', onNavigate }) {
               aria-label="Open menu"
             >
               <MenuIcon />
+            </IconButton>
+
+            {/* Home Button */}
+            <IconButton
+              onClick={onHome}
+              sx={{
+                color: '#64748b',
+                mr: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(100, 116, 139, 0.08)'
+                }
+              }}
+              aria-label="Go home"
+            >
+              <Home />
             </IconButton>
 
             <Typography
