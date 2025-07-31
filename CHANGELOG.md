@@ -5,6 +5,21 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2025-01-09
+
+### Fixed
+- Teacher stats filtering now shows only teacher's own observations (was showing all school data)
+- Added back button to Statistics page for consistent navigation
+- Fixed MUI Grid warnings by adding missing `item` prop
+- Import missing `where` function from firebase/firestore
+- Remove overly restrictive classroom filtering that was breaking stats
+
+### Improved
+- Role-based filtering for teacher vs admin statistics
+- Teacher stats now display personalized data instead of school-wide data
+- Navigation consistency across all pages
+- Console warnings eliminated
+
 ## [1.7.0] - 2025-01-09
 
 ### Added
