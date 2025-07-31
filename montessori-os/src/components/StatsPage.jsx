@@ -17,7 +17,8 @@ import {
   CircularProgress,
   Alert,
   ToggleButtonGroup,
-  ToggleButton
+  ToggleButton,
+  IconButton
 } from '@mui/material';
 import {
   BarChart,
@@ -25,9 +26,10 @@ import {
   People,
   School,
   Mic,
-  TextFields
+  TextFields,
+  ArrowBack
 } from '@mui/icons-material';
-import { collection, query, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, getDoc, doc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -59,10 +61,33 @@ const StatsPage = ({ user, role, onBack }) => {
           orderBy('timestamp', 'desc')
         );
         const observationsSnap = await getDocs(observationsQuery);
-        const allObservations = observationsSnap.docs.map(doc => ({
+        let allObservations = observationsSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
+
+        // Filter observations based on user role
+        if (role === 'teacher') {
+          console.log('Teacher filtering - User:', user.email, 'UID:', user.uid);
+          console.log('Total observations before filtering:', allObservations.length);
+          
+          // For teachers, only show their own observations
+          allObservations = allObservations.filter(obs => {
+            console.log('Checking observation:', obs.id, 'teacherId:', obs.teacherId, 'teacherEmail:', obs.teacherEmail, 'createdBy:', obs.createdBy, 'staff_uid:', obs.staff_uid);
+            
+            // Check multiple possible fields for teacher identification
+            const isMatch = obs.teacherId === user.uid || 
+                           obs.teacherEmail === user.email ||
+                           obs.createdBy === user.email ||
+                           obs.staff_uid === user.uid;
+            
+            console.log('Is match:', isMatch);
+            return isMatch;
+          });
+          
+          console.log('Observations after teacher filtering:', allObservations.length);
+        }
+        // For admins, show all observations (no filtering)
 
         // Calculate basic stats
         const now = new Date();
@@ -84,7 +109,31 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Get student stats with proper names
         const studentStats = {};
-        const studentIds = [...new Set(allObservations.map(obs => obs.studentId).filter(Boolean))];
+        let studentIds = [...new Set(allObservations.map(obs => obs.studentId).filter(Boolean))];
+        
+        // For teachers, filter students to only their assigned classrooms
+        if (role === 'teacher') {
+          console.log('Starting classroom filtering for teacher');
+          
+          // Get teacher's assigned classrooms
+          const userQuery = query(
+            collection(db, 'users'), 
+            where('email', '==', user.email)
+          );
+          const userSnap = await getDocs(userQuery);
+          
+          if (!userSnap.empty) {
+            const teacherData = userSnap.docs[0].data();
+            const assignedClassroomNames = teacherData.assignedClassrooms || [];
+            console.log('Teacher assigned classrooms:', assignedClassroomNames);
+            
+            // For now, let's just use the teacher-filtered observations
+            // and not do additional classroom filtering since it's causing issues
+            console.log('Using teacher-filtered observations without classroom filtering');
+          } else {
+            console.log('Teacher not found in users collection');
+          }
+        }
         
         // Fetch student data to get names
         const studentDocs = await Promise.all(
@@ -116,12 +165,12 @@ const StatsPage = ({ user, role, onBack }) => {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
-        // Get teacher stats (if admin)
+        // Get teacher stats (admin only)
         let teacherStats = [];
         if (role === 'admin') {
           const teacherStatsMap = {};
           allObservations.forEach(obs => {
-            const teacherId = obs.teacherEmail || obs.teacherName || 'Unknown';
+            const teacherId = obs.teacherEmail || obs.teacherName || obs.teacherId || 'Unknown';
             if (!teacherStatsMap[teacherId]) {
               teacherStatsMap[teacherId] = { 
                 name: obs.teacherName || teacherId, 
@@ -176,6 +225,10 @@ const StatsPage = ({ user, role, onBack }) => {
   }, [role]);
 
   const handleTabChange = (event, newValue) => {
+    // Prevent teachers from accessing the teachers tab (index 2)
+    if (role === 'teacher' && newValue === 2) {
+      return;
+    }
     setActiveTab(newValue);
   };
 
@@ -476,6 +529,13 @@ const StatsPage = ({ user, role, onBack }) => {
     }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <IconButton 
+          onClick={onBack} 
+          aria-label="Go back"
+          sx={{ mr: 2 }}
+        >
+          <ArrowBack />
+        </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
           Statistics & Analytics
         </Typography>
