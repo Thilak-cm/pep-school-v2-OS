@@ -5,8 +5,13 @@ import { Box, Typography } from '@mui/material';
  * A small badge that sticks to the bottom-left corner
  * showing the current application version. Uses different positioning
  * for mobile (fixed to viewport) vs desktop (absolute to container).
+ * Only shows for admin users.
  */
-const VersionBadge = () => {
+const VersionBadge = ({ userRole }) => {
+  // Only show for admin users
+  if (userRole !== 'admin') {
+    return null;
+  }
   return (
     <Box
       sx={{

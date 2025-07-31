@@ -183,7 +183,7 @@ function App() {
                   Loading...
                 </Typography>
               </Box>
-              <VersionBadge />
+              <VersionBadge userRole={role} />
             </Box>
           )}
 
@@ -252,7 +252,7 @@ function App() {
                 </Typography>
                 <SignIn />
               </Card>
-              <VersionBadge />
+              <VersionBadge userRole={role} />
             </Box>
           )}
 
@@ -374,7 +374,7 @@ function App() {
                 currentUser={user}
                 userRole={role}
               />
-              <VersionBadge />
+              <VersionBadge userRole={role} />
             </>
           )}
         </Box>
