@@ -5,6 +5,48 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-01-09
+
+### Added
+- Teacher landing page with role-based content using unified LandingPage component
+- Home button in AppHeader for quick navigation back to landing page
+- Role-based classroom filtering (teachers see assigned classrooms only)
+- Student count display in classroom cards
+- Welcome message for teachers with personalized greeting
+
+### Changed
+- Refactored AdminPanel and TeacherPanel into single LandingPage component
+- Updated navigation flow: Login → LandingPage → Classrooms → Students → Timeline
+- Moved menu button slightly left and added home button to AppHeader
+- Replaced standalone filter icon with "Filters" button in StudentTimeline
+- Removed duplicate filter button from FilterPanel component
+
+### Improved
+- Code reusability: Single LandingPage component serves both admin and teacher views
+- Navigation consistency: Both user types follow same panel-based navigation pattern
+- UI/UX: Better filter button with text and icon instead of standalone icon
+- Mobile-first design: Responsive classroom cards with hover effects
+- Accessibility: Proper aria-labels and semantic HTML
+
+### Technical
+- Created `src/components/LandingPage.jsx` with role-based content rendering
+- Updated `src/components/ClassroomList.jsx` to filter by teacher assignments
+- Enhanced `src/components/AppHeader.jsx` with home button functionality
+- Refactored `src/components/StudentTimeline.jsx` filter button implementation
+- Cleaned up `src/components/FilterPanel.jsx` by removing duplicate button
+- Updated App.jsx navigation system to use unified landing page approach
+
+### Navigation Flow
+- Teachers: Login → Teacher Panel → My Classrooms → Students → Timeline
+- Admins: Login → Admin Panel → All Classrooms → Students → Timeline
+- Home button: Quick return to landing page from anywhere in app
+- Back navigation: Always returns to appropriate landing page
+
+### Future-Ready
+- LandingPage component easily extensible for additional teacher/admin features
+- Filter system ready for curriculum area tags
+- Modular architecture supports role-based feature additions
+
 ## [1.5.0] - 2025-01-09
 
 ### Added
