@@ -372,6 +372,7 @@ function App() {
                 onClose={() => setAddNoteOpen(false)}
                 initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.sid || selectedStudent.id] : []}
                 currentUser={user}
+                userRole={role}
               />
               <VersionBadge />
             </>

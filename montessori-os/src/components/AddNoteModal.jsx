@@ -103,7 +103,8 @@ function AddNoteModal({
   onClose,
   initialClassrooms = [],
   initialStudents = [],
-  currentUser
+  currentUser,
+  userRole
 }) {
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [transcriptionData, setTranscriptionData] = useState(null);
@@ -409,6 +410,8 @@ function AddNoteModal({
               <ClassroomStudentPicker
                 selectedStudents={selectedStudents}
                 onStudentsChange={setSelectedStudents}
+                currentUser={currentUser}
+                userRole={userRole}
               />
             </Box>
             {/* Fixed bottom action bar */}

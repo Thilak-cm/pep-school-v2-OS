@@ -33,7 +33,9 @@ Props:
 */
 function ClassroomStudentPicker({
   selectedStudents,
-  onStudentsChange
+  onStudentsChange,
+  currentUser,
+  userRole
 }) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -47,15 +49,92 @@ function ClassroomStudentPicker({
       try {
         setLoading(true);
         
-        // Fetch classrooms
-        const classSnap = await getDocs(collection(db, 'classrooms'));
-        const classList = classSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // Fetch classrooms based on user role
+        let classList = [];
+        
+        // Get teacher's assigned classrooms first (for both teacher and admin)
+        let assignedClassroomNames = [];
+        if (userRole === 'teacher') {
+          const userQuery = query(
+            collection(db, 'users'), 
+            where('email', '==', currentUser.email)
+          );
+          const userSnap = await getDocs(userQuery);
+          
+          if (userSnap.empty) {
+            console.error('Teacher not found');
+            return;
+          }
+
+          const teacherData = userSnap.docs[0].data();
+          assignedClassroomNames = teacherData.assignedClassrooms || [];
+          console.log('Teacher assigned classrooms:', assignedClassroomNames);
+        }
+
+        // Get all classrooms
+        const allClassroomsSnap = await getDocs(collection(db, 'classrooms'));
+        const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }));
+
+        // Filter classrooms based on user role
+        if (userRole === 'teacher') {
+          classList = allClassrooms.filter(cls => 
+            assignedClassroomNames.includes(cls.name)
+          );
+          console.log('Filtered classrooms for teacher:', classList);
+        } else {
+          // For admins: get all classrooms
+          classList = allClassrooms;
+        }
+        
         console.log('Fetched classrooms:', classList);
         setClassrooms(classList);
         
-        // Fetch all students
-        const studentSnap = await getDocs(collection(db, 'students'));
-        const studentList = studentSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // Fetch students based on user role
+        let studentList = [];
+        
+        if (userRole === 'teacher') {
+          // For teachers: only get students from their assigned classrooms
+          console.log('Teacher assigned classrooms for student filtering:', assignedClassroomNames);
+
+          // Get all students and filter by assigned classrooms
+          const allStudentsSnap = await getDocs(collection(db, 'students'));
+          const allStudents = allStudentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          
+          // Filter students to only those in assigned classrooms
+          studentList = allStudents.filter(student => {
+            // Handle different classroomId formats
+            let classroomId;
+            if (student.classroomId) {
+              if (typeof student.classroomId === 'object' && student.classroomId.id) {
+                classroomId = student.classroomId.id;
+              } else if (typeof student.classroomId === 'string') {
+                classroomId = student.classroomId.includes('/') 
+                  ? student.classroomId.split('/').pop() 
+                  : student.classroomId;
+              } else {
+                classroomId = student.classroomId;
+              }
+            }
+            
+            // Find the classroom name for this student
+            const studentClassroom = allClassrooms.find(c => c.id === classroomId);
+            const isInAssignedClassroom = studentClassroom && assignedClassroomNames.includes(studentClassroom.name);
+            
+            console.log(`Student ${student.name}: classroomId=${classroomId}, classroom=${studentClassroom?.name || 'unknown'}, assigned=${isInAssignedClassroom}`);
+            
+            return isInAssignedClassroom;
+          });
+          
+          console.log('Filtered students for teacher:', studentList);
+        } else {
+          // For admins: get all students
+          const studentSnap = await getDocs(collection(db, 'students'));
+          studentList = studentSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        }
+        
         console.log('Fetched students:', studentList);
         
         // Add classroom name to each student for display
@@ -79,11 +158,11 @@ function ClassroomStudentPicker({
           const classroom = classList.find(c => c.id === classroomId);
           console.log(`Student ${student.name}: classroomId=${student.classroomId}, parsed=${classroomId}, found=${classroom?.name || 'NOT FOUND'}`);
           
-                      return {
-              ...student,
-              classroom_name: classroom?.name || 'Unknown Classroom',
-              classroomId: classroomId
-            };
+          return {
+            ...student,
+            classroom_name: classroom?.name || 'Unknown Classroom',
+            classroomId: classroomId
+          };
         });
         
         setAllStudents(studentsWithClassroom);
@@ -95,9 +174,9 @@ function ClassroomStudentPicker({
     };
 
     fetchData();
-  }, []);
+  }, [currentUser, userRole]);
 
-  // Filter students based on search query
+  // Filter students based on search query (only from filtered students)
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return [];
     
@@ -112,33 +191,24 @@ function ClassroomStudentPicker({
   const studentsByClassroom = useMemo(() => {
     const grouped = {};
     
-    // First, create entries for all classrooms (even empty ones)
-    classrooms.forEach(classroom => {
-      grouped[classroom.id] = {
-        classroom: {
-          id: classroom.id,
-          name: classroom.name
-        },
-        students: []
-      };
-    });
-    
-    // Then add students to their respective classrooms
+    // Only create entries for classrooms that have students
     allStudents.forEach(student => {
       const classroomId = student.classroomId;
-      if (grouped[classroomId]) {
-        grouped[classroomId].students.push(student);
-      } else {
-        // If student has unknown classroom, create it
-        if (!grouped[classroomId]) {
+      if (!grouped[classroomId]) {
+        // Find the classroom in our filtered classrooms list
+        const classroom = classrooms.find(c => c.id === classroomId);
+        if (classroom) {
           grouped[classroomId] = {
             classroom: {
-              id: classroomId,
-              name: student.classroom_name || 'Unknown Classroom'
+              id: classroom.id,
+              name: classroom.name
             },
             students: []
           };
         }
+      }
+      
+      if (grouped[classroomId]) {
         grouped[classroomId].students.push(student);
       }
     });
