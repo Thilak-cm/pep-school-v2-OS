@@ -5,6 +5,20 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2] - 2025-01-09
+
+### Fixed
+- Teacher classroom filtering in note creation modal now works correctly
+- Search functionality now only searches through assigned classrooms/students
+- Prevented teachers from seeing students from unassigned classrooms
+- Fixed edge case where search could find students from unassigned classrooms
+
+### Improved
+- Role-based classroom filtering for teachers in ClassroomStudentPicker component
+- Added proper user role and current user props to AddNoteModal
+- Updated ClassroomStudentPicker to filter both classrooms and students by teacher assignments
+- Enhanced security by ensuring teachers only see their assigned classrooms and students
+
 ## [1.7.1] - 2025-01-09
 
 ### Fixed

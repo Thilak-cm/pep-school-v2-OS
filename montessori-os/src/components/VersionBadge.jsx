@@ -40,7 +40,7 @@ const VersionBadge = () => {
           fontSize: 'inherit'
         }}
       >
-        v1.7.1
+        v1.7.2
       </Typography>
     </Box>
   );
