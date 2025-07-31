@@ -43,13 +43,14 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState('');
+  const [showTimeLimitWarning, setShowTimeLimitWarning] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  const MAX_RECORDING_TIME = 15; // 15 seconds (Google Speech-to-Text sync limit)
+  const MAX_RECORDING_TIME = 300; // 5 minutes (300 seconds)
 
   useEffect(() => {
     // Cleanup function
@@ -121,15 +122,23 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setRecordingTime(0);
+      setShowTimeLimitWarning(false);
 
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime((prevTime) => {
           const newTime = prevTime + 1;
           
-          // Auto-stop at 15 seconds
+          // Show warning at 4:45 (285 seconds)
+          if (newTime === 285) {
+            setShowTimeLimitWarning(true);
+          }
+          
+          // Auto-stop at 5 minutes
           if (newTime >= MAX_RECORDING_TIME) {
             stopRecording();
+            // Show alert that recording stopped due to time limit
+            alert('Recording stopped automatically at 5 minutes. Your audio is being transcribed.');
             return MAX_RECORDING_TIME;
           }
           
@@ -186,6 +195,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     setTranscription('');
     setTranscriptionData(null);
     setTranscriptionError('');
+    setShowTimeLimitWarning(false);
   };
 
   const retryTranscription = () => {
@@ -275,7 +285,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
             fontSize: '0.9rem'
           }}
         >
-          Record up to 15 seconds of audio
+          Record up to 5 minutes of audio
         </Typography>
       </CardContent>
 
@@ -341,6 +351,22 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 Recording...
               </Typography>
             </Box>
+          )}
+
+          {/* Time Limit Warning */}
+          {showTimeLimitWarning && isRecording && (
+            <Alert 
+              severity="warning" 
+              sx={{ 
+                mb: 2,
+                borderRadius: 2,
+                '& .MuiAlert-message': {
+                  fontSize: '0.9rem'
+                }
+              }}
+            >
+              Recording will stop automatically in 15 seconds. Please finish your observation.
+            </Alert>
           )}
 
           {/* Recording Controls */}
