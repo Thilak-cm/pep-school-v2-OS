@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.3] - 2025-01-09
+
+### Changed
+- Version badge now only shows for admin users
+- Hide version badge for teachers to provide cleaner interface
+- Maintain version badge visibility for unauthenticated users
+
+### Improved
+- Add role-based visibility to VersionBadge component
+- Pass userRole prop to all VersionBadge instances in App.jsx
+- Enhanced UI/UX by removing unnecessary version information for teachers
+
 ## [1.7.2] - 2025-01-09
 
 ### Fixed
