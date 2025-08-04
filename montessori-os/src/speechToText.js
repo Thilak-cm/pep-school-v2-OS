@@ -149,7 +149,7 @@ export const getSupportedAudioFormats = () => {
 };
 
 /**
- * Validate if audio blob is suitable for transcription 
+ * Validate if audio blob is suitable for transcription
  * @param {Blob} audioBlob - The audio blob to validate
  * @returns {boolean} Whether the audio is suitable for transcription
  */
