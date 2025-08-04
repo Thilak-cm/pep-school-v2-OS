@@ -1,8 +1,9 @@
 # Firebase service account key (contains sensitive credentials)
 firebase-service-account.json
 
-# Node modules
+# Node modules (all directories)
 node_modules/
+**/node_modules/
 
 # Logs
 *.log
@@ -21,7 +22,6 @@ coverage/
 .nyc_output
 
 # Dependency directories
-node_modules/
 jspm_packages/
 
 # Optional npm cache directory
