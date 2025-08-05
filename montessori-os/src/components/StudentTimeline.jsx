@@ -154,6 +154,15 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   }, []);
 
   const handleObservationClick = (observation) => {
+    console.log('🔍 Observation clicked:', {
+      id: observation.id,
+      staff_uid: observation.staff_uid,
+      teacherId: observation.teacherId,
+      createdBy: observation.createdBy,
+      teacherEmail: observation.teacherEmail,
+      teacherName: observation.teacherName,
+      timestamp: observation.timestamp
+    });
     setSelectedObservation(observation);
     setDetailDialogOpen(true);
   };
@@ -206,6 +215,23 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
     try {
       setSaving(true);
+      
+      console.log('🔍 Debug: Starting observation update...');
+      console.log('👤 Current user:', {
+        uid: currentUser.uid,
+        email: currentUser.email,
+        role: userRole
+      });
+      console.log('📝 Selected observation:', {
+        id: selectedObservation.id,
+        staff_uid: selectedObservation.staff_uid,
+        teacherId: selectedObservation.teacherId,
+        createdBy: selectedObservation.createdBy,
+        teacherEmail: selectedObservation.teacherEmail,
+        teacherName: selectedObservation.teacherName,
+        timestamp: selectedObservation.timestamp
+      });
+      
       const updateData = {
         text: editText.trim(),
         editCount: (selectedObservation.editCount || 0) + 1,
@@ -214,12 +240,21 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         lastEditedAt: serverTimestamp()
       };
 
+      console.log('📤 Update data:', updateData);
+      console.log('📁 Document path: /observations/' + selectedObservation.id);
+      
       await updateDoc(doc(db, 'observations', selectedObservation.id), updateData);
       
+      console.log('✅ Update successful!');
       setEditing(false);
       setEditText('');
     } catch (error) {
-      console.error('Error updating observation:', error);
+      console.error('❌ Error updating observation:', error);
+      console.error('🔍 Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       alert('Error saving changes. Please try again.');
     } finally {
       setSaving(false);
