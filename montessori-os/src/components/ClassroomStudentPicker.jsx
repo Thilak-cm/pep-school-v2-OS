@@ -23,7 +23,7 @@ import {
   Person,
   Group
 } from '@mui/icons-material';
-import { collection, getDocs, query, where, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 /*
@@ -55,18 +55,16 @@ function ClassroomStudentPicker({
         // Get teacher's assigned classrooms first (for both teacher and admin)
         let assignedClassroomNames = [];
         if (userRole === 'teacher') {
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', currentUser.email)
-          );
-          const userSnap = await getDocs(userQuery);
+          // Get user document using UID
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
           
-          if (userSnap.empty) {
+          if (!userDocSnap.exists()) {
             console.error('Teacher not found');
             return;
           }
 
-          const teacherData = userSnap.docs[0].data();
+          const teacherData = userDocSnap.data();
           assignedClassroomNames = teacherData.assignedClassrooms || [];
           console.log('Teacher assigned classrooms:', assignedClassroomNames);
         }

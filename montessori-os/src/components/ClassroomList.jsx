@@ -25,30 +25,16 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
         let classroomsToShow = [];
 
         if (userRole === 'teacher') {
-          // For teachers: get their assigned classrooms only
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', currentUser.email)
-          );
-          const userSnap = await getDocs(userQuery);
-          
-          if (userSnap.empty) {
-            console.error('Teacher not found');
-            return;
-          }
-
-          const teacherData = userSnap.docs[0].data();
-          const assignedClassroomNames = teacherData.assignedClassrooms || [];
-
-          // Get all classrooms and filter by assigned ones
+          // For teachers: get classrooms where their UID is in teacherIds array
           const classroomsSnap = await getDocs(collection(db, 'classrooms'));
           const allClassrooms = classroomsSnap.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data() 
           }));
 
+          // Filter classrooms where current user's UID is in teacherIds array
           classroomsToShow = allClassrooms.filter(cls => 
-            assignedClassroomNames.includes(cls.name)
+            cls.teacherIds && cls.teacherIds.includes(currentUser.uid)
           );
         } else {
           // For admins: get all classrooms

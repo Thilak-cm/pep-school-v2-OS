@@ -68,18 +68,15 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Filter observations based on user role
         if (role === 'teacher') {
-          console.log('Teacher filtering - User:', user.email, 'UID:', user.uid);
+          console.log('Teacher filtering - User UID:', user.uid);
           console.log('Total observations before filtering:', allObservations.length);
           
           // For teachers, only show their own observations
           allObservations = allObservations.filter(obs => {
-            console.log('Checking observation:', obs.id, 'teacherId:', obs.teacherId, 'teacherEmail:', obs.teacherEmail, 'createdBy:', obs.createdBy, 'staff_uid:', obs.staff_uid);
+            console.log('Checking observation:', obs.id, 'staff_uid:', obs.staff_uid);
             
-            // Check multiple possible fields for teacher identification
-            const isMatch = obs.teacherId === user.uid || 
-                           obs.teacherEmail === user.email ||
-                           obs.createdBy === user.email ||
-                           obs.staff_uid === user.uid;
+            // Use UID-based identification
+            const isMatch = obs.staff_uid === user.uid;
             
             console.log('Is match:', isMatch);
             return isMatch;
@@ -115,15 +112,12 @@ const StatsPage = ({ user, role, onBack }) => {
         if (role === 'teacher') {
           console.log('Starting classroom filtering for teacher');
           
-          // Get teacher's assigned classrooms
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', user.email)
-          );
-          const userSnap = await getDocs(userQuery);
+          // Get teacher's assigned classrooms using UID
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDocSnap = await getDoc(userDocRef);
           
-          if (!userSnap.empty) {
-            const teacherData = userSnap.docs[0].data();
+          if (userDocSnap.exists()) {
+            const teacherData = userDocSnap.data();
             const assignedClassroomNames = teacherData.assignedClassrooms || [];
             console.log('Teacher assigned classrooms:', assignedClassroomNames);
             

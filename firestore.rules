@@ -24,7 +24,7 @@ service cloud.firestore {
     // Generic access
     // =========================
     match /users/{uid} {
-      allow read: if isAdmin(); // Only admins can read user directory
+      allow read: if isAdmin() || request.auth.uid == uid; // Admins can read all, users can read their own
       allow write: if false;    // Managed by backend/admin only
     }
 

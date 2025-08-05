@@ -10,7 +10,7 @@ import StudentTimeline from "./components/StudentTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
 import { db } from "./firebase";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
 import { 
   Box, 
   Container, 
@@ -45,53 +45,94 @@ function App() {
     if (!user) return;
 
     const logUnauthorized = async (reason) => {
+      console.log('🚫 Logging unauthorized access:', reason);
       try {
-        await addDoc(collection(db, 'access_logs'), {
+        const logData = {
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
           reason,
           timestamp: serverTimestamp(),
           userAgent: navigator.userAgent,
-        });
+        };
+        console.log('📝 Log data:', logData);
+        
+        await addDoc(collection(db, 'access_logs'), logData);
+        console.log('✅ Unauthorized access logged successfully');
       } catch (err) {
-        console.error('Error logging unauthorized access', err);
+        console.error('❌ Error logging unauthorized access:', err);
       }
     };
 
     const validateAccess = async () => {
+      console.log('🔍 Starting access validation...');
+      console.log('👤 User info:', {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName
+      });
+
       // Domain check
+      console.log('🌐 Checking domain...');
       if (!user.email.endsWith('@pepschoolv2.com')) {
+        console.log('❌ Domain check failed:', user.email);
         await logUnauthorized('invalid_domain');
         setUnauthorized(true);
         setScreen('accessDenied');
         return;
       }
+      console.log('✅ Domain check passed');
 
       try {
-        const q = query(collection(db, 'users'), where('email', '==', user.email));
-        const qSnap = await getDocs(q);
-        if (qSnap.empty) {
+        console.log('📄 Looking up user document...');
+        console.log('🔑 Using UID:', user.uid);
+        console.log('📁 Document path: /users/' + user.uid);
+        
+        // Use Firebase Auth UID to get user document
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        
+        console.log('📋 Document exists:', userDocSnap.exists());
+        
+        if (!userDocSnap.exists()) {
+          console.log('❌ User document not found in Firestore');
           await logUnauthorized('not_in_users_collection');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
-        const userDoc = qSnap.docs[0].data();
+        
+        const userDoc = userDocSnap.data();
+        console.log('📊 User document data:', userDoc);
+        
         if (!userDoc.role) {
+          console.log('❌ No role field in user document');
           await logUnauthorized('missing_role');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
+        
+        console.log('🎭 User role:', userDoc.role);
         setRole(userDoc.role);
+        
         if (userDoc.role === 'admin') {
+          console.log('👑 Setting admin screen');
           setScreen('landingPage');
         } else {
+          console.log('👨‍🏫 Setting teacher screen');
           setScreen('landingPage');
         }
+        
+        console.log('✅ Access validation successful!');
+        
       } catch (err) {
-        console.error('Access validation error', err);
+        console.error('❌ Access validation error:', err);
+        console.error('🔍 Error details:', {
+          code: err.code,
+          message: err.message,
+          stack: err.stack
+        });
         await logUnauthorized('validation_error');
         setUnauthorized(true);
         setScreen('accessDenied');

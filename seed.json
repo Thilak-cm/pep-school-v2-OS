@@ -53,32 +53,6 @@
         "theme": "auto"
       }
     },
-    "teacher-002": {
-      "uid": "teacher-002",
-      "email": "naina.rawat@pepschoolv2.com",
-      "displayName": "Naina Krishna",
-      "role": "teacher",
-      "status": "active",
-      "assignedClassrooms": ["Amazing"],
-      "createdAt": {
-        "__type__": "timestamp",
-        "value": "2024-01-01T00:00:00.000Z"
-      },
-      "updatedAt": {
-        "__type__": "timestamp",
-        "value": "2024-01-01T00:00:00.000Z"
-      },
-      "lastLoginAt": {
-        "__type__": "timestamp",
-        "value": "2024-01-15T08:45:00.000Z"
-      },
-      "preferences": {
-        "language": "en",
-        "timezone": "America/New_York",
-        "notifications": true,
-        "theme": "light"
-      }
-    },
     "admin-002": {
       "uid": "admin-002",
       "email": "rahul@pepschoolv2.com",

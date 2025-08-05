@@ -30,7 +30,8 @@ interface User {
   permissions?: string[];         // ["manage_users", "view_reports"]
   
   // Teacher-specific
-  assignedClassrooms?: string[];  // Array of classroom IDs
+  // Teachers are assigned to classrooms via classroom.teacherIds array
+  // No need for assignedClassrooms field in user document
   
   // Metadata
   createdAt: Timestamp;
