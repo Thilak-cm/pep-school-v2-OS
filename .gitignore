@@ -64,3 +64,6 @@ Thumbs.db
 
 commit_message.txt
 node_modules
+
+# Admin scripts (private - contains sensitive operations)
+scripts/admin/
