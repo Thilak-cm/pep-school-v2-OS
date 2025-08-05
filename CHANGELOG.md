@@ -5,6 +5,46 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2025-01-09
+
+### Added
+- Complete UID-based authentication migration across entire application
+- Secure user document access using Firebase Auth UID instead of email queries
+- Classroom filtering by teacher UID in teacherIds array
+- Observation filtering using staff_uid field for UID-based security
+- Multiple teacher support per classroom via teacherIds array
+
+### Changed
+- Replace all email-based authentication with UID-based Firestore rules
+- Update ClassroomList.jsx to filter classrooms by teacher UID in teacherIds array
+- Update ClassroomStudentPicker.jsx to use UID-based user document lookup
+- Update StatsPage.jsx to filter observations by staff_uid, remove email-based queries
+- Update AddNoteModal.jsx to use staff_uid field for observation creation
+- Update create-user-account.js to remove assignedClassrooms field for teachers
+- Update NEW_DATA_STRUCTURE.md to document UID-based classroom assignments
+
+### Security
+- Consistent UID-based access control across all components
+- Teachers access classrooms via classroom.teacherIds array containing UIDs
+- Observations use staff_uid field for UID-based security
+- Remove legacy email-based authentication patterns
+- All user document lookups now use Firebase Auth UID
+- Server-side Firestore rules aligned with client-side UID-based approach
+
+### Technical
+- Migrate from email-based to UID-based user document structure
+- Implement proper server-side Firestore security rules with authentication enforcement
+- Add admin SDK scripts for secure user management
+- Update all components to use consistent UID-based authentication
+- Remove assignedClassrooms field in favor of classroom.teacherIds array
+
+### Tested
+- Test teacher can access Power classroom successfully
+- Classroom fetching works with UID-based filtering
+- Observation creation uses staff_uid field
+- All components use consistent UID-based approach
+- Multiple teachers can be assigned to same classroom
+
 ## [1.7.3] - 2025-01-09
 
 ### Changed
