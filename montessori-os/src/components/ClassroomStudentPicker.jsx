@@ -103,25 +103,25 @@ function ClassroomStudentPicker({
           
           // Filter students to only those in assigned classrooms
           studentList = allStudents.filter(student => {
-            // Handle different classroomId formats
-            let classroomId;
-            if (student.classroomId) {
-              if (typeof student.classroomId === 'object' && student.classroomId.id) {
-                classroomId = student.classroomId.id;
-              } else if (typeof student.classroomId === 'string') {
-                classroomId = student.classroomId.includes('/') 
-                  ? student.classroomId.split('/').pop() 
-                  : student.classroomId;
+            // Handle different classroomID formats
+            let classroomID;
+            if (student.classroomID) {
+              if (typeof student.classroomID === 'object' && student.classroomID.id) {
+                classroomID = student.classroomID.id;
+              } else if (typeof student.classroomID === 'string') {
+                classroomID = student.classroomID.includes('/') 
+                  ? student.classroomID.split('/').pop() 
+                  : student.classroomID;
               } else {
-                classroomId = student.classroomId;
+                classroomID = student.classroomID;
               }
             }
             
             // Find the classroom name for this student
-            const studentClassroom = allClassrooms.find(c => c.id === classroomId);
+            const studentClassroom = allClassrooms.find(c => c.id === classroomID);
             const isInAssignedClassroom = studentClassroom && assignedClassroomNames.includes(studentClassroom.name);
             
-            console.log(`Student ${student.name}: classroomId=${classroomId}, classroom=${studentClassroom?.name || 'unknown'}, assigned=${isInAssignedClassroom}`);
+            console.log(`Student ${student.name}: classroomID=${classroomID}, classroom=${studentClassroom?.name || 'unknown'}, assigned=${isInAssignedClassroom}`);
             
             return isInAssignedClassroom;
           });
@@ -137,29 +137,29 @@ function ClassroomStudentPicker({
         
         // Add classroom name to each student for display
         const studentsWithClassroom = studentList.map(student => {
-          // Handle different classroomId formats
-          let classroomId;
-          if (student.classroomId) {
-            if (typeof student.classroomId === 'object' && student.classroomId.id) {
+          // Handle different classroomID formats
+          let classroomID;
+          if (student.classroomID) {
+            if (typeof student.classroomID === 'object' && student.classroomID.id) {
               // DocumentReference object
-              classroomId = student.classroomId.id;
-            } else if (typeof student.classroomId === 'string') {
+              classroomID = student.classroomID.id;
+            } else if (typeof student.classroomID === 'string') {
               // String format - could be just ID or full path
-              classroomId = student.classroomId.includes('/') 
-                ? student.classroomId.split('/').pop() 
-                : student.classroomId;
+              classroomID = student.classroomID.includes('/') 
+                ? student.classroomID.split('/').pop() 
+                : student.classroomID;
             } else {
-              classroomId = student.classroomId;
+              classroomID = student.classroomID;
             }
           }
           
-          const classroom = classList.find(c => c.id === classroomId);
-          console.log(`Student ${student.name}: classroomId=${student.classroomId}, parsed=${classroomId}, found=${classroom?.name || 'NOT FOUND'}`);
+          const classroom = classList.find(c => c.id === classroomID);
+          console.log(`Student ${student.name}: classroomID=${student.classroomID}, parsed=${classroomID}, found=${classroom?.name || 'NOT FOUND'}`);
           
           return {
             ...student,
             classroom_name: classroom?.name || 'Unknown Classroom',
-            classroomId: classroomId
+            classroomID: classroomID
           };
         });
         
@@ -191,12 +191,12 @@ function ClassroomStudentPicker({
     
     // Only create entries for classrooms that have students
     allStudents.forEach(student => {
-      const classroomId = student.classroomId;
-      if (!grouped[classroomId]) {
+      const classroomID = student.classroomID;
+      if (!grouped[classroomID]) {
         // Find the classroom in our filtered classrooms list
-        const classroom = classrooms.find(c => c.id === classroomId);
+        const classroom = classrooms.find(c => c.id === classroomID);
         if (classroom) {
-          grouped[classroomId] = {
+          grouped[classroomID] = {
             classroom: {
               id: classroom.id,
               name: classroom.name
@@ -206,8 +206,8 @@ function ClassroomStudentPicker({
         }
       }
       
-      if (grouped[classroomId]) {
-        grouped[classroomId].students.push(student);
+      if (grouped[classroomID]) {
+        grouped[classroomID].students.push(student);
       }
     });
     
@@ -224,8 +224,8 @@ function ClassroomStudentPicker({
   };
 
   // Handle classroom selection (select all students in classroom)
-  const handleClassroomToggle = (classroomId) => {
-    const classroom = studentsByClassroom.find(g => g.classroom.id === classroomId);
+  const handleClassroomToggle = (classroomID) => {
+    const classroom = studentsByClassroom.find(g => g.classroom.id === classroomID);
     if (!classroom) return;
 
     const classroomStudentIds = classroom.students.map(s => s.sid || s.id);
@@ -244,11 +244,11 @@ function ClassroomStudentPicker({
   };
 
   // Toggle classroom expansion
-  const toggleClassroomExpansion = (classroomId) => {
+  const toggleClassroomExpansion = (classroomID) => {
     setExpandedClassrooms(prev => 
-      prev.includes(classroomId)
-        ? prev.filter(id => id !== classroomId)
-        : [...prev, classroomId]
+      prev.includes(classroomID)
+        ? prev.filter(id => id !== classroomID)
+        : [...prev, classroomID]
     );
   };
 

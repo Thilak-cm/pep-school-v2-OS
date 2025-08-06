@@ -155,15 +155,15 @@ function AddNoteModal({
     try {
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
-        // Get student data to find classroomId
+        // Get student data to find classroomID
         const studentDoc = await getDoc(doc(db, 'students', stuId));
         const studentData = studentDoc.data();
         
         const observationData = {
-          studentId: stuId,
-          teacherId: currentUser?.uid || 'unknown', // Use teacherId for UID-based security
+          studentID: stuId,
+          userID: currentUser?.uid || 'unknown', // Use userID for UID-based security
           teacherName: currentUser?.displayName || 'Unknown Teacher',
-          classroomId: studentData?.classroomId || 'unknown',
+          classroomID: studentData?.classroomID || 'unknown',
           timestamp: serverTimestamp(),
           text: noteData.text,
           tags: [],

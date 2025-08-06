@@ -73,10 +73,10 @@ const StatsPage = ({ user, role, onBack }) => {
           
           // For teachers, only show their own observations
           allObservations = allObservations.filter(obs => {
-            console.log('Checking observation:', obs.id, 'teacherId:', obs.teacherId);
+            console.log('Checking observation:', obs.id, 'userID:', obs.userID);
             
             // Use UID-based identification
-            const isMatch = obs.teacherId === user.uid;
+            const isMatch = obs.userID === user.uid;
             
             console.log('Is match:', isMatch);
             return isMatch;
@@ -106,7 +106,7 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Get student stats with proper names
         const studentStats = {};
-        let studentIds = [...new Set(allObservations.map(obs => obs.studentId).filter(Boolean))];
+        let studentIDs = [...new Set(allObservations.map(obs => obs.studentID).filter(Boolean))];
         
         // For teachers, filter students to only their assigned classrooms
         if (role === 'teacher') {
@@ -131,26 +131,26 @@ const StatsPage = ({ user, role, onBack }) => {
         
         // Fetch student data to get names
         const studentDocs = await Promise.all(
-          studentIds.map(id => getDoc(doc(db, 'students', id)))
+                      studentIDs.map(id => getDoc(doc(db, 'students', id)))
         );
         
         const studentDataMap = {};
         studentDocs.forEach((doc, index) => {
           if (doc.exists()) {
             const data = doc.data();
-            studentDataMap[studentIds[index]] = data.name || 'Unknown Student';
+            studentDataMap[studentIDs[index]] = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Student';
           }
         });
         
-        allObservations.forEach(obs => {
-          if (obs.studentId) {
-            if (!studentStats[obs.studentId]) {
-              studentStats[obs.studentId] = { 
-                count: 0, 
-                name: studentDataMap[obs.studentId] || 'Unknown Student' 
+                allObservations.forEach(obs => {
+          if (obs.studentID) {
+            if (!studentStats[obs.studentID]) {
+              studentStats[obs.studentID] = {
+                count: 0,
+                name: studentDataMap[obs.studentID] || 'Unknown Student'
               };
             }
-            studentStats[obs.studentId].count++;
+            studentStats[obs.studentID].count++;
           }
         });
 
@@ -164,15 +164,15 @@ const StatsPage = ({ user, role, onBack }) => {
         if (role === 'admin') {
           const teacherStatsMap = {};
           allObservations.forEach(obs => {
-            const teacherId = obs.teacherEmail || obs.teacherName || obs.teacherId || 'Unknown';
-            if (!teacherStatsMap[teacherId]) {
-              teacherStatsMap[teacherId] = { 
-                name: obs.teacherName || teacherId, 
-                email: obs.teacherEmail || teacherId,
-                count: 0 
-              };
-            }
-            teacherStatsMap[teacherId].count++;
+                    const teacherId = obs.teacherEmail || obs.teacherName || obs.userID || 'Unknown';
+        if (!teacherStatsMap[teacherId]) {
+          teacherStatsMap[teacherId] = {
+            name: obs.teacherName || teacherId,
+            email: obs.teacherEmail || teacherId,
+            count: 0
+          };
+        }
+        teacherStatsMap[teacherId].count++;
           });
           teacherStats = Object.values(teacherStatsMap)
             .sort((a, b) => b.count - a.count)

@@ -25,16 +25,16 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
         let classroomsToShow = [];
 
         if (userRole === 'teacher') {
-          // For teachers: get classrooms where their UID is in teacherIds array
+          // For teachers: get classrooms where their UID is in teacherIDs array
           const classroomsSnap = await getDocs(collection(db, 'classrooms'));
           const allClassrooms = classroomsSnap.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data() 
           }));
 
-          // Filter classrooms where current user's UID is in teacherIds array
+          // Filter classrooms where current user's UID is in teacherIDs array
           classroomsToShow = allClassrooms.filter(cls => 
-            cls.teacherIds && cls.teacherIds.includes(currentUser.uid)
+            cls.teacherIDs && cls.teacherIDs.includes(currentUser.uid)
           );
         } else {
           // For admins: get all classrooms
@@ -49,7 +49,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
         for (const classroom of classroomsToShow) {
           const studentsQuery = query(
             collection(db, 'students'),
-            where('classroomId', '==', classroom.id)
+            where('classroomID', '==', classroom.id)
           );
           const studentsSnap = await getDocs(studentsQuery);
           counts[classroom.id] = studentsSnap.size;

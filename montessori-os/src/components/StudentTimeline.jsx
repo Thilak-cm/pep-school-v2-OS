@@ -80,12 +80,12 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       setLoading(false);
     }, 10000); // 10 second timeout
     
-    const studentIdToQuery = student.sid || student.id;
-    console.log('Querying with studentId:', studentIdToQuery);
+    const studentIdToQuery = student.studentID || student.id;
+    console.log('Querying with studentID:', studentIdToQuery);
     
     const q = query(
       collection(db, 'observations'),
-      where('studentId', '==', studentIdToQuery),
+      where('studentID', '==', studentIdToQuery),
       orderBy('timestamp', 'desc')
     );
     
@@ -131,12 +131,12 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           const studentData = { id: d.id, ...d.data() };
           
           // Find classroom name
-          let classroomId = studentData.classroomId;
-          if (typeof classroomId === 'object' && classroomId.id) {
-            classroomId = classroomId.id;
-          }
-          
-          const classroom = classrooms.find(c => c.id === classroomId);
+                  let classroomID = studentData.classroomID;
+        if (typeof classroomID === 'object' && classroomID.id) {
+          classroomID = classroomID.id;
+        }
+
+        const classroom = classrooms.find(c => c.id === classroomID);
           
           return {
             ...studentData,
@@ -156,7 +156,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const handleObservationClick = (observation) => {
     console.log('🔍 Observation clicked:', {
       id: observation.id,
-      teacherId: observation.teacherId,
+                  userID: observation.userID,
       createdBy: observation.createdBy,
       teacherEmail: observation.teacherEmail,
       teacherName: observation.teacherName,
@@ -223,7 +223,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       });
       console.log('📝 Selected observation:', {
         id: selectedObservation.id,
-        teacherId: selectedObservation.teacherId,
+        userID: selectedObservation.userID,
         createdBy: selectedObservation.createdBy,
         teacherEmail: selectedObservation.teacherEmail,
         teacherName: selectedObservation.teacherName,
@@ -275,7 +275,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   };
 
   const handleStudentSelect = (studentId) => {
-    const selectedStudent = allStudents.find(s => s.id === studentId || s.sid === studentId);
+    const selectedStudent = allStudents.find(s => s.id === studentId || s.studentID === studentId);
     if (selectedStudent) {
       setSelectedStudentForReassign(selectedStudent);
       setReassignDialogOpen(false);
@@ -289,7 +289,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     try {
       setReassigning(true);
       await updateDoc(doc(db, 'observations', selectedObservation.id), {
-        studentId: selectedStudentForReassign.sid || selectedStudentForReassign.id,
+        studentID: selectedStudentForReassign.studentID || selectedStudentForReassign.id,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
         lastEditedAt: serverTimestamp()

@@ -1,7 +1,7 @@
 {
   "users": {
     "admin-001": {
-      "uid": "admin-001",
+      "userID": "admin-001",
       "email": "thilak@pepschoolv2.com",
       "displayName": "Thilak Mohan",
       "role": "admin",
@@ -28,7 +28,7 @@
       }
     },
     "teacher-001": {
-      "uid": "teacher-001",
+      "userID": "teacher-001",
       "email": "dewanshi@pepschoolv2.com",
       "displayName": "Dewanshi Rawat",
       "role": "teacher",
@@ -54,7 +54,7 @@
       }
     },
     "admin-002": {
-      "uid": "admin-002",
+      "userID": "admin-002",
       "email": "rahul@pepschoolv2.com",
       "displayName": "Rahul Raghavan",
       "role": "admin",
@@ -83,12 +83,12 @@
   },
   "classrooms": {
     "classroom-001": {
-      "cid": "classroom-001",
+      "classroomID": "classroom-001",
       "name": "Power",
       "description": "unsure about this",
       "ageGroup": "primary",
       "status": "active",
-      "teacherIds": ["teacher-001"],
+      "teacherIDs": ["teacher-001"],
       "studentCount": 8,
       "createdAt": {
         "__type__": "timestamp",
@@ -101,12 +101,12 @@
       "createdBy": "admin-001"
     },
     "classroom-002": {
-      "cid": "classroom-002",
+      "classroomID": "classroom-002",
       "name": "Amazing",
       "description": "unsure about this",
       "ageGroup": "primary",
       "status": "active",
-      "teacherIds": ["teacher-002"],
+      "teacherIDs": ["teacher-002"],
       "studentCount": 10,
       "createdAt": {
         "__type__": "timestamp",
@@ -121,12 +121,12 @@
   },
   "students": {
     "2025-A2-001": {
-      "sid": "2025-A2-001",
-      "studentId": "2025-A2-001",
+
+      "studentID": "2025-A2-001",
       "name": "Aadya Verma",
       "firstName": "Aadya",
       "lastName": "Verma",
-      "classroomId": "classroom-001",
+      "classroomID": "classroom-001",
       "dateOfBirth": {
         "__type__": "timestamp",
         "value": "2021-06-12T00:00:00.000Z"
@@ -157,12 +157,12 @@
       "createdBy": "admin-001"
     },
     "2025-A2-002": {
-      "sid": "2025-A2-002",
-      "studentId": "2025-A2-002",
+
+      "studentID": "2025-A2-002",
       "name": "Aarohi D.R.",
       "firstName": "Aarohi",
       "lastName": "D.R.",
-      "classroomId": "classroom-002",
+      "classroomID": "classroom-002",
       "dateOfBirth": {
         "__type__": "timestamp",
         "value": "2021-03-15T00:00:00.000Z"
@@ -193,12 +193,12 @@
       "createdBy": "admin-001"
     },
     "2025-A2-003": {
-      "sid": "2025-A2-003",
-      "studentId": "2025-A2-003",
+
+      "studentID": "2025-A2-003",
       "name": "Aayansh Narain",
       "firstName": "Aayansh",
       "lastName": "Narain",
-      "classroomId": "classroom-001",
+      "classroomID": "classroom-001",
       "dateOfBirth": {
         "__type__": "timestamp",
         "value": "2021-08-22T00:00:00.000Z"
@@ -229,12 +229,12 @@
       "createdBy": "admin-001"
     },
     "student-004": {
-      "sid": "student-004",
-      "studentId": "2025-A2-004",
+
+      "studentID": "2025-A2-004",
       "name": "Kyra Joseph",
       "firstName": "Kyra",
       "lastName": "Joseph",
-      "classroomId": "classroom-002",
+      "classroomID": "classroom-002",
       "dateOfBirth": {
         "__type__": "timestamp",
         "value": "2021-11-05T00:00:00.000Z"
@@ -267,7 +267,7 @@
   },
   "tags": {
     "tag-001": {
-      "tid": "tag-001",
+      "tagID": "tag-001",
       "name": "Practical Life",
       "description": "Activities for daily living and self-care",
       "category": "curriculum",
@@ -289,7 +289,7 @@
       }
     },
     "tag-002": {
-      "tid": "tag-002",
+      "tagID": "tag-002",
       "name": "Sensorial",
       "description": "Activities that refine the senses",
       "category": "curriculum",
@@ -311,7 +311,7 @@
       }
     },
     "tag-003": {
-      "tid": "tag-003",
+      "tagID": "tag-003",
       "name": "Language",
       "description": "Language development and literacy",
       "category": "curriculum",
@@ -335,10 +335,10 @@
   },
   "observations": {
     "obs-001": {
-      "oid": "obs-001",
-      "studentId": "student-001",
-      "teacherId": "teacher-001",
-      "classroomId": "classroom-a1",
+      "observationID": "obs-001",
+      "studentID": "student-001",
+      "userID": "teacher-001",
+      "classroomID": "classroom-a1",
       "type": "voice",
       "text": "Ayaansh successfully completed the pouring exercise with the small pitcher. He showed excellent concentration and was able to pour water without spilling. He repeated the activity three times independently.",
       "timestamp": {
@@ -362,10 +362,10 @@
       }
     },
     "obs-002": {
-      "oid": "obs-002",
-      "studentId": "student-002",
-      "teacherId": "teacher-001",
-      "classroomId": "classroom-a1",
+      "observationID": "obs-002",
+      "studentID": "student-002",
+      "userID": "teacher-001",
+      "classroomID": "classroom-a1",
       "type": "text",
       "text": "Emma worked with the pink tower for 15 minutes. She was able to correctly order 7 out of 10 blocks by size. She showed frustration when blocks fell but persisted in rebuilding.",
       "timestamp": {
@@ -387,10 +387,10 @@
       }
     },
     "obs-003": {
-      "oid": "obs-003",
-      "studentId": "student-003",
-      "teacherId": "teacher-002",
-      "classroomId": "classroom-a2",
+      "observationID": "obs-003",
+      "studentID": "student-003",
+      "userID": "teacher-002",
+      "classroomID": "classroom-a2",
       "type": "voice",
       "text": "Liam read the 'at' word family with confidence. He was able to sound out 'cat', 'hat', 'bat', and 'rat' independently. He helped his friend Sophia when she struggled with 'sat'.",
       "timestamp": {
@@ -416,10 +416,10 @@
   },
   "attendance": {
     "2024-01-15_student-001": {
-      "aid": "2024-01-15_student-001",
+      "attendanceID": "2024-01-15_student-001",
       "date": "2024-01-15",
-      "studentId": "student-001",
-      "classroomId": "classroom-a1",
+      "studentID": "student-001",
+      "classroomID": "classroom-a1",
       "status": "present",
       "checkInTime": {
         "__type__": "timestamp",
@@ -441,10 +441,10 @@
       }
     },
     "2024-01-15_student-002": {
-      "aid": "2024-01-15_student-002",
+      "attendanceID": "2024-01-15_student-002",
       "date": "2024-01-15",
-      "studentId": "student-002",
-      "classroomId": "classroom-a1",
+      "studentID": "student-002",
+      "classroomID": "classroom-a1",
       "status": "present",
       "checkInTime": {
         "__type__": "timestamp",
@@ -466,10 +466,10 @@
       }
     },
     "2024-01-15_student-003": {
-      "aid": "2024-01-15_student-003",
+      "attendanceID": "2024-01-15_student-003",
       "date": "2024-01-15",
-      "studentId": "student-003",
-      "classroomId": "classroom-a2",
+      "studentID": "student-003",
+      "classroomID": "classroom-a2",
       "status": "present",
       "checkInTime": {
         "__type__": "timestamp",
@@ -491,10 +491,10 @@
       }
     },
     "2024-01-15_student-004": {
-      "aid": "2024-01-15_student-004",
+      "attendanceID": "2024-01-15_student-004",
       "date": "2024-01-15",
-      "studentId": "student-004",
-      "classroomId": "classroom-a2",
+      "studentID": "student-004",
+      "classroomID": "classroom-a2",
       "status": "present",
       "checkInTime": {
         "__type__": "timestamp",

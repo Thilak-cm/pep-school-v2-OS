@@ -39,7 +39,7 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
       try {
         const q = query(
           collection(db, 'students'),
-          where('classroomId', '==', classroom.id)
+          where('classroomID', '==', classroom.id)
         );
         const qSnap = await getDocs(q);
         const list = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
