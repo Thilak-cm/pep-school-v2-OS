@@ -1,7 +1,7 @@
 {
   "users": {
     "admin-001": {
-      "userID": "admin-001",
+      "userID": "T1iLA2qjTqMvgS4hamw2PEtNsov1",
       "email": "thilak@pepschoolv2.com",
       "displayName": "Thilak Mohan",
       "role": "admin",
@@ -28,7 +28,7 @@
       }
     },
     "teacher-001": {
-      "userID": "teacher-001",
+      "userID": "CjTIQBrxyXW4YcBasGp8KL2HWQX2",
       "email": "dewanshi@pepschoolv2.com",
       "displayName": "Dewanshi Rawat",
       "role": "teacher",
@@ -54,7 +54,7 @@
       }
     },
     "admin-002": {
-      "userID": "admin-002",
+      "userID": "HA1TiA1xbkRJ8n1MPaBi1PdGlo92",
       "email": "rahul@pepschoolv2.com",
       "displayName": "Rahul Raghavan",
       "role": "admin",
