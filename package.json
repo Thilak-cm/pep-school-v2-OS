@@ -8,7 +8,8 @@
     "start": "node seed.js"
   },
   "dependencies": {
-    "firebase-admin": "^12.0.0"
+    "firebase-admin": "^12.0.0",
+    "xlsx": "^0.18.5"
   },
   "keywords": [
     "firebase",

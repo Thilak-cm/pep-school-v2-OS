@@ -73,10 +73,10 @@ const StatsPage = ({ user, role, onBack }) => {
           
           // For teachers, only show their own observations
           allObservations = allObservations.filter(obs => {
-            console.log('Checking observation:', obs.id, 'staff_uid:', obs.staff_uid);
+            console.log('Checking observation:', obs.id, 'teacherId:', obs.teacherId);
             
             // Use UID-based identification
-            const isMatch = obs.staff_uid === user.uid;
+            const isMatch = obs.teacherId === user.uid;
             
             console.log('Is match:', isMatch);
             return isMatch;

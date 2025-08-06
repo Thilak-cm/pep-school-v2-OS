@@ -156,7 +156,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const handleObservationClick = (observation) => {
     console.log('🔍 Observation clicked:', {
       id: observation.id,
-      staff_uid: observation.staff_uid,
       teacherId: observation.teacherId,
       createdBy: observation.createdBy,
       teacherEmail: observation.teacherEmail,
@@ -224,7 +223,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       });
       console.log('📝 Selected observation:', {
         id: selectedObservation.id,
-        staff_uid: selectedObservation.staff_uid,
         teacherId: selectedObservation.teacherId,
         createdBy: selectedObservation.createdBy,
         teacherEmail: selectedObservation.teacherEmail,

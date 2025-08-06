@@ -161,7 +161,7 @@ function AddNoteModal({
         
         const observationData = {
           studentId: stuId,
-          staff_uid: currentUser?.uid || 'unknown', // Use staff_uid for UID-based security
+          teacherId: currentUser?.uid || 'unknown', // Use teacherId for UID-based security
           teacherName: currentUser?.displayName || 'Unknown Teacher',
           classroomId: studentData?.classroomId || 'unknown',
           timestamp: serverTimestamp(),

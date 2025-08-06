@@ -44,12 +44,13 @@ service cloud.firestore {
         && request.resource.data.type in ['voice', 'text']
         && request.resource.data.timestamp == request.time;
 
-      // Author can edit/delete within 24h
-      allow update, delete: if (isTeacher() || isAdmin())
-        && (request.auth.uid == resource.data.staff_uid || 
-            request.auth.uid == resource.data.teacherId ||
-            request.auth.uid == resource.data.createdBy)
-        && request.time < resource.data.timestamp + duration.value(24, 'h');
+      // Author can edit/delete within 24h  
+      allow update, delete: if isAdmin() || 
+        ((isTeacher() || isAdmin())
+          && (request.auth.uid == resource.data.teacherId ||
+              request.auth.uid == resource.data.staff_uid || 
+              request.auth.uid == resource.data.createdBy)
+          && request.time < resource.data.timestamp + duration.value(24, 'h'));
     }
 
     // -------------------------

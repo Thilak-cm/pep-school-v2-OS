@@ -16,35 +16,28 @@
 ```typescript
 interface User {
   // Core identity
-  uid: string;                    // Firebase Auth UID
+  userID: string;                 // Firebase Auth UID
   email: string;                  // user@pepschoolv2.com
-  displayName: string;            // "John Smith"
-  photoURL?: string;              // Google profile photo
+  firstName: string;
+  lastName: string;
+  // displayName computed as: firstName + " " + lastName
   
   // Role & permissions
   role: 'admin' | 'teacher';
   status: 'active' | 'inactive' | 'suspended';
   
-  // Admin-specific
+  // Admin-specific (optional)
   adminLevel?: 'super' | 'regular';
   permissions?: string[];         // ["manage_users", "view_reports"]
   
   // Teacher-specific
-  // Teachers are assigned to classrooms via classroom.teacherIds array
-  // No need for assignedClassrooms field in user document
+  // Teachers are assigned to classrooms via classroom collection.userIDs array
+  // No need for assignedClassrooms field in this user collection definition
   
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastLoginAt: Timestamp;
-  
-  // Preferences
-  preferences: {
-    language: 'en' | 'es';
-    timezone: string;             // "America/New_York"
-    notifications: boolean;
-    theme: 'light' | 'dark' | 'auto';
-  };
 }
 ```
 
@@ -52,7 +45,7 @@ interface User {
 ```typescript
 interface Classroom {
   // Core info
-  cid: string;                    // Auto-generated classroom ID
+  classroomID: string;                    // Auto-generated classroom ID
   name: string;                   // "Room 3" or "Power"
   description?: string;
   
@@ -63,7 +56,7 @@ interface Classroom {
   status: 'active' | 'inactive' | 'archived';
   
   // Teacher assignments
-  teacherIds: string[];           // Array of user UIDs
+  teacherIDs: string[];           // Array of userIDs
   
   // Student count (calculated dynamically)
   studentCount: number;           // Number of active students
@@ -71,7 +64,7 @@ interface Classroom {
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy: string;              // User UID
+  createdBy: string;              // userID
 }
 ```
 
@@ -79,14 +72,13 @@ interface Classroom {
 ```typescript
 interface Student {
   // Core identity
-  sid: string;                    // Auto-generated student ID
-  studentId: string;              // "2025-A2-016" (unique identifier)
-  name: string;                   // "Ayaansh Narain"
+  studentID: string;              // "2025-A2-016" (unique identifier)
   firstName: string;              // "Ayaansh"
   lastName: string;               // "Narain"
+  // name computed as: firstName + " " + lastName
   
   // Classroom assignment
-  classroomId: string;            // Reference to classroom cid
+  classroomID: string;            // Reference to classroom ID
   
   // Personal info
   dateOfBirth: Timestamp;
@@ -112,7 +104,7 @@ interface Student {
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy: string;              // User UID
+  createdBy: string;              // userID
 }
 ```
 
@@ -120,10 +112,10 @@ interface Student {
 ```typescript
 interface Observation {
   // Core data
-  oid: string;                    // Auto-generated observation ID
-  studentId: string;              // Reference to student sid
-  teacherId: string;              // User UID who created
-  classroomId: string;            // Reference to classroom cid
+  observationID: string;              // Auto-generated observationID
+  studentID: string;              // Reference to studentID
+  userID: string;                 // userID who created
+  classroomID: string;            // Reference to classroom ID
   
   // Content
   type: 'voice' | 'text' | 'image' | 'video';
@@ -140,14 +132,9 @@ interface Observation {
   // Categorization
   tags: string[];                 // Array of tag IDs (curriculum areas, behaviors, etc.)
   
-  // Flags
-  isStarred: boolean;             // "Magic Moment" flag
-  isPrivate: boolean;             // Private observation
-  isDraft: boolean;               // Draft status
-  
   // Edit tracking
   editedAt?: Timestamp;
-  editedBy?: string;              // User UID who last edited
+  editedBy?: string;              // userID who last edited
   editCount: number;              // Number of times edited
   
   // System fields
@@ -160,7 +147,7 @@ interface Observation {
 ```typescript
 interface Tag {
   // Core info
-  tid: string;                    // Auto-generated tag ID
+  tagID: string;                    // Auto-generated tag ID
   name: string;                   // "Practical Life"
   description?: string;           // "Activities for daily living"
   
@@ -182,7 +169,7 @@ interface Tag {
   
   // Metadata
   createdAt: Timestamp;
-  createdBy: string;              // User UID
+  createdBy: string;              // userID
   updatedAt: Timestamp;
 }
 ```
@@ -191,10 +178,10 @@ interface Tag {
 ```typescript
 interface Attendance {
   // Composite key
-  aid: string;                    // "2024-01-15_2025-A2-016"
+  attendanceID: string;                    // "2024-01-15_2025-A2-016"
   date: string;                   // "2024-01-15" (YYYY-MM-DD)
-  studentId: string;              // Reference to student sid
-  classroomId: string;            // Reference to classroom cid
+  studentID: string;              // Reference to studentID
+  classroomID: string;            // Reference to classroomID
   
   // Status
   status: 'present' | 'absent' | 'late' | 'excused' | 'partial';
@@ -209,7 +196,7 @@ interface Attendance {
   reason?: string;                // Reason for absence/late
   
   // Metadata
-  recordedBy: string;             // User UID who recorded
+  recordedBy: string;             // userID who recorded
   recordedAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -219,9 +206,9 @@ interface Attendance {
 ```typescript
 interface Assessment {
   // Core info
-  asid: string;                   // Auto-generated assessment ID
-  studentId: string;              // Reference to student sid
-  teacherId: string;              // User UID who conducted
+  assessmentID: string;           // Auto-generated assessment ID
+  studentID: string;              // Reference to studentID
+  userID: string;                 // userID who conducted
   
   // Assessment details
   type: 'milestone' | 'academic' | 'behavioral' | 'social' | 'physical';
@@ -253,112 +240,3 @@ interface Assessment {
 ```
 
 ---
-
-## 🔗 **Reference Strategy**
-
-### **Consistent Reference Format**
-```typescript
-// ALWAYS use document IDs, never full paths
-classroomId: "classroom-1"        // ✅ Correct
-classroomId: "/classrooms/classroom-1"  // ❌ Wrong
-
-// In queries, convert to DocumentReference when needed
-const classroomRef = doc(db, 'classrooms', classroomId);
-```
-
-### **Composite Indexes**
-Composite indexes optimize queries that filter on multiple fields. They're essential for performance with larger datasets.
-
-```json
-{
-  "indexes": [
-    {
-      "collectionGroup": "observations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "observations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "classroomId", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "students",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "classroomId", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "attendance",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "date", "order": "ASCENDING" },
-        { "fieldPath": "classroomId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "observations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "teacherId", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    }
-  ]
-}
-```
-
-**Why Composite Indexes Matter:**
-- **Without them**: Queries with multiple filters are slow or fail
-- **With them**: Fast queries for common operations like "get all observations for a student, ordered by date"
-- **Example**: `where('studentId', '==', 'sid-1')` + `orderBy('timestamp', 'desc')` needs a composite index
-
----
-
-## 🚀 **Migration Plan**
-
-### **Phase 1: Schema Setup (Week 1)**
-1. **Create new collections** with proper structure
-2. **Set up composite indexes** for performance
-3. **Update Firestore rules** for new schema
-4. **Create migration scripts** for existing data
-
-### **Phase 2: Data Migration (Week 2)**
-1. **Migrate existing users** to new format
-2. **Migrate classrooms** with proper teacher assignments
-3. **Migrate students** with consistent references
-4. **Migrate observations** with new field names
-5. **Create initial tags** for curriculum areas
-
-### **Phase 3: Code Updates (Week 3)**
-1. **Update all components** to use new field names
-2. **Implement proper error handling** for missing data
-3. **Add data validation** on write operations
-4. **Update queries** to use new indexes
-
-### **Phase 4: New Features (Week 4+)**
-1. **Implement tags system** with UI
-2. **Add attendance tracking**
-3. **Build assessment system**
-4. **Add reporting features**
-
----
-
-## 🎯 **Benefits**
-
-✅ **No More Parsing Issues**: Consistent document ID references  
-✅ **Scalable**: Supports 1000+ students efficiently  
-✅ **Queryable**: Optimized indexes for common operations  
-✅ **Extensible**: Easy to add new features  
-✅ **Type-Safe**: Clear TypeScript interfaces  
-✅ **Future-Proof**: Supports advanced features like parent communication  
-
-This new structure will eliminate all the current issues and provide a rock-solid foundation for the Montessori OS! 🚀 
