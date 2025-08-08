@@ -5,10 +5,13 @@
   "main": "seed.js",
   "scripts": {
     "seed": "node seed.js",
-    "start": "node seed.js"
+    "start": "node seed.js",
+    "import:teachers": "node scripts/admin/import-hsr-teachers.js",
+    "import:teachers:push": "node scripts/admin/import-hsr-teachers.js --push"
   },
   "dependencies": {
-    "firebase-admin": "^12.0.0"
+    "firebase-admin": "^12.0.0",
+    "xlsx": "^0.18.5"
   },
   "keywords": [
     "firebase",

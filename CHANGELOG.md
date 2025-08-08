@@ -5,6 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2025-08-08
+
+### Added
+- Data preprocessing pipeline for educators
+  - `scripts/data_preprocessing.py` cleans raw educators XLSX and writes `data/processed/educators_clean.xlsx`
+  - Adds `Role` column (default teacher; admin for specified names)
+- Teacher import utility
+  - `scripts/admin/import-hsr-teachers.js` reads cleaned XLSX → JSON preview and optional Firestore upsert
+- `package.json` scripts: `import:teachers`, `import:teachers:push`; add `xlsx` dependency
+
+### Changed
+- Removed student handling from data preprocessing script (students handled elsewhere)
+
 ## [2.0.1] - 2025-08-08
 
 ### Changed
