@@ -1,4 +1,4 @@
-rules_version = '2';
+rules_version = '3';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -21,6 +21,33 @@ service cloud.firestore {
     }
 
     // =========================
+    // Helper functions
+    // =========================
+    function classroomDoc(classroomID) {
+      return get(/databases/$(database)/documents/classrooms/$(classroomID));
+    }
+
+    function studentDoc(studentID) {
+      return get(/databases/$(database)/documents/students/$(studentID));
+    }
+
+    function teacherAssignedToClassroom(classroomID) {
+      return classroomDoc(classroomID).exists() &&
+             request.auth.uid in classroomDoc(classroomID).data.teacherIDs;
+    }
+
+    function teacherAssignedToStudent(studentID) {
+      return studentDoc(studentID).exists() &&
+             teacherAssignedToClassroom(studentDoc(studentID).data.classroomID);
+    }
+
+    function teacherCanReadObservation() {
+      // Teacher can read if author or assigned to the student's classroom
+      return (request.auth.uid == resource.data.userID) ||
+             teacherAssignedToStudent(resource.data.studentID);
+    }
+
+    // =========================
     // Generic access
     // =========================
     match /users/{uid} {
@@ -32,38 +59,53 @@ service cloud.firestore {
     // Observations Collection
     // -------------------------
     match /observations/{obsId} {
-      // Admins can read anything
-      allow read: if isAdmin();
+      // READ
+      allow read: if isAdmin() || (isTeacher() && teacherCanReadObservation());
 
-      // Teachers can read their classroom students' observations (simplified: allow read all)
-      allow read: if isTeacher();
-
-      // Create observation (voice/text) by teachers or admins
+      // CREATE
       allow create: if (isTeacher() || isAdmin())
-        && request.resource.data.studentID is string
         && request.resource.data.userID == request.auth.uid
+        && request.resource.data.studentID is string
+        && studentDoc(request.resource.data.studentID).exists()
+        && classroomDoc(studentDoc(request.resource.data.studentID).data.classroomID).exists()
+        && (isAdmin() || teacherAssignedToClassroom(studentDoc(request.resource.data.studentID).data.classroomID))
+        && request.resource.data.classroomID == studentDoc(request.resource.data.studentID).data.classroomID
         && request.resource.data.type in ['voice', 'text']
-        && request.resource.data.text is string
-        && request.resource.data.timestamp == null // Allow serverTimestamp()
-        && request.resource.data.createdAt == null // Allow serverTimestamp()
-        && request.resource.data.updatedAt == null; // Allow serverTimestamp()
+        && request.resource.data.text is string;
 
-      // Author can edit/delete within 24h  
-      allow update, delete: if isAdmin() || 
-        ((isTeacher() || isAdmin())
-          && request.auth.uid == resource.data.userID
-          && request.time < resource.data.timestamp + duration.value(24, 'h'));
+      // UPDATE
+      // Admins may update freely
+      allow update: if isAdmin() || (
+        // Teachers can ONLY reassign observations they authored
+        isTeacher()
+        && request.auth.uid == resource.data.userID
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['studentID', 'classroomID', 'updatedAt', 'editedAt', 'editedBy'])
+        && studentDoc(request.resource.data.studentID).exists()
+        && request.resource.data.classroomID == studentDoc(request.resource.data.studentID).data.classroomID
+        && teacherAssignedToClassroom(request.resource.data.classroomID)
+      );
+
+      // DELETE
+      allow delete: if isAdmin();
     }
 
     // -------------------------
     // Classrooms & Students metadata (read-only for now)
     // -------------------------
     match /classrooms/{id} {
-      allow read: if isPepUser();
+      allow read: if isAdmin() || (isTeacher() && request.auth.uid in resource.data.teacherIDs);
       allow write: if isAdmin();
     }
 
     match /students/{id} {
+      allow read: if isAdmin() || (isTeacher() && teacherAssignedToStudent(id));
+      allow write: if isAdmin();
+    }
+
+    // -------------------------
+    // Tags
+    // -------------------------
+    match /tags/{tagID} {
       allow read: if isPepUser();
       allow write: if isAdmin();
     }
@@ -72,7 +114,8 @@ service cloud.firestore {
     // Access Logs (read/write restricted)
     // -------------------------
     match /access_logs/{logId} {
-      allow create: if isPepUser(); // Client may create log if desired (but currently done via Cloud Function)
+      // Keep client writes disabled; use Callable Function for logging
+      allow create: if false;
       allow read, update, delete: if false; // No client reads
     }
 
