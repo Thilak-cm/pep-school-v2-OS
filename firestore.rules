@@ -1,4 +1,4 @@
-rules_version = '3';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -31,14 +31,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/students/$(studentID));
     }
 
+    function classroomExists(classroomID) {
+      return exists(/databases/$(database)/documents/classrooms/$(classroomID));
+    }
+
+    function studentExists(studentID) {
+      return exists(/databases/$(database)/documents/students/$(studentID));
+    }
+
+    function studentClassroomID(studentID) {
+      return studentDoc(studentID).data.classroomID;
+    }
+
     function teacherAssignedToClassroom(classroomID) {
-      return classroomDoc(classroomID).exists() &&
+      return classroomExists(classroomID) &&
              request.auth.uid in classroomDoc(classroomID).data.teacherIDs;
     }
 
     function teacherAssignedToStudent(studentID) {
-      return studentDoc(studentID).exists() &&
-             teacherAssignedToClassroom(studentDoc(studentID).data.classroomID);
+      return studentExists(studentID) &&
+             teacherAssignedToClassroom(studentClassroomID(studentID));
     }
 
     function teacherCanReadObservation() {
@@ -66,10 +78,10 @@ service cloud.firestore {
       allow create: if (isTeacher() || isAdmin())
         && request.resource.data.userID == request.auth.uid
         && request.resource.data.studentID is string
-        && studentDoc(request.resource.data.studentID).exists()
-        && classroomDoc(studentDoc(request.resource.data.studentID).data.classroomID).exists()
-        && (isAdmin() || teacherAssignedToClassroom(studentDoc(request.resource.data.studentID).data.classroomID))
-        && request.resource.data.classroomID == studentDoc(request.resource.data.studentID).data.classroomID
+        && studentExists(request.resource.data.studentID)
+        && classroomExists(studentClassroomID(request.resource.data.studentID))
+        && (isAdmin() || teacherAssignedToClassroom(studentClassroomID(request.resource.data.studentID)))
+        && request.resource.data.classroomID == studentClassroomID(request.resource.data.studentID)
         && request.resource.data.type in ['voice', 'text']
         && request.resource.data.text is string;
 
@@ -80,8 +92,8 @@ service cloud.firestore {
         isTeacher()
         && request.auth.uid == resource.data.userID
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['studentID', 'classroomID', 'updatedAt', 'editedAt', 'editedBy'])
-        && studentDoc(request.resource.data.studentID).exists()
-        && request.resource.data.classroomID == studentDoc(request.resource.data.studentID).data.classroomID
+        && studentExists(request.resource.data.studentID)
+        && request.resource.data.classroomID == studentClassroomID(request.resource.data.studentID)
         && teacherAssignedToClassroom(request.resource.data.classroomID)
       );
 
