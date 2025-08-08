@@ -6,8 +6,9 @@
   "scripts": {
     "seed": "node seed.js",
     "start": "node seed.js",
-    "import:teachers": "node scripts/admin/import-hsr-teachers.js",
-    "import:teachers:push": "node scripts/admin/import-hsr-teachers.js --push"
+    "upsert:teachers": "node scripts/admin/upsert-hsr-teachers.js",
+    "upsert:teachers:push": "node scripts/admin/upsert-hsr-teachers.js --push",
+    "upsert:students": "node scripts/admin/upsert-students.js"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",
