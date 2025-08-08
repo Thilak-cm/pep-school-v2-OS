@@ -1,245 +1,191 @@
-# Montessori OS - New Data Structure Design
+# Montessori OS – Firestore Data Model (Focused v1)
 
-## 🎯 **Design Principles**
-
-1. **Consistent References**: Always use document IDs, never full paths
-2. **Scalable**: Support 50+ teachers, 1000+ students efficiently
-3. **Queryable**: Optimized indexes for common operations
-4. **Extensible**: Easy to add new features without breaking changes
-5. **Type-Safe**: Clear interfaces for all data structures
+## 🎯 Goals
+- Minimize friction for teachers to add notes to assigned students
+- Scale to many classrooms/students with fast timelines and analytics
+- Keep rules simple, safe, and performant in Firestore
 
 ---
 
-## 📊 **Core Collections**
+## 📚 Collections Overview
+- `users/{uid}`
+- `classrooms/{classroomId}`
+- `students/{studentId}`
+- `students/{studentId}/observations/{observationId}` (collection group: `observations`)
 
-### **1. Users** (`/users/{uid}`)
+Notes:
+- We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
+- Observation docs are fan-out per student (for group notes, write one doc per student). This makes student timelines trivial and admin analytics fast via collection group queries.
+
+---
+
+## 👤 Users (`/users/{uid}`)
 ```typescript
 interface User {
-  // Core identity
-  userID: string;                 // Firebase Auth UID
-  email: string;                  // user@pepschoolv2.com
-  firstName: string;
-  lastName: string;
-  // displayName computed as: firstName + " " + lastName
-  
-  // Role & permissions
+  // Identity
+  displayName: string;
+  email: string;
+  photoURL?: string;
+
+  // Access
   role: 'admin' | 'teacher';
   status: 'active' | 'inactive' | 'suspended';
-  
-  // Admin-specific (optional)
-  adminLevel?: 'super' | 'regular';
-  permissions?: string[];         // ["manage_users", "view_reports"]
-  
-  // Teacher-specific
-  // Teachers are assigned to classrooms via classroom collection.userIDs array
-  // No need for assignedClassrooms field in this user collection definition
-  
-  // Metadata
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  lastLoginAt: Timestamp;
-}
-```
 
-### **2. Classrooms** (`/classrooms/{classroomId}`)
-```typescript
-interface Classroom {
-  // Core info
-  classroomID: string;                    // Auto-generated classroom ID
-  name: string;                   // "Room 3" or "Power"
-  description: string;             // "Primary (3-6 years)" or "Elementary (grade 1 - 5)"
-  
-  // Educational level
-  ageGroup: 'toddlers' | 'primary' | 'elementary' | 'adolescence';  // Age group classification
-  
-  // Age group
-  ageGroup: 'toddler' | 'primary' | 'elementary';
-  
-  // Status
-  status: 'active' | 'inactive' | 'archived';
-  
-  // Teacher assignments
-  teacherIDs: string[];           // Array of userIDs
-  
-  // Student count (calculated dynamically)
-  studentCount: number;           // Number of active students
-  
   // Metadata
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  createdBy: string;              // userID
+  createdAt: Timestamp; // server time
+  updatedAt: Timestamp; // server time
+  lastLoginAt?: Timestamp;
 }
 ```
-
-### **3. Students** (`/students/{studentId}`)
-```typescript
-interface Student {
-  // Core identity
-  studentID: string;              // "2025-A2-016" (unique identifier)
-  firstName: string;              // "Ayaansh"
-  lastName: string;               // "Narain"
-  // name computed as: firstName + " " + lastName
-  
-  // Classroom assignment
-  classroomID: string;            // Reference to classroom ID
-  
-  // Personal info
-  dateOfBirth: Timestamp;
-  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
-  enrollmentDate: Timestamp;
-  
-  // Status
-  status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'withdrawn';
-  
-  // Contact info (for future parent features)
-  parentEmail?: string;
-  parentPhone?: string;
-  emergencyContact?: {
-    name: string;
-    phone: string;
-    relationship: string;
-  };
-  
-  // Academic info
-  grade?: string;                 // "K", "1st", "2nd"
-  academicYear?: string;          // "2024-2025"
-  
-  // Metadata
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  createdBy: string;              // userID
-}
-```
-
-### **4. Observations** (`/observations/{observationId}`)
-```typescript
-interface Observation {
-  // Core data
-  observationID: string;              // Auto-generated observationID
-  studentID: string;              // Reference to studentID
-  userID: string;                 // userID who created
-  classroomID: string;            // Reference to classroom ID
-  
-  // Content
-  type: 'voice' | 'text' | 'image' | 'video';
-  text: string;                   // Transcribed text or manual input
-  audioUrl?: string;              // Firebase Storage URL
-  imageUrl?: string;              // Firebase Storage URL
-  videoUrl?: string;              // Firebase Storage URL
-  
-  // Metadata
-  timestamp: Timestamp;           // When observation was made
-  duration?: number;              // Audio/video duration in seconds
-  sttConfidence?: number;         // Speech-to-text confidence (0-1)
-  
-  // Categorization
-  tags: string[];                 // Array of tag IDs (curriculum areas, behaviors, etc.)
-  
-  // Edit tracking
-  editedAt?: Timestamp;
-  editedBy?: string;              // userID who last edited
-  editCount: number;              // Number of times edited
-  
-  // System fields
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-```
-
-### **5. Tags** (`/tags/{tagId}`)
-```typescript
-interface Tag {
-  // Core info
-  tagID: string;                    // Auto-generated tag ID
-  name: string;                   // "Practical Life"
-  description?: string;           // "Activities for daily living"
-  
-  // Categorization
-  category: 'curriculum' | 'behavior' | 'milestone' | 'custom';
-  subcategory?: string;          // "fine-motor", "social-skills"
-  
-  // UI properties
-  color: string;                  // Hex color "#4f46e5"
-  icon?: string;                  // Material icon name
-  
-  // Usage tracking
-  usageCount: number;             // How many times used
-  lastUsedAt?: Timestamp;
-  
-  // Status
-  isActive: boolean;              // Can be disabled
-  isSystem: boolean;              // System-created vs user-created
-  
-  // Metadata
-  createdAt: Timestamp;
-  createdBy: string;              // userID
-  updatedAt: Timestamp;
-}
-```
-
-### **6. Attendance** (`/attendance/{date}_{studentId}`)
-```typescript
-interface Attendance {
-  // Composite key
-  attendanceID: string;                    // "2024-01-15_2025-A2-016"
-  date: string;                   // "2024-01-15" (YYYY-MM-DD)
-  studentID: string;              // Reference to studentID
-  classroomID: string;            // Reference to classroomID
-  
-  // Status
-  status: 'present' | 'absent' | 'late' | 'excused' | 'partial';
-  
-  // Time tracking
-  checkInTime?: Timestamp;        // When they arrived
-  checkOutTime?: Timestamp;       // When they left
-  totalHours?: number;            // Hours present
-  
-  // Notes
-  notes?: string;                 // Teacher notes about attendance
-  reason?: string;                // Reason for absence/late
-  
-  // Metadata
-  recordedBy: string;             // userID who recorded
-  recordedAt: Timestamp;
-  updatedAt: Timestamp;
-}
-```
-
-### **7. Assessments** (`/assessments/{assessmentId}`)
-```typescript
-interface Assessment {
-  // Core info
-  assessmentID: string;           // Auto-generated assessment ID
-  studentID: string;              // Reference to studentID
-  userID: string;                 // userID who conducted
-  
-  // Assessment details
-  type: 'milestone' | 'academic' | 'behavioral' | 'social' | 'physical';
-  title: string;                  // "Language Development Check"
-  description?: string;           // Assessment description
-  
-  // Results
-  score?: number;                 // Numeric score (0-100)
-  level?: 'beginning' | 'developing' | 'proficient' | 'mastered';
-  grade?: string;                 // "A", "B", "C", "D", "F"
-  
-  // Detailed results
-  criteria: {
-    name: string;                 // "Vocabulary"
-    score: number;                // 0-100
-    level: string;                // "proficient"
-    notes?: string;               // Teacher notes
-  }[];
-  
-  // Comments
-  comments?: string;              // Overall teacher comments
-  recommendations?: string[];     // ["Continue reading practice", "Focus on math"]
-  
-  // Metadata
-  conductedAt: Timestamp;         // When assessment was done
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-```
+Guidance
+- Use document ID as the Auth UID; do not duplicate as a field.
+- Roles live here and are read by rules; no custom claims required.
 
 ---
+
+## 🏫 Classrooms (`/classrooms/{classroomId}`)
+```typescript
+interface Classroom {
+  name: string;                  // "Room 3"
+  ageGroup: 'toddler' | 'primary' | 'elementary' | 'adolescence';
+  status: 'active' | 'inactive' | 'archived';
+
+  teacherIds: string[];          // UIDs assigned to this classroom
+
+  // Server-maintained summary
+  studentCount: number;          // count of active students
+
+  // Metadata
+  createdAt: Timestamp;          // server time
+  updatedAt: Timestamp;          // server time
+  createdBy: string;             // uid
+}
+```
+Guidance
+- `teacherIds` is the source of truth for teacher access in rules.
+- Maintain `studentCount` via backend trigger on student create/delete/move.
+
+---
+
+## 👶 Students (`/students/{studentId}`)
+```typescript
+interface Student {
+  firstName: string;
+  lastName: string;
+  displayName: string;           // convenience: "First Last"
+
+  classroomId: string;           // reference by ID to classrooms/{classroomId}
+
+  status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'withdrawn';
+  isActive: boolean;             // mirrors status == 'active' for fast filters
+
+  dateOfBirth?: Timestamp;
+
+  // Metadata
+  createdAt: Timestamp;          // server time
+  updatedAt: Timestamp;          // server time
+  createdBy: string;             // uid
+}
+```
+Guidance
+- Queries commonly include `classroomId` and `isActive`.
+- If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
+
+---
+
+## 📝 Observations (`/students/{studentId}/observations/{observationId}`)
+Collection group name: `observations`
+```typescript
+interface Observation {
+  // Identity
+  studentId: string;             // must equal parent {studentId}
+  classroomId: string;           // denorm for queries/rules; must equal student's classroomId
+  groupId?: string;              // shared id across fan-out docs for a multi-student note
+
+  // Content
+  type: 'text' | 'voice';        // core types for v1
+  text?: string;
+  audioUrl?: string;
+  durationSec?: number;
+  sttConfidence?: number;
+
+  // Timestamps
+  observedAt: Timestamp;         // when the observation happened
+  createdAt: Timestamp;          // server time
+  updatedAt: Timestamp;          // server time
+
+  // Creator
+  createdBy: string;             // uid
+  createdByName?: string;        // cached for UX
+  createdByEmail?: string;       // cached for UX
+}
+```
+Why fan-out per student?
+- Student timeline = 1 query
+- Classroom, teacher, and admin analytics = collection group queries
+- No need for `array-contains` tricks or cross-doc joins in rules
+
+---
+
+## 🔎 Core Query Patterns
+- Teacher’s classrooms: `classrooms` where `teacherIds` array-contains `uid`
+- Students in a classroom: `students` where `classroomId == X` and `isActive == true`
+- Student timeline: `students/{sid}/observations` order by `observedAt` desc
+- Classroom timeline: collection group `observations` where `classroomId == X` order by `observedAt` desc
+- Teacher’s notes: collection group `observations` where `createdBy == uid` order by `observedAt` desc
+- Admin analytics: collection group `observations` filter by `classroomId`, `createdBy`, and `observedAt` range
+
+---
+
+## 📇 Indexes
+- `students`
+  - `classroomId ASC, isActive ASC`
+- collection group `observations`
+  - `classroomId ASC, observedAt DESC`
+  - `createdBy ASC, observedAt DESC`
+  - optionally `groupId ASC, observedAt DESC`
+
+---
+
+## 🔒 Security Rules – Hooks
+Helper checks (pseudocode names):
+- `isAdmin(uid)`: `get(/users/uid).role == 'admin'`
+- `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
+- `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
+- `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
+
+Reads
+- `users`: user reads own; admin reads all
+- `classrooms`: admin all; teacher if `classroomHasTeacher(id, uid)`
+- `students`: admin all; teacher if `classroomHasTeacher(student.classroomId, uid)`
+- `observations` (collection group): admin all; teacher if `classroomHasTeacher(classroomId, uid)`
+
+Creates – observations
+- Allow if teacher AND all of the following:
+  - `createdBy == request.auth.uid`
+  - `studentId == path.studentId`
+  - `classroomId == studentClassroomId(studentId)`
+  - `createdAt`/`updatedAt` set to `request.time` (server), `observedAt` provided by client
+
+Updates/Deletes – observations
+- Admin only (matches current behavior). If enabling teacher edits later, restrict mutable fields and preserve ownership/IDs.
+
+Field immutability (on update)
+- `studentId`, `classroomId`, `createdBy`, `createdAt`, `observedAt` unchanged
+
+---
+
+## 🛠 Backend Maintenance (recommended)
+- Maintain `classrooms.studentCount` via triggers on student create/update/delete
+- If needed later: sharded counters for classroom/teacher observation counts
+- For group notes, generate a `groupId` once and fan-out to all targeted students
+
+---
+
+## ✅ Rationale
+- Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
+- Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
+- Denormalized `classroomId` on observations avoids extra reads in queries and security rules
+- Cached creator name/email prevents n+1 user lookups in UI and reports
+
+

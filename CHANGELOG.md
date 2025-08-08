@@ -5,7 +5,30 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.3] - 2025-01-09
+## [2.0.0] - 2025-08-08
+
+### Breaking
+- Core Firestore data model restructured to optimize teacher note-taking and admin analytics
+- Observations moved to per-student subcollections with collection group queries
+- Denormalized `classroomId` on observations for faster rules/queries
+- Removed non-essential collections from core (tags, attendance, assessments) for now
+
+### Added
+- New `DATA_STRUCTURE.md` outlining Firestore-first schema:
+  - `users/{uid}` for roles and identity
+  - `classrooms/{classroomId}` with `teacherIds` and server-maintained `studentCount`
+  - `students/{studentId}` with `classroomId` and `isActive`
+  - `students/{studentId}/observations/{observationId}` fan-out; collection group `observations`
+- Query patterns, essential indexes, and security rule hooks documented
+
+### Security
+- Simplified access control anchored on `classrooms.teacherIds`
+- Admin-only updates/deletes of observations (teachers create only)
+
+### Rationale
+- Fan-out + denorm + collection groups greatly simplify read paths and scale analytics without complex joins
+
+## [1.7.3] - 2025-01-08
 
 ### Changed
 - Version badge now only shows for admin users
@@ -17,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pass userRole prop to all VersionBadge instances in App.jsx
 - Enhanced UI/UX by removing unnecessary version information for teachers
 
-## [1.7.2] - 2025-01-09
+## [1.7.2] - 2025-01-08
 
 ### Fixed
 - Teacher classroom filtering in note creation modal now works correctly
@@ -31,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated ClassroomStudentPicker to filter both classrooms and students by teacher assignments
 - Enhanced security by ensuring teachers only see their assigned classrooms and students
 
-## [1.7.1] - 2025-01-09
+## [1.7.1] - 2025-01-08
 
 ### Fixed
 - Teacher stats filtering now shows only teacher's own observations (was showing all school data)
@@ -46,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Navigation consistency across all pages
 - Console warnings eliminated
 
-## [1.7.0] - 2025-01-09
+## [1.7.0] - 2025-01-08
 
 ### Added
 - Teacher landing page with role-based content using unified LandingPage component
@@ -88,7 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filter system ready for curriculum area tags
 - Modular architecture supports role-based feature additions
 
-## [1.5.0] - 2025-01-09
+## [1.5.0] - 2025-01-08
 
 ### Added
 - Statistics menu item in sidebar navigation with BarChart icon
@@ -166,7 +189,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Individual component responsiveness improvements
 - Tag picker system for curriculum areas
 
-## [1.4.0] - 2025-01-09
+## [1.4.0] - 2025-01-08
 
 ### Added
 - Creator information displayed in observation detail modal
