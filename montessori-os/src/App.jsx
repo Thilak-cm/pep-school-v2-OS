@@ -250,7 +250,7 @@ function App() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   width: '100%',
-                  maxWidth: '350px',
+                  maxWidth: '380px',
                   backgroundColor: 'white'
                 }}
               >
@@ -283,7 +283,7 @@ function App() {
                   variant="body1"
                   sx={{
                     color: '#64748b',
-                    marginBottom: '40px',
+                    marginBottom: 3,
                     fontSize: { xs: '1rem', sm: '1.1rem' },
                     lineHeight: '1.6',
                     textAlign: 'center',
@@ -291,6 +291,15 @@ function App() {
                 >
                   Streamline your teaching workflow
                 </Typography>
+                <Box sx={{
+                  mb: 4,
+                  color: '#64748b',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.5,
+                  width: '100%'
+                }}>
+                </Box>
                 <SignIn />
               </Card>
               <VersionBadge userRole={role} />
@@ -404,8 +413,8 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB - hidden on profile and stats pages */}
-              {screen !== 'profile' && screen !== 'stats' && (
+              {/* Global Add Note FAB - hidden on profile, stats, and access denied pages */}
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'accessDenied' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

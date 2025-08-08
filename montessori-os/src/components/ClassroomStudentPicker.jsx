@@ -369,7 +369,12 @@ function ClassroomStudentPicker({
                     </ListItemIcon>
                     <ListItemText
                       primary={group.classroom.name}
-                      secondary={`${group.students.length} student${group.students.length !== 1 ? 's' : ''}`}
+                      secondary={(() => {
+                        const studentIds = group.students.map(s => s.sid || s.id);
+                        const selectedCount = studentIds.filter(id => selectedStudents.includes(id)).length;
+                        const totalCount = group.students.length;
+                        return `${selectedCount} out of ${totalCount} student${totalCount !== 1 ? 's' : ''} selected`;
+                      })()}
                     />
                     <IconButton size="small">
                       {isExpanded ? <ExpandLess /> : <ExpandMore />}

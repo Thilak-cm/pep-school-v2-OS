@@ -41,8 +41,12 @@ service cloud.firestore {
       // Create observation (voice/text) by teachers or admins
       allow create: if (isTeacher() || isAdmin())
         && request.resource.data.studentID is string
+        && request.resource.data.userID == request.auth.uid
         && request.resource.data.type in ['voice', 'text']
-        && request.resource.data.timestamp == request.time;
+        && request.resource.data.text is string
+        && request.resource.data.timestamp == null // Allow serverTimestamp()
+        && request.resource.data.createdAt == null // Allow serverTimestamp()
+        && request.resource.data.updatedAt == null; // Allow serverTimestamp()
 
       // Author can edit/delete within 24h  
       allow update, delete: if isAdmin() || 

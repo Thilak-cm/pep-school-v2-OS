@@ -9,8 +9,10 @@ import {
   CardContent,
   CardActionArea,
   Avatar,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
-import { ArrowBack, School, Group, ArrowForward } from '@mui/icons-material';
+import { ArrowBack, School, Group, ArrowForward, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -18,6 +20,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchClassrooms = async () => {
@@ -66,6 +69,11 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
     fetchClassrooms();
   }, [currentUser?.email, userRole]);
 
+  // Filter classrooms based on search term
+  const filteredClassrooms = classrooms.filter(classroom =>
+    classroom.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
     return (
       <Box sx={{ 
@@ -83,31 +91,101 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header - different for teachers vs admins */}
       {userRole === 'teacher' ? (
-        // Teacher header
-        <Box sx={{ textAlign: 'center', mb: 2 }}>
-          <Typography variant="h4" component="h1" sx={{ 
-            color: '#1e293b', 
-            fontWeight: 600,
-            mb: 1
-          }}>
-            Welcome back, {currentUser.displayName?.split(' ')[0] || 'Teacher'}!
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#64748b' }}>
-            Select a classroom to view your students
-          </Typography>
-        </Box>
+        <>
+          {/* Teacher header */}
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Typography variant="h4" component="h1" sx={{ 
+              color: '#1e293b', 
+              fontWeight: 600,
+              mb: 1
+            }}>
+              Welcome back, {currentUser.displayName?.split(' ')[0] || 'Teacher'}!
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#64748b' }}>
+              Select a classroom to view your students
+            </Typography>
+          </Box>
+          {/* Teacher search bar */}
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              placeholder="Search classrooms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ color: '#64748b' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: '#ffffff',
+                  '&:hover fieldset': {
+                    borderColor: '#4f46e5',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#4f46e5',
+                  },
+                },
+              }}
+            />
+          </Box>
+        </>
       ) : (
-        // Admin header with back button
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        // Admin header with back button and search
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <IconButton onClick={onBack} aria-label="Go back">
             <ArrowBack />
           </IconButton>
+          <TextField
+            fullWidth
+            placeholder="Search classrooms..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ color: '#64748b' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: '#ffffff',
+                '&:hover fieldset': {
+                  borderColor: '#4f46e5',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#4f46e5',
+                },
+              },
+            }}
+          />
         </Box>
       )}
 
       {/* Classrooms Grid */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {classrooms.length === 0 ? (
+        {filteredClassrooms.length === 0 && searchTerm ? (
+          <Card sx={{ 
+            p: 4, 
+            textAlign: 'center',
+            backgroundColor: '#f8fafc',
+            border: '2px dashed #cbd5e1'
+          }}>
+            <Search sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
+            <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
+              No classrooms found
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#64748b' }}>
+              Try adjusting your search term.
+            </Typography>
+          </Card>
+        ) : filteredClassrooms.length === 0 ? (
           <Card sx={{ 
             p: 4, 
             textAlign: 'center',
@@ -126,7 +204,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
             </Typography>
           </Card>
         ) : (
-          classrooms.map((classroom) => (
+          filteredClassrooms.map((classroom) => (
             <Card
               key={classroom.id}
               sx={{
