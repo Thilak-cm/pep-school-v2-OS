@@ -156,8 +156,10 @@ function ClassroomStudentPicker({
           const classroom = classList.find(c => c.id === classroomID);
           console.log(`Student ${student.name}: classroomID=${student.classroomID}, parsed=${classroomID}, found=${classroom?.name || 'NOT FOUND'}`);
           
+          const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim();
           return {
             ...student,
+            name: fullName || (student.name || ''),
             classroom_name: classroom?.name || 'Unknown Classroom',
             classroomID: classroomID
           };
@@ -177,12 +179,12 @@ function ClassroomStudentPicker({
   // Filter students based on search query (only from filtered students)
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    
-    const query = searchQuery.toLowerCase();
-    return allStudents.filter(student => 
-      student.name?.toLowerCase().includes(query) ||
-      student.classroom_name?.toLowerCase().includes(query)
-    );
+    const queryStr = searchQuery.toLowerCase();
+    return allStudents.filter(student => {
+      const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim().toLowerCase();
+      const uid = (student.studentID || student.sid || student.id || '').toString().toLowerCase();
+      return fullName.includes(queryStr) || uid.includes(queryStr) || student.classroom_name?.toLowerCase().includes(queryStr);
+    });
   }, [allStudents, searchQuery]);
 
   // Group students by classroom
@@ -396,10 +398,7 @@ function ClassroomStudentPicker({
                               disableRipple
                             />
                           </ListItemIcon>
-                          <ListItemText
-                            primary={student.name}
-                            secondary={`UID: ${student.sid || student.id}`}
-                          />
+                          <ListItemText primary={student.name} />
                         </ListItemButton>
                       </ListItem>
                     ))}

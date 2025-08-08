@@ -117,7 +117,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     }
   }, [observations, selectedObservation]);
 
-  // Load all students for reassignment with classroom info
+  // Load all students for reassignment with classroom info and name composition
   useEffect(() => {
     const fetchAllStudents = async () => {
       try {
@@ -140,6 +140,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           
           return {
             ...studentData,
+            name: `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim() || studentData.name || '',
             classroom_name: classroom?.name || 'Unknown Classroom'
           };
         });
@@ -164,6 +165,26 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     });
     setSelectedObservation(observation);
     setDetailDialogOpen(true);
+  };
+
+  const getAssignedStudentName = () => {
+    // Prefer the selected student passed from parent
+    if (student) {
+      const full = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+      if (full) return full;
+      if (student.name) return student.name;
+    }
+    // Fallback: look up by observation.studentID in our cached list
+    if (selectedObservation) {
+      const s = allStudents.find(
+        (st) => st.id === selectedObservation.studentID || st.studentID === selectedObservation.studentID
+      );
+      if (s) {
+        const full = `${s.firstName || ''} ${s.lastName || ''}`.trim();
+        return full || s.name || s.studentID || 'Unknown Student';
+      }
+    }
+    return 'Unknown Student';
   };
 
   const handleCloseDialog = () => {
@@ -521,7 +542,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="body2" color="text.secondary">
-                      Assigned To: {student?.name || 'Unknown Student'}
+                      Assigned To: {getAssignedStudentName()}
                     </Typography>
                   </Box>
                   {canReassignObservation(selectedObservation, currentUser, userRole) && (
