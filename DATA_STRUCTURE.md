@@ -47,7 +47,10 @@ interface Classroom {
   // Core info
   classroomID: string;                    // Auto-generated classroom ID
   name: string;                   // "Room 3" or "Power"
-  description?: string;
+  description: string;             // "Primary (3-6 years)" or "Elementary (grade 1 - 5)"
+  
+  // Educational level
+  ageGroup: 'toddlers' | 'primary' | 'elementary' | 'adolescence';  // Age group classification
   
   // Age group
   ageGroup: 'toddler' | 'primary' | 'elementary';
