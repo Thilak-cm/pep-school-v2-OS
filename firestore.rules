@@ -1,7 +1,74 @@
-// firestore.rules
+// Firestore security rules aligned to DATA_STRUCTURE.md (v2)
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isTeacher() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function classroomHasTeacher(classroomId) {
+      return classroomId != null &&
+        (get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds
+          .hasAny([request.auth.uid]));
+    }
+
+    function getStudentClassroomId(studentId) {
+      return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
+    }
+
+    // Users: user can read/write own profile minimally; admins can read all
+    match /users/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow create: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Classrooms
+    match /classrooms/{classroomId} {
+      allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(classroomId));
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Students
+    match /students/{studentId} {
+      allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
+      allow create, update, delete: if isAdmin();
+
+      // Observations subcollection
+      match /observations/{observationId} {
+        // Reads: admin or teacher assigned to the student's classroom
+        allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
+
+        // Creates: teacher assigned to classroom; enforce field consistency
+        allow create: if isTeacher() &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.studentId == studentId &&
+          request.resource.data.classroomId == getStudentClassroomId(studentId);
+
+        // Updates/Deletes: admin only (teachers cannot edit/delete)
+        allow update, delete: if isAdmin() &&
+          // Immutable identity/ownership fields
+          request.resource.data.studentId == resource.data.studentId &&
+          request.resource.data.classroomId == resource.data.classroomId &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.observedAt == resource.data.observedAt;
+      }
+    }
+
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }

@@ -30,7 +30,7 @@ interface User {
   // Access
   role: 'admin' | 'teacher';
   status: 'active' | 'inactive' | 'suspended';
-
+  
   // Metadata
   createdAt: Timestamp; // server time
   updatedAt: Timestamp; // server time
@@ -49,12 +49,12 @@ interface Classroom {
   name: string;                  // "Room 3"
   ageGroup: 'toddler' | 'primary' | 'elementary' | 'adolescence';
   status: 'active' | 'inactive' | 'archived';
-
+  
   teacherIds: string[];          // UIDs assigned to this classroom
-
+  
   // Server-maintained summary
   studentCount: number;          // count of active students
-
+  
   // Metadata
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time
@@ -80,7 +80,7 @@ interface Student {
   isActive: boolean;             // mirrors status == 'active' for fast filters
 
   dateOfBirth?: Timestamp;
-
+  
   // Metadata
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time
@@ -101,7 +101,7 @@ interface Observation {
   studentId: string;             // must equal parent {studentId}
   classroomId: string;           // denorm for queries/rules; must equal student's classroomId
   groupId?: string;              // shared id across fan-out docs for a multi-student note
-
+  
   // Content
   type: 'text' | 'voice';        // core types for v1
   text?: string;

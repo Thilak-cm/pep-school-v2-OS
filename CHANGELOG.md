@@ -5,6 +5,12 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-08-08
+
+### Changed
+- Minor adjustments post-schema rollout: confirmed canonical rules/indexes at repo root and removed duplicates under `montessori-os/`
+- Updated security rules and indexes to match new schema
+
 ## [2.0.0] - 2025-08-08
 
 ### Breaking
