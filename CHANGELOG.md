@@ -5,6 +5,29 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2025-08-08
+
+### Changed
+- Student selection UI now displays student names (no IDs) in `ClassroomStudentPicker`
+- Improved search in student picker to match full name, UID, or classroom name
+- Observation detail dialog now correctly shows assigned student name (resolved via `studentID` lookup)
+
+### Security
+- Firestore rules tightened and deployed:
+  - Teachers restricted to assigned classrooms/students for reads
+  - Observation create validates `userID`, `studentID`, `classroomID` with referential checks
+  - Teachers can only reassign notes they authored; no text edits/deletes (admin-only)
+  - Tags: read for staff, write admin-only
+
+### Indexes
+- Standardized composite indexes to canonical casing: `studentID`, `classroomID`, `userID`
+- Removed legacy mis-cased indexes
+
+### Fixes
+- Resolved “Unknown Student” in observation dialog by composing/fetching display names
+
+---
+
 ## [1.8.0] - 2025-01-09
 
 ### Added
