@@ -4,7 +4,7 @@
       "collectionGroup": "observations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "studentID", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
@@ -12,7 +12,7 @@
       "collectionGroup": "observations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "classroomId", "order": "ASCENDING" },
+        { "fieldPath": "classroomID", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
@@ -20,7 +20,7 @@
       "collectionGroup": "observations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teacherId", "order": "ASCENDING" },
+        { "fieldPath": "userID", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
@@ -28,7 +28,7 @@
       "collectionGroup": "students",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "classroomId", "order": "ASCENDING" },
+        { "fieldPath": "classroomID", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
     },
@@ -45,14 +45,14 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "date", "order": "ASCENDING" },
-        { "fieldPath": "classroomId", "order": "ASCENDING" }
+        { "fieldPath": "classroomID", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "attendance",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "studentID", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
