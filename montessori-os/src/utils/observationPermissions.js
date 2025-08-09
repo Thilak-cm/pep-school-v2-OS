@@ -34,7 +34,7 @@ export const canEditObservation = (observation, currentUser, userRole) => {
 export const canReassignObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
   // Only the creator can reassign notes (both teachers and admins)
-  return observation.teacherId === currentUser.uid;
+  return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
 };
 
 /**
@@ -51,7 +51,7 @@ export const canViewObservation = (observation, currentUser, userRole) => {
   if (userRole === 'admin') return true;
   
   // Teachers can view observations they created
-  if (observation.teacherId === currentUser.uid) return true;
+  if (observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid) return true;
   
   // Teachers can view public observations (not private)
   if (!observation.isPrivate) return true;
@@ -73,7 +73,7 @@ export const canStarObservation = (observation, currentUser, userRole) => {
   if (userRole === 'admin') return true;
   
   // Teachers can star observations they created
-  return observation.teacherId === currentUser.uid;
+  return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
 };
 
 /**

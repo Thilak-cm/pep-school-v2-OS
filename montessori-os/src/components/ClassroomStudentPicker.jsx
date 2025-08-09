@@ -176,15 +176,17 @@ function ClassroomStudentPicker({
     fetchData();
   }, [currentUser, userRole]);
 
+  const getStudentName = (s) => s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
+
   // Filter students based on search query (only from filtered students)
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return [];
     
     const query = searchQuery.toLowerCase();
-    return allStudents.filter(student => 
-      student.name?.toLowerCase().includes(query) ||
-      student.classroom_name?.toLowerCase().includes(query)
-    );
+    return allStudents.filter(student => {
+      const nm = getStudentName(student).toLowerCase();
+      return nm.includes(query) || student.classroom_name?.toLowerCase().includes(query);
+    });
   }, [allStudents, searchQuery]);
 
   // Group students by classroom
@@ -307,10 +309,7 @@ function ClassroomStudentPicker({
                         disableRipple
                       />
                     </ListItemIcon>
-                    <ListItemText
-                      primary={student.name}
-                      secondary={`${student.classroom_name}`}
-                    />
+                    <ListItemText primary={getStudentName(student)} secondary={`${student.classroom_name}`} />
                   </ListItemButton>
                 </ListItem>
               ))}
@@ -393,10 +392,7 @@ function ClassroomStudentPicker({
                               disableRipple
                             />
                           </ListItemIcon>
-                          <ListItemText
-                            primary={student.name}
-                            secondary={`UID: ${student.sid || student.id}`}
-                          />
+                          <ListItemText primary={getStudentName(student)} secondary={`UID: ${student.sid || student.id}`} />
                         </ListItemButton>
                       </ListItem>
                     ))}
@@ -420,7 +416,7 @@ function ClassroomStudentPicker({
               return student ? (
                 <Chip
                   key={studentId}
-                  label={student.name}
+                  label={getStudentName(student)}
                   size="small"
                   onDelete={() => handleStudentToggle(studentId)}
                   deleteIcon={<Person />}

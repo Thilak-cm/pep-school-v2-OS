@@ -26,7 +26,7 @@ import {
   ListItemButton
 } from '@mui/material';
 import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList } from '@mui/icons-material';
-import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // Import new modular components
@@ -84,9 +84,9 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     console.log('Querying with studentId:', studentIdToQuery);
     
     const q = query(
-      collection(db, 'observations'),
+      collectionGroup(db, 'observations'),
       where('studentId', '==', studentIdToQuery),
-      orderBy('timestamp', 'desc')
+      orderBy('observedAt', 'desc')
     );
     
     const unsub = onSnapshot(q, (snap) => {
@@ -178,7 +178,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     
     try {
       setDeleting(true);
-      await deleteDoc(doc(db, 'observations', selectedObservation.id));
+      await deleteDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id));
       setDeleteConfirmOpen(false);
       setDetailDialogOpen(false);
       setSelectedObservation(null);
@@ -214,7 +214,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         lastEditedAt: serverTimestamp()
       };
 
-      await updateDoc(doc(db, 'observations', selectedObservation.id), updateData);
+      await updateDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id), updateData);
       
       setEditing(false);
       setEditText('');
@@ -255,7 +255,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
     try {
       setReassigning(true);
-      await updateDoc(doc(db, 'observations', selectedObservation.id), {
+      await updateDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id), {
         studentId: selectedStudentForReassign.sid || selectedStudentForReassign.id,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
@@ -339,7 +339,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 },
                 transition: 'all 0.2s ease-in-out',
               }}
-              aria-label={`View details for observation from ${formatTimestamp(obs.timestamp)}`}
+              aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
             >
               <CardContent sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
@@ -356,9 +356,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
-                  <Typography variant="caption" color="text.secondary">
-                    {formatTimestamp(obs.timestamp)}
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
                 </Box>
               </CardContent>
             </Card>
@@ -444,7 +442,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
                   <Typography variant="body2" color="text.secondary">
-                    {formatTimestamp(selectedObservation.timestamp)}
+                    {formatTimestamp(selectedObservation.observedAt || selectedObservation.timestamp)}
                   </Typography>
                 </Box>
                 

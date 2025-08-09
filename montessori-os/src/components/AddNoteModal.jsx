@@ -156,36 +156,47 @@ function AddNoteModal({
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
         // Get student data to find classroomId
-        const studentDoc = await getDoc(doc(db, 'students', stuId));
-        const studentData = studentDoc.data();
-        
+        const studentDocRef = doc(db, 'students', stuId);
+        const studentDocSnap = await getDoc(studentDocRef);
+        const studentData = studentDocSnap.data();
+
         const observationData = {
+          // Identity
           studentId: stuId,
-          teacherId: currentUser?.uid || 'unknown',
-          teacherName: currentUser?.displayName || 'Unknown Teacher',
-          teacherEmail: currentUser?.email || 'unknown@email.com',
           classroomId: studentData?.classroomId || 'unknown',
-          timestamp: serverTimestamp(),
+
+          // Content
+          type: transcriptionData ? 'voice' : 'text',
           text: noteData.text,
           tags: [],
-          type: transcriptionData ? 'voice' : 'text',
+
+          // Timestamps
+          observedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+
+          // Creator
+          createdBy: currentUser?.uid || 'unknown',
+          createdByName: currentUser?.displayName || 'Unknown Teacher',
+          createdByEmail: currentUser?.email || 'unknown@email.com',
+
+          // Flags
           isStarred: false,
           isPrivate: false,
           isDraft: false,
           editCount: 0,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
         };
 
-        // Add voice-specific fields only for voice notes
+        // Voice-specific fields
         if (transcriptionData) {
           observationData.duration = transcriptionData.duration;
           observationData.sttConfidence = transcriptionData.sttConfidence;
           observationData.sttAlternatives = transcriptionData.sttAlternatives;
           observationData.languageCode = transcriptionData.languageCode;
         }
-        
-        await addDoc(collection(db, 'observations'), observationData);
+
+        // Write to per-student subcollection
+        await addDoc(collection(db, 'students', stuId, 'observations'), observationData);
       });
       await Promise.all(promises);
       handleClose();
