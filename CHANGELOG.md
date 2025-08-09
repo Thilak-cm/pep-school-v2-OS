@@ -15,8 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scripts/admin/import-hsr-teachers.js` reads cleaned XLSX → JSON preview and optional Firestore upsert
 - `package.json` scripts: `import:teachers`, `import:teachers:push`; add `xlsx` dependency
 
+- Access request flow for unauthorized users
+  - Request Access button on `AccessDenied.jsx` (one-tap, no custom message)
+  - Callable Cloud Functions in `asia-south1`:
+    - `requestAccess`: writes to `access_requests` (optional admin email via SMTP)
+    - `logUnauthorizedAccess`: writes to `access_logs`
+  - Minimal `logger` utility to suppress console output in production
+
 ### Changed
 - Removed student handling from data preprocessing script (students handled elsewhere)
+- Pinned Functions region to `asia-south1` (Mumbai) for client and server
+- Hide `AddNoteFab` on access denied screen; make Sign Out a conspicuous outlined button
+
+### Security
+- Moved unauthorized logging to backend callable; no client-side Firestore writes
+- `notifyAdminsOnUnauthorized` listener pinned to `asia-south1`
+
+### Removed
+- Legacy Speech-to-Text path: removed `transcribeVoiceNote` Storage trigger and `@google-cloud/speech` usage
 
 ## [2.0.1] - 2025-08-08
 
