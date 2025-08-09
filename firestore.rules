@@ -28,11 +28,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
     }
 
-    // Users: user can read/write own profile minimally; admins can read all
+    // Users: user can read/write own profile; admins can read/write any
+    // Avoid recursive self-get by evaluating admin check only when accessing other users' docs
     match /users/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
-      allow create: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
-      allow update: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow read: if isSignedIn() && (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
+      allow create: if isSignedIn() && (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
+      allow update: if isSignedIn() && (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
       allow delete: if isAdmin();
     }
 

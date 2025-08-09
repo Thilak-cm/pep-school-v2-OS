@@ -7,31 +7,20 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
-import { collection, getDocs, query, where, doc } from 'firebase/firestore';
+import { ArrowBack, Search } from '@mui/icons-material';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function StudentList({ classroom, onBack, onSelectStudent }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const formatDob = (dob) => {
-    if (!dob) return 'N/A';
-    let date;
-    // Firestore Timestamp object
-    if (typeof dob === 'object' && dob.seconds !== undefined) {
-      date = new Date(dob.seconds * 1000);
-    } else {
-      date = new Date(dob);
-    }
-    if (isNaN(date)) return 'N/A';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const getStudentName = (s) =>
+    s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -54,6 +43,11 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
     fetchStudents();
   }, [classroom]);
 
+  const normalizedQuery = (searchQuery || '').trim().toLowerCase();
+  const visibleStudents = normalizedQuery
+    ? students.filter((s) => getStudentName(s).toLowerCase().includes(normalizedQuery))
+    : students;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Header */}
@@ -61,6 +55,23 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
         <IconButton onClick={onBack} aria-label="Go back">
           <ArrowBack />
         </IconButton>
+        <TextField
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search students…"
+          aria-label="Search students"
+          variant="outlined"
+          size="small"
+          fullWidth
+          sx={{ ml: 1, flexGrow: 1 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
       </Box>
 
       {loading ? (
@@ -69,7 +80,7 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {students.map((stu) => (
+          {visibleStudents.map((stu) => (
             <Card
               key={stu.id}
               onClick={() => onSelectStudent(stu)}
@@ -83,15 +94,12 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
             >
               <CardContent>
                 <Typography variant="h6" component="h3">
-                  {stu.name}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  UID: {stu.sid || stu.id} • DOB: {formatDob(stu.dateOfBirth)}
+                  {getStudentName(stu)}
                 </Typography>
               </CardContent>
             </Card>
           ))}
-          {students.length === 0 && (
+          {visibleStudents.length === 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               No students found in this classroom.
             </Typography>

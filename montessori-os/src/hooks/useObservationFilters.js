@@ -10,8 +10,8 @@ export const useObservationFilters = (observations = []) => {
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
-    creator: '',
-    type: ''
+    creators: [], // multi-select
+    types: [] // multi-select (e.g., ['voice', 'text'])
   });
 
   // Extract unique creators from observations
@@ -45,17 +45,19 @@ export const useObservationFilters = (observations = []) => {
       });
     }
 
-    // Creator filter
-    if (filters.creator) {
+    // Creators filter (multi)
+    if (filters.creators && filters.creators.length > 0) {
+      const selected = new Set(filters.creators);
       filtered = filtered.filter(obs => {
         const creator = obs.teacherName || obs.teacherEmail || 'Unknown Teacher';
-        return creator === filters.creator;
+        return selected.has(creator);
       });
     }
 
-    // Type filter
-    if (filters.type) {
-      filtered = filtered.filter(obs => obs.type === filters.type);
+    // Types filter (multi)
+    if (filters.types && filters.types.length > 0) {
+      const selectedTypes = new Set(filters.types);
+      filtered = filtered.filter(obs => selectedTypes.has(obs.type));
     }
 
     return filtered;
@@ -63,7 +65,12 @@ export const useObservationFilters = (observations = []) => {
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
-    return !!(filters.dateFrom || filters.dateTo || filters.creator || filters.type);
+    return !!(
+      filters.dateFrom ||
+      filters.dateTo ||
+      (filters.creators && filters.creators.length > 0) ||
+      (filters.types && filters.types.length > 0)
+    );
   }, [filters]);
 
   // Filter handlers
@@ -78,8 +85,8 @@ export const useObservationFilters = (observations = []) => {
     setFilters({
       dateFrom: '',
       dateTo: '',
-      creator: '',
-      type: ''
+      creators: [],
+      types: []
     });
   };
 

@@ -12,7 +12,7 @@ import StatsPage from "./components/StatsPage";
 import { db, cloudFunctions } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
-import logger from './utils/logger';
+// Temporarily use console for debugging
 import { 
   Box, 
   Container, 
@@ -57,7 +57,7 @@ function App() {
           userAgent: navigator.userAgent,
         });
       } catch (err) {
-        logger.error('Error logging unauthorized access', err);
+        console.error('Error logging unauthorized access', err);
       }
     };
 
@@ -91,7 +91,7 @@ function App() {
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
         setScreen('landingPage');
       } catch (err) {
-        logger.error('Access validation error', err);
+        console.error('Access validation error', err);
         await logUnauthorized('validation_error');
         setUnauthorized(true);
         setScreen('accessDenied');
@@ -105,7 +105,7 @@ function App() {
     try {
       await signOut(auth);
     } catch (error) {
-      logger.error("Error signing out:", error);
+      console.error("Error signing out:", error);
     }
   };
 

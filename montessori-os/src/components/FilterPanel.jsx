@@ -4,13 +4,11 @@ import {
   Typography,
   Button,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Paper,
   Collapse,
-  Chip
+  Chip,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import { Clear } from '@mui/icons-material';
 
@@ -95,36 +93,48 @@ const FilterPanel = ({
               />
             </Box>
             
-            {/* Creator and Type */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Creator</InputLabel>
-                <Select
-                  value={filters.creator}
-                  label="Creator"
-                  onChange={(e) => onFilterChange('creator', e.target.value)}
+            {/* Creator (multi) and Type (multi) as toggle button groups */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box>
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary' }}>
+                  Creator
+                </Typography>
+                <ToggleButtonGroup
+                  value={filters.creators}
+                  onChange={(_, newValues) => onFilterChange('creators', newValues)}
+                  size="small"
+                  color="primary"
+                  aria-label="Filter by creators"
+                  sx={{ flexWrap: 'wrap' }}
                 >
-                  <MenuItem value="">All Creators</MenuItem>
                   {uniqueCreators.map((creator) => (
-                    <MenuItem key={creator} value={creator}>
+                    <ToggleButton key={creator} value={creator} aria-label={creator} sx={{ m: 0.5 }}>
                       {creator}
-                    </MenuItem>
+                    </ToggleButton>
                   ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Type</InputLabel>
-                <Select
-                  value={filters.type}
-                  label="Type"
-                  onChange={(e) => onFilterChange('type', e.target.value)}
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary' }}>
+                  Type
+                </Typography>
+                <ToggleButtonGroup
+                  value={filters.types}
+                  onChange={(_, newValues) => onFilterChange('types', newValues)}
+                  size="small"
+                  color="primary"
+                  aria-label="Filter by note type"
+                  sx={{ flexWrap: 'wrap' }}
                 >
-                  <MenuItem value="">All Types</MenuItem>
-                  <MenuItem value="voice">Voice Notes</MenuItem>
-                  <MenuItem value="text">Text Notes</MenuItem>
-                </Select>
-              </FormControl>
+                  <ToggleButton value="voice" aria-label="Voice notes" sx={{ m: 0.5 }}>
+                    Voice Notes
+                  </ToggleButton>
+                  <ToggleButton value="text" aria-label="Text notes" sx={{ m: 0.5 }}>
+                    Text Notes
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
             </Box>
           </Box>
         </Paper>

@@ -9,8 +9,10 @@ import {
   CardContent,
   CardActionArea,
   Avatar,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
-import { ArrowBack, School, Group, ArrowForward } from '@mui/icons-material';
+import { ArrowBack, School, Group, ArrowForward, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -18,6 +20,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchClassrooms = async () => {
@@ -93,6 +96,12 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
     );
   }
 
+  // Normalize filtered list based on search query
+  const normalizedQuery = (searchQuery || '').trim().toLowerCase();
+  const visibleClassrooms = normalizedQuery
+    ? classrooms.filter((cls) => (cls.name || '').toLowerCase().includes(normalizedQuery))
+    : classrooms;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header - different for teachers vs admins */}
@@ -111,17 +120,54 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
           </Typography>
         </Box>
       ) : (
-        // Admin header with back button
+        // Admin header with back button + search
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton onClick={onBack} aria-label="Go back">
             <ArrowBack />
           </IconButton>
+          <TextField
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search classrooms…"
+            aria-label="Search classrooms"
+            variant="outlined"
+            size="small"
+            fullWidth
+            sx={{ ml: 1, flexGrow: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
         </Box>
+      )}
+
+      {/* Optional search for teachers (no back button) */}
+      {userRole === 'teacher' && (
+        <TextField
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search classrooms…"
+          aria-label="Search classrooms"
+          variant="outlined"
+          size="small"
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
       )}
 
       {/* Classrooms Grid */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {classrooms.length === 0 ? (
+        {visibleClassrooms.length === 0 ? (
           <Card sx={{ 
             p: 4, 
             textAlign: 'center',
@@ -140,7 +186,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
             </Typography>
           </Card>
         ) : (
-          classrooms.map((classroom) => (
+          visibleClassrooms.map((classroom) => (
             <Card
               key={classroom.id}
               sx={{
