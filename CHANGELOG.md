@@ -5,6 +5,27 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2025-08-09
+
+### Added
+- Header search bars on classroom and student list screens
+  - Search field sits next to the back button and expands to fill remaining space
+  - Real-time client-side filtering
+- Multi-select filter chips in Student Timeline
+  - Replaced single-select dropdowns with chip-style `ToggleButtonGroup`
+  - Supports multiple creators and types simultaneously
+
+### Changed
+- Student cards now display names only (cleaner list)
+- Robust name fallback used across list and search: `name || displayName || firstName + lastName`
+
+### Fixed
+- Blank student list items when `name` was missing by using the new fallback
+
+### Technical
+- Updated `FilterPanel.jsx` and `useObservationFilters.js` to use array-based filters (`creators[]`, `types[]`)
+- No backend or rules changes in this version
+
 ## [2.0.2] - 2025-08-08 
 
 ### Added
