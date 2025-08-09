@@ -9,8 +9,10 @@ import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
-import { db } from "./firebase";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { db, cloudFunctions } from "./firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { httpsCallable } from 'firebase/functions';
+import logger from './utils/logger';
 import { 
   Box, 
   Container, 
@@ -46,16 +48,16 @@ function App() {
 
     const logUnauthorized = async (reason) => {
       try {
-        await addDoc(collection(db, 'access_logs'), {
+        const fn = httpsCallable(cloudFunctions, 'logUnauthorizedAccess');
+        await fn({
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
           reason,
-          timestamp: serverTimestamp(),
           userAgent: navigator.userAgent,
         });
       } catch (err) {
-        console.error('Error logging unauthorized access', err);
+        logger.error('Error logging unauthorized access', err);
       }
     };
 
@@ -69,15 +71,16 @@ function App() {
       }
 
       try {
-        const q = query(collection(db, 'users'), where('email', '==', user.email));
-        const qSnap = await getDocs(q);
-        if (qSnap.empty) {
+        // Look up by UID (authoritative) instead of email query to avoid case/alias issues
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
           await logUnauthorized('not_in_users_collection');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
-        const userDoc = qSnap.docs[0].data();
+        const userDoc = userSnap.data();
         if (!userDoc.role) {
           await logUnauthorized('missing_role');
           setUnauthorized(true);
@@ -85,13 +88,10 @@ function App() {
           return;
         }
         setRole(userDoc.role);
-        if (userDoc.role === 'admin') {
-          setScreen('landingPage');
-        } else {
-          setScreen('landingPage');
-        }
+        // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
+        setScreen('landingPage');
       } catch (err) {
-        console.error('Access validation error', err);
+        logger.error('Access validation error', err);
         await logUnauthorized('validation_error');
         setUnauthorized(true);
         setScreen('accessDenied');
@@ -105,7 +105,7 @@ function App() {
     try {
       await signOut(auth);
     } catch (error) {
-      console.error("Error signing out:", error);
+      logger.error("Error signing out:", error);
     }
   };
 
@@ -363,8 +363,8 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB - hidden on profile and stats pages */}
-              {screen !== 'profile' && screen !== 'stats' && (
+              {/* Global Add Note FAB - hidden on profile, stats, and accessDenied pages */}
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'accessDenied' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

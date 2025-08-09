@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -24,6 +25,8 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(app);
 const storage = getStorage(app);
+// Explicitly pin region to Mumbai (asia-south1)
+const cloudFunctions = getFunctions(app, 'asia-south1');
 
-export { auth, provider, db, storage };
+export { auth, provider, db, storage, cloudFunctions };
 export default app;

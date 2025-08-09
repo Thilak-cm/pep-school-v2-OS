@@ -3,14 +3,12 @@ import { getFirestore } from "firebase-admin/firestore";
 // import { getStorage } from 'firebase-admin/storage';
 import * as functions from "firebase-functions";
 // import { v4 as uuidv4 } from 'uuid';
-import speech from "@google-cloud/speech";
 import nodemailer from "nodemailer";
 
 initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
 // const storage = getStorage();
-const speechClient = new speech.SpeechClient();
 
 // Create transporter using SMTP credentials stored in functions config
 const smtpUser = functions.config().smtp?.user;
@@ -22,51 +20,9 @@ const transporter = (smtpUser && smtpPass)
     })
   : null;
 
-export const transcribeVoiceNote = functions.storage
-  .object()
-  .filter({ contentType: "audio/webm" })
-  .onFinalize(async (object) => {
-    const filePath = object.name; // voice_notes/{studentUid}/{docId}.webm
-    if (!filePath.startsWith("voice_notes/")) return;
+// Note: Removed legacy transcribeVoiceNote storage trigger as STT is no longer used.
 
-    const [fileName] = filePath.split("/");
-    const docId = fileName.replace(".webm", "");
-
-    // Generate gs:// uri
-    const gcsUri = `gs://${object.bucket}/${filePath}`;
-
-    const config = {
-      encoding: "WEBM_OPUS",
-      sampleRateHertz: 48000,
-      languageCode: "en-US",
-    };
-
-    const audio = {
-      uri: gcsUri,
-    };
-
-    try {
-      const [operation] = await speechClient.longRunningRecognize({ config, audio });
-      const [response] = await operation.promise();
-      const transcript = response.results
-        .map(r => r.alternatives[0].transcript)
-        .join(" ");
-      const confidence = response.results[0]?.alternatives[0]?.confidence || 0;
-
-      await db.collection("observations").doc(docId).update({
-        text: transcript,
-        stt_confidence: confidence,
-        audio_url: gcsUri,
-      });
-    } catch (err) {
-      console.error("STT error", err);
-      await db.collection("observations").doc(docId).update({
-        text: "(transcription failed)",
-      });
-    }
-  });
-
-export const notifyAdminsOnUnauthorized = functions.firestore
+export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firestore
   .document("access_logs/{logId}")
   .onCreate(async (snap) => {
     const logData = snap.data();
@@ -99,3 +55,65 @@ export const notifyAdminsOnUnauthorized = functions.firestore
       console.error("Failed to send unauthorized access email", err);
     }
   }); 
+
+// Callable: log unauthorized access from client (bypasses Firestore rules)
+export const logUnauthorizedAccess = functions.region("asia-south1").https.onCall(async (data, context) => {
+  const payload = {
+    email: data?.email || context.auth?.token?.email || null,
+    displayName: data?.displayName || context.auth?.token?.name || null,
+    photoURL: data?.photoURL || null,
+    reason: data?.reason || "unknown",
+    timestamp: new Date().toISOString(),
+    userAgent: data?.userAgent || "",
+  };
+
+  try {
+    const ref = await db.collection("access_logs").add(payload);
+    return { ok: true, id: ref.id };
+  } catch (err) {
+    console.error("logUnauthorizedAccess failed", err);
+    throw new functions.https.HttpsError("internal", "Failed to log unauthorized access");
+  }
+});
+
+// Callable function: user clicks Request Access -> we record and notify
+export const requestAccess = functions.region("asia-south1").https.onCall(async (data, context) => {
+  const requesterUid = context.auth?.uid || null;
+  const requesterEmail = context.auth?.token?.email || data?.email || null;
+  const requesterName = context.auth?.token?.name || data?.name || null;
+  const note = "";
+
+  const record = {
+    email: requesterEmail,
+    displayName: requesterName,
+    uid: requesterUid,
+    note,
+    userAgent: data?.userAgent || "",
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const docRef = await db.collection("access_requests").add(record);
+
+    // Email admins if possible
+    try {
+      const adminSnap = await db.collection("users").where("type", "==", "admin").get();
+      const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
+      if (transporter && adminEmails.length > 0) {
+        await transporter.sendMail({
+          from: smtpUser,
+          to: adminEmails.join(","),
+          subject: "Access Request Submitted",
+          text: `A user submitted an access request.\n\nEmail: ${requesterEmail}\nName: ${requesterName}\nUID: ${requesterUid}\nWhen: ${record.createdAt}`,
+        });
+      }
+    } catch (mailErr) {
+      console.warn("requestAccess: could not email admins", mailErr);
+    }
+
+    return { ok: true, id: docRef.id };
+  } catch (err) {
+    console.error("requestAccess failed", err);
+    throw new functions.https.HttpsError("internal", "Failed to submit access request");
+  }
+});
