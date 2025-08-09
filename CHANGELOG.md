@@ -5,6 +5,25 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2025-08-09
+
+### Added
+- Per-student observation subcollections
+  - Notes are saved under `students/{sid}/observations/{obsId}` with `observedAt`, `createdBy`, `createdByName`, `createdByEmail`
+- Timeline reads via collection group
+  - `collectionGroup('observations')` with `where('studentId'...)` and `orderBy('observedAt','desc')`
+
+### Changed
+- Timeline update/delete/reassign operate on subcollection paths
+- Use `createdBy` for creator checks (kept legacy `teacherId` fallback)
+
+### Fixed
+- Permission-denied errors and assertion logs when viewing timelines with no top-level `observations` collection
+- Student selection/search showing blank names by using robust fallback: `name || displayName || firstName + lastName`
+
+### Removed
+- One-off classroom cleanup script after normalizing to `teacherIds`
+
 ## [2.0.3] - 2025-08-09
 
 ### Added
