@@ -5,6 +5,55 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-08-11
+
+### Added
+- **Comprehensive Feedback & Suggestions System**: New dedicated page for users to submit feedback, complaints, and suggestions
+- **FeedbackPage Component**: User-facing feedback submission form with large text area and optional category selection
+- **FeedbackTimeline Component**: Admin dashboard for viewing and managing all feedback submissions
+- **Feedback Collection**: New Firestore `feedback` collection with comprehensive metadata logging
+- **Navigation Integration**: Added "Feedback & Suggestions" to sidebar menu and admin dashboard card
+- **Role-Based Access Control**: Teachers see their own feedback, admins see all feedback
+- **Metadata Logging**: Captures user info, timestamp, app version, user agent, and submission context
+- **Category System**: Optional feedback categorization (Bug Report, Feature Request, UI/UX, Performance, General)
+- **Status Management**: Feedback status tracking (new → reviewed → implemented/declined)
+- **Admin Notes**: Private admin-only notes for internal feedback tracking
+- **Search & Filtering**: Comprehensive filtering by user, category, date, status, and content
+- **Success Notifications**: User feedback confirmation with "Thank you for your suggestion!" message
+
+### Changed
+- **App Navigation**: Updated App.jsx routing to include feedback screens (`/feedback`, `/feedbackTimeline`)
+- **AppHeader**: Added feedback menu item to sidebar navigation
+- **LandingPage**: Added feedback dashboard card for admin users
+- **Data Structure**: Updated DATA_STRUCTURE.md with feedback collection schema and security rules
+- **Firestore Rules**: Added comprehensive security rules for feedback collection access control
+
+### Fixed
+- **StudentTimeline Back Button**: Updated back button styling to match app-wide navigation pattern
+- **Icon Import Issues**: Fixed missing History icon import that was causing React constructor errors
+- **UI Consistency**: Back button now uses IconButton with ArrowBack icon instead of Button with text
+
+### Technical
+- **Component Architecture**: Created modular feedback system with separate user and admin components
+- **Firestore Integration**: Implemented feedback collection with proper security rules and indexing
+- **Client-Side Sorting**: Used client-side sorting to avoid Firestore composite index requirements
+- **Mobile-First Design**: Ensured feedback system works perfectly on mobile viewport (375×812px)
+- **Error Handling**: Comprehensive error handling and user feedback throughout feedback workflow
+- **Accessibility**: Proper aria-labels and semantic HTML for all feedback components
+
+### Security
+- **Feedback Permissions**: Users can read/create their own feedback, admins can read/update/delete all
+- **Field Immutability**: Critical fields (userId, timestamp, appVersion) cannot be modified after creation
+- **Role-Based Access**: Teachers restricted to their own feedback, admins have full access
+- **Admin Notes Privacy**: Admin notes are private and only visible to admin users
+
+### Result
+- Complete feedback loop system for continuous app improvement
+- Low barrier to entry for user feedback submission
+- Comprehensive admin dashboard for feedback management and analysis
+- Proper access control and security throughout the feedback system
+- Consistent UI/UX with existing app design patterns
+
 ## [2.1.2] - 2025-08-11
 
 ### Fixed

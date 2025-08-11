@@ -22,12 +22,13 @@ import {
   Send,
   ExpandMore,
   ExpandLess,
-  History,
+  ArrowBack,
   BugReport,
   Lightbulb,
   Brush,
   Speed,
-  Chat
+  Chat,
+  History
 } from '@mui/icons-material';
 import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -146,14 +147,16 @@ function FeedbackPage({ currentUser, userRole, onBack, onNavigateToAdminDashboar
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pb: 8 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Button
-          variant="outlined"
+        <IconButton 
           onClick={onBack}
-          startIcon={<History />}
-          size="small"
+          sx={{ 
+            color: '#64748b',
+            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
+          }}
+          aria-label="Go back"
         >
-          Back
-        </Button>
+          <ArrowBack />
+        </IconButton>
         <Typography variant="h5" component="h1">
           Help Us Improve Montessori OS
         </Typography>
