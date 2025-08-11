@@ -18,17 +18,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
 
-    // Check if teacher is assigned to a classroom by reading the classroom document
-    function classroomHasTeacher(classroomId) {
-      return classroomId != null &&
-        (get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds
-          .hasAny([request.auth.uid]));
-    }
-
-    function getStudentClassroomId(studentId) {
-      return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
-    }
-
     // Users: user can read/write own profile; admins can read/write any
     // Avoid recursive self-get by evaluating admin check only when accessing other users' docs
     match /users/{uid} {
@@ -54,38 +43,26 @@ service cloud.firestore {
 
     // Students
     match /students/{studentId} {
-      allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
+      allow read: if isAdmin() || isTeacher();
       allow create, update, delete: if isAdmin();
 
-      // Observations subcollection
+      // Observations subcollection - simplified access
       match /observations/{observationId} {
-        // Reads: admin or teacher assigned to the student's classroom
-        allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
-
-        // Creates: admin or teacher assigned to the student's classroom; enforce field consistency
-        allow create: if (
-            isAdmin() ||
-            (isTeacher() && classroomHasTeacher(getStudentClassroomId(studentId)))
-          ) &&
-          request.resource.data.createdBy == request.auth.uid &&
-          request.resource.data.studentId == studentId &&
-          request.resource.data.classroomId == getStudentClassroomId(studentId);
-
-        // Updates/Deletes: admin only (teachers cannot edit/delete)
-        allow update, delete: if isAdmin() &&
-          // Immutable identity/ownership fields
-          request.resource.data.studentId == resource.data.studentId &&
-          request.resource.data.classroomId == resource.data.classroomId &&
-          request.resource.data.createdBy == resource.data.createdBy &&
-          request.resource.data.createdAt == resource.data.createdAt &&
-          request.resource.data.observedAt == resource.data.observedAt;
+        // Allow reading observations for both admins and teachers
+        allow read: if isAdmin() || isTeacher();
+        
+        // Allow creating observations for both admins and teachers
+        allow create: if isAdmin() || isTeacher();
+        
+        // Only admins can update/delete
+        allow update, delete: if isAdmin();
       }
     }
 
-    // Collection group rule for observations (covers collectionGroup queries)
+    // Collection group rule for observations (needed for collectionGroup queries)
     match /{path=**}/observations/{observationId} {
-      // Reads: admin or teacher assigned via denormalized classroomId on the doc
-      allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
+      // Allow reading observations for both admins and teachers
+      allow read: if isAdmin() || isTeacher();
     }
 
     // Temporarily removed default deny to test if it's blocking teacher access

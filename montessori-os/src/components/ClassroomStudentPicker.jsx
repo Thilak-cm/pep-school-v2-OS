@@ -72,6 +72,9 @@ function ClassroomStudentPicker({
           
           // Set classrooms directly from the query
           classList = teacherClassrooms;
+          
+          // Update the classrooms state for the Browse by Classroom section
+          setClassrooms(classList);
         } else {
           // For admins: get all classrooms
           const allClassroomsSnap = await getDocs(collection(db, 'classrooms'));
@@ -79,6 +82,9 @@ function ClassroomStudentPicker({
             id: doc.id, 
             ...doc.data() 
           }));
+          
+          // Update the classrooms state for the Browse by Classroom section
+          setClassrooms(classList);
         }
         
         // Fetch students based on user role
@@ -108,7 +114,7 @@ function ClassroomStudentPicker({
             }
             
             // Find the classroom name for this student
-            const studentClassroom = allClassrooms.find(c => c.id === classroomId);
+            const studentClassroom = classList.find(c => c.id === classroomId);
             const isInAssignedClassroom = studentClassroom && assignedClassroomNames.includes(studentClassroom.name);
             
             return isInAssignedClassroom;
@@ -351,7 +357,7 @@ function ClassroomStudentPicker({
                     </ListItemIcon>
                     <ListItemText
                       primary={group.classroom.name}
-                      secondary={`${group.students.length} student${group.students.length !== 1 ? 's' : ''}`}
+                      secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
                     />
                     <IconButton size="small">
                       {isExpanded ? <ExpandLess /> : <ExpandMore />}
