@@ -9,7 +9,7 @@ import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
-import { db, cloudFunctions } from "./firebase";
+import app, { db, cloudFunctions } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 // Temporarily use console for debugging
@@ -36,6 +36,14 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
 
   useEffect(() => {
+    // Log runtime Firebase project configuration once on mount
+    try {
+      // eslint-disable-next-line no-console
+      console.info('[Runtime] Firebase projectId:', app?.options?.projectId, '| env:', import.meta.env?.VITE_FIREBASE_PROJECT_ID);
+    } catch (e) {
+      // ignore
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -45,6 +53,10 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
+
+    // Log current user info and role resolution
+    // eslint-disable-next-line no-console
+    console.info('[Runtime] Auth user:', { uid: user?.uid, email: user?.email });
 
     const logUnauthorized = async (reason) => {
       try {
