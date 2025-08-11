@@ -5,6 +5,34 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2025-08-11
+
+### Fixed
+- **StudentTimeline Reassignment Dialog**: Updated reassignment interface for consistency and proper access control
+- **UI Consistency**: Replaced simple student list with ClassroomStudentPicker component to match add note modal
+- **Access Control**: Fixed issue where teachers could see ALL students instead of only their assigned classrooms
+- **Unknown Teacher/Student Display**: Resolved "Unknown Teacher" and "Unknown Student" issues in observation detail dialog
+- **Runtime Errors**: Fixed getDocs import that was causing blank pages and JavaScript errors
+
+### Improved
+- **User Experience**: Added proper validation to prevent reassigning notes to the same student
+- **Confirmation Dialog**: Enhanced reassignment confirmation with better user feedback and "From/To" information
+- **State Management**: Cleaned up unused imports and state variables for better code maintainability
+- **Security**: Teachers now only see students and classrooms they have permission to access
+- **Interface Consistency**: Reassignment dialog now uses same UI patterns as add note modal
+
+### Technical
+- **Component Integration**: Integrated ClassroomStudentPicker for consistent student selection experience
+- **Permission Handling**: Proper role-based filtering for classrooms and students
+- **Code Quality**: Removed duplicate logic and improved component architecture
+- **Error Prevention**: Added validation and better error handling for reassignment operations
+
+### Result
+- Teachers can no longer see students from unassigned classrooms (e.g., "Adolescent" students)
+- Consistent UI experience between note creation and note reassignment
+- Proper access control maintained throughout the reassignment process
+- No more blank pages or runtime errors when viewing student timelines
+
 ## [2.1.1] - 2025-08-11
 
 ### Fixed

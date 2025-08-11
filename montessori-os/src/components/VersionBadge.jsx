@@ -45,7 +45,7 @@ const VersionBadge = ({ userRole }) => {
           fontSize: 'inherit'
         }}
       >
-        v2.1.1
+        v2.1.2
       </Typography>
     </Box>
   );
