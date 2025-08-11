@@ -5,6 +5,31 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-01-08
+
+### Fixed
+- **Classroom/Student Picker Issues**: Resolved undefined variable reference by changing 'allClassrooms' to 'classList' in ClassroomStudentPicker
+- **Missing State Updates**: Fixed classrooms state not being populated from fetched data, causing empty classroom lists
+- **Collection Group Queries**: Added proper collection group rule for observations to handle collectionGroup queries
+- **Permission Errors**: Resolved "Missing or insufficient permissions" errors for teachers accessing classrooms and student observations
+
+### UI Improvements
+- **Enhanced Classroom Display**: Updated classroom display to show "X/Y selected" format instead of just total student count
+- **Browse by Classroom**: Fixed section to properly display all classrooms with correct student grouping
+- **Student Grouping**: Students are now correctly grouped under their respective classrooms
+- **Selection Feedback**: Improved user experience with real-time selection count updates
+
+### Security Rules
+- **Simplified Classroom Access**: Streamlined classroom security rules to resolve permission conflicts
+- **Collection Group Support**: Added proper rules for observations collection group queries
+- **Teacher Access**: Teachers can now successfully access their assigned classrooms and student observations
+
+### Result
+- Classroom/student picker now works correctly for all user roles
+- Teachers can see their assigned classrooms and students without permission errors
+- Improved user experience with better selection feedback and classroom organization
+- No more "Missing or insufficient permissions" errors during normal operation
+
 ## [2.0.4] - 2025-08-09
 
 ### Added
