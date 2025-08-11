@@ -416,7 +416,7 @@ function AddNoteModal({
             gap: 3,
             minHeight: 'fit-content'
           }}>
-            <Typography variant="h6">Select classroom(s) and student(s)</Typography>
+
             <Box sx={{ flex: 1, minHeight: 300 }}>
               <ClassroomStudentPicker
                 selectedStudents={selectedStudents}

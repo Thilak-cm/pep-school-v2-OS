@@ -29,7 +29,7 @@ import {
   TextFields,
   ArrowBack
 } from '@mui/icons-material';
-import { collection, query, getDocs, orderBy, getDoc, doc, where } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -55,33 +55,88 @@ const StatsPage = ({ user, role, onBack }) => {
       try {
         setStats(prev => ({ ...prev, loading: true }));
         
-        // Fetch all observations
-        const observationsQuery = query(
-          collection(db, 'observations'),
-          orderBy('timestamp', 'desc')
-        );
-        const observationsSnap = await getDocs(observationsQuery);
-        let allObservations = observationsSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        // Fetch all observations using collection group query for new schema
+        console.log('Starting collection group query for observations...');
+        
+        // Try simple query first without ordering to see if we get any results
+        let observationsSnap;
+        try {
+          let observationsQuery = query(collectionGroup(db, 'observations'));
+          console.log('Simple query created (no ordering)');
+          observationsSnap = await getDocs(observationsQuery);
+          console.log('Simple query result:', observationsSnap.size, 'documents found');
+        } catch (error) {
+          console.error('Collection group query failed:', error);
+          observationsSnap = { docs: [], size: 0 };
+        }
+        
+        // If we get results, try with ordering
+        if (observationsSnap.size > 0) {
+          console.log('Trying ordered query...');
+          try {
+            const orderedQuery = query(
+              collectionGroup(db, 'observations'),
+              orderBy('observedAt', 'desc')
+            );
+            observationsSnap = await getDocs(orderedQuery);
+            console.log('Ordered query result:', observationsSnap.size, 'documents found');
+          } catch (error) {
+            console.error('Ordered query failed:', error);
+            console.log('Using unordered results. To fix ordering, create this index in Firestore:');
+            console.log('Collection Group: observations, Field: observedAt, Order: Descending');
+            // Keep the unordered results - they'll be sorted client-side
+          }
+        } else {
+          console.log('No results from collection group query. Trying alternative approach...');
+          // Fallback: try to get some student IDs first and then query their observations
+          const studentsQuery = query(collection(db, 'students'), limit(5));
+          const studentsSnap = await getDocs(studentsQuery);
+          console.log('Found students:', studentsSnap.size);
+          
+          if (studentsSnap.size > 0) {
+            // Try to get observations from first student
+            const firstStudent = studentsSnap.docs[0];
+            const studentObsQuery = query(
+              collection(db, 'students', firstStudent.id, 'observations')
+            );
+            const studentObsSnap = await getDocs(studentObsQuery);
+            console.log('Observations from first student:', studentObsSnap.size);
+          }
+        }
+        let allObservations = observationsSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data
+          };
+        });
+        
+        // Sort by observedAt client-side if Firestore ordering failed
+        allObservations.sort((a, b) => {
+          const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : new Date(a.observedAt?.seconds * 1000);
+          const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : new Date(b.observedAt?.seconds * 1000);
+          return bDate - aDate; // Descending order
+        });
+        
+        console.log('Fetched observations:', allObservations.length);
+        if (allObservations.length > 0) {
+          console.log('Sample observation:', allObservations[0]);
+          console.log('Sample observation tags:', allObservations[0].tags);
+          console.log('Sample observation type:', allObservations[0].tags?.type);
+        }
 
         // Filter observations based on user role
         if (role === 'teacher') {
           // For teachers, only show their own observations
+          const beforeFilter = allObservations.length;
           allObservations = allObservations.filter(obs => {
-            
-            // Check multiple possible fields for teacher identification
-            const isMatch = obs.teacherId === user.uid || 
-                           obs.teacherEmail === user.email ||
-                           obs.createdBy === user.email ||
-                           obs.staff_uid === user.uid;
-            
-            return isMatch;
+            // New schema uses createdBy field
+            return obs.createdBy === user.uid;
           });
-          
+          console.log(`Teacher filtering: ${beforeFilter} -> ${allObservations.length} observations`);
         }
         // For admins, show all observations (no filtering)
+        console.log(`Final observations count: ${allObservations.length}`);
 
         // Calculate basic stats
         const now = new Date();
@@ -89,21 +144,35 @@ const StatsPage = ({ user, role, onBack }) => {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         const thisWeek = allObservations.filter(obs => {
-          const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+          const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
           return obsDate >= weekAgo;
         });
 
         const thisMonth = allObservations.filter(obs => {
-          const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+          const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
           return obsDate >= monthAgo;
         });
 
-        const voiceNotes = allObservations.filter(obs => obs.type === 'voice');
-        const textNotes = allObservations.filter(obs => obs.type === 'text');
+        // Filter by observation type - handle both old and new schema
+        const voiceNotes = allObservations.filter(obs => {
+          // Check multiple possible type fields
+          return obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice');
+        });
+        const textNotes = allObservations.filter(obs => {
+          // Check multiple possible type fields
+          return obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text');
+        });
+        
+        console.log('Voice notes found:', voiceNotes.length);
+        console.log('Text notes found:', textNotes.length);
+        console.log('Sample observation tags structure:', allObservations[0]?.tags);
 
         // Get student stats with proper names
         const studentStats = {};
+        // Extract student IDs from document paths since observations are subcollections under students
         let studentIds = [...new Set(allObservations.map(obs => obs.studentId).filter(Boolean))];
+        console.log('Unique student IDs found:', studentIds);
+        console.log('Sample observation studentId:', allObservations[0]?.studentId);
         
         // For teachers, filter students to only their assigned classrooms
         if (role === 'teacher') {
@@ -138,7 +207,10 @@ const StatsPage = ({ user, role, onBack }) => {
         studentDocs.forEach((doc, index) => {
           if (doc.exists()) {
             const data = doc.data();
-            studentDataMap[studentIds[index]] = data.name || 'Unknown Student';
+            // Use displayName from new schema, fallback to name, then firstName + lastName
+            const studentName = data.displayName || data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Unknown Student';
+            studentDataMap[studentIds[index]] = studentName;
+            console.log(`Student ${studentIds[index]}: ${studentName}`, data);
           }
         });
         
@@ -159,16 +231,16 @@ const StatsPage = ({ user, role, onBack }) => {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
-        // Get teacher stats (admin only)
+        // Get teacher stats (admin only) using new schema fields
         let teacherStats = [];
         if (role === 'admin') {
           const teacherStatsMap = {};
           allObservations.forEach(obs => {
-            const teacherId = obs.teacherEmail || obs.teacherName || obs.teacherId || 'Unknown';
+            const teacherId = obs.createdBy || 'Unknown';
             if (!teacherStatsMap[teacherId]) {
               teacherStatsMap[teacherId] = { 
-                name: obs.teacherName || teacherId, 
-                email: obs.teacherEmail || teacherId,
+                name: obs.createdByName || teacherId, 
+                email: obs.createdByEmail || teacherId,
                 count: 0 
               };
             }
@@ -186,7 +258,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
           
           const weekCount = allObservations.filter(obs => {
-            const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
           
@@ -250,7 +322,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
             return obsDate >= start && obsDate < end;
           }).length;
           
@@ -268,7 +340,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
             return obsDate >= start && obsDate < end;
           }).length;
           
@@ -287,7 +359,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
           
@@ -305,7 +377,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
             return obsDate >= monthStart && obsDate < monthEnd;
           }).length;
           
@@ -582,7 +654,7 @@ const StatsPage = ({ user, role, onBack }) => {
               </Typography>
               
               <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <StatCard
                     title="Total Notes"
                     value={stats.totalObservations}
@@ -590,7 +662,7 @@ const StatsPage = ({ user, role, onBack }) => {
                     color="primary"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <StatCard
                     title="This Week"
                     value={stats.thisWeek}
@@ -598,7 +670,7 @@ const StatsPage = ({ user, role, onBack }) => {
                     color="success"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <StatCard
                     title="Voice Notes"
                     value={stats.voiceNotes}
@@ -606,7 +678,7 @@ const StatsPage = ({ user, role, onBack }) => {
                     color="info"
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <StatCard
                     title="Text Notes"
                     value={stats.textNotes}

@@ -263,6 +263,22 @@ function ClassroomStudentPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Main Heading with Total Selected Count */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Group sx={{ fontSize: 20 }} />
+          Select classroom(s) and student(s)
+        </Typography>
+        {selectedStudents.length > 0 && (
+          <Chip 
+            label={`${selectedStudents.length} student${selectedStudents.length === 1 ? '' : 's'} selected`}
+            color="primary"
+            variant="filled"
+            size="medium"
+          />
+        )}
+      </Box>
+
       {/* Search Section */}
       <Box>
         <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
