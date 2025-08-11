@@ -5,6 +5,54 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-08-11
+
+### Added
+- **Complete StatsPage Revamp**: Multi-level filtering system with classroom, teacher, and student filters
+- **Enhanced Analytics Dashboard**: Overview, Classrooms, Teachers, and Students tabs with performance metrics
+- **Action Items Panel**: Smart alerts for underperforming areas with priority levels (High: classrooms, Medium: teachers, Low: students)
+- **Trend Analysis**: Weekly comparisons, performance targets, and visual indicators with trend arrows
+- **Multi-Level Filtering**: Smart cascading filters that work together and affect data display dynamically
+- **Filter Management**: Collapsible interface with clear all functionality and filter summary display
+
+### Changed
+- **StatsPage Architecture**: Complete rewrite from basic stats to powerful admin analytics dashboard
+- **Data Visualization**: Enhanced stat cards with trend indicators, performance bars, and comparison charts
+- **Navigation Tabs**: Reorganized into logical sections (Overview, Classrooms, Teachers, Students)
+- **Performance Metrics**: Implemented target-based calculations (5 notes/student/week, 20 notes/teacher/week)
+- **Mobile Layout**: Optimized for 375px width containers with touch-friendly interactions
+
+### Fixed
+- **Firestore Permission Issues**: Fixed collection-level access for users collection listing
+- **Variable Scope Errors**: Resolved 'classroomsData is not defined' reference errors
+- **Query Optimization**: Simplified teachers query by removing problematic where clause, added client-side filtering
+- **Collection Group Queries**: Properly configured for observations with enhanced error handling
+- **Error Recovery**: Graceful fallbacks when queries fail with comprehensive debugging logs
+
+### Technical
+- **Enhanced Data Queries**: Collection group queries, granular error handling, client-side filtering
+- **UI/UX Improvements**: Mobile-first design, MUI components, responsive layouts, color coding
+- **Data Processing**: Weekly calculations, performance metrics, smart aggregation
+- **Mobile Optimization**: Touch-friendly buttons (44px minimum), responsive patterns, proper spacing
+- **Design System**: Consistent MUI integration, proper theme colors, accessibility compliance
+
+### Security
+- **Firestore Rules**: Added users collection access while maintaining individual document security
+- **Admin Role Verification**: Proper admin role checking for collection-level queries
+- **Access Control**: Maintained existing security for individual document access
+
+### Performance
+- **Indexing**: Configured collection group indexes for observations queries
+- **Query Optimization**: Client-side filtering for better responsiveness
+- **Error Handling**: Graceful degradation when Firestore queries fail
+
+### Result
+- **Transformed basic stats page** into powerful admin analytics dashboard
+- **Fixed critical Firestore permission issues** that were blocking data access
+- **Added sophisticated filtering** that gives admins granular control over data views
+- **Implemented actionable insights** that help admins identify and address issues
+- **Created mobile-optimized UI** that works perfectly on all devices
+
 ## [2.2.0] - 2025-08-11
 
 ### Added
