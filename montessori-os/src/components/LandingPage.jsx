@@ -40,7 +40,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser }) {
       {/* Action Cards */}
       <Grid container spacing={2}>
         {/* View Classrooms Card */}
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card
             sx={{
               borderRadius: 2,
@@ -98,7 +98,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser }) {
         {!isTeacher && (
           <>
             {/* Bulk Upload Roster */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Card aria-label="Bulk upload roster coming soon" sx={{ opacity: 0.5 }}>
                 <CardContent>
                   <Typography variant="h6" component="h2">
@@ -112,7 +112,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser }) {
             </Grid>
 
             {/* Search & Filter Notes */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Card aria-label="Search and filter notes coming soon" sx={{ opacity: 0.5 }}>
                 <CardContent>
                   <Typography variant="h6" component="h2">
@@ -126,7 +126,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser }) {
             </Grid>
 
             {/* Add User (Admin/Teacher) - Coming Soon */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Card aria-label="Add user coming soon" sx={{ opacity: 0.5 }}>
                 <CardContent>
                   <Typography variant="h6" component="h2">

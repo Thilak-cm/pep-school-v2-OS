@@ -53,8 +53,11 @@ service cloud.firestore {
         // Reads: admin or teacher assigned to the student's classroom
         allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
 
-        // Creates: teacher assigned to classroom; enforce field consistency
-        allow create: if isTeacher() &&
+        // Creates: admin or teacher assigned to the student's classroom; enforce field consistency
+        allow create: if (
+            isAdmin() ||
+            (isTeacher() && classroomHasTeacher(getStudentClassroomId(studentId)))
+          ) &&
           request.resource.data.createdBy == request.auth.uid &&
           request.resource.data.studentId == studentId &&
           request.resource.data.classroomId == getStudentClassroomId(studentId);
