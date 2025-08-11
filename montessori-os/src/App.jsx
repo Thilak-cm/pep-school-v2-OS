@@ -121,12 +121,26 @@ function App() {
     }
   };
 
+  // Derive a readable student name for headers and UI
+  const getStudentDisplayName = (studentLike) => {
+    if (!studentLike) return 'Student';
+    const composedName = [studentLike?.firstName, studentLike?.lastName]
+      .filter(Boolean)
+      .join(' ');
+    return (
+      studentLike?.name ||
+      studentLike?.displayName ||
+      composedName ||
+      'Student'
+    );
+  };
+
   // Determine page title
   let pageTitle = '';
   if (screen === 'landingPage') pageTitle = role === 'teacher' ? 'Teacher Panel' : 'Admin Panel';
   else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
-  else if (screen === 'timeline') pageTitle = `${selectedStudent?.name || 'Student'} Timeline`;
+  else if (screen === 'timeline') pageTitle = `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
 
