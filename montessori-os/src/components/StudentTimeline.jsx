@@ -18,19 +18,15 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemButton
+  MenuItem
 } from '@mui/material';
-import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList } from '@mui/icons-material';
+import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // Import new modular components
 import FilterPanel from './FilterPanel';
+import ClassroomStudentPicker from './ClassroomStudentPicker';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
@@ -49,9 +45,8 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   // Reassignment states
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
-  const [selectedStudentForReassign, setSelectedStudentForReassign] = useState(null);
   const [reassigning, setReassigning] = useState(false);
-  const [allStudents, setAllStudents] = useState([]);
+  const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
 
   // Use the filter hook instead of local state
   const {
@@ -126,41 +121,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     }
   }, [observations, selectedObservation]);
 
-  // Load all students for reassignment with classroom info
-  useEffect(() => {
-    const fetchAllStudents = async () => {
-      try {
-        // Fetch classrooms first
-        const classroomSnap = await getDocs(collection(db, 'classrooms'));
-        const classrooms = classroomSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        
-        // Fetch students
-        const studentSnap = await getDocs(collection(db, 'students'));
-        const studentList = studentSnap.docs.map((d) => {
-          const studentData = { id: d.id, ...d.data() };
-          
-          // Find classroom name
-          let classroomId = studentData.classroomId;
-          if (typeof classroomId === 'object' && classroomId.id) {
-            classroomId = classroomId.id;
-          }
-          
-          const classroom = classrooms.find(c => c.id === classroomId);
-          
-          return {
-            ...studentData,
-            classroom_name: classroom?.name || 'Unknown Classroom'
-          };
-        });
-        
-        setAllStudents(studentList);
-      } catch (error) {
-        console.error('Error fetching students for reassignment:', error);
-      }
-    };
 
-    fetchAllStudents();
-  }, []);
 
   const handleObservationClick = (observation) => {
     setSelectedObservation(observation);
@@ -175,7 +136,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     // Reset reassignment state
     setReassignDialogOpen(false);
     setReassignConfirmOpen(false);
-    setSelectedStudentForReassign(null);
+    setReassignSelectedStudents([]);
   };
 
   const handleDeleteClick = () => {
@@ -242,30 +203,43 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
   // Reassignment handlers
   const handleReassignClick = () => {
+    setReassignSelectedStudents([]); // Reset selection when opening
     setReassignDialogOpen(true);
   };
 
   const handleReassignCancel = () => {
     setReassignDialogOpen(false);
-    setSelectedStudentForReassign(null);
+    setReassignSelectedStudents([]);
   };
 
-  const handleStudentSelect = (studentId) => {
-    const selectedStudent = allStudents.find(s => s.id === studentId);
-    if (selectedStudent) {
-      setSelectedStudentForReassign(selectedStudent);
+  const handleReassignStudentsChange = (studentIds) => {
+    setReassignSelectedStudents(studentIds);
+  };
+
+  const handleReassignNext = () => {
+    if (reassignSelectedStudents.length === 1) {
+      const selectedStudentId = reassignSelectedStudents[0];
+      
+      // Prevent reassigning to the same student
+      if (selectedStudentId === student.id) {
+        alert('Cannot reassign a note to the same student.');
+        return;
+      }
+      
       setReassignDialogOpen(false);
       setReassignConfirmOpen(true);
     }
   };
 
   const handleConfirmReassign = async () => {
-    if (!selectedObservation || !selectedStudentForReassign) return;
+    if (!selectedObservation || reassignSelectedStudents.length !== 1) return;
 
     try {
       setReassigning(true);
+      const newStudentId = reassignSelectedStudents[0];
+      
       await updateDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id), {
-        studentId: selectedStudentForReassign.id,
+        studentId: newStudentId,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
         lastEditedAt: serverTimestamp()
@@ -275,7 +249,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       setReassignConfirmOpen(false);
       setDetailDialogOpen(false);
       setSelectedObservation(null);
-      setSelectedStudentForReassign(null);
+      setReassignSelectedStudents([]);
     } catch (error) {
       console.error('Error reassigning observation:', error);
       alert('Error reassigning note. Please try again.');
@@ -286,7 +260,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
   const handleCancelReassign = () => {
     setReassignConfirmOpen(false);
-    setSelectedStudentForReassign(null);
+    setReassignSelectedStudents([]);
   };
 
   return (
@@ -458,7 +432,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
                   <Typography variant="body2" color="text.secondary">
-                    Created by: {selectedObservation.teacherName || selectedObservation.teacherEmail || 'Unknown Teacher'}
+                    Created by: {selectedObservation.createdByName || selectedObservation.createdByEmail || 'Unknown Teacher'}
                   </Typography>
                 </Box>
                 
@@ -471,31 +445,33 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                   </Box>
                 )}
                 
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Edit count: {selectedObservation.editCount || 0}
-                    </Typography>
+                {userRole === 'admin' && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Edit count: {selectedObservation.editCount || 0}
+                      </Typography>
+                    </Box>
+                    {canEditObservation(selectedObservation, currentUser, userRole) && (
+                      <Button 
+                        onClick={handleEditClick} 
+                        size="small"
+                        variant="outlined" 
+                        color="primary"
+                        startIcon={<Edit />}
+                      >
+                        Edit
+                      </Button>
+                    )}
                   </Box>
-                  {canEditObservation(selectedObservation, currentUser, userRole) && (
-                    <Button 
-                      onClick={handleEditClick} 
-                      size="small"
-                      variant="outlined" 
-                      color="primary"
-                      startIcon={<Edit />}
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </Box>
+                )}
                 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="body2" color="text.secondary">
-                      Assigned To: {student?.name || 'Unknown Student'}
+                      Assigned To: {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                     </Typography>
                   </Box>
                   {canReassignObservation(selectedObservation, currentUser, userRole) && (
@@ -649,10 +625,10 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         PaperProps={{
           sx: {
             borderRadius: 3,
-            maxWidth: 375,
+            maxWidth: 500,
             width: 'calc(100% - 32px)',
             mx: 'auto',
-            maxHeight: '80vh'
+            maxHeight: '90vh'
           }
         }}
       >
@@ -661,44 +637,34 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
             Reassign Note to Student
           </Typography>
         </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          <Box sx={{ p: 3, pt: 0 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select a student to reassign this observation to:
-            </Typography>
-            <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-              {allStudents.map((student) => (
-                <ListItem key={student.id} disablePadding>
-                  <ListItemButton
-                    onClick={() => handleStudentSelect(student.id)}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 1,
-                      '&:hover': {
-                        backgroundColor: 'rgba(79, 70, 229, 0.08)'
-                      }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <Person />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={student.name || 'Unnamed Student'}
-                      secondary={student.classroom_name || 'Unknown Classroom'}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Select a student to reassign this observation to:
+          </Typography>
+          
+          <ClassroomStudentPicker
+            selectedStudents={reassignSelectedStudents}
+            onStudentsChange={handleReassignStudentsChange}
+            currentUser={currentUser}
+            userRole={userRole}
+          />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
           <Button 
             onClick={handleReassignCancel} 
             variant="outlined" 
             sx={{ flex: 1 }}
           >
             Cancel
+          </Button>
+          <Button 
+            onClick={handleReassignNext} 
+            variant="contained" 
+            color="primary"
+            sx={{ flex: 1 }}
+            disabled={reassignSelectedStudents.length !== 1}
+          >
+            Next
           </Button>
         </DialogActions>
       </Dialog>
@@ -727,10 +693,10 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           </Box>
         </DialogTitle>
         <DialogContent>
-          {selectedStudentForReassign && (
+          {reassignSelectedStudents.length === 1 && (
             <>
               <Typography variant="body1" sx={{ mb: 2 }}>
-                Are you sure you want to reassign this observation to:
+                Are you sure you want to reassign this observation?
               </Typography>
               <Box sx={{
                 p: 2,
@@ -739,11 +705,11 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
                 border: '1px solid #e2e8f0',
                 mb: 2
               }}>
-                <Typography variant="h6" color="primary">
-                  {selectedStudentForReassign.name || 'Unnamed Student'}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <strong>From:</strong> {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedStudentForReassign.classroom_name || 'Unknown Classroom'}
+                  <strong>To:</strong> Selected student (ID: {reassignSelectedStudents[0]})
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{
@@ -756,11 +722,11 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               }}>
                 "{selectedObservation?.text?.substring(0, 100)}{selectedObservation?.text?.length > 100 ? '...' : ''}"
               </Typography>
+              <Typography variant="body2" color="warning.main" sx={{ fontWeight: 'medium' }}>
+                The note will be moved from the current student's timeline to the selected student's timeline.
+              </Typography>
             </>
           )}
-          <Typography variant="body2" color="warning.main" sx={{ fontWeight: 'medium' }}>
-            The note will be moved from the current student's timeline to the selected student's timeline.
-          </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
           <Button 
