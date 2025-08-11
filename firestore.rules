@@ -27,6 +27,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Collection-level access for listing users (needed for admin queries)
+    match /users {
+      // Allow listing for admins only
+      allow list: if isAdmin();
+    }
+
     // Classrooms - simplified security that works
     match /classrooms/{classroomId} {
       // Allow reading individual classroom documents
