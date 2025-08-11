@@ -68,12 +68,8 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Filter observations based on user role
         if (role === 'teacher') {
-          console.log('Teacher filtering - User:', user.email, 'UID:', user.uid);
-          console.log('Total observations before filtering:', allObservations.length);
-          
           // For teachers, only show their own observations
           allObservations = allObservations.filter(obs => {
-            console.log('Checking observation:', obs.id, 'teacherId:', obs.teacherId, 'teacherEmail:', obs.teacherEmail, 'createdBy:', obs.createdBy, 'staff_uid:', obs.staff_uid);
             
             // Check multiple possible fields for teacher identification
             const isMatch = obs.teacherId === user.uid || 
@@ -81,11 +77,9 @@ const StatsPage = ({ user, role, onBack }) => {
                            obs.createdBy === user.email ||
                            obs.staff_uid === user.uid;
             
-            console.log('Is match:', isMatch);
             return isMatch;
           });
           
-          console.log('Observations after teacher filtering:', allObservations.length);
         }
         // For admins, show all observations (no filtering)
 
@@ -113,25 +107,25 @@ const StatsPage = ({ user, role, onBack }) => {
         
         // For teachers, filter students to only their assigned classrooms
         if (role === 'teacher') {
-          console.log('Starting classroom filtering for teacher');
-          
-          // Get teacher's assigned classrooms
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', user.email)
+          // Get teacher's assigned classrooms using the new approach
+          // Query classrooms where teacherIds contains the teacher's UID
+          const classroomsQuery = query(
+            collection(db, 'classrooms'),
+            where('teacherIds', 'array-contains', user.uid)
           );
-          const userSnap = await getDocs(userQuery);
+          const classroomsSnap = await getDocs(classroomsQuery);
           
-          if (!userSnap.empty) {
-            const teacherData = userSnap.docs[0].data();
-            const assignedClassroomNames = teacherData.assignedClassrooms || [];
-            console.log('Teacher assigned classrooms:', assignedClassroomNames);
+          if (!classroomsSnap.empty) {
+            const assignedClassrooms = classroomsSnap.docs.map(doc => ({ 
+              id: doc.id, 
+              ...doc.data() 
+            }));
+            const assignedClassroomNames = assignedClassrooms.map(cls => cls.name);
             
             // For now, let's just use the teacher-filtered observations
             // and not do additional classroom filtering since it's causing issues
-            console.log('Using teacher-filtered observations without classroom filtering');
           } else {
-            console.log('Teacher not found in users collection');
+            // Teacher not found in classrooms collection or no assignments
           }
         }
         

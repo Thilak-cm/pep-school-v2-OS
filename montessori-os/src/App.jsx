@@ -328,15 +328,17 @@ function App() {
                   )}
 
                   {screen === 'classroomList' && (
-                    <ClassroomList
-                      onBack={() => setScreen('landingPage')}
-                      onSelectClassroom={(cls) => {
-                        setSelectedClassroom(cls);
-                        setScreen('studentList');
-                      }}
-                      currentUser={user}
-                      userRole={role}
-                    />
+                    <>
+                      <ClassroomList
+                        onBack={() => setScreen('landingPage')}
+                        onSelectClassroom={(cls) => {
+                          setSelectedClassroom(cls);
+                          setScreen('studentList');
+                        }}
+                        currentUser={user}
+                        userRole={role}
+                      />
+                    </>
                   )}
 
                   {screen === 'studentList' && (

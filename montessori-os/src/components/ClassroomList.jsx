@@ -28,31 +28,20 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
         let classroomsToShow = [];
 
         if (userRole === 'teacher') {
-          // For teachers: get their assigned classrooms only
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', currentUser.email)
-          );
-          const userSnap = await getDocs(userQuery);
+          // Get all classrooms first (should work with list permission)
+          const allClassroomsQuery = query(collection(db, 'classrooms'));
+          const allClassroomsSnap = await getDocs(allClassroomsQuery);
           
-          if (userSnap.empty) {
-            console.error('Teacher not found');
-            return;
-          }
-
-          const teacherData = userSnap.docs[0].data();
-          const assignedClassroomNames = teacherData.assignedClassrooms || [];
-
-          // Get all classrooms and filter by assigned ones
-          const classroomsSnap = await getDocs(collection(db, 'classrooms'));
-          const allClassrooms = classroomsSnap.docs.map(doc => ({ 
+          // Filter client-side to show only classrooms where teacher is assigned
+          const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data() 
           }));
-
-          classroomsToShow = allClassrooms.filter(cls => 
-            assignedClassroomNames.includes(cls.name)
-          );
+          
+          // Filter to only show classrooms where this teacher is assigned
+          classroomsToShow = allClassrooms.filter(classroom => {
+            return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
+          });
         } else {
           // For admins: get all classrooms
           const qSnap = await getDocs(collection(db, 'classrooms'));
@@ -81,7 +70,7 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
     };
 
     fetchClassrooms();
-  }, [currentUser?.email, userRole]);
+  }, [currentUser?.uid, userRole]);
 
   if (loading) {
     return (

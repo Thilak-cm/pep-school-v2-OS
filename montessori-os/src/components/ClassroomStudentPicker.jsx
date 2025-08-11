@@ -55,49 +55,37 @@ function ClassroomStudentPicker({
         // Get teacher's assigned classrooms first (for both teacher and admin)
         let assignedClassroomNames = [];
         if (userRole === 'teacher') {
-          const userQuery = query(
-            collection(db, 'users'), 
-            where('email', '==', currentUser.email)
+          // For teachers: get classrooms where their UID is in teacherIds array
+          // This matches the security rules and DATA_STRUCTURE.md approach
+          const classroomsQuery = query(
+            collection(db, 'classrooms'),
+            where('teacherIds', 'array-contains', currentUser.uid)
           );
-          const userSnap = await getDocs(userQuery);
+          const classroomsSnap = await getDocs(classroomsQuery);
+          const teacherClassrooms = classroomsSnap.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+          }));
           
-          if (userSnap.empty) {
-            console.error('Teacher not found');
-            return;
-          }
-
-          const teacherData = userSnap.docs[0].data();
-          assignedClassroomNames = teacherData.assignedClassrooms || [];
-          console.log('Teacher assigned classrooms:', assignedClassroomNames);
-        }
-
-        // Get all classrooms
-        const allClassroomsSnap = await getDocs(collection(db, 'classrooms'));
-        const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        }));
-
-        // Filter classrooms based on user role
-        if (userRole === 'teacher') {
-          classList = allClassrooms.filter(cls => 
-            assignedClassroomNames.includes(cls.name)
-          );
-          console.log('Filtered classrooms for teacher:', classList);
+          // Get classroom names for filtering students later
+          assignedClassroomNames = teacherClassrooms.map(cls => cls.name);
+          
+          // Set classrooms directly from the query
+          classList = teacherClassrooms;
         } else {
           // For admins: get all classrooms
-          classList = allClassrooms;
+          const allClassroomsSnap = await getDocs(collection(db, 'classrooms'));
+          classList = allClassroomsSnap.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+          }));
         }
-        
-        console.log('Fetched classrooms:', classList);
-        setClassrooms(classList);
         
         // Fetch students based on user role
         let studentList = [];
         
         if (userRole === 'teacher') {
           // For teachers: only get students from their assigned classrooms
-          console.log('Teacher assigned classrooms for student filtering:', assignedClassroomNames);
 
           // Get all students and filter by assigned classrooms
           const allStudentsSnap = await getDocs(collection(db, 'students'));
@@ -123,19 +111,14 @@ function ClassroomStudentPicker({
             const studentClassroom = allClassrooms.find(c => c.id === classroomId);
             const isInAssignedClassroom = studentClassroom && assignedClassroomNames.includes(studentClassroom.name);
             
-            console.log(`Student ${student.name}: classroomId=${classroomId}, classroom=${studentClassroom?.name || 'unknown'}, assigned=${isInAssignedClassroom}`);
-            
             return isInAssignedClassroom;
           });
           
-          console.log('Filtered students for teacher:', studentList);
         } else {
           // For admins: get all students
           const studentSnap = await getDocs(collection(db, 'students'));
           studentList = studentSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         }
-        
-        console.log('Fetched students:', studentList);
         
         // Add classroom name to each student for display
         const studentsWithClassroom = studentList.map(student => {
@@ -156,7 +139,6 @@ function ClassroomStudentPicker({
           }
           
           const classroom = classList.find(c => c.id === classroomId);
-          console.log(`Student ${student.name}: classroomId=${student.classroomId}, parsed=${classroomId}, found=${classroom?.name || 'NOT FOUND'}`);
           
           return {
             ...student,
@@ -215,7 +197,6 @@ function ClassroomStudentPicker({
       }
     });
     
-    console.log('Students by classroom:', grouped);
     return Object.values(grouped);
   }, [allStudents, classrooms]);
 
