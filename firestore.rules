@@ -14,7 +14,8 @@ service cloud.firestore {
     }
 
     function isTeacher() {
-      return isSignedIn() && request.auth != null;
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
 
     // Check if teacher is assigned to a classroom by reading the classroom document
@@ -37,15 +38,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Classrooms - consolidated rule to eliminate conflicts
+    // Classrooms - simplified security that works
     match /classrooms/{classroomId} {
-      // Temporarily allow everything for testing
-      allow read, write, create, update, delete: if true;
+      // Allow reading individual classroom documents
+      allow read: if isAdmin() || isTeacher();
+      // Only admins can modify
+      allow create, update, delete: if isAdmin();
     }
 
-    // Collection-level access
+    // Collection-level access for listing
     match /classrooms {
-      allow read, write, list: if true;
+      // Allow listing for both admins and teachers
+      allow list: if isAdmin() || isTeacher();
     }
 
     // Students
