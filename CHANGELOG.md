@@ -5,7 +5,35 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - 2025-01-08
+## [2.1.1] - 2025-08-11
+
+### Fixed
+- **StatsPage Schema Migration**: Updated StatsPage to work with new Firestore schema structure
+- **Collection Group Queries**: Fixed collection group queries for observations subcollections (`students/{studentId}/observations/{observationId}`)
+- **Field References**: Updated from old schema fields (`timestamp` → `observedAt`, `teacherId` → `createdBy`)
+- **Student Name Resolution**: Fixed "Unknown Student" display issue by using `displayName` from new schema
+- **Observation Type Filtering**: Improved filtering for `tags.type` structure in new schema
+- **MUI Grid Warnings**: Fixed MUI Grid v2 migration warnings by removing deprecated `item` and `xs` props
+
+### Improved
+- **Error Handling**: Added comprehensive error handling and debugging for collection group queries
+- **Client-Side Sorting**: Implemented graceful fallback with client-side sorting when Firestore index is missing
+- **Debugging**: Enhanced console logging to troubleshoot schema migration issues
+- **Performance**: Better handling of missing Firestore indexes with informative error messages
+
+### Technical
+- **Schema Compatibility**: StatsPage now properly queries observations from new subcollection structure
+- **Index Management**: Clear instructions for creating missing `COLLECTION_GROUP_DESC` index in Firestore
+- **Data Integrity**: Proper handling of both old and new schema structures during transition
+- **Query Optimization**: Uses correct Firestore collection group patterns for new data model
+
+### Result
+- Statistics page now displays observation counts and student names correctly
+- No more "Unknown Student" display issues
+- Graceful handling of missing Firestore indexes
+- Improved debugging and error reporting for development
+
+## [2.1.0] - 2025-08-11
 
 ### Fixed
 - **Classroom/Student Picker Issues**: Resolved undefined variable reference by changing 'allClassrooms' to 'classList' in ClassroomStudentPicker
