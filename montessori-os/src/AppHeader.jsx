@@ -25,7 +25,8 @@ import {
   Logout, 
   Person,
   BarChart,
-  Home
+  Home,
+  Feedback
 } from "@mui/icons-material";
 
 function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
@@ -73,6 +74,14 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
       onClick: () => {
         setDrawerOpen(false);
         onNavigate('/stats');
+      }
+    },
+    {
+      text: 'Feedback & Suggestions',
+      icon: <Feedback />,
+      onClick: () => {
+        setDrawerOpen(false);
+        onNavigate('/feedback');
       }
     },
     {

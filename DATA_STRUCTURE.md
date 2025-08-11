@@ -12,6 +12,7 @@
 - `classrooms/{classroomId}`
 - `students/{studentId}`
 - `students/{studentId}/observations/{observationId}` (collection group: `observations`)
+- `feedback/{feedbackId}`
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -127,6 +128,41 @@ Why fan-out per student?
 
 ---
 
+## 💬 Feedback (`/feedback/{feedbackId}`)
+```typescript
+interface Feedback {
+  // User Information
+  userId: string;                // must equal request.auth.uid
+  userEmail: string;             // cached for admin review
+  userRole: 'admin' | 'teacher';
+  userDisplayName: string;       // cached for admin review
+  userClassrooms: string[];      // classroom IDs user has access to
+  
+  // Content
+  message: string;               // required feedback text
+  category?: 'bug' | 'feature' | 'ui-ux' | 'performance' | 'general';
+  
+  // Metadata
+  timestamp: Timestamp;          // when feedback was submitted
+  appVersion: string;            // app version for debugging
+  userAgent: string;             // browser/device info for debugging
+  
+  // Admin Management
+  status: 'new' | 'reviewed' | 'implemented' | 'declined';
+  adminNotes?: string;           // private admin notes
+  updatedAt?: Timestamp;         // when status was last updated
+  lastReviewedBy?: string;       // admin UID who last reviewed
+  lastReviewedAt?: Timestamp;    // when last reviewed
+}
+```
+Guidance
+- All users can create feedback; only admins can update/delete
+- `userId` must match `request.auth.uid` for security
+- Status workflow: new → reviewed → implemented/declined
+- Admin notes are private and only visible to admins
+
+---
+
 ## 🔎 Core Query Patterns
 - Teacher’s classrooms: `classrooms` where `teacherIds` array-contains `uid`
 - Students in a classroom: `students` where `classroomId == X` and `isActive == true`
@@ -134,6 +170,8 @@ Why fan-out per student?
 - Classroom timeline: collection group `observations` where `classroomId == X` order by `observedAt` desc
 - Teacher’s notes: collection group `observations` where `createdBy == uid` order by `observedAt` desc
 - Admin analytics: collection group `observations` filter by `classroomId`, `createdBy`, and `observedAt` range
+- User feedback: `feedback` where `userId == uid` order by `timestamp` desc
+- Admin feedback management: `feedback` order by `timestamp` desc (all feedback)
 
 ---
 
@@ -144,6 +182,10 @@ Why fan-out per student?
   - `classroomId ASC, observedAt DESC`
   - `createdBy ASC, observedAt DESC`
   - optionally `groupId ASC, observedAt DESC`
+- `feedback`
+  - `userId ASC, timestamp DESC`
+  - `status ASC, timestamp DESC`
+  - `category ASC, timestamp DESC`
 
 ---
 
@@ -175,6 +217,22 @@ Field immutability (on update)
 
 ---
 
+## 🔒 Security Rules – Feedback
+Reads
+- `feedback`: user reads own; admin reads all
+
+Creates
+- Allow if authenticated AND `userId == request.auth.uid`
+
+Updates/Deletes
+- Admin only (status management and admin notes)
+
+Field immutability (on update)
+- `userId`, `userEmail`, `userRole`, `userDisplayName`, `userClassrooms`, `message`, `category`, `timestamp`, `appVersion`, `userAgent` unchanged
+- Only `status`, `adminNotes`, `updatedAt`, `lastReviewedBy`, `lastReviewedAt` can be modified
+
+---
+
 ## 🛠 Backend Maintenance (recommended)
 - Maintain `classrooms.studentCount` via triggers on student create/update/delete
 - If needed later: sharded counters for classroom/teacher observation counts
@@ -187,5 +245,6 @@ Field immutability (on update)
 - Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
 - Denormalized `classroomId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
+- Feedback system provides user input channel while maintaining security through user ownership and admin-only management
 
 

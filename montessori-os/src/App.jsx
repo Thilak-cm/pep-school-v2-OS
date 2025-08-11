@@ -9,6 +9,8 @@ import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
+import FeedbackPage from "./components/FeedbackPage";
+import FeedbackTimeline from "./components/FeedbackTimeline";
 import app, { db, cloudFunctions } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
@@ -29,7 +31,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -143,6 +145,8 @@ function App() {
   else if (screen === 'timeline') pageTitle = `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
+  else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
+  else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
 
   // Mobile-first responsive container
   return (
@@ -296,6 +300,8 @@ function App() {
                       setScreen('profile');
                     } else if (path === '/stats') {
                       setScreen('stats');
+                    } else if (path === '/feedback') {
+                      setScreen('feedback');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -324,6 +330,7 @@ function App() {
                       onViewClassrooms={() => setScreen('classroomList')}
                       userRole={role}
                       currentUser={user}
+                      onNavigateToFeedbackDashboard={() => setScreen('feedbackTimeline')}
                     />
                   )}
 
@@ -379,6 +386,21 @@ function App() {
                     />
                   )}
 
+                  {screen === 'feedback' && (
+                    <FeedbackPage
+                      currentUser={user}
+                      userRole={role}
+                      onBack={() => setScreen('landingPage')}
+                      onNavigateToAdminDashboard={() => setScreen('feedbackTimeline')}
+                    />
+                  )}
+
+                  {screen === 'feedbackTimeline' && (
+                    <FeedbackTimeline
+                      onBack={() => setScreen('landingPage')}
+                    />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -391,8 +413,8 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB - hidden on profile, stats, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'accessDenied' && (
+              {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

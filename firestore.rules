@@ -65,6 +65,22 @@ service cloud.firestore {
       allow read: if isAdmin() || isTeacher();
     }
 
+    // Feedback collection
+    match /feedback/{feedbackId} {
+      // Users can read their own feedback
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // Users can create their own feedback
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid
+      );
+      
+      // Only admins can update/delete feedback
+      allow update, delete: if isAdmin();
+    }
+
     // Temporarily removed default deny to test if it's blocking teacher access
     // match /{document=**} {
     //   allow read, write: if false;
