@@ -69,9 +69,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     if (!student) return;
     
     console.log('Student object:', student);
-    console.log('Student ID being used:', student.sid || student.id);
-    console.log('Student document ID:', student.id);
-    console.log('Student SID:', student.sid);
     setLoading(true);
     
     // Add timeout to prevent infinite loading
@@ -88,17 +85,29 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       where('studentId', '==', studentIdToQuery),
       orderBy('observedAt', 'desc')
     );
-    
+
+    // Temporary: run a one-time read to bypass Listen transport and isolate rules/index issues
+    getDocs(q)
+      .then((snap) => {
+        console.info('[debug] getDocs observations:', snap.docs.length);
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setObservations(list);
+        setLoading(false);
+        clearTimeout(timeoutId);
+      })
+      .catch((err) => {
+        console.error('[debug] getDocs error:', err);
+        setLoading(false);
+        clearTimeout(timeoutId);
+      });
+
+    // Keep listener for normal live updates once stable (can re-enable later)
     const unsub = onSnapshot(q, (snap) => {
       console.log('Observations snapshot received:', snap.docs.length, 'documents');
-      clearTimeout(timeoutId); // Clear timeout on success
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setObservations(list);
-      setLoading(false);
     }, (error) => {
       console.error('Error loading observations:', error);
-      clearTimeout(timeoutId); // Clear timeout on error
-      setLoading(false);
     });
     
     return () => {

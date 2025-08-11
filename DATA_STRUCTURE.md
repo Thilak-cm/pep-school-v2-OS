@@ -130,7 +130,7 @@ Why fan-out per student?
 ## 🔎 Core Query Patterns
 - Teacher’s classrooms: `classrooms` where `teacherIds` array-contains `uid`
 - Students in a classroom: `students` where `classroomId == X` and `isActive == true`
-- Student timeline: `students/{sid}/observations` order by `observedAt` desc
+- Student timeline: `students/{studentId}/observations` order by `observedAt` desc
 - Classroom timeline: collection group `observations` where `classroomId == X` order by `observedAt` desc
 - Teacher’s notes: collection group `observations` where `createdBy == uid` order by `observedAt` desc
 - Admin analytics: collection group `observations` filter by `classroomId`, `createdBy`, and `observedAt` range

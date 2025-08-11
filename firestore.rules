@@ -73,6 +73,12 @@ service cloud.firestore {
       }
     }
 
+    // Collection group rule for observations (covers collectionGroup queries)
+    match /{path=**}/observations/{observationId} {
+      // Reads: admin or teacher assigned via denormalized classroomId on the doc
+      allow read: if isAdmin() || (isTeacher() && classroomHasTeacher(resource.data.classroomId));
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
