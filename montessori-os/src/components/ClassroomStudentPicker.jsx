@@ -232,7 +232,7 @@ function ClassroomStudentPicker({
     const classroom = studentsByClassroom.find(g => g.classroom.id === classroomId);
     if (!classroom) return;
 
-    const classroomStudentIds = classroom.students.map(s => s.sid || s.id);
+    const classroomStudentIds = classroom.students.map(s => s.id);
     const allSelected = classroomStudentIds.every(id => selectedStudents.includes(id));
     
     let newSelected;
@@ -258,7 +258,7 @@ function ClassroomStudentPicker({
 
   // Get selection state for classroom
   const getClassroomSelectionState = (classroom) => {
-    const studentIds = classroom.students.map(s => s.sid || s.id);
+    const studentIds = classroom.students.map(s => s.id);
     const selectedCount = studentIds.filter(id => selectedStudents.includes(id)).length;
     
     if (selectedCount === 0) return 'unchecked';
@@ -300,10 +300,10 @@ function ClassroomStudentPicker({
             <List dense>
               {filteredStudents.map((student) => (
                 <ListItem key={student.id} disablePadding>
-                  <ListItemButton dense onClick={() => handleStudentToggle(student.sid || student.id)}>
+                  <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
                     <ListItemIcon>
                       <Checkbox
-                        checked={selectedStudents.includes(student.sid || student.id)}
+                        checked={selectedStudents.includes(student.id)}
                         edge="start"
                         tabIndex={-1}
                         disableRipple
@@ -322,7 +322,7 @@ function ClassroomStudentPicker({
           </Box>
         )}
       </Box>
-
+                        
       {/* Divider */}
       {searchQuery.trim() && (
         <Divider sx={{ my: 2 }}>
@@ -383,16 +383,16 @@ function ClassroomStudentPicker({
                   <List dense sx={{ pl: 4 }}>
                     {group.students.map((student) => (
                       <ListItem key={student.id} disablePadding>
-                        <ListItemButton dense onClick={() => handleStudentToggle(student.sid || student.id)}>
+                      <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
                           <ListItemIcon>
                             <Checkbox
-                              checked={selectedStudents.includes(student.sid || student.id)}
+                            checked={selectedStudents.includes(student.id)}
                               edge="start"
                               tabIndex={-1}
                               disableRipple
                             />
                           </ListItemIcon>
-                          <ListItemText primary={getStudentName(student)} secondary={`UID: ${student.sid || student.id}`} />
+                          <ListItemText primary={getStudentName(student)} secondary={`UID: ${student.id}`} />
                         </ListItemButton>
                       </ListItem>
                     ))}

@@ -77,7 +77,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       setLoading(false);
     }, 10000); // 10 second timeout
     
-    const studentIdToQuery = student.sid || student.id;
+    const studentIdToQuery = student.id;
     console.log('Querying with studentId:', studentIdToQuery);
     
     const q = query(
@@ -187,7 +187,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     
     try {
       setDeleting(true);
-      await deleteDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id));
+      await deleteDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id));
       setDeleteConfirmOpen(false);
       setDetailDialogOpen(false);
       setSelectedObservation(null);
@@ -223,7 +223,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         lastEditedAt: serverTimestamp()
       };
 
-      await updateDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id), updateData);
+      await updateDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id), updateData);
       
       setEditing(false);
       setEditText('');
@@ -251,7 +251,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   };
 
   const handleStudentSelect = (studentId) => {
-    const selectedStudent = allStudents.find(s => s.id === studentId || s.sid === studentId);
+    const selectedStudent = allStudents.find(s => s.id === studentId);
     if (selectedStudent) {
       setSelectedStudentForReassign(selectedStudent);
       setReassignDialogOpen(false);
@@ -264,8 +264,8 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
 
     try {
       setReassigning(true);
-      await updateDoc(doc(db, 'students', student.sid || student.id, 'observations', selectedObservation.id), {
-        studentId: selectedStudentForReassign.sid || selectedStudentForReassign.id,
+      await updateDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id), {
+        studentId: selectedStudentForReassign.id,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
         lastEditedAt: serverTimestamp()
