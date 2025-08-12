@@ -700,8 +700,134 @@ const StatsPage = ({ user, role, onBack }) => {
     );
   };
 
-  const WeeklyTrendChart = () => {
-    if (stats.weeklyActivity.length === 0) {
+  const generateActivityData = (observations, period) => {
+    const now = new Date();
+    const data = [];
+    
+    switch (period) {
+      case '1D':
+        // Last 24 hours in 4-hour intervals
+        for (let i = 5; i >= 0; i--) {
+          const start = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
+          const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= start && obsDate < end;
+          }).length;
+          
+          data.push({
+            period: `${start.getHours()}:00`,
+            count
+          });
+        }
+        break;
+        
+      case '1W':
+        // Last 7 days
+        for (let i = 6; i >= 0; i--) {
+          const start = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= start && obsDate < end;
+          }).length;
+          
+          const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          data.push({
+            period: dayNames[start.getDay()],
+            count
+          });
+        }
+        break;
+        
+      case '1M':
+        // Last 4 weeks
+        for (let i = 3; i >= 0; i--) {
+          const weekStart = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+          const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= weekStart && obsDate < weekEnd;
+          }).length;
+          
+          data.push({
+            period: `Week ${4 - i}`,
+            count
+          });
+        }
+        break;
+        
+      case '3M':
+        // Last 3 months
+        for (let i = 2; i >= 0; i--) {
+          const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= monthStart && obsDate < monthEnd;
+          }).length;
+          
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          data.push({
+            period: monthNames[monthStart.getMonth()],
+            count
+          });
+        }
+        break;
+        
+      case '6M':
+        // Last 6 months
+        for (let i = 5; i >= 0; i--) {
+          const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= monthStart && obsDate < monthEnd;
+          }).length;
+          
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          data.push({
+            period: monthNames[monthStart.getMonth()],
+            count
+          });
+        }
+        break;
+        
+      case '1Y':
+        // Last 12 months
+        for (let i = 11; i >= 0; i--) {
+          const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+          
+          const count = observations.filter(obs => {
+            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            return obsDate >= monthStart && obsDate < monthEnd;
+          }).length;
+          
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          data.push({
+            period: monthNames[monthStart.getMonth()],
+            count
+          });
+        }
+        break;
+        
+      default:
+        return [];
+    }
+    
+    return data;
+  };
+
+  const ActivityTrendChart = () => {
+    const activityData = generateActivityData(stats.allObservations, timePeriod);
+    
+    if (activityData.length === 0) {
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -712,7 +838,7 @@ const StatsPage = ({ user, role, onBack }) => {
           borderRadius: 2
         }}>
           <Typography variant="body2" color="text.secondary">
-            No trend data available
+            No trend data available for {timePeriod}
           </Typography>
         </Box>
       );
@@ -721,10 +847,10 @@ const StatsPage = ({ user, role, onBack }) => {
     return (
       <Box sx={{ height: 250, width: '100%' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={stats.weeklyActivity} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+          <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
-              dataKey="week" 
+              dataKey="period" 
               tick={{ fontSize: 12, fill: '#64748b' }}
               axisLine={{ stroke: '#e2e8f0' }}
             />
@@ -880,10 +1006,49 @@ const StatsPage = ({ user, role, onBack }) => {
                 </Grid>
               </Grid>
 
-              {/* Weekly Trend Chart */}
+              {/* Activity Trend Chart */}
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Weekly Trend
+                Activity Trend - {timePeriod === '1D' ? 'Last 24 Hours' : 
+                                  timePeriod === '1W' ? 'Last 7 Days' :
+                                  timePeriod === '1M' ? 'Last 4 Weeks' :
+                                  timePeriod === '3M' ? 'Last 3 Months' :
+                                  timePeriod === '6M' ? 'Last 6 Months' :
+                                  timePeriod === '1Y' ? 'Last 12 Months' : 'Weekly'}
               </Typography>
+              
+              {/* Time Period Toggles */}
+              <Box sx={{ mb: 2 }}>
+                <ToggleButtonGroup
+                  value={timePeriod}
+                  exclusive
+                  onChange={handleTimePeriodChange}
+                  size="small"
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 2,
+                      py: 1,
+                      borderColor: '#e2e8f0',
+                      '&.Mui-selected': {
+                        backgroundColor: '#4f46e5',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#4338ca'
+                        }
+                      }
+                    }
+                  }}
+                >
+                  <ToggleButton value="1D">1D</ToggleButton>
+                  <ToggleButton value="1W">1W</ToggleButton>
+                  <ToggleButton value="1M">1M</ToggleButton>
+                  <ToggleButton value="3M">3M</ToggleButton>
+                  <ToggleButton value="6M">6M</ToggleButton>
+                  <ToggleButton value="1Y">1Y</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              
               <Box sx={{ 
                 backgroundColor: 'white',
                 borderRadius: 2,
@@ -891,7 +1056,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 border: '1px solid #e2e8f0',
                 mb: 3
               }}>
-                <WeeklyTrendChart />
+                <ActivityTrendChart />
               </Box>
 
               {/* Note Type Distribution */}

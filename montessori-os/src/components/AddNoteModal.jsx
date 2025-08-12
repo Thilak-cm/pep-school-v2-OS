@@ -9,7 +9,9 @@ import {
   Stepper,
   Step,
   StepLabel,
-  TextField
+  TextField,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Close,
@@ -35,7 +37,6 @@ function TextInput({ onSave, onNext, onBack }) {
 
   const handleSave = () => {
     if (!text.trim()) {
-      alert('Please enter some text before continuing.');
       return;
     }
     onSave({ text: text.trim() });
@@ -61,6 +62,11 @@ function TextInput({ onSave, onNext, onBack }) {
           }
         }}
       />
+      {!text.trim() && (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
+          Please enter some text to continue
+        </Typography>
+      )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button 
@@ -79,8 +85,10 @@ function TextInput({ onSave, onNext, onBack }) {
             onClick={handleSave}
             disabled={!text.trim()}
             sx={{
-              backgroundColor: '#4f46e5',
-              '&:hover': { backgroundColor: '#4338ca' }
+              backgroundColor: text.trim() ? '#4f46e5' : '#cbd5e1',
+              '&:hover': { 
+                backgroundColor: text.trim() ? '#4338ca' : '#cbd5e1'
+              }
             }}
           >
             Next
@@ -111,6 +119,9 @@ function AddNoteModal({
   const [textData, setTextData] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [saving, setSaving] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {
@@ -124,6 +135,8 @@ function AddNoteModal({
     setTextData(null);
     setSelectedStudents(initialStudents);
     setSaving(false);
+    setSnackbarOpen(false);
+    setSnackbarMessage('');
     onClose();
   };
 
@@ -148,7 +161,9 @@ function AddNoteModal({
   const handleRecipientsNext = async () => {
     const noteData = transcriptionData || textData;
     if (!noteData) {
-      alert('No note data available. Please try again.');
+      setSnackbarMessage('No note data available. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
       return;
     }
 
@@ -199,13 +214,28 @@ function AddNoteModal({
         await addDoc(collection(db, 'students', stuId, 'observations'), observationData);
       });
       await Promise.all(promises);
-      handleClose();
+      setSnackbarMessage('Note saved successfully!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      // Close modal after a short delay to show the success message
+      setTimeout(() => {
+        handleClose();
+      }, 1000);
     } catch (err) {
       console.error('save note error', err);
-      alert('Error saving note. Please try again.');
+      setSnackbarMessage('Error saving note. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
   };
 
   return (
@@ -453,6 +483,22 @@ function AddNoteModal({
           </Box>
         )}
       </Box>
+      <Snackbar 
+        open={snackbarOpen} 
+        autoHideDuration={6000} 
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ 
+          top: '80px !important', // Position below app header
+          right: { xs: '16px', sm: 'calc(50% - 187.5px + 16px)' }, // Center within mobile container on desktop
+          maxWidth: { xs: '343px', sm: '343px' }, // Constrain width to mobile dimensions
+          width: { xs: 'calc(100vw - 32px)', sm: '343px' } // Full width on mobile, fixed on desktop
+        }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 }
