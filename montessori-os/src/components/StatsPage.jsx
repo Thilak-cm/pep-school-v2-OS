@@ -181,10 +181,23 @@ const StatsPage = ({ user, role, onBack }) => {
           };
         });
         
+        // Debug: Log a few observations to see their structure
+        console.log('Sample observations:', allObservations.slice(0, 3).map(obs => ({
+          id: obs.id,
+          observedAt: obs.observedAt,
+          createdAt: obs.createdAt,
+          text: obs.text?.substring(0, 50) + '...',
+          studentId: obs.studentId
+        })));
+        
         // Sort by observedAt client-side
         allObservations.sort((a, b) => {
-          const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : new Date(a.observedAt?.seconds * 1000);
-          const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : new Date(b.observedAt?.seconds * 1000);
+          const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : 
+                       a.createdAt?.toDate ? a.createdAt.toDate() : 
+                       new Date(a.observedAt?.seconds * 1000) || new Date(a.createdAt?.seconds * 1000) || new Date(0);
+          const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : 
+                       b.createdAt?.toDate ? b.createdAt.toDate() : 
+                       new Date(b.observedAt?.seconds * 1000) || new Date(b.createdAt?.seconds * 1000) || new Date(0);
           return bDate - aDate;
         });
 
@@ -218,13 +231,22 @@ const StatsPage = ({ user, role, onBack }) => {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+        // Helper function to get observation date with fallback
+        const getObservationDate = (obs) => {
+          if (obs.observedAt?.toDate) return obs.observedAt.toDate();
+          if (obs.createdAt?.toDate) return obs.createdAt.toDate();
+          if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+          if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+          return new Date(0); // fallback
+        };
+
         const thisWeek = filteredObservations.filter(obs => {
-          const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+          const obsDate = getObservationDate(obs);
           return obsDate >= weekAgo;
         });
 
         const lastWeek = filteredObservations.filter(obs => {
-          const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+          const obsDate = getObservationDate(obs);
           return obsDate >= twoWeeksAgo && obsDate < weekAgo;
         });
 
@@ -233,11 +255,20 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Calculate note types
         const voiceNotes = filteredObservations.filter(obs => 
-          obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice')
+          obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration
         );
         const textNotes = filteredObservations.filter(obs => 
-          obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text')
+          obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)
         );
+
+        // Debug: Log note type detection
+        console.log('Note type detection:', {
+          total: filteredObservations.length,
+          voiceNotes: voiceNotes.length,
+          textNotes: textNotes.length,
+          sampleVoice: voiceNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration })),
+          sampleText: textNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration }))
+        });
 
         // Calculate classroom performance
         const classroomStats = classroomsData.map(classroom => {
@@ -248,7 +279,7 @@ const StatsPage = ({ user, role, onBack }) => {
             classroomStudents.some(student => student.id === obs.studentId)
           );
           const thisWeekObs = classroomObservations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= weekAgo;
           });
           
@@ -272,7 +303,7 @@ const StatsPage = ({ user, role, onBack }) => {
             obs.createdBy === teacher.id
           );
           const thisWeekObs = teacherObservations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= weekAgo;
           });
           
@@ -303,7 +334,7 @@ const StatsPage = ({ user, role, onBack }) => {
             }
             studentStats[obs.studentId].count++;
             
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             if (obsDate >= weekAgo) {
               studentStats[obs.studentId].thisWeekCount++;
             }
@@ -326,7 +357,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
           
           const weekCount = filteredObservations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
           
@@ -704,6 +735,15 @@ const StatsPage = ({ user, role, onBack }) => {
     const now = new Date();
     const data = [];
     
+    // Helper function to get observation date with fallback
+    const getObservationDate = (obs) => {
+      if (obs.observedAt?.toDate) return obs.observedAt.toDate();
+      if (obs.createdAt?.toDate) return obs.createdAt.toDate();
+      if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+      if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+      return new Date(0); // fallback
+    };
+    
     switch (period) {
       case '1D':
         // Last 24 hours in 4-hour intervals
@@ -712,7 +752,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
           
@@ -730,7 +770,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
           
@@ -749,7 +789,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
           
@@ -767,7 +807,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= monthStart && obsDate < monthEnd;
           }).length;
           
@@ -786,7 +826,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= monthStart && obsDate < monthEnd;
           }).length;
           
@@ -805,7 +845,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
           
           const count = observations.filter(obs => {
-            const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : new Date(obs.observedAt?.seconds * 1000);
+            const obsDate = getObservationDate(obs);
             return obsDate >= monthStart && obsDate < monthEnd;
           }).length;
           
@@ -1140,7 +1180,7 @@ const StatsPage = ({ user, role, onBack }) => {
                             <Box sx={{ mb: 2 }}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                 <Typography variant="body2">This Week</Typography>
-                                <Typography variant="body2">
+                                <Typography variant="body2" color="text.secondary">
                                   {classroom.thisWeekObservations}/{classroom.studentCount * classroom.target}
                                 </Typography>
                               </Box>
