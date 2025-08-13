@@ -44,11 +44,13 @@ import {
   Download,
   Refresh,
   Visibility,
-  VisibilityOff
+  VisibilityOff,
+  Clear
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
+import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 
 const StatsPage = ({ user, role, onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
@@ -73,7 +75,8 @@ const StatsPage = ({ user, role, onBack }) => {
   const [selectedClassrooms, setSelectedClassrooms] = useState([]);
   const [selectedTeachers, setSelectedTeachers] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterLoading, setFilterLoading] = useState(false);
   
   // Data for filters
   const [classrooms, setClassrooms] = useState([]);
@@ -83,6 +86,7 @@ const StatsPage = ({ user, role, onBack }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setFilterLoading(true);
         setStats(prev => ({ ...prev, loading: true }));
         
         // Log user info for debugging
@@ -250,25 +254,30 @@ const StatsPage = ({ user, role, onBack }) => {
           setStudents(studentsData);
         }
         
+        // Apply user-selected filters with AND logic between different filter types
+        // Classrooms filter: OR logic within classrooms, AND logic with other filters
         if (selectedClassrooms.length > 0) {
-          // Filter by classroom - need to get students in selected classrooms first
           const classroomStudentIds = studentsData
-            .filter(student => selectedClassrooms.includes(student.classroomId))
+            .filter(student => selectedClassrooms.some(classroom => classroom.id === student.classroomId))
             .map(student => student.id);
           filteredObservations = filteredObservations.filter(obs => 
             classroomStudentIds.includes(obs.studentId)
           );
         }
         
+        // Teachers filter: OR logic within teachers, AND logic with other filters
         if (selectedTeachers.length > 0) {
+          const selectedTeacherIds = selectedTeachers.map(teacher => teacher.id);
           filteredObservations = filteredObservations.filter(obs => 
-            selectedTeachers.includes(obs.createdBy)
+            selectedTeacherIds.includes(obs.createdBy)
           );
         }
         
+        // Students filter: OR logic within students, AND logic with other filters
         if (selectedStudents.length > 0) {
+          const selectedStudentIds = selectedStudents.map(student => student.id);
           filteredObservations = filteredObservations.filter(obs => 
-            selectedStudents.includes(obs.studentId)
+            selectedStudentIds.includes(obs.studentId)
           );
         }
 
@@ -439,6 +448,8 @@ const StatsPage = ({ user, role, onBack }) => {
       } catch (error) {
         console.error('Error fetching stats:', error);
         setStats(prev => ({ ...prev, loading: false }));
+      } finally {
+        setFilterLoading(false);
       }
     };
 
@@ -469,16 +480,31 @@ const StatsPage = ({ user, role, onBack }) => {
 
   const getFilterSummary = () => {
     const filters = [];
+    
     if (selectedClassrooms.length > 0) {
-      filters.push(`${selectedClassrooms.length} classroom${selectedClassrooms.length > 1 ? 's' : ''}`);
+      const classroomNames = selectedClassrooms.map(c => c.name).join(', ');
+      filters.push(`Classrooms: ${classroomNames}`);
     }
+    
     if (selectedTeachers.length > 0) {
-      filters.push(`${selectedTeachers.length} teacher${selectedTeachers.length > 1 ? 's' : ''}`);
+      const teacherNames = selectedTeachers.map(t => t.displayName || t.email).join(', ');
+      filters.push(`Teachers: ${teacherNames}`);
     }
+    
     if (selectedStudents.length > 0) {
-      filters.push(`${selectedStudents.length} student${selectedStudents.length > 1 ? 's' : ''}`);
+      const studentNames = selectedStudents.map(s => s.displayName || s.name).join(', ');
+      filters.push(`Students: ${studentNames}`);
     }
-    return filters.length > 0 ? filters.join(', ') : 'All data';
+    
+    if (filters.length === 0) {
+      return 'All data (no filters applied)';
+    }
+    
+    return filters.join(' • ');
+  };
+
+  const hasActiveFilters = () => {
+    return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
   };
 
   const getActionItems = () => {
@@ -576,34 +602,39 @@ const StatsPage = ({ user, role, onBack }) => {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Data Filters
           </Typography>
-          <Box>
-            <Button
-              size="small"
-              onClick={clearFilters}
-              sx={{ mr: 1 }}
-            >
-              Clear All
-            </Button>
-            <IconButton
-              size="small"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              {showFilters ? <VisibilityOff /> : <Visibility />}
-            </IconButton>
-          </Box>
+          <Button
+            size="small"
+            onClick={clearFilters}
+            startIcon={<Clear />}
+          >
+            Clear All
+          </Button>
         </Box>
         
         {showFilters && (
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Classrooms Filter */}
+            <Box sx={{ position: 'relative' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                Classrooms
+              </Typography>
               <Autocomplete
                 multiple
                 options={classrooms}
                 getOptionLabel={(option) => option.name}
                 value={selectedClassrooms}
                 onChange={(event, newValue) => setSelectedClassrooms(newValue)}
+                filterOptions={(options, { inputValue }) => 
+                  fuzzySearchClassrooms(options, inputValue)
+                }
                 renderInput={(params) => (
-                  <TextField {...params} label="Select Classrooms" size="small" />
+                  <TextField 
+                    {...params} 
+                    label="Select Classrooms" 
+                    size="small"
+                    placeholder="Search classrooms..."
+                    fullWidth
+                  />
                 )}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
@@ -611,20 +642,58 @@ const StatsPage = ({ user, role, onBack }) => {
                       label={option.name}
                       size="small"
                       {...getTagProps({ index })}
+                      onDelete={() => {
+                        const newValue = value.filter((_, i) => i !== index);
+                        setSelectedClassrooms(newValue);
+                      }}
                     />
                   ))
                 }
+                noOptionsText="No classrooms found"
+                loading={classrooms.length === 0}
               />
-            </Grid>
-            <Grid item xs={12} sm={4}>
+              {selectedClassrooms.length > 0 && (
+                <Button
+                  size="small"
+                  onClick={() => setSelectedClassrooms([])}
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 20, 
+                    right: -8, 
+                    minWidth: 'auto',
+                    p: 0.5,
+                    backgroundColor: 'white',
+                    border: '1px solid #e2e8f0',
+                    '&:hover': { backgroundColor: 'grey.50' }
+                  }}
+                >
+                  <Clear sx={{ fontSize: 16 }} />
+                </Button>
+              )}
+            </Box>
+
+            {/* Teachers Filter */}
+            <Box sx={{ position: 'relative' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                Teachers
+              </Typography>
               <Autocomplete
                 multiple
                 options={teachers}
                 getOptionLabel={(option) => option.displayName || option.email}
                 value={selectedTeachers}
                 onChange={(event, newValue) => setSelectedTeachers(newValue)}
+                filterOptions={(options, { inputValue }) => 
+                  fuzzySearchTeachers(options, inputValue)
+                }
                 renderInput={(params) => (
-                  <TextField {...params} label="Select Teachers" size="small" />
+                  <TextField 
+                    {...params} 
+                    label="Select Teachers" 
+                    size="small"
+                    placeholder="Search teachers..."
+                    fullWidth
+                  />
                 )}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
@@ -632,20 +701,58 @@ const StatsPage = ({ user, role, onBack }) => {
                       label={option.displayName || option.email}
                       size="small"
                       {...getTagProps({ index })}
+                      onDelete={() => {
+                        const newValue = value.filter((_, i) => i !== index);
+                        setSelectedTeachers(newValue);
+                      }}
                     />
                   ))
                 }
+                noOptionsText="No teachers found"
+                loading={teachers.length === 0}
               />
-            </Grid>
-            <Grid item xs={12} sm={4}>
+              {selectedTeachers.length > 0 && (
+                <Button
+                  size="small"
+                  onClick={() => setSelectedTeachers([])}
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 20, 
+                    right: -8, 
+                    minWidth: 'auto',
+                    p: 0.5,
+                    backgroundColor: 'white',
+                    border: '1px solid #e2e8f0',
+                    '&:hover': { backgroundColor: 'grey.50' }
+                  }}
+                >
+                  <Clear sx={{ fontSize: 16 }} />
+                </Button>
+              )}
+            </Box>
+
+            {/* Students Filter */}
+            <Box sx={{ position: 'relative' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                Students
+              </Typography>
               <Autocomplete
                 multiple
                 options={students}
                 getOptionLabel={(option) => option.displayName || option.name}
                 value={selectedStudents}
                 onChange={(event, newValue) => setSelectedStudents(newValue)}
+                filterOptions={(options, { inputValue }) => 
+                  fuzzySearchStudents(options, inputValue)
+                }
                 renderInput={(params) => (
-                  <TextField {...params} label="Select Students" size="small" />
+                  <TextField 
+                    {...params} 
+                    label="Select Students" 
+                    size="small"
+                    placeholder="Search students..."
+                    fullWidth
+                  />
                 )}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
@@ -653,18 +760,51 @@ const StatsPage = ({ user, role, onBack }) => {
                       label={option.displayName || option.name}
                       size="small"
                       {...getTagProps({ index })}
+                      onDelete={() => {
+                        const newValue = value.filter((_, i) => i !== index);
+                        setSelectedStudents(newValue);
+                      }}
                     />
                   ))
                 }
+                noOptionsText="No students found"
+                loading={students.length === 0}
               />
-            </Grid>
-          </Grid>
+              {selectedStudents.length > 0 && (
+                <Button
+                  size="small"
+                  onClick={() => setSelectedStudents([])}
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 20, 
+                    right: -8, 
+                    minWidth: 'auto',
+                    p: 0.5,
+                    backgroundColor: 'white',
+                    border: '1px solid #e2e8f0',
+                    '&:hover': { backgroundColor: 'grey.50' }
+                  }}
+                >
+                  <Clear sx={{ fontSize: 16 }} />
+                </Button>
+              )}
+            </Box>
+          </Box>
         )}
         
-        <Box sx={{ mt: 2, p: 1, backgroundColor: 'grey.50', borderRadius: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            Showing data for: <strong>{getFilterSummary()}</strong>
-          </Typography>
+        {/* Filter Summary */}
+        <Box sx={{ mt: 2, p: 1.5, backgroundColor: 'grey.50', borderRadius: 1, border: '1px solid #e2e8f0' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Showing data for: <strong>{getFilterSummary()}</strong>
+            </Typography>
+            {filterLoading && <CircularProgress size={12} />}
+          </Box>
+          {stats.allObservations.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              <strong>{stats.allObservations.length}</strong> observation{stats.allObservations.length !== 1 ? 's' : ''} found
+            </Typography>
+          )}
         </Box>
       </CardContent>
     </Card>
@@ -991,21 +1131,45 @@ const StatsPage = ({ user, role, onBack }) => {
       pb: 4 
     }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <IconButton 
-          onClick={onBack} 
-          aria-label="Go back"
-          sx={{ mr: 2 }}
-        >
-          <ArrowBack />
-        </IconButton>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
-          {role === 'teacher' ? 'My Statistics' : 'Statistics & Analytics'}
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton 
+            onClick={onBack} 
+            aria-label="Go back"
+            sx={{ mr: 2 }}
+          >
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
+            {role === 'teacher' ? 'My Statistics' : 'Statistics & Analytics'}
+          </Typography>
+        </Box>
+        
+        {/* Filter Button */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {hasActiveFilters() && (
+            <Chip 
+              label={`${stats.allObservations.length} filtered`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+          )}
+          <Button
+            startIcon={<FilterList />}
+            onClick={() => setShowFilters(!showFilters)}
+            variant={hasActiveFilters() ? 'contained' : 'outlined'}
+            color={hasActiveFilters() ? 'primary' : 'default'}
+            size="small"
+            aria-label="Toggle filters"
+          >
+            Filters
+          </Button>
+        </Box>
       </Box>
 
       {/* Filters Section */}
-      <FilterSection />
+      {showFilters && <FilterSection />}
 
       {/* Action Items Panel */}
       <ActionItemsPanel />
