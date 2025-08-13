@@ -7,14 +7,13 @@ import {
   Paper,
   Collapse,
   Chip,
-  ToggleButton,
-  ToggleButtonGroup,
   Autocomplete,
   Popper,
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search } from '@mui/icons-material';
+import { Clear, Search, Mic, EditNote } from '@mui/icons-material';
+import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
 /**
  * FilterPanel component for observation filtering
@@ -42,40 +41,77 @@ const FilterPanel = ({
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
   
-  // Filter teachers based on search input for fuzzy matching
+  // Use fuzzy search for better teacher matching
   const filteredTeachers = useMemo(() => {
-    if (!creatorSearch.trim()) return classroomTeachers;
-    
-    const query = creatorSearch.toLowerCase();
-    return classroomTeachers.filter(teacher => {
-      const name = teacher.displayName || teacher.name || teacher.email || '';
-      return name.toLowerCase().includes(query);
-    });
+    return fuzzySearchTeachers(classroomTeachers, creatorSearch);
   }, [classroomTeachers, creatorSearch]);
   return (
     <Box>
       {/* Filter Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        mb: 2,
+        p: 2,
+        backgroundColor: 'background.paper',
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider'
+      }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+            Filters
+          </Typography>
           {hasActiveFilters && (
             <Chip 
               label={`${filteredCount} filtered`}
               size="small"
               color="primary"
               variant="outlined"
+              sx={{ fontWeight: 500 }}
             />
           )}
         </Box>
       </Box>
 
       {/* Filter Panel */}
-      <Collapse in={showFilters}>
-        <Paper sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Collapse 
+        in={showFilters}
+        timeout={300}
+        sx={{
+          '& .MuiCollapse-wrapper': {
+            transition: 'all 0.3s ease-in-out'
+          }
+        }}
+      >
+        <Paper sx={{ 
+          p: 3, 
+          mb: 2, 
+          borderRadius: 3,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          border: '1px solid',
+          borderColor: 'divider',
+          transform: showFilters ? 'translateY(0)' : 'translateY(-10px)',
+          opacity: showFilters ? 1 : 0.8,
+          transition: 'all 0.3s ease-in-out'
+        }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                Filter Observations
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Filter Observations
+                </Typography>
+                {hasActiveFilters && (
+                  <Chip 
+                    label="Active" 
+                    size="small" 
+                    color="success" 
+                    variant="outlined"
+                    sx={{ fontSize: '0.75rem' }}
+                  />
+                )}
+              </Box>
               {hasActiveFilters && (
                 <Button
                   startIcon={<Clear />}
@@ -83,6 +119,11 @@ const FilterPanel = ({
                   onClick={onClearFilters}
                   color="secondary"
                   variant="outlined"
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 500
+                  }}
                 >
                   Clear All
                 </Button>
@@ -90,31 +131,36 @@ const FilterPanel = ({
             </Box>
             
             {/* Date Range */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="From Date"
-                type="date"
-                size="small"
-                value={filters.dateFrom}
-                onChange={(e) => onFilterChange('dateFrom', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                size="small"
-                value={filters.dateTo}
-                onChange={(e) => onFilterChange('dateTo', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
+            <Box>
+              <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+                Date Range
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="From Date"
+                  type="date"
+                  size="small"
+                  value={filters.dateFrom}
+                  onChange={(e) => onFilterChange('dateFrom', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1 }}
+                />
+                <TextField
+                  label="To Date"
+                  type="date"
+                  size="small"
+                  value={filters.dateTo}
+                  onChange={(e) => onFilterChange('dateTo', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1 }}
+                />
+              </Box>
             </Box>
             
             {/* Creator (multi) and Type (multi) as toggle button groups */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box>
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary' }}>
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
                   Creator
                 </Typography>
                 {classroomTeachers.length > 0 ? (
@@ -162,24 +208,117 @@ const FilterPanel = ({
               </Box>
 
               <Box>
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary' }}>
-                  Type
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+                  Note Type
                 </Typography>
-                <ToggleButtonGroup
-                  value={filters.types}
-                  onChange={(_, newValues) => onFilterChange('types', newValues)}
-                  size="small"
-                  color="primary"
-                  aria-label="Filter by note type"
-                  sx={{ flexWrap: 'wrap' }}
-                >
-                  <ToggleButton value="voice" aria-label="Voice notes" sx={{ m: 0.5 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    variant={filters.types?.includes('voice') ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<Mic />}
+                    onClick={() => {
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('voice') 
+                        ? currentTypes.filter(t => t !== 'voice')
+                        : [...currentTypes, 'voice'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(filters.types?.includes('voice') && {
+                        backgroundColor: '#4f46e5',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#4338ca',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none'
+                        }
+                      })
+                    }}
+                  >
                     Voice Notes
-                  </ToggleButton>
-                  <ToggleButton value="text" aria-label="Text notes" sx={{ m: 0.5 }}>
+                  </Button>
+                  
+                  <Button
+                    variant={filters.types?.includes('text') ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<EditNote />}
+                    onClick={() => {
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('text') 
+                        ? currentTypes.filter(t => t !== 'text')
+                        : [...currentTypes, 'text'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(filters.types?.includes('text') && {
+                        backgroundColor: '#059669',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#047857',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none'
+                        }
+                      })
+                    }}
+                  >
                     Text Notes
-                  </ToggleButton>
-                </ToggleButtonGroup>
+                  </Button>
+                </Box>
+                
+                {/* Helper text */}
+                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
+                  Select one or both types to filter observations
+                </Typography>
               </Box>
             </Box>
           </Box>

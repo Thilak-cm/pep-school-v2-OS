@@ -15,6 +15,7 @@ import {
 import { ArrowBack, School, Group, ArrowForward, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { fuzzySearchClassrooms } from '../utils/fuzzySearch';
 
 function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
   const [classrooms, setClassrooms] = useState([]);
@@ -85,11 +86,8 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
     );
   }
 
-  // Normalize filtered list based on search query
-  const normalizedQuery = (searchQuery || '').trim().toLowerCase();
-  const visibleClassrooms = normalizedQuery
-    ? classrooms.filter((cls) => (cls.name || '').toLowerCase().includes(normalizedQuery))
-    : classrooms;
+  // Use fuzzy search for better matching
+  const visibleClassrooms = fuzzySearchClassrooms(classrooms, searchQuery);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

@@ -13,6 +13,7 @@ import {
 import { ArrowBack, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
 function StudentList({ classroom, onBack, onSelectStudent }) {
   const [students, setStudents] = useState([]);
@@ -43,10 +44,8 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
     fetchStudents();
   }, [classroom]);
 
-  const normalizedQuery = (searchQuery || '').trim().toLowerCase();
-  const visibleStudents = normalizedQuery
-    ? students.filter((s) => getStudentName(s).toLowerCase().includes(normalizedQuery))
-    : students;
+  // Use fuzzy search for better matching
+  const visibleStudents = fuzzySearchStudents(students, searchQuery);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

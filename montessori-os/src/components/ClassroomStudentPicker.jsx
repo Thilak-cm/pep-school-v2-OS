@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
 /*
 Props:
@@ -166,15 +167,9 @@ function ClassroomStudentPicker({
 
   const getStudentName = (s) => s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
 
-  // Filter students based on search query (only from filtered students)
+  // Use fuzzy search for better student matching
   const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    
-    const query = searchQuery.toLowerCase();
-    return allStudents.filter(student => {
-      const nm = getStudentName(student).toLowerCase();
-      return nm.includes(query) || student.classroom_name?.toLowerCase().includes(query);
-    });
+    return fuzzySearchStudents(allStudents, searchQuery);
   }, [allStudents, searchQuery]);
 
   // Group students by classroom

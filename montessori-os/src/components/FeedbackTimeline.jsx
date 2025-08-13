@@ -40,6 +40,7 @@ import {
 } from '@mui/icons-material';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { fuzzySearchFeedback } from '../utils/fuzzySearch';
 
 const FEEDBACK_CATEGORIES = [
   { value: 'bug', label: 'Bug Report', icon: <BugReport /> },
@@ -94,18 +95,16 @@ function FeedbackTimeline({ onBack }) {
     return () => unsubscribe();
   }, []);
 
-  // Filter feedback based on search and filters
-  const filteredFeedback = allFeedback.filter(feedback => {
-    const matchesSearch = !searchQuery || 
-      feedback.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.userDisplayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.userEmail?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+  // Use fuzzy search for better feedback matching
+  const searchResults = fuzzySearchFeedback(allFeedback, searchQuery);
+  
+  // Apply additional filters after fuzzy search
+  const filteredFeedback = searchResults.filter(feedback => {
     const matchesCategory = !categoryFilter || feedback.category === categoryFilter;
     const matchesStatus = !statusFilter || feedback.status === statusFilter;
     const matchesUser = !userFilter || feedback.userRole === userFilter;
     
-    return matchesSearch && matchesCategory && matchesStatus && matchesUser;
+    return matchesCategory && matchesStatus && matchesUser;
   });
 
   const handleFeedbackClick = (feedback) => {
