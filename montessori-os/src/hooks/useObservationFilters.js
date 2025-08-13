@@ -45,12 +45,12 @@ export const useObservationFilters = (observations = []) => {
       });
     }
 
-    // Creators filter (multi)
+    // Creators filter (multi) - now handles teacher objects
     if (filters.creators && filters.creators.length > 0) {
-      const selected = new Set(filters.creators);
+      const selectedTeacherIds = new Set(filters.creators.map(teacher => teacher.id));
       filtered = filtered.filter(obs => {
-        const creator = obs.teacherName || obs.teacherEmail || 'Unknown Teacher';
-        return selected.has(creator);
+        const creatorId = obs.createdBy || obs.teacherId;
+        return selectedTeacherIds.has(creatorId);
       });
     }
 

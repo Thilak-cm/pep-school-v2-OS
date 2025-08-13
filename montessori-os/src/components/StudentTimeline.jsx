@@ -21,7 +21,7 @@ import {
   MenuItem
 } from '@mui/material';
 import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // Import new modular components
@@ -47,6 +47,9 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
   const [reassigning, setReassigning] = useState(false);
   const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
+  
+  // Classroom teachers for creator filter
+  const [classroomTeachers, setClassroomTeachers] = useState([]);
 
   // Use the filter hook instead of local state
   const {
@@ -110,6 +113,33 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
       unsub();
     };
   }, [student]);
+
+  // Extract classroom teachers from observations data
+  useEffect(() => {
+    if (!observations.length) return;
+    
+    // Get unique teachers from observations for this classroom
+    const teacherMap = new Map();
+    
+    observations.forEach(obs => {
+      const teacherId = obs.createdBy || obs.teacherId;
+      if (teacherId) {
+        const teacherName = obs.createdByName || obs.teacherName || obs.createdByEmail || obs.teacherEmail || `Teacher ${teacherId.slice(-4)}`;
+        const teacherEmail = obs.createdByEmail || obs.teacherEmail || `teacher-${teacherId.slice(-4)}@example.com`;
+        
+        if (!teacherMap.has(teacherId)) {
+          teacherMap.set(teacherId, {
+            id: teacherId,
+            displayName: teacherName,
+            email: teacherEmail
+          });
+        }
+      }
+    });
+    
+    const teachers = Array.from(teacherMap.values());
+    setClassroomTeachers(teachers);
+  }, [observations]);
 
   // Sync selectedObservation with updated observations data
   useEffect(() => {
@@ -297,6 +327,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         showFilters={showFilters}
         filters={filters}
         uniqueCreators={uniqueCreators}
+        classroomTeachers={classroomTeachers}
         hasActiveFilters={hasActiveFilters}
         filteredCount={filteredObservations.length}
         onFilterChange={handleFilterChange}

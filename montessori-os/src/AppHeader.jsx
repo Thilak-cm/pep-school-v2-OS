@@ -17,7 +17,13 @@ import {
   ListItemText,
   ListItemButton,
   Slide,
-  Backdrop
+  Backdrop,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button
 } from "@mui/material";
 import { 
   Menu as MenuIcon, 
@@ -31,6 +37,7 @@ import {
 function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   useEffect(() => {
     // Close menu on outside click
@@ -55,7 +62,16 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
 
   const handleSignOut = () => {
     setDrawerOpen(false);
+    setLogoutDialogOpen(true);
+  };
+
+  const confirmSignOut = () => {
+    setLogoutDialogOpen(false);
     onSignOut();
+  };
+
+  const cancelSignOut = () => {
+    setLogoutDialogOpen(false);
   };
 
   const menuItems = [
@@ -216,92 +232,133 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
           transition: 'transform 0.3s ease',
         }}
       >
+        <Box sx={{ 
+          p: 3, 
+          flexGrow: 1, 
+          overflow: 'auto',
+          height: '100%',
+          '&::-webkit-scrollbar': {
+            width: '6px',
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: '#f1f5f9',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: '#cbd5e1',
+            borderRadius: '3px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            backgroundColor: '#94a3b8',
+          },
+        }}>
+          {/* User Profile Section */}
           <Box sx={{ 
-            p: 3, 
-            flexGrow: 1, 
-            overflow: 'auto',
-            height: '100%',
-            '&::-webkit-scrollbar': {
-              width: '6px',
-            },
-            '&::-webkit-scrollbar-track': {
-              backgroundColor: '#f1f5f9',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: '#cbd5e1',
-              borderRadius: '3px',
-            },
-            '&::-webkit-scrollbar-thumb:hover': {
-              backgroundColor: '#94a3b8',
-            },
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            mb: 3,
+            p: 2,
+            backgroundColor: '#f8fafc',
+            borderRadius: 2
           }}>
-            {/* User Profile Section */}
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 2, 
-              mb: 3,
-              p: 2,
-              backgroundColor: '#f8fafc',
-              borderRadius: 2
-            }}>
-              <Avatar
-                sx={{
-                  bgcolor: '#4f46e5',
-                  width: 48,
-                  height: 48,
-                  fontSize: '1.125rem',
-                  fontWeight: 700
-                }}
-              >
-                {user.displayName?.charAt(0) || 'U'}
-              </Avatar>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                  {user.displayName || 'User'}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748b' }}>
-                  {user.email}
-                </Typography>
-              </Box>
+            <Avatar
+              sx={{
+                bgcolor: '#4f46e5',
+                width: 48,
+                height: 48,
+                fontSize: '1.125rem',
+                fontWeight: 700
+              }}
+            >
+              {user.displayName?.charAt(0) || 'U'}
+            </Avatar>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                {user.displayName || 'User'}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#64748b' }}>
+                {user.email}
+              </Typography>
             </Box>
+          </Box>
 
-            {/* Menu Items */}
-            <List sx={{ p: 0 }}>
-              {menuItems.map((item, index) => (
-                <ListItem key={item.text} sx={{ p: 0, mb: 1 }}>
-                  <ListItemButton
-                    onClick={item.onClick}
+          {/* Menu Items */}
+          <List sx={{ p: 0 }}>
+            {menuItems.map((item, index) => (
+              <ListItem key={item.text} sx={{ p: 0, mb: 1 }}>
+                <ListItemButton
+                  onClick={item.onClick}
+                  sx={{
+                    borderRadius: 2,
+                    '&:hover': {
+                      backgroundColor: item.color === '#ef4444' 
+                        ? 'rgba(239, 68, 68, 0.08)' 
+                        : 'rgba(79, 70, 229, 0.08)'
+                    }
+                  }}
+                >
+                  <ListItemIcon sx={{ 
+                    color: item.color || '#64748b',
+                    minWidth: 40
+                  }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={item.text}
                     sx={{
-                      borderRadius: 2,
-                      '&:hover': {
-                        backgroundColor: item.color === '#ef4444' 
-                          ? 'rgba(239, 68, 68, 0.08)' 
-                          : 'rgba(79, 70, 229, 0.08)'
+                      '& .MuiListItemText-primary': {
+                        fontWeight: item.color === '#ef4444' ? 600 : 500,
+                        color: item.color || '#1e293b'
                       }
                     }}
-                  >
-                    <ListItemIcon sx={{ 
-                      color: item.color || '#64748b',
-                      minWidth: 40
-                    }}>
-                      {item.icon}
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={item.text}
-                      sx={{
-                        '& .MuiListItemText-primary': {
-                          fontWeight: item.color === '#ef4444' ? 600 : 500,
-                          color: item.color || '#1e293b'
-                        }
-                      }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
         </Box>
+      </Box>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog
+        open={logoutDialogOpen}
+        onClose={cancelSignOut}
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxWidth: '400px',
+            width: '90%'
+          }
+        }}
+      >
+        <DialogTitle id="logout-dialog-title" sx={{ pb: 1 }}>
+          Confirm Logout
+        </DialogTitle>
+        <DialogContent sx={{ pb: 2 }}>
+          <DialogContentText id="logout-dialog-description">
+            Are you sure you want to log out? Any unsaved changes will be lost.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button 
+            onClick={cancelSignOut} 
+            variant="outlined"
+            sx={{ minWidth: 80 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmSignOut} 
+            variant="contained" 
+            color="error"
+            sx={{ minWidth: 80 }}
+          >
+            Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

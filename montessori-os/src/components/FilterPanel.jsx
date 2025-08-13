@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react'; 
 import {
   Box,
   Typography,
@@ -8,16 +8,21 @@ import {
   Collapse,
   Chip,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Autocomplete,
+  Popper,
+  ListItem,
+  ListItemText
 } from '@mui/material';
-import { Clear } from '@mui/icons-material';
+import { Clear, Search } from '@mui/icons-material';
 
 /**
  * FilterPanel component for observation filtering
  * @param {Object} props - Component props
  * @param {boolean} props.showFilters - Whether filters are visible
  * @param {Object} props.filters - Current filter values
- * @param {Array} props.uniqueCreators - Array of unique creator names
+ * @param {Array} props.uniqueCreators - Array of unique creator names (legacy)
+ * @param {Array} props.classroomTeachers - Array of teachers with access to current classroom
  * @param {boolean} props.hasActiveFilters - Whether any filters are active
  * @param {number} props.filteredCount - Number of filtered results
  * @param {Function} props.onFilterChange - Handler for filter changes
@@ -28,12 +33,25 @@ const FilterPanel = ({
   showFilters,
   filters,
   uniqueCreators = [],
+  classroomTeachers = [],
   hasActiveFilters,
   filteredCount,
   onFilterChange,
   onClearFilters,
   onToggleFilters
 }) => {
+  const [creatorSearch, setCreatorSearch] = useState('');
+  
+  // Filter teachers based on search input for fuzzy matching
+  const filteredTeachers = useMemo(() => {
+    if (!creatorSearch.trim()) return classroomTeachers;
+    
+    const query = creatorSearch.toLowerCase();
+    return classroomTeachers.filter(teacher => {
+      const name = teacher.displayName || teacher.name || teacher.email || '';
+      return name.toLowerCase().includes(query);
+    });
+  }, [classroomTeachers, creatorSearch]);
   return (
     <Box>
       {/* Filter Header */}
@@ -99,20 +117,48 @@ const FilterPanel = ({
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary' }}>
                   Creator
                 </Typography>
-                <ToggleButtonGroup
-                  value={filters.creators}
-                  onChange={(_, newValues) => onFilterChange('creators', newValues)}
-                  size="small"
-                  color="primary"
-                  aria-label="Filter by creators"
-                  sx={{ flexWrap: 'wrap' }}
-                >
-                  {uniqueCreators.map((creator) => (
-                    <ToggleButton key={creator} value={creator} aria-label={creator} sx={{ m: 0.5 }}>
-                      {creator}
-                    </ToggleButton>
-                  ))}
-                </ToggleButtonGroup>
+                {classroomTeachers.length > 0 ? (
+                  <Autocomplete
+                    multiple
+                    options={filteredTeachers}
+                    getOptionLabel={(option) => option.displayName || option.name || option.email || 'Unknown Teacher'}
+                    value={filters.creators}
+                    onChange={(_, newValues) => onFilterChange('creators', newValues)}
+                    inputValue={creatorSearch}
+                    onInputChange={(_, newInputValue) => setCreatorSearch(newInputValue)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Search teachers..."
+                        size="small"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <>
+                              <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 20 }} />
+                              {params.InputProps.startAdornment}
+                            </>
+                          )
+                        }}
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <ListItem {...props}>
+                        <ListItemText
+                          primary={option.displayName || option.name || option.email || 'Unknown Teacher'}
+                        />
+                      </ListItem>
+                    )}
+                    filterOptions={(x) => x} // Disable built-in filtering since we handle it manually
+                    noOptionsText="No teachers found"
+                    loading={false}
+                    sx={{ minWidth: 200 }}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    No teachers assigned to this classroom
+                  </Typography>
+                )}
               </Box>
 
               <Box>

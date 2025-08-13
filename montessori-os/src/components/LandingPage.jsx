@@ -16,7 +16,7 @@ import {
   Feedback
 } from '@mui/icons-material';
 
-function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard }) {
+function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback }) {
   const isTeacher = userRole === 'teacher';
   
   return (
@@ -94,6 +94,60 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
             </CardActionArea>
           </Card>
         </Grid>
+
+        {/* Teacher Feedback Card */}
+        {isTeacher && (
+          <Grid size={12}>
+            <Card
+              sx={{
+                borderRadius: 2,
+                '&:hover': {
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              <CardActionArea
+                onClick={onNavigateToFeedback}
+                sx={{ p: 0 }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between'
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{ 
+                        bgcolor: '#059669',
+                        width: 56,
+                        height: 56
+                      }}>
+                        <Feedback />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" component="h3" sx={{ 
+                          color: '#1e293b',
+                          fontWeight: 600
+                        }}>
+                          Share Feedback
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#64748b',
+                          mt: 0.5
+                        }}>
+                          Help us improve by sharing your suggestions and reporting issues
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <ArrowForward sx={{ color: '#94a3b8' }} />
+                  </Box>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+        )}
 
         {/* Admin-only cards */}
         {!isTeacher && (

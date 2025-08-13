@@ -325,12 +325,13 @@ function App() {
                     minHeight: 'fit-content',
                   }}
                 >
-                  {screen === 'landingPage' && (
-                    <LandingPage 
+                                    {screen === 'landingPage' && (
+                    <LandingPage
                       onViewClassrooms={() => setScreen('classroomList')}
                       userRole={role}
                       currentUser={user}
                       onNavigateToFeedbackDashboard={() => setScreen('feedbackTimeline')}
+                      onNavigateToFeedback={() => setScreen('feedback')}
                     />
                   )}
 
