@@ -20,7 +20,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic } from '@mui/icons-material';
+import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -30,6 +30,7 @@ import ClassroomStudentPicker from './ClassroomStudentPicker';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
+import { exportStudentTimeline, exportFilteredTimeline } from '../utils/export_student_timeline';
 
 function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [observations, setObservations] = useState([]);
@@ -50,6 +51,11 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
   
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
+  
+  // Export states
+  const [exporting, setExporting] = useState(false);
+  const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+  const [exportType, setExportType] = useState('all'); // 'all' or 'filtered'
 
   // Use the filter hook instead of local state
   const {
@@ -293,6 +299,52 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     setReassignSelectedStudents([]);
   };
 
+  // Export handlers
+  const handleExportClick = (type) => {
+    if (type === 'all' && (!observations || observations.length === 0)) {
+      alert('No observations to export.');
+      return;
+    }
+    
+    if (type === 'filtered' && (!filteredObservations || filteredObservations.length === 0)) {
+      alert('No filtered observations to export.');
+      return;
+    }
+    
+    setExportType(type);
+    setExportConfirmOpen(true);
+  };
+
+  const handleExportConfirm = async () => {
+    try {
+      setExporting(true);
+      setExportConfirmOpen(false);
+      
+      let result;
+      if (exportType === 'all') {
+        result = exportStudentTimeline(student, observations, currentUser);
+      } else {
+        result = exportFilteredTimeline(student, filteredObservations, currentUser);
+      }
+      
+      if (result.success) {
+        console.log(`Exported ${result.observationCount} observations to ${result.filename}`);
+      } else {
+        alert(`Export failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportCancel = () => {
+    setExportConfirmOpen(false);
+    setExportType('all');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
       {/* Header */}
@@ -319,6 +371,20 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           >
             Filters
           </Button>
+          {userRole === 'admin' && (
+            <Button
+              startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+              onClick={() => handleExportClick(hasActiveFilters ? 'filtered' : 'all')}
+              variant="outlined"
+              color="secondary"
+              size="small"
+              disabled={exporting || (hasActiveFilters ? filteredObservations.length === 0 : observations.length === 0)}
+              aria-label={hasActiveFilters ? 'Export filtered observations' : 'Export all observations'}
+              title={hasActiveFilters ? `Export ${filteredObservations.length} filtered observations` : `Export ${observations.length} observations`}
+            >
+              {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -777,6 +843,84 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
             startIcon={reassigning ? <CircularProgress size={16} /> : <SwapHoriz />}
           >
             {reassigning ? 'Reassigning...' : 'Reassign'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Export Confirmation Dialog */}
+      <Dialog
+        open={exportConfirmOpen}
+        onClose={handleExportCancel}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxWidth: 400,
+            width: 'calc(100% - 32px)',
+            mx: 'auto'
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Download color="secondary" />
+            <Typography variant="h6">
+              Confirm Export
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {exportType === 'all' 
+              ? `Export all ${observations?.length || 0} observations for ${student?.name || student?.displayName || 'this student'}?`
+              : `Export ${filteredObservations?.length || 0} filtered observations for ${student?.name || student?.displayName || 'this student'}?`
+            }
+          </Typography>
+          
+          <Box sx={{
+            p: 2,
+            backgroundColor: '#f8fafc',
+            borderRadius: 2,
+            border: '1px solid #e2e8f0',
+            mb: 2
+          }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <strong>Student:</strong> {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <strong>Export Type:</strong> {exportType === 'all' ? 'All Observations' : 'Filtered Observations'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <strong>Count:</strong> {exportType === 'all' ? observations?.length || 0 : filteredObservations?.length || 0} notes
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Format:</strong> JSON file with metadata and summary
+            </Typography>
+          </Box>
+          
+          <Typography variant="body2" color="info.main" sx={{ fontWeight: 'medium' }}>
+            The file will be downloaded automatically with a descriptive filename.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+          <Button 
+            onClick={handleExportCancel} 
+            variant="outlined" 
+            sx={{ flex: 1 }}
+            disabled={exporting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleExportConfirm} 
+            variant="contained" 
+            color="secondary"
+            sx={{ flex: 1 }}
+            disabled={exporting}
+            startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+          >
+            {exporting ? 'Exporting...' : 'Export'}
           </Button>
         </DialogActions>
       </Dialog>
