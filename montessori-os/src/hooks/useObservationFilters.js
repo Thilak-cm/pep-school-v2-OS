@@ -22,27 +22,52 @@ export const useObservationFilters = (observations = []) => {
     return creators;
   }, [observations]);
 
+  // Helper function to get observation date
+  const getObservationDate = (obs) => {
+    if (obs.observedAt?.toDate) return obs.observedAt.toDate();
+    if (obs.timestamp?.toDate) return obs.timestamp.toDate();
+    if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+    if (obs.timestamp?.seconds) return new Date(obs.timestamp.seconds * 1000);
+    if (obs.observedAt) return new Date(obs.observedAt);
+    if (obs.timestamp) return new Date(obs.timestamp);
+    return new Date(0); // fallback
+  };
+
+  // Helper function to parse filter date string to local date
+  const parseFilterDate = (dateString) => {
+    if (!dateString) return null;
+    
+    // Parse the date string and create a local date object
+    // This ensures we're working with local timezone, not UTC
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+  };
+
   // Apply filters to observations
   const filteredObservations = useMemo(() => {
     let filtered = [...observations];
 
     // Date filters
     if (filters.dateFrom) {
-      const fromDate = new Date(filters.dateFrom);
-      fromDate.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(obs => {
-        const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
-        return obsDate >= fromDate;
-      });
+      const fromDate = parseFilterDate(filters.dateFrom);
+      if (fromDate) {
+        fromDate.setHours(0, 0, 0, 0); // Start of day (inclusive)
+        filtered = filtered.filter(obs => {
+          const obsDate = getObservationDate(obs);
+          return obsDate >= fromDate;
+        });
+      }
     }
 
     if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(obs => {
-        const obsDate = obs.timestamp?.toDate ? obs.timestamp.toDate() : new Date(obs.timestamp?.seconds * 1000);
-        return obsDate <= toDate;
-      });
+      const toDate = parseFilterDate(filters.dateTo);
+      if (toDate) {
+        toDate.setHours(23, 59, 59, 999); // End of day (inclusive)
+        filtered = filtered.filter(obs => {
+          const obsDate = getObservationDate(obs);
+          return obsDate <= toDate;
+        });
+      }
     }
 
     // Creators filter (multi) - now handles teacher objects

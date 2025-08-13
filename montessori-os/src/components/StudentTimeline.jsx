@@ -303,7 +303,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {hasActiveFilters && (
             <Chip 
-              label={`${filteredObservations.length} filtered`}
+              label={`${filteredObservations.length}/${observations.length} filtered`}
               size="small"
               color="primary"
               variant="outlined"
