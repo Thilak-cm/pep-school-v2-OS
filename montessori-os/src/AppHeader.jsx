@@ -21,7 +21,6 @@ import {
 } from "@mui/material";
 import { 
   Menu as MenuIcon, 
-  Settings, 
   Logout, 
   Person,
   BarChart,
@@ -82,14 +81,6 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
       onClick: () => {
         setDrawerOpen(false);
         onNavigate('/feedback');
-      }
-    },
-    {
-      text: 'Settings',
-      icon: <Settings />,
-      onClick: () => {
-        setDrawerOpen(false);
-        // TODO: Navigate to settings page
       }
     },
     {
@@ -221,9 +212,29 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
           display: drawerOpen ? 'flex' : 'none',
           flexDirection: 'column',
           boxShadow: '4px 0 20px rgba(0, 0, 0, 0.15)',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s ease',
         }}
       >
-          <Box sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+          <Box sx={{ 
+            p: 3, 
+            flexGrow: 1, 
+            overflow: 'auto',
+            height: '100%',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: '#f1f5f9',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: '#cbd5e1',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              backgroundColor: '#94a3b8',
+            },
+          }}>
             {/* User Profile Section */}
             <Box sx={{ 
               display: 'flex', 
