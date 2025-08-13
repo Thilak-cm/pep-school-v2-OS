@@ -204,6 +204,52 @@ const StatsPage = ({ user, role, onBack }) => {
         // Apply filters
         let filteredObservations = allObservations;
         
+        // Role-based filtering: teachers only see their assigned classrooms
+        if (role === 'teacher') {
+          // Get classrooms where this teacher is assigned
+          const teacherClassroomIds = classroomsData
+            .filter(classroom => classroom.teacherIds && classroom.teacherIds.includes(user.uid))
+            .map(classroom => classroom.id);
+          
+          // Filter observations to only include students from teacher's classrooms
+          const teacherStudentIds = studentsData
+            .filter(student => teacherClassroomIds.includes(student.classroomId))
+            .map(student => student.id);
+          
+          filteredObservations = filteredObservations.filter(obs => 
+            teacherStudentIds.includes(obs.studentId)
+          );
+          
+          // Also filter classrooms, teachers, and students data for teacher view
+          const teacherClassrooms = classroomsData.filter(classroom => 
+            classroom.teacherIds && classroom.teacherIds.includes(user.uid)
+          );
+          setClassrooms(teacherClassrooms);
+          
+          const teacherStudents = studentsData.filter(student => 
+            teacherClassroomIds.includes(student.classroomId)
+          );
+          setStudents(teacherStudents);
+          
+          // For teachers, only show teachers from their assigned classrooms
+          const teacherClassroomTeacherIds = new Set();
+          teacherClassrooms.forEach(classroom => {
+            if (classroom.teacherIds) {
+              classroom.teacherIds.forEach(teacherId => teacherClassroomTeacherIds.add(teacherId));
+            }
+          });
+          
+          const teacherClassroomTeachers = teachersData.filter(teacher => 
+            teacherClassroomTeacherIds.has(teacher.id)
+          );
+          setTeachers(teacherClassroomTeachers);
+        } else {
+          // Admin sees all data
+          setClassrooms(classroomsData);
+          setTeachers(teachersData);
+          setStudents(studentsData);
+        }
+        
         if (selectedClassrooms.length > 0) {
           // Filter by classroom - need to get students in selected classrooms first
           const classroomStudentIds = studentsData
@@ -397,11 +443,14 @@ const StatsPage = ({ user, role, onBack }) => {
     };
 
     fetchData();
-  }, [selectedClassrooms, selectedTeachers, selectedStudents]);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role]);
 
   const handleTabChange = (event, newValue) => {
-    if (role === 'teacher' && newValue === 2) {
-      return;
+    // Teachers can't access certain tabs
+    if (role === 'teacher') {
+      if (newValue === 2 || newValue === 3) { // Hide Teachers and Students tabs for teachers
+        return;
+      }
     }
     setActiveTab(newValue);
   };
@@ -951,7 +1000,7 @@ const StatsPage = ({ user, role, onBack }) => {
           <ArrowBack />
         </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
-          Statistics & Analytics
+          {role === 'teacher' ? 'My Statistics' : 'Statistics & Analytics'}
         </Typography>
       </Box>
 
@@ -986,19 +1035,23 @@ const StatsPage = ({ user, role, onBack }) => {
             />
             <Tab 
               icon={<School />} 
-              label="Classrooms" 
+              label={role === 'teacher' ? 'My Classrooms' : 'All Classrooms'} 
               iconPosition="start"
             />
-            <Tab 
-              icon={<People />} 
-              label="Teachers" 
-              iconPosition="start"
-            />
-            <Tab 
-              icon={<People />} 
-              label="Students" 
-              iconPosition="start"
-            />
+            {role !== 'teacher' && (
+              <Tab 
+                icon={<People />} 
+                label="Teachers" 
+                iconPosition="start"
+              />
+            )}
+            {role !== 'teacher' && (
+              <Tab 
+                icon={<People />} 
+                label="Students" 
+                iconPosition="start"
+              />
+            )}
           </Tabs>
         </Box>
 
@@ -1007,7 +1060,7 @@ const StatsPage = ({ user, role, onBack }) => {
           {activeTab === 0 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Overview Statistics
+                {role === 'teacher' ? 'My Overview' : 'Overview Statistics'}
               </Typography>
               
               <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -1144,7 +1197,7 @@ const StatsPage = ({ user, role, onBack }) => {
           {activeTab === 1 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Classroom Performance
+                {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
               </Typography>
               
               {stats.classroomStats.length > 0 ? (
@@ -1152,7 +1205,7 @@ const StatsPage = ({ user, role, onBack }) => {
                   {/* Classroom Comparison Chart */}
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                      This Week vs Target
+                      {role === 'teacher' ? 'My Classrooms This Week' : 'This Week vs Target'}
                     </Typography>
                     <ClassroomComparisonChart />
                   </Box>

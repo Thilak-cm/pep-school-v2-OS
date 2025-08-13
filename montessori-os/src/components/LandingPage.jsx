@@ -13,10 +13,11 @@ import {
   School, 
   Group,
   ArrowForward,
-  Feedback
+  Feedback,
+  BarChart
 } from '@mui/icons-material';
 
-function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback }) {
+function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigate }) {
   const isTeacher = userRole === 'teacher';
   
   return (
@@ -148,6 +149,61 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
             </Card>
           </Grid>
         )}
+
+        {/* Stats Card - Available for both admin and teacher */}
+        <Grid size={12}>
+          <Card
+            sx={{
+              borderRadius: 2,
+              '&:hover': {
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <CardActionArea
+              onClick={() => onNavigate('/stats')}
+              sx={{ p: 0 }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between'
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ 
+                      bgcolor: '#f59e0b',
+                      width: 56,
+                      height: 56
+                    }}>
+                      <BarChart />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" component="h3" sx={{ 
+                        color: '#1e293b',
+                        fontWeight: 600
+                      }}>
+                        Statistics & Analytics
+                      </Typography>
+                      <Typography variant="body2" sx={{ 
+                        color: '#64748b',
+                        mt: 0.5
+                      }}>
+                        {isTeacher 
+                          ? 'View your classroom performance and student progress'
+                          : 'Monitor school-wide metrics, teacher performance, and student engagement'
+                        }
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <ArrowForward sx={{ color: '#94a3b8' }} />
+                </Box>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        </Grid>
 
         {/* Admin-only cards */}
         {!isTeacher && (

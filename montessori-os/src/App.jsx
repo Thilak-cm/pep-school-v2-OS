@@ -332,6 +332,11 @@ function App() {
                       currentUser={user}
                       onNavigateToFeedbackDashboard={() => setScreen('feedbackTimeline')}
                       onNavigateToFeedback={() => setScreen('feedback')}
+                      onNavigate={(path) => {
+                        if (path === '/stats') {
+                          setScreen('stats');
+                        }
+                      }}
                     />
                   )}
 
