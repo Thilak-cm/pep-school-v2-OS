@@ -903,6 +903,7 @@ const StatsPage = ({ user, role, onBack }) => {
               axisLine={{ stroke: '#e2e8f0' }}
               tickLine={false}
               width={40}
+              tickFormatter={(value) => Math.round(value)}
             />
             <RechartsTooltip 
               contentStyle={{ 
@@ -910,6 +911,27 @@ const StatsPage = ({ user, role, onBack }) => {
                 border: '1px solid #e2e8f0',
                 borderRadius: 8,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <Box sx={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      p: 1.5,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
+                        {payload[0].value}
+                      </Typography>
+                      <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
+                        {payload[0].dataKey}: {payload[0].payload.name}
+                      </Typography>
+                    </Box>
+                  );
+                }
+                return null;
               }}
             />
             <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]} />
@@ -1088,6 +1110,7 @@ const StatsPage = ({ user, role, onBack }) => {
               axisLine={{ stroke: '#e2e8f0' }}
               tickLine={false}
               width={40}
+              tickFormatter={(value) => Math.round(value)}
             />
             <RechartsTooltip 
               contentStyle={{ 
@@ -1095,6 +1118,27 @@ const StatsPage = ({ user, role, onBack }) => {
                 border: '1px solid #e2e8f0',
                 borderRadius: 8,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <Box sx={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 2,
+                      p: 1.5,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
+                        {payload[0].value}
+                      </Typography>
+                      <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
+                        Time: {payload[0].payload.period}
+                      </Typography>
+                    </Box>
+                  );
+                }
+                return null;
               }}
             />
             <Line 
