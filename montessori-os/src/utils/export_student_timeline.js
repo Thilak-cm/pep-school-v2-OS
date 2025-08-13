@@ -125,12 +125,127 @@ const cleanObservationData = (observation) => {
 };
 
 /**
+ * Format timestamp for text export
+ * @param {Object} timestamp - Firebase timestamp object
+ * @returns {string} Formatted timestamp string
+ */
+const formatTimestampForText = (timestamp) => {
+  if (!timestamp) return 'No timestamp';
+  
+  let date;
+  if (timestamp.seconds) {
+    date = new Date(timestamp.seconds * 1000);
+  } else if (timestamp.toDate) {
+    date = timestamp.toDate();
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else {
+    return 'Invalid timestamp';
+  }
+  
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
+
+/**
+ * Generate text content for export
+ * @param {Object} exportData - Export data object
+ * @returns {string} Formatted text content
+ */
+const generateTextContent = (exportData) => {
+  const { exportMetadata, student, observations, summary } = exportData;
+  
+  let text = 'STUDENT TIMELINE EXPORT\n';
+  text += '=======================\n\n';
+  
+  // Export metadata
+  text += 'EXPORT METADATA\n';
+  text += '---------------\n';
+  text += `Exported: ${new Date(exportMetadata.exportedAt).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })}\n`;
+  text += `Exported by: ${exportMetadata.exportedBy}\n`;
+  text += `Export type: ${exportMetadata.exportType}\n`;
+  text += `Version: ${exportMetadata.version}\n\n`;
+  
+  // Student information
+  text += 'STUDENT INFORMATION\n';
+  text += '-------------------\n';
+  text += `ID: ${student.id}\n`;
+  text += `Name: ${student.name}\n`;
+  text += `Display Name: ${student.displayName}\n`;
+  text += `First Name: ${student.firstName}\n`;
+  text += `Last Name: ${student.lastName}\n\n`;
+  
+  // Summary
+  text += 'SUMMARY\n';
+  text += '-------\n';
+  text += `Total Observations: ${summary.totalObservations}\n`;
+  text += `Voice Notes: ${summary.voiceNotes}\n`;
+  text += `Text Notes: ${summary.textNotes}\n`;
+  text += `Starred Notes: ${summary.starredNotes}\n`;
+  text += `Private Notes: ${summary.privateNotes}\n`;
+  
+  if (summary.dateRange.earliest && summary.dateRange.latest) {
+    const earliest = new Date(summary.dateRange.earliest).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const latest = new Date(summary.dateRange.latest).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    text += `Date Range: ${earliest} to ${latest}\n`;
+  }
+  text += '\n';
+  
+  // Observations
+  text += 'OBSERVATIONS\n';
+  text += '------------\n\n';
+  
+  observations.forEach((obs, index) => {
+    text += `[${index + 1}]\n`;
+    text += `ID: ${obs.id}\n`;
+    text += `Text: ${obs.text}\n`;
+    text += `Type: ${obs.type}\n`;
+    if (obs.duration) {
+      text += `Duration: ${obs.duration} seconds\n`;
+    }
+    text += `Observed: ${formatTimestampForText(obs.observedAt || obs.timestamp)}\n`;
+    text += `Created by: ${obs.createdBy}\n`;
+    text += `Teacher Name: ${obs.teacherName}\n`;
+    text += `Teacher Email: ${obs.teacherEmail}\n`;
+    text += `Student ID: ${obs.studentId}\n`;
+    text += `Starred: ${obs.isStarred ? 'Yes' : 'No'}\n`;
+    text += `Private: ${obs.isPrivate ? 'Yes' : 'No'}\n`;
+    text += `Draft: ${obs.isDraft ? 'Yes' : 'No'}\n`;
+    text += `Edit Count: ${obs.editCount}\n\n`;
+  });
+  
+  return text;
+};
+
+/**
  * Generate filename for export
  * @param {Object} student - Student object
  * @param {Array} observations - Array of observations
+ * @param {string} format - Export format ('json' or 'txt')
  * @returns {string} Filename
  */
-const generateFilename = (student, observations) => {
+const generateFilename = (student, observations, format = 'json') => {
   const studentName = student?.name || student?.displayName || 
     [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 
     'Unknown_Student';
@@ -139,7 +254,8 @@ const generateFilename = (student, observations) => {
   const date = new Date().toISOString().split('T')[0];
   const count = observations?.length || 0;
   
-  return `${cleanName}_Timeline_${count}_Notes_${date}.json`;
+  const extension = format === 'txt' ? 'txt' : 'json';
+  return `${cleanName}_Timeline_${count}_Notes_${date}.${extension}`;
 };
 
 /**
@@ -163,10 +279,30 @@ const downloadJSON = (data, filename) => {
 };
 
 /**
+ * Download text file
+ * @param {string} textContent - Text content to export
+ * @param {string} filename - Filename for download
+ */
+const downloadText = (textContent, filename) => {
+  const blob = new Blob([textContent], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+/**
  * Export student timeline data
  * @param {Object} student - Student object
  * @param {Array} observations - Array of observations
  * @param {Object} currentUser - Current user object
+ * @param {string} format - Export format ('json' or 'txt')
  * @param {boolean} respectFilters - Whether to respect current filters (default: false)
  * @param {Array} filteredObservations - Filtered observations if respectFilters is true
  */
@@ -174,6 +310,7 @@ export const exportStudentTimeline = (
   student, 
   observations, 
   currentUser, 
+  format = 'json',
   respectFilters = false,
   filteredObservations = null
 ) => {
@@ -194,15 +331,21 @@ export const exportStudentTimeline = (
     };
 
     // Generate filename
-    const filename = generateFilename(student, observationsToExport);
+    const filename = generateFilename(student, observationsToExport, format);
 
-    // Download file
-    downloadJSON(exportData, filename);
+    // Download file based on format
+    if (format === 'txt') {
+      const textContent = generateTextContent(exportData);
+      downloadText(textContent, filename);
+    } else {
+      downloadJSON(exportData, filename);
+    }
 
     return {
       success: true,
       filename,
-      observationCount: observationsToExport.length
+      observationCount: observationsToExport.length,
+      format
     };
 
   } catch (error) {
@@ -219,10 +362,41 @@ export const exportStudentTimeline = (
  * @param {Object} student - Student object
  * @param {Array} filteredObservations - Filtered observations
  * @param {Object} currentUser - Current user object
+ * @param {string} format - Export format ('json' or 'txt')
  * @returns {Object} Export result
  */
-export const exportFilteredTimeline = (student, filteredObservations, currentUser) => {
-  return exportStudentTimeline(student, filteredObservations, currentUser, true, filteredObservations);
+export const exportFilteredTimeline = (student, filteredObservations, currentUser, format = 'json') => {
+  return exportStudentTimeline(student, filteredObservations, currentUser, format, true, filteredObservations);
+};
+
+/**
+ * Export student timeline as text (for teachers)
+ * @param {Object} student - Student object
+ * @param {Array} observations - Array of observations
+ * @param {Object} currentUser - Current user object
+ * @param {boolean} respectFilters - Whether to respect current filters (default: false)
+ * @param {Array} filteredObservations - Filtered observations if respectFilters is true
+ * @returns {Object} Export result
+ */
+export const exportStudentTimelineAsText = (
+  student, 
+  observations, 
+  currentUser, 
+  respectFilters = false,
+  filteredObservations = null
+) => {
+  return exportStudentTimeline(student, observations, currentUser, 'txt', respectFilters, filteredObservations);
+};
+
+/**
+ * Export filtered observations as text (for teachers)
+ * @param {Object} student - Student object
+ * @param {Array} filteredObservations - Filtered observations
+ * @param {Object} currentUser - Current user object
+ * @returns {Object} Export result
+ */
+export const exportFilteredTimelineAsText = (student, filteredObservations, currentUser) => {
+  return exportStudentTimeline(student, filteredObservations, currentUser, 'txt', true, filteredObservations);
 };
 
 export default exportStudentTimeline;

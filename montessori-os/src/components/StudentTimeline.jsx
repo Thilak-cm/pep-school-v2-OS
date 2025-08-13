@@ -30,7 +30,12 @@ import ClassroomStudentPicker from './ClassroomStudentPicker';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
-import { exportStudentTimeline, exportFilteredTimeline } from '../utils/export_student_timeline';
+import { 
+  exportStudentTimeline, 
+  exportFilteredTimeline, 
+  exportStudentTimelineAsText, 
+  exportFilteredTimelineAsText 
+} from '../utils/export_student_timeline';
 
 function StudentTimeline({ student, onBack, currentUser, userRole }) {
   const [observations, setObservations] = useState([]);
@@ -315,16 +320,24 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     setExportConfirmOpen(true);
   };
 
-  const handleExportConfirm = async () => {
+  const handleExportConfirm = async (format) => {
     try {
       setExporting(true);
       setExportConfirmOpen(false);
       
       let result;
       if (exportType === 'all') {
-        result = exportStudentTimeline(student, observations, currentUser);
+        if (userRole === 'admin') {
+          result = exportStudentTimeline(student, observations, currentUser, format);
+        } else {
+          result = exportStudentTimelineAsText(student, observations, currentUser);
+        }
       } else {
-        result = exportFilteredTimeline(student, filteredObservations, currentUser);
+        if (userRole === 'admin') {
+          result = exportFilteredTimeline(student, filteredObservations, currentUser, format);
+        } else {
+          result = exportFilteredTimelineAsText(student, filteredObservations, currentUser);
+        }
       }
       
       if (result.success) {
@@ -895,7 +908,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               <strong>Count:</strong> {exportType === 'all' ? observations?.length || 0 : filteredObservations?.length || 0} notes
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              <strong>Format:</strong> JSON file with metadata and summary
+              <strong>Format:</strong> {userRole === 'admin' ? 'Choose between Text or JSON format' : 'Text file with metadata and summary'}
             </Typography>
           </Box>
           
@@ -912,16 +925,41 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleExportConfirm} 
-            variant="contained" 
-            color="secondary"
-            sx={{ flex: 1 }}
-            disabled={exporting}
-            startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-          >
-            {exporting ? 'Exporting...' : 'Export'}
-          </Button>
+          {userRole === 'admin' ? (
+            <>
+              <Button 
+                onClick={() => handleExportConfirm('txt')} 
+                variant="contained" 
+                color="primary"
+                sx={{ flex: 1 }}
+                disabled={exporting}
+                startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+              >
+                {exporting ? 'Exporting...' : 'Export as Text'}
+              </Button>
+              <Button 
+                onClick={() => handleExportConfirm('json')} 
+                variant="contained" 
+                color="secondary"
+                sx={{ flex: 1 }}
+                disabled={exporting}
+                startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+              >
+                {exporting ? 'Exporting...' : 'Export as JSON'}
+              </Button>
+            </>
+          ) : (
+            <Button 
+              onClick={() => handleExportConfirm('txt')} 
+              variant="contained" 
+              color="primary"
+              sx={{ flex: 1 }}
+              disabled={exporting}
+              startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+            >
+              {exporting ? 'Exporting...' : 'Export as Text'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
