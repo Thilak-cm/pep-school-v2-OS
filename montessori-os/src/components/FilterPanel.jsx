@@ -47,33 +47,7 @@ const FilterPanel = ({
   }, [classroomTeachers, creatorSearch]);
   return (
     <Box>
-      {/* Filter Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        mb: 2,
-        p: 2,
-        backgroundColor: 'background.paper',
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: 'divider'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-            Filters
-          </Typography>
-          {hasActiveFilters && (
-            <Chip 
-              label={`${filteredCount} filtered`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 500 }}
-            />
-          )}
-        </Box>
-      </Box>
+
 
       {/* Filter Panel */}
       <Collapse 
