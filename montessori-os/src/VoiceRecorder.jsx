@@ -428,34 +428,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         </Box>
       )}
 
-      {/* Retry Button */}
-      {audioUrl && (
-        <Box
-          sx={{
-            padding: 3,
-            backgroundColor: '#f8fafc',
-            borderTop: '1px solid #e2e8f0',
-            textAlign: 'center'
-          }}
-        >
-          <Button
-            variant="contained"
-            onClick={resetRecording}
-            startIcon={<Refresh />}
-            size="small"
-            sx={{
-              backgroundColor: '#64748b',
-              color: 'white',
-              textTransform: 'none',
-              '&:hover': {
-                backgroundColor: '#475569',
-              }
-            }}
-          >
-            Retry
-          </Button>
-        </Box>
-      )}
+
 
       {/* Transcription Section */}
       {(audioUrl || isTranscribing || transcription || transcriptionError) && (
@@ -620,6 +593,22 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 Copy Text
               </Button>
               
+              <Button
+                variant="contained"
+                onClick={resetRecording}
+                startIcon={<Refresh />}
+                size="small"
+                sx={{
+                  backgroundColor: '#4f46e5',
+                  color: 'white',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                  }
+                }}
+              >
+                Retry Voice Note
+              </Button>
 
             </Box>
           )}
