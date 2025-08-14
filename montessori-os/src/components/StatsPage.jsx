@@ -6,11 +6,6 @@ import {
   CardContent,
   Grid,
   LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
   Chip,
   Tabs,
   Tab,
@@ -38,9 +33,6 @@ import {
   TextFields,
   ArrowBack,
   FilterList,
-  Warning,
-  CheckCircle,
-  Info,
   Download,
   Refresh,
   Visibility,
@@ -507,57 +499,7 @@ const StatsPage = ({ user, role, onBack }) => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
   };
 
-  const getActionItems = () => {
-    const actions = [];
-    
-    // Classroom actions
-    stats.classroomStats.forEach(classroom => {
-      if (classroom.performance < 50) {
-        actions.push({
-          type: 'warning',
-          message: `${classroom.name} needs attention - only ${classroom.performance.toFixed(1)}% of target met`,
-          priority: 'high',
-          category: 'classroom',
-          progress: Math.max(0, Math.min(100, classroom.performance)),
-          contextLeft: `${classroom.thisWeekObservations}`,
-          contextRight: `${classroom.studentCount * classroom.target}`
-        });
-      }
-    });
-    
-    // Teacher actions
-    stats.teacherStats.forEach(teacher => {
-      if (teacher.performance < 50) {
-        actions.push({
-          type: 'warning',
-          message: `${teacher.name} needs support - only ${teacher.thisWeekObservations}/20 notes this week`,
-          priority: 'medium',
-          category: 'teacher',
-          progress: Math.max(0, Math.min(100, (teacher.thisWeekObservations / 20) * 100)),
-          contextLeft: `${teacher.thisWeekObservations}`,
-          contextRight: '20'
-        });
-      }
-    });
-    
-    // Student actions
-    stats.strugglingStudents.forEach(student => {
-      actions.push({
-        type: 'info',
-        message: `${student.name} has only ${student.thisWeekCount} note(s) this week`,
-        priority: 'low',
-        category: 'student',
-        progress: Math.max(0, Math.min(100, (student.thisWeekCount / 2) * 100)),
-        contextLeft: `${student.thisWeekCount}`,
-        contextRight: '2'
-      });
-    });
-    
-    return actions.sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return priorityOrder[b.priority] - priorityOrder[a.priority];
-    });
-  };
+
 
   const StatCard = ({ title, value, icon, color = 'primary', subtitle, trend }) => (
     <Card sx={{ 
@@ -822,87 +764,7 @@ const StatsPage = ({ user, role, onBack }) => {
     </Card>
   );
 
-  const ActionItemsPanel = () => {
-    const actions = getActionItems();
-    
-    if (actions.length === 0) {
-      return (
-        <Card sx={{ mb: 3, borderRadius: 2 }}>
-          <CardContent sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <CheckCircle sx={{ color: 'success.main', mr: 1 }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                All Good! 🎉
-              </Typography>
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              No immediate actions needed. All targets are being met.
-            </Typography>
-          </CardContent>
-        </Card>
-      );
-    }
 
-    return (
-      <Card sx={{ mb: 3, borderRadius: 2 }}>
-        <CardContent sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Warning sx={{ color: 'warning.main', mr: 1 }} />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Action Items ({actions.length})
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary">Ranked by urgency</Typography>
-          </Box>
-
-          <List sx={{ p: 0 }}>
-            {actions.map((action, index) => {
-              const isWarning = action.type === 'warning';
-              const bg = isWarning ? 'warning.50' : 'info.50';
-              const border = isWarning ? 'warning.200' : 'info.200';
-              const iconBg = isWarning ? 'warning.main' : 'info.main';
-              const IconComp = action.category === 'classroom' ? School : action.category === 'teacher' ? People : Info;
-              return (
-                <ListItem key={index} sx={{
-                  mb: 1,
-                  border: `1px solid`,
-                  borderColor: border,
-                  borderRadius: 1,
-                  bgcolor: bg
-                }}>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: iconBg }}>
-                      <IconComp sx={{ color: 'common.white' }} />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 600 } }}
-                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-                    primary={action.message}
-                    secondary={
-                      <Box sx={{ mt: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                          <Typography variant="caption" color="text.secondary">{action.contextLeft}</Typography>
-                          <Typography variant="caption" color="text.secondary">{action.contextRight}</Typography>
-                        </Box>
-                        <LinearProgress variant="determinate" value={action.progress} sx={{ height: 8, borderRadius: 6 }} />
-                      </Box>
-                    }
-                  />
-                  <Chip
-                    label={`${Math.round(action.progress)}%`}
-                    color={action.progress >= 80 ? 'success' : action.progress >= 50 ? 'warning' : 'error'}
-                    size="small"
-                  />
-                </ListItem>
-              );
-            })}
-          </List>
-        </CardContent>
-      </Card>
-    );
-  };
 
   const ClassroomComparisonChart = () => {
     if (stats.classroomStats.length === 0) {
@@ -1266,11 +1128,17 @@ const StatsPage = ({ user, role, onBack }) => {
           <Tabs 
             value={activeTab} 
             onChange={handleTabChange}
-            variant="fullWidth"
+            variant="scrollable"
+            scrollButtons="auto"
             sx={{
               '& .MuiTab-root': {
                 textTransform: 'none',
-                fontWeight: 600
+                fontWeight: 600,
+                minWidth: 120,
+                px: 3
+              },
+              '& .MuiTabs-scrollButtons': {
+                color: 'primary.main'
               }
             }}
           >
@@ -1489,10 +1357,15 @@ const StatsPage = ({ user, role, onBack }) => {
                   <Grid container spacing={2}>
                     {stats.classroomStats.map((classroom) => (
                       <Grid item xs={12} sm={6} key={classroom.id}>
-                        <Card sx={{ borderRadius: 2 }}>
-                          <CardContent sx={{ p: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        <Card sx={{ 
+                          borderRadius: 2,
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column'
+                        }}>
+                          <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'flex-start' }}>
+                              <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
                                 {classroom.name}
                               </Typography>
                               <Chip 
@@ -1500,14 +1373,15 @@ const StatsPage = ({ user, role, onBack }) => {
                                 color={classroom.performance >= 80 ? 'success' : 
                                        classroom.performance >= 60 ? 'warning' : 'error'}
                                 size="small"
+                                sx={{ ml: 1, flexShrink: 0 }}
                               />
                             </Box>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                               {classroom.studentCount} students
                             </Typography>
-                            <Box sx={{ mb: 2 }}>
+                            <Box sx={{ mt: 'auto' }}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                <Typography variant="body2">This Week</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>This Week</Typography>
                                 <Typography variant="body2" color="text.secondary">
                                   {classroom.thisWeekObservations}/{classroom.studentCount * classroom.target}
                                 </Typography>
@@ -1679,8 +1553,7 @@ const StatsPage = ({ user, role, onBack }) => {
         </CardContent>
       </Card>
 
-      {/* Action Items Panel - moved to bottom for streamlined flow */}
-      <ActionItemsPanel />
+
     </Box>
   );
 };
