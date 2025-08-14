@@ -490,20 +490,6 @@ const VoiceRecorder = ({ onSave, onNext }) => {
               <CheckCircle sx={{ fontSize: 16 }} />
               Transcription
             </Typography>
-            {isTranscribing && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  color: '#059669',
-                  fontSize: '0.875rem'
-                }}
-              >
-                <CircularProgress size={12} sx={{ color: '#059669' }} />
-                Processing...
-              </Box>
-            )}
           </Box>
 
           {/* Transcription Content */}
