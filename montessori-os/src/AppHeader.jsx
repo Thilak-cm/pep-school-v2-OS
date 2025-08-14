@@ -201,7 +201,8 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
         open={drawerOpen}
         onClick={handleDrawerToggle}
         sx={{ 
-          position: 'absolute',
+          // Mobile: fixed to viewport, Desktop: absolute to container
+          position: { xs: 'fixed', sm: 'absolute' },
           top: 0,
           left: 0,
           width: '100%',
@@ -216,7 +217,8 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
       
       <Box
         sx={{
-          position: 'absolute',
+          // Mobile: fixed to viewport, Desktop: absolute to container
+          position: { xs: 'fixed', sm: 'absolute' },
           top: 0,
           left: 0,
           width: '280px',
