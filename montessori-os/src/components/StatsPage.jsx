@@ -49,7 +49,7 @@ import {
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 
 const StatsPage = ({ user, role, onBack }) => {
@@ -516,7 +516,11 @@ const StatsPage = ({ user, role, onBack }) => {
         actions.push({
           type: 'warning',
           message: `${classroom.name} needs attention - only ${classroom.performance.toFixed(1)}% of target met`,
-          priority: 'high'
+          priority: 'high',
+          category: 'classroom',
+          progress: Math.max(0, Math.min(100, classroom.performance)),
+          contextLeft: `${classroom.thisWeekObservations}`,
+          contextRight: `${classroom.studentCount * classroom.target}`
         });
       }
     });
@@ -527,7 +531,11 @@ const StatsPage = ({ user, role, onBack }) => {
         actions.push({
           type: 'warning',
           message: `${teacher.name} needs support - only ${teacher.thisWeekObservations}/20 notes this week`,
-          priority: 'medium'
+          priority: 'medium',
+          category: 'teacher',
+          progress: Math.max(0, Math.min(100, (teacher.thisWeekObservations / 20) * 100)),
+          contextLeft: `${teacher.thisWeekObservations}`,
+          contextRight: '20'
         });
       }
     });
@@ -537,7 +545,11 @@ const StatsPage = ({ user, role, onBack }) => {
       actions.push({
         type: 'info',
         message: `${student.name} has only ${student.thisWeekCount} note(s) this week`,
-        priority: 'low'
+        priority: 'low',
+        category: 'student',
+        progress: Math.max(0, Math.min(100, (student.thisWeekCount / 2) * 100)),
+        contextLeft: `${student.thisWeekCount}`,
+        contextRight: '2'
       });
     });
     
@@ -834,30 +846,59 @@ const StatsPage = ({ user, role, onBack }) => {
     return (
       <Card sx={{ mb: 3, borderRadius: 2 }}>
         <CardContent sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <Warning sx={{ color: 'warning.main', mr: 1 }} />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Action Items ({actions.length})
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Warning sx={{ color: 'warning.main', mr: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Action Items ({actions.length})
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">Ranked by urgency</Typography>
           </Box>
-          
-          <Stack spacing={1}>
-            {actions.map((action, index) => (
-              <Box
-                key={index}
-                sx={{
-                  p: 1.5,
-                  backgroundColor: action.type === 'warning' ? 'warning.50' : 'info.50',
+
+          <List sx={{ p: 0 }}>
+            {actions.map((action, index) => {
+              const isWarning = action.type === 'warning';
+              const bg = isWarning ? 'warning.50' : 'info.50';
+              const border = isWarning ? 'warning.200' : 'info.200';
+              const iconBg = isWarning ? 'warning.main' : 'info.main';
+              const IconComp = action.category === 'classroom' ? School : action.category === 'teacher' ? People : Info;
+              return (
+                <ListItem key={index} sx={{
+                  mb: 1,
+                  border: `1px solid`,
+                  borderColor: border,
                   borderRadius: 1,
-                  border: `1px solid ${action.type === 'warning' ? 'warning.200' : 'info.200'}`
-                }}
-              >
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {action.message}
-                </Typography>
-              </Box>
-            ))}
-          </Stack>
+                  bgcolor: bg
+                }}>
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: iconBg }}>
+                      <IconComp sx={{ color: 'common.white' }} />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 600 } }}
+                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                    primary={action.message}
+                    secondary={
+                      <Box sx={{ mt: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">{action.contextLeft}</Typography>
+                          <Typography variant="caption" color="text.secondary">{action.contextRight}</Typography>
+                        </Box>
+                        <LinearProgress variant="determinate" value={action.progress} sx={{ height: 8, borderRadius: 6 }} />
+                      </Box>
+                    }
+                  />
+                  <Chip
+                    label={`${Math.round(action.progress)}%`}
+                    color={action.progress >= 80 ? 'success' : action.progress >= 50 ? 'warning' : 'error'}
+                    size="small"
+                  />
+                </ListItem>
+              );
+            })}
+          </List>
         </CardContent>
       </Card>
     );
@@ -1215,9 +1256,6 @@ const StatsPage = ({ user, role, onBack }) => {
       {/* Filters Section */}
       {showFilters && <FilterSection />}
 
-      {/* Action Items Panel */}
-      <ActionItemsPanel />
-
       {/* Statistics Tabs */}
       <Card sx={{ 
         borderRadius: 3,
@@ -1267,55 +1305,40 @@ const StatsPage = ({ user, role, onBack }) => {
           {/* Overview Tab */}
           {activeTab === 0 && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                {role === 'teacher' ? 'My Overview' : 'Overview Statistics'}
-              </Typography>
-              
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid xs={6} sm={3}>
-                  <StatCard
-                    title="Total Notes"
-                    value={stats.totalObservations}
-                    icon={<BarChart />}
-                    color="primary"
-                  />
-                </Grid>
-                <Grid xs={6} sm={3}>
-                  <StatCard
-                    title="This Week"
-                    value={stats.thisWeek}
-                    icon={<TrendingUp />}
-                    color="success"
-                    trend={stats.thisWeekChange}
-                  />
-                </Grid>
-                <Grid xs={6} sm={3}>
-                  <StatCard
-                    title="Voice Notes"
-                    value={stats.voiceNotes}
-                    icon={<Mic />}
-                    color="info"
-                  />
-                </Grid>
-                <Grid xs={6} sm={3}>
-                  <StatCard
-                    title="Text Notes"
-                    value={stats.textNotes}
-                    icon={<TextFields />}
-                    color="warning"
-                  />
-                </Grid>
-              </Grid>
-
               {/* Activity Trend Chart */}
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Activity Trend - {timePeriod === '1D' ? 'Last 24 Hours' : 
-                                  timePeriod === '1W' ? 'Last 7 Days' :
-                                  timePeriod === '1M' ? 'Last 4 Weeks' :
-                                  timePeriod === '3M' ? 'Last 3 Months' :
-                                  timePeriod === '6M' ? 'Last 6 Months' :
-                                  timePeriod === '1Y' ? 'Last 12 Months' : 'Weekly'}
-              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                mb: 3,
+                p: 2,
+                backgroundColor: 'primary.50',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'primary.200'
+              }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', mb: 0.5 }}>
+                    Activity Trend
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {timePeriod === '1D' ? 'Last 24 Hours' : 
+                     timePeriod === '1W' ? 'Last 7 Days' :
+                     timePeriod === '1M' ? 'Last 4 Weeks' :
+                     timePeriod === '3M' ? 'Last 3 Months' :
+                     timePeriod === '6M' ? 'Last 6 Months' :
+                     timePeriod === '1Y' ? 'Last 12 Months' : 'Weekly'}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    {stats.thisWeek}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    notes created
+                  </Typography>
+                </Box>
+              </Box>
               
               {/* Time Period Toggles */}
               <Box sx={{ mb: 2 }}>
@@ -1360,42 +1383,86 @@ const StatsPage = ({ user, role, onBack }) => {
                 <ActivityTrendChart />
               </Box>
 
-              {/* Note Type Distribution */}
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Note Type Distribution
-              </Typography>
+              {/* Note Distribution Card */}
               <Box sx={{ 
                 backgroundColor: 'white',
                 borderRadius: 2,
-                p: 2,
-                border: '1px solid #e2e8f0'
+                p: 3,
+                border: '1px solid #e2e8f0',
+                mb: 3
               }}>
-                <Box sx={{ height: 200, width: '100%' }}>
+                {/* Header */}
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+                  Note Distribution
+                </Typography>
+                
+                {/* Pie Chart */}
+                <Box sx={{ height: 250, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={[
                           { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
                           { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-                        ].filter(item => item.value > 0)}
+                        ]}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={80}
-                        paddingAngle={5}
+                        innerRadius={0}
+                        outerRadius={90}
+                        paddingAngle={3}
                         dataKey="value"
                       >
                         {[
                           { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
                           { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-                        ].filter(item => item.value > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ].map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.color}
+                            stroke="#ffffff"
+                            strokeWidth={2}
+                          />
                         ))}
                       </Pie>
-                      <RechartsTooltip />
-                      <Legend />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 8,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                        formatter={(value, name) => [value, name]}
+                        labelFormatter={(label) => `${label}`}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
+                </Box>
+                
+                {/* Simple Legend */}
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                  {[
+                    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
+                    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
+                  ].map((item, index) => (
+                    <Box key={index} sx={{ textAlign: 'center' }}>
+                      <Box sx={{ 
+                        width: 16, 
+                        height: 16, 
+                        bgcolor: item.color, 
+                        borderRadius: '50%',
+                        mx: 'auto',
+                        mb: 1,
+                        border: '2px solid white',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: item.color, mb: 0.5 }}>
+                        {item.value}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {item.name}
+                      </Typography>
+                    </Box>
+                  ))}
                 </Box>
               </Box>
             </Box>
@@ -1611,6 +1678,9 @@ const StatsPage = ({ user, role, onBack }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Action Items Panel - moved to bottom for streamlined flow */}
+      <ActionItemsPanel />
     </Box>
   );
 };
