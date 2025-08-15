@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { transcribeAudio, validateAudioForTranscription } from './speechToText';
+import { transcribeAudioWithChunking, validateAudioForTranscription } from './speechToText';
 import { db } from './firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import {
@@ -14,7 +14,8 @@ import {
   CircularProgress,
   Paper,
   Divider,
-  Dialog
+  Dialog,
+  LinearProgress
 } from '@mui/material';
 import {
   Mic,
@@ -44,6 +45,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState('');
   const [showTimeLimitWarning, setShowTimeLimitWarning] = useState(false);
+  const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0, message: '' });
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
@@ -196,6 +198,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     setTranscriptionData(null);
     setTranscriptionError('');
     setShowTimeLimitWarning(false);
+    setTranscriptionProgress({ current: 0, total: 0, message: '' });
   };
 
   const retryTranscription = () => {
@@ -203,6 +206,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       setTranscriptionError('');
       setTranscription('');
       setTranscriptionData(null);
+      setTranscriptionProgress({ current: 0, total: 0, message: '' });
       handleTranscription(audioBlob);
     }
   };
@@ -217,7 +221,9 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         sttConfidence: transcriptionData.confidence,
         sttAlternatives: transcriptionData.alternatives,
         languageCode: transcriptionData.languageCode,
-        timestamp: new Date()
+        timestamp: new Date(),
+        chunkCount: transcriptionData.chunkCount,
+        totalDuration: transcriptionData.totalDuration
       });
     }
   };
@@ -230,20 +236,37 @@ const VoiceRecorder = ({ onSave, onNext }) => {
 
     setIsTranscribing(true);
     setTranscriptionError('');
+    setTranscriptionProgress({ current: 0, total: 0, message: 'Starting transcription...' });
 
     try {
-      const transcriptionResult = await transcribeAudio(audioBlob);
+      // Use the new chunked transcription function with progress callback
+      const transcriptionResult = await transcribeAudioWithChunking(
+        audioBlob, 
+        'en-US', 
+        30000, // 30 second chunks
+        (current, total, message) => {
+          setTranscriptionProgress({ current, total, message });
+        }
+      );
+      
       setTranscriptionData(transcriptionResult);
       setTranscription(transcriptionResult.text);
       
       if (!transcriptionResult.text) {
         setTranscriptionError('No speech detected in the recording.');
       }
+      
+      // Show chunk information if audio was chunked
+      if (transcriptionResult.chunkCount > 1) {
+        console.log(`Transcription completed using ${transcriptionResult.chunkCount} chunks`);
+      }
+      
     } catch (error) {
       console.error('Transcription failed:', error);
       setTranscriptionError(`Transcription failed: ${error.message}`);
     } finally {
       setIsTranscribing(false);
+      setTranscriptionProgress({ current: 0, total: 0, message: '' });
     }
   };
 
@@ -428,8 +451,6 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         </Box>
       )}
 
-
-
       {/* Transcription Section */}
       {(audioUrl || isTranscribing || transcription || transcriptionError) && (
         <Box
@@ -477,12 +498,62 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 color: '#64748b'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                <CircularProgress size={16} sx={{ color: '#059669' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+                <CircularProgress size={20} sx={{ color: '#059669' }} />
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   Converting speech to text...
                 </Typography>
               </Box>
+              
+              {/* Show chunking info if available */}
+              {transcriptionData?.chunkCount > 1 && (
+                <Box sx={{ mb: 2, p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Transcribing in progress...
+                  </Typography>
+                  {transcriptionProgress.total > 0 && (
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                  )}
+                </Box>
+              )}
+              
+              {/* Show fallback info if chunking failed */}
+              {transcriptionData?.fallbackUsed && (
+                <Box sx={{ mb: 2, p: 2, backgroundColor: '#fef3c7', borderRadius: 1, border: '1px solid #fbbf24' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Warning sx={{ fontSize: 14, color: '#f59e0b' }} />
+                    Transcribing in progress...
+                  </Typography>
+                  {transcriptionProgress.total > 0 && (
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                  )}
+                </Box>
+              )}
+              
+              {/* Show general progress for all transcriptions */}
+              {transcriptionProgress.message && !transcriptionData?.chunkCount && !transcriptionData?.fallbackUsed && (
+                <Box sx={{ mb: 2, p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Transcribing in progress...
+                  </Typography>
+                  {transcriptionProgress.total > 0 && (
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                  )}
+                </Box>
+              )}
+              
               <Typography variant="caption" color="text.secondary">
                 This may take a few seconds
               </Typography>
@@ -524,7 +595,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 <Button
                   variant="outlined"
                   onClick={resetRecording}
-                  startIcon={<Mic />}
+                  startIcon={<Refresh />}
                   size="small"
                   sx={{
                     borderColor: '#64748b',
@@ -594,20 +665,21 @@ const VoiceRecorder = ({ onSave, onNext }) => {
               </Button>
               
               <Button
-                variant="contained"
+                variant="outlined"
                 onClick={resetRecording}
                 startIcon={<Refresh />}
                 size="small"
                 sx={{
-                  backgroundColor: '#4f46e5',
-                  color: 'white',
+                  borderColor: '#64748b',
+                  color: '#64748b',
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: '#4338ca',
+                    borderColor: '#475569',
+                    color: '#475569',
                   }
                 }}
               >
-                Retry Voice Note
+                Record Again
               </Button>
 
             </Box>

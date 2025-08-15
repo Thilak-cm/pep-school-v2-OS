@@ -4,6 +4,10 @@
 const SPEECH_TO_TEXT_API_KEY = import.meta.env.VITE_GOOGLE_SPEECH_TO_TEXT_API_KEY;
 const SPEECH_TO_TEXT_ENDPOINT = 'https://speech.googleapis.com/v1/speech:recognize';
 
+// Constants for chunking
+const CHUNK_DURATION_MS = 30000; // 30 seconds in milliseconds
+const OVERLAP_MS = 1000; // 1 second overlap to avoid cutting words
+
 /**
  * Convert audio blob to base64 string
  * @param {Blob} audioBlob - The audio blob to convert
@@ -40,6 +44,373 @@ const audioBlobToBase64ForGoogle = async (audioBlob) => {
 };
 
 /**
+ * Chunk audio blob into smaller segments for transcription
+ * @param {Blob} audioBlob - The audio blob to chunk
+ * @param {number} durationMs - Duration of each chunk in milliseconds
+ * @param {number} overlapMs - Overlap between chunks in milliseconds
+ * @returns {Promise<Array<{blob: Blob, startTime: number, endTime: number}>>} Array of audio chunks with timing info
+ */
+export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, overlapMs = OVERLAP_MS) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Validate input parameters
+      if (!audioBlob || audioBlob.size === 0) {
+        reject(new Error('Invalid audio blob provided'));
+        return;
+      }
+      
+      if (durationMs <= 0 || overlapMs < 0) {
+        reject(new Error('Invalid duration or overlap parameters'));
+        return;
+      }
+      
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const fileReader = new FileReader();
+      
+      fileReader.onload = async (event) => {
+        try {
+          console.log('Starting audio chunking process...');
+          const arrayBuffer = event.target.result;
+          console.log('ArrayBuffer size:', arrayBuffer.byteLength);
+          
+          if (arrayBuffer.byteLength === 0) {
+            throw new Error('Empty audio file');
+          }
+          
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          console.log('AudioBuffer decoded:', {
+            length: audioBuffer.length,
+            sampleRate: audioBuffer.sampleRate,
+            channels: audioBuffer.numberOfChannels,
+            duration: audioBuffer.length / audioBuffer.sampleRate
+          });
+          
+          // Validate audio buffer
+          if (audioBuffer.length === 0) {
+            throw new Error('Audio buffer is empty');
+          }
+          
+          const chunks = [];
+          const sampleRate = audioBuffer.sampleRate;
+          const totalSamples = audioBuffer.length;
+          const samplesPerChunk = Math.floor(durationMs * sampleRate / 1000);
+          const overlapSamples = Math.floor(overlapMs * sampleRate / 1000);
+          
+          // Ensure minimum chunk size
+          if (samplesPerChunk < 1000) { // At least 1000 samples (about 22ms at 44.1kHz)
+            throw new Error('Chunk duration too short for this audio');
+          }
+          
+          console.log('Chunking parameters:', {
+            samplesPerChunk,
+            overlapSamples,
+            totalSamples,
+            expectedChunks: Math.ceil(totalSamples / samplesPerChunk)
+          });
+          
+          let startSample = 0;
+          
+          while (startSample < totalSamples) {
+            const endSample = Math.min(startSample + samplesPerChunk, totalSamples);
+            const chunkLength = endSample - startSample;
+            
+            // Skip chunks that are too small
+            if (chunkLength < samplesPerChunk / 4) {
+              console.log('Skipping small chunk at end');
+              break;
+            }
+            
+            console.log(`Creating chunk: ${startSample} to ${endSample} (${chunkLength} samples)`);
+            
+            // Create a new audio buffer for this chunk
+            const chunkBuffer = audioContext.createBuffer(
+              audioBuffer.numberOfChannels,
+              chunkLength,
+              sampleRate
+            );
+            
+            // Copy audio data for each channel
+            for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+              const channelData = audioBuffer.getChannelData(channel);
+              const chunkChannelData = chunkBuffer.getChannelData(channel);
+              
+              for (let i = 0; i < chunkLength; i++) {
+                chunkChannelData[i] = channelData[startSample + i];
+              }
+            }
+            
+            try {
+              // Convert chunk buffer to blob
+              const chunkBlob = await audioBufferToWavBlob(chunkBuffer);
+              console.log(`Chunk ${chunks.length + 1} created:`, {
+                size: chunkBlob.size,
+                type: chunkBlob.type,
+                startTime: startSample / sampleRate,
+                endTime: endSample / sampleRate
+              });
+              
+              chunks.push({
+                blob: chunkBlob,
+                startTime: startSample / sampleRate,
+                endTime: endSample / sampleRate,
+                chunkIndex: chunks.length
+              });
+            } catch (chunkError) {
+              console.error(`Error creating chunk ${chunks.length + 1}:`, chunkError);
+              throw new Error(`Failed to create audio chunk: ${chunkError.message}`);
+            }
+            
+            // Move to next chunk with overlap
+            startSample = endSample - overlapSamples;
+            
+            // Safety check to prevent infinite loops
+            if (startSample >= totalSamples) {
+              break;
+            }
+          }
+          
+          if (chunks.length === 0) {
+            throw new Error('No valid chunks could be created');
+          }
+          
+          console.log(`Audio chunking completed. Created ${chunks.length} chunks.`);
+          audioContext.close();
+          resolve(chunks);
+          
+        } catch (error) {
+          console.error('Error during audio chunking:', error);
+          audioContext.close();
+          reject(error);
+        }
+      };
+      
+      fileReader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        reject(new Error('Failed to read audio file'));
+      };
+      
+      console.log('Starting file read for chunking...');
+      fileReader.readAsArrayBuffer(audioBlob);
+      
+    } catch (error) {
+      console.error('Error initializing audio chunking:', error);
+      reject(error);
+    }
+  });
+};
+
+/**
+ * Convert AudioBuffer to Blob
+ * @param {AudioBuffer} audioBuffer - The audio buffer to convert
+ * @param {string} mimeType - The MIME type for the output blob
+ * @returns {Promise<Blob>} The audio blob
+ */
+const audioBufferToBlob = async (audioBuffer, mimeType) => {
+  return new Promise((resolve) => {
+    // Create an offline audio context to render the buffer
+    const offlineContext = new OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+    
+    // Create a buffer source
+    const source = offlineContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineContext.destination);
+    source.start();
+    
+    // Render the audio
+    offlineContext.startRendering().then((renderedBuffer) => {
+      // Convert the rendered buffer to a blob
+      const length = renderedBuffer.length;
+      const sampleRate = renderedBuffer.sampleRate;
+      const channels = renderedBuffer.numberOfChannels;
+      
+      // Create a WAV file (this is more reliable than trying to recreate the original format)
+      const wavBlob = audioBufferToWavBlob(renderedBuffer);
+      resolve(wavBlob);
+    });
+  });
+};
+
+/**
+ * Convert AudioBuffer to WAV format Blob
+ * @param {AudioBuffer} audioBuffer - The audio buffer to convert
+ * @returns {Blob} WAV format blob
+ */
+const audioBufferToWavBlob = (audioBuffer) => {
+  const length = audioBuffer.length;
+  const sampleRate = audioBuffer.sampleRate;
+  const channels = audioBuffer.numberOfChannels;
+  
+  // WAV file header
+  const buffer = new ArrayBuffer(44 + length * channels * 2);
+  const view = new DataView(buffer);
+  
+  // RIFF chunk descriptor
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length * channels * 2, true);
+  writeString(8, 'WAVE');
+  
+  // fmt sub-chunk
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * 2, true);
+  view.setUint16(32, channels * 2, true);
+  view.setUint16(34, 16, true);
+  
+  // data sub-chunk
+  writeString(36, 'data');
+  view.setUint32(40, length * channels * 2, true);
+  
+  // Write audio data
+  let offset = 44;
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < channels; channel++) {
+      const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([buffer], { type: 'audio/wav' });
+};
+
+/**
+ * Transcribe audio using chunking for longer recordings
+ * @param {Blob} audioBlob - The audio blob to transcribe
+ * @param {string} languageCode - Language code (default: 'en-US')
+ * @param {number} maxChunkDuration - Maximum duration per chunk in milliseconds (default: 30000)
+ * @param {Function} onProgress - Progress callback function (current, total, message)
+ * @returns {Promise<Object>} Transcribed text with metadata
+ */
+export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-US', maxChunkDuration = CHUNK_DURATION_MS, onProgress = null) => {
+  try {
+    // Check if we need to chunk the audio
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const durationMs = (audioBuffer.length / audioBuffer.sampleRate) * 1000;
+    audioContext.close();
+    
+    // If audio is short enough, use regular transcription
+    if (durationMs <= maxChunkDuration) {
+      if (onProgress) onProgress(1, 1, 'Transcribing audio...');
+      return await transcribeAudio(audioBlob, languageCode);
+    }
+    
+    console.log(`Audio duration: ${durationMs}ms, chunking into ${maxChunkDuration}ms segments...`);
+    
+    if (onProgress) onProgress(0, 0, `Chunking ${Math.ceil(durationMs / maxChunkDuration)} audio segments...`);
+    
+    try {
+      // Try chunking first
+      const chunks = await chunkAudioBlob(audioBlob, maxChunkDuration);
+      console.log(`Created ${chunks.length} audio chunks`);
+      
+      if (onProgress) onProgress(0, chunks.length, `Starting transcription...`);
+      
+      // Transcribe each chunk with progress updates
+      const results = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        
+        if (onProgress) onProgress(i + 1, chunks.length, `Transcribing in progress...`);
+        
+        console.log(`Transcribing chunk ${i + 1}/${chunks.length} (${chunk.startTime.toFixed(1)}s - ${chunk.endTime.toFixed(1)}s)`);
+        
+        try {
+          const result = await transcribeAudio(chunk.blob, languageCode);
+          results.push({
+            ...result,
+            chunkIndex: i,
+            startTime: chunk.startTime,
+            endTime: chunk.endTime
+          });
+        } catch (error) {
+          console.error(`Error transcribing chunk ${i + 1}:`, error);
+          results.push({
+            text: `[Transcription error in segment ${i + 1}]`,
+            confidence: 0,
+            alternatives: [],
+            languageCode,
+            chunkIndex: i,
+            startTime: chunk.startTime,
+            endTime: chunk.endTime,
+            error: error.message
+          });
+        }
+      }
+      
+      if (onProgress) onProgress(chunks.length, chunks.length, 'Finalizing transcription...');
+      
+      // Stitch transcriptions together
+      const stitchedText = results
+        .sort((a, b) => a.chunkIndex - b.chunkIndex)
+        .map(result => result.text)
+        .join(' ');
+      
+      // Calculate overall confidence (average of successful chunks)
+      const successfulResults = results.filter(r => !r.error && r.confidence !== null);
+      const overallConfidence = successfulResults.length > 0
+        ? successfulResults.reduce((sum, r) => sum + r.confidence, 0) / successfulResults.length
+        : null;
+      
+      // Collect all alternatives
+      const allAlternatives = results
+        .filter(r => !r.error && r.alternatives)
+        .flatMap(r => r.alternatives);
+      
+      if (onProgress) onProgress(chunks.length, chunks.length, 'Transcription complete!');
+      
+      return {
+        text: stitchedText.trim(),
+        confidence: overallConfidence,
+        alternatives: allAlternatives,
+        languageCode,
+        chunkCount: chunks.length,
+        totalDuration: durationMs / 1000,
+        chunks: results
+      };
+      
+    } catch (chunkingError) {
+      console.warn('Chunking failed, falling back to single transcription:', chunkingError);
+      
+      if (onProgress) onProgress(0, 1, 'Chunking failed, using single transcription...');
+      
+      // Fallback to single transcription
+      try {
+        const fallbackResult = await transcribeAudio(audioBlob, languageCode);
+        return {
+          ...fallbackResult,
+          chunkCount: 1,
+          totalDuration: durationMs / 1000,
+          chunks: [fallbackResult],
+          fallbackUsed: true
+        };
+      } catch (fallbackError) {
+        console.error('Fallback transcription also failed:', fallbackError);
+        throw new Error(`Both chunked and single transcription failed. Original error: ${chunkingError.message}. Fallback error: ${fallbackError.message}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Chunked transcription error:', error);
+    throw error;
+  }
+};
+
+/**
  * Transcribe audio using Google Speech-to-Text API
  * @param {Blob} audioBlob - The audio blob to transcribe
  * @param {string} languageCode - Language code (default: 'en-US')
@@ -54,23 +425,34 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     // Convert audio blob to base64
     const audioContent = await audioBlobToBase64ForGoogle(audioBlob);
     
+    // Determine encoding based on blob type
+    let encoding = 'WEBM_OPUS';
+    if (audioBlob.type === 'audio/wav') {
+      encoding = 'LINEAR16';
+    } else if (audioBlob.type.includes('webm')) {
+      encoding = 'WEBM_OPUS';
+    } else if (audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')) {
+      encoding = 'MP3';
+    }
+    
     // Prepare request payload
     const requestBody = {
       config: {
-        encoding: 'WEBM_OPUS', // Adjust based on your audio format
+        encoding: encoding,
         languageCode: languageCode,
         enableAutomaticPunctuation: true,
         enableWordTimeOffsets: false,
         enableWordConfidence: false,
         model: 'latest_long', // Better for longer audio
         useEnhanced: true, // Enhanced models for better accuracy
+        sampleRateHertz: 48000, // Standard sample rate for WAV
       },
       audio: {
         content: audioContent
       }
     };
 
-    console.log('Sending transcription request...');
+    console.log('Sending transcription request with encoding:', encoding);
 
     // Make API request
     const response = await fetch(`${SPEECH_TO_TEXT_ENDPOINT}?key=${SPEECH_TO_TEXT_API_KEY}`, {
