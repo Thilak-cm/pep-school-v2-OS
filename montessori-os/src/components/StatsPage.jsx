@@ -764,6 +764,175 @@ const StatsPage = ({ user, role, onBack }) => {
     </Card>
   );
 
+  const TabNavigationGrid = () => (
+    <Grid container spacing={2} sx={{ mb: 3 }}>
+      {/* Overview Tab */}
+      <Grid item xs={6}>
+        <Card 
+          sx={{ 
+            borderRadius: 2,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            border: activeTab === 0 ? '2px solid' : '1px solid',
+            borderColor: activeTab === 0 ? 'primary.main' : '#e2e8f0',
+            backgroundColor: activeTab === 0 ? 'primary.50' : 'white',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }
+          }}
+          onClick={() => handleTabChange(null, 0)}
+        >
+          <CardContent sx={{ p: 2, textAlign: 'center' }}>
+            <BarChart sx={{ 
+              fontSize: 32, 
+              color: activeTab === 0 ? 'primary.main' : 'text.secondary',
+              mb: 1 
+            }} />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 600,
+                color: activeTab === 0 ? 'primary.main' : 'text.primary'
+              }}
+            >
+              Overview
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Classrooms Tab */}
+      <Grid item xs={6}>
+        <Card 
+          sx={{ 
+            borderRadius: 2,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            border: activeTab === 1 ? '2px solid' : '1px solid',
+            borderColor: activeTab === 1 ? 'primary.main' : '#e2e8f0',
+            backgroundColor: activeTab === 1 ? 'primary.50' : 'white',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }
+          }}
+          onClick={() => handleTabChange(null, 1)}
+        >
+          <CardContent sx={{ p: 2, textAlign: 'center' }}>
+            <School sx={{ 
+              fontSize: 32, 
+              color: activeTab === 1 ? 'primary.main' : 'text.secondary',
+              mb: 1 
+            }} />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 600,
+                color: activeTab === 1 ? 'primary.main' : 'text.primary'
+              }}
+            >
+              Classrooms
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Teachers Tab - Only show for admins */}
+      {role !== 'teacher' && (
+        <Grid item xs={6}>
+          <Card 
+            sx={{ 
+              borderRadius: 2,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: activeTab === 2 ? '2px solid' : '1px solid',
+              borderColor: activeTab === 2 ? 'primary.main' : '#e2e8f0',
+              backgroundColor: activeTab === 2 ? 'primary.50' : 'white',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              }
+            }}
+            onClick={() => handleTabChange(null, 2)}
+          >
+            <CardContent sx={{ p: 2, textAlign: 'center' }}>
+              <People sx={{ 
+                fontSize: 32, 
+                color: activeTab === 2 ? 'primary.main' : 'text.secondary',
+                mb: 1 
+              }} />
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: activeTab === 2 ? 'primary.main' : 'text.primary'
+                }}
+              >
+                Teachers
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+
+      {/* Students Tab - Only show for admins */}
+      {role !== 'teacher' && (
+        <Grid item xs={6}>
+          <Card 
+            sx={{ 
+              borderRadius: 2,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: activeTab === 3 ? '2px solid' : '1px solid',
+              borderColor: activeTab === 3 ? 'primary.main' : '#e2e8f0',
+              backgroundColor: activeTab === 3 ? 'primary.50' : 'white',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              }
+            }}
+            onClick={() => handleTabChange(null, 3)}
+          >
+            <CardContent sx={{ p: 2, textAlign: 'center' }}>
+              <People sx={{ 
+                fontSize: 32, 
+                color: activeTab === 3 ? 'primary.main' : 'text.secondary',
+                mb: 1 
+              }} />
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: activeTab === 3 ? 'primary.main' : 'text.primary'
+                }}
+              >
+                Students
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+
+      {/* For teachers, show a placeholder in the bottom right to maintain grid layout */}
+      {role === 'teacher' && (
+        <Grid item xs={6}>
+          <Card sx={{ 
+            borderRadius: 2,
+            backgroundColor: 'grey.50',
+            border: '1px dashed #cbd5e1'
+          }}>
+            <CardContent sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                More features coming soon
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+    </Grid>
+  );
+
 
 
   const ClassroomComparisonChart = () => {
@@ -1033,7 +1202,7 @@ const StatsPage = ({ user, role, onBack }) => {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
                       <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
-                        {payload[0].value}
+                        {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
                       </Typography>
                       <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
                         Time: {payload[0].payload.period}
@@ -1118,58 +1287,18 @@ const StatsPage = ({ user, role, onBack }) => {
       {/* Filters Section */}
       {showFilters && <FilterSection />}
 
-      {/* Statistics Tabs */}
+      {/* Statistics Content */}
       <Card sx={{ 
         borderRadius: 3,
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
         overflow: 'hidden'
       }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={activeTab} 
-            onChange={handleTabChange}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{
-              '& .MuiTab-root': {
-                textTransform: 'none',
-                fontWeight: 600,
-                minWidth: 120,
-                px: 3
-              },
-              '& .MuiTabs-scrollButtons': {
-                color: 'primary.main'
-              }
-            }}
-          >
-            <Tab 
-              icon={<BarChart />} 
-              label="Overview" 
-              iconPosition="start"
-            />
-            <Tab 
-              icon={<School />} 
-              label={role === 'teacher' ? 'My Classrooms' : 'All Classrooms'} 
-              iconPosition="start"
-            />
-            {role !== 'teacher' && (
-              <Tab 
-                icon={<People />} 
-                label="Teachers" 
-                iconPosition="start"
-              />
-            )}
-            {role !== 'teacher' && (
-              <Tab 
-                icon={<People />} 
-                label="Students" 
-                iconPosition="start"
-              />
-            )}
-          </Tabs>
-        </Box>
-
+        {/* Replace tabs with grid navigation */}
         <CardContent sx={{ p: 3 }}>
+          {/* Tab Navigation Grid */}
+          <TabNavigationGrid />
+
+          {/* Content based on active tab */}
           {/* Overview Tab */}
           {activeTab === 0 && (
             <Box>
