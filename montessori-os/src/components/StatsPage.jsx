@@ -75,6 +75,10 @@ const StatsPage = ({ user, role, onBack }) => {
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
 
+  // Student search state
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -367,18 +371,21 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Calculate student performance
         const studentStats = {};
+        
+        // Initialize ALL students with 0 counts (including those with no observations)
+        studentsData.forEach(student => {
+          studentStats[student.id] = { 
+            id: student.id,
+            name: student.displayName || student.name || 'Unknown Student',
+            classroomId: student.classroomId,
+            count: 0,
+            thisWeekCount: 0
+          };
+        });
+        
+        // Now add observation counts for students who have them
         filteredObservations.forEach(obs => {
-          if (obs.studentId) {
-            if (!studentStats[obs.studentId]) {
-              const student = studentsData.find(s => s.id === obs.studentId);
-              studentStats[obs.studentId] = { 
-                id: obs.studentId,
-                name: student?.displayName || student?.name || 'Unknown Student',
-                classroomId: student?.classroomId,
-                count: 0,
-                thisWeekCount: 0
-              };
-            }
+          if (obs.studentId && studentStats[obs.studentId]) {
             studentStats[obs.studentId].count++;
             
             const obsDate = getObservationDate(obs);
@@ -388,14 +395,13 @@ const StatsPage = ({ user, role, onBack }) => {
           }
         });
 
+        // For admins, show ALL students. For teachers, this will be filtered by their classrooms
         const topStudents = Object.values(studentStats)
-          .sort((a, b) => b.thisWeekCount - a.thisWeekCount)
-          .slice(0, 5);
+          .sort((a, b) => b.thisWeekCount - a.thisWeekCount);
 
         const strugglingStudents = Object.values(studentStats)
           .filter(student => student.thisWeekCount < 2) // Less than 2 notes this week
-          .sort((a, b) => a.thisWeekCount - b.thisWeekCount)
-          .slice(0, 5);
+          .sort((a, b) => a.thisWeekCount - b.thisWeekCount);
 
         // Weekly activity for trend analysis
         const weeklyActivity = [];
@@ -1620,67 +1626,307 @@ const StatsPage = ({ user, role, onBack }) => {
               
               {stats.topStudents.length > 0 ? (
                 <Box>
-                  {/* Top Performers */}
-                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                    Top Performers This Week
-                  </Typography>
-                  <Grid container spacing={2} sx={{ mb: 3 }}>
-                    {stats.topStudents.map((student) => (
-                      <Grid item xs={12} sm={6} key={student.id}>
-                        <Card sx={{ borderRadius: 2 }}>
-                          <CardContent sx={{ p: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Box>
-                                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {/* Performance Summary */}
+                  <Box sx={{ 
+                    p: 2, 
+                    backgroundColor: '#f8fafc', 
+                    borderRadius: 2, 
+                    border: '1px solid #e2e8f0',
+                    mb: 3
+                  }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                      Performance Summary
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Top Performers</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
+                          {stats.topStudents.filter(s => s.thisWeekCount >= 5).length} students
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">On Track</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
+                          {stats.topStudents.filter(s => s.thisWeekCount >= 3 && s.thisWeekCount < 5).length} students
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Needs Support</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                          {stats.topStudents.filter(s => s.thisWeekCount < 3).length} students
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">Average Notes</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {stats.topStudents.length > 0 ? 
+                            (stats.topStudents.reduce((sum, s) => sum + s.thisWeekCount, 0) / stats.topStudents.length).toFixed(1) : '0.0'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    {/* Target Information */}
+                    <Box sx={{ 
+                      mt: 2, 
+                      pt: 2, 
+                      borderTop: '1px solid #e2e8f0',
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Target: <strong>5 notes per student per week</strong>
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Search Bar */}
+                  <Box sx={{ mb: 3 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search students by name..."
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ color: 'text.secondary', mr: 1 }}>
+                            <People sx={{ fontSize: 20 }} />
+                          </Box>
+                        ),
+                        endAdornment: (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {studentSearchQuery && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setStudentSearchQuery('')}
+                                sx={{ p: 0.5 }}
+                                aria-label="Clear search"
+                              >
+                                <Clear sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                        )
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          backgroundColor: 'white',
+                          '&:hover': {
+                            backgroundColor: 'grey.50'
+                          }
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  {/* Student Cards with Horizontal Bars */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>
+                      Pick a student to view detailed stats
+                    </Typography>
+                    
+                    {/* Show placeholder when no search query, actual students when searching */}
+                    {!studentSearchQuery.trim() ? (
+                      // Placeholder card when no search
+                      <Box sx={{ 
+                        p: 3, 
+                        backgroundColor: 'grey.50', 
+                        borderRadius: 2, 
+                        border: '1px dashed #cbd5e1',
+                        textAlign: 'center'
+                      }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Search for a student above to view their performance
+                        </Typography>
+                        <Box sx={{ 
+                          position: 'relative', 
+                          height: 12, 
+                          backgroundColor: '#e2e8f0', 
+                          borderRadius: 6,
+                          overflow: 'hidden'
+                        }}>
+                          <Box sx={{
+                            height: '100%',
+                            width: '0%',
+                            backgroundColor: '#9ca3af',
+                            borderRadius: 6
+                          }} />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Target: 5 notes/week
+                        </Typography>
+                      </Box>
+                    ) : (
+                      // Show actual students when searching
+                      (() => {
+                        const displayStudents = fuzzySearchStudents(stats.topStudents, studentSearchQuery.trim());
+                        
+                        if (displayStudents.length === 0) {
+                          return (
+                            <Box sx={{ 
+                              textAlign: 'center', 
+                              py: 4, 
+                              color: 'text.secondary',
+                              backgroundColor: 'grey.50',
+                              borderRadius: 2
+                            }}>
+                              <Typography variant="body2">
+                                No students found matching your search.
+                              </Typography>
+                            </Box>
+                          );
+                        }
+                        
+                        return displayStudents.map((student, index) => {
+                          const target = 5; // Target: 5 notes per week
+                          const percentage = Math.min((student.thisWeekCount / target) * 100, 100);
+                          const isTopPerformer = student.thisWeekCount >= 5;
+                          const isSelected = selectedStudent?.id === student.id;
+                          
+                          return (
+                            <Box key={student.id} sx={{ 
+                              mb: 1.5, 
+                              p: 2, 
+                              backgroundColor: isSelected ? 'primary.50' : 'white', 
+                              borderRadius: 2, 
+                              border: isSelected ? '2px solid' : '1px solid',
+                              borderColor: isSelected ? 'primary.main' : '#e2e8f0',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              '&:hover': {
+                                backgroundColor: isSelected ? 'primary.50' : 'grey.50',
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                              }
+                            }}
+                            onClick={() => setSelectedStudent(isSelected ? null : student)}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: 600,
+                                    minWidth: 120,
+                                    color: isTopPerformer ? 'success.main' : 'text.primary'
+                                  }}
+                                >
                                   {student.name}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {student.thisWeekCount} notes this week
+                                <Typography 
+                                  variant="body2" 
+                                  color="text.secondary" 
+                                  sx={{ minWidth: 80, textAlign: 'right', mr: 2 }}
+                                >
+                                  {student.thisWeekCount} notes
                                 </Typography>
                               </Box>
-                              <Chip 
-                                label="Top Performer"
-                                color="success"
-                                size="small"
-                              />
+                              
+                              {/* Horizontal Progress Bar */}
+                              <Box sx={{ 
+                                position: 'relative', 
+                                height: 12, 
+                                backgroundColor: '#f1f5f9', 
+                                borderRadius: 6,
+                                overflow: 'hidden'
+                              }}>
+                                <Box sx={{
+                                  height: '100%',
+                                  width: `${percentage}%`,
+                                  backgroundColor: percentage >= 100 ? '#10b981' : 
+                                                 percentage >= 80 ? '#f59e0b' : '#ef4444',
+                                  borderRadius: 6,
+                                  transition: 'width 0.3s ease',
+                                  position: 'relative'
+                                }}>
+                                  {/* Target line indicator */}
+                                  {percentage < 100 && (
+                                    <Box sx={{
+                                      position: 'absolute',
+                                      right: 0,
+                                      top: 0,
+                                      height: '100%',
+                                      width: '2px',
+                                      backgroundColor: 'white',
+                                      boxShadow: '0 0 4px rgba(0,0,0,0.3)'
+                                    }} />
+                                  )}
+                                </Box>
+                                
+                                {/* Target marker */}
+                                <Box sx={{
+                                  position: 'absolute',
+                                  left: `${Math.min((target / Math.max(...stats.topStudents.map(s => s.thisWeekCount))) * 100, 100)}%`,
+                                  top: 0,
+                                  height: '100%',
+                                  width: '2px',
+                                  backgroundColor: '#64748b',
+                                  opacity: 0.6
+                                }} />
+                              </Box>
+                              
+                              {/* Target label */}
+                              <Typography 
+                                variant="caption" 
+                                color="text.secondary" 
+                                sx={{ 
+                                  display: 'block', 
+                                  mt: 0.5,
+                                  textAlign: 'right',
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                Target: {target} notes/week
+                              </Typography>
                             </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
-                  
-                  {/* Struggling Students */}
-                  {stats.strugglingStudents.length > 0 && (
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: 'warning.main' }}>
-                        Students Needing Attention
+                          );
+                        });
+                      })()
+                    )}
+                  </Box>
+
+                  {/* Selected Student Detailed Stats */}
+                  {selectedStudent && (
+                    <Box sx={{ 
+                      p: 3, 
+                      backgroundColor: 'primary.50', 
+                      borderRadius: 2, 
+                      border: '1px solid',
+                      borderColor: 'primary.200'
+                    }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'primary.main' }}>
+                        {selectedStudent.name} - Detailed Stats
                       </Typography>
                       <Grid container spacing={2}>
-                        {stats.strugglingStudents.map((student) => (
-                          <Grid item xs={12} sm={6} key={student.id}>
-                            <Card sx={{ borderRadius: 2, border: '1px solid #fbbf24' }}>
-                              <CardContent sx={{ p: 2 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Box>
-                                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                      {student.name}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      Only {student.thisWeekCount} note(s) this week
-                                    </Typography>
-                                  </Box>
-                                  <Chip 
-                                    label="Needs Attention"
-                                    color="warning"
-                                    size="small"
-                                  />
-                                </Box>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        ))}
+                        <Grid item xs={6}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                              {selectedStudent.thisWeekCount}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Notes This Week
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                              {selectedStudent.count}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Total Notes
+                            </Typography>
+                          </Box>
+                        </Grid>
                       </Grid>
+                      <Box sx={{ mt: 2, textAlign: 'center' }}>
+                        <Button 
+                          size="small" 
+                          onClick={() => setSelectedStudent(null)}
+                          variant="outlined"
+                        >
+                          Close Details
+                        </Button>
+                      </Box>
                     </Box>
                   )}
                 </Box>
