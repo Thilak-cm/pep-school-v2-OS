@@ -41,7 +41,7 @@ import {
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 
 const StatsPage = ({ user, role, onBack }) => {
@@ -1008,6 +1008,15 @@ const StatsPage = ({ user, role, onBack }) => {
             />
             <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]} />
             <Bar dataKey="Target" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+            <Legend 
+              verticalAlign="top" 
+              height={36}
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{
+                paddingTop: '10px'
+              }}
+            />
           </RechartsBarChart>
         </ResponsiveContainer>
       </Box>
@@ -1297,6 +1306,9 @@ const StatsPage = ({ user, role, onBack }) => {
         <CardContent sx={{ p: 3 }}>
           {/* Tab Navigation Grid */}
           <TabNavigationGrid />
+          
+          {/* Persistent Divider */}
+          <Divider sx={{ my: 3, borderColor: 'grey.300' }} />
 
           {/* Content based on active tab */}
           {/* Overview Tab */}
