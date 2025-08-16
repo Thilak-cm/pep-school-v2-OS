@@ -9,7 +9,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 2
   },
@@ -23,7 +23,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 3
   },
@@ -37,7 +37,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 4
   },
@@ -51,7 +51,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 5
   },
@@ -65,7 +65,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 6
   },
@@ -79,7 +79,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 7
   },
@@ -93,7 +93,7 @@
       "HSR"
     ],
     "environments": [
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 8
   },
@@ -108,7 +108,7 @@
       "Whitefield"
     ],
     "environments": [
-      "HSR - All Stars",
+      "HSR - Adolescent",
       "Power",
       "Amazing",
       "Plumeria",
@@ -131,7 +131,7 @@
       "Whitefield"
     ],
     "environments": [
-      "HSR - All Stars",
+      "HSR - Adolescent",
       "Power",
       "Amazing",
       "Plumeria",
@@ -154,7 +154,7 @@
       "Whitefield"
     ],
     "environments": [
-      "HSR - All Stars",
+      "HSR - Adolescent",
       "Power",
       "Amazing Whitefield - Elementary",
       "Adolescent"
@@ -287,7 +287,7 @@
     "environments": [
       "Amazing",
       "Power",
-      "All Stars"
+      "Adolescent"
     ],
     "sourceRow": 20
   },
@@ -723,5 +723,103 @@
       "Argus"
     ],
     "sourceRow": 50
+  },
+  {
+    "fullName": "Archana Dodethker",
+    "firstName": "Archana",
+    "lastName": "Dodethker",
+    "email": "archanadodethker@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 1"
+    ],
+    "sourceRow": 51
+  },
+  {
+    "fullName": "Padmavati",
+    "firstName": "Padmavati",
+    "lastName": "",
+    "email": "padmavati@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 1"
+    ],
+    "sourceRow": 52
+  },
+  {
+    "fullName": "Rimsha",
+    "firstName": "Rimsha",
+    "lastName": "",
+    "email": "—",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 1"
+    ],
+    "sourceRow": 53
+  },
+  {
+    "fullName": "Vanitha",
+    "firstName": "Vanitha",
+    "lastName": "",
+    "email": "vanitha@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 2"
+    ],
+    "sourceRow": 54
+  },
+  {
+    "fullName": "Padmaja",
+    "firstName": "Padmaja",
+    "lastName": "",
+    "email": "padmaja@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 2"
+    ],
+    "sourceRow": 55
+  },
+  {
+    "fullName": "Priyanka Tijare",
+    "firstName": "Priyanka",
+    "lastName": "Tijare",
+    "email": "priyanka@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Primary 2"
+    ],
+    "sourceRow": 56
+  },
+  {
+    "fullName": "Kauser",
+    "firstName": "Kauser",
+    "lastName": "",
+    "email": "kauser@pepschoolv2.com",
+    "role": "teacher",
+    "locations": [
+      "Hyderabad"
+    ],
+    "environments": [
+      "Toddler"
+    ],
+    "sourceRow": 57
   }
 ]
