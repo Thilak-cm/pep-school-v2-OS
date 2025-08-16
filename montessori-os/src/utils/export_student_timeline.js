@@ -154,86 +154,43 @@ const formatTimestampForText = (timestamp) => {
 };
 
 /**
- * Generate text content for export
+ * Generate text content for export (clean, observation-focused format)
  * @param {Object} exportData - Export data object
  * @returns {string} Formatted text content
  */
 const generateTextContent = (exportData) => {
-  const { exportMetadata, student, observations, summary } = exportData;
+  const { student, observations } = exportData;
   
-  let text = 'STUDENT TIMELINE EXPORT\n';
-  text += '=======================\n\n';
+  let text = '';
   
-  // Export metadata
-  text += 'EXPORT METADATA\n';
-  text += '---------------\n';
-  text += `Exported: ${new Date(exportMetadata.exportedAt).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })}\n`;
-  text += `Exported by: ${exportMetadata.exportedBy}\n`;
-  text += `Export type: ${exportMetadata.exportType}\n`;
-  text += `Version: ${exportMetadata.version}\n\n`;
+  // Simple header with student name
+  text += `${student?.displayName || student?.name || 'Student'} - Observation Timeline\n`;
+  text += '='.repeat(50) + '\n\n';
   
-  // Student information
-  text += 'STUDENT INFORMATION\n';
-  text += '-------------------\n';
-  text += `ID: ${student.id}\n`;
-  text += `Name: ${student.name}\n`;
-  text += `Display Name: ${student.displayName}\n`;
-  text += `First Name: ${student.firstName}\n`;
-  text += `Last Name: ${student.lastName}\n\n`;
-  
-  // Summary
-  text += 'SUMMARY\n';
-  text += '-------\n';
-  text += `Total Observations: ${summary.totalObservations}\n`;
-  text += `Voice Notes: ${summary.voiceNotes}\n`;
-  text += `Text Notes: ${summary.textNotes}\n`;
-  text += `Starred Notes: ${summary.starredNotes}\n`;
-  text += `Private Notes: ${summary.privateNotes}\n`;
-  
-  if (summary.dateRange.earliest && summary.dateRange.latest) {
-    const earliest = new Date(summary.dateRange.earliest).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const latest = new Date(summary.dateRange.latest).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    text += `Date Range: ${earliest} to ${latest}\n`;
-  }
-  text += '\n';
-  
-  // Observations
-  text += 'OBSERVATIONS\n';
-  text += '------------\n\n';
-  
+  // Observations in clean format
   observations.forEach((obs, index) => {
-    text += `[${index + 1}]\n`;
-    text += `ID: ${obs.id}\n`;
-    text += `Text: ${obs.text}\n`;
-    text += `Type: ${obs.type}\n`;
-    if (obs.duration) {
-      text += `Duration: ${obs.duration} seconds\n`;
+    // Format date nicely
+    const date = formatTimestampForText(obs.observedAt || obs.timestamp);
+    
+    // Add observation number and date
+    text += `${index + 1}. ${date}\n`;
+    
+    // Add the actual observation text
+    if (obs.text) {
+      text += `${obs.text}\n`;
     }
-    text += `Observed: ${formatTimestampForText(obs.observedAt || obs.timestamp)}\n`;
-    text += `Created by: ${obs.createdBy}\n`;
-    text += `Teacher Name: ${obs.teacherName}\n`;
-    text += `Teacher Email: ${obs.teacherEmail}\n`;
-    text += `Student ID: ${obs.studentId}\n`;
-    text += `Starred: ${obs.isStarred ? 'Yes' : 'No'}\n`;
-    text += `Private: ${obs.isPrivate ? 'Yes' : 'No'}\n`;
-    text += `Draft: ${obs.isDraft ? 'Yes' : 'No'}\n`;
-    text += `Edit Count: ${obs.editCount}\n\n`;
+    
+    // Add type indicator if it's a voice note
+    if (obs.type === 'voice' && obs.duration) {
+      text += `[Voice note - ${obs.duration}s]\n`;
+    }
+    
+    // Add spacing between observations
+    text += '\n';
   });
+  
+  // Simple footer
+  text += `Total observations: ${observations.length}`;
   
   return text;
 };

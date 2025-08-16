@@ -422,67 +422,66 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
           >
             Filters
           </Button>
-          {userRole === 'admin' && (
-            <Box sx={{ position: 'relative' }} ref={exportButtonRef}>
-              <Button
-                startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-                onClick={() => handleExportClick(hasActiveFilters ? 'filtered' : 'all')}
-                variant="outlined"
-                color="secondary"
-                size="small"
-                disabled={exporting || (hasActiveFilters ? filteredObservations.length === 0 : observations.length === 0)}
-                aria-label={hasActiveFilters ? 'Export filtered observations' : 'Export all observations'}
-                title={hasActiveFilters ? `Export ${filteredObservations.length} filtered observations` : `Export ${observations.length} observations`}
-              >
-                {exporting ? 'Exporting...' : 'Export'}
-              </Button>
-              
-              {/* Format Dropdown for Admins */}
-              {showFormatDropdown && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  mt: 1,
-                  backgroundColor: 'white',
-                  borderRadius: 2,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  border: '1px solid #e2e8f0',
-                  zIndex: 1000,
-                  minWidth: 120
-                }}>
-                  <Button
-                    onClick={() => handleFormatSelect('txt')}
-                    variant="text"
-                    size="small"
-                    fullWidth
-                    sx={{ 
-                      justifyContent: 'flex-start', 
-                      px: 2, 
-                      py: 1.5,
-                      '&:hover': { backgroundColor: '#f8fafc' }
-                    }}
-                  >
-                    Text (.txt)
-                  </Button>
-                  <Button
-                    onClick={() => handleFormatSelect('json')}
-                    variant="text"
-                    size="small"
-                    fullWidth
-                    sx={{ 
-                      justifyContent: 'flex-start', 
-                      px: 2, 
-                      py: 1.5,
-                      '&:hover': { backgroundColor: '#f8fafc' }
-                    }}
-                  >
-                    JSON (.json)
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          )}
+          {/* Export Button - Show for both admins and teachers */}
+          <Box sx={{ position: 'relative' }} ref={exportButtonRef}>
+            <Button
+              startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+              onClick={() => handleExportClick(hasActiveFilters ? 'filtered' : 'all')}
+              variant="outlined"
+              color="secondary"
+              size="small"
+              disabled={exporting || (hasActiveFilters ? filteredObservations.length === 0 : observations.length === 0)}
+              aria-label={hasActiveFilters ? 'Export filtered observations' : 'Export all observations'}
+              title={hasActiveFilters ? `Export ${filteredObservations.length} filtered observations` : `Export ${observations.length} observations`}
+            >
+              {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+            
+            {/* Format Dropdown - Only for admins */}
+            {userRole === 'admin' && showFormatDropdown && (
+              <Box sx={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                mt: 1,
+                backgroundColor: 'white',
+                borderRadius: 2,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                border: '1px solid #e2e8f0',
+                zIndex: 1000,
+                minWidth: 120
+              }}>
+                <Button
+                  onClick={() => handleFormatSelect('txt')}
+                  variant="text"
+                  size="small"
+                  fullWidth
+                  sx={{ 
+                    justifyContent: 'flex-start', 
+                    px: 2, 
+                    py: 1.5,
+                    '&:hover': { backgroundColor: '#f8fafc' }
+                  }}
+                >
+                  Text (.txt)
+                </Button>
+                <Button
+                  onClick={() => handleFormatSelect('json')}
+                  variant="text"
+                  size="small"
+                  fullWidth
+                  sx={{ 
+                    justifyContent: 'flex-start', 
+                    px: 2, 
+                    py: 1.5,
+                    '&:hover': { backgroundColor: '#f8fafc' }
+                  }}
+                >
+                  JSON (.json)
+                </Button>
+              </Box>
+            )}
+          </Box>
         </Box>
       </Box>
 
