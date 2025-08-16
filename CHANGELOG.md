@@ -5,6 +5,39 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2025-08-16
+
+### Added
+- **Role-Based User Deletion**: Enhanced `wipe-firestore.js` script with selective user deletion by role
+- **User Role Selection**: Choose to delete teachers only, admins only, or both when using `users` flag
+- **Universal Confirmation System**: All deletion operations now require explicit confirmation before execution
+
+### Improved
+- **Script Efficiency**: Consolidated confirmation logic into reusable `confirmAction()` function
+- **Code Quality**: Eliminated redundant readline interfaces and duplicate confirmation code
+- **Maintainability**: Streamlined async/await patterns and removed code duplication
+- **Safety**: Mandatory confirmation prompt for all destructive operations regardless of input flags
+
+### Technical
+- **Admin Script Enhancement**: `wipe-firestore.js` now supports `node wipe-firestore.js users` with role selection
+- **Confirmation Flow**: Role selection (1=teachers, 2=admins, 3=both) followed by confirmation prompt
+- **Code Refactoring**: Reduced script size while maintaining all functionality and safety measures
+- **Error Handling**: Consistent error handling and user feedback throughout all deletion operations
+
+### Usage
+```bash
+# Delete users by role
+node scripts/admin/wipe-firestore.js users
+# Select: 1 (teachers only), 2 (admins only), or 3 (both)
+# Confirm with 'YES' to proceed
+```
+
+### Result
+- Admin can now selectively clear user data by role instead of all-or-nothing approach
+- Script is more maintainable and efficient while preserving safety measures
+- Consistent confirmation flow across all deletion operations
+- Better user experience with clear role selection and confirmation prompts
+
 ## [2.3.2] - 2025-08-16
 
 ### Fixed
