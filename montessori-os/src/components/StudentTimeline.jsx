@@ -406,7 +406,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {hasActiveFilters && (
             <Chip 
-              label={`${filteredObservations.length}/${observations.length} filtered`}
+              label={`Showing ${filteredObservations.length} of ${observations.length} notes`}
               size="small"
               color="primary"
               variant="outlined"
@@ -989,7 +989,7 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
               <strong>Export Type:</strong> {exportType === 'all' ? 'All Observations' : 'Filtered Observations'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Count:</strong> {exportType === 'all' ? observations?.length || 0 : filteredObservations?.length || 0} notes
+              <strong>Count:</strong> {exportType === 'all' ? observations?.length || 0 : filteredObservations?.length || 0} out of {observations?.length || 0} notes
             </Typography>
             <Typography variant="body2" color="text.secondary">
               <strong>Format:</strong> {userRole === 'admin' ? `${exportFormat.toUpperCase()} file (.${exportFormat})` : 'Text file (.txt)'}
