@@ -5,6 +5,25 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2025-08-16
+
+### Improved
+- **Export Confirmation Modal Clarity**: Updated export confirmation modal to show "X out of Y notes" instead of just "Count: X notes"
+- **Filter Display Clarity**: Changed filter chip from "2/8 filtered" to "Showing 2 of 8 notes" for better user understanding
+- **User Experience**: Makes it obvious how many notes are being exported relative to total available notes
+- **Interface Clarity**: Improves user experience by being explicit about what numbers represent rather than using cryptic shorthand
+
+### Technical
+- **StudentTimeline Component**: Enhanced export confirmation dialog with clearer count display
+- **Filter Chip**: Updated filter indicator to use descriptive text instead of fraction format
+- **UI Consistency**: Maintains existing design patterns while improving clarity
+
+### Result
+- Users can now clearly see "2 out of 8 notes" when exporting filtered observations
+- Filter status is immediately understandable as "Showing 2 of 8 notes"
+- Export process is more transparent and user-friendly
+- No more confusion about what the numbers represent in the interface
+
 ## [2.3.0] - 2025-08-16
 
 ### Added
