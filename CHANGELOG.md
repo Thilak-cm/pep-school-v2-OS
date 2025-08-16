@@ -5,6 +5,24 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2025-08-16
+
+### Fixed
+- **Wipe Firestore Script**: Fixed `wipe-firestore.js` to properly handle fanned-out observations structure
+- **Observations Deletion**: Script now correctly deletes observations from student subcollections (`/students/{studentId}/observations/{observationId}`)
+- **Collection Structure**: Updated script to match Firestore data model where observations are stored as subcollections under each student
+
+### Technical
+- **Script Enhancement**: Added `wipeAllObservations()` function to handle fanned-out structure
+- **Special Handling**: Script now detects "observations" flag and calls appropriate deletion logic
+- **Efficient Processing**: Iterates through all students to find and delete their observation subcollections
+- **Progress Tracking**: Shows deletion progress and final count of observations deleted
+
+### Result
+- Admin can now properly clear all observations data using `node scripts/admin/wipe-firestore.js observations`
+- Script correctly handles the complex fanned-out data structure
+- No more confusion about why "observations" collection appears empty
+
 ## [2.3.1] - 2025-08-16
 
 ### Improved
