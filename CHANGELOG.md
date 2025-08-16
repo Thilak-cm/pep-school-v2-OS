@@ -5,6 +5,37 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-08-16
+
+### Added
+- major updates to stats page. complete revamp
+- **Export Functionality for Teachers**: Teachers can now export student timeline data in clean text format
+- **Role-Based Export Experience**: Different export formats for teachers (text) vs admins (JSON/Text)
+- **Clean Text Export**: Simplified text format focused on observation content and dates
+- **Export Button Visibility**: Export button now visible for all users regardless of role
+
+### Changed
+- **Export Button Access**: Export button moved outside admin-only restriction
+- **Format Selection**: Teachers automatically get text format without format dropdown
+- **Text Export Content**: Removed metadata clutter, focused on readable observation content
+- **User Experience**: Teachers get simple one-click export, admins retain full format control
+
+### Fixed
+- **Teacher Export Access**: Teachers previously had no way to export their observation data
+- **Export Format Clarity**: Text format now shows only essential information for sharing
+
+### Technical
+- **Component Updates**: StudentTimeline.jsx export button now visible for all users
+- **Format Logic**: Role-based export handling with automatic format selection for teachers
+- **Export Utility**: Enhanced export_student_timeline.js with clean text generation
+- **UI Consistency**: Export button styling and behavior consistent across user roles
+
+### Result
+- Teachers can now export student timeline data for parent communication and record keeping
+- Clean text format perfect for sharing observations without technical metadata
+- Admin functionality preserved with full JSON export capabilities
+- Improved teacher workflow while maintaining administrative oversight
+
 ## [2.2.1] - 2025-08-11
 
 ### Added
