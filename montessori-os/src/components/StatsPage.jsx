@@ -782,6 +782,7 @@ const StatsPage = ({ user, role, onBack }) => {
             border: activeTab === 0 ? '2px solid' : '1px solid',
             borderColor: activeTab === 0 ? 'primary.main' : '#e2e8f0',
             backgroundColor: activeTab === 0 ? 'primary.50' : 'white',
+            height: 120,
             '&:hover': {
               transform: 'translateY(-2px)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
@@ -789,7 +790,7 @@ const StatsPage = ({ user, role, onBack }) => {
           }}
           onClick={() => handleTabChange(null, 0)}
         >
-          <CardContent sx={{ p: 2, textAlign: 'center' }}>
+          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <BarChart sx={{ 
               fontSize: 32, 
               color: activeTab === 0 ? 'primary.main' : 'text.secondary',
@@ -818,6 +819,7 @@ const StatsPage = ({ user, role, onBack }) => {
             border: activeTab === 1 ? '2px solid' : '1px solid',
             borderColor: activeTab === 1 ? 'primary.main' : '#e2e8f0',
             backgroundColor: activeTab === 1 ? 'primary.50' : 'white',
+            height: 120,
             '&:hover': {
               transform: 'translateY(-2px)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
@@ -825,7 +827,7 @@ const StatsPage = ({ user, role, onBack }) => {
           }}
           onClick={() => handleTabChange(null, 1)}
         >
-          <CardContent sx={{ p: 2, textAlign: 'center' }}>
+          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <School sx={{ 
               fontSize: 32, 
               color: activeTab === 1 ? 'primary.main' : 'text.secondary',
@@ -854,8 +856,9 @@ const StatsPage = ({ user, role, onBack }) => {
               transition: 'all 0.2s ease',
               border: activeTab === 2 ? '2px solid' : '1px solid',
               borderColor: activeTab === 2 ? 'primary.main' : '#e2e8f0',
-              backgroundColor: activeTab === 2 ? 'primary.50' : 'white',
-              '&:hover': {
+                          backgroundColor: activeTab === 2 ? 'primary.50' : 'white',
+            height: 120,
+            '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
               }
@@ -892,8 +895,9 @@ const StatsPage = ({ user, role, onBack }) => {
               transition: 'all 0.2s ease',
               border: activeTab === 3 ? '2px solid' : '1px solid',
               borderColor: activeTab === 3 ? 'primary.main' : '#e2e8f0',
-              backgroundColor: activeTab === 3 ? 'primary.50' : 'white',
-              '&:hover': {
+                          backgroundColor: activeTab === 3 ? 'primary.50' : 'white',
+            height: 120,
+            '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
               }
@@ -930,7 +934,7 @@ const StatsPage = ({ user, role, onBack }) => {
           }}>
             <CardContent sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
-                More features coming soon
+                Student and teacher view coming soon
               </Typography>
             </CardContent>
           </Card>
