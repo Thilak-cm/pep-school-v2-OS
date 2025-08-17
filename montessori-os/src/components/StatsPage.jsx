@@ -43,6 +43,15 @@ import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, wher
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
+import { 
+  PERFORMANCE_TARGETS, 
+  calculateStudentPerformance, 
+  calculateTeacherPerformance, 
+  calculateClassroomPerformance,
+  isHighPerformer,
+  isMediumPerformer,
+  isLowPerformer
+} from '../config/performanceTargets';
 
 const StatsPage = ({ user, role, onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
@@ -342,9 +351,8 @@ const StatsPage = ({ user, role, onBack }) => {
             thisWeekObservations: thisWeekObs.length,
             avgPerStudent: classroomStudents.length > 0 ? 
               (thisWeekObs.length / classroomStudents.length) : 0,
-            target: 5, // 5 notes per student per week
-            performance: classroomStudents.length > 0 ? 
-              (thisWeekObs.length / (classroomStudents.length * 5) * 100) : 0
+            target: PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK,
+            performance: calculateClassroomPerformance(thisWeekObs.length, classroomStudents.length)
           };
         });
 
@@ -364,8 +372,8 @@ const StatsPage = ({ user, role, onBack }) => {
             email: teacher.email,
             totalObservations: teacherObservations.length,
             thisWeekObservations: thisWeekObs.length,
-            target: 20, // 20 notes per week
-            performance: (thisWeekObs.length / 20) * 100
+            target: PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK,
+            performance: calculateTeacherPerformance(thisWeekObs.length)
           };
         });
 
@@ -400,7 +408,7 @@ const StatsPage = ({ user, role, onBack }) => {
           .sort((a, b) => b.thisWeekCount - a.thisWeekCount);
 
         const strugglingStudents = Object.values(studentStats)
-          .filter(student => student.thisWeekCount < 2) // Less than 2 notes this week
+          .filter(student => student.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD)
           .sort((a, b) => a.thisWeekCount - b.thisWeekCount);
 
         // Weekly activity for trend analysis
@@ -1321,6 +1329,27 @@ const StatsPage = ({ user, role, onBack }) => {
           <Divider sx={{ my: 3, borderColor: 'grey.300' }} />
 
           {/* Content based on active tab */}
+          
+          {/* Common Target Header */}
+          <Box sx={{ 
+            mb: 3, 
+            p: 2, 
+            backgroundColor: 'info.50', 
+            borderRadius: 2, 
+            border: '1px solid',
+            borderColor: 'info.200',
+            textAlign: 'center'
+          }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'info.main', mb: 0.5 }}>
+              📊 Performance Targets
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Target: {PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK} notes per student per week</strong> • 
+              Teachers: {PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes per week • 
+              Classrooms: {PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK} notes per student per week
+            </Typography>
+          </Box>
+          
           {/* Overview Tab */}
           {activeTab === 0 && (
             <Box>
@@ -1521,8 +1550,8 @@ const StatsPage = ({ user, role, onBack }) => {
                               </Typography>
                               <Chip 
                                 label={`${classroom.performance.toFixed(1)}%`}
-                                color={classroom.performance >= 80 ? 'success' : 
-                                       classroom.performance >= 60 ? 'warning' : 'error'}
+                                color={isHighPerformer(classroom.performance) ? 'success' : 
+                                       isMediumPerformer(classroom.performance) ? 'warning' : 'error'}
                                 size="small"
                                 sx={{ ml: 1, flexShrink: 0 }}
                               />
@@ -1534,7 +1563,7 @@ const StatsPage = ({ user, role, onBack }) => {
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 500 }}>This Week</Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {classroom.thisWeekObservations}/{classroom.studentCount * classroom.target}
+                                  {classroom.thisWeekObservations}/{classroom.studentCount * PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK}
                                 </Typography>
                               </Box>
                               <LinearProgress 
@@ -1575,15 +1604,15 @@ const StatsPage = ({ user, role, onBack }) => {
                             {teacher.name}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {teacher.thisWeekObservations}/20 notes
+                            {teacher.thisWeekObservations}/{PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes
                           </Typography>
                         </Box>
                         <Box sx={{ position: 'relative', height: 24, backgroundColor: '#f1f5f9', borderRadius: 2 }}>
                           <Box sx={{
                             height: '100%',
-                            width: `${Math.min((teacher.thisWeekObservations / 20) * 100, 100)}%`,
-                            backgroundColor: teacher.performance >= 80 ? '#10b981' : 
-                                           teacher.performance >= 50 ? '#f59e0b' : '#ef4444',
+                            width: `${Math.min(calculateTeacherPerformance(teacher.thisWeekObservations), 100)}%`,
+                            backgroundColor: isHighPerformer(teacher.performance) ? '#10b981' : 
+                                           isMediumPerformer(teacher.performance) ? '#f59e0b' : '#ef4444',
                             borderRadius: 2,
                             transition: 'width 0.3s ease'
                           }} />
@@ -1601,7 +1630,7 @@ const StatsPage = ({ user, role, onBack }) => {
                       <Box>
                         <Typography variant="caption" color="text.secondary">High Engagement</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {stats.teacherStats.filter(t => t.performance >= 80).length} teachers
+                          {stats.teacherStats.filter(t => isHighPerformer(t.performance)).length} teachers
                         </Typography>
                       </Box>
                       <Box>
@@ -1645,19 +1674,19 @@ const StatsPage = ({ user, role, onBack }) => {
                       <Box>
                         <Typography variant="caption" color="text.secondary">Top Performers</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount >= 5).length} students
+                          {stats.topStudents.filter(s => s.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK).length} students
                         </Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary">On Track</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount >= 3 && s.thisWeekCount < 5).length} students
+                          {stats.topStudents.filter(s => s.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD && s.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK).length} students
                         </Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary">Needs Support</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount < 3).length} students
+                          {stats.topStudents.filter(s => s.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD).length} students
                         </Typography>
                       </Box>
                       <Box>
@@ -1669,17 +1698,7 @@ const StatsPage = ({ user, role, onBack }) => {
                       </Box>
                     </Box>
                     
-                    {/* Target Information */}
-                    <Box sx={{ 
-                      mt: 2, 
-                      pt: 2, 
-                      borderTop: '1px solid #e2e8f0',
-                      textAlign: 'center'
-                    }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Target: <strong>5 notes per student per week</strong>
-                      </Typography>
-                    </Box>
+
                   </Box>
 
                   {/* Search Bar */}
@@ -1756,9 +1775,7 @@ const StatsPage = ({ user, role, onBack }) => {
                             borderRadius: 6
                           }} />
                         </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                          Target: 5 notes/week
-                        </Typography>
+
                       </Box>
                     ) : (
                       // Show actual students when searching
@@ -1782,9 +1799,9 @@ const StatsPage = ({ user, role, onBack }) => {
                         }
                         
                         return displayStudents.map((student, index) => {
-                          const target = 5; // Target: 5 notes per week
-                          const percentage = Math.min((student.thisWeekCount / target) * 100, 100);
-                          const isTopPerformer = student.thisWeekCount >= 5;
+                          const target = PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK;
+                          const percentage = calculateStudentPerformance(student.thisWeekCount);
+                          const isTopPerformer = student.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK;
                           const isSelected = selectedStudent?.id === student.id;
                           
                           return (
@@ -1837,7 +1854,7 @@ const StatsPage = ({ user, role, onBack }) => {
                                   height: '100%',
                                   width: `${percentage}%`,
                                   backgroundColor: percentage >= 100 ? '#10b981' : 
-                                                 percentage >= 80 ? '#f59e0b' : '#ef4444',
+                                                 isHighPerformer(percentage) ? '#f59e0b' : '#ef4444',
                                   borderRadius: 6,
                                   transition: 'width 0.3s ease',
                                   position: 'relative'
@@ -1859,7 +1876,7 @@ const StatsPage = ({ user, role, onBack }) => {
                                 {/* Target marker */}
                                 <Box sx={{
                                   position: 'absolute',
-                                  left: `${Math.min((target / Math.max(...stats.topStudents.map(s => s.thisWeekCount))) * 100, 100)}%`,
+                                  left: `${Math.min((PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK / Math.max(...stats.topStudents.map(s => s.thisWeekCount))) * 100, 100)}%`,
                                   top: 0,
                                   height: '100%',
                                   width: '2px',
@@ -1868,19 +1885,7 @@ const StatsPage = ({ user, role, onBack }) => {
                                 }} />
                               </Box>
                               
-                              {/* Target label */}
-                              <Typography 
-                                variant="caption" 
-                                color="text.secondary" 
-                                sx={{ 
-                                  display: 'block', 
-                                  mt: 0.5,
-                                  textAlign: 'right',
-                                  fontSize: '0.7rem'
-                                }}
-                              >
-                                Target: {target} notes/week
-                              </Typography>
+
                             </Box>
                           );
                         });
