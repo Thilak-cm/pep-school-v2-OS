@@ -5,6 +5,40 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.4] - 2025-08-17
+
+### Changed
+- **Performance Targets Refactoring**: Centralized all performance targets in dedicated config file
+- **Target Values Updated**: Adjusted performance targets for better teacher workflow:
+  - Student notes per week: 5 → 2 notes/week
+  - Classroom notes per student per week: 5 → 2 notes/student/week  
+  - Struggling threshold: 2 → 0 notes/week
+  - Teacher notes per week: remains 20 notes/week
+
+### Added
+- **New Config File**: `src/config/performanceTargets.js` with centralized target management
+- **Helper Functions**: Performance calculation utilities and threshold checking functions
+- **Performance Thresholds**: High (80%), Medium (60%), Low (0%) performance categories
+- **Dynamic UI Updates**: All displays now show target values from config instead of hardcoded numbers
+
+### Improved
+- **Code Maintainability**: Single source of truth for all performance targets
+- **Configuration Management**: Easy to modify targets without hunting through code
+- **Consistency**: All performance calculations use same target values
+- **Developer Experience**: Clear separation of configuration from business logic
+
+### Technical
+- **StatsPage Refactoring**: Replaced hardcoded values with config imports throughout component
+- **Performance Calculations**: Centralized calculation logic in config file
+- **Threshold Functions**: `isHighPerformer()`, `isMediumPerformer()`, `isLowPerformer()` helpers
+- **Calculation Helpers**: `calculateStudentPerformance()`, `calculateTeacherPerformance()`, `calculateClassroomPerformance()`
+
+### Result
+- **Easier Target Management**: Admins can now adjust performance expectations in one place
+- **Consistent Metrics**: All performance displays use same target values
+- **Better Maintainability**: Future target changes require only config file updates
+- **Cleaner Code**: StatsPage.jsx is more focused on UI logic rather than hardcoded values
+
 ## [2.3.3] - 2025-08-16
 
 ### Added
