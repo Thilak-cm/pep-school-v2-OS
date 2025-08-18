@@ -11,6 +11,7 @@ import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
 import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
+import AddUserPage from "./components/AddUserPage";
 import app, { db, cloudFunctions } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
@@ -31,7 +32,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -147,6 +148,7 @@ function App() {
   else if (screen === 'stats') pageTitle = 'Statistics';
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
   else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
+  else if (screen === 'addUser') pageTitle = 'Add New User';
 
   // Mobile-first responsive container
   return (
@@ -302,6 +304,8 @@ function App() {
                       setScreen('stats');
                     } else if (path === '/feedback') {
                       setScreen('feedback');
+                    } else if (path === '/addUser') {
+                      setScreen('addUser');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -335,6 +339,8 @@ function App() {
                       onNavigate={(path) => {
                         if (path === '/stats') {
                           setScreen('stats');
+                        } else if (path === '/addUser') {
+                          setScreen('addUser');
                         }
                       }}
                     />
@@ -404,6 +410,14 @@ function App() {
                   {screen === 'feedbackTimeline' && (
                     <FeedbackTimeline
                       onBack={() => setScreen('landingPage')}
+                    />
+                  )}
+
+                  {screen === 'addUser' && (
+                    <AddUserPage
+                      onBack={() => setScreen('landingPage')}
+                      currentUser={user}
+                      userRole={role}
                     />
                   )}
 
