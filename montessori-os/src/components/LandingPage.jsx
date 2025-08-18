@@ -259,6 +259,20 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                 </CardActionArea>
               </Card>
             </Grid>
+            
+            {/* Add User (Admin/Teacher) - Coming Soon */}
+            <Grid size={12}>
+              <Card aria-label="Add user coming soon" sx={{ opacity: 0.5 }}>
+                <CardContent>
+                  <Typography variant="h6" component="h2">
+                    Add Admin / Teacher
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Feature coming soon
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
 
             {/* Bulk Upload Roster */}
             <Grid size={12}>
@@ -288,19 +302,6 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
 
-            {/* Add User (Admin/Teacher) - Coming Soon */}
-            <Grid size={12}>
-              <Card aria-label="Add user coming soon" sx={{ opacity: 0.5 }}>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    Add User (Admin / Teacher)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Feature coming soon
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
           </>
         )}
 
