@@ -5,6 +5,58 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-08-18
+
+### Added
+- **Comprehensive Admin User Creation Interface**: New AddUserPage component for creating admin and teacher accounts
+- **Role-Based Permission Management**: Support for Super Admin, Regular Admin, and Teacher roles with customizable permissions
+- **Classroom Assignment System**: Teachers can be assigned to multiple classrooms during account creation
+- **Permission Customization**: Bulk Select All/Clear All buttons for efficient permission management
+- **Form Validation**: Real-time validation for email domains, required fields, and classroom assignments
+- **Access Control**: Only super admins can access user creation functionality
+- **Navigation Integration**: Added routing and navigation to new user creation page from admin panel
+
+### Changed
+- **LandingPage Enhancement**: Updated "Add Admin / Teacher" card to be clickable and functional
+- **App Navigation**: Added new screen state and routing for user creation page
+- **UI Modernization**: Replaced basic section headers with gradient dividers and improved typography
+
+### Improved
+- **User Experience**: Streamlined user creation workflow with intuitive form design
+- **Permission Management**: Automatic permission assignment based on admin level with customization options
+- **Classroom Integration**: Real-time classroom fetching with student count display
+- **Form Feedback**: Success/error messaging with automatic form reset after successful creation
+- **Mobile Design**: Optimized for iPhone 13 mini (375×812px) with touch-friendly interactions
+
+### Technical
+- **Component Architecture**: New AddUserPage component with comprehensive form handling
+- **Firebase Integration**: Creates user documents in Firestore and updates classroom assignments
+- **State Management**: Complex form state with validation, permissions, and classroom selection
+- **Permission System**: Configurable permission groups for different admin levels
+- **Error Handling**: Comprehensive error handling for Firebase operations and form validation
+- **MUI Integration**: Exclusive use of Material-UI components for consistent design
+
+### Security
+- **Access Control**: Super admin only access to user creation functionality
+- **Permission Validation**: Server-side permission checking and role verification
+- **Data Integrity**: Proper validation of email domains and required fields
+
+### Features
+- **Admin Account Creation**: Create admin accounts with Super/Regular levels and customizable permissions
+- **Teacher Account Creation**: Create teacher accounts with automatic classroom assignments
+- **Permission Management**: 6 permissions for Super Admin, 3 for Regular Admin
+- **Classroom Picker**: Multi-select classroom assignment with student count display
+- **Form Validation**: Real-time feedback for email format, required fields, and selections
+- **Auto-Reset**: Form automatically clears after successful user creation
+- **Success Feedback**: Clear confirmation messages and automatic navigation
+
+### Result
+- Complete web-based user management system matching CLI script functionality
+- Streamlined admin workflow for adding new users to the system
+- Professional-grade permission management with bulk operations
+- Seamless integration with existing classroom and user management systems
+- Enhanced admin capabilities for Montessori school user administration
+
 ## [2.3.5] - 2025-08-18
 
 ### Added
