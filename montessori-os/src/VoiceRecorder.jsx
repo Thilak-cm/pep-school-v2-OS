@@ -15,7 +15,8 @@ import {
   Paper,
   Divider,
   Dialog,
-  LinearProgress
+  LinearProgress,
+  TextField
 } from '@mui/material';
 import {
   Mic,
@@ -29,7 +30,9 @@ import {
   Warning,
   Close,
   InfoOutlined,
-  Delete
+  Delete,
+  Edit,
+  ArrowForward
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
@@ -46,6 +49,14 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const [transcriptionError, setTranscriptionError] = useState('');
   const [showTimeLimitWarning, setShowTimeLimitWarning] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0, message: '' });
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableText, setEditableText] = useState('');
+  const [originalTranscription, setOriginalTranscription] = useState('');
+  
+  // Confirmation dialog state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
@@ -199,6 +210,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     setTranscriptionError('');
     setShowTimeLimitWarning(false);
     setTranscriptionProgress({ current: 0, total: 0, message: '' });
+    
+    // Reset edit mode state
+    setIsEditing(false);
+    setEditableText('');
+    setOriginalTranscription('');
   };
 
   const retryTranscription = () => {
@@ -209,6 +225,37 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       setTranscriptionProgress({ current: 0, total: 0, message: '' });
       handleTranscription(audioBlob);
     }
+  };
+
+  const startEditing = () => {
+    setOriginalTranscription(transcription);
+    setEditableText(transcription);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setShowCancelConfirm(true);
+  };
+
+  const confirmCancelEdit = () => {
+    setIsEditing(false);
+    setEditableText('');
+    setOriginalTranscription('');
+    setShowCancelConfirm(false);
+  };
+
+  const dismissCancelConfirm = () => {
+    setShowCancelConfirm(false);
+  };
+
+  const saveEditing = () => {
+    if (!editableText.trim()) {
+      return; // Don't save empty text
+    }
+    setTranscription(editableText.trim());
+    setIsEditing(false);
+    setEditableText('');
+    setOriginalTranscription('');
   };
 
   const handleSave = () => {
@@ -623,17 +670,33 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 marginBottom: 2
               }}
             >
-              <Typography
-                sx={{
-                  color: '#1e293b',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word'
-                }}
-              >
-                {transcription}
-              </Typography>
+              {isEditing ? (
+                <TextField
+                  multiline
+                  rows={4}
+                  fullWidth
+                  value={editableText}
+                  onChange={(e) => setEditableText(e.target.value)}
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1,
+                    }
+                  }}
+                />
+              ) : (
+                <Typography
+                  sx={{
+                    color: '#1e293b',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}
+                >
+                  {transcription}
+                </Typography>
+              )}
             </Paper>
           )}
 
@@ -647,50 +710,89 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 flexWrap: 'wrap'
               }}
             >
-              <Button
-                variant="contained"
-                onClick={() => navigator.clipboard.writeText(transcription)}
-                startIcon={<ContentCopy />}
-                size="small"
-                sx={{
-                  backgroundColor: '#4f46e5',
-                  color: 'white',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#4338ca',
-                  }
-                }}
-              >
-                Copy Text
-              </Button>
-              
-              <Button
-                variant="outlined"
-                onClick={resetRecording}
-                startIcon={<Refresh />}
-                size="small"
-                sx={{
-                  borderColor: '#64748b',
-                  color: '#64748b',
-                  textTransform: 'none',
-                  '&:hover': {
-                    borderColor: '#475569',
-                    color: '#475569',
-                  }
-                }}
-              >
-                Record Again
-              </Button>
-
+              {isEditing ? (
+                <>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={cancelEditing}
+                    startIcon={<Close />}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      textTransform: 'none',
+                      '&:hover': {
+                        backgroundColor: '#b91c1c',
+                      }
+                    }}
+                  >
+                    Cancel Edit
+                  </Button>
+                  
+                  <Button
+                    variant="contained"
+                    color="success"
+                    onClick={saveEditing}
+                    startIcon={<CheckCircle />}
+                    size="small"
+                    disabled={!editableText.trim()}
+                    sx={{
+                      backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
+                      color: 'white',
+                      textTransform: 'none',
+                      '&:hover': {
+                        backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
+                      }
+                    }}
+                  >
+                    Save Edit
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outlined"
+                    onClick={resetRecording}
+                    startIcon={<Refresh />}
+                    size="small"
+                    sx={{
+                      borderColor: '#64748b',
+                      color: '#64748b',
+                      textTransform: 'none',
+                      '&:hover': {
+                        borderColor: '#475569',
+                        color: '#475569',
+                      }
+                    }}
+                  >
+                    Record Again
+                  </Button>
+                  
+                  <Button
+                    variant="contained"
+                    onClick={startEditing}
+                    startIcon={<Edit />}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#4f46e5',
+                      color: 'white',
+                      textTransform: 'none',
+                      '&:hover': {
+                        backgroundColor: '#4338ca',
+                      }
+                    }}
+                  >
+                    Edit Text
+                  </Button>
+                </>
+              )}
             </Box>
           )}
 
           {/* Recording complete - ready for next step */}
           {transcription && !isTranscribing && !transcriptionError && (
             <Box sx={{ mt: 3, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Transcription complete. Click Next to continue.
-              </Typography>
               {onNext && (
                 <Button
                   variant="contained"
@@ -698,6 +800,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                     handleSave(); // Save transcription data
                     onNext(); // Move to next step
                   }}
+                  endIcon={<ArrowForward />}
                   sx={{
                     backgroundColor: '#4f46e5',
                     color: 'white',
@@ -711,13 +814,70 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                     }
                   }}
                 >
-                  Next
+                  Select Students
                 </Button>
               )}
             </Box>
           )}
         </Box>
       )}
+
+      {/* Confirmation Dialog for Cancel Edit */}
+      <Dialog
+        open={showCancelConfirm}
+        onClose={dismissCancelConfirm}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            maxWidth: 343,
+            width: 'calc(100% - 32px)',
+            mx: 'auto'
+          }
+        }}
+      >
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ mb: 2, color: '#1e293b' }}>
+            Cancel Edit?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Are you sure you want to cancel edit? All changes will be discarded!
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button
+              variant="outlined"
+              onClick={dismissCancelConfirm}
+              sx={{
+                borderColor: '#64748b',
+                color: '#64748b',
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#475569',
+                  color: '#475569',
+                }
+              }}
+            >
+              Keep Editing
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={confirmCancelEdit}
+              sx={{
+                backgroundColor: '#dc2626',
+                color: 'white',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#b91c1c',
+                }
+              }}
+            >
+              Discard Changes
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Card>
   );
 };
@@ -730,8 +890,16 @@ const VoiceRecorderWrapper = (props) => {
       if (onSave) onSave(blob, duration);
       if (onClose) onClose();
     };
-    const showCloseButton = DialogProps.showCloseButton;
-    const closeButtonSx = DialogProps.closeButtonSx || { position: 'absolute', top: 12, right: 12, color: '#1e293b', '&:hover': { backgroundColor: '#f1f5f9' } };
+    // Always show close button by default for consistency
+    const showCloseButton = DialogProps.showCloseButton !== false;
+    const closeButtonSx = DialogProps.closeButtonSx || { 
+      position: 'absolute', 
+      top: 12, 
+      right: 12, 
+      color: '#1e293b', 
+      '&:hover': { backgroundColor: '#f1f5f9' },
+      zIndex: 2
+    };
     const closeIconSx = DialogProps.closeIconSx || { fontSize: 28 };
     return (
       <Dialog

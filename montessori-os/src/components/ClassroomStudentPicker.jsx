@@ -14,14 +14,19 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemButton
+  ListItemButton,
+  Paper,
+  Button
 } from '@mui/material';
 import { 
   Search, 
   ExpandMore, 
   ExpandLess,
   Person,
-  Group
+  Group,
+  Edit,
+  Close,
+  CheckCircle
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -36,13 +41,20 @@ function ClassroomStudentPicker({
   selectedStudents,
   onStudentsChange,
   currentUser,
-  userRole
+  userRole,
+  textData,
+  onTextDataChange
 }) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedClassrooms, setExpandedClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Edit mode state for text
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableText, setEditableText] = useState('');
+  const [originalText, setOriginalText] = useState('');
 
   // Fetch all classrooms and students once
   useEffect(() => {
@@ -238,6 +250,37 @@ function ClassroomStudentPicker({
     );
   };
 
+  // Text editing functions
+  const startEditing = () => {
+    setOriginalText(textData?.text || '');
+    setEditableText(textData?.text || '');
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditableText('');
+    setOriginalText('');
+  };
+
+  const saveEditing = () => {
+    if (!editableText.trim()) {
+      return; // Don't save empty text
+    }
+    
+    // Update the textData with edited text
+    if (onTextDataChange) {
+      onTextDataChange({
+        ...textData,
+        text: editableText.trim()
+      });
+    }
+    
+    setIsEditing(false);
+    setEditableText('');
+    setOriginalText('');
+  };
+
   // Get selection state for classroom
   const getClassroomSelectionState = (classroom) => {
     const studentIds = classroom.students.map(s => s.id);
@@ -258,6 +301,167 @@ function ClassroomStudentPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Text Display Section - Same style as VoiceRecorder */}
+      {textData?.text && (
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f0f9ff',
+            borderTop: '1px solid #e2e8f0',
+            borderRadius: 2
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 2
+            }}
+          >
+            <Typography
+              variant="h6"
+              component="h4"
+              sx={{
+                margin: 0,
+                color: '#1e293b',
+                fontSize: '1rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <CheckCircle sx={{ fontSize: 16 }} />
+              Text Note
+            </Typography>
+          </Box>
+
+          {/* Text Content */}
+          <Paper
+            sx={{
+              padding: 2,
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: 2
+            }}
+          >
+            {isEditing ? (
+              <TextField
+                multiline
+                rows={4}
+                fullWidth
+                value={editableText}
+                onChange={(e) => setEditableText(e.target.value)}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 1,
+                  }
+                }}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  color: '#1e293b',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.6',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {textData.text}
+              </Typography>
+            )}
+          </Paper>
+
+          {/* Text Actions */}
+          {isEditing ? (
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1,
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}
+            >
+              <Button
+                variant="contained"
+                color="error"
+                onClick={cancelEditing}
+                startIcon={<Close />}
+                size="small"
+                sx={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#b91c1c',
+                  }
+                }}
+              >
+                Cancel Edit
+              </Button>
+              
+              <Button
+                variant="contained"
+                color="success"
+                onClick={saveEditing}
+                startIcon={<CheckCircle />}
+                size="small"
+                disabled={!editableText.trim()}
+                sx={{
+                  backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
+                  color: 'white',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
+                  }
+                }}
+              >
+                Save Edit
+              </Button>
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1,
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}
+            >
+              <Button
+                variant="contained"
+                onClick={startEditing}
+                startIcon={<Edit />}
+                size="small"
+                sx={{
+                  backgroundColor: '#4f46e5',
+                  color: 'white',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                  }
+                }}
+              >
+                Edit Text
+              </Button>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Divider between Text Note and Student Selection */}
+      {textData?.text && (
+        <Divider sx={{ my: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Next: Select Recipients
+          </Typography>
+        </Divider>
+      )}
+
       {/* Main Heading with Total Selected Count */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

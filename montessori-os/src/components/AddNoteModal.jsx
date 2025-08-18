@@ -275,8 +275,25 @@ function AddNoteModal({
         pb: 1,
         borderBottom: '1px solid #e2e8f0',
         backgroundColor: 'white',
-        zIndex: 1
+        zIndex: 1,
+        position: 'relative'
       }}>
+        {/* Consistent X Button - Always visible in top right */}
+        <IconButton
+          aria-label="Close"
+          onClick={handleClose}
+          sx={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            color: '#1e293b',
+            '&:hover': { backgroundColor: '#f1f5f9' },
+            zIndex: 2
+          }}
+        >
+          <Close sx={{ fontSize: 28 }} />
+        </IconButton>
+        
         <Stepper activeStep={
           step === STEP_NOTE_TYPE ? 0 : 
           (step === STEP_RECORD || step === STEP_TEXT_INPUT) ? 1 : 2
@@ -309,20 +326,7 @@ function AddNoteModal({
               minHeight: 'fit-content'
             }}
           >
-            <IconButton
-              aria-label="Close"
-              onClick={handleClose}
-              sx={{
-                position: 'absolute',
-                top: 8,
-                right: 12,
-                color: '#1e293b',
-                '&:hover': { backgroundColor: '#f1f5f9' }
-              }}
-            >
-              <Close sx={{ fontSize: 28 }} />
-            </IconButton>
-            <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1, mt: 0 }}>
               What type of note do you want to add?
             </Typography>
             <Box
@@ -453,6 +457,8 @@ function AddNoteModal({
                 onStudentsChange={setSelectedStudents}
                 currentUser={currentUser}
                 userRole={userRole}
+                textData={textData}
+                onTextDataChange={setTextData}
               />
             </Box>
             {/* Fixed bottom action bar */}
