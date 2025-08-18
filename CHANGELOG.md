@@ -5,6 +5,39 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.5] - 2025-08-18
+
+### Added
+- **Text Editing in Voice Recorder**: Added edit mode to VoiceRecorder with confirmation dialog for canceling edits
+- **Text Editing in Student Picker**: Implemented text editing functionality in ClassroomStudentPicker for text notes
+- **Edit Confirmation Dialog**: Added confirmation popup when canceling edits to prevent accidental data loss
+- **Visual Divider**: Added divider between text input and student selection sections for better UI organization
+
+### Changed
+- **Voice Recorder UI**: Replaced "Copy Text" button with "Edit Text" button for better functionality
+- **Button Layout**: Swapped positions of "Record Again" and "Edit Text" buttons for improved UX
+- **Edit Mode States**: Implemented dynamic button states (Edit Text → Cancel Edit/Save Edit)
+- **Text Persistence**: Added temporary text persistence during editing with revert capability
+
+### Improved
+- **User Experience**: Users can now edit transcribed text before finalizing notes
+- **UI Consistency**: Maintained consistent styling across voice and text note components
+- **Workflow Clarity**: Clear visual separation between text input and recipient selection
+- **Data Integrity**: Confirmation dialog prevents accidental loss of edited content
+
+### Technical
+- **State Management**: Added edit mode state variables (`isEditing`, `editableText`, `originalTranscription`)
+- **Component Props**: Enhanced ClassroomStudentPicker with `textData` and `onTextDataChange` props
+- **Edit Functions**: Implemented `startEditing()`, `cancelEditing()`, and `saveEditing()` functions
+- **Conditional Rendering**: Dynamic UI switching between read-only and editable text modes
+- **Data Flow**: Edited text properly updates parent component state for final note save
+
+### Result
+- Complete text editing workflow for both voice and text notes
+- Consistent user experience across all note creation methods
+- Better data quality through text editing capabilities
+- Improved UI organization with clear visual hierarchy
+
 ## [2.3.4] - 2025-08-17
 
 ### Changed
