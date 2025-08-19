@@ -987,6 +987,9 @@ const StatsPage = ({ user, role, onBack }) => {
               dataKey="name" 
               tick={{ fontSize: 12, fill: '#64748b' }}
               axisLine={{ stroke: '#e2e8f0' }}
+              angle={-45}
+              textAnchor="end"
+              height={80}
             />
             <YAxis 
               tick={{ fontSize: 12, fill: '#64748b' }}
