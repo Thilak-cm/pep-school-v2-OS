@@ -107,6 +107,19 @@ function FeedbackTimeline({ onBack }) {
     return matchesCategory && matchesStatus && matchesUser;
   });
 
+  // Group feedback by status for organized display
+  const groupedFeedback = filteredFeedback.reduce((groups, feedback) => {
+    const status = feedback.status || 'new';
+    if (!groups[status]) {
+      groups[status] = [];
+    }
+    groups[status].push(feedback);
+    return groups;
+  }, {});
+
+  // Define status order for display
+  const statusOrder = ['new', 'reviewed', 'implemented', 'declined'];
+
   const handleFeedbackClick = (feedback) => {
     setSelectedFeedback(feedback);
     setAdminNotes(feedback.adminNotes || '');
@@ -306,62 +319,105 @@ function FeedbackTimeline({ onBack }) {
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredFeedback.map((feedback) => (
-            <Card
-              key={feedback.id}
-              onClick={() => handleFeedbackClick(feedback)}
-              sx={{
-                cursor: 'pointer',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  transform: 'translateY(-1px)',
-                },
-                transition: 'all 0.2s ease-in-out',
-              }}
-            >
-              <CardContent sx={{ p: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                  {feedback.category && (
-                    <Chip
-                      icon={getCategoryIcon(feedback.category)}
-                      label={getCategoryLabel(feedback.category)}
-                      size="small"
+          {statusOrder.map((status) => {
+            const statusFeedback = groupedFeedback[status] || [];
+            if (statusFeedback.length === 0) return null;
+            
+            return (
+              <Box key={status}>
+                {/* Status Header */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  py: 2,
+                  px: 1
+                }}>
+                  <Chip
+                    label={`${statusFeedback.length} ${status.charAt(0).toUpperCase() + status.slice(1)}`}
+                    color={getStatusColor(status)}
+                    variant="filled"
+                    size="medium"
+                  />
+                  <Typography variant="h6" color="text.secondary">
+                    {status.charAt(0).toUpperCase() + status.slice(1)} Feedback
+                  </Typography>
+                </Box>
+                
+                {/* Feedback Cards for this Status */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                  {statusFeedback.map((feedback) => (
+                    <Card
+                      key={feedback.id}
+                      onClick={() => handleFeedbackClick(feedback)}
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease-in-out',
+                      }}
+                    >
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                          {feedback.category && (
+                            <Chip
+                              icon={getCategoryIcon(feedback.category)}
+                              label={getCategoryLabel(feedback.category)}
+                              size="small"
+                              variant="outlined"
+                            />
+                          )}
+                          <Chip
+                            label={feedback.status}
+                            size="small"
+                            color={getStatusColor(feedback.status)}
+                          />
+                          <Chip
+                            label={feedback.userRole}
+                            size="small"
+                            variant="outlined"
+                            sx={{ ml: 'auto' }}
+                          />
+                        </Box>
+                        
+                        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
+                          {feedback.message.length > 150 
+                            ? `${feedback.message.substring(0, 150)}...` 
+                            : feedback.message
+                          }
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Person sx={{ fontSize: 16 }} />
+                            {feedback.userDisplayName || feedback.userEmail}
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AccessTime sx={{ fontSize: 16 }} />
+                            {formatTimestamp(feedback.timestamp)}
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+                
+                {/* Divider between status groups (except after the last one) */}
+                {status !== statusOrder[statusOrder.length - 1] && (
+                  <Divider sx={{ my: 3 }}>
+                    <Chip 
+                      label="Next Status Group" 
+                      size="small" 
                       variant="outlined"
+                      sx={{ backgroundColor: 'background.paper' }}
                     />
-                  )}
-                  <Chip
-                    label={feedback.status}
-                    size="small"
-                    color={getStatusColor(feedback.status)}
-                  />
-                  <Chip
-                    label={feedback.userRole}
-                    size="small"
-                    variant="outlined"
-                    sx={{ ml: 'auto' }}
-                  />
-                </Box>
-                
-                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
-                  {feedback.message.length > 150 
-                    ? `${feedback.message.substring(0, 150)}...` 
-                    : feedback.message
-                  }
-                </Typography>
-                
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Person sx={{ fontSize: 16 }} />
-                    {feedback.userDisplayName || feedback.userEmail}
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <AccessTime sx={{ fontSize: 16 }} />
-                    {formatTimestamp(feedback.timestamp)}
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
+                  </Divider>
+                )}
+              </Box>
+            );
+          })}
           
           {filteredFeedback.length === 0 && allFeedback.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
