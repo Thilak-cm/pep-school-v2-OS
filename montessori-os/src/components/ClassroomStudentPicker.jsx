@@ -221,25 +221,7 @@ function ClassroomStudentPicker({
     onStudentsChange(newSelected);
   };
 
-  // Handle classroom selection (select all students in classroom)
-  const handleClassroomToggle = (classroomId) => {
-    const classroom = studentsByClassroom.find(g => g.classroom.id === classroomId);
-    if (!classroom) return;
 
-    const classroomStudentIds = classroom.students.map(s => s.id);
-    const allSelected = classroomStudentIds.every(id => selectedStudents.includes(id));
-    
-    let newSelected;
-    if (allSelected) {
-      // Deselect all students in this classroom
-      newSelected = selectedStudents.filter(id => !classroomStudentIds.includes(id));
-    } else {
-      // Select all students in this classroom
-      newSelected = [...new Set([...selectedStudents, ...classroomStudentIds])];
-    }
-    
-    onStudentsChange(newSelected);
-  };
 
   // Toggle classroom expansion
   const toggleClassroomExpansion = (classroomId) => {
@@ -281,15 +263,7 @@ function ClassroomStudentPicker({
     setOriginalText('');
   };
 
-  // Get selection state for classroom
-  const getClassroomSelectionState = (classroom) => {
-    const studentIds = classroom.students.map(s => s.id);
-    const selectedCount = studentIds.filter(id => selectedStudents.includes(id)).length;
-    
-    if (selectedCount === 0) return 'unchecked';
-    if (selectedCount === studentIds.length) return 'checked';
-    return 'indeterminate';
-  };
+
 
   if (loading) {
     return (
@@ -559,17 +533,6 @@ function ClassroomStudentPicker({
                       mb: isExpanded ? 1 : 0
                     }}
                   >
-                    <ListItemIcon>
-                      <Checkbox
-                        checked={selectionState === 'checked'}
-                        indeterminate={selectionState === 'indeterminate'}
-                        onChange={() => handleClassroomToggle(group.classroom.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        edge="start"
-                        tabIndex={-1}
-                        disableRipple
-                      />
-                    </ListItemIcon>
                     <ListItemText
                       primary={group.classroom.name}
                       secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
