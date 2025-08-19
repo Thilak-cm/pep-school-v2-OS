@@ -517,7 +517,6 @@ function ClassroomStudentPicker({
 
         <List>
           {studentsByClassroom.map((group) => {
-            const selectionState = getClassroomSelectionState(group);
             const isExpanded = expandedClassrooms.includes(group.classroom.id);
             
             return (
