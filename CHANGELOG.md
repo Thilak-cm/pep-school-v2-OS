@@ -5,6 +5,37 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2025-08-19
+
+### Added
+- **Feedback Timeline Organization**: Group feedback by status with clear visual separation
+- **Status-Based Grouping**: Organize feedback into logical workflow stages (New → Reviewed → Implemented → Declined)
+- **Status Headers**: Add colored status headers with count chips for each feedback group
+- **Visual Dividers**: Implement dividers between status groups for better organization
+
+### Changed
+- **Feedback Display**: Replaced flat feedback list with organized status-based grouping
+- **Admin Workflow**: Improved feedback management by organizing items by processing stage
+- **User Interface**: Enhanced visual hierarchy with status-specific color coding and grouping
+
+### Improved
+- **Admin Experience**: Clearer organization makes it easier to process feedback in correct order
+- **Visual Clarity**: Status groups provide immediate understanding of feedback workflow
+- **Workflow Management**: Logical progression from new submissions to completed items
+- **Interface Cleanliness**: Empty status groups are automatically hidden to maintain clean appearance
+
+### Technical
+- **Component Enhancement**: Updated FeedbackTimeline.jsx with status grouping logic
+- **Data Organization**: Implemented groupedFeedback structure with status-based categorization
+- **Status Ordering**: Defined consistent status display order for workflow consistency
+- **Conditional Rendering**: Smart display logic that only shows groups with feedback items
+
+### Result
+- **Better Organization**: Feedback is now logically grouped by processing stage
+- **Improved Workflow**: Admins can easily see what needs attention vs. what's completed
+- **Professional Appearance**: Clean, organized interface that's easy to scan and manage
+- **Enhanced Usability**: Clear visual separation makes feedback management more intuitive
+
 ## [2.4.1] - 2025-08-19
 
 ### Fixed
