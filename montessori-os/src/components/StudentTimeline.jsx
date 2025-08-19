@@ -20,7 +20,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import { ArrowBack, Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download } from '@mui/icons-material';
+import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -37,7 +37,7 @@ import {
   exportFilteredTimelineAsText 
 } from '../utils/export_student_timeline';
 
-function StudentTimeline({ student, onBack, currentUser, userRole }) {
+function StudentTimeline({ student, currentUser, userRole }) {
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
@@ -400,9 +400,6 @@ function StudentTimeline({ student, onBack, currentUser, userRole }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <IconButton aria-label="Go back" onClick={onBack}>
-          <ArrowBack />
-        </IconButton>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {hasActiveFilters && (
             <Chip 

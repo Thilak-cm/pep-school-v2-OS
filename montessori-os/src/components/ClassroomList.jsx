@@ -12,12 +12,12 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { ArrowBack, School, Group, ArrowForward, Search } from '@mui/icons-material';
+import { School, Group, ArrowForward, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchClassrooms } from '../utils/fuzzySearch';
 
-function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
+function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
@@ -107,11 +107,8 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
           </Typography>
         </Box>
       ) : (
-        // Admin header with back button + search
+        // Admin header with search only (back button now in header)
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton onClick={onBack} aria-label="Go back">
-            <ArrowBack />
-          </IconButton>
           <TextField
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -120,7 +117,6 @@ function ClassroomList({ onBack, onSelectClassroom, currentUser, userRole }) {
             variant="outlined"
             size="small"
             fullWidth
-            sx={{ ml: 1, flexGrow: 1 }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">

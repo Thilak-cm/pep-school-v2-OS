@@ -22,7 +22,6 @@ import {
   Send,
   ExpandMore,
   ExpandLess,
-  ArrowBack,
   BugReport,
   Lightbulb,
   Brush,
@@ -41,7 +40,7 @@ const FEEDBACK_CATEGORIES = [
   { value: 'general', label: 'General', icon: <Chat /> }
 ];
 
-function FeedbackPage({ currentUser, userRole, onBack, onNavigateToAdminDashboard }) {
+function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
   const [feedback, setFeedback] = useState('');
   const [category, setCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -147,16 +146,6 @@ function FeedbackPage({ currentUser, userRole, onBack, onNavigateToAdminDashboar
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pb: 8 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <IconButton 
-          onClick={onBack}
-          sx={{ 
-            color: '#64748b',
-            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
-          }}
-          aria-label="Go back"
-        >
-          <ArrowBack />
-        </IconButton>
         <Typography variant="h5" component="h1">
           Help Us Improve Montessori OS
         </Typography>

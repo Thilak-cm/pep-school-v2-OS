@@ -10,12 +10,12 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { ArrowBack, Search } from '@mui/icons-material';
+import { Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
-function StudentList({ classroom, onBack, onSelectStudent }) {
+function StudentList({ classroom, onSelectStudent }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,9 +51,6 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <IconButton onClick={onBack} aria-label="Go back">
-          <ArrowBack />
-        </IconButton>
         <TextField
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -62,7 +59,6 @@ function StudentList({ classroom, onBack, onSelectStudent }) {
           variant="outlined"
           size="small"
           fullWidth
-          sx={{ ml: 1, flexGrow: 1 }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">

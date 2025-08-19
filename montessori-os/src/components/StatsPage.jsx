@@ -1276,13 +1276,6 @@ const StatsPage = ({ user, role, onBack }) => {
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton 
-            onClick={onBack} 
-            aria-label="Go back"
-            sx={{ mr: 2 }}
-          >
-            <ArrowBack />
-          </IconButton>
           <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
             {role === 'teacher' ? 'My Statistics' : 'Statistics & Analytics'}
           </Typography>

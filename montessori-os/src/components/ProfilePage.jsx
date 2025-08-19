@@ -2,14 +2,10 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Avatar,
-  IconButton
+  Avatar
 } from '@mui/material';
-import {
-  ArrowBack
-} from '@mui/icons-material';
 
-const ProfilePage = ({ user, role, onBack }) => {
+const ProfilePage = ({ user, role }) => {
 
   return (
     <Box sx={{ 
@@ -18,19 +14,8 @@ const ProfilePage = ({ user, role, onBack }) => {
       gap: 3,
       pb: 4 
     }}>
-      {/* Back Button */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <IconButton 
-          onClick={onBack}
-          sx={{ 
-            mr: 2,
-            color: '#64748b',
-            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
-          }}
-          aria-label="Go back"
-        >
-          <ArrowBack />
-        </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
           Profile
         </Typography>

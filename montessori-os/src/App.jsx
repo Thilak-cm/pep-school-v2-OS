@@ -150,6 +150,32 @@ function App() {
   else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
   else if (screen === 'addUser') pageTitle = 'Add New User';
 
+  // Determine back navigation for header
+  const getBackNavigation = () => {
+    if (screen === 'landingPage') return null;
+    
+    switch (screen) {
+      case 'classroomList':
+        return () => setScreen('landingPage');
+      case 'studentList':
+        return () => setScreen('classroomList');
+      case 'timeline':
+        return () => setScreen('studentList');
+      case 'profile':
+      case 'stats':
+      case 'feedback':
+      case 'addUser':
+        return () => setScreen('landingPage');
+      case 'feedbackTimeline':
+        return () => setScreen('landingPage');
+      default:
+        return null;
+    }
+  };
+
+  const backNavigation = getBackNavigation();
+  const showBackButton = screen !== 'landingPage';
+
   // Mobile-first responsive container
   return (
     <>
@@ -309,6 +335,8 @@ function App() {
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
+                  onBack={backNavigation}
+                  showBackButton={showBackButton}
                 />
               )}
 
@@ -349,7 +377,6 @@ function App() {
                   {screen === 'classroomList' && (
                     <>
                       <ClassroomList
-                        onBack={() => setScreen('landingPage')}
                         onSelectClassroom={(cls) => {
                           setSelectedClassroom(cls);
                           setScreen('studentList');
@@ -363,7 +390,6 @@ function App() {
                   {screen === 'studentList' && (
                     <StudentList
                       classroom={selectedClassroom}
-                      onBack={() => setScreen(role === 'admin' ? 'classroomList' : 'teacherClassroomList')}
                       onSelectStudent={(stu) => {
                         setSelectedStudent(stu);
                         setScreen('timeline');
@@ -374,7 +400,6 @@ function App() {
                   {screen === 'timeline' && (
                     <StudentTimeline
                       student={selectedStudent}
-                      onBack={() => setScreen('studentList')}
                       currentUser={user}
                       userRole={role}
                     />
@@ -386,7 +411,6 @@ function App() {
                     <ProfilePage
                       user={user}
                       role={role}
-                      onBack={() => setScreen('landingPage')}
                     />
                   )}
 
@@ -394,7 +418,6 @@ function App() {
                     <StatsPage
                       user={user}
                       role={role}
-                      onBack={() => setScreen('landingPage')}
                     />
                   )}
 
@@ -402,20 +425,17 @@ function App() {
                     <FeedbackPage
                       currentUser={user}
                       userRole={role}
-                      onBack={() => setScreen('landingPage')}
                       onNavigateToAdminDashboard={() => setScreen('feedbackTimeline')}
                     />
                   )}
 
                   {screen === 'feedbackTimeline' && (
                     <FeedbackTimeline
-                      onBack={() => setScreen('landingPage')}
                     />
                   )}
 
                   {screen === 'addUser' && (
                     <AddUserPage
-                      onBack={() => setScreen('landingPage')}
                       currentUser={user}
                       userRole={role}
                     />

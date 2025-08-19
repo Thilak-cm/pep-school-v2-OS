@@ -31,10 +31,11 @@ import {
   Person,
   BarChart,
   Home,
-  Feedback
+  Feedback,
+  ArrowBack
 } from "@mui/icons-material";
 
-function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
+function AppHeader({ user, onSignOut, title = '', onNavigate, onHome, onBack, showBackButton = false }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
@@ -138,6 +139,23 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome }) {
             minHeight: 64, // Standard toolbar height
             px: 2,
           }}>
+            {/* Back Button - Only show when showBackButton is true */}
+            {showBackButton && onBack && (
+              <IconButton
+                onClick={onBack}
+                sx={{
+                  color: '#64748b',
+                  mr: 1,
+                  '&:hover': {
+                    backgroundColor: 'rgba(100, 116, 139, 0.08)'
+                  }
+                }}
+                aria-label="Go back"
+              >
+                <ArrowBack />
+              </IconButton>
+            )}
+
             {/* Menu Button */}
             <IconButton
               onClick={handleDrawerToggle}
