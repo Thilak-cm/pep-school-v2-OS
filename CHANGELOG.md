@@ -5,6 +5,34 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2025-08-19
+
+### Fixed
+- **Accidental Student Selection Prevention**: Removed select all checkbox from ClassroomStudentPicker to prevent teachers from accidentally selecting all students in a classroom
+- **Unwanted Note Duplication**: Eliminated the risk of teachers creating one note for all students when they don't intend to
+- **User Experience**: Teachers can now only select individual students, providing better control over note targeting
+
+### Changed
+- **Classroom Selection Interface**: Removed checkbox that allowed bulk selection of all students in a classroom
+- **Selection Behavior**: Classroom cards now serve as expandable containers without dangerous "select all" functionality
+- **Component Architecture**: Simplified ClassroomStudentPicker by removing unnecessary selection state management
+
+### Removed
+- **Select All Checkbox**: Checkbox in classroom header that allowed selecting all students in a classroom
+- **handleClassroomToggle Function**: Function that handled bulk classroom student selection logic
+- **getClassroomSelectionState Function**: Function that determined checkbox state (checked/unchecked/indeterminate)
+
+### Technical
+- **Code Cleanup**: Removed 38 lines of code related to bulk selection functionality
+- **State Simplification**: Eliminated complex selection state management for classroom-level operations
+- **Component Focus**: Component now focuses solely on individual student selection and classroom browsing
+
+### Result
+- **Prevents Accidental Duplication**: Teachers can no longer accidentally create notes for entire classrooms
+- **Better User Control**: Individual student selection provides precise control over note recipients
+- **Cleaner Interface**: Simplified classroom cards that focus on organization rather than bulk operations
+- **Reduced Risk**: Eliminated the possibility of unwanted mass note creation
+
 ## [2.4.0] - 2025-08-18
 
 ### Added
