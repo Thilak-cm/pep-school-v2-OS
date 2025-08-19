@@ -5,6 +5,49 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2025-08-19
+
+### Added
+- **Persistent Back Button in Header**: Added persistent back button to the left of menu button in AppHeader
+- **Always-Visible Navigation**: Back button is now visible throughout the app and doesn't scroll away during content scrolling
+- **Automatic Back Button Display**: Back button automatically shows/hides based on current screen (hidden on landing page)
+
+### Changed
+- **Navigation Architecture**: Moved back button functionality from individual page components to persistent header
+- **Component Simplification**: Removed individual back buttons from all page components for cleaner interface
+- **User Experience**: Improved navigation consistency by keeping back button always accessible
+
+### Removed
+- **Individual Back Buttons**: Removed back buttons from ClassroomList, StudentList, StudentTimeline, ProfilePage, StatsPage, and FeedbackPage components
+- **Component Props**: Eliminated onBack props from all page components that previously had back buttons
+
+### Improved
+- **User Experience**: Navigation controls are now always accessible regardless of scroll position
+- **Mobile-First Design**: Follows established mobile-first design principles with proper touch targets
+- **Interface Consistency**: Unified navigation pattern across all pages with persistent header controls
+
+### Technical
+- **AppHeader Enhancement**: Added onBack and showBackButton props to AppHeader component
+- **Navigation Logic**: Implemented centralized back navigation logic in App component
+- **Component Updates**: Updated 8 components to remove back button functionality and props
+- **State Management**: Centralized navigation state management for better maintainability
+
+### Components Updated
+- **AppHeader.jsx**: Added persistent back button with navigation props
+- **App.jsx**: Added back navigation logic and header prop passing
+- **ClassroomList.jsx**: Removed back button and onBack prop
+- **StudentList.jsx**: Removed back button and onBack prop
+- **StudentTimeline.jsx**: Removed back button and onBack prop
+- **ProfilePage.jsx**: Removed back button and onBack prop
+- **StatsPage.jsx**: Removed back button and onBack prop
+- **FeedbackPage.jsx**: Removed back button and onBack prop
+
+### Result
+- **Better Navigation**: Users can always access back button regardless of scroll position
+- **Cleaner Interface**: Removed duplicate back buttons from individual pages
+- **Improved UX**: Consistent navigation experience across all app screens
+- **Mobile Optimization**: Better touch target accessibility and mobile-first design compliance
+
 ## [2.4.2] - 2025-08-19
 
 ### Added
