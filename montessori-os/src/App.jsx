@@ -7,6 +7,7 @@ import LandingPage from "./components/LandingPage";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
+import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
 import FeedbackPage from "./components/FeedbackPage";
@@ -32,7 +33,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -142,6 +143,7 @@ function App() {
   let pageTitle = '';
   if (screen === 'landingPage') pageTitle = role === 'teacher' ? 'Teacher Panel' : 'Admin Panel';
   else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
+  else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'timeline') pageTitle = `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
@@ -157,10 +159,12 @@ function App() {
     switch (screen) {
       case 'classroomList':
         return () => setScreen('landingPage');
+      case 'classroomTimeline':
+        return () => setScreen('classroomList');
       case 'studentList':
         return () => setScreen('classroomList');
       case 'timeline':
-        return () => setScreen('studentList');
+        return () => setScreen('classroomTimeline');
       case 'profile':
       case 'stats':
       case 'feedback':
@@ -379,12 +383,24 @@ function App() {
                       <ClassroomList
                         onSelectClassroom={(cls) => {
                           setSelectedClassroom(cls);
-                          setScreen('studentList');
+                          setScreen('classroomTimeline');
                         }}
                         currentUser={user}
                         userRole={role}
                       />
                     </>
+                  )}
+
+                  {screen === 'classroomTimeline' && (
+                    <ClassroomTimeline
+                      classroom={selectedClassroom}
+                      currentUser={user}
+                      userRole={role}
+                      onNavigateToStudent={(student) => {
+                        setSelectedStudent(student);
+                        setScreen('timeline');
+                      }}
+                    />
                   )}
 
                   {screen === 'studentList' && (
