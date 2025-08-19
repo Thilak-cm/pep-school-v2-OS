@@ -5,6 +5,43 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2025-08-19
+
+### Added
+- **Classroom Timeline Component**: New comprehensive view for teachers to see all classroom activity
+- **Notes Tab**: Time-grouped observations (Today, Last 7 Days, Beyond) with teacher attribution
+- **Students Tab**: Complete student list with note counts and click navigation to individual timelines
+- **Collection Group Queries**: Proper Firebase data structure using `collectionGroup('observations')`
+- **Teacher Attribution**: Display teacher names with teacher emoji instead of note type information
+- **Pagination System**: Show 10 notes initially with "Show 10 More" button for large datasets
+- **Sticky Navigation**: Tabs remain visible under AppHeader while scrolling for better UX
+
+### Changed
+- **Navigation Flow**: Updated routing from classroom list → classroom timeline (instead of student list)
+- **Back Button Integration**: Universal back button via AppHeader for consistent navigation
+- **Student Count Display**: Shows "X observations among Y students" for better context
+- **Note Type Display**: Replaced note type with teacher name for more useful information
+
+### Improved
+- **Teacher Collaboration**: Teachers can now see group activities and track classroom progress
+- **Navigation Experience**: Sticky tabs and universal back button improve mobile navigation
+- **Data Visibility**: Real-time classroom timeline with proper time-based organization
+- **Student Navigation**: Click any student name to view their individual timeline
+- **Mobile Design**: Optimized for iPhone 13 mini (375×812px) with proper spacing
+
+### Technical
+- **Firebase Integration**: Proper collection group queries across student observation subcollections
+- **Real-time Updates**: Uses onSnapshot for live classroom activity updates
+- **State Management**: Efficient state handling for tabs, notes, and student data
+- **Error Handling**: Comprehensive error boundaries and loading states
+- **Component Architecture**: Modular design with ClassroomNoteCard and ClassroomStudentCard components
+
+### Result
+- **Complete Classroom Overview**: Teachers can see all classroom activity in one place
+- **Better Collaboration**: Track how other teachers are performing in shared classrooms
+- **Improved Workflow**: Seamless navigation between classroom-wide and individual student views
+- **Professional Interface**: Clean, organized timeline that scales to large classrooms
+
 ## [2.4.3] - 2025-08-19
 
 ### Added
