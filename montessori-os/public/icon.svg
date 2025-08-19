@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#4f46e5"/>
+  
+  <!-- Inner circle for depth -->
+  <circle cx="256" cy="256" r="200" fill="#6366f1"/>
+  
+  <!-- Main text area -->
+  <rect x="80" y="180" width="352" height="152" rx="20" fill="white" opacity="0.95"/>
+  
+  <!-- PEP School V2 Text -->
+  <text x="256" y="230" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="700" text-anchor="middle" fill="#1e293b">PEP</text>
+  <text x="256" y="290" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="600" text-anchor="middle" fill="#4f46e5">School</text>
+  <text x="256" y="330" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="600" text-anchor="middle" fill="#64748b">V2</text>
+  
+  <!-- Decorative elements -->
+  <circle cx="120" cy="120" r="15" fill="#10b981" opacity="0.8"/>
+  <circle cx="392" cy="120" r="12" fill="#f59e0b" opacity="0.8"/>
+  <circle cx="120" cy="392" r="18" fill="#3b82f6" opacity="0.8"/>
+  <circle cx="392" cy="392" r="14" fill="#dc2626" opacity="0.8"/>
+  
+  <!-- Subtle pattern overlay -->
+  <defs>
+    <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="2" fill="#ffffff" opacity="0.1"/>
+    </pattern>
+  </defs>
+  <rect width="512" height="512" fill="url(#dots)"/>
+</svg>
