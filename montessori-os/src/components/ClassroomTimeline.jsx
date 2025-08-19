@@ -27,6 +27,7 @@ import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs
 import { db } from '../firebase';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 
+
 function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStudent }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const [classroomTeachers, setClassroomTeachers] = useState([]);
   const [showMoreNotes, setShowMoreNotes] = useState(false);
   const [displayedNotesCount, setDisplayedNotesCount] = useState(10);
+
 
   useEffect(() => {
     if (!classroom) return;
@@ -200,6 +202,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     ];
     return allNotes.slice(0, displayedNotesCount);
   }, [groupedNotes, displayedNotesCount]);
+
+
 
   if (loading) {
     return (
@@ -381,9 +385,32 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           p: 2,
           minHeight: '200px'
         }}>
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            Students tab content will be implemented in Phase 3
-          </Typography>
+          {/* Students Count */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              {studentCount} students in {classroom.name}
+            </Typography>
+          </Box>
+
+          {/* Students List */}
+          {classroomStudents.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body2" color="text.secondary">
+                No students found in this classroom
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {classroomStudents.map((student) => (
+                <ClassroomStudentCard
+                  key={student.id}
+                  student={student}
+                  classroomNotes={classroomNotes}
+                  onClick={() => handleStudentClick(student)}
+                />
+              ))}
+            </Box>
+          )}
         </Box>
       )}
     </Box>
@@ -444,6 +471,48 @@ function ClassroomNoteCard({ note, studentName, onStudentClick }) {
           <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
           <Typography variant="caption" color="text.secondary">
             {formatTimestamp(note.observedAt || note.timestamp)}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ClassroomStudentCard component for displaying individual students in the classroom
+function ClassroomStudentCard({ student, classroomNotes, onClick }) {
+  return (
+    <Card
+      sx={{
+        cursor: 'pointer',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          transform: 'translateY(-1px)',
+        },
+        transition: 'all 0.2s ease-in-out',
+      }}
+      onClick={onClick}
+      aria-label={`View timeline for ${student.displayName || student.firstName}`}
+    >
+      <CardContent sx={{ p: 2 }}>
+        {/* Student Name - Prominent */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              fontWeight: 600, 
+              color: 'primary.main'
+            }}
+          >
+            {student.displayName || `${student.firstName} ${student.lastName}`}
+          </Typography>
+        </Box>
+
+        {/* Number of Notes */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Notes sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+            {classroomNotes.filter(note => note.studentId === student.id).length} note{classroomNotes.filter(note => note.studentId === student.id).length !== 1 ? 's' : ''}
           </Typography>
         </Box>
       </CardContent>
