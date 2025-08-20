@@ -23,7 +23,6 @@ import {
   TextField as MuiTextField
 } from '@mui/material';
 import { 
-  ArrowBack, 
   Search, 
   FilterList, 
   Edit, 
@@ -57,7 +56,7 @@ const STATUS_OPTIONS = [
   { value: 'declined', label: 'Declined', color: 'error' }
 ];
 
-function FeedbackTimeline({ onBack }) {
+function FeedbackTimeline() {
   const [allFeedback, setAllFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
@@ -205,9 +204,6 @@ function FeedbackTimeline({ onBack }) {
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton aria-label="Go back" onClick={onBack}>
-            <ArrowBack />
-          </IconButton>
           <Typography variant="h5" component="h1">
             Feedback Dashboard
           </Typography>
