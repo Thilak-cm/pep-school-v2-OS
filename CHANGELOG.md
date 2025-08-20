@@ -5,6 +5,48 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2025-08-20
+
+### Added
+- **Note Expansion Functionality**: Complete note expansion system for both ClassroomTimeline and StudentTimeline
+- **Reusable NoteExpansionDialog Component**: Single component handling all note expansion operations across the app
+- **"View Student Timeline" Button**: Direct navigation from classroom timeline to individual student timeline
+- **Unified Note Management**: Consistent edit, delete, and reassign capabilities across all timeline views
+
+### Changed
+- **ClassroomTimeline Enhancement**: Notes are now clickable and expandable with full detail view
+- **StudentTimeline Refactoring**: Replaced custom dialog implementation with reusable NoteExpansionDialog
+- **Component Architecture**: Eliminated code duplication by creating shared note expansion component
+- **Navigation Flow**: Seamless transition from classroom overview to individual student timelines
+
+### Improved
+- **User Experience**: Consistent note interaction patterns across all timeline views
+- **Code Maintainability**: Single source of truth for note expansion functionality
+- **Component Reusability**: NoteExpansionDialog can be used in any context requiring note details
+- **Mobile Design**: Optimized note expansion dialogs for iPhone 13 mini (375×812px) viewport
+
+### Technical
+- **New Component**: Created `src/components/NoteExpansionDialog.jsx` with comprehensive note management
+- **State Management**: Centralized note expansion state handling with proper cleanup
+- **Permission System**: Integrated existing observation permissions for edit/delete/reassign operations
+- **Error Handling**: Comprehensive error handling and user feedback throughout note operations
+- **Code Cleanup**: Removed duplicate dialog code and fixed reference errors in StudentTimeline
+
+### Features
+- **Note Expansion**: Click any note to view full details with metadata
+- **Edit Capability**: Inline text editing with save/cancel functionality
+- **Delete Functionality**: Secure note deletion with confirmation dialogs
+- **Reassignment**: Move notes between students with proper validation
+- **Student Navigation**: Direct link from note to student's full timeline
+- **Real-time Updates**: Live synchronization of note changes across all views
+
+### Result
+- **Unified Experience**: Consistent note interaction across classroom and student timelines
+- **Better Workflow**: Teachers can now expand notes directly from classroom overview
+- **Improved Navigation**: Seamless movement between classroom-wide and individual student views
+- **Code Quality**: Eliminated duplication and improved maintainability
+- **Professional Interface**: Polished note expansion system that scales across the entire app
+
 ## [2.5.0] - 2025-08-19
 
 ### Added

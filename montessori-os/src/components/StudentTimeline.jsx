@@ -501,10 +501,10 @@ function StudentTimeline({ student, currentUser, userRole }) {
         </Box>
       )}
 
-              {/* Observation Detail Dialog */}
+      {/* Observation Detail Dialog */}
         <NoteExpansionDialog
-          open={detailDialogOpen}
-          onClose={handleCloseDialog}
+        open={detailDialogOpen}
+        onClose={handleCloseDialog}
           observation={selectedObservation}
           student={student}
           currentUser={currentUser}
