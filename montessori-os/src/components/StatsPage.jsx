@@ -1670,19 +1670,19 @@ const StatsPage = ({ user, role, onBack }) => {
                       <Box>
                         <Typography variant="caption" color="text.secondary">Top Performers</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK).length} students
+                          {stats.topStudents.filter(s => isHighPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
                         </Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary">On Track</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD && s.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK).length} students
+                          {stats.topStudents.filter(s => isMediumPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
                         </Typography>
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary">Needs Support</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                          {stats.topStudents.filter(s => s.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD).length} students
+                          {stats.topStudents.filter(s => isLowPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
                         </Typography>
                       </Box>
                       <Box>

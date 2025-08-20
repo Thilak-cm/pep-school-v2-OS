@@ -34,9 +34,9 @@ export const PERFORMANCE_TARGETS = {
   
   // Performance Thresholds
   THRESHOLDS: {
-    HIGH_PERFORMANCE: 80, // 80% and above
-    MEDIUM_PERFORMANCE: 60, // 60-79%
-    LOW_PERFORMANCE: 0, // Below 60%
+    HIGH_PERFORMANCE: 70, // 70% and above
+    MEDIUM_PERFORMANCE: 40, // 40-69%
+    LOW_PERFORMANCE: 0, // Below 40%
   }
 };
 
