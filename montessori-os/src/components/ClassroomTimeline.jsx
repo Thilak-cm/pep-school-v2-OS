@@ -11,7 +11,9 @@ import {
   CardContent,
   Button,
   IconButton,
-  Divider
+  Divider,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import { 
   Group,
@@ -21,11 +23,14 @@ import {
   EditNote,
   AccessTime,
   Person,
-  ExpandMore
+  ExpandMore,
+  Search
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
+import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import NoteExpansionDialog from './NoteExpansionDialog';
 
 
 function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStudent }) {
@@ -37,6 +42,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const [classroomTeachers, setClassroomTeachers] = useState([]);
   const [showMoreNotes, setShowMoreNotes] = useState(false);
   const [displayedNotesCount, setDisplayedNotesCount] = useState(10);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Note expansion states
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
 
   useEffect(() => {
@@ -193,6 +203,18 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     setShowMoreNotes(true);
   };
 
+  // Handle note click to expand
+  const handleNoteClick = (note) => {
+    setSelectedNote(note);
+    setDetailDialogOpen(true);
+  };
+
+  // Handle close dialog
+  const handleCloseDialog = () => {
+    setDetailDialogOpen(false);
+    setSelectedNote(null);
+  };
+
   // Get notes to display (with pagination)
   const notesToDisplay = useMemo(() => {
     const allNotes = [
@@ -203,6 +225,78 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     return allNotes.slice(0, displayedNotesCount);
   }, [groupedNotes, displayedNotesCount]);
 
+  // Filter students based on search query
+  const filteredStudents = useMemo(() => {
+    return fuzzySearchStudents(classroomStudents, searchQuery);
+  }, [classroomStudents, searchQuery]);
+
+  // Filter notes based on search query (only show notes from students whose names match)
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) {
+      return classroomNotes;
+    }
+    
+    const matchingStudentIds = filteredStudents.map(student => student.id);
+    return classroomNotes.filter(note => 
+      matchingStudentIds.includes(note.studentId)
+    );
+  }, [classroomNotes, filteredStudents, searchQuery]);
+
+  // Group filtered notes by time periods
+  const groupedFilteredNotes = useMemo(() => {
+    if (!filteredNotes || filteredNotes.length === 0) {
+      return {
+        today: [],
+        last7Days: [],
+        beyond: []
+      };
+    }
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const groups = {
+      today: [],
+      last7Days: [],
+      beyond: []
+    };
+    
+    filteredNotes.forEach(note => {
+      try {
+        let noteDate;
+        if (note.observedAt?.toDate) {
+          noteDate = note.observedAt.toDate();
+        } else if (note.observedAt?.seconds) {
+          noteDate = new Date(note.observedAt.seconds * 1000);
+        } else if (note.observedAt) {
+          noteDate = new Date(note.observedAt);
+        } else if (note.timestamp?.toDate) {
+          noteDate = note.timestamp.toDate();
+        } else if (note.timestamp?.seconds) {
+          noteDate = new Date(note.timestamp.seconds * 1000);
+        } else if (note.timestamp) {
+          noteDate = new Date(note.timestamp);
+        } else {
+          noteDate = new Date(0); // fallback
+        }
+        
+        if (noteDate >= today) {
+          groups.today.push(note);
+        } else if (noteDate >= lastWeek) {
+          groups.last7Days.push(note);
+        } else {
+          groups.beyond.push(note);
+        }
+      } catch (error) {
+        console.error('Error processing note date:', error, note);
+        // Put notes with invalid dates in the "beyond" category
+        groups.beyond.push(note);
+      }
+    });
+    
+    return groups;
+  }, [filteredNotes]);
 
 
   if (loading) {
@@ -229,6 +323,30 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
       gap: 1
     }}>
 
+      {/* Search Bar - Fixed positioned above tabs */}
+      <Box sx={{ 
+        backgroundColor: 'white',
+        borderRadius: 1,
+        p: 2,
+        borderBottom: '1px solid #e2e8f0'
+      }}>
+        <TextField
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search students…"
+          aria-label="Search students in this classroom"
+          variant="outlined"
+          size="small"
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
 
       {/* Tabs - Sticky positioned under AppHeader */}
       <Box sx={{ 
@@ -278,21 +396,21 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {classroomNotes.length} observation{classroomNotes.length !== 1 ? 's' : ''} among {studentCount} students
+              {filteredNotes.length} observation{filteredNotes.length !== 1 ? 's' : ''} among {filteredStudents.length} students
             </Typography>
           </Box>
 
           {/* Notes Timeline */}
-          {classroomNotes.length === 0 ? (
+          {filteredNotes.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
-                No activity here yet
+                {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
               </Typography>
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* Today */}
-              {groupedNotes.today && groupedNotes.today.length > 0 && (
+              {groupedFilteredNotes.today && groupedFilteredNotes.today.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -300,7 +418,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedNotes.today.map((note) => (
+                  {groupedFilteredNotes.today.map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -309,13 +427,14 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                         const student = classroomStudents.find(s => s.id === note.studentId);
                         if (student) onNavigateToStudent(student);
                       }}
+                      onNoteClick={() => handleNoteClick(note)}
                     />
                   ))}
                 </>
               )}
 
               {/* Last 7 Days */}
-              {groupedNotes.last7Days && groupedNotes.last7Days.length > 0 && (
+              {groupedFilteredNotes.last7Days && groupedFilteredNotes.last7Days.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -323,7 +442,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedNotes.last7Days.map((note) => (
+                  {groupedFilteredNotes.last7Days.map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -332,13 +451,14 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                         const student = classroomStudents.find(s => s.id === note.studentId);
                         if (student) onNavigateToStudent(student);
                       }}
+                      onNoteClick={() => handleNoteClick(note)}
                     />
                   ))}
                 </>
               )}
 
               {/* Beyond */}
-              {groupedNotes.beyond && groupedNotes.beyond.length > 0 && (
+              {groupedFilteredNotes.beyond && groupedFilteredNotes.beyond.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -346,7 +466,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedNotes.beyond.slice(0, Math.max(0, displayedNotesCount - (groupedNotes.today?.length || 0) - (groupedNotes.last7Days?.length || 0))).map((note) => (
+                  {groupedFilteredNotes.beyond.slice(0, Math.max(0, displayedNotesCount - (groupedFilteredNotes.today?.length || 0) - (groupedFilteredNotes.last7Days?.length || 0))).map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -355,13 +475,14 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                         const student = classroomStudents.find(s => s.id === note.studentId);
                         if (student) onNavigateToStudent(student);
                       }}
+                      onNoteClick={() => handleNoteClick(note)}
                     />
                   ))}
                 </>
               )}
 
               {/* Show More Button */}
-              {classroomNotes.length > displayedNotesCount && (
+              {filteredNotes.length > displayedNotesCount && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"
@@ -388,20 +509,20 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           {/* Students Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {studentCount} students in {classroom.name}
+              {filteredStudents.length} students in {classroom.name}
             </Typography>
           </Box>
 
           {/* Students List */}
-          {classroomStudents.length === 0 ? (
+          {filteredStudents.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
-                No students found in this classroom
+                {searchQuery ? `No students found matching "${searchQuery}"` : 'No students found in this classroom'}
               </Typography>
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {classroomStudents.map((student) => (
+              {filteredStudents.map((student) => (
                 <ClassroomStudentCard
                   key={student.id}
                   student={student}
@@ -413,12 +534,38 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           )}
         </Box>
       )}
+      
+      {/* Note Expansion Dialog */}
+      <NoteExpansionDialog
+        open={detailDialogOpen}
+        onClose={handleCloseDialog}
+        observation={selectedNote}
+        student={selectedNote && classroomStudents.length > 0 ? 
+          classroomStudents.find(s => s.id === selectedNote.studentId) : null
+        }
+        currentUser={currentUser}
+        userRole={userRole}
+        onNavigateToStudent={onNavigateToStudent}
+        isClassroomContext={true}
+      />
     </Box>
   );
 }
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
-function ClassroomNoteCard({ note, studentName, onStudentClick }) {
+function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
+  // Determine note type and icon
+  const getNoteTypeInfo = (note) => {
+    if (note.type === 'voice') {
+      return { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+    } else if (note.type === 'text' || note.text) {
+      return { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+    }
+    return { type: 'Note', icon: <Notes sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+  };
+
+  const noteTypeInfo = getNoteTypeInfo(note);
+
   return (
     <Card
       sx={{
@@ -428,9 +575,31 @@ function ClassroomNoteCard({ note, studentName, onStudentClick }) {
           transform: 'translateY(-1px)',
         },
         transition: 'all 0.2s ease-in-out',
+        position: 'relative',
       }}
       aria-label={`View details for observation from ${formatTimestamp(note.observedAt || note.timestamp)}`}
+      onClick={onNoteClick}
     >
+      {/* Note Type Indicator - Top Right */}
+      <Box sx={{
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 1,
+        px: 1,
+        py: 0.5,
+        border: '1px solid #e2e8f0'
+      }}>
+        {noteTypeInfo.icon}
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+          {noteTypeInfo.type}
+        </Typography>
+      </Box>
+
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -480,6 +649,9 @@ function ClassroomNoteCard({ note, studentName, onStudentClick }) {
 
 // ClassroomStudentCard component for displaying individual students in the classroom
 function ClassroomStudentCard({ student, classroomNotes, onClick }) {
+  // Count notes for this specific student from the filtered notes
+  const studentNoteCount = classroomNotes.filter(note => note.studentId === student.id).length;
+  
   return (
     <Card
       sx={{
@@ -512,7 +684,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Notes sx={{ fontSize: 14, color: 'text.secondary' }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {classroomNotes.filter(note => note.studentId === student.id).length} note{classroomNotes.filter(note => note.studentId === student.id).length !== 1 ? 's' : ''}
+            {studentNoteCount} note{studentNoteCount !== 1 ? 's' : ''}
           </Typography>
         </Box>
       </CardContent>

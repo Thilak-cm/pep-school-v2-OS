@@ -27,6 +27,7 @@ import { db } from '../firebase';
 // Import new modular components
 import FilterPanel from './FilterPanel';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
+import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
@@ -44,15 +45,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState('');
-  const [saving, setSaving] = useState(false);
-  
-  // Reassignment states
-  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
-  const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
-  const [reassigning, setReassigning] = useState(false);
-  const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
+  // Note: All note expansion functionality is now handled by NoteExpansionDialog component
   
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
@@ -194,12 +187,6 @@ function StudentTimeline({ student, currentUser, userRole }) {
   const handleCloseDialog = () => {
     setDetailDialogOpen(false);
     setSelectedObservation(null);
-    setEditing(false);
-    setEditText('');
-    // Reset reassignment state
-    setReassignDialogOpen(false);
-    setReassignConfirmOpen(false);
-    setReassignSelectedStudents([]);
   };
 
   const handleDeleteClick = () => {
@@ -227,48 +214,14 @@ function StudentTimeline({ student, currentUser, userRole }) {
     setDeleteConfirmOpen(false);
   };
 
-  const handleEditClick = () => {
-    if (selectedObservation) {
-      setEditText(selectedObservation.text || '');
-      setEditing(true);
-    }
-  };
 
-  const handleEditSave = async () => {
-    if (!selectedObservation || !editText.trim()) return;
 
-    try {
-      setSaving(true);
-      const updateData = {
-        text: editText.trim(),
-        editCount: (selectedObservation.editCount || 0) + 1,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp()
-      };
 
-      await updateDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id), updateData);
-      
-      setEditing(false);
-      setEditText('');
-    } catch (error) {
-      console.error('Error updating observation:', error);
-      alert('Error saving changes. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const handleEditCancel = () => {
-    setEditing(false);
-    setEditText('');
-  };
+
 
   // Reassignment handlers
-  const handleReassignClick = () => {
-    setReassignSelectedStudents([]); // Reset selection when opening
-    setReassignDialogOpen(true);
-  };
+
 
   const handleReassignCancel = () => {
     setReassignDialogOpen(false);
@@ -548,203 +501,16 @@ function StudentTimeline({ student, currentUser, userRole }) {
         </Box>
       )}
 
-      {/* Observation Detail Dialog */}
-      <Dialog
-        open={detailDialogOpen}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 343,
-            width: 'calc(100% - 32px)',
-            mx: 'auto'
-          }
-        }}
-      >
-        {selectedObservation && (
-          <>
-            <DialogTitle sx={{ pb: 1, pr: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {getObservationTypeIcon(selectedObservation.type)}
-                  <Typography variant="h6">
-                    {getObservationTypeText(selectedObservation.type)}
-                  </Typography>
-                </Box>
-                <IconButton
-                  aria-label="Close dialog"
-                  onClick={handleCloseDialog}
-                  sx={{
-                    color: 'text.secondary',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                    }
-                  }}
-                >
-                  <Close />
-                </IconButton>
-              </Box>
-            </DialogTitle>
-            <DialogContent sx={{ pb: 2 }}>
-              {editing ? (
-                <TextField
-                  multiline
-                  rows={4}
-                  fullWidth
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  placeholder="Edit your observation..."
-                  variant="outlined"
-                  sx={{
-                    mb: 3,
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                    }
-                  }}
-                />
-              ) : (
-                <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.6 }}>
-                  {selectedObservation.text}
-                </Typography>
-              )}
-              
-              <Divider sx={{ my: 2 }} />
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2" color="text.secondary">
-                    {formatTimestamp(selectedObservation.observedAt || selectedObservation.timestamp)}
-                  </Typography>
-                </Box>
-                
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2" color="text.secondary">
-                    Created by: {selectedObservation.createdByName || selectedObservation.createdByEmail || 'Unknown Teacher'}
-                  </Typography>
-                </Box>
-                
-                {selectedObservation.type === 'voice' && selectedObservation.duration && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Duration: {selectedObservation.duration} seconds
-                    </Typography>
-                  </Box>
-                )}
-                
-                {userRole === 'admin' && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Edit count: {selectedObservation.editCount || 0}
-                      </Typography>
-                    </Box>
-                    {canEditObservation(selectedObservation, currentUser, userRole) && (
-                      <Button 
-                        onClick={handleEditClick} 
-                        size="small"
-                        variant="outlined" 
-                        color="primary"
-                        startIcon={<Edit />}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </Box>
-                )}
-                
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Assigned To: {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
-                    </Typography>
-                  </Box>
-                  {canReassignObservation(selectedObservation, currentUser, userRole) && (
-                    <Button 
-                      onClick={handleReassignClick} 
-                      size="small"
-                      variant="outlined" 
-                      color="secondary"
-                      startIcon={<SwapHoriz />}
-                    >
-                      Reassign
-                    </Button>
-                  )}
-                </Box>
-                
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {selectedObservation.isStarred && (
-                    <Chip 
-                      icon={<Star sx={{ fontSize: 16 }} />} 
-                      label="Starred" 
-                      size="small" 
-                      color="warning"
-                    />
-                  )}
-                  {selectedObservation.isPrivate && (
-                    <Chip 
-                      label="Private" 
-                      size="small" 
-                      color="error"
-                    />
-                  )}
-                  {selectedObservation.isDraft && (
-                    <Chip 
-                      label="Draft" 
-                      size="small" 
-                      color="info"
-                    />
-                  )}
-                </Box>
-              </Box>
-            </DialogContent>
-            {(editing || canDeleteObservation(selectedObservation, currentUser, userRole)) && (
-              <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-                {editing ? (
-                  <>
-                    <Button 
-                      onClick={handleEditCancel} 
-                      variant="outlined" 
-                      sx={{ flex: 1 }}
-                      disabled={saving}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleEditSave} 
-                      variant="contained" 
-                      color="primary"
-                      startIcon={saving ? <CircularProgress size={16} /> : <Save />}
-                      sx={{ flex: 1 }}
-                      disabled={saving || !editText.trim()}
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </Button>
-                  </>
-                ) : (
-                  canDeleteObservation(selectedObservation, currentUser, userRole) && (
-                    <Button 
-                      onClick={handleDeleteClick} 
-                      variant="outlined" 
-                      color="error"
-                      startIcon={<Delete />}
-                      fullWidth
-                    >
-                      Delete
-                    </Button>
-                  )
-                )}
-              </DialogActions>
-            )}
-          </>
-        )}
-      </Dialog>
+              {/* Observation Detail Dialog */}
+        <NoteExpansionDialog
+          open={detailDialogOpen}
+          onClose={handleCloseDialog}
+          observation={selectedObservation}
+          student={student}
+          currentUser={currentUser}
+          userRole={userRole}
+          isClassroomContext={false}
+        />
 
       {/* Delete Confirmation Dialog */}
       <Dialog
@@ -807,139 +573,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
         </DialogActions>
       </Dialog>
 
-      {/* Student Selection Dialog for Reassignment */}
-      <Dialog
-        open={reassignDialogOpen}
-        onClose={handleReassignCancel}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 500,
-            width: 'calc(100% - 32px)',
-            mx: 'auto',
-            maxHeight: '90vh'
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 2 }}>
-          <Typography variant="h6">
-            Reassign Note to Student
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Select a student to reassign this observation to:
-          </Typography>
-          
-          <ClassroomStudentPicker
-            selectedStudents={reassignSelectedStudents}
-            onStudentsChange={handleReassignStudentsChange}
-            currentUser={currentUser}
-            userRole={userRole}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button 
-            onClick={handleReassignCancel} 
-            variant="outlined" 
-            sx={{ flex: 1 }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleReassignNext} 
-            variant="contained" 
-            color="primary"
-            sx={{ flex: 1 }}
-            disabled={reassignSelectedStudents.length !== 1}
-          >
-            Next
-          </Button>
-        </DialogActions>
-      </Dialog>
 
-      {/* Reassignment Confirmation Dialog */}
-      <Dialog
-        open={reassignConfirmOpen}
-        onClose={handleCancelReassign}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 375,
-            width: 'calc(100% - 32px)',
-            mx: 'auto'
-          }
-        }}
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SwapHoriz color="secondary" />
-            <Typography variant="h6">
-              Confirm Reassignment
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {reassignSelectedStudents.length === 1 && (
-            <>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                Are you sure you want to reassign this observation?
-              </Typography>
-              <Box sx={{
-                p: 2,
-                backgroundColor: '#f8fafc',
-                borderRadius: 2,
-                border: '1px solid #e2e8f0',
-                mb: 2
-              }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>From:</strong> {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  <strong>To:</strong> Selected student (ID: {reassignSelectedStudents[0]})
-                </Typography>
-              </Box>
-              <Typography variant="body2" sx={{
-                fontStyle: 'italic',
-                backgroundColor: '#f8fafc',
-                padding: 2,
-                borderRadius: 2,
-                border: '1px solid #e2e8f0',
-                mb: 2
-              }}>
-                "{selectedObservation?.text?.substring(0, 100)}{selectedObservation?.text?.length > 100 ? '...' : ''}"
-              </Typography>
-              <Typography variant="body2" color="warning.main" sx={{ fontWeight: 'medium' }}>
-                The note will be moved from the current student's timeline to the selected student's timeline.
-              </Typography>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button 
-            onClick={handleCancelReassign} 
-            variant="outlined" 
-            sx={{ flex: 1 }}
-            disabled={reassigning}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleConfirmReassign} 
-            variant="contained" 
-            color="secondary"
-            sx={{ flex: 1 }}
-            disabled={reassigning}
-            startIcon={reassigning ? <CircularProgress size={16} /> : <SwapHoriz />}
-          >
-            {reassigning ? 'Reassigning...' : 'Reassign'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Export Confirmation Dialog */}
       <Dialog
