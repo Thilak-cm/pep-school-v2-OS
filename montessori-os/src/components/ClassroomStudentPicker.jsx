@@ -556,7 +556,7 @@ function ClassroomStudentPicker({
                               disableRipple
                             />
                           </ListItemIcon>
-                          <ListItemText primary={getStudentName(student)} secondary={`UID: ${student.id}`} />
+                          <ListItemText primary={getStudentName(student)} />
                         </ListItemButton>
                       </ListItem>
                     ))}
