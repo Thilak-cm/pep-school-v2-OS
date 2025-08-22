@@ -1,8 +1,8 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-// import { getStorage } from 'firebase-admin/storage';
+// import { getStorage } from "firebase-admin/storage";
 import * as functions from "firebase-functions";
-// import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 
 initializeApp({ credential: applicationDefault() });
@@ -21,6 +21,171 @@ const transporter = (smtpUser && smtpPass)
   : null;
 
 // Note: Removed legacy transcribeVoiceNote storage trigger as STT is no longer used.
+
+// Callable function: Atomic user creation with email uniqueness enforcement
+export const createUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {
+  // Only allow authenticated users to create accounts
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  const { email, firstName, lastName, role = "teacher", adminLevel, permissions, selectedClassrooms = [] } = data;
+  
+  if (!email || !firstName || !lastName) {
+    throw new functions.https.HttpsError("invalid-argument", "Email, firstName, and lastName are required");
+  }
+
+  try {
+    // Use a transaction to ensure atomicity
+    const result = await db.runTransaction(async (transaction) => {
+      // Check if email already exists
+      const existingUserSnap = await transaction.get(
+        db.collection("users").where("email", "==", email)
+      );
+
+      if (!existingUserSnap.empty) {
+        throw new functions.https.HttpsError(
+          "already-exists", 
+          "User with email " + email + " already exists"
+        );
+      }
+
+      // Create the user document
+      const userData = {
+        email: email.toLowerCase().trim(),
+        displayName: firstName + " " + lastName,
+        firstName: firstName,
+        lastName: lastName,
+        role: role,
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: context.auth.uid
+      };
+
+      // Add role-specific fields
+      if (role === "admin") {
+        userData.adminLevel = adminLevel || "regular";
+        userData.permissions = permissions || [];
+      }
+
+      const userRef = db.collection("users").doc();
+      transaction.set(userRef, userData);
+
+      // Assign teacher to classrooms if applicable
+      if (role === "teacher" && selectedClassrooms.length > 0) {
+        for (const classroomId of selectedClassrooms) {
+          try {
+            const classroomRef = db.collection("classrooms").doc(classroomId);
+            const classroomSnap = await transaction.get(classroomRef);
+            
+            if (classroomSnap.exists) {
+              const currentTeacherIds = classroomSnap.data().teacherIds || [];
+              transaction.update(classroomRef, {
+                teacherIds: [...currentTeacherIds, userRef.id],
+                updatedAt: new Date()
+              });
+            }
+          } catch (error) {
+            console.error("Failed to assign teacher to classroom " + classroomId + ":", error);
+          }
+        }
+      }
+
+      return {
+        uid: userRef.id,
+        ...userData
+      };
+    });
+
+    console.log("User created successfully: " + result.uid + " (" + email + ")");
+    return { success: true, user: result };
+
+  } catch (error) {
+    console.error("createUserWithEmailCheck failed:", error);
+    
+    // Re-throw Firebase Functions errors
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    
+    // Handle other errors
+    throw new functions.https.HttpsError(
+      "internal", 
+      "Failed to create user: " + error.message
+    );
+  }
+});
+
+// Callable function: Update user with email uniqueness check
+export const updateUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  const { uid, email, displayName, additionalData = {} } = data;
+  
+  if (!uid) {
+    throw new functions.https.HttpsError("invalid-argument", "User UID is required");
+  }
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      // Get the current user document
+      const userRef = db.collection("users").doc(uid);
+      const userSnap = await transaction.get(userRef);
+
+      if (!userSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "User not found");
+      }
+
+      // If email is being updated, check for conflicts
+      if (email && email !== userSnap.data().email) {
+        const existingUserSnap = await transaction.get(
+          db.collection("users").where("email", "==", email)
+        );
+
+        if (!existingUserSnap.empty) {
+          throw new functions.https.HttpsError(
+            "already-exists", 
+            "User with email " + email + " already exists"
+          );
+        }
+      }
+
+      // Update the user document
+      const updateData = {
+        ...additionalData
+      };
+
+      if (email) updateData.email = email.toLowerCase().trim();
+      if (displayName) updateData.displayName = displayName;
+      updateData.updatedAt = new Date();
+
+      transaction.update(userRef, updateData);
+
+      return {
+        uid,
+        ...updateData
+      };
+    });
+
+    console.log("User updated successfully: " + uid);
+    return { success: true, user: result };
+
+  } catch (error) {
+    console.error("updateUserWithEmailCheck failed:", error);
+    
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    
+    throw new functions.https.HttpsError(
+      "internal", 
+      "Failed to update user: " + error.message
+    );
+  }
+});
 
 export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firestore
   .document("access_logs/{logId}")
@@ -41,12 +206,12 @@ export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firest
         from: smtpUser,
         to: adminEmails.join(","),
         subject: "Unauthorized Access Attempt Detected",
-        text: `An unauthorized user attempted to access the Montessori Observation Hub.\n\n` +
-              `Email: ${logData.email}\n` +
-              `Display Name: ${logData.displayName}\n` +
-              `Reason: ${logData.reason}\n` +
-              `Timestamp: ${new Date(logData.timestamp._seconds * 1000).toLocaleString()}\n\n` +
-              `User Agent: ${logData.userAgent}`,
+        text: "An unauthorized user attempted to access the Montessori Observation Hub.\n\n" +
+              "Email: " + logData.email + "\n" +
+              "Display Name: " + logData.displayName + "\n" +
+              "Reason: " + logData.reason + "\n" +
+              "Timestamp: " + new Date(logData.timestamp._seconds * 1000).toLocaleString() + "\n\n" +
+              "User Agent: " + logData.userAgent,
       };
 
       await transporter.sendMail(mailOptions);
@@ -104,7 +269,7 @@ export const requestAccess = functions.region("asia-south1").https.onCall(async 
           from: smtpUser,
           to: adminEmails.join(","),
           subject: "Access Request Submitted",
-          text: `A user submitted an access request.\n\nEmail: ${requesterEmail}\nName: ${requesterName}\nUID: ${requesterUid}\nWhen: ${record.createdAt}`,
+          text: "A user submitted an access request.\n\nEmail: " + requesterEmail + "\nName: " + requesterName + "\nUID: " + requesterUid + "\nWhen: " + record.createdAt,
         });
       }
     } catch (mailErr) {

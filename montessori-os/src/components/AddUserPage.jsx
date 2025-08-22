@@ -29,8 +29,9 @@ import {
   Error,
   Info
 } from '@mui/icons-material';
-import { collection, getDocs, getDoc, addDoc, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, getDocs, getDoc, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, cloudFunctions } from '../firebase';
 
 const AddUserPage = ({ onBack, currentUser, userRole }) => {
   const [formData, setFormData] = useState({
@@ -49,6 +50,9 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+
+  // Initialize Cloud Functions
+  const createUserWithEmailCheck = httpsCallable(cloudFunctions, 'createUserWithEmailCheck');
 
   // Permission definitions
   const permissionGroups = {
@@ -225,61 +229,51 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
       setSubmitting(true);
       setError('');
 
-      // Create user document in Firestore
-      const userData = {
-        displayName: `${formData.firstName} ${formData.lastName}`.trim(),
+      // Call Cloud Function to create user and check for email uniqueness
+      const result = await createUserWithEmailCheck({
         email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         role: formData.role,
-        status: 'active',
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        createdBy: currentUser.uid
-      };
+        adminLevel: formData.adminLevel,
+        permissions: formData.permissions,
+        selectedClassrooms: selectedClassrooms
+      });
 
-      // Add role-specific fields
-      if (formData.role === 'admin') {
-        userData.adminLevel = formData.adminLevel;
-        userData.permissions = formData.permissions.length > 0 
-          ? formData.permissions 
-          : permissionGroups[formData.adminLevel].map(p => p.key);
+      if (result.data.success) {
+        setSuccess(true);
+        // Reset form after successful submission
+        setTimeout(() => {
+          setFormData({
+            email: '',
+            firstName: '',
+            lastName: '',
+            role: 'teacher',
+            adminLevel: 'regular',
+            permissions: []
+          });
+          setSelectedClassrooms([]);
+          setSuccess(false);
+        }, 3000);
+      } else {
+        setError(result.data.message || 'Failed to create user. Email might already be in use.');
       }
-
-      // Create user document
-      const userRef = await addDoc(collection(db, 'users'), userData);
-      
-      // Assign teacher to classrooms if applicable
-      if (formData.role === 'teacher' && selectedClassrooms.length > 0) {
-        for (const classroomId of selectedClassrooms) {
-          try {
-            await updateDoc(doc(db, 'classrooms', classroomId), {
-              teacherIds: arrayUnion(userRef.id),
-              updatedAt: Timestamp.now()
-            });
-          } catch (error) {
-            console.error(`Failed to assign teacher to classroom ${classroomId}:`, error);
-          }
-        }
-      }
-
-      setSuccess(true);
-      
-      // Reset form after successful submission
-      setTimeout(() => {
-        setFormData({
-          email: '',
-          firstName: '',
-          lastName: '',
-          role: 'teacher',
-          adminLevel: 'regular',
-          permissions: []
-        });
-        setSelectedClassrooms([]);
-        setSuccess(false);
-      }, 3000);
 
     } catch (error) {
       console.error('Error creating user:', error);
-      setError('Failed to create user. Please try again.');
+      
+      // Handle specific Cloud Function errors
+      if (error.code === 'functions/already-exists') {
+        setError('A user with this email already exists. Please use a different email address.');
+      } else if (error.code === 'functions/invalid-argument') {
+        setError('Invalid input. Please check all required fields.');
+      } else if (error.code === 'functions/unauthenticated') {
+        setError('Authentication error. Please log in again.');
+      } else if (error.code === 'functions/internal') {
+        setError('Server error. Please try again later.');
+      } else {
+        setError('Failed to create user. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
