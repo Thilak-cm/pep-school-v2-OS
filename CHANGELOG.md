@@ -5,6 +5,50 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2025-08-22
+
+### Added
+- **1:1 Email Enforcement System**: Comprehensive solution to prevent duplicate user accounts
+- **Cloud Functions for User Management**: Atomic user creation with email uniqueness validation
+- **Email Uniqueness Validation**: Server-side enforcement that prevents duplicate email creation
+- **Enhanced Error Handling**: Specific error messages for duplicate email scenarios
+- **Admin Audit Scripts**: Tools for identifying and cleaning up duplicate accounts
+
+### Changed
+- **Frontend User Creation**: AddUserPage now uses Cloud Functions instead of direct Firestore writes
+- **Firestore Security Rules**: Updated to support Cloud Function-based user creation
+- **User Creation Flow**: Frontend → Cloud Function → Firestore (with atomic validation)
+- **Error Messages**: Clear feedback when attempting to create duplicate email accounts
+
+### Fixed
+- **Duplicate Email Issue**: Cleaned up all duplicate Hemapriya accounts (4 accounts removed)
+- **Data Integrity**: Ensured each email can only be associated with one user account
+- **User Management**: Prevented future duplicate account creation through systematic enforcement
+
+### Improved
+- **System Security**: Email uniqueness enforced at server level, cannot be bypassed by client
+- **Data Quality**: Eliminated duplicate user accounts that were causing data integrity problems
+- **Admin Workflow**: Streamlined user creation with automatic duplicate prevention
+- **Error Prevention**: Users get immediate feedback when attempting to create duplicate accounts
+
+### Technical
+- **Cloud Functions**: Added `createUserWithEmailCheck` and `updateUserWithEmailCheck` functions
+- **Atomic Operations**: User creation now happens in single transaction with email validation
+- **Frontend Integration**: Updated AddUserPage to use `httpsCallable` for Cloud Function calls
+- **Admin Scripts**: Created audit and cleanup scripts for managing existing duplicate accounts
+- **Security Architecture**: Multi-layer protection (Frontend → Cloud Function → Firestore Rules)
+
+### Security
+- **Email Uniqueness**: Enforced at Cloud Function level with atomic transactions
+- **Server-Side Validation**: Cannot be bypassed by client-side manipulation
+- **Access Control**: Maintained existing role-based permissions for user creation
+
+### Result
+- **Complete Duplicate Prevention**: System now prevents duplicate email accounts at multiple levels
+- **Data Cleanup**: Removed all existing duplicate accounts from the system
+- **Future Protection**: New users cannot be created with duplicate emails
+- **Professional System**: Clean, consistent user management without data integrity issues
+
 ## [2.6.0] - 2025-08-20
 
 ### Added
