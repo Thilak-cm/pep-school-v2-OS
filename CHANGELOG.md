@@ -5,6 +5,53 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2025-08-25
+
+### Added
+- **Comprehensive Cache Busting System**: Complete solution to prevent client-side cache interference
+- **Version-Aware Service Worker**: Dynamic cache naming based on app version (e.g., `montessori-os-v2.6.2`)
+- **Automatic Update Detection**: App automatically detects when new versions are available
+- **User-Friendly Update Notifications**: Blue banner appears when updates are ready with one-click update option
+- **Smart Caching Strategies**: Network-first for HTML (always fresh), cache-first for assets (efficient)
+- **Build Automation**: Service worker version automatically syncs with package.json during builds
+- **Prebuild Script**: `update-sw-version.js` automatically updates service worker version before builds
+
+### Changed
+- **Service Worker Architecture**: Complete rewrite with version-aware caching and automatic cleanup
+- **Vite Configuration**: Enhanced with asset hashing, build optimization, and PWA-friendly settings
+- **Firebase Hosting**: Added proper cache headers for different file types (HTML, JS/CSS, images)
+- **Package Scripts**: Added `prebuild` script that runs version update automatically
+
+### Fixed
+- **Cache Interference Issues**: Users no longer see old versions (e.g., 2.4.3 when 2.6.2 is deployed)
+- **Manual Cache Clearing**: Eliminated need for users to manually clear browser cache
+- **Version Mismatches**: Service worker cache names now match app version exactly
+- **Update Reliability**: Automatic cache invalidation ensures users always get latest version
+
+### Improved
+- **User Experience**: Seamless updates without manual intervention or page refreshes
+- **Performance**: Smart caching strategies optimize loading while ensuring content freshness
+- **Mobile Experience**: Update notifications optimized for iPhone 13 mini (375×812px) viewport
+- **Developer Workflow**: Automated version management reduces deployment errors
+
+### Technical
+- **New Components**: Created `UpdateNotification.jsx` for user update prompts
+- **Version Management**: Added `versionManager.js` utility for service worker lifecycle management
+- **Cache Strategy**: Implemented intelligent caching with automatic old cache cleanup
+- **Build Process**: Enhanced Vite config with rollup options for better asset management
+- **Firebase Headers**: Configured proper cache policies for different content types
+
+### Security
+- **Cache Isolation**: Each version creates separate cache, preventing cross-version interference
+- **Update Verification**: Service worker validates version before applying updates
+- **Automatic Cleanup**: Old caches are automatically removed to prevent security issues
+
+### Result
+- **Eliminated Cache Issues**: Users automatically get latest version without manual cache clearing
+- **Better Performance**: Optimized caching strategies improve loading times
+- **Professional Updates**: Seamless update experience that maintains user workflow
+- **Future-Proof**: System automatically handles all future version updates
+
 ## [2.6.1] - 2025-08-22
 
 ### Added
