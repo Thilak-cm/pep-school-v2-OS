@@ -28,6 +28,7 @@ import VersionBadge from "./components/VersionBadge";
 import AccessDenied from './AccessDenied';
 import AddNoteFab from './components/AddNoteFab';
 import AddNoteModal from './components/AddNoteModal';
+import UpdateNotification from './components/UpdateNotification';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -481,6 +482,7 @@ function App() {
                 userRole={role}
               />
               <VersionBadge userRole={role} />
+              <UpdateNotification />
             </>
           )}
         </Box>
