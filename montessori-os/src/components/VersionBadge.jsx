@@ -2,16 +2,60 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 
 /**
- * A small badge that sticks to the bottom-left corner
- * showing the current application version. Uses different positioning
- * for mobile (fixed to viewport) vs desktop (absolute to container).
- * Only shows for admin users.
+ * A version badge that can be displayed either:
+ * 1. Universally (bottom-left corner) - only for admins
+ * 2. In profile page - for all users
  */
-const VersionBadge = ({ userRole }) => {
-  // Only show for admin users
-  if (userRole !== 'admin') {
+const VersionBadge = ({ userRole, showInProfile = false }) => {
+  // For universal display: only show for admin users
+  if (!showInProfile && userRole !== 'admin') {
     return null;
   }
+
+  // For profile page: show for all users with elegant styling
+  if (showInProfile) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 1,
+          mt: 4,
+          pt: 3,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Typography 
+          variant="body2" 
+          color="text.secondary"
+          sx={{ 
+            fontWeight: 500,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            fontSize: '0.75rem'
+          }}
+        >
+          App Version
+        </Typography>
+        <Typography 
+          variant="h6" 
+          component="span" 
+          sx={{ 
+            fontWeight: 700,
+            color: 'primary.main',
+            fontFamily: 'monospace',
+            fontSize: '1.1rem'
+          }}
+        >
+          v2.6.2
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Universal display (bottom-left corner) - only for admins
   return (
     <Box
       sx={{
