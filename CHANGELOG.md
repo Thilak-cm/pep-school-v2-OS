@@ -5,6 +5,36 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] - 2025-08-25
+
+### Added
+- **Enhanced Version Badge Display**: Improved version number presentation in profile page for all users
+- **Profile Page Version Access**: Teachers can now see app version in their profile page (previously admin-only)
+- **showInProfile Prop**: New prop for VersionBadge component to control display context
+
+### Changed
+- **Version Badge Styling**: Replaced dark overlay badge with clean, elegant typography design in profile page
+- **Profile Page Layout**: Added visual separation with border and proper spacing for version display
+- **Component Architecture**: VersionBadge now supports both universal (bottom-left) and profile page display modes
+
+### Improved
+- **User Experience**: All users (teachers and admins) can now see app version in profile page
+- **Visual Design**: Clean, professional version display that integrates seamlessly with profile page aesthetic
+- **Accessibility**: Version information now accessible to teachers for transparency and troubleshooting
+- **Component Flexibility**: VersionBadge component can be used in multiple contexts with different styling
+
+### Technical
+- **Component Enhancement**: Updated VersionBadge.jsx with conditional rendering based on showInProfile prop
+- **Profile Integration**: Added VersionBadge to ProfilePage.jsx with showInProfile={true} for all users
+- **Styling System**: Implemented elegant typography-based design with proper spacing and visual hierarchy
+- **Backward Compatibility**: Universal bottom-left display for admins remains unchanged
+
+### Result
+- Teachers now have access to app version information in their profile page
+- Consistent version display experience across all user roles
+- Professional, integrated version presentation that enhances profile page design
+- Maintained existing admin functionality while expanding teacher access
+
 ## [2.6.2] - 2025-08-25
 
 ### Added
