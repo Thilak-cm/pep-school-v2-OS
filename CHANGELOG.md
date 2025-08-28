@@ -5,6 +5,26 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.4] - 2025-08-25
+
+### Added
+- **Enhanced Student Note Count Display**: Student cards now show "X notes overall | Y notes in the last 7 days" format
+- **Recent Activity Tracking**: Displays notes from last 7 days alongside total note counts for better student progress visibility
+
+### Changed
+- **StudentList Component**: Enhanced to fetch and display classroom observations with time-based filtering
+- **ClassroomStudentCard Component**: Updated note count display to show both total and recent activity metrics
+
+### Technical
+- **Collection Group Queries**: Added observations fetching using `collectionGroup('observations')` for comprehensive data access
+- **Date Filtering**: Implemented 7-day rolling window calculation for recent note activity
+- **Grammar Handling**: Proper singular/plural handling for note count displays
+
+### Result
+- Teachers can now see both total notes and recent activity for each student at a glance
+- Better student progress tracking with immediate visibility into recent engagement
+- Consistent note count format across all student list views
+
 ## [2.6.3] - 2025-08-25
 
 ### Added
