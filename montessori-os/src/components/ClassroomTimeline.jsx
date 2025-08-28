@@ -652,6 +652,52 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
   // Count notes for this specific student from the filtered notes
   const studentNoteCount = classroomNotes.filter(note => note.studentId === student.id).length;
   
+  // Calculate notes from last 7 days
+  const getLast7DaysCount = () => {
+    if (!classroomNotes || classroomNotes.length === 0) return 0;
+    
+    const now = new Date();
+    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const studentNotes = classroomNotes.filter(note => note.studentId === student.id);
+    
+    return studentNotes.filter(note => {
+      try {
+        let noteDate;
+        if (note.observedAt?.toDate) {
+          noteDate = note.observedAt.toDate();
+        } else if (note.observedAt?.seconds) {
+          noteDate = new Date(note.observedAt.seconds * 1000);
+        } else if (note.observedAt) {
+          noteDate = new Date(note.observedAt);
+        } else if (note.timestamp?.toDate) {
+          noteDate = note.timestamp.toDate();
+        } else if (note.timestamp?.seconds) {
+          noteDate = new Date(note.timestamp.seconds * 1000);
+        } else if (note.timestamp) {
+          noteDate = new Date(note.timestamp);
+        } else {
+          noteDate = new Date(0);
+        }
+        
+        return noteDate >= lastWeek;
+      } catch (error) {
+        console.error('Error processing note date:', error, note);
+        return false;
+      }
+    }).length;
+  };
+  
+  // Format note count display with proper grammar
+  const formatNoteCounts = (total, last7Days) => {
+    const totalText = `${total} note${total !== 1 ? 's' : ''} overall`;
+    const last7DaysText = `${last7Days} note${last7Days !== 1 ? 's' : ''} in the last 7 days`;
+    
+    return `${totalText} | ${last7DaysText}`;
+  };
+  
+  const last7DaysCount = getLast7DaysCount();
+  
   return (
     <Card
       sx={{
@@ -684,7 +730,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Notes sx={{ fontSize: 14, color: 'text.secondary' }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {studentNoteCount} note{studentNoteCount !== 1 ? 's' : ''}
+            {formatNoteCounts(studentNoteCount, last7DaysCount)}
           </Typography>
         </Box>
       </CardContent>
