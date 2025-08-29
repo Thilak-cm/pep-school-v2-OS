@@ -12,16 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-time cleanup capability to prevent repeated rewrites
 - New `textCleanup` utility with API fallback for offline/basic cleanup
 - Environment sample keys: `VITE_OPENAI_TEXT_CLEANUP_API_KEY` (falls back to STT key)
+- Copy-to-clipboard button on note cards and in note dialog (StudentTimeline, ClassroomTimeline, Note detail)
 
 ### Changed
 - Polished UI for the cleanup action: gradient button, tooltip, and progress state
 - Integrated cleanup into text note creation and pre-send edit flow
+- Smoother copy interaction: zoom/fade transition from copy icon to tick
 
 ### Technical
 - `src/textCleanup.js`: OpenAI chat completions client with Montessori-focused system prompt
 - `AddNoteModal.jsx`: Cleanup button in text input step; passes `cleaned` flag forward
 - `ClassroomStudentPicker.jsx`: Edit view supports one-time cleanup and preserves `cleaned` state
 - `.env.sample`: Documented cleanup API key
+- GitHub Actions: export `VITE_OPENAI_SPEECH_TO_TEXT_API_KEY` (and optional `VITE_OPENAI_TEXT_CLEANUP_API_KEY`) to Vite build in
+  `.github/workflows/firebase-hosting-merge.yml` and `firebase-hosting-pull-request.yml`.
+  Removed the old `VITE_GOOGLE_SPEECH_TO_TEXT_API_KEY` from the workflow env.
+- `CopyToClipboardButton.jsx`: Reusable button with tooltip + animated icon state
+- Integrated into `StudentTimeline.jsx`, `ClassroomTimeline.jsx`, and `NoteExpansionDialog.jsx`
+
+### Fixed
+- Production build now receives the OpenAI STT key, resolving
+  "OpenAI API key not configured" errors in the Voice Recorder modal.
 
 ### Notes
 - Client-side key usage mirrors existing Whisper setup; consider server proxy if you want to fully hide keys and monitor usage
