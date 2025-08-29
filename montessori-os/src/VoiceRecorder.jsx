@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { transcribeAudioWithChunking, validateAudioForTranscription } from './speechToText';
+import { transcribeAudio, validateAudioForTranscription } from './whisperSTT';
 import { db } from './firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import {
@@ -85,8 +85,12 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         } 
       });
       
-      // Get supported MIME types
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+      // Get supported MIME types - prefer MP3 for OpenAI Whisper
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp3') 
+        ? 'audio/mp3' 
+        : MediaRecorder.isTypeSupported('audio/mpeg') 
+        ? 'audio/mpeg'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
         ? 'audio/webm;codecs=opus' 
         : MediaRecorder.isTypeSupported('audio/webm') 
         ? 'audio/webm' 
@@ -261,16 +265,13 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const handleSave = () => {
     // Only allow save if transcription is complete and successful
     if (onSave && transcription && !isTranscribing && !transcriptionError && transcriptionData) {
-      // Pass complete transcription data instead of audio blob
+      // Pass simplified transcription data (OpenAI Whisper format)
       onSave({
         text: transcription,
         duration: recordingTime,
-        sttConfidence: transcriptionData.confidence,
-        sttAlternatives: transcriptionData.alternatives,
         languageCode: transcriptionData.languageCode,
         timestamp: new Date(),
-        chunkCount: transcriptionData.chunkCount,
-        totalDuration: transcriptionData.totalDuration
+        sttProvider: 'OpenAI Whisper'
       });
     }
   };
@@ -283,18 +284,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
 
     setIsTranscribing(true);
     setTranscriptionError('');
-    setTranscriptionProgress({ current: 0, total: 0, message: 'Starting transcription...' });
+          setTranscriptionProgress({ current: 0, total: 1, message: 'Starting OpenAI Whisper transcription...' });
 
     try {
-      // Use the new chunked transcription function with progress callback
-      const transcriptionResult = await transcribeAudioWithChunking(
-        audioBlob, 
-        'en-US', 
-        30000, // 30 second chunks
-        (current, total, message) => {
-          setTranscriptionProgress({ current, total, message });
-        }
-      );
+      // Use OpenAI Whisper transcription (no chunking needed)
+      const transcriptionResult = await transcribeAudio(audioBlob, 'en-US');
       
       setTranscriptionData(transcriptionResult);
       setTranscription(transcriptionResult.text);
@@ -303,10 +297,8 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         setTranscriptionError('No speech detected in the recording.');
       }
       
-      // Show chunk information if audio was chunked
-      if (transcriptionResult.chunkCount > 1) {
-        console.log(`Transcription completed using ${transcriptionResult.chunkCount} chunks`);
-      }
+      // OpenAI Whisper handles long audio natively - no chunking needed
+      console.log('Transcription completed with OpenAI Whisper');
       
     } catch (error) {
       console.error('Transcription failed:', error);
