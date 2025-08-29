@@ -250,16 +250,34 @@ function AddNoteModal({
           editCount: 0,
         };
 
-        // Voice-specific fields
+        // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
         if (transcriptionData) {
-          observationData.duration = transcriptionData.duration;
-          observationData.sttConfidence = transcriptionData.sttConfidence;
-          observationData.sttAlternatives = transcriptionData.sttAlternatives;
-          observationData.languageCode = transcriptionData.languageCode;
+          if (typeof transcriptionData.duration === 'number') {
+            observationData.duration = transcriptionData.duration;
+          }
+          if (typeof transcriptionData.sttConfidence === 'number') {
+            observationData.sttConfidence = transcriptionData.sttConfidence;
+          }
+          if (Array.isArray(transcriptionData.sttAlternatives) && transcriptionData.sttAlternatives.length > 0) {
+            observationData.sttAlternatives = transcriptionData.sttAlternatives;
+          }
+          if (transcriptionData.languageCode) {
+            observationData.languageCode = transcriptionData.languageCode;
+          }
+          // Track STT provider for debugging/analytics
+          observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
         }
 
+        // Prune undefined values defensively before writing to Firestore
+        const cleanedObservationData = Object.fromEntries(
+          Object.entries(observationData).filter(([, value]) => value !== undefined)
+        );
+
+        // Debug log for troubleshooting schema issues
+        console.debug('[save] observation payload', cleanedObservationData);
+
         // Write to per-student subcollection
-        await addDoc(collection(db, 'students', stuId, 'observations'), observationData);
+        await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
       });
       await Promise.all(promises);
       setSnackbarMessage('Note saved successfully!');
