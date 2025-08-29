@@ -5,6 +5,24 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2025-08-29
+
+### Fixed
+- Firestore write failures when saving voice notes after Whisper migration: omitted undefined fields (e.g., `sttConfidence`, `sttAlternatives`) and pruned payload before `addDoc()` to satisfy Firestore constraints.
+
+### Changed
+- Voice note metadata: default `sttProvider` to "OpenAI Whisper"; only persist voice-only fields when present.
+
+### Technical
+- `AddNoteModal.jsx`: guard optional STT fields, prune `undefined` keys prior to write, and add debug payload log.
+- `VoiceRecorder.jsx`: continues to pass Whisper metadata; `sttProvider` now captured in observation docs.
+
+### Compatibility
+- No schema changes or migrations. `sttConfidence` remains optional and may be absent for Whisper notes. Update any UI that assumed a numeric confidence.
+
+### Result
+- Notes save reliably with Whisper-based STT; no more `addDoc()` undefined-field errors.
+
 ## [3.1.0] - 2025-08-29
 
 ### Added
