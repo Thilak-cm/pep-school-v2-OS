@@ -69,7 +69,7 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     formData.append('model', 'whisper-1');
     
     // Add context prompt to improve transcription accuracy for educational observations
-    formData.append('prompt', 'This is a teacher from PEP School recording their observations about student learning, behavior, and development. The content includes educational terminology, student names, curriculum areas, and classroom activities.');
+    formData.append('prompt', "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.");
     
     // Add language hint if specified (OpenAI will auto-detect if not provided)
     if (languageCode && languageCode !== 'en-US') {

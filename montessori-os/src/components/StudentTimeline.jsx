@@ -20,7 +20,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download } from '@mui/icons-material';
+import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download, EditNote, Notes } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -465,18 +465,50 @@ function StudentTimeline({ student, currentUser, userRole }) {
                   transform: 'translateY(-1px)',
                 },
                 transition: 'all 0.2s ease-in-out',
+                position: 'relative',
               }}
               aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
             >
+              {/* Note Type Indicator - Top Right (match ClassroomTimeline style) */}
+              {(() => {
+                let noteTypeInfo;
+                if (obs.type === 'voice') {
+                  noteTypeInfo = { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+                } else if (obs.type === 'text' || obs.text) {
+                  noteTypeInfo = { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+                } else {
+                  noteTypeInfo = { type: 'Note', icon: <Notes sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+                }
+                return (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: 1,
+                    px: 1,
+                    py: 0.5,
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    {noteTypeInfo.icon}
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+                      {noteTypeInfo.type}
+                    </Typography>
+                  </Box>
+                );
+              })()}
               <CardContent sx={{ p: 2 }}>
+                {/* Teacher Information */}
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                  {getObservationTypeIcon(obs.type)}
+                  <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                    👩‍🏫
+                  </span>
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                    {getObservationTypeText(obs.type)}
+                    {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
                   </Typography>
-                  {obs.isStarred && (
-                    <Star sx={{ fontSize: 16, color: '#f59e0b', ml: 'auto' }} />
-                  )}
                 </Box>
                 <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
                   {obs.text || '(transcribing…)'}
