@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2025-08-29
+
+### Added
+- **StudentTimeline Author Display**: Note cards now show the author/teacher row in the same style as ClassroomTimeline (emoji icon + small secondary text, with fallback to "Unknown Teacher").
+
+### Changed
+- **StudentTimeline Note Type Badge**: Added top-right note-type badge (Voice/Text/Note) matching ClassroomTimeline’s card overlay.
+- **Removed Duplicate Type Row**: Removed the older top-left note-type row from StudentTimeline to avoid duplication; only the top-right badge remains. Star indicator remains unchanged.
+
+### Result
+- Consistent card styling between Classroom and Student timelines while keeping StudentTimeline focused on a single student.
+
 ## [3.0.0] - 2025-08-25
 
 ### Breaking Changes
