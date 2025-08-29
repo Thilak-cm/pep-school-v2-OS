@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2025-08-29
+
+### Added
+- Centered dialog layout for Add Note flow with consistent modal styling
+- In-field word count overlay on text input (bottom-right, subtle)
+
+### Changed
+- Cleanup UX copy: clearly communicates capitalization, paragraphing, and structural polish
+
+### Fixed
+- Preserve paragraph line breaks across app views (StudentTimeline, ClassroomTimeline, Note dialog) using pre-wrap and safe word breaking
+
+### Technical
+- Updated `AddNoteModal.jsx` dialog sizing and text field overlay
+- Applied `whiteSpace: 'pre-wrap'` to note renders in timelines and detail dialog
+
 ## [3.2.0] - 2025-08-29
 
 ### Fixed
