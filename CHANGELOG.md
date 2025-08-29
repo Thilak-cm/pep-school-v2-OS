@@ -5,6 +5,53 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-08-25
+
+### Breaking Changes
+- **Major API Migration**: Switched from Google Speech-to-Text to OpenAI Whisper API for voice transcription
+- **Enhanced Audio Processing**: Improved audio format support and file size handling (25MB limit)
+- **Context-Aware Transcription**: Added educational context prompts for better accuracy
+
+### Added
+- **OpenAI Whisper Integration**: Complete speech-to-text service using `whisper-1` model
+- **Context-Aware Prompts**: Educational context prompts that improve transcription accuracy for:
+  * Teacher observations and classroom activities
+  * Educational terminology and Montessori vocabulary
+  * Student names and curriculum areas
+  * Professional teaching language
+- **Enhanced Audio Support**: Multiple audio formats (MP3, WAV, WebM, M4A, MPEG) with auto-conversion
+- **Test Scripts**: `test-openai-api.js` and `test-whisper-prompt.js` for API validation and testing
+- **Improved Error Handling**: Better API key validation and comprehensive error messages
+
+### Changed
+- **Voice Recording Quality**: Significantly improved transcription accuracy through context-aware AI
+- **Audio Processing**: Enhanced audio conversion and validation for optimal Whisper API performance
+- **API Configuration**: Centralized OpenAI API configuration with proper environment variable handling
+- **Transcription Workflow**: Streamlined voice-to-text process with better error recovery
+
+### Fixed
+- **Environment Configuration**: Resolved .env file formatting issues that were breaking API key validation
+- **API Connectivity**: Fixed OpenAI API key parsing and connection issues
+- **Audio Format Handling**: Improved audio file processing and validation for transcription
+
+### Technical
+- **New Service**: `src/whisperSTT.js` - Complete OpenAI Whisper integration service
+- **API Integration**: Proper FormData handling with context prompts and model specification
+- **Audio Processing**: Enhanced audio conversion utilities with format validation
+- **Error Handling**: Comprehensive error handling for API failures and validation issues
+- **Testing**: Added test scripts for API validation and prompt configuration verification
+
+### Performance
+- **Transcription Accuracy**: Significantly improved through context-aware AI prompts
+- **Audio Processing**: Optimized audio conversion for Whisper API compatibility
+- **Error Recovery**: Better handling of API failures and network issues
+
+### Result
+- **Major Quality Improvement**: Voice transcription accuracy significantly enhanced for educational content
+- **Professional Transcription**: Context-aware AI understands Montessori terminology and classroom language
+- **Better User Experience**: More reliable voice recording with improved error handling
+- **Future-Ready**: OpenAI Whisper provides foundation for advanced AI features
+
 ## [2.6.4] - 2025-08-25
 
 ### Added
