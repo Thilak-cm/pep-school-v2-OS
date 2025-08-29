@@ -643,7 +643,7 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
           </Typography>
         </Box>
         
-        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
+        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {note.text || '(transcribing…)'}
         </Typography>
         

@@ -68,20 +68,34 @@ function TextInput({ onSave, onNext, onBack }) {
         Write your observation
       </Typography>
       
-      <TextField
-        multiline
-        rows={6}
-        fullWidth
-        value={text}
-        onChange={handleTextChange}
-        placeholder="Enter your observation here..."
-        variant="outlined"
-        sx={{
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 2,
-          }
-        }}
-      />
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          multiline
+          rows={6}
+          fullWidth
+          value={text}
+          onChange={handleTextChange}
+          placeholder="Enter your observation here..."
+          variant="outlined"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+            }
+          }}
+        />
+        <Typography
+          variant="caption"
+          sx={{
+            position: 'absolute',
+            bottom: 10,
+            right: 12,
+            color: 'text.disabled',
+            pointerEvents: 'none'
+          }}
+        >
+          {wordCount} word{wordCount !== 1 ? 's' : ''}
+        </Typography>
+      </Box>
       {!text.trim() && (
         <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
           Please enter some text to continue
@@ -97,10 +111,7 @@ function TextInput({ onSave, onNext, onBack }) {
           Back
         </Button>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            {wordCount} word{wordCount !== 1 ? 's' : ''}
-          </Typography>
-          <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: polishes grammar and clarity'}>
+          <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: fixes capitalization, paragraphs, and structure'}>
             <span>
               <Button
                 variant="contained"
@@ -309,17 +320,16 @@ function AddNoteModal({
       open={open}
       onClose={handleClose}
       fullWidth
-      maxWidth="xs"
+      maxWidth="sm"
       scroll="body"
       PaperProps={{
         sx: {
-          // Mobile: full screen modal
-          width: { xs: '100vw', sm: 'calc(100% - 32px)' },
-          height: { xs: '100vh', sm: 'auto' },
-          maxWidth: { xs: 'none', sm: 400 },
-          maxHeight: { xs: 'none', sm: '90vh' },
+          // Centered dialog on all viewports
+          width: { xs: 'calc(100% - 32px)', sm: 560 },
+          maxWidth: { xs: 560, sm: 560 },
+          maxHeight: '90vh',
           margin: 'auto',
-          borderRadius: { xs: 0, sm: 3 },
+          borderRadius: 3,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

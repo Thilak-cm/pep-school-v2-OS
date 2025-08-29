@@ -267,7 +267,10 @@ function NoteExpansionDialog({
               }}
             />
           ) : (
-            <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.6 }}>
+            <Typography 
+              variant="body1" 
+              sx={{ mb: 3, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
               {observation.text}
             </Typography>
           )}

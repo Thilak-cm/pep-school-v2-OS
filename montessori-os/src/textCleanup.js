@@ -5,7 +5,8 @@ const CLEANUP_API_KEY = import.meta.env.VITE_OPENAI_TEXT_CLEANUP_API_KEY || impo
 const CHAT_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 /**
- * Clean up and refine a free-form text note using OpenAI
+ * Clean up and refine a free-form text note using OpenAI.
+ * Targets: capitalization, grammar, paragraphing, and light structure.
  * @param {string} text Raw input text from teacher
  * @param {object} options Optional controls
  * @param {('concise'|'standard'|'detailed')} [options.tone='standard'] Output density preference
@@ -19,12 +20,16 @@ export async function cleanUpText(text, options = {}) {
   const tone = options.tone || 'standard';
 
   // System prompt tailored for Montessori observation notes
-  const systemPrompt = `You are an assistant helping teachers refine Montessori observation notes.
-Keep all factual content and names intact. Improve grammar, clarity, and structure.
-Do not invent details. Keep the teacher's observational voice and neutrality.
-Prefer clear sentences; optionally use short bullet points if it reads better.
-Avoid clinical jargon; keep it parent- and teacher-friendly.
-Return only the refined note text, no preamble or explanation.`;
+  const systemPrompt = `You are an assistant that cleans up Montessori observation notes.
+Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each);
+use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational.
+Rules:
+- Preserve all factual content, names, and dates; do not add or infer details.
+- Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL).
+- Ensure consistent spacing and final punctuation for sentences.
+- Keep it parent- and teacher-friendly; avoid clinical jargon.
+- Output plain text with line breaks (no headings, no markdown formatting beyond simple "- " bullets).
+- Return only the refined note text, with clean, readable structure.`;
 
   const userPrompt = `Please clean up the following observation. Density: ${tone}.
 
@@ -73,13 +78,48 @@ ${text}
  * @returns {string}
  */
 export function localCleanupFallback(text) {
-  // Normalize whitespace and fix basic spacing around punctuation
-  const cleaned = text
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\s*([.,;:!?])/g, '$1 ')
-    .replace(/\s+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  return cleaned;
-}
+  if (!text) return '';
 
+  // Normalize whitespace
+  let out = text
+    .replace(/[ \t]+/g, ' ')            // collapse spaces
+    .replace(/\s*([.,;:!?])/g, '$1 ')   // spacing around punctuation
+    .replace(/\s+\n/g, '\n')          // trim spaces before newlines
+    .replace(/\n{3,}/g, '\n\n')       // max one blank line
+    .trim();
+
+  // Sentence-level capitalization/punctuation within each paragraph (basic heuristic)
+  const punctuate = (s) => {
+    return s
+      .split(/([.!?]+)\s+/)
+      .reduce((acc, part, idx, arr) => {
+        if (!part) return acc;
+        // Combine sentence + punctuation tokens
+        if (idx % 2 === 0) {
+          let sentence = part.trim();
+          if (!sentence) return acc;
+          // Capitalize first alphabetic character
+          sentence = sentence.replace(/^[\s]*([a-z])/, (m, c) => c.toUpperCase());
+          // If next token isn't punctuation, add period
+          const next = arr[idx + 1];
+          if (!next || !/[.!?]+/.test(next)) sentence += '.';
+          acc.push(sentence);
+        } else {
+          // punctuation token already handled by the even branch
+        }
+        return acc;
+      }, [])
+      .join(' ');
+  };
+
+  out = out
+    .split(/\n\n+/)
+    .map((para) => {
+      // Skip bullet lists from punctuation changes
+      if (/^\s*[-*]\s/m.test(para)) return para.trim();
+      return punctuate(para.trim());
+    })
+    .join('\n\n');
+
+  return out;
+}

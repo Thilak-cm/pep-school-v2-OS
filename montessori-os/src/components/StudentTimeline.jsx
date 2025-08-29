@@ -521,7 +521,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
                     {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
                   </Typography>
                 </Box>
-                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
+                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {obs.text || '(transcribing…)'}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

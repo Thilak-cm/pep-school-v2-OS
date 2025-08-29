@@ -381,7 +381,7 @@ function ClassroomStudentPicker({
                 flexWrap: 'wrap'
               }}
             >
-              <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: polishes grammar and clarity'}>
+              <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: fixes capitalization, paragraphs, and structure'}>
                 <span>
                   <Button
                     variant="contained"
