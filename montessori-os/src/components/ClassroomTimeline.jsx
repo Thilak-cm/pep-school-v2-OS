@@ -29,6 +29,7 @@ import {
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
+import CopyToClipboardButton from './CopyToClipboardButton';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 
@@ -599,6 +600,17 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
           {noteTypeInfo.type}
         </Typography>
       </Box>
+
+      {/* Copy button overlay - subtle utility near type badge */}
+      {note.text && (
+        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
+          <CopyToClipboardButton
+            text={note.text}
+            size="small"
+            ariaLabel="Copy note text"
+          />
+        </Box>
+      )}
 
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}

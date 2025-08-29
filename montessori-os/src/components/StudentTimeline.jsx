@@ -21,6 +21,7 @@ import {
   MenuItem
 } from '@mui/material';
 import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download, EditNote, Notes } from '@mui/icons-material';
+import CopyToClipboardButton from './CopyToClipboardButton';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -500,6 +501,16 @@ function StudentTimeline({ student, currentUser, userRole }) {
                   </Box>
                 );
               })()}
+              {/* Copy button overlay - subtle, does not interfere with card click */}
+              {obs.text && (
+                <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
+                  <CopyToClipboardButton
+                    text={obs.text}
+                    size="small"
+                    ariaLabel="Copy note text"
+                  />
+                </Box>
+              )}
               <CardContent sx={{ p: 2 }}>
                 {/* Teacher Information */}
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>

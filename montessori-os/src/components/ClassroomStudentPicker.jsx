@@ -16,7 +16,8 @@ import {
   ListItemText,
   ListItemButton,
   Paper,
-  Button
+  Button,
+  Tooltip
 } from '@mui/material';
 import { 
   Search, 
@@ -26,10 +27,12 @@ import {
   Group,
   Edit,
   Close,
-  CheckCircle
+  CheckCircle,
+  AutoFixHigh
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { cleanUpText, localCleanupFallback } from '../textCleanup';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
 /*
@@ -50,6 +53,8 @@ function ClassroomStudentPicker({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedClassrooms, setExpandedClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanedOnce, setCleanedOnce] = useState(!!textData?.cleaned);
   
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
@@ -254,13 +259,29 @@ function ClassroomStudentPicker({
     if (onTextDataChange) {
       onTextDataChange({
         ...textData,
-        text: editableText.trim()
+        text: editableText.trim(),
+        cleaned: cleanedOnce || textData?.cleaned || false
       });
     }
     
     setIsEditing(false);
     setEditableText('');
     setOriginalText('');
+  };
+
+  const runCleanup = async () => {
+    if (!editableText.trim() || cleaning || cleanedOnce) return;
+    try {
+      setCleaning(true);
+      setCleanedOnce(true);
+      const refined = await cleanUpText(editableText).catch(() => null);
+      setEditableText((refined || localCleanupFallback(editableText)).trim());
+    } catch (e) {
+      console.error('Cleanup error:', e);
+      setEditableText(localCleanupFallback(editableText));
+    } finally {
+      setCleaning(false);
+    }
   };
 
 
@@ -360,6 +381,35 @@ function ClassroomStudentPicker({
                 flexWrap: 'wrap'
               }}
             >
+              <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: polishes grammar and clarity'}>
+                <span>
+                  <Button
+                    variant="contained"
+                    onClick={runCleanup}
+                    size="small"
+                    startIcon={cleaning ? <CircularProgress size={14} color="inherit" /> : <AutoFixHigh />}
+                    disabled={!editableText.trim() || cleaning || cleanedOnce}
+                    sx={{
+                      textTransform: 'none',
+                      backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                      color: 'white',
+                      boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+                      '&:hover': {
+                        backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                        boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                      },
+                      '&.Mui-disabled': {
+                        backgroundImage: 'none',
+                        backgroundColor: '#e2e8f0',
+                        color: '#64748b',
+                        boxShadow: 'none'
+                      }
+                    }}
+                  >
+                    {cleanedOnce ? 'Cleaned' : (cleaning ? 'Cleaning…' : 'Clean Up')}
+                  </Button>
+                </span>
+              </Tooltip>
               <Button
                 variant="contained"
                 color="error"

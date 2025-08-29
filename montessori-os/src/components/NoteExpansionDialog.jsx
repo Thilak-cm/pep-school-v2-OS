@@ -27,6 +27,7 @@ import {
   Mic,
   Visibility
 } from '@mui/icons-material';
+import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
@@ -224,18 +225,28 @@ function NoteExpansionDialog({
                 {getObservationTypeText(observation.type)}
               </Typography>
             </Box>
-            <IconButton
-              aria-label="Close dialog"
-              onClick={handleCloseDialog}
-              sx={{
-                color: 'text.secondary',
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                }
-              }}
-            >
-              <Close />
-            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {/* Copy button - unobtrusive, near the title controls */}
+              {!!observation.text && (
+                <CopyToClipboardButton 
+                  text={observation.text}
+                  ariaLabel="Copy note text"
+                  size="small"
+                />
+              )}
+              <IconButton
+                aria-label="Close dialog"
+                onClick={handleCloseDialog}
+                sx={{
+                  color: 'text.secondary',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                  }
+                }}
+              >
+                <Close />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>

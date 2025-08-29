@@ -11,15 +11,18 @@ import {
   StepLabel,
   TextField,
   Snackbar,
-  Alert
+  Alert,
+  Tooltip
 } from '@mui/material';
 import {
   Close,
   KeyboardVoice,
   Image,
-  TextFields
+  TextFields,
+  AutoFixHigh
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
+import { cleanUpText, localCleanupFallback } from '../textCleanup';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -28,6 +31,8 @@ import { db } from '../firebase';
 function TextInput({ onSave, onNext, onBack }) {
   const [text, setText] = useState('');
   const [wordCount, setWordCount] = useState(0);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanedOnce, setCleanedOnce] = useState(false);
 
   const handleTextChange = (event) => {
     const newText = event.target.value;
@@ -39,7 +44,22 @@ function TextInput({ onSave, onNext, onBack }) {
     if (!text.trim()) {
       return;
     }
-    onSave({ text: text.trim() });
+    onSave({ text: text.trim(), cleaned: cleanedOnce });
+  };
+
+  const handleCleanUp = async () => {
+    if (!text.trim() || cleaning || cleanedOnce) return;
+    try {
+      setCleaning(true);
+      setCleanedOnce(true);
+      const refined = await cleanUpText(text).catch(() => null);
+      setText((refined || localCleanupFallback(text)).trim());
+    } catch (e) {
+      console.error('Cleanup error:', e);
+      setText(localCleanupFallback(text));
+    } finally {
+      setCleaning(false);
+    }
   };
 
   return (
@@ -80,6 +100,34 @@ function TextInput({ onSave, onNext, onBack }) {
           <Typography variant="caption" color="text.secondary">
             {wordCount} word{wordCount !== 1 ? 's' : ''}
           </Typography>
+          <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: polishes grammar and clarity'}>
+            <span>
+              <Button
+                variant="contained"
+                onClick={handleCleanUp}
+                disabled={!text.trim() || cleaning || cleanedOnce}
+                startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                sx={{
+                  textTransform: 'none',
+                  backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                  color: 'white',
+                  boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+                  '&:hover': {
+                    backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                    boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                  },
+                  '&.Mui-disabled': {
+                    backgroundImage: 'none',
+                    backgroundColor: '#e2e8f0',
+                    color: '#64748b',
+                    boxShadow: 'none'
+                  }
+                }}
+              >
+                {cleanedOnce ? 'Cleaned' : (cleaning ? 'Cleaning…' : 'Clean Up')}
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             variant="contained"
             onClick={handleSave}
