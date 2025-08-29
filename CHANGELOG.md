@@ -5,6 +5,30 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2025-08-29
+
+### Added
+- AI text cleanup for teacher notes with OpenAI-backed refinement
+- One-time cleanup capability to prevent repeated rewrites
+- New `textCleanup` utility with API fallback for offline/basic cleanup
+- Environment sample keys: `VITE_OPENAI_TEXT_CLEANUP_API_KEY` (falls back to STT key)
+
+### Changed
+- Polished UI for the cleanup action: gradient button, tooltip, and progress state
+- Integrated cleanup into text note creation and pre-send edit flow
+
+### Technical
+- `src/textCleanup.js`: OpenAI chat completions client with Montessori-focused system prompt
+- `AddNoteModal.jsx`: Cleanup button in text input step; passes `cleaned` flag forward
+- `ClassroomStudentPicker.jsx`: Edit view supports one-time cleanup and preserves `cleaned` state
+- `.env.sample`: Documented cleanup API key
+
+### Notes
+- Client-side key usage mirrors existing Whisper setup; consider server proxy if you want to fully hide keys and monitor usage
+
+### Result
+- Teachers can write freely and polish with one tap, without leaving the app
+
 ## [3.0.1] - 2025-08-29
 
 ### Added

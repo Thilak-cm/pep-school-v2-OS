@@ -19,7 +19,10 @@ jobs:
       VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
       VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
       VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
-      VITE_GOOGLE_SPEECH_TO_TEXT_API_KEY: ${{ secrets.VITE_GOOGLE_SPEECH_TO_TEXT_API_KEY }}
+      # Speech-to-Text / OpenAI
+      VITE_OPENAI_SPEECH_TO_TEXT_API_KEY: ${{ secrets.VITE_OPENAI_SPEECH_TO_TEXT_API_KEY }}
+      # Optional: separate key for text cleanup (falls back to STT key)
+      VITE_OPENAI_TEXT_CLEANUP_API_KEY: ${{ secrets.VITE_OPENAI_TEXT_CLEANUP_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - run: cd montessori-os && npm install && npm run build
