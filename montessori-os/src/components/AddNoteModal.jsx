@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   Box,
@@ -33,11 +33,35 @@ function TextInput({ onSave, onNext, onBack }) {
   const [wordCount, setWordCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(false);
+  const [prevText, setPrevText] = useState('');
+  const [showNudge, setShowNudge] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const pauseTimerRef = useRef(null);
+
+  // Heuristic to detect "rough" text without being noisy
+  const looksRough = (s) => {
+    const trimmed = s.trim();
+    if (trimmed.length < 24) return false; // avoid nudging for very short inputs
+    const words = trimmed.split(/\s+/).length;
+    const startsLower = /^(?:\s|\n)*[a-z]/.test(trimmed);
+    const lacksPunct = !/[.!?]\s*$/.test(trimmed) && /\s/.test(trimmed);
+    const manyCommas = (trimmed.match(/,/g) || []).length >= 3 && !/[.!?]/.test(trimmed);
+    return words >= 5 && (startsLower || lacksPunct || manyCommas);
+  };
 
   const handleTextChange = (event) => {
     const newText = event.target.value;
     setText(newText);
     setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
+    // Debounced nudge that never interrupts typing
+    clearTimeout(pauseTimerRef.current);
+    if (nudgeDismissed || cleanedOnce) {
+      setShowNudge(false);
+      return;
+    }
+    pauseTimerRef.current = setTimeout(() => {
+      setShowNudge(looksRough(newText));
+    }, 1200);
   };
 
   const handleSave = () => {
@@ -51,15 +75,26 @@ function TextInput({ onSave, onNext, onBack }) {
     if (!text.trim() || cleaning || cleanedOnce) return;
     try {
       setCleaning(true);
-      setCleanedOnce(true);
+      setPrevText(text);
       const refined = await cleanUpText(text).catch(() => null);
-      setText((refined || localCleanupFallback(text)).trim());
+      const out = (refined || localCleanupFallback(text)).trim();
+      setText(out);
+      setCleanedOnce(true);
+      setShowNudge(false);
+      setNudgeDismissed(true);
     } catch (e) {
       console.error('Cleanup error:', e);
       setText(localCleanupFallback(text));
     } finally {
       setCleaning(false);
     }
+  };
+
+  const handleUndoClean = () => {
+    if (!prevText) return;
+    setText(prevText);
+    setPrevText('');
+    setCleanedOnce(false);
   };
 
   return (
@@ -96,10 +131,28 @@ function TextInput({ onSave, onNext, onBack }) {
           {wordCount} word{wordCount !== 1 ? 's' : ''}
         </Typography>
       </Box>
+      <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
+        Rough notes are okay — AI will polish for you.
+      </Typography>
       {!text.trim() && (
         <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
           Please enter some text to continue
         </Typography>
+      )}
+
+      {/* Gentle, non-blocking nudge after user pauses typing */}
+      {showNudge && !nudgeDismissed && !cleanedOnce && (
+        <Alert 
+          severity="info" 
+          variant="outlined" 
+          sx={{ mt: -0.5 }}
+          onClose={() => { setNudgeDismissed(true); setShowNudge(false); }}
+        >
+          Looks a bit rough. Want to polish with AI?
+          <Button size="small" onClick={handleCleanUp} sx={{ ml: 1 }}>
+            Polish now
+          </Button>
+        </Alert>
       )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -111,7 +164,7 @@ function TextInput({ onSave, onNext, onBack }) {
           Back
         </Button>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Tooltip title={cleanedOnce ? 'Already cleaned' : 'AI-powered: fixes capitalization, paragraphs, and structure'}>
+          <Tooltip title={cleanedOnce ? 'Already polished' : 'Polish with AI: grammar, tone, and structure — no length changes'}>
             <span>
               <Button
                 variant="contained"
@@ -135,10 +188,15 @@ function TextInput({ onSave, onNext, onBack }) {
                   }
                 }}
               >
-                {cleanedOnce ? 'Cleaned' : (cleaning ? 'Cleaning…' : 'Clean Up')}
+                {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
               </Button>
             </span>
           </Tooltip>
+          {cleanedOnce && prevText && (
+            <Button variant="text" onClick={handleUndoClean} sx={{ color: '#64748b' }}>
+              Undo
+            </Button>
+          )}
           <Button
             variant="contained"
             onClick={handleSave}

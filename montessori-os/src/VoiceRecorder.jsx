@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { transcribeAudio, validateAudioForTranscription } from './whisperSTT';
+import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import {
@@ -16,7 +17,8 @@ import {
   Divider,
   Dialog,
   LinearProgress,
-  TextField
+  TextField,
+  Tooltip
 } from '@mui/material';
 import {
   Mic,
@@ -32,7 +34,8 @@ import {
   InfoOutlined,
   Delete,
   Edit,
-  ArrowForward
+  ArrowForward,
+  AutoFixHigh
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
@@ -54,6 +57,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
   const [originalTranscription, setOriginalTranscription] = useState('');
+  
+  // AI polish state
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanedOnce, setCleanedOnce] = useState(false);
+  const [prevTranscription, setPrevTranscription] = useState('');
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -348,6 +356,16 @@ const VoiceRecorder = ({ onSave, onNext }) => {
           }}
         >
           Record up to 5 minutes of audio
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            marginTop: '4px',
+            color: '#64748b',
+            fontSize: '0.9rem'
+          }}
+        >
+          Speak your heart out — AI will tidy after you.
         </Typography>
       </CardContent>
 
@@ -760,6 +778,63 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                   >
                     Record Again
                   </Button>
+                  <Tooltip title={cleanedOnce ? 'Already polished' : 'Polish with AI: grammar and structure — no length changes'}>
+                    <span>
+                      <Button
+                        variant="contained"
+                        onClick={async () => {
+                          if (!transcription || cleaning || cleanedOnce) return;
+                          try {
+                            setCleaning(true);
+                            setPrevTranscription(transcription);
+                            const refined = await cleanUpText(transcription).catch(() => null);
+                            const out = (refined || localCleanupFallback(transcription)).trim();
+                            setTranscription(out);
+                            setCleanedOnce(true);
+                          } catch (e) {
+                            console.error('Cleanup error:', e);
+                          } finally {
+                            setCleaning(false);
+                          }
+                        }}
+                        startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                        size="small"
+                        disabled={!transcription || cleaning || cleanedOnce}
+                        sx={{
+                          backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                          color: 'white',
+                          textTransform: 'none',
+                          boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+                          '&:hover': {
+                            backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                            boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                          },
+                          '&.Mui-disabled': {
+                            backgroundImage: 'none',
+                            backgroundColor: '#e2e8f0',
+                            color: '#64748b',
+                            boxShadow: 'none'
+                          }
+                        }}
+                      >
+                        {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  {cleanedOnce && prevTranscription && (
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={() => {
+                        setTranscription(prevTranscription);
+                        setPrevTranscription('');
+                        setCleanedOnce(false);
+                      }}
+                      sx={{ color: '#64748b' }}
+                    >
+                      Undo
+                    </Button>
+                  )}
                   
                   <Button
                     variant="contained"
