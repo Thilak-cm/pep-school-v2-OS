@@ -5,6 +5,25 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.2] - 2025-09-03
+
+### Added
+- Passive, non-blocking nudge after a short typing pause suggesting “Polish with AI” for rough text.
+- Voice recorder: post-transcription “Polish with AI” action with progress state and Undo.
+
+### Changed
+- Rename “Clean Up” → “Polish with AI” to make the AI aspect explicit.
+- Tooltip clarifies scope: grammar, tone, and structure only (no length changes).
+- Subtext below text area: “Rough notes are okay — AI will polish for you.”
+- Voice step header microcopy: “Speak your heart out — AI will tidy after you.”
+
+### Technical
+- `AddNoteModal.jsx`: subtext, tooltip, renamed button, paused-typing nudge, Undo for polish.
+- `VoiceRecorder.jsx`: integrates `textCleanup` polish button after transcription with Undo.
+
+### Result
+- Clearer AI affordance that reduces copy–paste to external tools while preserving full user control (no auto-polish).
+
 ## [3.2.1] - 2025-08-29
 
 ### Added
