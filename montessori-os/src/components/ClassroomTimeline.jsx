@@ -1,5 +1,5 @@
 // ClassroomTimeline.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -13,7 +13,9 @@ import {
   IconButton,
   Divider,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Collapse,
+  OutlinedInput
 } from '@mui/material';
 import { 
   Group,
@@ -32,6 +34,8 @@ import { formatTimestamp } from '../utils/observationUtils.jsx';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
+import FilterPanel from './FilterPanel';
+import useObservationFilters from '../hooks/useObservationFilters';
 
 
 function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStudent }) {
@@ -44,6 +48,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const [showMoreNotes, setShowMoreNotes] = useState(false);
   const [displayedNotesCount, setDisplayedNotesCount] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      // Defer focus slightly to ensure visibility
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [showSearch]);
   
   // Note expansion states
   const [selectedNote, setSelectedNote] = useState(null);
@@ -244,8 +257,19 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   }, [classroomNotes, filteredStudents, searchQuery]);
 
   // Group filtered notes by time periods
+  // Apply advanced filters (date, creator, type) on top of search-filtered notes
+  const {
+    showFilters,
+    filters,
+    filteredObservations,
+    hasActiveFilters,
+    handleFilterChange,
+    handleClearFilters,
+    toggleFilters
+  } = useObservationFilters(filteredNotes);
+
   const groupedFilteredNotes = useMemo(() => {
-    if (!filteredNotes || filteredNotes.length === 0) {
+    if (!filteredObservations || filteredObservations.length === 0) {
       return {
         today: [],
         last7Days: [],
@@ -263,7 +287,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
       beyond: []
     };
     
-    filteredNotes.forEach(note => {
+    filteredObservations.forEach(note => {
       try {
         let noteDate;
         if (note.observedAt?.toDate) {
@@ -297,7 +321,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     });
     
     return groups;
-  }, [filteredNotes]);
+  }, [filteredObservations]);
 
 
   if (loading) {
@@ -324,30 +348,85 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
       gap: 1
     }}>
 
-      {/* Search Bar - Fixed positioned above tabs */}
+      {/* Compact Header: Search icon left, count + Filters right */}
       <Box sx={{ 
         backgroundColor: 'white',
         borderRadius: 1,
         p: 2,
         borderBottom: '1px solid #e2e8f0'
       }}>
-        <TextField
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search students…"
-          aria-label="Search students in this classroom"
-          variant="outlined"
-          size="small"
-          fullWidth
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          {/* Expanding pill search */}
+          <Box
+            onClick={() => setShowSearch(true)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              width: showSearch ? 320 : 160,
+              transition: 'width 200ms ease',
+            }}
+          >
+            <OutlinedInput
+              inputRef={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => { if (!searchQuery) setShowSearch(false); }}
+              placeholder={'Search'}
+              size="small"
+              startAdornment={(
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              )}
+              sx={{
+                height: 36,
+                borderRadius: 999,
+                px: 0.5,
+                py: 0,
+                '& .MuiOutlinedInput-notchedOutline': { borderRadius: 999 },
+                '& .MuiInputBase-input': {
+                  p: 0.5,
+                  pl: 0.5,
+                },
+              }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {activeTab === 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                Showing {filteredObservations.length} of {filteredNotes.length} notes
+              </Typography>
+            )}
+            <Button
+              startIcon={<FilterList />}
+              onClick={activeTab === 0 ? toggleFilters : undefined}
+              variant={hasActiveFilters ? 'contained' : 'outlined'}
+              color={hasActiveFilters ? 'primary' : 'default'}
+              size="small"
+              disabled={activeTab !== 0}
+              aria-label={activeTab === 0 ? 'Toggle filters' : 'Filters available only on Notes tab'}
+              title={activeTab === 0 ? 'Filters' : 'Filters available only on Notes tab'}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              Filters
+            </Button>
+          </Box>
+        </Box>
+        {/* Removed separate collapse row; search expands inline as a pill */}
       </Box>
+
+      {/* Filter Panel - visible only on Notes tab */}
+      <FilterPanel
+        showFilters={showFilters && activeTab === 0}
+        filters={filters}
+        classroomTeachers={classroomTeachers}
+        hasActiveFilters={hasActiveFilters}
+        filteredCount={filteredObservations.length}
+        /* Intentionally omit totalCount here to avoid duplicate count inside panel */
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        onToggleFilters={toggleFilters}
+      />
 
       {/* Tabs - Sticky positioned under AppHeader */}
       <Box sx={{ 
@@ -397,12 +476,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredNotes.length} observation{filteredNotes.length !== 1 ? 's' : ''} among {filteredStudents.length} students
+              {filteredObservations.length} observation{filteredObservations.length !== 1 ? 's' : ''} among {filteredStudents.length} students
             </Typography>
           </Box>
 
           {/* Notes Timeline */}
-          {filteredNotes.length === 0 ? (
+          {filteredObservations.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
@@ -483,7 +562,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
               )}
 
               {/* Show More Button */}
-              {filteredNotes.length > displayedNotesCount && (
+              {filteredObservations.length > displayedNotesCount && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"

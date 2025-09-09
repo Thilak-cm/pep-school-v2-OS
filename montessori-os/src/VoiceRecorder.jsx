@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { transcribeAudio, validateAudioForTranscription } from './whisperSTT';
 import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
+import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   Box,
@@ -785,14 +786,34 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                         onClick={async () => {
                           if (!transcription || cleaning || cleanedOnce) return;
                           try {
+                            // Count click attempt
+                            trackEvent('polish_click', {
+                              source: 'voice',
+                              component: 'VoiceRecorder',
+                              length_bucket: lengthBucket(transcription.length),
+                            });
+                            const t0 = performance.now();
                             setCleaning(true);
                             setPrevTranscription(transcription);
                             const refined = await cleanUpText(transcription).catch(() => null);
                             const out = (refined || localCleanupFallback(transcription)).trim();
                             setTranscription(out);
                             setCleanedOnce(true);
+                            const dt = Math.round(performance.now() - t0);
+                            trackEvent('polish_success', {
+                              source: 'voice',
+                              component: 'VoiceRecorder',
+                              length_bucket: lengthBucket(transcription.length),
+                              latency_ms: dt,
+                            });
                           } catch (e) {
                             console.error('Cleanup error:', e);
+                            trackEvent('polish_error', {
+                              source: 'voice',
+                              component: 'VoiceRecorder',
+                              length_bucket: lengthBucket(transcription.length),
+                              error: 'cleanup_failed',
+                            });
                           } finally {
                             setCleaning(false);
                           }
@@ -829,6 +850,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                         setTranscription(prevTranscription);
                         setPrevTranscription('');
                         setCleanedOnce(false);
+                        trackEvent('polish_undo', {
+                          source: 'voice',
+                          component: 'VoiceRecorder',
+                          length_bucket: lengthBucket(prevTranscription.length),
+                        });
                       }}
                       sx={{ color: '#64748b' }}
                     >

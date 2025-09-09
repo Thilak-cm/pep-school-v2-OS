@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText, localCleanupFallback } from '../textCleanup';
+import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -74,6 +75,14 @@ function TextInput({ onSave, onNext, onBack }) {
   const handleCleanUp = async () => {
     if (!text.trim() || cleaning || cleanedOnce) return;
     try {
+      // Count click attempt
+      trackEvent('polish_click', {
+        source: 'text',
+        component: 'AddNoteModal.TextInput',
+        length_bucket: lengthBucket(text.length),
+      });
+
+      const t0 = performance.now();
       setCleaning(true);
       setPrevText(text);
       const refined = await cleanUpText(text).catch(() => null);
@@ -82,9 +91,22 @@ function TextInput({ onSave, onNext, onBack }) {
       setCleanedOnce(true);
       setShowNudge(false);
       setNudgeDismissed(true);
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'text',
+        component: 'AddNoteModal.TextInput',
+        length_bucket: lengthBucket(text.length),
+        latency_ms: dt,
+      });
     } catch (e) {
       console.error('Cleanup error:', e);
       setText(localCleanupFallback(text));
+      trackEvent('polish_error', {
+        source: 'text',
+        component: 'AddNoteModal.TextInput',
+        length_bucket: lengthBucket(text.length),
+        error: 'cleanup_failed',
+      });
     } finally {
       setCleaning(false);
     }
@@ -95,6 +117,11 @@ function TextInput({ onSave, onNext, onBack }) {
     setText(prevText);
     setPrevText('');
     setCleanedOnce(false);
+    trackEvent('polish_undo', {
+      source: 'text',
+      component: 'AddNoteModal.TextInput',
+      length_bucket: lengthBucket(prevText.length),
+    });
   };
 
   return (

@@ -12,7 +12,8 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search, Mic, EditNote } from '@mui/icons-material';
+import { Clear, Search, Mic, EditNote, Close } from '@mui/icons-material';
+import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
 /**
@@ -24,6 +25,7 @@ import { fuzzySearchTeachers } from '../utils/fuzzySearch';
  * @param {Array} props.classroomTeachers - Array of teachers with access to current classroom
  * @param {boolean} props.hasActiveFilters - Whether any filters are active
  * @param {number} props.filteredCount - Number of filtered results
+ * @param {number} [props.totalCount] - Total results before filters (optional)
  * @param {Function} props.onFilterChange - Handler for filter changes
  * @param {Function} props.onClearFilters - Handler for clearing all filters
  * @param {Function} props.onToggleFilters - Handler for toggling filter visibility
@@ -35,6 +37,7 @@ const FilterPanel = ({
   classroomTeachers = [],
   hasActiveFilters,
   filteredCount,
+  totalCount,
   onFilterChange,
   onClearFilters,
   onToggleFilters
@@ -71,7 +74,7 @@ const FilterPanel = ({
           transition: 'all 0.3s ease-in-out'
         }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   Filter Observations
@@ -86,13 +89,20 @@ const FilterPanel = ({
                   />
                 )}
               </Box>
-              {hasActiveFilters && (
+              {/* Optional: X of Y notes shown under the title (Classroom Timeline request) */}
+              {hasActiveFilters && typeof filteredCount === 'number' && typeof totalCount === 'number' && (
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                  Showing {filteredCount} of {totalCount} notes
+                </Typography>
+              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Button
                   startIcon={<Clear />}
                   size="small"
                   onClick={onClearFilters}
                   color="secondary"
                   variant="outlined"
+                  disabled={!hasActiveFilters}
                   sx={{
                     borderRadius: 2,
                     textTransform: 'none',
@@ -101,7 +111,15 @@ const FilterPanel = ({
                 >
                   Clear All
                 </Button>
-              )}
+                <IconButton
+                  aria-label="Close filters"
+                  title="Close filters"
+                  size="small"
+                  onClick={onToggleFilters}
+                >
+                  <Close fontSize="small" />
+                </IconButton>
+              </Box>
             </Box>
             
             {/* Date Range */}
@@ -289,10 +307,7 @@ const FilterPanel = ({
                   </Button>
                 </Box>
                 
-                {/* Helper text */}
-                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
-                  Select one or both types to filter observations
-                </Typography>
+                {/* Removed helper text per request */}
               </Box>
             </Box>
           </Box>

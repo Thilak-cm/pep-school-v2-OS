@@ -14,6 +14,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
 import AddUserPage from "./components/AddUserPage";
 import app, { db, cloudFunctions } from "./firebase";
+import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 // Temporarily use console for debugging
@@ -49,8 +50,15 @@ function App() {
       // ignore
     }
 
+    // Record app version as a user property (persists across events)
+    setAppVersionProperty();
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      // Best-effort associate analytics with the signed-in user
+      if (currentUser?.uid) {
+        setAnalyticsUserId(currentUser.uid);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -105,6 +113,8 @@ function App() {
           return;
         }
         setRole(userDoc.role);
+        // Persist role as a user property for analytics breakdowns
+        setUserProperty('role', userDoc.role);
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
         setScreen('landingPage');
       } catch (err) {
@@ -120,6 +130,8 @@ function App() {
 
   const handleSignOut = async () => {
     try {
+      // Clear analytics user_id to avoid linking anonymous sessions
+      setAnalyticsUserId(null);
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
