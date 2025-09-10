@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { transcribeAudio, validateAudioForTranscription } from './whisperSTT';
+import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
 import { trackEvent, lengthBucket } from './utils/analytics';
@@ -278,7 +278,9 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       onSave({
         text: transcription,
         duration: recordingTime,
-        languageCode: transcriptionData.languageCode,
+        // Store detected input language for metadata/stats
+        languageCode: transcriptionData.detectedLanguage || transcriptionData.languageCode,
+        inputLanguage: transcriptionData.detectedLanguage || transcriptionData.languageCode,
         timestamp: new Date(),
         sttProvider: 'OpenAI Whisper'
       });
@@ -296,8 +298,8 @@ const VoiceRecorder = ({ onSave, onNext }) => {
           setTranscriptionProgress({ current: 0, total: 1, message: 'Starting OpenAI Whisper transcription...' });
 
     try {
-      // Use OpenAI Whisper transcription (no chunking needed)
-      const transcriptionResult = await transcribeAudio(audioBlob, 'en-US');
+      // Use OpenAI Whisper translation-to-English (auto language detection)
+      const transcriptionResult = await translateAudioToEnglish(audioBlob);
       
       setTranscriptionData(transcriptionResult);
       setTranscription(transcriptionResult.text);
@@ -307,7 +309,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       }
       
       // OpenAI Whisper handles long audio natively - no chunking needed
-      console.log('Transcription completed with OpenAI Whisper');
+      console.log('Translation to English completed with OpenAI Whisper');
       
     } catch (error) {
       console.error('Transcription failed:', error);
@@ -348,26 +350,57 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         >
           Voice Recorder
         </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            margin: 0,
-            color: '#64748b',
-            fontSize: '0.9rem'
-          }}
-        >
-          Record up to 5 minutes of audio
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            marginTop: '4px',
-            color: '#64748b',
-            fontSize: '0.9rem'
-          }}
-        >
-          Speak your heart out — AI will tidy after you.
-        </Typography>
+        {(!isRecording && !audioUrl && !transcription) && (
+          <Box sx={{ mt: 0.5 }}>
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '999px',
+                background: 'linear-gradient(90deg, #fde68a 0%, #fca5a5 50%, #a78bfa 100%)',
+                color: '#111827',
+                fontWeight: 800,
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: 0.6
+              }}
+            >
+              <AutoFixHigh sx={{ fontSize: 16 }} /> New Feature
+            </Box>
+            <Typography
+              variant="body1"
+              sx={{
+                mt: 1.2,
+                color: '#0f172a',
+                fontWeight: 800
+              }}
+            >
+              Speak in English, Tamil, Kannada, or Hindi — we’ll auto‑translate to English and polish your text.
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 0.5,
+                color: '#374151',
+                fontWeight: 600
+              }}
+            >
+              Broken English is okay. Talk naturally — AI handles translation and cleanup.
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 0.75,
+                color: '#64748b'
+              }}
+            >
+              Up to 5 minutes per recording.
+            </Typography>
+          </Box>
+        )}
       </CardContent>
 
       {/* Recording Controls - Show immediately if no audio recorded yet */}
