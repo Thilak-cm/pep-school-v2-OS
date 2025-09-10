@@ -7,6 +7,7 @@ import LandingPage from "./components/LandingPage";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
+import StudentDashboard from "./components/StudentDashboard";
 import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
@@ -35,7 +36,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -152,12 +153,21 @@ function App() {
     );
   };
 
+  // Extract student's first name for dashboard title
+  const getStudentFirstName = (studentLike) => {
+    if (!studentLike) return 'Student';
+    if (studentLike?.firstName) return studentLike.firstName;
+    const name = studentLike?.name || studentLike?.displayName || [studentLike?.firstName, studentLike?.lastName].filter(Boolean).join(' ');
+    return (name || 'Student').split(' ')[0];
+  };
+
   // Determine page title
   let pageTitle = '';
   if (screen === 'landingPage') pageTitle = role === 'teacher' ? 'Teacher Panel' : 'Admin Panel';
   else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
+  else if (screen === 'studentDashboard') pageTitle = `${getStudentFirstName(selectedStudent)}'s Dashboard`;
   else if (screen === 'timeline') pageTitle = `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
@@ -176,8 +186,10 @@ function App() {
         return () => setScreen('classroomList');
       case 'studentList':
         return () => setScreen('classroomList');
-      case 'timeline':
+      case 'studentDashboard':
         return () => setScreen('classroomTimeline');
+      case 'timeline':
+        return () => setScreen('studentDashboard');
       case 'profile':
       case 'stats':
       case 'feedback':
@@ -411,7 +423,7 @@ function App() {
                       userRole={role}
                       onNavigateToStudent={(student) => {
                         setSelectedStudent(student);
-                        setScreen('timeline');
+                        setScreen('studentDashboard');
                       }}
                     />
                   )}
@@ -421,8 +433,15 @@ function App() {
                       classroom={selectedClassroom}
                       onSelectStudent={(stu) => {
                         setSelectedStudent(stu);
-                        setScreen('timeline');
+                        setScreen('studentDashboard');
                       }}
+                    />
+                  )}
+
+                  {screen === 'studentDashboard' && (
+                    <StudentDashboard
+                      student={selectedStudent}
+                      onOpenNotes={() => setScreen('timeline')}
                     />
                   )}
 
