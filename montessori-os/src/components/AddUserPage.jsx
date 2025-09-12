@@ -71,6 +71,9 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
     ]
   };
 
+  // Allowed email domains for new users
+  const allowedDomains = ['pepschoolv2.com'];
+
   // Check if current user is super admin
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
@@ -145,10 +148,19 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
     const errors = {};
 
     // Email validation
-    if (!formData.email) {
+    if (!formData.email || !formData.email.trim()) {
       errors.email = 'Email is required';
-    } else if (!formData.email.endsWith('@pepschoolv2.com')) {
-      errors.email = 'Email must be @pepschoolv2.com domain';
+    } else {
+      const email = formData.email.trim();
+      const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!basicEmailRegex.test(email)) {
+        errors.email = 'Enter a valid email address';
+      } else {
+        const domain = email.split('@')[1].toLowerCase();
+        if (!allowedDomains.includes(domain)) {
+          errors.email = `Allowed domains: ${allowedDomains.join(', ')}`;
+        }
+      }
     }
 
     // Name validation
@@ -170,7 +182,7 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     // Clear validation errors when user starts typing
     if (validationErrors[field]) {
       setValidationErrors(prev => ({ ...prev, [field]: '' }));
@@ -178,9 +190,9 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
 
     // Reset permissions when role changes
     if (field === 'role') {
-      setFormData(prev => ({ 
-        ...prev, 
-        role: value, 
+      setFormData(prev => ({
+        ...prev,
+        role: value,
         adminLevel: value === 'admin' ? 'regular' : null,
         permissions: []
       }));
@@ -188,8 +200,8 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
 
     // Reset admin level when changing admin level
     if (field === 'adminLevel') {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         adminLevel: value,
         permissions: []
       }));
@@ -458,7 +470,7 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 error={!!validationErrors.email}
-                helperText={validationErrors.email || 'Must be @pepschoolv2.com domain'}
+                helperText={validationErrors.email || `Allowed domains: ${allowedDomains.join(', ')}`}
                 required
                 size="small"
                 sx={{ backgroundColor: 'white' }}
