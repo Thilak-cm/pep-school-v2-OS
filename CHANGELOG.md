@@ -5,6 +5,35 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2025-09-12
+
+### Added
+- Global banner notification system: slides in from the right under the header, constrained to app container, respects safe areas. Stacks up to 4 banners (FIFO), 6s timer, swipe/X/ESC dismiss, animated left→right tint countdown, and MUI variant colors with icons.
+- `useNotify` hook and helpers: `notify(...)`, `notify.success/error/warning/info(...)` with `duration`, `id` (dedupe/update), `onFinalize` (fires on timeout/dismiss), `onUndo`.
+- Undo action: outlined button with icon for reversible, destructive actions.
+
+### Integrated
+- Notes: create/edit/delete (delete supports Undo; deduped by id).
+- Notes: reassign (success/error banners).
+- Export: success message with counts/filename; empty-state and error banners.
+- Voice Recorder: mic permission denied, no device, 5‑minute auto‑stop, transcription failures.
+- Admin: user created successfully and surfaced Cloud Function errors.
+- Copy to clipboard: lightweight 2s success banner.
+
+### Changed
+- Countdown never pauses on hover/touch/focus; banners slide out on timeout for a smoother exit.
+- Switched countdown fill to CSS keyframe `scaleX` for buttery animation.
+
+### Fixed
+- Duplicate “Note deleted successfully” banners when delete was triggered from two places — resolved via stable notification `id` (`delete-<noteId>`).
+
+### Accessibility
+- Uses `role="status"`/`aria-live="polite"` (errors use `alert`/`assertive`); all actions are keyboard focusable.
+
+### Technical
+- New files: `src/notifications/{NotificationContext.jsx, NotificationStack.jsx, NotificationBanner.jsx, useNotify.js, useSwipeDismiss.js}`.
+- Provider integrated in `App.jsx`; notifications appear under the sticky header across screens.
+
 ## [3.3.2] - 2025-09-12
 
 ### Added
