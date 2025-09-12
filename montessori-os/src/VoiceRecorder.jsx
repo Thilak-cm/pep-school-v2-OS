@@ -4,6 +4,7 @@ import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
+import FeatureTag from './components/FeatureTag';
 import {
   Box,
   Card,
@@ -352,24 +353,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         </Typography>
         {(!isRecording && !audioUrl && !transcription) && (
           <Box sx={{ mt: 0.5 }}>
-            <Box
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 1,
-                px: 1.5,
-                py: 0.5,
-                borderRadius: '999px',
-                background: 'linear-gradient(90deg, #fde68a 0%, #fca5a5 50%, #a78bfa 100%)',
-                color: '#111827',
-                fontWeight: 800,
-                fontSize: '0.7rem',
-                textTransform: 'uppercase',
-                letterSpacing: 0.6
-              }}
-            >
-              <AutoFixHigh sx={{ fontSize: 16 }} /> New Feature
-            </Box>
+            <FeatureTag flag="voiceToText" size="sm" />
             <Typography
               variant="body1"
               sx={{
@@ -378,17 +362,17 @@ const VoiceRecorder = ({ onSave, onNext }) => {
                 fontWeight: 800
               }}
             >
-              Speak in English, Tamil, Kannada, or Hindi — we’ll auto‑translate to English and polish your text.
+              Speak in English, Tamil, Kannada, Telugu or Hindi! ChatGPT will auto‑translate to English and also polish your text.
             </Typography>
             <Typography
               variant="body2"
               sx={{
                 mt: 0.5,
                 color: '#374151',
-                fontWeight: 600
+                fontStyle: 'normal'
               }}
             >
-              Broken English is okay. Talk naturally — AI handles translation and cleanup.
+              Speak your heart out, ChatGPT will polish and clean up after you!
             </Typography>
             <Typography
               variant="body2"

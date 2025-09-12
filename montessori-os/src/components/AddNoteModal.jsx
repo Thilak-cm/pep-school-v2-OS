@@ -17,7 +17,6 @@ import {
 import {
   Close,
   KeyboardVoice,
-  Image,
   TextFields,
   AutoFixHigh
 } from '@mui/icons-material';
@@ -27,6 +26,7 @@ import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import FeatureTag from './FeatureTag';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack }) {
@@ -498,27 +498,7 @@ function AddNoteModal({
                 width: '100%'
               }}
             >
-              {/* Image Note (coming soon) */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  opacity: 0.5,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 2,
-                  p: 2,
-                  width: '100%'
-                }}
-              >
-                <Image sx={{ fontSize: 32 }} />
-                <Box>
-                  <Typography variant="body1">Image</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Coming soon
-                  </Typography>
-                </Box>
-              </Box>
+              {/* Only two types for now: Text and Voice */}
               {/* Text Note (active) */}
               <Box
                 sx={{
@@ -570,13 +550,18 @@ function AddNoteModal({
                 aria-label="Add voice note"
               >
                 <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
-                <Box>
-                  <Typography variant="body1" sx={{ color: '#1e293b' }}>
-                    Voice Note
-                  </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                      Voice Note
+                    </Typography>
+                  </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
                   </Typography>
+                </Box>
+                <Box sx={{ ml: 'auto' }}>
+                  <FeatureTag flag="voiceToText" size="sm" />
                 </Box>
               </Box>
             </Box>
