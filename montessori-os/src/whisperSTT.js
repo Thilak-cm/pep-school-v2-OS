@@ -220,6 +220,7 @@ function normalizeLanguage(value) {
   if (v === 'ta' || v === 'tamil') return 'ta';
   if (v === 'hi' || v === 'hindi') return 'hi';
   if (v === 'kn' || v === 'kannada') return 'kn';
+  if (v === 'te' || v === 'telugu') return 'te';
   return v; // fallback to whatever was provided
 }
 

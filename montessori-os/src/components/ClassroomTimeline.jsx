@@ -634,10 +634,23 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
 function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
-  // Determine note type and icon
+  const languageName = (code) => {
+    if (!code) return null;
+    const v = String(code).toLowerCase();
+    const base = v.includes('-') ? v.split('-')[0] : v;
+    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
+    if (map[base]) return map[base];
+    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
+      return base.charAt(0).toUpperCase() + base.slice(1);
+    }
+    return code;
+  };
+  // Determine note type and icon with language-aware label for voice notes
   const getNoteTypeInfo = (note) => {
     if (note.type === 'voice') {
-      return { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+      const langLabel = languageName(note.spokenLanguage || note.languageCode);
+      const label = `${langLabel || 'Voice'} Voice Note`;
+      return { type: label, icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
     } else if (note.type === 'text' || note.text) {
       return { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
     }

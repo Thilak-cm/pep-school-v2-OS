@@ -109,6 +109,9 @@ interface Observation {
   audioUrl?: string;
   durationSec?: number;
   sttConfidence?: number;
+  
+  // Language
+  spokenLanguage?: string;       // BCP-47-ish short code of input speech/text ('en', 'hi', 'ta', 'kn'); defaults to 'en' for text notes; for voice we set detected language
 
   // Timestamps
   observedAt: Timestamp;         // when the observation happened
@@ -246,5 +249,4 @@ Field immutability (on update)
 - Denormalized `classroomId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback system provides user input channel while maintaining security through user ownership and admin-only management
-
 

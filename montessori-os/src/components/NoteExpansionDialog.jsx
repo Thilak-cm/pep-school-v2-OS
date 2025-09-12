@@ -49,6 +49,19 @@ function NoteExpansionDialog({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   
+  // Map short codes to human-friendly names
+  const languageName = (code) => {
+    if (!code) return null;
+    const v = String(code).toLowerCase();
+    const base = v.includes('-') ? v.split('-')[0] : v;
+    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
+    if (map[base]) return map[base];
+    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
+      return base.charAt(0).toUpperCase() + base.slice(1);
+    }
+    return code;
+  };
+  
   // Reassignment states
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
@@ -292,11 +305,15 @@ function NoteExpansionDialog({
               </Typography>
             </Box>
             
-            {observation.type === 'voice' && observation.duration && (
+            {observation.type === 'voice' && (observation.duration || observation.spokenLanguage || observation.languageCode) && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
-                  Duration: {observation.duration} seconds
+                  {`Duration: ${observation.duration || 0} seconds`}
+                  {(() => {
+                    const lang = languageName(observation.spokenLanguage || observation.languageCode);
+                    return lang ? ` • ${lang}` : '';
+                  })()}
                 </Typography>
               </Box>
             )}

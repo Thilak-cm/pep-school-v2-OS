@@ -40,6 +40,17 @@ import {
 } from '../utils/export_student_timeline';
 
 function StudentTimeline({ student, currentUser, userRole }) {
+  const languageName = (code) => {
+    if (!code) return null;
+    const v = String(code).toLowerCase();
+    const base = v.includes('-') ? v.split('-')[0] : v;
+    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
+    if (map[base]) return map[base];
+    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
+      return base.charAt(0).toUpperCase() + base.slice(1);
+    }
+    return code;
+  };
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
@@ -470,16 +481,16 @@ function StudentTimeline({ student, currentUser, userRole }) {
               }}
               aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
             >
-              {/* Note Type Indicator - Top Right (match ClassroomTimeline style) */}
+              {/* Note Type Indicator - Top Right (language-aware for voice) */}
               {(() => {
-                let noteTypeInfo;
-                if (obs.type === 'voice') {
-                  noteTypeInfo = { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
-                } else if (obs.type === 'text' || obs.text) {
-                  noteTypeInfo = { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
-                } else {
-                  noteTypeInfo = { type: 'Note', icon: <Notes sx={{ fontSize: 16, color: 'text.secondary' }} /> };
-                }
+                const isVoice = obs.type === 'voice';
+                const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                     : (obs.type === 'text' || obs.text)
+                                       ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                       : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
+                const label = isVoice
+                  ? `${languageName(obs.spokenLanguage || obs.languageCode) || 'Voice'} Voice Note`
+                  : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
                 return (
                   <Box sx={{
                     position: 'absolute',
@@ -494,9 +505,9 @@ function StudentTimeline({ student, currentUser, userRole }) {
                     py: 0.5,
                     border: '1px solid #e2e8f0'
                   }}>
-                    {noteTypeInfo.icon}
+                    {icon}
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
-                      {noteTypeInfo.type}
+                      {label}
                     </Typography>
                   </Box>
                 );

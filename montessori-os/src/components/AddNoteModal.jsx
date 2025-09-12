@@ -360,8 +360,17 @@ function AddNoteModal({
           if (transcriptionData.languageCode) {
             observationData.languageCode = transcriptionData.languageCode;
           }
+          // Persist spoken language code for analytics/filtering (e.g., 'en', 'hi', 'ta', 'kn')
+          if (transcriptionData.inputLanguage || transcriptionData.languageCode) {
+            observationData.spokenLanguage = (transcriptionData.inputLanguage || transcriptionData.languageCode);
+          }
           // Track STT provider for debugging/analytics
           observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
+        }
+
+        // Text-specific default: assume English unless otherwise specified
+        if (!transcriptionData) {
+          observationData.spokenLanguage = 'en';
         }
 
         // Prune undefined values defensively before writing to Firestore

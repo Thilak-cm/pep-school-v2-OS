@@ -63,6 +63,7 @@ const StatsPage = ({ user, role, onBack }) => {
     thisWeekChange: 0,
     voiceNotes: 0,
     textNotes: 0,
+    voiceLanguageDistribution: [],
     topStudents: [],
     strugglingStudents: [],
     weeklyActivity: [],
@@ -330,6 +331,38 @@ const StatsPage = ({ user, role, onBack }) => {
           sampleText: textNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration }))
         });
 
+        // Voice language distribution
+        const languageName = (code) => {
+          if (!code) return 'Other';
+          const v = String(code).toLowerCase();
+          const base = v.includes('-') ? v.split('-')[0] : v;
+          const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
+          if (map[base]) return map[base];
+          if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
+            return base.charAt(0).toUpperCase() + base.slice(1);
+          }
+          return 'Other';
+        };
+
+        const langCounts = new Map();
+        voiceNotes.forEach((obs) => {
+          const lang = languageName(obs.spokenLanguage || obs.languageCode);
+          langCounts.set(lang, (langCounts.get(lang) || 0) + 1);
+        });
+
+        const LANG_COLORS = {
+          English: '#4f46e5',
+          Hindi: '#f59e0b',
+          Tamil: '#8b5cf6',
+          Kannada: '#06b6d4',
+          Telugu: '#ec4899',
+          Other: '#94a3b8'
+        };
+
+        const voiceLanguageDistribution = Array.from(langCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, value]) => ({ name, value, color: LANG_COLORS[name] || '#94a3b8' }));
+
         // Calculate classroom performance
         const classroomStats = classroomsData.map(classroom => {
           const classroomStudents = studentsData.filter(student => 
@@ -446,6 +479,7 @@ const StatsPage = ({ user, role, onBack }) => {
           teacherStats,
           classroomStats,
           allObservations: filteredObservations,
+          voiceLanguageDistribution,
           loading: false
         });
         
@@ -1508,6 +1542,76 @@ const StatsPage = ({ user, role, onBack }) => {
                     </Box>
                   ))}
                 </Box>
+              </Box>
+
+              {/* Voice Note Language Distribution */}
+              <Box sx={{ 
+                backgroundColor: 'white',
+                borderRadius: 2,
+                p: 3,
+                border: '1px solid #e2e8f0',
+                mb: 3
+              }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
+                  Voice Note Language Distribution
+                </Typography>
+                {stats.voiceLanguageDistribution.length === 0 ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    height: 200,
+                    backgroundColor: 'grey.50',
+                    borderRadius: 2
+                  }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No voice notes in the selected filters
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    <Box sx={{ height: 250, width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={stats.voiceLanguageDistribution}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={90}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {stats.voiceLanguageDistribution.map((entry, index) => (
+                              <Cell 
+                                key={`lang-cell-${index}`} 
+                                fill={entry.color}
+                                stroke="#ffffff"
+                                strokeWidth={2}
+                              />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 8,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}
+                            formatter={(value, name, props) => [value, props?.payload?.name]}
+                          />
+                          <Legend 
+                            layout="horizontal"
+                            verticalAlign="bottom"
+                            height={36}
+                            iconType="circle"
+                            iconSize={8}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </>
+                )}
               </Box>
             </Box>
           )}

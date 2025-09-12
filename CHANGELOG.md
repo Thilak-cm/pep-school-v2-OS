@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2025-09-12
+
+### Added
+- Reusable UI: `NewFeaturePill` + `FeatureTag` wrapper for portable “New Feature” badges.
+- Feature flag registry `FEATURE_TAGS` with `isFeatureTagEnabled(key)` helper.
+
+### Changed
+- Add Note modal: moved the Voice Note badge to the right end of the row.
+- Voice Recorder copy: includes Telugu; clarifies ChatGPT auto‑translation + polish and a friendlier subline.
+
+### Removed
+- “Image (coming soon)” card from Add Note modal (only Text and Voice for now).
+
+### Technical
+- `config/featureFlags.js`: centralized flags (`voiceToText`) and kept alias `NEW_FEATURE_VOICE_TO_TEXT_BADGE` for back‑compat.
+
 ## [3.3.0] - 2025-09-10
 
 ### Added

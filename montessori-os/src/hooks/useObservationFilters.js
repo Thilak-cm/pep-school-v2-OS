@@ -11,7 +11,8 @@ export const useObservationFilters = (observations = []) => {
     dateFrom: '',
     dateTo: '',
     creators: [], // multi-select
-    types: [] // multi-select (e.g., ['voice', 'text'])
+    types: [], // multi-select (e.g., ['voice', 'text'])
+    languages: [] // multi-select (e.g., ['en','hi','ta','kn'])
   });
 
   // Extract unique creators from observations
@@ -85,6 +86,15 @@ export const useObservationFilters = (observations = []) => {
       filtered = filtered.filter(obs => selectedTypes.has(obs.type));
     }
 
+    // Language filter (multi)
+    if (filters.languages && filters.languages.length > 0) {
+      const selectedLangs = new Set(filters.languages.map(l => String(l).toLowerCase()));
+      filtered = filtered.filter(obs => {
+        const lang = (obs.spokenLanguage || obs.languageCode || 'en');
+        return selectedLangs.has(String(lang).toLowerCase());
+      });
+    }
+
     return filtered;
   }, [observations, filters]);
 
@@ -94,7 +104,8 @@ export const useObservationFilters = (observations = []) => {
       filters.dateFrom ||
       filters.dateTo ||
       (filters.creators && filters.creators.length > 0) ||
-      (filters.types && filters.types.length > 0)
+      (filters.types && filters.types.length > 0) ||
+      (filters.languages && filters.languages.length > 0)
     );
   }, [filters]);
 
@@ -111,7 +122,8 @@ export const useObservationFilters = (observations = []) => {
       dateFrom: '',
       dateTo: '',
       creators: [],
-      types: []
+      types: [],
+      languages: []
     });
   };
 
