@@ -382,30 +382,10 @@ const VoiceRecorder = ({ onSave, onNext }) => {
               variant="body1"
               sx={{
                 mt: 1.2,
-                color: '#0f172a',
-                fontWeight: 800
+                color: '#0f172a'
               }}
             >
-              Speak in English, Tamil, Kannada, Telugu or Hindi! ChatGPT will auto‑translate to English and also polish your text.
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                mt: 0.5,
-                color: '#374151',
-                fontStyle: 'normal'
-              }}
-            >
-              Speak your heart out, ChatGPT will polish and clean up after you!
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                mt: 0.75,
-                color: '#64748b'
-              }}
-            >
-              Up to 5 minutes per recording.
+              Speak your heart out in English, Tamil, Kannada, Telugu or Hindi — ChatGPT will auto‑translate, clean up and polish your speech.
             </Typography>
           </Box>
         )}
