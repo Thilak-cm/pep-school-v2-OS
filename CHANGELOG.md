@@ -5,6 +5,26 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2] - 2025-09-12
+
+### Added
+- Observation schema: new `spokenLanguage` field (voice: selected; text: defaults to `en`).
+- VoiceRecorder: required "Spoken language" selector shown under transcript; blocks Next until chosen.
+- Timelines: language-aware chip labels (e.g., "English Voice Note").
+- Note detail dialog: shows "Duration: N seconds • <Language>" for voice notes.
+- Filters: language filter in FilterPanel + `useObservationFilters` support.
+- Stats: Voice Note Language Distribution pie chart under Note Distribution.
+- Admin: backfill script to set missing `spokenLanguage` to `en`.
+
+### Changed
+- Replaced generic "Voice Note" badge with language-specific labels on cards.
+- Simplified language UI; removed auto-detect chip in header.
+
+### Technical
+- Added `scripts/admin/backfill-spoken-language.js` (batch update via collectionGroup).
+- Normalized Telugu code (`te`) and language name mapping across components.
+- Updated `DATA_STRUCTURE.md` with `spokenLanguage`.
+
 ## [3.3.1] - 2025-09-12
 
 ### Added
