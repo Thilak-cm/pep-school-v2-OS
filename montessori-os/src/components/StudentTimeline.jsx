@@ -24,6 +24,7 @@ import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close,
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import useNotify from '../notifications/useNotify.js';
 
 // Import new modular components
 import FilterPanel from './FilterPanel';
@@ -40,6 +41,7 @@ import {
 } from '../utils/export_student_timeline';
 
 function StudentTimeline({ student, currentUser, userRole }) {
+  const notify = useNotify();
   const languageName = (code) => {
     if (!code) return null;
     const v = String(code).toLowerCase();
@@ -207,19 +209,32 @@ function StudentTimeline({ student, currentUser, userRole }) {
 
   const handleDeleteConfirm = async () => {
     if (!selectedObservation) return;
-    
-    try {
-      setDeleting(true);
-      await deleteDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id));
-      setDeleteConfirmOpen(false);
-      setDetailDialogOpen(false);
-      setSelectedObservation(null);
-    } catch (error) {
-      console.error('Error deleting observation:', error);
-      alert('Error deleting note. Please try again.');
-    } finally {
-      setDeleting(false);
-    }
+    const obs = selectedObservation;
+    setDeleteConfirmOpen(false);
+    setDetailDialogOpen(false);
+    setSelectedObservation(null);
+
+    const notifId = `delete-${obs.id}`;
+    // Defer deletion until notification finalizes; allow Undo
+    notify.info('Deleting note…', {
+      id: notifId,
+      actionLabel: 'Undo',
+      onFinalize: async () => {
+        try {
+          await deleteDoc(doc(db, 'students', student.id, 'observations', obs.id));
+          notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
+        } catch (error) {
+          console.error('Error deleting observation:', error);
+          notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
+        }
+      },
+      onUndo: () => {
+        // No-op; deletion canceled
+        notify.info('Deletion canceled', { id: notifId, duration: 2000 });
+      },
+      duration: 6000,
+      variant: 'warning',
+    });
   };
 
   const handleDeleteCancel = () => {
@@ -250,7 +265,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
       
       // Prevent reassigning to the same student
       if (selectedStudentId === student.id) {
-        alert('Cannot reassign a note to the same student.');
+      notify.warning('Cannot reassign to the same student.', { duration: 2500, id: 'reassign-same' });
         return;
       }
       
@@ -278,9 +293,10 @@ function StudentTimeline({ student, currentUser, userRole }) {
       setDetailDialogOpen(false);
       setSelectedObservation(null);
       setReassignSelectedStudents([]);
+      notify.success('Note reassigned', { duration: 2500, id: `reassign-${selectedObservation.id}` });
     } catch (error) {
       console.error('Error reassigning observation:', error);
-      alert('Error reassigning note. Please try again.');
+      notify.error('Error reassigning note. Please try again.', { id: `reassign-${selectedObservation?.id || 'unknown'}` });
     } finally {
       setReassigning(false);
     }
@@ -294,12 +310,12 @@ function StudentTimeline({ student, currentUser, userRole }) {
   // Export handlers
   const handleExportClick = (type) => {
     if (type === 'all' && (!observations || observations.length === 0)) {
-      alert('No observations to export.');
+      notify.warning('No observations to export.', { id: `export-${student?.id || 'unknown'}-all`, duration: 3000 });
       return;
     }
     
     if (type === 'filtered' && (!filteredObservations || filteredObservations.length === 0)) {
-      alert('No filtered observations to export.');
+      notify.warning('No filtered observations to export.', { id: `export-${student?.id || 'unknown'}-filtered`, duration: 3000 });
       return;
     }
     
@@ -343,12 +359,22 @@ function StudentTimeline({ student, currentUser, userRole }) {
       
       if (result.success) {
         console.log(`Exported ${result.observationCount} observations to ${result.filename}`);
+        notify.success(`Exported ${result.observationCount} notes to ${result.filename || exportFormat}`, {
+          id: `export-${student?.id || 'unknown'}-${exportType}`,
+          duration: 3000,
+        });
       } else {
-        alert(`Export failed: ${result.error}`);
+        notify.error(`Export failed: ${result.error}`, {
+          id: `export-${student?.id || 'unknown'}-${exportType}`,
+          duration: 4000,
+        });
       }
     } catch (error) {
       console.error('Export error:', error);
-      alert('Export failed. Please try again.');
+      notify.error('Export failed. Please try again.', {
+        id: `export-${student?.id || 'unknown'}-${exportType}`,
+        duration: 4000,
+      });
     } finally {
       setExporting(false);
     }

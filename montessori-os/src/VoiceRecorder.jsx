@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import useNotify from './notifications/useNotify.js';
 import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
@@ -90,6 +91,8 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     };
   }, []);
 
+  const notify = useNotify();
+
   const startRecording = async () => {
     try {
       // Request microphone access with specific constraints
@@ -170,8 +173,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
           // Auto-stop at 5 minutes
           if (newTime >= MAX_RECORDING_TIME) {
             stopRecording();
-            // Show alert that recording stopped due to time limit
-            alert('Recording stopped automatically at 5 minutes. Your audio is being transcribed.');
+            notify.info('Recording stopped at 5 minutes. Transcribing…', { id: 'record-autostop', duration: 4000 });
             return MAX_RECORDING_TIME;
           }
           
@@ -184,11 +186,11 @@ const VoiceRecorder = ({ onSave, onNext }) => {
       
       // Handle specific permission errors
       if (error.name === 'NotAllowedError') {
-        alert('Microphone access denied. Please enable microphone permissions in your browser settings to use this feature.');
+        notify.error('Microphone access denied. Enable mic in browser settings.', { id: 'mic-permission', duration: 4500 });
       } else if (error.name === 'NotFoundError') {
-        alert('No microphone found. Please connect a microphone and try again.');
+        notify.error('No microphone found. Please connect a microphone.', { id: 'mic-not-found', duration: 4500 });
       } else {
-        alert(`Error accessing microphone: ${error.message}. Please check your microphone permissions and try again.`);
+        notify.error(`Error accessing microphone: ${error.message}`, { id: 'mic-generic', duration: 4500 });
       }
     }
   };
@@ -339,6 +341,7 @@ const VoiceRecorder = ({ onSave, onNext }) => {
     } catch (error) {
       console.error('Transcription failed:', error);
       setTranscriptionError(`Transcription failed: ${error.message}`);
+      notify.error('Transcription failed. Please try again.', { id: 'stt-failed', duration: 4000 });
     } finally {
       setIsTranscribing(false);
       setTranscriptionProgress({ current: 0, total: 0, message: '' });

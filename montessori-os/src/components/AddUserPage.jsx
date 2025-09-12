@@ -32,8 +32,10 @@ import {
 import { collection, getDocs, getDoc, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
+import useNotify from '../notifications/useNotify.js';
 
 const AddUserPage = ({ onBack, currentUser, userRole }) => {
+  const notify = useNotify();
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -254,6 +256,7 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
 
       if (result.data.success) {
         setSuccess(true);
+        notify.success('User created successfully', { id: 'user-create', duration: 3000 });
         // Reset form after successful submission
         setTimeout(() => {
           setFormData({
@@ -268,24 +271,25 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
           setSuccess(false);
         }, 3000);
       } else {
-        setError(result.data.message || 'Failed to create user. Email might already be in use.');
+        const msg = result.data.message || 'Failed to create user. Email might already be in use.';
+        setError(msg);
+        notify.error(msg, { id: 'user-create', duration: 4500 });
       }
 
     } catch (error) {
       console.error('Error creating user:', error);
       
       // Handle specific Cloud Function errors
-      if (error.code === 'functions/already-exists') {
-        setError('A user with this email already exists. Please use a different email address.');
-      } else if (error.code === 'functions/invalid-argument') {
-        setError('Invalid input. Please check all required fields.');
-      } else if (error.code === 'functions/unauthenticated') {
-        setError('Authentication error. Please log in again.');
-      } else if (error.code === 'functions/internal') {
-        setError('Server error. Please try again later.');
-      } else {
-        setError('Failed to create user. Please try again.');
-      }
+      const code = error.code;
+      const map = {
+        'functions/already-exists': 'A user with this email already exists. Please use a different email address.',
+        'functions/invalid-argument': 'Invalid input. Please check all required fields.',
+        'functions/unauthenticated': 'Authentication error. Please log in again.',
+        'functions/internal': 'Server error. Please try again later.',
+      };
+      const msg = map[code] || 'Failed to create user. Please try again.';
+      setError(msg);
+      notify.error(msg, { id: 'user-create', duration: 4500 });
     } finally {
       setSubmitting(false);
     }

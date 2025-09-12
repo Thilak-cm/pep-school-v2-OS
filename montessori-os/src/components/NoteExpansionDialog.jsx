@@ -30,6 +30,7 @@ import {
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
@@ -44,6 +45,7 @@ function NoteExpansionDialog({
   onNavigateToStudent, // For classroom timeline navigation
   isClassroomContext = false // To show "View Student Timeline" button
 }) {
+  const notify = useNotify();
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -94,17 +96,29 @@ function NoteExpansionDialog({
 
   const handleDeleteConfirm = async () => {
     if (!observation) return;
-    
-    try {
-      setDeleting(true);
-      await deleteDoc(doc(db, 'students', observation.studentId, 'observations', observation.id));
-      handleCloseDialog();
-    } catch (error) {
-      console.error('Error deleting observation:', error);
-      alert('Error deleting note. Please try again.');
-    } finally {
-      setDeleting(false);
-    }
+    setDeleting(false);
+    const obs = observation;
+    handleCloseDialog();
+    // Schedule deletion with Undo option via notification
+    const notifId = `delete-${obs.id}`;
+    notify.info('Deleting note…', {
+      id: notifId,
+      actionLabel: 'Undo',
+      onFinalize: async () => {
+        try {
+          await deleteDoc(doc(db, 'students', obs.studentId, 'observations', obs.id));
+          notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
+        } catch (error) {
+          console.error('Error deleting observation:', error);
+          notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
+        }
+      },
+      onUndo: () => {
+        notify.info('Deletion canceled', { id: notifId, duration: 2000 });
+      },
+      duration: 6000,
+      variant: 'warning',
+    });
   };
 
   const handleEditClick = () => {
@@ -131,9 +145,10 @@ function NoteExpansionDialog({
       
       setEditing(false);
       setEditText('');
+      notify.success('Note updated successfully');
     } catch (error) {
       console.error('Error updating observation:', error);
-      alert('Error saving changes. Please try again.');
+      notify.error('Error saving changes. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -191,9 +206,10 @@ function NoteExpansionDialog({
       // Close all dialogs
       setReassignConfirmOpen(false);
       handleCloseDialog();
+      notify.success('Note reassigned', { duration: 2500, id: `reassign-${observation.id}` });
     } catch (error) {
       console.error('Error reassigning observation:', error);
-      alert('Error reassigning note. Please try again.');
+      notify.error('Error reassigning note. Please try again.', { id: `reassign-${observation?.id || 'unknown'}` });
     } finally {
       setReassigning(false);
     }

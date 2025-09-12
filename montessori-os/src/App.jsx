@@ -31,6 +31,8 @@ import AccessDenied from './AccessDenied';
 import AddNoteFab from './components/AddNoteFab';
 import AddNoteModal from './components/AddNoteModal';
 import UpdateNotification from './components/UpdateNotification';
+import { NotificationProvider } from './notifications/NotificationContext.jsx';
+import NotificationStack from './notifications/NotificationStack.jsx';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -237,6 +239,8 @@ function App() {
             }
           }}
         >
+          <NotificationProvider>
+            <NotificationStack />
           {/* Loading State */}
           {loading && (
             <Box
@@ -516,6 +520,7 @@ function App() {
               <UpdateNotification />
             </>
           )}
+          </NotificationProvider>
         </Box>
       </Box>
     </>

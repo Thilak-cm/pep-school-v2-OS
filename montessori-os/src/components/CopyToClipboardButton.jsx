@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { IconButton, Tooltip, Zoom, Box } from '@mui/material';
 import { ContentCopy, Check } from '@mui/icons-material';
+import useNotify from '../notifications/useNotify.js';
 
 /**
  * Small copy-to-clipboard button with success feedback.
@@ -13,6 +14,7 @@ import { ContentCopy, Check } from '@mui/icons-material';
  */
 export default function CopyToClipboardButton({ text = '', size = 'small', ariaLabel = 'Copy note text', sx = {}, onCopied }) {
   const [copied, setCopied] = useState(false);
+  const notify = useNotify();
 
   const handleCopy = async (e) => {
     // Prevent parent click handlers (like opening dialogs)
@@ -22,6 +24,7 @@ export default function CopyToClipboardButton({ text = '', size = 'small', ariaL
       await navigator.clipboard.writeText(text);
       setCopied(true);
       onCopied && onCopied();
+      notify.success('Copied to clipboard', { duration: 2000 });
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
       console.error('Copy failed:', err);

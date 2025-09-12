@@ -27,6 +27,7 @@ import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import FeatureTag from './FeatureTag';
+import useNotify from '../notifications/useNotify.js';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack }) {
@@ -258,6 +259,7 @@ function AddNoteModal({
   currentUser,
   userRole
 }) {
+  const notify = useNotify();
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [textData, setTextData] = useState(null);
@@ -305,9 +307,7 @@ function AddNoteModal({
   const handleRecipientsNext = async () => {
     const noteData = transcriptionData || textData;
     if (!noteData) {
-      setSnackbarMessage('No note data available. Please try again.');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      notify.warning('No note data available. Please try again.');
       return;
     }
 
@@ -385,18 +385,14 @@ function AddNoteModal({
         await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
       });
       await Promise.all(promises);
-      setSnackbarMessage('Note saved successfully!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
+      notify.success('Note created successfully!');
       // Close modal after a short delay to show the success message
       setTimeout(() => {
         handleClose();
       }, 1000);
     } catch (err) {
       console.error('save note error', err);
-      setSnackbarMessage('Error saving note. Please try again.');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      notify.error('Error saving note. Please try again.');
     } finally {
       setSaving(false);
     }
