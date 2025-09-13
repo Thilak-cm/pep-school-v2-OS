@@ -268,60 +268,47 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     toggleFilters
   } = useObservationFilters(filteredNotes);
 
-  const groupedFilteredNotes = useMemo(() => {
-    if (!filteredObservations || filteredObservations.length === 0) {
-      return {
-        today: [],
-        last7Days: [],
-        beyond: []
-      };
-    }
-    
+  // Sorted filtered observations (desc by observedAt/timestamp)
+  const sortedFilteredObservations = useMemo(() => {
+    const toDate = (ts) => {
+      if (!ts) return new Date(0);
+      if (ts.toDate) return ts.toDate();
+      if (ts.seconds) return new Date(ts.seconds * 1000);
+      return new Date(ts);
+    };
+    return [...(filteredObservations || [])].sort((a, b) => {
+      const da = toDate(a.observedAt || a.timestamp);
+      const db = toDate(b.observedAt || b.timestamp);
+      return db - da; // newest first
+    });
+  }, [filteredObservations]);
+
+  // Paginated (first N) notes and grouped for divider rendering
+  const groupedLimitedNotes = useMemo(() => {
+    const limited = sortedFilteredObservations.slice(0, displayedNotesCount);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const groups = {
-      today: [],
-      last7Days: [],
-      beyond: []
-    };
-    
-    filteredObservations.forEach(note => {
+    const groups = { today: [], last7Days: [], beyond: [] };
+    limited.forEach((note) => {
       try {
         let noteDate;
-        if (note.observedAt?.toDate) {
-          noteDate = note.observedAt.toDate();
-        } else if (note.observedAt?.seconds) {
-          noteDate = new Date(note.observedAt.seconds * 1000);
-        } else if (note.observedAt) {
-          noteDate = new Date(note.observedAt);
-        } else if (note.timestamp?.toDate) {
-          noteDate = note.timestamp.toDate();
-        } else if (note.timestamp?.seconds) {
-          noteDate = new Date(note.timestamp.seconds * 1000);
-        } else if (note.timestamp) {
-          noteDate = new Date(note.timestamp);
-        } else {
-          noteDate = new Date(0); // fallback
-        }
-        
-        if (noteDate >= today) {
-          groups.today.push(note);
-        } else if (noteDate >= lastWeek) {
-          groups.last7Days.push(note);
-        } else {
-          groups.beyond.push(note);
-        }
-      } catch (error) {
-        console.error('Error processing note date:', error, note);
-        // Put notes with invalid dates in the "beyond" category
+        if (note.observedAt?.toDate) noteDate = note.observedAt.toDate();
+        else if (note.observedAt?.seconds) noteDate = new Date(note.observedAt.seconds * 1000);
+        else if (note.observedAt) noteDate = new Date(note.observedAt);
+        else if (note.timestamp?.toDate) noteDate = note.timestamp.toDate();
+        else if (note.timestamp?.seconds) noteDate = new Date(note.timestamp.seconds * 1000);
+        else if (note.timestamp) noteDate = new Date(note.timestamp);
+        else noteDate = new Date(0);
+        if (noteDate >= today) groups.today.push(note);
+        else if (noteDate >= lastWeek) groups.last7Days.push(note);
+        else groups.beyond.push(note);
+      } catch (e) {
         groups.beyond.push(note);
       }
     });
-    
     return groups;
-  }, [filteredObservations]);
+  }, [sortedFilteredObservations, displayedNotesCount]);
 
 
   if (loading) {
@@ -490,7 +477,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* Today */}
-              {groupedFilteredNotes.today && groupedFilteredNotes.today.length > 0 && (
+              {groupedLimitedNotes.today && groupedLimitedNotes.today.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -498,7 +485,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedFilteredNotes.today.map((note) => (
+                  {groupedLimitedNotes.today.map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -514,7 +501,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
               )}
 
               {/* Last 7 Days */}
-              {groupedFilteredNotes.last7Days && groupedFilteredNotes.last7Days.length > 0 && (
+              {groupedLimitedNotes.last7Days && groupedLimitedNotes.last7Days.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
@@ -522,7 +509,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedFilteredNotes.last7Days.map((note) => (
+                  {groupedLimitedNotes.last7Days.map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -538,15 +525,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
               )}
 
               {/* Beyond */}
-              {groupedFilteredNotes.beyond && groupedFilteredNotes.beyond.length > 0 && (
+              {groupedLimitedNotes.beyond && groupedLimitedNotes.beyond.length > 0 && (
                 <>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      Beyond
+                      Beyond 7 Days
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedFilteredNotes.beyond.slice(0, Math.max(0, displayedNotesCount - (groupedFilteredNotes.today?.length || 0) - (groupedFilteredNotes.last7Days?.length || 0))).map((note) => (
+                  {groupedLimitedNotes.beyond.map((note) => (
                     <ClassroomNoteCard
                       key={note.id}
                       note={note}
@@ -562,7 +549,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
               )}
 
               {/* Show More Button */}
-              {filteredObservations.length > displayedNotesCount && (
+              {sortedFilteredObservations.length > displayedNotesCount && (
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"

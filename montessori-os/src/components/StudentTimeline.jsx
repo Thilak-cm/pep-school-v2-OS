@@ -1,5 +1,5 @@
 // StudentTimeline.jsx (refactored)
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -73,6 +73,24 @@ function StudentTimeline({ student, currentUser, userRole }) {
   
   // Refs
   const exportButtonRef = useRef(null);
+
+  // Derived counts for header summary
+  const { totalNotes, notesLast7Days } = useMemo(() => {
+    const total = observations?.length || 0;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const toDate = (ts) => {
+      if (!ts) return null;
+      if (ts.toDate) return ts.toDate();
+      if (ts.seconds) return new Date(ts.seconds * 1000);
+      return null;
+    };
+    const recent = (observations || []).filter((obs) => {
+      const ts = obs.observedAt || obs.timestamp;
+      const d = toDate(ts);
+      return d && d >= sevenDaysAgo;
+    }).length;
+    return { totalNotes: total, notesLast7Days: recent };
+  }, [observations]);
 
   // Use the filter hook instead of local state
   const {
@@ -492,82 +510,126 @@ function StudentTimeline({ student, currentUser, userRole }) {
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredObservations.map((obs) => (
-            <Card
-              key={obs.id}
-              onClick={() => handleObservationClick(obs)}
-              sx={{
-                cursor: 'pointer',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  transform: 'translateY(-1px)',
-                },
-                transition: 'all 0.2s ease-in-out',
-                position: 'relative',
-              }}
-              aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
-            >
-              {/* Note Type Indicator - Top Right (language-aware for voice) */}
-              {(() => {
-                const isVoice = obs.type === 'voice';
-                const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                     : (obs.type === 'text' || obs.text)
-                                       ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                       : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
-                const label = isVoice
-                  ? `${languageName(obs.spokenLanguage || obs.languageCode) || 'Voice'} Voice Note`
-                  : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
-                return (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    borderRadius: 1,
-                    px: 1,
-                    py: 0.5,
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    {icon}
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+          {/* Notes summary */}
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
+          </Typography>
+          {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
+          {(() => {
+            const groups = { today: [], last7Days: [], beyond: [] };
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const toDate = (ts) => {
+              if (!ts) return null;
+              if (ts.toDate) return ts.toDate();
+              if (ts.seconds) return new Date(ts.seconds * 1000);
+              return new Date(ts);
+            };
+            (filteredObservations || []).forEach((obs) => {
+              let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
+              if (d >= today) groups.today.push(obs);
+              else if (d >= lastWeek) groups.last7Days.push(obs);
+              else groups.beyond.push(obs);
+            });
+
+            const renderGroup = (label, items, labelColor) => (
+              items && items.length > 0 ? (
+                <>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: labelColor }}>
                       {label}
                     </Typography>
+                    <Divider sx={{ flex: 1 }} />
                   </Box>
-                );
-              })()}
-              {/* Copy button overlay - subtle, does not interfere with card click */}
-              {obs.text && (
-                <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
-                  <CopyToClipboardButton
-                    text={obs.text}
-                    size="small"
-                    ariaLabel="Copy note text"
-                  />
-                </Box>
-              )}
-              <CardContent sx={{ p: 2 }}>
-                {/* Teacher Information */}
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                  <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                    👩‍🏫
-                  </span>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                    {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
-                  </Typography>
-                </Box>
-                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {obs.text || '(transcribing…)'}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
-                  <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
+                  {items.map((obs) => (
+                    <Card
+                      key={obs.id}
+                      onClick={() => handleObservationClick(obs)}
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease-in-out',
+                        position: 'relative',
+                      }}
+                      aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
+                    >
+                      {/* Note Type Indicator - Top Right (language-aware for voice) */}
+                      {(() => {
+                        const isVoice = obs.type === 'voice';
+                        const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                             : (obs.type === 'text' || obs.text)
+                                               ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                               : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
+                        const label = isVoice
+                          ? `${languageName(obs.spokenLanguage || obs.languageCode) || 'Voice'} Voice Note`
+                          : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
+                        return (
+                          <Box sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            borderRadius: 1,
+                            px: 1,
+                            py: 0.5,
+                            border: '1px solid #e2e8f0'
+                          }}>
+                            {icon}
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+                              {label}
+                            </Typography>
+                          </Box>
+                        );
+                      })()}
+                      {/* Copy button overlay - subtle, does not interfere with card click */}
+                      {obs.text && (
+                        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
+                          <CopyToClipboardButton
+                            text={obs.text}
+                            size="small"
+                            ariaLabel="Copy note text"
+                          />
+                        </Box>
+                      )}
+                      <CardContent sx={{ p: 2 }}>
+                        {/* Teacher Information */}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                          <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                            👩‍🏫
+                          </span>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                            {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {obs.text || '(transcribing…)'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              ) : null
+            );
+
+            return (
+              <>
+                {renderGroup('Today', groups.today, 'primary.main')}
+                {renderGroup('Last 7 Days', groups.last7Days, 'text.secondary')}
+                {renderGroup('Beyond 7 Days', groups.beyond, 'text.secondary')}
+              </>
+            );
+          })()}
           {filteredObservations.length === 0 && observations.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
               No observations match the current filters.
