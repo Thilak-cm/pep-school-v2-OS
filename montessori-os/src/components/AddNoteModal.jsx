@@ -18,7 +18,8 @@ import {
   Close,
   KeyboardVoice,
   TextFields,
-  AutoFixHigh
+  AutoFixHigh,
+  ArrowBack
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText, localCleanupFallback } from '../textCleanup';
@@ -127,9 +128,24 @@ function TextInput({ onSave, onNext, onBack }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Typography variant="h6" sx={{ textAlign: 'center', mb: 2 }}>
-        Write your observation
-      </Typography>
+      {/* Header row: back button on the left, title centered */}
+      <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
+        <IconButton
+          aria-label="Go back"
+          onClick={onBack}
+          sx={{
+            position: 'absolute',
+            left: -8,
+            color: '#64748b',
+            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
+          }}
+        >
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h6" sx={{ textAlign: 'center' }}>
+          Write your observation
+        </Typography>
+      </Box>
       
       <Box sx={{ position: 'relative' }}>
         <TextField
@@ -578,6 +594,7 @@ function AddNoteModal({
             <VoiceRecorder 
               onSave={handleVoiceSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
+              onBack={() => setStep(STEP_NOTE_TYPE)}
             />
           </Box>
         )}

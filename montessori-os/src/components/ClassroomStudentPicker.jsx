@@ -20,7 +20,6 @@ import {
   Tooltip
 } from '@mui/material';
 import { 
-  Search, 
   ExpandMore, 
   ExpandLess,
   Person,
@@ -477,45 +476,38 @@ function ClassroomStudentPicker({
         </Box>
       )}
 
-      {/* Divider between Text Note and Student Selection */}
-      {textData?.text && (
-        <Divider sx={{ my: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Next: Select Recipients
-          </Typography>
-        </Divider>
-      )}
+      {/* Removed instructional divider for compactness on mobile */}
 
-      {/* Main Heading with Total Selected Count */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Group sx={{ fontSize: 20 }} />
-          Select classroom(s) and student(s)
-        </Typography>
+      {/* Selected count only (remove heading text for space) */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1 }}>
         {selectedStudents.length > 0 && (
           <Chip 
             label={`${selectedStudents.length} student${selectedStudents.length === 1 ? '' : 's'} selected`}
             color="primary"
             variant="filled"
-            size="medium"
+            size="small"
           />
         )}
       </Box>
 
-      {/* Search Section */}
+      {/* Search Section (compact) */}
       <Box>
-        <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Search sx={{ fontSize: 20 }} />
-          Quick Search
-        </Typography>
-        
-        <TextField
-          fullWidth
-          placeholder="Type student name or classroom..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ mb: 2 }}
-        />
+        <Box sx={{ position: 'relative', mb: 2 }}>
+          <TextField
+            fullWidth
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {(!searchQuery || searchQuery.length === 0) && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+            >
+              Quick search for student or classroom
+            </Typography>
+          )}
+        </Box>
 
         {/* Search Results */}
         {searchQuery.trim() && (

@@ -38,13 +38,14 @@ import {
   Delete,
   Edit,
   ArrowForward,
+  ArrowBack,
   AutoFixHigh
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
 
-const VoiceRecorder = ({ onSave, onNext }) => {
+const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -362,9 +363,27 @@ const VoiceRecorder = ({ onSave, onNext }) => {
         borderRadius: '16px',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         border: '1px solid #e2e8f0',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative'
       }}
     >
+      {/* Top-left back button within the recorder card */}
+      {onBack && (
+        <IconButton
+          onClick={onBack}
+          aria-label="Go back"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            color: '#64748b',
+            zIndex: 2,
+            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
+          }}
+        >
+          <ArrowBack />
+        </IconButton>
+      )}
       {/* Header */}
       <CardContent sx={{ pb: 2, textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
         <Typography
