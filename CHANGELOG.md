@@ -5,6 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.2] - 2025-09-14
+
+### Changed
+- Add Note: top-left back arrow added to both Text and Voice input steps; aligned with the title line to save vertical space.
+- Recipients (Text note): compact mobile layout — removed "Next: Select Recipients" divider and the "Select classroom(s) and student(s)" heading.
+- Search: removed "Quick Search" heading; the pill now shows a single grey inline label "Quick search for student or classroom".
+- Selected count chip made smaller and right-aligned to reduce clutter on phones.
+
+### Technical
+- `AddNoteModal.jsx`: inline back button positioning for Text step; plumb `onBack` to `VoiceRecorder`.
+- `VoiceRecorder.jsx`: supports optional `onBack`; renders back arrow at top-left of the recorder card.
+- `ClassroomStudentPicker.jsx`: removed extra dividers/headings; converted search helper text to an inline placeholder overlay.
+
 ## [3.4.1] - 2025-09-13
 
 ### Added
