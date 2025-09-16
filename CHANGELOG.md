@@ -5,6 +5,25 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.3] - 2025-09-16
+
+### Removed
+- VoiceRecorder "Spoken language" picker and validation.
+- Language labels on note chips and in note detail view.
+- Voice Note Language Distribution chart from Stats page.
+
+### Changed
+- Stop persisting `spokenLanguage`/`languageCode` on new observations.
+- Export: add author line in TXT output; export modal includes optional start/end dates and counts reflect the range.
+
+### Added
+- `scripts/remove_spoken_language.js` with npm tasks:
+  - `cleanup:spokenLanguage`
+  - `cleanup:spokenLanguage:all`
+
+### Technical
+- Ran cleanup removing `spokenLanguage` and `languageCode` from 580 observations across 245 students.
+
 ## [3.3.2] - 2025-09-12
 
 ### Added
@@ -55,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `translateAudioToEnglish` using `/v1/audio/translations` with `response_format=verbose_json`.
 - Language normalization for `en/ta/hi/kn` and name variants.
 
-## [3.2.2] - 2025-09-09
+## [3.2.3] - 2025-09-09
 
 ### Added
 - classroom timeline now has filter option similar to student timeline

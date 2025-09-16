@@ -645,12 +645,10 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
     }
     return code;
   };
-  // Determine note type and icon with language-aware label for voice notes
+  // Determine note type and icon (no language label for voice notes)
   const getNoteTypeInfo = (note) => {
     if (note.type === 'voice') {
-      const langLabel = languageName(note.spokenLanguage || note.languageCode);
-      const label = `${langLabel || 'Voice'} Voice Note`;
-      return { type: label, icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+      return { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
     } else if (note.type === 'text' || note.text) {
       return { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
     }

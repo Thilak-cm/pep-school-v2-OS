@@ -8,7 +8,9 @@
     "start": "node seed.js",
     "upsert:teachers": "node scripts/admin/upsert-hsr-teachers.js",
     "upsert:teachers:push": "node scripts/admin/upsert-hsr-teachers.js --push",
-    "upsert:students": "node scripts/admin/upsert-students.js"
+    "upsert:students": "node scripts/admin/upsert-students.js",
+    "cleanup:spokenLanguage": "node scripts/remove_spoken_language.js",
+    "cleanup:spokenLanguage:all": "node scripts/remove_spoken_language.js --also-language-code"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

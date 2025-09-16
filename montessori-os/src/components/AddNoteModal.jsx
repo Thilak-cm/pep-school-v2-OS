@@ -357,21 +357,12 @@ function AddNoteModal({
           if (Array.isArray(transcriptionData.sttAlternatives) && transcriptionData.sttAlternatives.length > 0) {
             observationData.sttAlternatives = transcriptionData.sttAlternatives;
           }
-          if (transcriptionData.languageCode) {
-            observationData.languageCode = transcriptionData.languageCode;
-          }
-          // Persist spoken language code for analytics/filtering (e.g., 'en', 'hi', 'ta', 'kn')
-          if (transcriptionData.inputLanguage || transcriptionData.languageCode) {
-            observationData.spokenLanguage = (transcriptionData.inputLanguage || transcriptionData.languageCode);
-          }
+          // Language fields removed to reduce user clicks
           // Track STT provider for debugging/analytics
           observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
         }
 
-        // Text-specific default: assume English unless otherwise specified
-        if (!transcriptionData) {
-          observationData.spokenLanguage = 'en';
-        }
+        // No default spoken language for text notes
 
         // Prune undefined values defensively before writing to Firestore
         const cleanedObservationData = Object.fromEntries(

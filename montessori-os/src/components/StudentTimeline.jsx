@@ -68,6 +68,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
   const [exportType, setExportType] = useState('all'); // 'all' or 'filtered'
   const [exportFormat, setExportFormat] = useState('txt'); // 'txt' or 'json'
   const [showFormatDropdown, setShowFormatDropdown] = useState(false);
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
   
   // Refs
   const exportButtonRef = useRef(null);
@@ -321,25 +323,48 @@ function StudentTimeline({ student, currentUser, userRole }) {
     setExportConfirmOpen(true);
   };
 
+  // Helper: check if an observation falls within the selected export date range
+  const isWithinExportRange = (obs) => {
+    const ts = obs?.observedAt || obs?.timestamp;
+    let d = null;
+    if (ts?.toDate) d = ts.toDate();
+    else if (ts?.seconds) d = new Date(ts.seconds * 1000);
+    else if (ts instanceof Date) d = ts;
+    else if (typeof ts === 'string') d = new Date(ts);
+    if (!d) return false;
+
+    let ok = true;
+    if (exportDateFrom) {
+      const from = new Date(exportDateFrom + 'T00:00:00');
+      ok = ok && d >= from;
+    }
+    if (exportDateTo) {
+      const to = new Date(exportDateTo + 'T23:59:59');
+      ok = ok && d <= to;
+    }
+    return ok;
+  };
+
   const handleExportConfirm = async () => {
     try {
       setExporting(true);
       setExportConfirmOpen(false);
       
+      // Base list depending on export type
+      const baseList = exportType === 'all' ? observations : filteredObservations;
+      // Apply export date range if provided
+      const finalList = (exportDateFrom || exportDateTo) ? baseList.filter(isWithinExportRange) : baseList;
+
       let result;
-      if (exportType === 'all') {
-        if (userRole === 'admin') {
-          result = exportStudentTimeline(student, observations, currentUser, exportFormat);
-        } else {
-          result = exportStudentTimelineAsText(student, observations, currentUser);
-        }
-      } else {
-        if (userRole === 'admin') {
-          result = exportFilteredTimeline(student, filteredObservations, currentUser, exportFormat);
-        } else {
-          result = exportFilteredTimelineAsText(student, filteredObservations, currentUser);
-        }
-      }
+      // Route to exporter with the final filtered list
+      result = exportStudentTimeline(
+        student,
+        finalList,
+        currentUser,
+        userRole === 'admin' ? exportFormat : 'txt',
+        true,
+        finalList
+      );
       
       if (result.success) {
         console.log(`Exported ${result.observationCount} observations to ${result.filename}`);
@@ -359,6 +384,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
     setExportType('all');
     setExportFormat('txt');
     setShowFormatDropdown(false);
+    setExportDateFrom('');
+    setExportDateTo('');
   };
 
   return (
@@ -481,16 +508,14 @@ function StudentTimeline({ student, currentUser, userRole }) {
               }}
               aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
             >
-              {/* Note Type Indicator - Top Right (language-aware for voice) */}
+              {/* Note Type Indicator - Top Right */}
               {(() => {
                 const isVoice = obs.type === 'voice';
                 const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                                      : (obs.type === 'text' || obs.text)
                                        ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
                                        : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
-                const label = isVoice
-                  ? `${languageName(obs.spokenLanguage || obs.languageCode) || 'Voice'} Voice Note`
-                  : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
+                const label = isVoice ? 'Voice Note' : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
                 return (
                   <Box sx={{
                     position: 'absolute',
@@ -653,12 +678,46 @@ function StudentTimeline({ student, currentUser, userRole }) {
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            {exportType === 'all' 
-              ? `Export all ${observations?.length || 0} observations for ${student?.name || student?.displayName || 'this student'}?`
-              : `Export ${filteredObservations?.length || 0} filtered observations for ${student?.name || student?.displayName || 'this student'}?`
-            }
-          </Typography>
+          {(() => {
+            const baseListForPreview = exportType === 'all' ? (observations || []) : (filteredObservations || []);
+            const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
+            const previewCount = exportPreviewList.length;
+            const studentLabel = student?.name || student?.displayName || 'this student';
+            return (
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                {exportType === 'all' 
+                  ? `Export ${previewCount} observations for ${studentLabel}?`
+                  : `Export ${previewCount} filtered observations for ${studentLabel}?`}
+              </Typography>
+            );
+          })()}
+
+          {/* Date range selection for export */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+              Date Range (optional)
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="From Date"
+                type="date"
+                size="small"
+                value={exportDateFrom}
+                onChange={(e) => setExportDateFrom(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="To Date"
+                type="date"
+                size="small"
+                value={exportDateTo}
+                onChange={(e) => setExportDateTo(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ flex: 1 }}
+              />
+            </Box>
+          </Box>
           
           <Box sx={{
             p: 2,
@@ -673,8 +732,20 @@ function StudentTimeline({ student, currentUser, userRole }) {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               <strong>Export Type:</strong> {exportType === 'all' ? 'All Observations' : 'Filtered Observations'}
             </Typography>
+            {(() => {
+              const baseListForPreview = exportType === 'all' ? (observations || []) : (filteredObservations || []);
+              const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
+              const previewCount = exportPreviewList.length;
+              const baseTotal = baseListForPreview.length;
+              const overallTotal = observations?.length || 0;
+              return (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <strong>Count:</strong> {previewCount} out of {overallTotal} notes
+                </Typography>
+              );
+            })()}
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Count:</strong> {exportType === 'all' ? observations?.length || 0 : filteredObservations?.length || 0} out of {observations?.length || 0} notes
+              <strong>Date Range:</strong> {exportDateFrom || 'Any'} to {exportDateTo || 'Any'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               <strong>Format:</strong> {userRole === 'admin' ? `${exportFormat.toUpperCase()} file (.${exportFormat})` : 'Text file (.txt)'}

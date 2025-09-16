@@ -180,6 +180,10 @@ const generateTextContent = (exportData) => {
       text += `${obs.text}\n`;
     }
     
+    // Add author information
+    const author = obs.createdByName || obs.createdByEmail || obs.createdBy || 'Unknown Teacher';
+    text += `Author: ${author}\n`;
+    
     // Add type indicator if it's a voice note
     if (obs.type === 'voice' && obs.duration) {
       text += `[Voice note - ${obs.duration}s]\n`;
