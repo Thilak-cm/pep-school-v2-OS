@@ -53,7 +53,12 @@ function updateVersion(type) {
   );
   fs.writeFileSync(versionBadgePath, versionBadgeContent);
   
+  // Update VERSION file at repo root
+  const versionFilePath = path.join(rootDir, 'VERSION');
+  fs.writeFileSync(versionFilePath, `${newVersion}\n`, 'utf8');
+  
   console.log(`✅ Updated version from ${oldVersion} to ${newVersion}`);
+  console.log(`📄 Wrote ${newVersion} to VERSION`);
   console.log(`📝 Don't forget to update CHANGELOG.md with your changes!`);
   console.log(`🚀 Commit with: git commit -m "chore: bump version to v${newVersion}"`);
 }

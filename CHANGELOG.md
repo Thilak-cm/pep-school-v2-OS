@@ -5,7 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.3.3] - 2025-09-16
+## [3.3.4] - 2025-09-16
+
+### Added
+- Top-level `VERSION` file to track app version alongside package.json.
+
+### Changed
+- `scripts/version.js` now updates `montessori-os/package.json`, `VersionBadge.jsx`, and the root `VERSION` file in one step.
+
+### Notes
+- No functional UI changes; this release streamlines version management.
+
+## [3.3.3] - 2025-09-15
 
 ### Removed
 - VoiceRecorder "Spoken language" picker and validation.
@@ -24,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical
 - Ran cleanup removing `spokenLanguage` and `languageCode` from 580 observations across 245 students.
 
-## [3.3.2] - 2025-09-12
+## [3.3.2] - 2025-09-14
 
 ### Added
 - Observation schema: new `spokenLanguage` field (voice: selected; text: defaults to `en`).
