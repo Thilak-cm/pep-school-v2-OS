@@ -37,7 +37,7 @@ import {
   exportFilteredTimeline, 
   exportStudentTimelineAsText, 
   exportFilteredTimelineAsText 
-} from '../utils/export_student_timeline';
+} from '../utils/export_student_observations';
 
 function StudentTimeline({ student, currentUser, userRole }) {
   const languageName = (code) => {
