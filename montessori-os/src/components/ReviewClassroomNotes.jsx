@@ -25,6 +25,7 @@ import { Download, Refresh } from '@mui/icons-material';
 import { collection, collectionGroup, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import exportObservations from '../utils/export_observations';
+import useNotify from '../notifications/useNotify';
 
 const MENU_PROPS = {
   PaperProps: {
@@ -71,13 +72,13 @@ const buildGroupedByClassroom = (notes = [], classrooms = []) => {
 };
 
 function ReviewClassroomNotes({ currentUser }) {
+  const notify = useNotify();
   const [classrooms, setClassrooms] = useState([]);
   const [loadingClassrooms, setLoadingClassrooms] = useState(true);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [fetchingNotes, setFetchingNotes] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState('json');
   const [exportNotes, setExportNotes] = useState([]);
@@ -113,7 +114,6 @@ function ReviewClassroomNotes({ currentUser }) {
     const value = event.target.value;
     setSelectedClassroomIds(typeof value === 'string' ? value.split(',') : value);
     setError(null);
-    setSuccessMessage(null);
   };
 
   const resetExportState = () => {
@@ -147,7 +147,7 @@ function ReviewClassroomNotes({ currentUser }) {
   const handleExport = async (format = 'json') => {
     if (!selectedClassroomIds.length) {
       setError('Select at least one classroom to export notes.');
-      setSuccessMessage(null);
+      notify.warning('Select at least one classroom to export notes.', { id: 'export-classrooms-none', duration: 3000 });
       return;
     }
 
@@ -156,7 +156,6 @@ function ReviewClassroomNotes({ currentUser }) {
     setExportDateFrom('');
     setExportDateTo('');
     setError(null);
-    setSuccessMessage(null);
     setConfirmOpen(true);
     setFetchingNotes(true);
 
@@ -166,6 +165,7 @@ function ReviewClassroomNotes({ currentUser }) {
       if (!observations.length) {
         resetExportState();
         setError('No notes found for the selected classroom(s).');
+        notify.warning('No notes found for the selected classroom(s).', { id: 'export-classrooms-empty', duration: 3500 });
         return;
       }
 
@@ -174,6 +174,7 @@ function ReviewClassroomNotes({ currentUser }) {
       console.error('Error exporting classroom notes', err);
       resetExportState();
       setError(err?.message || 'Failed to prepare export. Please try again.');
+      notify.error('Failed to prepare notes for export. Please try again.', { id: 'export-classrooms-prepare-error', duration: 4000 });
       return;
     } finally {
       setFetchingNotes(false);
@@ -248,12 +249,19 @@ function ReviewClassroomNotes({ currentUser }) {
         throw new Error(result?.error || 'Export failed');
       }
 
-      setSuccessMessage(`Exported ${result.observationCount} notes to ${result.filename}.`);
+      notify.success(`Exported ${result.observationCount} notes to ${result.filename}.`, {
+        id: 'export-classrooms-success',
+        duration: 3500
+      });
       resetExportState();
     } catch (err) {
       console.error('Error exporting classroom notes', err);
       setExporting(false);
       setError(err?.message || 'Failed to export notes. Please try again.');
+      notify.error('Failed to export notes. Please try again.', {
+        id: 'export-classrooms-error',
+        duration: 4000
+      });
     }
   };
 
@@ -322,12 +330,6 @@ function ReviewClassroomNotes({ currentUser }) {
           {error && (
             <Alert severity="error" onClose={() => setError(null)}>
               {error}
-            </Alert>
-          )}
-
-          {successMessage && (
-            <Alert severity="success" onClose={() => setSuccessMessage(null)}>
-              {successMessage}
             </Alert>
           )}
 
