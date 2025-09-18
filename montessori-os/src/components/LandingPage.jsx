@@ -15,10 +15,11 @@ import {
   ArrowForward,
   Feedback,
   BarChart,
-  PersonAdd
+  PersonAdd,
+  Download
 } from '@mui/icons-material';
 
-function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigate }) {
+function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
   const isTeacher = userRole === 'teacher';
   
   return (
@@ -209,6 +210,58 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
         {/* Admin-only cards */}
         {!isTeacher && (
           <>
+            {/* Review Classroom Notes */}
+            <Grid size={12}>
+              <Card
+                sx={{
+                  borderRadius: 2,
+                  '&:hover': {
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                <CardActionArea
+                  onClick={onNavigateToClassroomNotes}
+                  sx={{ p: 0 }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between'
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ 
+                          bgcolor: '#2563eb',
+                          width: 56,
+                          height: 56
+                        }}>
+                          <Download />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" component="h3" sx={{ 
+                            color: '#1e293b',
+                            fontWeight: 600
+                          }}>
+                            Review Classroom Notes
+                          </Typography>
+                          <Typography variant="body2" sx={{ 
+                            color: '#64748b',
+                            mt: 0.5
+                          }}>
+                            Export all student notes from selected classrooms for manual analysis
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <ArrowForward sx={{ color: '#94a3b8' }} />
+                    </Box>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+
             {/* Feedback Dashboard */}
             <Grid size={12}>
               <Card

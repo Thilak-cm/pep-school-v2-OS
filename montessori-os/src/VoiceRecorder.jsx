@@ -43,7 +43,7 @@ import {
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
-import MenuItem from '@mui/material/MenuItem';
+// MenuItem no longer needed (language selection removed)
 
 const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -70,11 +70,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  // Language override popover
-  const [langAnchorEl, setLangAnchorEl] = useState(null);
-  // Required spoken language selection
-  const [selectedLanguage, setSelectedLanguage] = useState('');
-  const [languageRequiredError, setLanguageRequiredError] = useState(false);
+  // Language selection removed to reduce clicks
 
   const mediaRecorderRef = useRef(null);
   const audioRef = useRef(null);
@@ -281,34 +277,15 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
     setOriginalTranscription('');
   };
 
-  // Map language codes/names to simple display names
-  const languageName = (code) => {
-    if (!code) return null;
-    const v = String(code).toLowerCase();
-    const base = v.includes('-') ? v.split('-')[0] : v;
-    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
-    if (map[base]) return map[base];
-    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
-      return base.charAt(0).toUpperCase() + base.slice(1);
-    }
-    return code;
-  };
+  // Language selection/labels removed
 
   const handleSave = () => {
-    // Only allow save if transcription is complete and successful
-    if (!selectedLanguage) {
-      setLanguageRequiredError(true);
-      return;
-    }
+    // Allow save once transcription is complete and successful
     if (onSave && transcription && !isTranscribing && !transcriptionError && transcriptionData) {
-      // Pass simplified transcription data (OpenAI Whisper format)
+      // Pass simplified transcription data without language fields
       onSave({
         text: transcription,
         duration: recordingTime,
-        // Store user-selected spoken language (required)
-        languageCode: selectedLanguage,
-        inputLanguage: selectedLanguage,
-        spokenLanguage: selectedLanguage,
         timestamp: new Date(),
         sttProvider: 'OpenAI Whisper'
       });
@@ -747,35 +724,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
             </Paper>
           )}
 
-          {/* Spoken Language selector - required */}
-          {transcription && !isTranscribing && !transcriptionError && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                Spoken language
-              </Typography>
-              <TextField
-                select
-                size="small"
-                value={selectedLanguage}
-                onChange={(e) => { setSelectedLanguage(e.target.value); setLanguageRequiredError(false); }}
-                sx={{ minWidth: 160, backgroundColor: 'white' }}
-              >
-                <MenuItem value="en">English</MenuItem>
-                <MenuItem value="hi">Hindi</MenuItem>
-                <MenuItem value="ta">Tamil</MenuItem>
-                <MenuItem value="te">Telugu</MenuItem>
-                <MenuItem value="kn">Kannada</MenuItem>
-              </TextField>
-              <Typography variant="caption" color="text.secondary">
-                Text is translated to English
-              </Typography>
-              {languageRequiredError && (
-                <Typography variant="caption" color="error" sx={{ ml: 1 }}>
-                  Please select a language
-                </Typography>
-              )}
-            </Box>
-          )}
+          {/* Spoken language selection removed */}
 
           {/* Transcription Actions */}
           {transcription && !isTranscribing && (
@@ -972,10 +921,10 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
                       backgroundColor: '#4338ca',
                     }
                   }}
-                  disabled={!selectedLanguage}
-                >
-                  Select Students
-                </Button>
+                  // No longer blocked by language selection
+                  >
+                    Select Students
+                  </Button>
               )}
             </Box>
           )}

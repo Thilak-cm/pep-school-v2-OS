@@ -60,7 +60,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New files: `src/notifications/{NotificationContext.jsx, NotificationStack.jsx, NotificationBanner.jsx, useNotify.js, useSwipeDismiss.js}`.
 - Provider integrated in `App.jsx`; notifications appear under the sticky header across screens.
 
-## [3.3.2] - 2025-09-12
+## [3.3.5] - 2025-09-18
+
+### Added
+- Admin landing card for "Review Classroom Notes" with multi-class export dialog.
+
+### Changed
+- Classroom notes export now groups observations per classroom in both JSON and TXT outputs.
+- Shared export helper supports grouped payloads and richer text formatting.
+
+### Fixed
+- Export dialog now lets admins clear date filters and shows clearer "All dates" messaging.
+
+## [3.3.4] - 2025-09-16
+
+### Added
+- Top-level `VERSION` file to track app version alongside package.json.
+
+### Changed
+- `scripts/version.js` now updates `montessori-os/package.json`, `VersionBadge.jsx`, and the root `VERSION` file in one step.
+
+### Notes
+- No functional UI changes; this release streamlines version management.
+
+## [3.3.3] - 2025-09-15
+
+### Removed
+- VoiceRecorder "Spoken language" picker and validation.
+- Language labels on note chips and in note detail view.
+- Voice Note Language Distribution chart from Stats page.
+
+### Changed
+- Stop persisting `spokenLanguage`/`languageCode` on new observations.
+- Export: add author line in TXT output; export modal includes optional start/end dates and counts reflect the range.
+
+### Added
+- `scripts/remove_spoken_language.js` with npm tasks:
+  - `cleanup:spokenLanguage`
+  - `cleanup:spokenLanguage:all`
+
+### Technical
+- Ran cleanup removing `spokenLanguage` and `languageCode` from 580 observations across 245 students.
+
+## [3.3.2] - 2025-09-14
 
 ### Added
 - Observation schema: new `spokenLanguage` field (voice: selected; text: defaults to `en`).
@@ -110,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `translateAudioToEnglish` using `/v1/audio/translations` with `response_format=verbose_json`.
 - Language normalization for `en/ta/hi/kn` and name variants.
 
-## [3.2.2] - 2025-09-09
+## [3.2.3] - 2025-09-09
 
 ### Added
 - classroom timeline now has filter option similar to student timeline

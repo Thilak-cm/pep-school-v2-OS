@@ -326,10 +326,6 @@ function NoteExpansionDialog({
                 <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Duration: ${observation.duration || 0} seconds`}
-                  {(() => {
-                    const lang = languageName(observation.spokenLanguage || observation.languageCode);
-                    return lang ? ` • ${lang}` : '';
-                  })()}
                 </Typography>
               </Box>
             )}

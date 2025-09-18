@@ -14,14 +14,13 @@ import StatsPage from "./components/StatsPage";
 import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
 import AddUserPage from "./components/AddUserPage";
+import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import app, { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
-// Temporarily use console for debugging
 import { 
   Box, 
-  Container, 
   Typography, 
   CircularProgress, 
   Card
@@ -38,7 +37,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -176,6 +175,7 @@ function App() {
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
   else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
   else if (screen === 'addUser') pageTitle = 'Add New User';
+  else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -196,6 +196,7 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'addUser':
+      case 'classroomNotesReview':
         return () => setScreen('landingPage');
       case 'feedbackTimeline':
         return () => setScreen('landingPage');
@@ -397,6 +398,7 @@ function App() {
                       currentUser={user}
                       onNavigateToFeedbackDashboard={() => setScreen('feedbackTimeline')}
                       onNavigateToFeedback={() => setScreen('feedback')}
+                      onNavigateToClassroomNotes={() => setScreen('classroomNotesReview')}
                       onNavigate={(path) => {
                         if (path === '/stats') {
                           setScreen('stats');
@@ -493,6 +495,12 @@ function App() {
                     />
                   )}
 
+                  {screen === 'classroomNotesReview' && (
+                    <ReviewClassroomNotes
+                      currentUser={user}
+                    />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -506,7 +514,7 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && (
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal
