@@ -12,7 +12,6 @@ import {
   ListItemText,
   Button,
   CircularProgress,
-  Alert,
   Stack,
   Chip,
   Dialog,
@@ -78,7 +77,6 @@ function ReviewClassroomNotes({ currentUser }) {
   const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [fetchingNotes, setFetchingNotes] = useState(false);
-  const [error, setError] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState('json');
   const [exportNotes, setExportNotes] = useState([]);
@@ -96,7 +94,10 @@ function ReviewClassroomNotes({ currentUser }) {
         setClassrooms(list);
       } catch (err) {
         console.error('Error loading classrooms for export', err);
-        setError('Unable to load classrooms right now. Please try again.');
+        notify.error('Unable to load classrooms right now. Please try again.', {
+          id: 'export-classrooms-load-error',
+          duration: 4000
+        });
       } finally {
         setLoadingClassrooms(false);
       }
@@ -113,7 +114,6 @@ function ReviewClassroomNotes({ currentUser }) {
   const handleSelectChange = (event) => {
     const value = event.target.value;
     setSelectedClassroomIds(typeof value === 'string' ? value.split(',') : value);
-    setError(null);
   };
 
   const resetExportState = () => {
@@ -146,7 +146,6 @@ function ReviewClassroomNotes({ currentUser }) {
 
   const handleExport = async (format = 'json') => {
     if (!selectedClassroomIds.length) {
-      setError('Select at least one classroom to export notes.');
       notify.warning('Select at least one classroom to export notes.', { id: 'export-classrooms-none', duration: 3000 });
       return;
     }
@@ -155,7 +154,6 @@ function ReviewClassroomNotes({ currentUser }) {
     setExportNotes([]);
     setExportDateFrom('');
     setExportDateTo('');
-    setError(null);
     setConfirmOpen(true);
     setFetchingNotes(true);
 
@@ -164,7 +162,6 @@ function ReviewClassroomNotes({ currentUser }) {
 
       if (!observations.length) {
         resetExportState();
-        setError('No notes found for the selected classroom(s).');
         notify.warning('No notes found for the selected classroom(s).', { id: 'export-classrooms-empty', duration: 3500 });
         return;
       }
@@ -173,7 +170,6 @@ function ReviewClassroomNotes({ currentUser }) {
     } catch (err) {
       console.error('Error exporting classroom notes', err);
       resetExportState();
-      setError(err?.message || 'Failed to prepare export. Please try again.');
       notify.error('Failed to prepare notes for export. Please try again.', { id: 'export-classrooms-prepare-error', duration: 4000 });
       return;
     } finally {
@@ -215,7 +211,6 @@ function ReviewClassroomNotes({ currentUser }) {
       return;
     }
 
-    setError(null);
     setExporting(true);
 
     try {
@@ -249,7 +244,7 @@ function ReviewClassroomNotes({ currentUser }) {
         throw new Error(result?.error || 'Export failed');
       }
 
-      notify.success(`Exported ${result.observationCount} notes to ${result.filename}.`, {
+      notify.success(`Exported ${result.observationCount} notes.`, {
         id: 'export-classrooms-success',
         duration: 3500
       });
@@ -257,7 +252,6 @@ function ReviewClassroomNotes({ currentUser }) {
     } catch (err) {
       console.error('Error exporting classroom notes', err);
       setExporting(false);
-      setError(err?.message || 'Failed to export notes. Please try again.');
       notify.error('Failed to export notes. Please try again.', {
         id: 'export-classrooms-error',
         duration: 4000
@@ -320,17 +314,22 @@ function ReviewClassroomNotes({ currentUser }) {
           )}
 
           {selectedClassrooms.length > 0 && (
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {selectedClassrooms.map(cls => (
-                <Chip key={cls.id} label={cls.name || cls.id} />
-              ))}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" flex={1}>
+                {selectedClassrooms.map(cls => (
+                  <Chip key={cls.id} label={cls.name || cls.id} />
+                ))}
+              </Stack>
+              <Button
+                variant="text"
+                startIcon={<Refresh />}
+                onClick={() => setSelectedClassroomIds([])}
+                disabled={fetchingNotes || !selectedClassroomIds.length}
+                sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, minWidth: 'unset' }}
+              >
+                Clear selection
+              </Button>
             </Stack>
-          )}
-
-          {error && (
-            <Alert severity="error" onClose={() => setError(null)}>
-              {error}
-            </Alert>
           )}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
@@ -355,15 +354,6 @@ function ReviewClassroomNotes({ currentUser }) {
             </Button>
           </Stack>
 
-          <Button
-            variant="text"
-            startIcon={<Refresh />}
-            onClick={() => setSelectedClassroomIds([])}
-            disabled={fetchingNotes || !selectedClassroomIds.length}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            Clear selection
-          </Button>
         </CardContent>
       </Card>
 
@@ -412,7 +402,19 @@ function ReviewClassroomNotes({ currentUser }) {
                 >
                   Date Range (optional)
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() => {
+                    setExportDateFrom('');
+                    setExportDateTo('');
+                  }}
+                  disabled={!exportDateFrom && !exportDateTo}
+                  sx={{ alignSelf: 'flex-start', mb: 1, p: 0, minWidth: 'unset' }}
+                >
+                  Clear dates
+                </Button>
+                <Box sx={{ display: 'flex', gap: 2 }}>
                   <TextField
                     label="From Date"
                     type="date"
@@ -429,19 +431,9 @@ function ReviewClassroomNotes({ currentUser }) {
                     value={exportDateTo}
                     onChange={(e) => setExportDateTo(e.target.value)}
                     InputLabelProps={{ shrink: true }}
-                    sx={{ flex: 1 }}
+                    placeholder="Today"
+                    sx={{ flex: 1, '& input::placeholder': { opacity: 0.6, color: 'text.disabled' } }}
                   />
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={() => {
-                      setExportDateFrom('');
-                      setExportDateTo('');
-                    }}
-                    disabled={!exportDateFrom && !exportDateTo}
-                  >
-                    Clear
-                  </Button>
                 </Box>
               </Box>
 
@@ -480,10 +472,6 @@ function ReviewClassroomNotes({ currentUser }) {
                   No notes match the selected date range. Adjust the filters to proceed.
                 </Alert>
               )}
-
-              <Typography variant="body2" color="info.main" sx={{ fontWeight: 'medium' }}>
-                The file will be downloaded automatically with a descriptive filename.
-              </Typography>
             </>
           )}
         </DialogContent>

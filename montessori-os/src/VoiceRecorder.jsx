@@ -5,7 +5,6 @@ import { cleanUpText, localCleanupFallback } from './textCleanup';
 import { db } from './firebase';
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
-import FeatureTag from './components/FeatureTag';
 import {
   Box,
   Card,
@@ -375,18 +374,35 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
           Voice Recorder
         </Typography>
         {(!isRecording && !audioUrl && !transcription) && (
-          <Box sx={{ mt: 0.5 }}>
-            <FeatureTag flag="voiceToText" size="sm" />
-            <Typography
-              variant="body1"
-              sx={{
-                mt: 1.2,
-                color: '#0f172a'
-              }}
-            >
-              Speak your heart out in English, Tamil, Kannada, Telugu or Hindi — ChatGPT will auto‑translate, clean up and polish your speech.
-            </Typography>
-          </Box>
+          <Typography
+            variant="body1"
+            sx={{
+              mt: 1.2,
+              color: '#0f172a'
+            }}
+          >
+            Speak your heart out in{' '}
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
+              English
+            </Box>
+            ,{' '}
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
+              Tamil
+            </Box>
+            ,{' '}
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
+              Kannada
+            </Box>
+            ,{' '}
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
+              Telugu
+            </Box>
+            {' or '}
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
+              Hindi
+            </Box>
+            {' (or all together too) — ChatGPT will auto‑translate, clean up and polish your speech.'}
+          </Typography>
         )}
       </CardContent>
 

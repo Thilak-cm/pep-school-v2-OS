@@ -27,7 +27,6 @@ import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import FeatureTag from './FeatureTag';
 import useNotify from '../notifications/useNotify.js';
 
 // TextInput Component
@@ -571,9 +570,6 @@ function AddNoteModal({
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
                   </Typography>
-                </Box>
-                <Box sx={{ ml: 'auto' }}>
-                  <FeatureTag flag="voiceToText" size="sm" />
                 </Box>
               </Box>
             </Box>
