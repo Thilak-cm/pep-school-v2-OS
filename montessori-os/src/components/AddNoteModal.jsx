@@ -6,9 +6,6 @@ import {
   IconButton,
   CircularProgress,
   Button,
-  Stepper,
-  Step,
-  StepLabel,
   TextField,
   Snackbar,
   Alert,
@@ -264,8 +261,6 @@ const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
 
-const steps = ['Type', 'Input', 'Recipients'];
-
 function AddNoteModal({
   open,
   onClose,
@@ -440,24 +435,23 @@ function AddNoteModal({
         }
       }}
     >
-      {/* Fixed Header with Stepper */}
-      <Box sx={{ 
-        px: 3, 
-        pt: 3, 
-        pb: 1,
-        borderBottom: '1px solid #e2e8f0',
-        backgroundColor: 'white',
-        zIndex: 1,
-        position: 'relative'
-      }}>
-        {/* Consistent X Button - Always visible in top right */}
+      {/* Top actions */}
+      <Box
+        sx={{
+          flex: 1,
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
+        }}
+      >
         <IconButton
           aria-label="Close"
           onClick={handleClose}
           sx={{
             position: 'absolute',
-            top: 12,
-            right: 12,
+            top: 16,
+            right: 16,
             color: '#1e293b',
             '&:hover': { backgroundColor: '#f1f5f9' },
             zIndex: 2
@@ -465,26 +459,6 @@ function AddNoteModal({
         >
           <Close sx={{ fontSize: 28 }} />
         </IconButton>
-        
-        <Stepper activeStep={
-          step === STEP_NOTE_TYPE ? 0 : 
-          (step === STEP_RECORD || step === STEP_TEXT_INPUT) ? 1 : 2
-        } alternativeLabel>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </Box>
-
-      {/* Scrollable Content */}
-      <Box sx={{ 
-        flex: 1, 
-        overflow: 'auto',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
         {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
