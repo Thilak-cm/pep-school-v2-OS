@@ -114,9 +114,39 @@ interface Observation {
   audioUrl?: string;
   durationSec?: number;
   sttConfidence?: number;
-  
-  // Language
-  spokenLanguage?: string;       // BCP-47-ish short code of input speech/text ('en', 'hi', 'ta', 'kn'); defaults to 'en' for text notes; for voice we set detected language
+
+  // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields)
+  coach: {
+    status: 'ok' | 'timeout' | 'error';
+    reason?: 'none' | 'rate_limit' | 'parse_error' | 'net_timeout' | 'server_error';
+
+    // Nudges actually shown (max 2), in shown order (priority-driven)
+    nudgesShown?: Array<{
+      id: 'duration' | 'modality' | 'independence' | 'evidence' | 'subjective';
+      confidence?: number;       // 0..1 (logged only)
+    }>;
+
+    // Teacher selections → appended to text (append-only)
+    selections?: {
+      duration_range?: '<5m' | '5–10m' | '10–20m' | '20m+';
+      modality?: 'Material' | 'Pen & paper' | 'Mental';
+      independence?: 'Independent' | 'Peer pair' | 'Small group' | 'Teacher-guided';
+
+      // Evidence pairing: if either is set, require both; render as X/Y
+      evidence_attempts?: number;
+      evidence_correct?: number;
+      evidence_quote?: string;
+
+      // Optional one-line objective rewrite offered by Coach and accepted by teacher
+      objective_line?: string;
+
+      // (Future) If material confirm chip is added later
+      inferred_material?: string | null;
+    };
+  };
+
+  // 🆕 Quality proxy
+  starScore?: number;            // integer 1–5
 
   // Timestamps
   observedAt: Timestamp;         // when the observation happened
@@ -128,6 +158,7 @@ interface Observation {
   createdByName?: string;        // cached for UX
   createdByEmail?: string;       // cached for UX
 }
+
 ```
 Why fan-out per student?
 - Student timeline = 1 query
