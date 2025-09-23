@@ -1,5 +1,6 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 // import { getStorage } from "firebase-admin/storage";
 import * as functions from "firebase-functions";
 // import { v4 as uuidv4 } from "uuid";
@@ -8,6 +9,7 @@ import nodemailer from "nodemailer";
 initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
+const auth = getAuth();
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config
@@ -116,6 +118,178 @@ export const createUserWithEmailCheck = functions.region("asia-south1").https.on
     );
   }
 });
+
+// Callable: Create Auth user (if needed) and Firestore profile at users/{uid}
+// - Enforces @pepschoolv2.com domain
+// - If Auth user exists and updateIfExists=false, returns { exists:true, uid, hasDoc, existingRole }
+// - If updateIfExists=true, updates displayName/status but DOES NOT change role (prevents role change drama)
+// - For teachers, assigns classrooms by adding uid to classrooms/{id}.teacherIds (non-destructive)
+export const createAuthUserAndProfile = functions
+  .region("asia-south1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterUid = context.auth.uid;
+    // Require requester to be an admin
+    const requesterSnap = await db.collection("users").doc(requesterUid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "admin") {
+      throw new functions.https.HttpsError("permission-denied", "Only admins can create users");
+    }
+
+    const {
+      email,
+      firstName,
+      lastName,
+      role = "teacher", // 'admin' | 'teacher'
+      selectedClassrooms = [], // array of classroom IDs for teachers
+      updateIfExists = false,
+      status = "active",
+    } = data || {};
+
+    if (!email || !firstName) {
+      throw new functions.https.HttpsError("invalid-argument", "email and firstName are required");
+    }
+
+    const emailLc = String(email).trim().toLowerCase();
+    if (!emailLc.endsWith("@pepschoolv2.com")) {
+      throw new functions.https.HttpsError("failed-precondition", "Email must be @pepschoolv2.com");
+    }
+
+    const displayName = `${firstName} ${lastName || ""}`.trim();
+
+    try {
+      // 1) Resolve or create Auth user
+      let userRecord;
+      try {
+        userRecord = await auth.getUserByEmail(emailLc);
+      } catch (e) {
+        if (e?.code === "auth/user-not-found") {
+          userRecord = await auth.createUser({
+            email: emailLc,
+            displayName,
+            emailVerified: true,
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      const uid = userRecord.uid;
+
+      // 2) Read existing Firestore profile (if any)
+      const userRef = db.collection("users").doc(uid);
+      const userSnap = await userRef.get();
+
+      if (userSnap.exists) {
+        const existingRole = userSnap.data()?.role;
+        if (!updateIfExists) {
+          return { exists: true, uid, hasDoc: true, existingRole };
+        }
+
+        // Prevent role change: do not modify role if it exists
+        const updateData = {
+          displayName,
+          email: emailLc,
+          status: status || userSnap.data()?.status || "active",
+          updatedAt: new Date(),
+        };
+        await userRef.set(updateData, { merge: true });
+
+        // Assign teacher to classrooms (non-destructive)
+        if (existingRole === "teacher" && Array.isArray(selectedClassrooms) && selectedClassrooms.length > 0) {
+          for (const classroomId of selectedClassrooms) {
+            const cRef = db.collection("classrooms").doc(classroomId);
+            await db.runTransaction(async (tx) => {
+              const cSnap = await tx.get(cRef);
+              if (!cSnap.exists) return;
+              const teacherIds = Array.isArray(cSnap.data().teacherIds) ? cSnap.data().teacherIds : [];
+              if (!teacherIds.includes(uid)) {
+                tx.update(cRef, {
+                  teacherIds: [...teacherIds, uid],
+                  updatedAt: new Date(),
+                });
+              }
+            });
+          }
+        }
+
+        return { ok: true, uid, updated: true, role: existingRole };
+      }
+
+      // 3) Create Firestore profile (doc id = UID)
+      const newUserData = {
+        displayName,
+        email: emailLc,
+        role: role === "admin" ? "admin" : "teacher",
+        status: status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: requesterUid,
+      };
+      await userRef.set(newUserData, { merge: true });
+
+      // 4) Assign teacher classrooms
+      if (newUserData.role === "teacher" && Array.isArray(selectedClassrooms) && selectedClassrooms.length > 0) {
+        for (const classroomId of selectedClassrooms) {
+          const cRef = db.collection("classrooms").doc(classroomId);
+          await db.runTransaction(async (tx) => {
+            const cSnap = await tx.get(cRef);
+            if (!cSnap.exists) return;
+            const teacherIds = Array.isArray(cSnap.data().teacherIds) ? cSnap.data().teacherIds : [];
+            if (!teacherIds.includes(uid)) {
+              tx.update(cRef, {
+                teacherIds: [...teacherIds, uid],
+                updatedAt: new Date(),
+              });
+            }
+          });
+        }
+      }
+
+      return { ok: true, uid, created: true, role: newUserData.role };
+    } catch (err) {
+      console.error("createAuthUserAndProfile error:", err);
+      if (err instanceof functions.https.HttpsError) throw err;
+      throw new functions.https.HttpsError("internal", err?.message || "Failed to create/update user");
+    }
+  });
+
+// Callable: Update basic profile fields for existing users (no role change)
+export const updateUserProfileIfExists = functions
+  .region("asia-south1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { uid, displayName, status = "active" } = data || {};
+    if (!uid) {
+      throw new functions.https.HttpsError("invalid-argument", "uid is required");
+    }
+
+    // Only admins can update
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "admin") {
+      throw new functions.https.HttpsError("permission-denied", "Only admins can update users");
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "User profile not found");
+    }
+
+    const updateData = {
+      updatedAt: new Date(),
+    };
+    if (displayName) updateData.displayName = displayName;
+    if (status) updateData.status = status;
+
+    await userRef.set(updateData, { merge: true });
+    return { ok: true, uid };
+  });
 
 // Callable function: Update user with email uniqueness check
 export const updateUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {

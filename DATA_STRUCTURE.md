@@ -91,6 +91,11 @@ interface Student {
 Guidance
 - Queries commonly include `classroomId` and `isActive`.
 - If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
+ - Student IDs follow `YYYY-XXX-NNN` where:
+   - `YYYY` is the current year at creation time (e.g., 2026)
+   - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
+   - `NNN` is a zero-padded index per classroom and year starting from 001
+   - The index resets each new year per classroom. On create, clients compute the next index by scanning existing IDs for the same classroom and year, then attempt to write `students/{studentId}`. If a collision occurs, recompute and retry once.
 
 ---
 
@@ -249,4 +254,3 @@ Field immutability (on update)
 - Denormalized `classroomId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback system provides user input channel while maintaining security through user ownership and admin-only management
-

@@ -9,6 +9,7 @@
     "upsert:teachers": "node scripts/admin/upsert-hsr-teachers.js",
     "upsert:teachers:push": "node scripts/admin/upsert-hsr-teachers.js --push",
     "upsert:students": "node scripts/admin/upsert-students.js",
+    "add:student": "node scripts/admin/add-student.js",
     "cleanup:spokenLanguage": "node scripts/remove_spoken_language.js",
     "cleanup:spokenLanguage:all": "node scripts/remove_spoken_language.js --also-language-code"
   },

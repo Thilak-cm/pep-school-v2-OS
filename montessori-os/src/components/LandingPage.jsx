@@ -314,7 +314,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
             
-            {/* Add User (Admin/Teacher) */}
+            {/* Add User */}
             <Grid size={12}>
               <Card 
                 aria-label="Add admin or teacher user"
@@ -347,13 +347,13 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                           color: '#1e293b',
                           fontWeight: 600
                         }}>
-                          Add Admin / Teacher
+                          Add User
                         </Typography>
                         <Typography variant="body2" sx={{ 
                           color: '#64748b',
                           mt: 0.5
                         }}>
-                          Create new user accounts and manage permissions
+                          Create admins, teachers, or students
                         </Typography>
                       </Box>
                     </Box>

@@ -403,7 +403,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
             </Box>
             {' (or all together too) — ChatGPT will auto‑translate, clean up and polish your speech.'}
           </Typography>
-        )}
+         )}
       </CardContent>
 
       {/* Recording Controls - Show immediately if no audio recorded yet */}
