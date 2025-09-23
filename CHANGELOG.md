@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2025-09-23
+
+### Added
+- Unified Add User page (admin‑only) to create Admin, Teacher, or Student from one screen.
+- Cloud Functions: `createAuthUserAndProfile`, `updateUserProfileIfExists` for Auth + Firestore user management (admin‑only, no role changes).
+- Student creation: optional DOB; optional guardian info (name/relationship/phone as all‑or‑none); duplicate warning by name + classroom.
+- Student IDs follow `YYYY-XXX-NNN` (classroom slug code), index resets per year; transaction write with simple retry.
+
+### Changed
+- Landing card renamed to "Add User" and opens the unified page.
+- Success UX: removed green success banner; student toast simplified to “Student <name> has been added to the roster!”.
+
 ## [3.4.2] - 2025-09-14
 
 ### Changed
