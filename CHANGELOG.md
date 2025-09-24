@@ -5,6 +5,23 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.1] - 2025-09-24
+
+### Added
+- Admin scripts: unified CLI for creating Admin/Teacher/Student in `scripts/admin/create-user.js` with top-level role selection.
+- Safety: strict YES confirmation step for all user types, including standalone `add-student.js`.
+
+### Changed
+- Add User page UI polish:
+  - Removed inner white tile/header and duplicate back button (app header controls navigation).
+  - Replaced role chips with a three-tab selector (icons + sliding underline) matching the Notes/Students style.
+- Firebase Admin init is now guarded to avoid double initialization across scripts.
+
+### Fixed
+- Resolved missing module error by ensuring `scripts/admin/add-student.js` is present and exported for reuse.
+
+---
+
 ## [3.5.0] - 2025-09-23
 
 ### Added
