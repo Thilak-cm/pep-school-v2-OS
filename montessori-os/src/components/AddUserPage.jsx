@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School } from '@mui/icons-material';
+import { ArrowBack, PersonAdd, School, ManageAccounts, Groups } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -252,12 +252,48 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
     );
   }
 
+  // Tab-style role selector with sliding underline (Notes/Students style)
+  const RoleTabs = ({ value, onChange }) => {
+    const items = [
+      { key: 'teacher', label: 'Teacher', icon: <School fontSize="small" /> },
+      { key: 'admin', label: 'Admin', icon: <ManageAccounts fontSize="small" /> },
+      { key: 'student', label: 'Student', icon: <Groups fontSize="small" /> },
+    ];
+    const index = Math.max(0, items.findIndex(i => i.key === value));
+    return (
+      <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+        <Tabs
+          value={index}
+          onChange={(e, newIndex) => onChange(items[newIndex].key)}
+          variant="fullWidth"
+          sx={{
+            minHeight: 48,
+            '& .MuiTabs-flexContainer': { alignItems: 'center' },
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              minHeight: 48,
+              fontWeight: 600,
+              color: '#475569'
+            },
+            '& .Mui-selected': { color: '#4f46e5 !important' },
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: 2,
+              backgroundColor: '#4f46e5'
+            }
+          }}
+        >
+          {items.map((it) => (
+            <Tab key={it.key} icon={it.icon} iconPosition="start" label={it.label} aria-label={it.label} />
+          ))}
+        </Tabs>
+      </Box>
+    );
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '375px', minHeight: '100vh', margin: '0 auto', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header (back button removed; app header already has it) */}
-      <Box sx={{ p: 3, borderBottom: '1px solid #e2e8f0', backgroundColor: 'white', flexShrink: 0 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>Add User</Typography>
-      </Box>
+      {/* Header removed: rely on App header for title/navigation */}
 
       {/* Body */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 3, backgroundColor: '#f8fafc' }}>
@@ -269,11 +305,7 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
         <form onSubmit={handleSubmit}>
           <Grid container spacing={2}>
             <Grid item xs={12}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {['teacher', 'admin', 'student'].map(r => (
-                  <Chip key={r} label={r.charAt(0).toUpperCase() + r.slice(1)} color={role === r ? 'primary' : 'default'} variant={role === r ? 'filled' : 'outlined'} clickable onClick={() => setRole(r)} />
-                ))}
-              </Box>
+              <RoleTabs value={role} onChange={setRole} />
             </Grid>
 
             {(role === 'admin' || role === 'teacher') && (
