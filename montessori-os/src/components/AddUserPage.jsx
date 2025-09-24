@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider, IconButton,
+  Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { ArrowBack, PersonAdd, School } from '@mui/icons-material';
@@ -254,12 +254,9 @@ const AddUserPage = ({ onBack, currentUser, userRole }) => {
 
   return (
     <Box sx={{ width: '100%', maxWidth: '375px', minHeight: '100vh', margin: '0 auto', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Header (back button removed; app header already has it) */}
       <Box sx={{ p: 3, borderBottom: '1px solid #e2e8f0', backgroundColor: 'white', flexShrink: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton onClick={onBack} size="small"><ArrowBack /></IconButton>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>Add User</Typography>
-        </Box>
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>Add User</Typography>
       </Box>
 
       {/* Body */}
