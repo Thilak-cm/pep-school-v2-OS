@@ -19,6 +19,7 @@ import {
   ArrowBack
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
+import NewFeaturePill from './NewFeaturePill';
 import { cleanUpText, localCleanupFallback } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
@@ -536,10 +537,11 @@ function AddNoteModal({
               >
                 <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Voice Note
                     </Typography>
+                    <NewFeaturePill label="New language: Malayalam" size="sm" />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
