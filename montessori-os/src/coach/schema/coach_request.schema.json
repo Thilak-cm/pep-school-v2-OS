@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "coach_request.schema.json",
+  "type": "object",
+  "required": ["note_text", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "note_text": { "type": "string" },
+    "context": {
+      "type": "object",
+      "required": ["student_age_band", "subject_tags", "teacher_first_name_token", "class_name"],
+      "additionalProperties": false,
+      "properties": {
+        "student_age_band": { "type": ["string", "null"] },
+        "subject_tags": {
+          "type": "array",
+          "items": { "type": "string", "enum": [
+            "math",
+            "language",
+            "sensorial",
+            "culture",
+            "practical_life",
+            "other"
+          ] }
+        },
+        "teacher_first_name_token": { "type": ["string", "null"] },
+        "class_name": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
+

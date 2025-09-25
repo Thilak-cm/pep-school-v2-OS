@@ -1,0 +1,47 @@
+// Coach constants — chip labels and IDs must match PRD exactly.
+
+export const COACH_MODEL = {
+  model: 'gpt-4.1-mini',
+  temperatureMin: 0.2,
+  temperatureMax: 0.3,
+};
+
+// Nudge IDs (canonical)
+export const NUDGE_IDS = Object.freeze({
+  DURATION: 'duration',
+  MODALITY: 'modality',
+  INDEPENDENCE: 'independence',
+  EVIDENCE: 'evidence',
+  SUBJECTIVE: 'subjective',
+});
+
+// Microcopy keys by nudge type
+export const MICROCOPY_KEYS = Object.freeze({
+  [NUDGE_IDS.DURATION]: 'about_how_long',
+  [NUDGE_IDS.MODALITY]: 'how_was_this_done',
+  [NUDGE_IDS.INDEPENDENCE]: 'how_was_this_done', // per PRD; may split later
+  [NUDGE_IDS.EVIDENCE]: 'add_tiny_evidence',
+  [NUDGE_IDS.SUBJECTIVE]: 'objective_line_invite',
+});
+
+// Chips per category — exact strings, order matters.
+export const CHIPS = Object.freeze({
+  [NUDGE_IDS.DURATION]: Object.freeze(['<5m', '5–10m', '10–20m', '20m+']),
+  [NUDGE_IDS.MODALITY]: Object.freeze(['Material', 'Pen & paper', 'Mental']),
+  [NUDGE_IDS.INDEPENDENCE]: Object.freeze([
+    'Independent',
+    'Peer pair',
+    'Small group',
+    'Teacher-guided',
+  ]),
+  [NUDGE_IDS.EVIDENCE]: Object.freeze(['# attempts', '# correct', 'Add quote']),
+  [NUDGE_IDS.SUBJECTIVE]: Object.freeze([]),
+});
+
+export const MAX_NUDGES = 2;
+
+// Utility: get allowed chips for a nudge id
+export function chipsFor(id) {
+  return CHIPS[id] || Object.freeze([]);
+}
+
