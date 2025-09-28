@@ -506,6 +506,28 @@ const StatsPage = ({ user, role, onBack }) => {
     setActiveTab(newValue);
   };
 
+  // Custom label to show % inside each pie slice
+  const renderNoteDistributionLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent
+  }) => {
+    if (!percent || percent <= 0) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const label = `${Math.round(percent * 100)}%`;
+    return (
+      <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
+        {label}
+      </text>
+    );
+  };
+
   const handleTimePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) {
       setTimePeriod(newPeriod);
@@ -1489,6 +1511,8 @@ const StatsPage = ({ user, role, onBack }) => {
                         outerRadius={90}
                         paddingAngle={3}
                         dataKey="value"
+                        label={renderNoteDistributionLabel}
+                        labelLine={false}
                       >
                         {[
                           { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
