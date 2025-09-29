@@ -353,8 +353,8 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome, onBack, sh
           }
         }}
       >
-        <DialogTitle id="logout-dialog-title" sx={{ pb: 1 }}>
-          Confirm Logout
+        <DialogTitle id="logout-dialog-title" component="div" sx={{ pb: 1 }}>
+          <Typography component="h2" variant="h6">Confirm Logout</Typography>
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
           <DialogContentText id="logout-dialog-description">

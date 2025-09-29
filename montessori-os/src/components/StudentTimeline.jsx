@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download, EditNote, Notes } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -131,7 +131,12 @@ function StudentTimeline({ student, currentUser, userRole }) {
     getDocs(q)
       .then((snap) => {
         console.info('[debug] getDocs observations:', snap.docs.length);
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          parentStudentId: d.ref.parent?.parent?.id,
+          docPath: d.ref.path,
+          ...d.data(),
+        }));
         setObservations(list);
         setLoading(false);
         clearTimeout(timeoutId);
@@ -145,7 +150,12 @@ function StudentTimeline({ student, currentUser, userRole }) {
     // Keep listener for normal live updates once stable (can re-enable later)
     const unsub = onSnapshot(q, (snap) => {
       console.log('Observations snapshot received:', snap.docs.length, 'documents');
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        parentStudentId: d.ref.parent?.parent?.id,
+        docPath: d.ref.path,
+        ...d.data(),
+      }));
       setObservations(list);
     }, (error) => {
       console.error('Error loading observations:', error);
@@ -241,7 +251,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
       actionLabel: 'Undo',
       onFinalize: async () => {
         try {
-          await deleteDoc(doc(db, 'students', student.id, 'observations', obs.id));
+          const parentId = obs.parentStudentId || student.id || obs.studentId;
+          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
           console.error('Error deleting observation:', error);
@@ -249,8 +260,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
         }
       },
       onUndo: () => {
-        // No-op; deletion canceled
-        notify.info('Deletion canceled', { id: notifId, duration: 2000 });
+        // Explicit confirmation banner for Undo
+        notify.success('Undo Note Deletion Successful', { id: `${notifId}-undo`, duration: 2000 });
       },
       duration: 6000,
       variant: 'warning',
@@ -300,20 +311,50 @@ function StudentTimeline({ student, currentUser, userRole }) {
     try {
       setReassigning(true);
       const newStudentId = reassignSelectedStudents[0];
-      
-      await updateDoc(doc(db, 'students', student.id, 'observations', selectedObservation.id), {
+      const oldParentId = selectedObservation.parentStudentId || student.id;
+      const srcRef = doc(db, 'students', oldParentId, 'observations', selectedObservation.id);
+      const srcSnap = await getDoc(srcRef);
+      if (!srcSnap.exists()) throw new Error('Source observation not found');
+
+      const srcData = srcSnap.data() || {};
+      // Fetch target student's classroomId to keep denorm consistent
+      let targetClassroomId = srcData.classroomId;
+      let targetStudentName = '';
+      try {
+        const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
+        const tData = targetStuSnap.data() || {};
+        targetClassroomId = tData?.classroomId || targetClassroomId;
+        targetStudentName = tData.name || tData.displayName || [tData.firstName, tData.lastName].filter(Boolean).join(' ');
+      } catch (_) { /* noop */ }
+
+      const destRef = doc(db, 'students', newStudentId, 'observations', selectedObservation.id);
+      const newData = {
+        ...srcData,
         studentId: newStudentId,
+        classroomId: targetClassroomId,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp()
-      });
+        lastEditedAt: serverTimestamp(),
+      };
+      await setDoc(destRef, newData);
+      await deleteDoc(srcRef);
 
       // Close all dialogs
       setReassignConfirmOpen(false);
       setDetailDialogOpen(false);
       setSelectedObservation(null);
       setReassignSelectedStudents([]);
-      notify.success('Note reassigned', { duration: 2500, id: `reassign-${selectedObservation.id}` });
+      // Show success with quick jump to the new student's Notes page
+      notify.success(targetStudentName ? `Note reassigned to ${targetStudentName}` : 'Note reassigned', {
+        duration: 6000,
+        id: `reassign-${selectedObservation.id}`,
+        actionLabel: 'View Note',
+        onUndo: () => {
+          try {
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+          } catch (_) { /* noop */ }
+        },
+      });
     } catch (error) {
       console.error('Error reassigning observation:', error);
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${selectedObservation?.id || 'unknown'}` });
@@ -696,8 +737,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
           }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6" color="error">
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6" color="error">
             Delete Note
           </Typography>
         </DialogTitle>
@@ -759,10 +800,10 @@ function StudentTimeline({ student, currentUser, userRole }) {
           }
         }}
       >
-        <DialogTitle sx={{ pb: 2 }}>
+        <DialogTitle component="div" sx={{ pb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Download color="secondary" />
-            <Typography variant="h6">
+            <Typography component="h2" variant="h6">
               Confirm Export
             </Typography>
           </Box>

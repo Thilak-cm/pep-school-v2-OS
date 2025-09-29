@@ -28,7 +28,7 @@ import {
   Visibility
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
-import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
@@ -69,6 +69,7 @@ function NoteExpansionDialog({
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
   const [reassigning, setReassigning] = useState(false);
   const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
+  const [reassignToStudentName, setReassignToStudentName] = useState('');
 
   // Reset states when dialog opens/closes
   React.useEffect(() => {
@@ -106,7 +107,8 @@ function NoteExpansionDialog({
       actionLabel: 'Undo',
       onFinalize: async () => {
         try {
-          await deleteDoc(doc(db, 'students', obs.studentId, 'observations', obs.id));
+          const parentId = obs.parentStudentId || obs.studentId;
+          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
           console.error('Error deleting observation:', error);
@@ -114,7 +116,7 @@ function NoteExpansionDialog({
         }
       },
       onUndo: () => {
-        notify.info('Deletion canceled', { id: notifId, duration: 2000 });
+        notify.success('Undo Note Deletion Successful', { id: `${notifId}-undo`, duration: 2000 });
       },
       duration: 6000,
       variant: 'warning',
@@ -189,24 +191,68 @@ function NoteExpansionDialog({
     }
   };
 
+  // When confirm dialog opens with exactly one selected student, fetch their name for display
+  React.useEffect(() => {
+    const loadName = async () => {
+      try {
+        const selId = reassignSelectedStudents[0];
+        if (!reassignConfirmOpen || !selId) return;
+        const snap = await getDoc(doc(db, 'students', selId));
+        const data = snap.data() || {};
+        const composed = data.name || data.displayName || [data.firstName, data.lastName].filter(Boolean).join(' ');
+        setReassignToStudentName(composed || 'Selected student');
+      } catch (_) {
+        setReassignToStudentName('Selected student');
+      }
+    };
+    loadName();
+  }, [reassignConfirmOpen, reassignSelectedStudents]);
+
   const handleConfirmReassign = async () => {
     if (!observation || reassignSelectedStudents.length !== 1) return;
 
     try {
       setReassigning(true);
       const newStudentId = reassignSelectedStudents[0];
-      
-      await updateDoc(doc(db, 'students', observation.studentId, 'observations', observation.id), {
+      const oldParentId = observation.parentStudentId || observation.studentId;
+      const srcRef = doc(db, 'students', oldParentId, 'observations', observation.id);
+      const srcSnap = await getDoc(srcRef);
+      if (!srcSnap.exists()) throw new Error('Source observation not found');
+
+      const srcData = srcSnap.data() || {};
+      // Fetch target student's classroomId for denorm
+      let targetClassroomId = srcData.classroomId;
+      try {
+        const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
+        targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
+      } catch (_) { /* noop */ }
+
+      const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
+      const newData = {
+        ...srcData,
         studentId: newStudentId,
+        classroomId: targetClassroomId,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp()
-      });
+        lastEditedAt: serverTimestamp(),
+      };
+      await setDoc(destRef, newData);
+      await deleteDoc(srcRef);
 
       // Close all dialogs
       setReassignConfirmOpen(false);
       handleCloseDialog();
-      notify.success('Note reassigned', { duration: 2500, id: `reassign-${observation.id}` });
+      // Show success with quick jump to the new student's Notes page
+      notify.success(reassignToStudentName ? `Note reassigned to ${reassignToStudentName}` : 'Note reassigned', {
+        duration: 6000,
+        id: `reassign-${observation.id}`,
+        actionLabel: 'View Note',
+        onUndo: () => {
+          try {
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+          } catch (_) { /* noop */ }
+        },
+      });
     } catch (error) {
       console.error('Error reassigning observation:', error);
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${observation?.id || 'unknown'}` });
@@ -221,7 +267,13 @@ function NoteExpansionDialog({
   };
 
   const handleViewStudentTimeline = () => {
-    if (onNavigateToStudent && student) {
+    if (student?.id) {
+      try {
+        window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: student.id, student } }));
+      } catch (_) { /* noop */ }
+      handleCloseDialog();
+    } else if (onNavigateToStudent && student) {
+      // Fallback for environments without the global handler
       onNavigateToStudent(student);
       handleCloseDialog();
     }
@@ -246,11 +298,11 @@ function NoteExpansionDialog({
           }
         }}
       >
-        <DialogTitle sx={{ pb: 1, pr: 1 }}>
+        <DialogTitle component="div" sx={{ pb: 1, pr: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {getObservationTypeIcon(observation.type)}
-              <Typography variant="h6">
+              <Typography component="h2" variant="h6">
                 {getObservationTypeText(observation.type)}
               </Typography>
             </Box>
@@ -470,8 +522,8 @@ function NoteExpansionDialog({
           }
         }}
       >
-        <DialogTitle sx={{ pb: 2 }}>
-          <Typography variant="h6">
+        <DialogTitle component="div" sx={{ pb: 2 }}>
+          <Typography component="h2" variant="h6">
             Reassign Note to Student
           </Typography>
         </DialogTitle>
@@ -485,6 +537,7 @@ function NoteExpansionDialog({
             onStudentsChange={handleReassignStudentsChange}
             currentUser={currentUser}
             userRole={userRole}
+            disabledStudentIds={[observation?.studentId].filter(Boolean)}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
@@ -522,10 +575,10 @@ function NoteExpansionDialog({
           }
         }}
       >
-        <DialogTitle>
+        <DialogTitle component="div">
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SwapHoriz color="secondary" />
-            <Typography variant="h6">
+            <Typography component="h2" variant="h6">
               Confirm Reassignment
             </Typography>
           </Box>
@@ -547,7 +600,7 @@ function NoteExpansionDialog({
                   <strong>From:</strong> {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>To:</strong> Selected student (ID: {reassignSelectedStudents[0]})
+                  <strong>To:</strong> {reassignToStudentName}
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{
@@ -559,9 +612,6 @@ function NoteExpansionDialog({
                 mb: 2
               }}>
                 "{observation?.text?.substring(0, 100)}{observation?.text?.length > 100 ? '...' : ''}"
-              </Typography>
-              <Typography variant="body2" color="warning.main" sx={{ fontWeight: 'medium' }}>
-                The note will be moved from the current student's timeline to the selected student's timeline.
               </Typography>
             </>
           )}

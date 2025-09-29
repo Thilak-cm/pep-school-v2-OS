@@ -5,6 +5,48 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.5] - 2025-09-29
+
+### Changed
+- Stop writing legacy flags on new observations: no longer persist `isDraft`, `isPrivate`, or `isStarred` on note creation. Aligns with admin cleanup to keep schemas consistent.
+- “View Note” actions in notifications now navigate to the student’s Timeline (all notes), not the Dashboard.
+- Titles clarified: Student Dashboard header shows "<Full Name>'s Dashboard"; Timeline header shows "<Full Name> Timeline".
+
+### Fixed
+- Admin seeding script no longer writes legacy flags to observations.
+
+## [3.5.4] - 2025-09-29
+
+### Fixed
+- Note deletion now removes the actual document by resolving its true parent path from collection group snapshots.
+- Note reassignment moves the document to the new student's subcollection and updates `studentId`/`classroomId`, then deletes the source.
+
+### Changed
+- “View Student Timeline” from note dialog opens the student’s Notes page directly.
+- “View Note” deep-link loads full student profile and sets the header to “<FirstName>’s Dashboard” for clarity.
+- Recipients step shows “Selected Students (N): name, name…” above the search field; removed the count chip and the bottom chip list.
+
+### Added
+- Reassign success notification includes the target student’s name and shows for 6s; “View Note” action jumps to that student’s Notes.
+- Undoing delete shows a brief confirmation banner “Undo Note Deletion Successful” (2s).
+
+## [3.5.3] - 2025-09-29
+
+### Added
+- “View Note” action on success notifications for note creation and reassignment; deep‑links to the student’s Notes via a global `navigateToStudentNotes` event handled in `App.jsx`.
+
+### Changed
+- Reassign flow: grey‑out and disable the current owner in the student picker with an explanatory note; confirmation dialog now shows the target student’s name (not an ID).
+
+### Fixed
+- Dialog heading semantics: avoid nested headings by rendering `DialogTitle` as a `div` and moving the `h2` to inner `Typography` (resolves hydration warnings).
+
+## [3.5.2] - 2025-09-28
+
+### Added
+- new pill feature shown for voice note (new language: malayalam)
+- stats page pie chart now shows percentage of notes within corresponding pie of the plot
+
 ## [3.5.1] - 2025-09-24
 
 ### Added

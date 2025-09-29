@@ -555,10 +555,7 @@ function AddNoteModal({
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
 
-          // Flags
-          isStarred: false,
-          isPrivate: false,
-          isDraft: false,
+          // Misc
           editCount: 0,
         };
 
@@ -596,7 +593,20 @@ function AddNoteModal({
         await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
       });
       await Promise.all(promises);
-      notify.success('Note created successfully!');
+      // Success notification with quick navigation to the student's Notes page
+      const firstStudentId = selectedStudents && selectedStudents.length > 0 ? selectedStudents[0] : null;
+      notify.success('Note created successfully!', {
+        actionLabel: firstStudentId ? 'View Note' : undefined,
+        onUndo: firstStudentId
+          ? () => {
+              try {
+                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: firstStudentId } }));
+              } catch (_) { /* noop */ }
+              // Close modal immediately if user chooses to view
+              handleClose();
+            }
+          : undefined,
+      });
       // Close modal after a short delay to show the success message
       setTimeout(() => {
         handleClose();

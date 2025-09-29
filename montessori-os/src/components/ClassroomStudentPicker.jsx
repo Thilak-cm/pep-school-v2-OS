@@ -45,7 +45,8 @@ function ClassroomStudentPicker({
   currentUser,
   userRole,
   textData,
-  onTextDataChange
+  onTextDataChange,
+  disabledStudentIds = [], // IDs to grey out and disable selection
 }) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -217,8 +218,12 @@ function ClassroomStudentPicker({
     return Object.values(grouped);
   }, [allStudents, classrooms]);
 
+  // Helper: is this student disabled?
+  const isDisabled = (studentId) => disabledStudentIds?.includes?.(studentId);
+
   // Handle student selection
   const handleStudentToggle = (studentId) => {
+    if (isDisabled(studentId)) return; // do nothing for disabled student
     const newSelected = selectedStudents.includes(studentId)
       ? selectedStudents.filter(id => id !== studentId)
       : [...selectedStudents, studentId];
@@ -478,17 +483,20 @@ function ClassroomStudentPicker({
 
       {/* Removed instructional divider for compactness on mobile */}
 
-      {/* Selected count only (remove heading text for space) */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1 }}>
-        {selectedStudents.length > 0 && (
-          <Chip 
-            label={`${selectedStudents.length} student${selectedStudents.length === 1 ? '' : 's'} selected`}
-            color="primary"
-            variant="filled"
-            size="small"
-          />
-        )}
-      </Box>
+      {/* Selected Students Summary (text-only) — shown above quick search */}
+      {selectedStudents.length > 0 && (
+        <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+            {(() => {
+              const names = selectedStudents
+                .map((id) => allStudents.find((s) => (s.id || s.uid) === id))
+                .filter(Boolean)
+                .map((s) => getStudentName(s));
+              return `Selected Students (${selectedStudents.length}): ${names.join(', ')}`;
+            })()}
+          </Typography>
+        </Box>
+      )}
 
       {/* Search Section (compact) */}
       <Box>
@@ -516,21 +524,35 @@ function ClassroomStudentPicker({
               Search Results:
             </Typography>
             <List dense>
-              {filteredStudents.map((student) => (
-                <ListItem key={student.id} disablePadding>
-                  <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
-                    <ListItemIcon>
-                      <Checkbox
-                        checked={selectedStudents.includes(student.id)}
-                        edge="start"
-                        tabIndex={-1}
-                        disableRipple
+              {filteredStudents.map((student) => {
+                const disabled = isDisabled(student.id);
+                return (
+                  <ListItem key={student.id} disablePadding>
+                    <ListItemButton
+                      dense
+                      onClick={() => handleStudentToggle(student.id)}
+                      disabled={disabled}
+                      sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    >
+                      <ListItemIcon>
+                        <Checkbox
+                          checked={selectedStudents.includes(student.id)}
+                          edge="start"
+                          tabIndex={-1}
+                          disableRipple
+                          disabled={disabled}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={disabled
+                          ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                          : getStudentName(student)}
+                        secondary={`${student.classroom_name}`}
                       />
-                    </ListItemIcon>
-                    <ListItemText primary={getStudentName(student)} secondary={`${student.classroom_name}`} />
-                  </ListItemButton>
-                </ListItem>
-              ))}
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
             </List>
             {filteredStudents.length === 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
@@ -587,21 +609,34 @@ function ClassroomStudentPicker({
                 {/* Students in Classroom */}
                 <Collapse in={isExpanded}>
                   <List dense sx={{ pl: 4 }}>
-                    {group.students.map((student) => (
-                      <ListItem key={student.id} disablePadding>
-                      <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
-                          <ListItemIcon>
-                            <Checkbox
-                            checked={selectedStudents.includes(student.id)}
-                              edge="start"
-                              tabIndex={-1}
-                              disableRipple
+                    {group.students.map((student) => {
+                      const disabled = isDisabled(student.id);
+                      return (
+                        <ListItem key={student.id} disablePadding>
+                          <ListItemButton
+                            dense
+                            onClick={() => handleStudentToggle(student.id)}
+                            disabled={disabled}
+                            sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                          >
+                            <ListItemIcon>
+                              <Checkbox
+                                checked={selectedStudents.includes(student.id)}
+                                edge="start"
+                                tabIndex={-1}
+                                disableRipple
+                                disabled={disabled}
+                              />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={disabled
+                                ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                : getStudentName(student)}
                             />
-                          </ListItemIcon>
-                          <ListItemText primary={getStudentName(student)} />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
+                          </ListItemButton>
+                        </ListItem>
+                      );
+                    })}
                   </List>
                 </Collapse>
               </Box>
@@ -610,28 +645,7 @@ function ClassroomStudentPicker({
         </List>
       </Box>
 
-      {/* Selected Students Summary */}
-      {selectedStudents.length > 0 && (
-        <Box sx={{ mt: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Selected Students ({selectedStudents.length}):
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {selectedStudents.map(studentId => {
-              const student = allStudents.find(s => (s.id || s.uid) === studentId);
-              return student ? (
-                <Chip
-                  key={studentId}
-                  label={getStudentName(student)}
-                  size="small"
-                  onDelete={() => handleStudentToggle(studentId)}
-                  deleteIcon={<Person />}
-                />
-              ) : null;
-            })}
-          </Box>
-        </Box>
-      )}
+      {/* Bottom summary removed to avoid redundancy */}
     </Box>
   );
 }

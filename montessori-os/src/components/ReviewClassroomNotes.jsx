@@ -371,10 +371,10 @@ function ReviewClassroomNotes({ currentUser }) {
           }
         }}
       >
-        <DialogTitle sx={{ pb: 2 }}>
+        <DialogTitle component="div" sx={{ pb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Download color="primary" />
-            <Typography variant="h6">Confirm Export</Typography>
+            <Typography component="h2" variant="h6">Confirm Export</Typography>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: 3 }}>
