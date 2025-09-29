@@ -5,6 +5,17 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.3] - 2025-09-29
+
+### Added
+- “View Note” action on success notifications for note creation and reassignment; deep‑links to the student’s Notes via a global `navigateToStudentNotes` event handled in `App.jsx`.
+
+### Changed
+- Reassign flow: grey‑out and disable the current owner in the student picker with an explanatory note; confirmation dialog now shows the target student’s name (not an ID).
+
+### Fixed
+- Dialog heading semantics: avoid nested headings by rendering `DialogTitle` as a `div` and moving the `h2` to inner `Typography` (resolves hydration warnings).
+
 ## [3.5.2] - 2025-09-28
 
 ### Added
