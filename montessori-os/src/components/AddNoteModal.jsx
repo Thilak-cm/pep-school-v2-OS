@@ -26,9 +26,8 @@ import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
-import { parseCoachResponse } from '../coach/parse';
-import { reviewNote } from '../coach/CoachService.mock';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
+import CoachNudge from '../coach/coach_nudge';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack }) {
@@ -51,193 +50,6 @@ function TextInput({ onSave, onNext, onBack }) {
     const manyCommas = (trimmed.match(/,/g) || []).length >= 3 && !/[.!?]/.test(trimmed);
     return words >= 5 && (startsLower || lacksPunct || manyCommas);
   };
-
-  // ----- Coach helpers (Milestone 1) -----
-  const resetCoach = () => {
-    setCoachOpen(false);
-    setCoachLoading(false);
-    setCoachLongRunning(false);
-    setCoachNudges([]);
-    setCoachSelections({});
-    if (coachAbortRef.current) {
-      try { coachAbortRef.current.abort(); } catch (_) {}
-      coachAbortRef.current = null;
-    }
-    if (coachTimersRef.current.long) clearTimeout(coachTimersRef.current.long);
-    if (coachTimersRef.current.hard) clearTimeout(coachTimersRef.current.hard);
-    coachTimersRef.current = { long: null, hard: null };
-  };
-
-  const coachActionRef = useRef(null);
-
-  function makeCoachContext() {
-    return {
-      student_age_band: null,
-      subject_tags: [],
-      teacher_first_name_token: null,
-      class_name: null,
-    };
-  }
-
-  const runCoachReview = async (noteText) => {
-    resetCoach();
-    setCoachOpen(true);
-    setCoachLoading(true);
-
-    const ac = new AbortController();
-    coachAbortRef.current = ac;
-    coachTimersRef.current.long = setTimeout(() => setCoachLongRunning(true), 5000);
-    const hardTimeout = new Promise((resolve) => {
-      coachTimersRef.current.hard = setTimeout(() => resolve({ nudges: [], _status: 'timeout' }), 10000);
-    });
-
-    try {
-      const resp = await Promise.race([
-        reviewNote(noteText, makeCoachContext(), { signal: ac.signal }),
-        hardTimeout,
-      ]);
-      const parsed = parseCoachResponse(resp);
-      setCoachLoading(false);
-      if (!parsed.nudges || parsed.nudges.length === 0) {
-        resetCoach();
-        return true;
-      }
-      setCoachNudges(parsed.nudges);
-      // Wait for user action via buttons below
-      return await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (coachActionRef.current != null) {
-            const v = coachActionRef.current;
-            coachActionRef.current = null;
-            clearInterval(interval);
-            resolve(v);
-          }
-        }, 50);
-      });
-    } catch (e) {
-      resetCoach();
-      return true;
-    }
-  };
-
-  const handleCoachSkip = () => {
-    coachActionRef.current = true; // proceed to save without changes
-    resetCoach();
-  };
-
-  const handleCoachApply = () => {
-    // Evidence: if one number provided, require both
-    const ev = coachSelections[NUDGE_IDS.EVIDENCE] || {};
-    const hasAttempts = Number.isInteger(ev.attempts);
-    const hasCorrect = Number.isInteger(ev.correct);
-    if ((hasAttempts && !hasCorrect) || (!hasAttempts && hasCorrect)) {
-      notify.warning('Please provide both # attempts and # correct, or leave both empty.');
-      return;
-    }
-    coachActionRef.current = true; // proceed to save with appended lines
-    setCoachOpen(false);
-  };
-
-  function humanizeDuration(chip) {
-    if (!chip) return '';
-    if (chip.endsWith('m+')) return chip.replace('m+', '+ min');
-    return chip.replace('m', ' min');
-  }
-
-  function buildAppendedLines() {
-    const out = [];
-    for (const n of coachNudges) {
-      const sel = coachSelections[n.id] || {};
-      switch (n.id) {
-        case NUDGE_IDS.DURATION: {
-          const range = sel.range || n.metadata?.duration_range;
-          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) out.push(`Duration: ${humanizeDuration(range)}`);
-          break;
-        }
-        case NUDGE_IDS.MODALITY: {
-          const m = sel.modality || n.metadata?.modality;
-          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) out.push(`Modality: ${m}`);
-          break;
-        }
-        case NUDGE_IDS.INDEPENDENCE: {
-          const g = sel.independence || n.metadata?.independence;
-          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) out.push(`Independence: ${g}`);
-          break;
-        }
-        case NUDGE_IDS.EVIDENCE: {
-          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
-          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
-          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
-          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
-            out.push(`Evidence: ${correct}/${attempts} correct`);
-          } else if (quote && String(quote).trim()) {
-            out.push(`Evidence: "${String(quote).trim()}"`);
-          }
-          break;
-        }
-        case NUDGE_IDS.SUBJECTIVE: {
-          const line = sel.objective_line || n.metadata?.objective_line;
-          if (line && String(line).trim()) out.push(`Objective note: ${String(line).trim()}`);
-          break;
-        }
-        default:
-          break;
-      }
-    }
-    return out;
-  }
-
-  function buildFinalText(original) {
-    if (!coachNudges.length) return original;
-    const lines = buildAppendedLines();
-    if (!lines.length) return original;
-    const sep = original.endsWith('\n') ? '' : '\n';
-    return `${original}${sep}${lines.join('\n')}`;
-  }
-
-  function buildCoachStructuredFields() {
-    const fields = {};
-    for (const n of coachNudges) {
-      const sel = coachSelections[n.id] || {};
-      switch (n.id) {
-        case NUDGE_IDS.DURATION: {
-          const range = sel.range || n.metadata?.duration_range;
-          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) fields.duration_range = range;
-          break;
-        }
-        case NUDGE_IDS.MODALITY: {
-          const m = sel.modality || n.metadata?.modality;
-          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) fields.modality = m;
-          break;
-        }
-        case NUDGE_IDS.INDEPENDENCE: {
-          const g = sel.independence || n.metadata?.independence;
-          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) fields.independence = g;
-          break;
-        }
-        case NUDGE_IDS.EVIDENCE: {
-          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
-          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
-          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
-          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
-            fields.evidence_attempts = attempts;
-            fields.evidence_correct = correct;
-          } else if (quote && String(quote).trim()) {
-            fields.evidence_quote = String(quote).trim();
-          }
-          break;
-        }
-        case NUDGE_IDS.SUBJECTIVE: {
-          const line = sel.objective_line || n.metadata?.objective_line;
-          if (line && String(line).trim()) fields.objective_line = String(line).trim();
-          break;
-        }
-        default:
-          break;
-      }
-    }
-    return fields;
-  }
 
   const handleTextChange = (event) => {
     const newText = event.target.value;
@@ -470,14 +282,151 @@ function AddNoteModal({
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-  // Coach UI state (Milestone 1)
+  // Coach UI state (Duration-only MVP)
   const [coachOpen, setCoachOpen] = useState(false);
-  const [coachLoading, setCoachLoading] = useState(false);
-  const [coachLongRunning, setCoachLongRunning] = useState(false);
   const [coachNudges, setCoachNudges] = useState([]);
   const [coachSelections, setCoachSelections] = useState({});
-  const coachAbortRef = useRef(null);
-  const coachTimersRef = useRef({ long: null, hard: null });
+
+  // ----- Coach helpers (moved to AddNoteModal scope) -----
+  const coachActionRef = useRef(null);
+
+  const resetCoach = () => {
+    setCoachOpen(false);
+    setCoachNudges([]);
+    setCoachSelections({});
+  };
+
+  const runCoachReview = async (noteText) => {
+    // Duration-only MVP: open nudge dialog and wait for user action
+    resetCoach();
+    setCoachOpen(true);
+    // Stash the note text in selections for preview use
+    setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
+    return await new Promise((resolve) => {
+      const interval = setInterval(() => {
+        if (coachActionRef.current != null) {
+          const v = coachActionRef.current;
+          coachActionRef.current = null;
+          clearInterval(interval);
+          resolve(v);
+        }
+      }, 50);
+    });
+  };
+
+  const handleCoachSkip = () => {
+    coachActionRef.current = { skipped: true }; // proceed to save without changes
+    resetCoach();
+  };
+
+  const handleCoachApplyDuration = ({ duration_range, updated_text }) => {
+    // Store selection so saving path can append
+    setCoachNudges([{ id: NUDGE_IDS.DURATION, metadata: { duration_range } }]);
+    setCoachSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: duration_range } }));
+    coachActionRef.current = { duration_range, updated_text };
+    setCoachOpen(false);
+  };
+
+  function humanizeDuration(chip) {
+    if (!chip) return '';
+    if (chip.endsWith('m+')) return chip.replace('m+', '+ min');
+    return chip.replace('m', ' min');
+  }
+
+  function buildAppendedLines() {
+    const out = [];
+    for (const n of coachNudges) {
+      const sel = coachSelections[n.id] || {};
+      switch (n.id) {
+        case NUDGE_IDS.DURATION: {
+          const range = sel.range || n.metadata?.duration_range;
+          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) out.push(`Duration: ${humanizeDuration(range)}`);
+          break;
+        }
+        case NUDGE_IDS.MODALITY: {
+          const m = sel.modality || n.metadata?.modality;
+          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) out.push(`Modality: ${m}`);
+          break;
+        }
+        case NUDGE_IDS.INDEPENDENCE: {
+          const g = sel.independence || n.metadata?.independence;
+          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) out.push(`Independence: ${g}`);
+          break;
+        }
+        case NUDGE_IDS.EVIDENCE: {
+          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
+          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
+          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
+          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
+            out.push(`Evidence: ${correct}/${attempts} correct`);
+          } else if (quote && String(quote).trim()) {
+            out.push(`Evidence: "${String(quote).trim()}"`);
+          }
+          break;
+        }
+        case NUDGE_IDS.SUBJECTIVE: {
+          const line = sel.objective_line || n.metadata?.objective_line;
+          if (line && String(line).trim()) out.push(`Objective note: ${String(line).trim()}`);
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return out;
+  }
+
+  function buildFinalText(original) {
+    if (!coachNudges.length) return original;
+    const lines = buildAppendedLines();
+    if (!lines.length) return original;
+    const sep = original.endsWith('\n') ? '' : '\n';
+    return `${original}${sep}${lines.join('\n')}`;
+  }
+
+  function buildCoachStructuredFields() {
+    const fields = {};
+    for (const n of coachNudges) {
+      const sel = coachSelections[n.id] || {};
+      switch (n.id) {
+        case NUDGE_IDS.DURATION: {
+          const range = sel.range || n.metadata?.duration_range;
+          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) fields.duration_range = range;
+          break;
+        }
+        case NUDGE_IDS.MODALITY: {
+          const m = sel.modality || n.metadata?.modality;
+          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) fields.modality = m;
+          break;
+        }
+        case NUDGE_IDS.INDEPENDENCE: {
+          const g = sel.independence || n.metadata?.independence;
+          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) fields.independence = g;
+          break;
+        }
+        case NUDGE_IDS.EVIDENCE: {
+          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
+          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
+          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
+          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
+            fields.evidence_attempts = attempts;
+            fields.evidence_correct = correct;
+          } else if (quote && String(quote).trim()) {
+            fields.evidence_quote = String(quote).trim();
+          }
+          break;
+        }
+        case NUDGE_IDS.SUBJECTIVE: {
+          const line = sel.objective_line || n.metadata?.objective_line;
+          if (line && String(line).trim()) fields.objective_line = String(line).trim();
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return fields;
+  }
 
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {
@@ -522,9 +471,14 @@ function AddNoteModal({
     }
 
     // If text note, run Coach review first
+    let coachResult = null;
     if (!transcriptionData && noteData && noteData.text) {
-      const proceed = await runCoachReview(noteData.text).catch(() => true);
-      if (!proceed) return; // user cancelled; do not continue
+      coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
+      if (!coachResult) return; // safety
+      if (coachResult.duration_range) {
+        setCoachNudges([{ id: NUDGE_IDS.DURATION, metadata: { duration_range: coachResult.duration_range } }]);
+        setCoachSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: coachResult.duration_range } }));
+      }
     }
 
     try {
@@ -535,6 +489,9 @@ function AddNoteModal({
         const studentDocSnap = await getDoc(studentDocRef);
         const studentData = studentDocSnap.data();
 
+        // Prefer exact preview text from the nudge dialog to avoid mismatch
+        let textToSave = coachResult?.updated_text || buildFinalText(noteData.text);
+
         const observationData = {
           // Identity
           studentId: stuId,
@@ -542,7 +499,7 @@ function AddNoteModal({
 
           // Content
           type: transcriptionData ? 'voice' : 'text',
-          text: buildFinalText(noteData.text),
+          text: textToSave,
           tags: [],
 
           // Timestamps
@@ -577,6 +534,9 @@ function AddNoteModal({
 
         // Coach structured fields (if any were selected)
         const coachFields = buildCoachStructuredFields();
+        if (coachResult?.duration_range) {
+          coachFields.duration_range = coachResult.duration_range;
+        }
         Object.assign(observationData, coachFields);
 
         // No default spoken language for text notes
@@ -856,112 +816,13 @@ function AddNoteModal({
         </Alert>
       </Snackbar>
 
-      {/* Coach overlay (Milestone 1) */}
+      {/* Coach nudge popup — duration-only MVP */}
       <Dialog open={coachOpen} onClose={handleCoachSkip} fullWidth maxWidth="sm">
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            {coachLoading ? 'Reviewing…' : 'Add helpful context?'}
-          </Typography>
-          {coachLoading && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <CircularProgress size={24} />
-              <Typography variant="body2" color="text.secondary">
-                {coachLongRunning ? 'Still reviewing… You can skip and save.' : 'Checking for helpful nudges'}
-              </Typography>
-            </Box>
-          )}
-          {!coachLoading && coachNudges.map((n) => (
-            <Box key={n.id} sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                {n.id.charAt(0).toUpperCase() + n.id.slice(1)}
-              </Typography>
-              {n.id === NUDGE_IDS.DURATION && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {CHIPS[NUDGE_IDS.DURATION].map((c) => (
-                    <Button
-                      key={c}
-                      size="small"
-                      variant={(coachSelections[NUDGE_IDS.DURATION]?.range || n.metadata?.duration_range) === c ? 'contained' : 'outlined'}
-                      onClick={() => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { ...(s[NUDGE_IDS.DURATION]||{}), range: c } }))}
-                    >
-                      {c}
-                    </Button>
-                  ))}
-                </Box>
-              )}
-              {n.id === NUDGE_IDS.MODALITY && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {CHIPS[NUDGE_IDS.MODALITY].map((c) => (
-                    <Button
-                      key={c}
-                      size="small"
-                      variant={(coachSelections[NUDGE_IDS.MODALITY]?.modality || n.metadata?.modality) === c ? 'contained' : 'outlined'}
-                      onClick={() => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.MODALITY]: { modality: c } }))}
-                    >
-                      {c}
-                    </Button>
-                  ))}
-                </Box>
-              )}
-              {n.id === NUDGE_IDS.INDEPENDENCE && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {CHIPS[NUDGE_IDS.INDEPENDENCE].map((c) => (
-                    <Button
-                      key={c}
-                      size="small"
-                      variant={(coachSelections[NUDGE_IDS.INDEPENDENCE]?.independence || n.metadata?.independence) === c ? 'contained' : 'outlined'}
-                      onClick={() => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.INDEPENDENCE]: { independence: c } }))}
-                    >
-                      {c}
-                    </Button>
-                  ))}
-                </Box>
-              )}
-              {n.id === NUDGE_IDS.EVIDENCE && (
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <TextField
-                    label="# attempts"
-                    size="small"
-                    type="number"
-                    inputProps={{ min: 0 }}
-                    defaultValue={n.metadata?.evidence_attempts ?? ''}
-                    onChange={(e) => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), attempts: parseInt(e.target.value, 10) } }))}
-                  />
-                  <TextField
-                    label="# correct"
-                    size="small"
-                    type="number"
-                    inputProps={{ min: 0 }}
-                    defaultValue={n.metadata?.evidence_correct ?? ''}
-                    onChange={(e) => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), correct: parseInt(e.target.value, 10) } }))}
-                  />
-                  <TextField
-                    label="Add quote"
-                    size="small"
-                    fullWidth
-                    defaultValue={n.metadata?.evidence_quote ?? ''}
-                    onChange={(e) => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), quote: e.target.value } }))}
-                  />
-                </Box>
-              )}
-              {n.id === NUDGE_IDS.SUBJECTIVE && (
-                <TextField
-                  label="Objective one-liner"
-                  size="small"
-                  fullWidth
-                  defaultValue={n.metadata?.objective_line ?? ''}
-                  onChange={(e) => setCoachSelections((s) => ({ ...s, [NUDGE_IDS.SUBJECTIVE]: { objective_line: e.target.value } }))}
-                />
-              )}
-            </Box>
-          ))}
-          {!coachLoading && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
-              <Button variant="text" onClick={handleCoachSkip}>Save without</Button>
-              <Button variant="contained" onClick={handleCoachApply}>Apply and Save</Button>
-            </Box>
-          )}
-        </Box>
+        <CoachNudge
+          noteText={coachSelections?._noteText || ''}
+          onSkip={handleCoachSkip}
+          onApply={handleCoachApplyDuration}
+        />
       </Dialog>
     </Dialog>
   );

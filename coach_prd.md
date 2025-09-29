@@ -25,7 +25,7 @@
     "student_age_band": "string|null",      
     "subject_tags": ["math"|"language"|"sensorial"|"culture"|"practical_life"|"other"],
     "teacher_first_name_token": "TEACHER_A|null",
-    "class_name": "string|null"
+    "classroomId": "string|null"
   }
 }
 ```

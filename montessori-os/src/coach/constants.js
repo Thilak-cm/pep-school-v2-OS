@@ -17,11 +17,11 @@ export const NUDGE_IDS = Object.freeze({
 
 // Microcopy keys by nudge type
 export const MICROCOPY_KEYS = Object.freeze({
-  [NUDGE_IDS.DURATION]: 'about_how_long',
-  [NUDGE_IDS.MODALITY]: 'how_was_this_done',
-  [NUDGE_IDS.INDEPENDENCE]: 'how_was_this_done', // per PRD; may split later
-  [NUDGE_IDS.EVIDENCE]: 'add_tiny_evidence',
-  [NUDGE_IDS.SUBJECTIVE]: 'objective_line_invite',
+  [NUDGE_IDS.DURATION]: "Looks like you're talking about an activity. What was its duration?",
+  [NUDGE_IDS.MODALITY]: "Any specific material used during this activity?",
+  [NUDGE_IDS.INDEPENDENCE]: "In what setting was this activity conducted?", // per PRD; may split later
+  [NUDGE_IDS.EVIDENCE]: "Please add some evidence to this observation if you can",
+  [NUDGE_IDS.SUBJECTIVE]: "Let's make this into an objective observation",
 });
 
 // Chips per category — exact strings, order matters.
