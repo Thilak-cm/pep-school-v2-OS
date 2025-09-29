@@ -5,6 +5,16 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.5] - 2025-09-29
+
+### Changed
+- Stop writing legacy flags on new observations: no longer persist `isDraft`, `isPrivate`, or `isStarred` on note creation. Aligns with admin cleanup to keep schemas consistent.
+- “View Note” actions in notifications now navigate to the student’s Timeline (all notes), not the Dashboard.
+- Titles clarified: Student Dashboard header shows "<Full Name>'s Dashboard"; Timeline header shows "<Full Name> Timeline".
+
+### Fixed
+- Admin seeding script no longer writes legacy flags to observations.
+
 ## [3.5.4] - 2025-09-29
 
 ### Fixed
