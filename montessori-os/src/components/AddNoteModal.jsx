@@ -350,10 +350,7 @@ function AddNoteModal({
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
 
-          // Flags
-          isStarred: false,
-          isPrivate: false,
-          isDraft: false,
+          // Misc
           editCount: 0,
         };
 
