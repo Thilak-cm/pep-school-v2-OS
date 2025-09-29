@@ -313,7 +313,17 @@ function StudentTimeline({ student, currentUser, userRole }) {
       setDetailDialogOpen(false);
       setSelectedObservation(null);
       setReassignSelectedStudents([]);
-      notify.success('Note reassigned', { duration: 2500, id: `reassign-${selectedObservation.id}` });
+      // Show success with quick jump to the new student's Notes page
+      notify.success('Note reassigned', {
+        duration: 2500,
+        id: `reassign-${selectedObservation.id}`,
+        actionLabel: 'View Note',
+        onUndo: () => {
+          try {
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+          } catch (_) { /* noop */ }
+        },
+      });
     } catch (error) {
       console.error('Error reassigning observation:', error);
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${selectedObservation?.id || 'unknown'}` });
@@ -696,8 +706,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
           }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6" color="error">
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6" color="error">
             Delete Note
           </Typography>
         </DialogTitle>
@@ -759,10 +769,10 @@ function StudentTimeline({ student, currentUser, userRole }) {
           }
         }}
       >
-        <DialogTitle sx={{ pb: 2 }}>
+        <DialogTitle component="div" sx={{ pb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Download color="secondary" />
-            <Typography variant="h6">
+            <Typography component="h2" variant="h6">
               Confirm Export
             </Typography>
           </Box>

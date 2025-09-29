@@ -446,7 +446,7 @@ function FeedbackTimeline() {
       >
         {selectedFeedback && (
           <>
-            <DialogTitle sx={{ pb: 1, pr: 1 }}>
+            <DialogTitle component="div" sx={{ pb: 1, pr: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {selectedFeedback.category && (
@@ -457,7 +457,7 @@ function FeedbackTimeline() {
                       variant="outlined"
                     />
                   )}
-                  <Typography variant="h6">
+                  <Typography component="h2" variant="h6">
                     Feedback Details
                   </Typography>
                 </Box>

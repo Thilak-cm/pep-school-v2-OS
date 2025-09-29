@@ -43,6 +43,25 @@ function App() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
 
+  // Global navigation: allow notifications to navigate to a student's Notes page
+  useEffect(() => {
+    const handleNavigateToStudentNotes = (e) => {
+      try {
+        const detail = e?.detail || {};
+        const studentId = detail.studentId || detail?.student?.id;
+        if (!studentId) return;
+        const studentLike = detail.student || { id: studentId };
+        setSelectedStudent(studentLike);
+        setScreen('timeline');
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Navigation event error', err);
+      }
+    };
+    window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+    return () => window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+  }, []);
+
   useEffect(() => {
     // Log runtime Firebase project configuration once on mount
     try {

@@ -45,7 +45,8 @@ function ClassroomStudentPicker({
   currentUser,
   userRole,
   textData,
-  onTextDataChange
+  onTextDataChange,
+  disabledStudentIds = [], // IDs to grey out and disable selection
 }) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -217,8 +218,12 @@ function ClassroomStudentPicker({
     return Object.values(grouped);
   }, [allStudents, classrooms]);
 
+  // Helper: is this student disabled?
+  const isDisabled = (studentId) => disabledStudentIds?.includes?.(studentId);
+
   // Handle student selection
   const handleStudentToggle = (studentId) => {
+    if (isDisabled(studentId)) return; // do nothing for disabled student
     const newSelected = selectedStudents.includes(studentId)
       ? selectedStudents.filter(id => id !== studentId)
       : [...selectedStudents, studentId];
@@ -516,21 +521,35 @@ function ClassroomStudentPicker({
               Search Results:
             </Typography>
             <List dense>
-              {filteredStudents.map((student) => (
-                <ListItem key={student.id} disablePadding>
-                  <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
-                    <ListItemIcon>
-                      <Checkbox
-                        checked={selectedStudents.includes(student.id)}
-                        edge="start"
-                        tabIndex={-1}
-                        disableRipple
+              {filteredStudents.map((student) => {
+                const disabled = isDisabled(student.id);
+                return (
+                  <ListItem key={student.id} disablePadding>
+                    <ListItemButton
+                      dense
+                      onClick={() => handleStudentToggle(student.id)}
+                      disabled={disabled}
+                      sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    >
+                      <ListItemIcon>
+                        <Checkbox
+                          checked={selectedStudents.includes(student.id)}
+                          edge="start"
+                          tabIndex={-1}
+                          disableRipple
+                          disabled={disabled}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={disabled
+                          ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                          : getStudentName(student)}
+                        secondary={`${student.classroom_name}`}
                       />
-                    </ListItemIcon>
-                    <ListItemText primary={getStudentName(student)} secondary={`${student.classroom_name}`} />
-                  </ListItemButton>
-                </ListItem>
-              ))}
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
             </List>
             {filteredStudents.length === 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
@@ -587,21 +606,34 @@ function ClassroomStudentPicker({
                 {/* Students in Classroom */}
                 <Collapse in={isExpanded}>
                   <List dense sx={{ pl: 4 }}>
-                    {group.students.map((student) => (
-                      <ListItem key={student.id} disablePadding>
-                      <ListItemButton dense onClick={() => handleStudentToggle(student.id)}>
-                          <ListItemIcon>
-                            <Checkbox
-                            checked={selectedStudents.includes(student.id)}
-                              edge="start"
-                              tabIndex={-1}
-                              disableRipple
+                    {group.students.map((student) => {
+                      const disabled = isDisabled(student.id);
+                      return (
+                        <ListItem key={student.id} disablePadding>
+                          <ListItemButton
+                            dense
+                            onClick={() => handleStudentToggle(student.id)}
+                            disabled={disabled}
+                            sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                          >
+                            <ListItemIcon>
+                              <Checkbox
+                                checked={selectedStudents.includes(student.id)}
+                                edge="start"
+                                tabIndex={-1}
+                                disableRipple
+                                disabled={disabled}
+                              />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={disabled
+                                ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                : getStudentName(student)}
                             />
-                          </ListItemIcon>
-                          <ListItemText primary={getStudentName(student)} />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
+                          </ListItemButton>
+                        </ListItem>
+                      );
+                    })}
                   </List>
                 </Collapse>
               </Box>
