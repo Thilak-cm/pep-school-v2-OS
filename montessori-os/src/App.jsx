@@ -216,9 +216,9 @@ function App() {
   else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
-  else if (screen === 'studentDashboard') pageTitle = `${getStudentFirstName(selectedStudent)}'s Dashboard`;
+  else if (screen === 'studentDashboard') pageTitle = `${getStudentDisplayName(selectedStudent)}'s Dashboard`;
   else if (screen === 'timeline') pageTitle = timelineTitleAsDashboard
-    ? `${getStudentFirstName(selectedStudent)}'s Dashboard`
+    ? `${getStudentDisplayName(selectedStudent)}'s Dashboard`
     : `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';

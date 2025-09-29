@@ -351,7 +351,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
         actionLabel: 'View Note',
         onUndo: () => {
           try {
-            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, titleAsDashboard: true } }));
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
           } catch (_) { /* noop */ }
         },
       });
