@@ -246,6 +246,14 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     return fuzzySearchStudents(classroomStudents, searchQuery);
   }, [classroomStudents, searchQuery]);
 
+  // Alphabetically sort filtered students by display name for the Students tab
+  const sortedFilteredStudents = useMemo(() => {
+    const getName = (s) => (
+      s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || ''
+    ).trim();
+    return [...filteredStudents].sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
+  }, [filteredStudents]);
+
   // Filter notes based on search query (only show notes from students whose names match)
   const filteredNotes = useMemo(() => {
     if (!searchQuery || !searchQuery.trim()) {
@@ -578,12 +586,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
           {/* Students Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {filteredStudents.length} students in {classroom.name}
+              {sortedFilteredStudents.length} students in {classroom.name}
             </Typography>
           </Box>
 
           {/* Students List */}
-          {filteredStudents.length === 0 ? (
+          {sortedFilteredStudents.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students found matching "${searchQuery}"` : 'No students found in this classroom'}
@@ -591,7 +599,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {filteredStudents.map((student) => (
+              {sortedFilteredStudents.map((student) => (
                 <ClassroomStudentCard
                   key={student.id}
                   student={student}
