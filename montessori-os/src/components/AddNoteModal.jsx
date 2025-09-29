@@ -394,7 +394,7 @@ function AddNoteModal({
         onUndo: firstStudentId
           ? () => {
               try {
-                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: firstStudentId } }));
+                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: firstStudentId, titleAsDashboard: true } }));
               } catch (_) { /* noop */ }
               // Close modal immediately if user chooses to view
               handleClose();

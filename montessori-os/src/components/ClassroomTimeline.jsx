@@ -120,6 +120,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
         const unsubscribe = onSnapshot(notesQuery, (snapshot) => {
           const notes = snapshot.docs.map(doc => ({
             id: doc.id,
+            parentStudentId: doc.ref.parent?.parent?.id,
+            docPath: doc.ref.path,
             ...doc.data()
           }));
           setClassroomNotes(notes);

@@ -483,17 +483,20 @@ function ClassroomStudentPicker({
 
       {/* Removed instructional divider for compactness on mobile */}
 
-      {/* Selected count only (remove heading text for space) */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1 }}>
-        {selectedStudents.length > 0 && (
-          <Chip 
-            label={`${selectedStudents.length} student${selectedStudents.length === 1 ? '' : 's'} selected`}
-            color="primary"
-            variant="filled"
-            size="small"
-          />
-        )}
-      </Box>
+      {/* Selected Students Summary (text-only) — shown above quick search */}
+      {selectedStudents.length > 0 && (
+        <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+            {(() => {
+              const names = selectedStudents
+                .map((id) => allStudents.find((s) => (s.id || s.uid) === id))
+                .filter(Boolean)
+                .map((s) => getStudentName(s));
+              return `Selected Students (${selectedStudents.length}): ${names.join(', ')}`;
+            })()}
+          </Typography>
+        </Box>
+      )}
 
       {/* Search Section (compact) */}
       <Box>
@@ -642,28 +645,7 @@ function ClassroomStudentPicker({
         </List>
       </Box>
 
-      {/* Selected Students Summary */}
-      {selectedStudents.length > 0 && (
-        <Box sx={{ mt: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Selected Students ({selectedStudents.length}):
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {selectedStudents.map(studentId => {
-              const student = allStudents.find(s => (s.id || s.uid) === studentId);
-              return student ? (
-                <Chip
-                  key={studentId}
-                  label={getStudentName(student)}
-                  size="small"
-                  onDelete={() => handleStudentToggle(studentId)}
-                  deleteIcon={<Person />}
-                />
-              ) : null;
-            })}
-          </Box>
-        </Box>
-      )}
+      {/* Bottom summary removed to avoid redundancy */}
     </Box>
   );
 }

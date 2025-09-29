@@ -28,7 +28,7 @@ import {
   Visibility
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
-import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
@@ -107,7 +107,8 @@ function NoteExpansionDialog({
       actionLabel: 'Undo',
       onFinalize: async () => {
         try {
-          await deleteDoc(doc(db, 'students', obs.studentId, 'observations', obs.id));
+          const parentId = obs.parentStudentId || obs.studentId;
+          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
           console.error('Error deleting observation:', error);
@@ -115,7 +116,7 @@ function NoteExpansionDialog({
         }
       },
       onUndo: () => {
-        notify.info('Deletion canceled', { id: notifId, duration: 2000 });
+        notify.success('Undo Note Deletion Successful', { id: `${notifId}-undo`, duration: 2000 });
       },
       duration: 6000,
       variant: 'warning',
@@ -213,25 +214,42 @@ function NoteExpansionDialog({
     try {
       setReassigning(true);
       const newStudentId = reassignSelectedStudents[0];
-      
-      await updateDoc(doc(db, 'students', observation.studentId, 'observations', observation.id), {
+      const oldParentId = observation.parentStudentId || observation.studentId;
+      const srcRef = doc(db, 'students', oldParentId, 'observations', observation.id);
+      const srcSnap = await getDoc(srcRef);
+      if (!srcSnap.exists()) throw new Error('Source observation not found');
+
+      const srcData = srcSnap.data() || {};
+      // Fetch target student's classroomId for denorm
+      let targetClassroomId = srcData.classroomId;
+      try {
+        const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
+        targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
+      } catch (_) { /* noop */ }
+
+      const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
+      const newData = {
+        ...srcData,
         studentId: newStudentId,
+        classroomId: targetClassroomId,
         updatedAt: serverTimestamp(),
         lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp()
-      });
+        lastEditedAt: serverTimestamp(),
+      };
+      await setDoc(destRef, newData);
+      await deleteDoc(srcRef);
 
       // Close all dialogs
       setReassignConfirmOpen(false);
       handleCloseDialog();
       // Show success with quick jump to the new student's Notes page
-      notify.success('Note reassigned', {
-        duration: 2500,
+      notify.success(reassignToStudentName ? `Note reassigned to ${reassignToStudentName}` : 'Note reassigned', {
+        duration: 6000,
         id: `reassign-${observation.id}`,
         actionLabel: 'View Note',
         onUndo: () => {
           try {
-            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId, titleAsDashboard: true } }));
           } catch (_) { /* noop */ }
         },
       });
@@ -249,7 +267,13 @@ function NoteExpansionDialog({
   };
 
   const handleViewStudentTimeline = () => {
-    if (onNavigateToStudent && student) {
+    if (student?.id) {
+      try {
+        window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: student.id, student } }));
+      } catch (_) { /* noop */ }
+      handleCloseDialog();
+    } else if (onNavigateToStudent && student) {
+      // Fallback for environments without the global handler
       onNavigateToStudent(student);
       handleCloseDialog();
     }

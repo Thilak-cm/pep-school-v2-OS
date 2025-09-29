@@ -44,6 +44,8 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
 
   // Global navigation: allow notifications to navigate to a student's Notes page
+  const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
+
   useEffect(() => {
     const handleNavigateToStudentNotes = (e) => {
       try {
@@ -53,6 +55,26 @@ function App() {
         const studentLike = detail.student || { id: studentId };
         setSelectedStudent(studentLike);
         setScreen('timeline');
+        if (detail.titleAsDashboard) setTimelineTitleAsDashboard(true);
+
+        // Best effort: fetch full student profile to populate names for header/dialogs
+        // Only fetch if we don't already have a name/displayName/firstName
+        const hasName = !!(studentLike?.name || studentLike?.displayName || studentLike?.firstName || studentLike?.lastName);
+        if (!hasName) {
+          (async () => {
+            try {
+              const ref = doc(db, 'students', studentId);
+              const snap = await getDoc(ref);
+              if (snap.exists()) {
+                const data = snap.data() || {};
+                setSelectedStudent({ id: studentId, ...data });
+              }
+            } catch (err) {
+              // eslint-disable-next-line no-console
+              console.warn('Failed to load student details for header:', err);
+            }
+          })();
+        }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Navigation event error', err);
@@ -61,6 +83,13 @@ function App() {
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     return () => window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
   }, []);
+
+  // Reset title override when leaving timeline
+  useEffect(() => {
+    if (screen !== 'timeline' && timelineTitleAsDashboard) {
+      setTimelineTitleAsDashboard(false);
+    }
+  }, [screen, timelineTitleAsDashboard]);
 
   useEffect(() => {
     // Log runtime Firebase project configuration once on mount
@@ -188,7 +217,9 @@ function App() {
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'studentDashboard') pageTitle = `${getStudentFirstName(selectedStudent)}'s Dashboard`;
-  else if (screen === 'timeline') pageTitle = `${getStudentDisplayName(selectedStudent)} Timeline`;
+  else if (screen === 'timeline') pageTitle = timelineTitleAsDashboard
+    ? `${getStudentFirstName(selectedStudent)}'s Dashboard`
+    : `${getStudentDisplayName(selectedStudent)} Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
