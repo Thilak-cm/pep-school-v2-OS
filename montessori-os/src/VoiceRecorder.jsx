@@ -50,6 +50,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const [audioUrl, setAudioUrl] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -88,6 +89,36 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   }, []);
 
   const notify = useNotify();
+
+  const startTimer = () => {
+    // Start or resume the recording timer
+    timerRef.current = setInterval(() => {
+      setRecordingTime((prevTime) => {
+        const newTime = prevTime + 1;
+
+        // Show warning at 4:45 (285 seconds)
+        if (newTime === 285) {
+          setShowTimeLimitWarning(true);
+        }
+
+        // Auto-stop at 5 minutes
+        if (newTime >= MAX_RECORDING_TIME) {
+          stopRecording();
+          notify.info('Recording stopped at 5 minutes. Transcribing…', { id: 'record-autostop', duration: 4000 });
+          return MAX_RECORDING_TIME;
+        }
+
+        return newTime;
+      });
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -153,29 +184,12 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
       // Start recording
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      setIsPaused(false);
       setRecordingTime(0);
       setShowTimeLimitWarning(false);
 
       // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prevTime) => {
-          const newTime = prevTime + 1;
-          
-          // Show warning at 4:45 (285 seconds)
-          if (newTime === 285) {
-            setShowTimeLimitWarning(true);
-          }
-          
-          // Auto-stop at 5 minutes
-          if (newTime >= MAX_RECORDING_TIME) {
-            stopRecording();
-            notify.info('Recording stopped at 5 minutes. Transcribing…', { id: 'record-autostop', duration: 4000 });
-            return MAX_RECORDING_TIME;
-          }
-          
-          return newTime;
-        });
-      }, 1000);
+      startTimer();
 
     } catch (error) {
       console.error('Error accessing microphone:', error);
@@ -195,10 +209,31 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      setIsPaused(false);
+      stopTimer();
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording && !isPaused && typeof mediaRecorderRef.current.pause === 'function') {
+      try {
+        mediaRecorderRef.current.pause();
+        setIsPaused(true);
+        stopTimer();
+      } catch (e) {
+        console.error('Pause not supported in this browser:', e);
+      }
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isRecording && isPaused && typeof mediaRecorderRef.current.resume === 'function') {
+      try {
+        mediaRecorderRef.current.resume();
+        setIsPaused(false);
+        startTimer();
+      } catch (e) {
+        console.error('Resume not supported in this browser:', e);
       }
     }
   };
@@ -448,9 +483,9 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
                 sx={{
                   width: '12px',
                   height: '12px',
-                  backgroundColor: '#dc2626',
+                  backgroundColor: isPaused ? '#94a3b8' : '#dc2626',
                   borderRadius: '50%',
-                  animation: 'pulse 2s ease-in-out infinite',
+                  animation: isPaused ? 'none' : 'pulse 2s ease-in-out infinite',
                   '@keyframes pulse': {
                     '0%, 100%': {
                       opacity: 1,
@@ -465,18 +500,18 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
               />
               <Typography
                 sx={{
-                  color: '#dc2626',
+                  color: isPaused ? '#64748b' : '#dc2626',
                   fontSize: '0.9rem',
                   fontWeight: '500'
                 }}
               >
-                Recording...
+                {isPaused ? 'Paused' : 'Recording...'}
               </Typography>
             </Box>
           )}
 
           {/* Time Limit Warning */}
-          {showTimeLimitWarning && isRecording && (
+          {showTimeLimitWarning && isRecording && !isPaused && (
             <Alert 
               severity="warning" 
               sx={{ 
@@ -523,28 +558,82 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
                 Start Recording
               </Button>
             ) : (
-              <Button
-                variant="contained"
-                onClick={stopRecording}
-                startIcon={<Stop />}
-                sx={{
-                  backgroundColor: '#dc2626',
-                  color: 'white',
-                  padding: '16px 32px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: '#b91c1c',
-                    transform: 'translateY(-1px)',
-                  },
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                Stop Recording
-              </Button>
+              <>
+                {/* Pause/Resume button (if supported) */}
+                {mediaRecorderRef.current && typeof mediaRecorderRef.current.pause === 'function' && typeof mediaRecorderRef.current.resume === 'function' && (
+                  isPaused ? (
+                    <Button
+                      variant="contained"
+                      onClick={resumeRecording}
+                      startIcon={<PlayArrow />}
+                      sx={{
+                        backgroundColor: '#0ea5e9',
+                        color: 'white',
+                        padding: '12px 24px',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        borderRadius: '12px',
+                        boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: '#0284c7',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Resume
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      onClick={pauseRecording}
+                      startIcon={<Pause />}
+                      sx={{
+                        borderColor: '#64748b',
+                        color: '#64748b',
+                        padding: '12px 24px',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        borderRadius: '12px',
+                        textTransform: 'none',
+                        '&:hover': {
+                          borderColor: '#475569',
+                          color: '#475569',
+                          transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Pause
+                    </Button>
+                  )
+                )}
+
+                {/* Stop button */}
+                <Button
+                  variant="contained"
+                  onClick={stopRecording}
+                  startIcon={<Stop />}
+                  sx={{
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    padding: '12px 24px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: '#b91c1c',
+                      transform: 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Stop
+                </Button>
+              </>
             )}
           </Box>
         </Box>
