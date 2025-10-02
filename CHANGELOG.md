@@ -5,6 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.1] - 2025-10-02
+
+### Removed
+- Language picker and language filter across the app.
+
+### Changed
+- Voice labels simplified to “Voice Note” (removed language-specific labels).
+- Note details and Stats no longer reference spoken language.
+
+### Technical
+- Purged `filters.languages` and related logic; removed `languageName` helpers.
+- Retained STT `languageCode` hints internally only (no UI exposure).
+
 ## [3.7.0] - 2025-10-02
 
 ### Added
