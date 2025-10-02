@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2025-10-02
+
+### Added
+- Voice Recorder: Pause and Resume controls during recording using the MediaRecorder API (with capability checks). The timer now pauses/resumes alongside recording so the 5‑minute auto‑stop applies to active recording time only.
+
+### Changed
+- Voice Recorder: recording action label shortened from "Stop Recording" to "Stop" for simpler, media‑style controls.
+- When paused, the recording indicator turns grey and the 15‑second pre‑limit warning is hidden until recording resumes.
+
+### Notes
+- No schema or API changes. Transcription flow and MIME type selection remain unchanged.
+
 ## [3.5.5] - 2025-09-29
 
 ### Changed
