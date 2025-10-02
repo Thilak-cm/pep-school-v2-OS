@@ -44,7 +44,7 @@ import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 // MenuItem no longer needed (language selection removed)
 
-const VoiceRecorder = ({ onSave, onNext, onBack }) => {
+const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -57,6 +57,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const [transcriptionError, setTranscriptionError] = useState('');
   const [showTimeLimitWarning, setShowTimeLimitWarning] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0, message: '' });
+  const [pauseReason, setPauseReason] = useState(null); // 'exit' | null
   
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -76,6 +77,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const audioRef = useRef(null);
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const discardRef = useRef(false); // when true, discard audio on stop
 
   const MAX_RECORDING_TIME = 300; // 5 minutes (300 seconds)
 
@@ -120,6 +122,50 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
     }
   };
 
+  // Report dirty state to parent when any relevant state changes
+  useEffect(() => {
+    if (typeof onDirtyChange === 'function') {
+      const dirty = (
+        isRecording ||
+        recordingTime > 0 ||
+        !!audioBlob ||
+        !!transcription ||
+        isEditing
+      );
+      onDirtyChange(dirty);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording, recordingTime, audioBlob, transcription, isEditing]);
+
+  // Expose imperative controls to parent for pause/cancel
+  useEffect(() => {
+    if (typeof exposeControls === 'function') {
+      exposeControls({
+        pauseIfRecording: () => { if (isRecording && !isPaused) pauseRecording(); },
+        pauseForExit: () => { if (isRecording && !isPaused) { setPauseReason('exit'); pauseRecording(); }},
+        pauseRecording,
+        resumeRecording,
+        stopRecording,
+        getState: () => ({ isRecording, isPaused }),
+        cancelRecording: () => {
+          try {
+            if (mediaRecorderRef.current && isRecording) {
+              discardRef.current = true;
+              mediaRecorderRef.current.stop();
+              setIsRecording(false);
+              setIsPaused(false);
+              setPauseReason(null);
+              stopTimer();
+            } else {
+              resetRecording();
+            }
+          } catch (_) { /* no-op */ }
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording, isPaused]);
+
   const startRecording = async () => {
     try {
       // Request microphone access with specific constraints
@@ -159,6 +205,16 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
 
       // Handle stop event
       mediaRecorderRef.current.onstop = () => {
+        // Always stop all audio tracks
+        try { stream.getTracks().forEach(track => track.stop()); } catch (_) {}
+
+        // If discarding, skip blob creation and transcription
+        if (discardRef.current) {
+          audioChunksRef.current = [];
+          discardRef.current = false;
+          return;
+        }
+
         // Use the actual MIME type from MediaRecorder or default to webm
         const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm;codecs=opus';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
@@ -176,15 +232,13 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
         
         // Automatically start transcription
         handleTranscription(audioBlob);
-        
-        // Stop all audio tracks
-        stream.getTracks().forEach(track => track.stop());
       };
 
       // Start recording
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setIsPaused(false);
+      setPauseReason(null);
       setRecordingTime(0);
       setShowTimeLimitWarning(false);
 
@@ -210,6 +264,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
+      setPauseReason(null);
       stopTimer();
     }
   };
@@ -231,6 +286,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
       try {
         mediaRecorderRef.current.resume();
         setIsPaused(false);
+        setPauseReason(null);
         startTimer();
       } catch (e) {
         console.error('Resume not supported in this browser:', e);
@@ -263,6 +319,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
     setTranscriptionError('');
     setShowTimeLimitWarning(false);
     setTranscriptionProgress({ current: 0, total: 0, message: '' });
+    setPauseReason(null);
     
     // Reset edit mode state
     setIsEditing(false);
@@ -523,6 +580,16 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
               }}
             >
               Recording will stop automatically in 15 seconds. Please finish your observation.
+            </Alert>
+          )}
+
+          {/* Paused notice triggered by exit flow */}
+          {isRecording && isPaused && pauseReason === 'exit' && (
+            <Alert
+              severity="info"
+              sx={{ mb: 2, borderRadius: 2, '& .MuiAlert-message': { fontSize: '0.85rem' } }}
+            >
+              Voice note paused because you started to exit. Don't forget to resume before you resume talking!
             </Alert>
           )}
 
