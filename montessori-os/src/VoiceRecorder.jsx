@@ -43,7 +43,6 @@ import {
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 // MenuItem no longer needed (language selection removed)
-import NewFeaturePill from './components/NewFeaturePill';
 
 const VoiceRecorder = ({ onSave, onNext, onBack }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -374,10 +373,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack }) => {
         >
           Voice Recorder
         </Typography>
-        {/* New language announcement */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-          <NewFeaturePill label="New language: Malayalam" size="sm" />
-        </Box>
+        {/* Removed new feature pill (feature is no longer new) */}
         {(!isRecording && !audioUrl && !transcription) && (
           <Typography
             variant="body1"
