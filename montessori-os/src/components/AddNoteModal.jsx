@@ -319,11 +319,8 @@ function AddNoteModal({
     resetCoach();
   };
 
-  const handleCoachApplyDuration = ({ duration_range, updated_text }) => {
-    // Store selection so saving path can append
-    setCoachNudges([{ id: NUDGE_IDS.DURATION, metadata: { duration_range } }]);
-    setCoachSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: duration_range } }));
-    coachActionRef.current = { duration_range, updated_text };
+  const handleCoachApply = ({ updated_text, selections }) => {
+    coachActionRef.current = { updated_text, selections };
     setCoachOpen(false);
   };
 
@@ -475,10 +472,6 @@ function AddNoteModal({
     if (!transcriptionData && noteData && noteData.text) {
       coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
       if (!coachResult) return; // safety
-      if (coachResult.duration_range) {
-        setCoachNudges([{ id: NUDGE_IDS.DURATION, metadata: { duration_range: coachResult.duration_range } }]);
-        setCoachSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: coachResult.duration_range } }));
-      }
     }
 
     try {
@@ -533,10 +526,7 @@ function AddNoteModal({
         }
 
         // Coach structured fields (if any were selected)
-        const coachFields = buildCoachStructuredFields();
-        if (coachResult?.duration_range) {
-          coachFields.duration_range = coachResult.duration_range;
-        }
+        let coachFields = coachResult?.selections ? { ...coachResult.selections } : buildCoachStructuredFields();
         Object.assign(observationData, coachFields);
 
         // No default spoken language for text notes
@@ -821,7 +811,7 @@ function AddNoteModal({
         <CoachNudge
           noteText={coachSelections?._noteText || ''}
           onSkip={handleCoachSkip}
-          onApply={handleCoachApplyDuration}
+          onApply={handleCoachApply}
         />
       </Dialog>
     </Dialog>
