@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2025-10-02
+
+### Added
+- Confirm-on-exit flow for Add Note with dirty checks: prompts on backdrop click, ESC, close (X), and Back actions. Adds browser leave-site warning when there is progress.
+
+### Changed
+- Voice Recorder integration: when the exit prompt appears during recording, auto‑pause the recording and show an inline paused notice in the recorder panel only (no message in the confirm dialog). Discard cancels recording without creating a blob/transcription.
+
+### Technical
+- Dirty rules: Text (any character typed), Voice (recording started, audio blob/transcript, or edit mode), Recipients (always considered in progress).
+- Wiring between `AddNoteModal` and `VoiceRecorder` via `onDirtyChange` and `exposeControls`; adds a discard path that skips transcription.
+
 ## [3.6.0] - 2025-10-02
 
 ### Added
