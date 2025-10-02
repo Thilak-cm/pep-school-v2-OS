@@ -42,17 +42,6 @@ import {
 
 function StudentTimeline({ student, currentUser, userRole }) {
   const notify = useNotify();
-  const languageName = (code) => {
-    if (!code) return null;
-    const v = String(code).toLowerCase();
-    const base = v.includes('-') ? v.split('-')[0] : v;
-    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
-    if (map[base]) return map[base];
-    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
-      return base.charAt(0).toUpperCase() + base.slice(1);
-    }
-    return code;
-  };
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
@@ -625,7 +614,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
                       }}
                       aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
                     >
-                      {/* Note Type Indicator - Top Right (language-aware for voice) */}
+                      {/* Note Type Indicator - Top Right */}
                       {(() => {
                         const isVoice = obs.type === 'voice';
                         const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -633,7 +622,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
                                                ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
                                                : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
                         const label = isVoice
-                          ? `${languageName(obs.spokenLanguage || obs.languageCode) || 'Voice'} Voice Note`
+                          ? 'Voice Note'
                           : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
                         return (
                           <Box sx={{

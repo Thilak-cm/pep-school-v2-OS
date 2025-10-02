@@ -331,37 +331,8 @@ const StatsPage = ({ user, role, onBack }) => {
           sampleText: textNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration }))
         });
 
-        // Voice language distribution
-        const languageName = (code) => {
-          if (!code) return 'Other';
-          const v = String(code).toLowerCase();
-          const base = v.includes('-') ? v.split('-')[0] : v;
-          const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
-          if (map[base]) return map[base];
-          if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
-            return base.charAt(0).toUpperCase() + base.slice(1);
-          }
-          return 'Other';
-        };
-
-        const langCounts = new Map();
-        voiceNotes.forEach((obs) => {
-          const lang = languageName(obs.spokenLanguage || obs.languageCode);
-          langCounts.set(lang, (langCounts.get(lang) || 0) + 1);
-        });
-
-        const LANG_COLORS = {
-          English: '#4f46e5',
-          Hindi: '#f59e0b',
-          Tamil: '#8b5cf6',
-          Kannada: '#06b6d4',
-          Telugu: '#ec4899',
-          Other: '#94a3b8'
-        };
-
-        const voiceLanguageDistribution = Array.from(langCounts.entries())
-          .sort((a, b) => b[1] - a[1])
-          .map(([name, value]) => ({ name, value, color: LANG_COLORS[name] || '#94a3b8' }));
+        // Voice language distribution removed
+        const voiceLanguageDistribution = [];
 
         // Calculate classroom performance
         const classroomStats = classroomsData.map(classroom => {
