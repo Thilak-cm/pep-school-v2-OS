@@ -67,8 +67,30 @@ service cloud.firestore {
         // Allow creating observations for both admins and teachers
         allow create: if isAdmin() || isTeacher();
         
-        // Only admins can update/delete
-        allow update, delete: if isAdmin();
+        // Updates: allow admins, or allow creators to update limited metadata fields
+        allow update: if isAdmin() || (
+          isTeacher() &&
+          (
+            // Author-only updates with restricted field changes
+            resource.data.createdBy == request.auth.uid ||
+            resource.data.teacherId == request.auth.uid
+          ) &&
+          // Only allow non-destructive metadata changes (e.g., edit metadata)
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'updatedAt',
+            'lastEditedBy',
+            'lastEditedAt'
+          ])
+        );
+
+        // Allow delete by admins OR by the author (to enable reassign by author)
+        allow delete: if isAdmin() || (
+          isTeacher() && (
+            // Support both current 'createdBy' and legacy 'teacherId'
+            resource.data.createdBy == request.auth.uid ||
+            resource.data.teacherId == request.auth.uid
+          )
+        );
       }
     }
 
