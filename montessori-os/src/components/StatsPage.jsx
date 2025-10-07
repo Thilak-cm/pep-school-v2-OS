@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -511,6 +511,32 @@ const StatsPage = ({ user, role, onBack }) => {
     setSelectedStudents([]);
   };
 
+  // Compute Activity Trend count based on selected timePeriod
+  const getObservationDateFast = (obs) => {
+    if (obs?.observedAt?.toDate) return obs.observedAt.toDate();
+    if (obs?.createdAt?.toDate) return obs.createdAt.toDate();
+    if (obs?.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+    if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+    return new Date(0);
+  };
+
+  const activityCount = useMemo(() => {
+    const list = stats?.allObservations || [];
+    const now = new Date();
+    let days = 7; // default 1W
+    switch (timePeriod) {
+      case '1D': days = 1; break;
+      case '1W': days = 7; break;
+      case '1M': days = 30; break;
+      case '3M': days = 90; break;
+      case '6M': days = 180; break;
+      case '1Y': days = 365; break;
+      default: days = 7;
+    }
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return list.filter(o => getObservationDateFast(o) >= start).length;
+  }, [stats?.allObservations, timePeriod]);
+
   const getFilterSummary = () => {
     const filters = [];
     
@@ -805,178 +831,7 @@ const StatsPage = ({ user, role, onBack }) => {
     </Card>
   );
 
-  const TabNavigationGrid = () => (
-    <Grid container spacing={2} sx={{ mb: 3 }}>
-      {/* Overview Tab */}
-      <Grid item xs={6}>
-        <Card 
-          sx={{ 
-            borderRadius: 2,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: activeTab === 0 ? '2px solid' : '1px solid',
-            borderColor: activeTab === 0 ? 'primary.main' : '#e2e8f0',
-            backgroundColor: activeTab === 0 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-            }
-          }}
-          onClick={() => handleTabChange(null, 0)}
-        >
-          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <BarChart sx={{ 
-              fontSize: 32, 
-              color: activeTab === 0 ? 'primary.main' : 'text.secondary',
-              mb: 1 
-            }} />
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontWeight: 600,
-                color: activeTab === 0 ? 'primary.main' : 'text.primary'
-              }}
-            >
-              Overview
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Classrooms Tab */}
-      <Grid item xs={6}>
-        <Card 
-          sx={{ 
-            borderRadius: 2,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: activeTab === 1 ? '2px solid' : '1px solid',
-            borderColor: activeTab === 1 ? 'primary.main' : '#e2e8f0',
-            backgroundColor: activeTab === 1 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-            }
-          }}
-          onClick={() => handleTabChange(null, 1)}
-        >
-          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <School sx={{ 
-              fontSize: 32, 
-              color: activeTab === 1 ? 'primary.main' : 'text.secondary',
-              mb: 1 
-            }} />
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontWeight: 600,
-                color: activeTab === 1 ? 'primary.main' : 'text.primary'
-              }}
-            >
-              Classrooms
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Teachers Tab - Only show for admins */}
-      {role !== 'teacher' && (
-        <Grid item xs={6}>
-          <Card 
-            sx={{ 
-              borderRadius: 2,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              border: activeTab === 2 ? '2px solid' : '1px solid',
-              borderColor: activeTab === 2 ? 'primary.main' : '#e2e8f0',
-                          backgroundColor: activeTab === 2 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }
-            }}
-            onClick={() => handleTabChange(null, 2)}
-          >
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <People sx={{ 
-                fontSize: 32, 
-                color: activeTab === 2 ? 'primary.main' : 'text.secondary',
-                mb: 1 
-              }} />
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 600,
-                  color: activeTab === 2 ? 'primary.main' : 'text.primary'
-                }}
-              >
-                Teachers
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-
-      {/* Students Tab - Only show for admins */}
-      {role !== 'teacher' && (
-        <Grid item xs={6}>
-          <Card 
-            sx={{ 
-              borderRadius: 2,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              border: activeTab === 3 ? '2px solid' : '1px solid',
-              borderColor: activeTab === 3 ? 'primary.main' : '#e2e8f0',
-                          backgroundColor: activeTab === 3 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }
-            }}
-            onClick={() => handleTabChange(null, 3)}
-          >
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <People sx={{ 
-                fontSize: 32, 
-                color: activeTab === 3 ? 'primary.main' : 'text.secondary',
-                mb: 1 
-              }} />
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 600,
-                  color: activeTab === 3 ? 'primary.main' : 'text.primary'
-                }}
-              >
-                Students
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-
-      {/* For teachers, show a placeholder in the bottom right to maintain grid layout */}
-      {role === 'teacher' && (
-        <Grid item xs={6}>
-          <Card sx={{ 
-            borderRadius: 2,
-            backgroundColor: 'grey.50',
-            border: '1px dashed #cbd5e1'
-          }}>
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                Student and teacher view coming soon
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-    </Grid>
-  );
+  // Removed TabNavigationGrid (replaced with compact Tabs header)
 
 
 
@@ -1345,33 +1200,47 @@ const StatsPage = ({ user, role, onBack }) => {
       }}>
         {/* Replace tabs with grid navigation */}
         <CardContent sx={{ p: 3 }}>
-          {/* Tab Navigation Grid */}
-          <TabNavigationGrid />
+          {/* Compact Tabs Header */}
+          <Box sx={{ 
+            backgroundColor: 'white',
+            borderRadius: 1,
+            overflow: 'hidden',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            borderBottom: '1px solid #e2e8f0',
+            mb: 2
+          }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange}
+              variant="scrollable"
+              allowScrollButtonsMobile
+              sx={{
+                '& .MuiTab-root': {
+                  minHeight: 44,
+                  textTransform: 'none',
+                  fontWeight: 600
+                }
+              }}
+            >
+              <Tab icon={<BarChart />} label="Overview" iconPosition="start" />
+              <Tab icon={<School />} label="Classrooms" iconPosition="start" />
+              {role !== 'teacher' && (
+                <Tab icon={<People />} label="Teachers" iconPosition="start" />
+              )}
+              {role !== 'teacher' && (
+                <Tab icon={<People />} label="Students" iconPosition="start" />
+              )}
+            </Tabs>
+          </Box>
           
           {/* Persistent Divider */}
           <Divider sx={{ my: 3, borderColor: 'grey.300' }} />
 
           {/* Content based on active tab */}
           
-          {/* Common Target Header */}
-          <Box sx={{ 
-            mb: 3, 
-            p: 2, 
-            backgroundColor: 'info.50', 
-            borderRadius: 2, 
-            border: '1px solid',
-            borderColor: 'info.200',
-            textAlign: 'center'
-          }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'info.main', mb: 0.5 }}>
-              📊 Performance Targets
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Target: {PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK} notes per student per week</strong> • 
-              Teachers: {PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes per week • 
-              Classrooms: {PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK} notes per student per week
-            </Typography>
-          </Box>
+          {/* Performance target header removed */}
           
           {/* Overview Tab */}
           {activeTab === 0 && (
@@ -1403,7 +1272,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {stats.thisWeek}
+                    {activityCount}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     notes created
