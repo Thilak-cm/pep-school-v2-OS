@@ -1235,8 +1235,7 @@ const StatsPage = ({ user, role, onBack }) => {
             </Tabs>
           </Box>
           
-          {/* Persistent Divider */}
-          <Divider sx={{ my: 3, borderColor: 'grey.300' }} />
+          {/* Divider removed to reduce visual clutter */}
 
           {/* Content based on active tab */}
           
