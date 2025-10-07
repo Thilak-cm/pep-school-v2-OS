@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.2] - 2025-10-07
+
+### Fixed
+- Activity Trend number now reflects the selected period (1D/1W/1M/3M/6M/1Y) instead of always showing last 7 days.
+
+### Changed
+- Replaced the large 2x2 navigation cards with a compact Tabs header (Overview, Classrooms, Teachers, Students).
+- Swapped the period toggle buttons for a minimal dropdown placed at the top‑right of the Activity Trend card.
+
+### Removed
+- Performance Targets header box removed from the Stats page.
+
 ## [3.7.1] - 2025-10-02
 
 ### Removed
