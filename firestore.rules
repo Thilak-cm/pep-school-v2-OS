@@ -18,26 +18,15 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
 
-    // Users: user can read/write own profile; admins can read/write any
-    // Avoid recursive self-get by evaluating admin check only when accessing other users' docs
+    // Users: user can read own profile; admins can read/query all, write any
     match /users/{uid} {
-      allow read: if isSignedIn() && (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
+      // Allow single-doc get and collection queries for admins; allow self-reads for everyone signed-in
+      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
       
-      // Create: basic validation (email uniqueness will be enforced by Cloud Functions)
-      allow create: if isSignedIn() && 
-        (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
-      
-      // Update: basic validation (email uniqueness will be enforced by Cloud Functions)
-      allow update: if isSignedIn() && 
-        (uid == request.auth.uid || (uid != request.auth.uid && isAdmin()));
+      // Create/Update: admins; also allow users to create/update their own profile if needed
+      allow create, update: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
       
       allow delete: if isAdmin();
-    }
-
-    // Collection-level access for listing users (needed for admin queries)
-    match /users {
-      // Allow listing for admins only
-      allow list: if isAdmin();
     }
 
     // Classrooms - simplified security that works
@@ -48,11 +37,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Collection-level access for listing
-    match /classrooms {
-      // Allow listing for both admins and teachers
-      allow list: if isAdmin() || isTeacher();
-    }
+    // Classrooms collection queries allowed via read above (no extra collection-level match needed)
 
     // Students
     match /students/{studentId} {

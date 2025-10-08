@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
-  Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar
+  Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
+  List, ListItemButton, ListItemAvatar, ListItemText
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School, ManageAccounts, Groups } from '@mui/icons-material';
+import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -44,6 +45,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [onlyNoClassrooms, setOnlyNoClassrooms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -498,6 +501,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 fullWidth
               />
             </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+              <Chip label="All" size="small" clickable onClick={() => setStatusFilter('all')} color={statusFilter==='all'?'primary':'default'} variant={statusFilter==='all'?'filled':'outlined'} />
+              <Chip label="Active" size="small" clickable onClick={() => setStatusFilter('active')} color={statusFilter==='active'?'primary':'default'} variant={statusFilter==='active'?'filled':'outlined'} />
+              <Chip label="Inactive" size="small" clickable onClick={() => setStatusFilter('inactive')} color={statusFilter==='inactive'?'primary':'default'} variant={statusFilter==='inactive'?'filled':'outlined'} />
+              <Chip label="No Classrooms" size="small" clickable onClick={() => setOnlyNoClassrooms(v=>!v)} color={onlyNoClassrooms?'primary':'default'} variant={onlyNoClassrooms?'filled':'outlined'} />
+            </Box>
             <Box sx={{ mb: 2 }}>
               <Button variant="contained" onClick={() => {
                 setView('add');
@@ -512,46 +521,73 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
             )}
 
             {!loading && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <List disablePadding>
                 {teachers
                   .filter(t => {
                     const q = teacherSearch.trim().toLowerCase();
                     if (!q) return true;
-                    const name = `${t.firstName || ''} ${t.lastName || ''}`.toLowerCase();
-                    return name.includes(q) || (t.email || '').toLowerCase().includes(q);
+                    const name = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
+                    const local = (t.email || '').split('@')[0].toLowerCase();
+                    return name.includes(q) || local.includes(q) || (t.email || '').toLowerCase().includes(q);
                   })
-                  .map(t => {
+                  .filter(t => {
+                    const status = (t.status || 'active');
+                    if (statusFilter === 'active') return status === 'active';
+                    if (statusFilter === 'inactive') return status !== 'active';
+                    return true;
+                  })
+                  .filter(t => {
+                    if (!onlyNoClassrooms) return true;
+                    const assigned = getTeacherClassroomIds(t.id);
+                    return assigned.length === 0;
+                  })
+                  .map((t, idx, arr) => {
                     const assigned = getTeacherClassroomIds(t.id);
                     const inactive = (t.status && t.status !== 'active');
+                    const displayName = [t.firstName, t.lastName].filter(Boolean).join(' ') || (t.email ? t.email.split('@')[0] : 'Teacher');
+                    const initials = (displayName || 'T').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase();
+                    const chips = assigned.slice(0,3).map(cid => {
+                      const cls = classrooms.find(c => c.id === cid);
+                      const label = cls ? (cls.name || cls.id) : cid;
+                      return <Chip key={cid} size="small" label={label} sx={{ mr: 0.5, mb: 0.5 }} />;
+                    });
+                    const overflow = Math.max(0, assigned.length - 3);
                     return (
-                      <Box key={t.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1.5, backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Box>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{[t.firstName, t.lastName].filter(Boolean).join(' ') || (t.email || 'Teacher')}</Typography>
-                            <Typography variant="caption" color="text.secondary">{t.email}</Typography>
-                            {inactive && (
-                              <Chip size="small" color="warning" variant="outlined" label="Inactive" sx={{ ml: 1 }} />
-                            )}
-                          </Box>
-                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                            <Button size="small" variant="contained" onClick={() => openManage(t)} disabled={inactive}>Manage</Button>
-                          </Box>
-                        </Box>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {assigned.length > 0 ? (
-                            assigned.map(cid => {
-                              const cls = classrooms.find(c => c.id === cid);
-                              const label = cls ? (cls.name || cls.id) : cid;
-                              return <Chip key={cid} size="small" label={label} />;
-                            })
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">No classrooms</Typography>
-                          )}
-                        </Box>
-                      </Box>
+                      <React.Fragment key={t.id}>
+                        <ListItemButton onClick={() => openManage(t)} disabled={inactive} alignItems="flex-start" sx={{ py: 1.25 }}>
+                          <ListItemAvatar>
+                            <Avatar>{initials}</Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>
+                                {inactive && <Chip size="small" color="warning" variant="outlined" label="Inactive" />}
+                              </Box>
+                            }
+                            secondary={
+                              <>
+                                <Typography variant="caption" color="text.secondary">{t.email}</Typography>
+                                <Box sx={{ mt: 0.5 }}>
+                                  {assigned.length > 0 ? (
+                                    <>
+                                      {chips}
+                                      {overflow > 0 && <Chip size="small" label={`+${overflow} more`} sx={{ mr: 0.5, mb: 0.5 }} />}
+                                    </>
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">No classrooms</Typography>
+                                  )}
+                                </Box>
+                              </>
+                            }
+                          />
+                          <ChevronRight color="disabled" />
+                        </ListItemButton>
+                        {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
+                      </React.Fragment>
                     );
                   })}
-              </Box>
+              </List>
             )}
 
             {/* Manage Access dialog */}
