@@ -5,6 +5,23 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2025-10-08
+
+### Added
+- Users & Access page with card-based IA: “Add Users” and “Manage Users”.
+- Manage Users → Teachers tab: search, view classroom chips, and edit access via batch updates (`arrayUnion`/`arrayRemove`).
+
+### Changed
+- Replaced legacy Add User screen with the new Users & Access flow; updated App title and landing card label accordingly.
+- Improved Teachers list UI: moved “Add Teacher” button below the search field for clearer layout.
+- Lazy-load teachers only when opening Manage → Teachers to avoid noisy errors on the home/cards view.
+
+### Removed
+- Deleted obsolete `montessori-os/src/components/AddUserPage.jsx`.
+
+### Fixed
+- Eliminated spurious “Failed to fetch teachers” alert on the Users & Access home by deferring the query until needed.
+
 ## [3.7.2] - 2025-10-07
 
 ### Fixed
