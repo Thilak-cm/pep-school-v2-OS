@@ -507,12 +507,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
               <Chip label="Inactive" size="small" clickable onClick={() => setStatusFilter('inactive')} color={statusFilter==='inactive'?'primary':'default'} variant={statusFilter==='inactive'?'filled':'outlined'} />
               <Chip label="No Classrooms" size="small" clickable onClick={() => setOnlyNoClassrooms(v=>!v)} color={onlyNoClassrooms?'primary':'default'} variant={onlyNoClassrooms?'filled':'outlined'} />
             </Box>
-            <Box sx={{ mb: 2 }}>
-              <Button variant="contained" onClick={() => {
-                setView('add');
-                onViewChange && onViewChange('add');
-              }}>Add Teacher</Button>
-            </Box>
 
             {loading && (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>

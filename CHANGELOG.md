@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1] - 2025-10-08
+
+### Added
+- Manage Users → Teachers: quick filters for status (All / Active / Inactive) and a “No Classrooms” filter.
+
+### Changed
+- Teachers list redesign: tap-to-manage list items (avatar + chevron) replace per-row Manage buttons.
+- Classroom chips capped to 3 with "+N more" overflow; “No classrooms” shown when empty.
+- “Add Teacher” is a full-width primary button beneath search/filters.
+
+### Fixed
+- Firestore rules now clearly allow admins to query `users`; removed ambiguous collection-level match, resolving Missing/Insufficient permissions when loading teachers.
+
+### Technical
+- Lazy-load teachers only when opening Manage → Teachers and suppress errors on the home/cards view.
+
 ## [3.8.0] - 2025-10-08
 
 ### Added
