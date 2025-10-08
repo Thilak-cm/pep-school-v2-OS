@@ -47,6 +47,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [teacherSearch, setTeacherSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
   const [onlyNoClassrooms, setOnlyNoClassrooms] = useState(false);
+  const [classroomFilterOpen, setClassroomFilterOpen] = useState(false);
+  const [selectedClassroomFilterIds, setSelectedClassroomFilterIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -198,7 +200,29 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         if (toRemove.includes(c.id)) return { ...c, teacherIds: (c.teacherIds || []).filter(tid => tid !== manageTeacher.id) };
         return c;
       }));
-      notify.success('Access updated');
+      const teacherId = manageTeacher.id;
+      const added = [...toAdd];
+      const removed = [...toRemove];
+      notify.success('Access updated', {
+        id: `manage-access-${teacherId}`,
+        onUndo: async () => {
+          try {
+            const reverse = writeBatch(db);
+            // Revert adds by removing, and re-add removed ones
+            added.forEach(cid => reverse.update(doc(db, 'classrooms', cid), { teacherIds: arrayRemove(teacherId) }));
+            removed.forEach(cid => reverse.update(doc(db, 'classrooms', cid), { teacherIds: arrayUnion(teacherId) }));
+            await reverse.commit();
+            setClassrooms(prev => prev.map(c => {
+              if (added.includes(c.id)) return { ...c, teacherIds: (c.teacherIds || []).filter(tid => tid !== teacherId) };
+              if (removed.includes(c.id)) return { ...c, teacherIds: Array.from(new Set([...(c.teacherIds || []), teacherId])) };
+              return c;
+            }));
+          } catch (err) {
+            console.error('Undo access update failed', err);
+            notify.error('Failed to undo access changes');
+          }
+        }
+      });
       setManageOpen(false);
     } catch (e) {
       console.error('Manage access save error', e);
@@ -446,7 +470,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 <Card sx={{ borderRadius: 2 }}>
                   <CardActionArea onClick={() => {
                     setView('manage');
-                    onViewChange && onViewChange('manage');
                   }} sx={{ p: 0 }}>
                     <CardContent sx={{ p: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -506,6 +529,15 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
               <Chip label="Active" size="small" clickable onClick={() => setStatusFilter('active')} color={statusFilter==='active'?'primary':'default'} variant={statusFilter==='active'?'filled':'outlined'} />
               <Chip label="Inactive" size="small" clickable onClick={() => setStatusFilter('inactive')} color={statusFilter==='inactive'?'primary':'default'} variant={statusFilter==='inactive'?'filled':'outlined'} />
               <Chip label="No Classrooms" size="small" clickable onClick={() => setOnlyNoClassrooms(v=>!v)} color={onlyNoClassrooms?'primary':'default'} variant={onlyNoClassrooms?'filled':'outlined'} />
+              <Chip
+                label={selectedClassroomFilterIds.length > 0 ? `Classrooms (${selectedClassroomFilterIds.length})` : 'Classrooms'}
+                size="small"
+                clickable
+                onClick={() => setClassroomFilterOpen(true)}
+                color={selectedClassroomFilterIds.length>0?'primary':'default'}
+                variant={selectedClassroomFilterIds.length>0?'filled':'outlined'}
+                disabled={onlyNoClassrooms}
+              />
             </Box>
 
             {loading && (
@@ -531,9 +563,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                     return true;
                   })
                   .filter(t => {
-                    if (!onlyNoClassrooms) return true;
                     const assigned = getTeacherClassroomIds(t.id);
-                    return assigned.length === 0;
+                    if (onlyNoClassrooms) return assigned.length === 0;
+                    if (selectedClassroomFilterIds.length > 0) {
+                      return assigned.some(cid => selectedClassroomFilterIds.includes(cid));
+                    }
+                    return true;
                   })
                   .map((t, idx, arr) => {
                     const assigned = getTeacherClassroomIds(t.id);
@@ -550,7 +585,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       <React.Fragment key={t.id}>
                         <ListItemButton onClick={() => openManage(t)} disabled={inactive} alignItems="flex-start" sx={{ py: 1.25 }}>
                           <ListItemAvatar>
-                            <Avatar>{initials}</Avatar>
+                            <Avatar 
+                              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=ffffff&size=40&format=png`}
+                              sx={{
+                                backgroundColor: '#4f46e5',
+                                fontSize: '0.875rem',
+                                fontWeight: 600
+                              }}
+                            >
+                              {initials}
+                            </Avatar>
                           </ListItemAvatar>
                           <ListItemText
                             primary={
@@ -583,6 +627,30 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                   })}
               </List>
             )}
+
+            {/* Classroom Filter dialog */}
+            <Dialog open={classroomFilterOpen} onClose={() => setClassroomFilterOpen(false)}>
+              <DialogTitle component="div"><Typography component="h2" variant="h6">Filter by Classrooms</Typography></DialogTitle>
+              <DialogContent>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  {classrooms.map(c => (
+                    <Chip
+                      key={c.id}
+                      label={c.name || c.id}
+                      onClick={() => setSelectedClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                      color={selectedClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
+                      variant={selectedClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
+                      clickable
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setSelectedClassroomFilterIds([])}>Clear</Button>
+                <Button variant="contained" onClick={() => setClassroomFilterOpen(false)}>Apply</Button>
+              </DialogActions>
+            </Dialog>
 
             {/* Manage Access dialog */}
             <Dialog open={manageOpen} onClose={() => setManageOpen(false)}>
