@@ -26,17 +26,19 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header */}
       <Box sx={{ textAlign: 'center', mb: 2 }}>
-        <Typography variant="h4" component="h1" sx={{ 
-          color: '#1e293b', 
-          fontWeight: 600,
-          mb: 1
+        <Typography variant="body1" sx={{ 
+          color: 'black',
+          fontWeight: 600
         }}>
-          {isTeacher ? 'Teacher Panel' : 'Admin Panel'}
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#64748b' }}>
           {isTeacher 
-            ? 'Manage your classrooms and students'
-            : 'Manage school-wide settings and data'
+            ? 'Welcome back!'
+            : (
+              <>
+                {`Hey ${currentUser.displayName},`}
+                <br />
+                {`Welcome to Pep School V2 OS!`}
+              </>
+            )
           }
         </Typography>
       </Box>
