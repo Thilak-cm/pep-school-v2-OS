@@ -210,6 +210,56 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
         {/* Admin-only cards */}
         {!isTeacher && (
           <>
+            {/* Users & Access */}
+            <Grid size={12}>
+              <Card 
+                aria-label="Users & Access"
+                sx={{ 
+                  cursor: 'pointer',
+                  borderRadius: 2,
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                  }
+                }}
+                onClick={() => onNavigate('/addUser')}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between'
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{ 
+                        bgcolor: '#4f46e5',
+                        width: 56,
+                        height: 56
+                      }}>
+                        <PersonAdd />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" component="h3" sx={{ 
+                          color: '#1e293b',
+                          fontWeight: 600
+                        }}>
+                          Users & Access
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          color: '#64748b',
+                          mt: 0.5
+                        }}>
+                          Manage teacher access; create admins, teachers, or students
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <ArrowForward sx={{ color: '#94a3b8' }} />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
             {/* Review Classroom Notes */}
             <Grid size={12}>
               <Card
@@ -311,55 +361,6 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     </Box>
                   </CardContent>
                 </CardActionArea>
-              </Card>
-            </Grid>
-            
-            {/* Add User */}
-            <Grid size={12}>
-              <Card 
-                aria-label="Add admin or teacher user"
-                sx={{ 
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                  }
-                }}
-                onClick={() => onNavigate('/addUser')}
-              >
-                <CardContent>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ 
-                        bgcolor: '#4f46e5',
-                        width: 56,
-                        height: 56
-                      }}>
-                        <PersonAdd />
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" component="h3" sx={{ 
-                          color: '#1e293b',
-                          fontWeight: 600
-                        }}>
-                          Add User
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          color: '#64748b',
-                          mt: 0.5
-                        }}>
-                          Create admins, teachers, or students
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <ArrowForward sx={{ color: '#94a3b8' }} />
-                  </Box>
-                </CardContent>
               </Card>
             </Grid>
 

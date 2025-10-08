@@ -13,7 +13,7 @@ import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
 import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
-import AddUserPage from "./components/AddUserPage";
+import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import app, { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
@@ -38,6 +38,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
   const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview'
+  const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -224,7 +225,11 @@ function App() {
   else if (screen === 'stats') pageTitle = 'Statistics';
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
   else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
-  else if (screen === 'addUser') pageTitle = 'Add New User';
+  else if (screen === 'addUser') {
+    if (usersAccessView === 'add') pageTitle = 'Add Users';
+    else if (usersAccessView === 'manage') pageTitle = 'Manage Users';
+    else pageTitle = 'Users & Access';
+  }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
 
   // Determine back navigation for header
@@ -245,9 +250,15 @@ function App() {
       case 'profile':
       case 'stats':
       case 'feedback':
-      case 'addUser':
       case 'classroomNotesReview':
         return () => setScreen('landingPage');
+      case 'addUser':
+        // Handle UsersAccessPage internal navigation
+        if (usersAccessView === 'home') {
+          return () => setScreen('landingPage');
+        } else {
+          return () => setUsersAccessView('home');
+        }
       case 'feedbackTimeline':
         return () => setScreen('landingPage');
       default:
@@ -539,9 +550,11 @@ function App() {
                   )}
 
                   {screen === 'addUser' && (
-                    <AddUserPage
+                    <UsersAccessPage
                       currentUser={user}
                       userRole={role}
+                      view={usersAccessView}
+                      onViewChange={setUsersAccessView}
                     />
                   )}
 
@@ -586,3 +599,4 @@ function App() {
 }
 
 export default App;
+
