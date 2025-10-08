@@ -49,6 +49,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [onlyNoClassrooms, setOnlyNoClassrooms] = useState(false);
   const [classroomFilterOpen, setClassroomFilterOpen] = useState(false);
   const [selectedClassroomFilterIds, setSelectedClassroomFilterIds] = useState([]);
+  // Admins
+  const [admins, setAdmins] = useState([]);
+  // Students
+  const [students, setStudents] = useState([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentStatusFilter, setStudentStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [studentClassroomFilterOpen, setStudentClassroomFilterOpen] = useState(false);
+  const [selectedStudentClassroomFilterIds, setSelectedStudentClassroomFilterIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -80,8 +88,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   // Lazily fetch teachers when entering Manage > Teachers
   useEffect(() => {
     if (userRole !== 'admin') return;
-    if (view === 'manage' && manageTab === 'teachers' && teachers.length === 0) {
-      fetchTeachers();
+    if (view === 'manage') {
+      if (manageTab === 'teachers' && teachers.length === 0) fetchTeachers();
+      if (manageTab === 'admins' && admins.length === 0) fetchAdmins();
+      if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
   }, [view, manageTab, userRole]);
 
@@ -110,6 +120,35 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     } catch (e) {
       console.error('Fetch teachers error', e);
       setError('Failed to fetch teachers');
+    }
+  };
+
+  const fetchAdmins = async () => {
+    try {
+      const qAdmins = query(collection(db, 'users'), where('role', '==', 'admin'));
+      const snap = await getDocs(qAdmins);
+      const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+      list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
+      setAdmins(list);
+    } catch (e) {
+      console.error('Fetch admins error', e);
+      setError('Failed to fetch admins');
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'students'));
+      const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+      list.sort((a, b) => {
+        const an = (a.firstName || a.displayName || a.studentID || a.id);
+        const bn = (b.firstName || b.displayName || b.studentID || b.id);
+        return String(an).localeCompare(String(bn));
+      });
+      setStudents(list);
+    } catch (e) {
+      console.error('Fetch students error', e);
+      setError('Failed to fetch students');
     }
   };
 
@@ -168,6 +207,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setManageTeacher(teacher);
     setManageSelectedIds(getTeacherClassroomIds(teacher.id));
     setManageOpen(true);
+  };
+
+  // Generic info dialog for Admin/Student rows
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoTitle, setInfoTitle] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+  const openInfo = (title, message = 'Property edit functionality coming soon!') => {
+    setInfoTitle(title);
+    setInfoMessage(message);
+    setInfoOpen(true);
   };
   const toggleManageClassroom = (id) => {
     setManageSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -688,10 +737,135 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           </>
         )}
         {view === 'manage' && manageTab === 'admins' && (
-          <Alert severity="info">Manage Admins is a work in progress.</Alert>
+          <>
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+            {!loading && (
+              <List disablePadding>
+                {admins.map((a, idx, arr) => {
+                  const displayName = [a.firstName, a.lastName].filter(Boolean).join(' ') || (a.email ? a.email.split('@')[0] : 'Admin');
+                  const initials = (displayName || 'A').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase();
+                  return (
+                    <React.Fragment key={a.id}>
+                      <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openInfo('Admin')}>
+                        <ListItemAvatar><Avatar>{initials}</Avatar></ListItemAvatar>
+                        <ListItemText
+                          primary={<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>}
+                          secondary={<Typography variant="caption" color="text.secondary">{a.email}</Typography>}
+                        />
+                        <ChevronRight color="disabled" />
+                      </ListItemButton>
+                      {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
+                    </React.Fragment>
+                  );
+                })}
+              </List>
+            )}
+          </>
         )}
         {view === 'manage' && manageTab === 'students' && (
-          <Alert severity="info">Manage Students is a work in progress.</Alert>
+          <>
+            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+              <TextField
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Search students by name or ID"
+                size="small"
+                fullWidth
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+              <Chip label="All" size="small" clickable onClick={() => setStudentStatusFilter('all')} color={studentStatusFilter==='all'?'primary':'default'} variant={studentStatusFilter==='all'?'filled':'outlined'} />
+              <Chip label="Active" size="small" clickable onClick={() => setStudentStatusFilter('active')} color={studentStatusFilter==='active'?'primary':'default'} variant={studentStatusFilter==='active'?'filled':'outlined'} />
+              <Chip label="Inactive" size="small" clickable onClick={() => setStudentStatusFilter('inactive')} color={studentStatusFilter==='inactive'?'primary':'default'} variant={studentStatusFilter==='inactive'?'filled':'outlined'} />
+              <Chip
+                label={selectedStudentClassroomFilterIds.length > 0 ? `Classrooms (${selectedStudentClassroomFilterIds.length})` : 'Classrooms'}
+                size="small"
+                clickable
+                onClick={() => setStudentClassroomFilterOpen(true)}
+                color={selectedStudentClassroomFilterIds.length>0?'primary':'default'}
+                variant={selectedStudentClassroomFilterIds.length>0?'filled':'outlined'}
+              />
+            </Box>
+
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+            {!loading && (
+              <List disablePadding>
+                {students
+                  .filter(s => {
+                    const q = studentSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                    return name.includes(q) || (s.displayName || '').toLowerCase().includes(q) || (s.studentID || s.id || '').toLowerCase().includes(q);
+                  })
+                  .filter(s => {
+                    const isActive = (s.status ? s.status === 'active' : (typeof s.isActive === 'boolean' ? s.isActive : true));
+                    if (studentStatusFilter === 'active') return isActive;
+                    if (studentStatusFilter === 'inactive') return !isActive;
+                    return true;
+                  })
+                  .filter(s => {
+                    if (selectedStudentClassroomFilterIds.length === 0) return true;
+                    return selectedStudentClassroomFilterIds.includes(s.classroomId);
+                  })
+                  .map((s, idx, arr) => {
+                    const displayName = [s.firstName, s.lastName].filter(Boolean).join(' ') || s.displayName || s.studentID || s.id;
+                    const initials = (displayName || 'S').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+                    const cls = classrooms.find(c => c.id === s.classroomId);
+                    const clsLabel = cls ? (cls.name || cls.id) : (s.classroomId || 'Unknown');
+                    return (
+                      <React.Fragment key={s.id}>
+                        <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openInfo('Student')}>
+                          <ListItemAvatar><Avatar>{initials}</Avatar></ListItemAvatar>
+                          <ListItemText
+                            primary={<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>}
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                {s.studentID && <Typography variant="caption" color="text.secondary">{s.studentID}</Typography>}
+                                <Chip size="small" label={clsLabel} sx={{ mr: 0.5 }} />
+                              </Box>
+                            }
+                          />
+                          <ChevronRight color="disabled" />
+                        </ListItemButton>
+                        {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
+                      </React.Fragment>
+                    );
+                  })}
+              </List>
+            )}
+
+            {/* Student Classroom Filter dialog */}
+            <Dialog open={studentClassroomFilterOpen} onClose={() => setStudentClassroomFilterOpen(false)}>
+              <DialogTitle component="div"><Typography component="h2" variant="h6">Filter by Classrooms</Typography></DialogTitle>
+              <DialogContent>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  {classrooms.map(c => (
+                    <Chip
+                      key={c.id}
+                      label={c.name || c.id}
+                      onClick={() => setSelectedStudentClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                      color={selectedStudentClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
+                      variant={selectedStudentClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
+                      clickable
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setSelectedStudentClassroomFilterIds([])}>Clear</Button>
+                <Button variant="contained" onClick={() => setStudentClassroomFilterOpen(false)}>Apply</Button>
+              </DialogActions>
+            </Dialog>
+          </>
         )}
 
         {view === 'add' && (
@@ -768,6 +942,17 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           </>
         )}
       </Box>
+
+      {/* Info dialog for Admin/Student rows */}
+      <Dialog open={infoOpen} onClose={() => setInfoOpen(false)}>
+        <DialogTitle component="div"><Typography component="h2" variant="h6">{infoTitle}</Typography></DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mt: 1 }}>{infoMessage || 'Property edit functionality coming soon!'}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setInfoOpen(false)}>OK</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <DialogTitle component="div"><Typography component="h2" variant="h6">{confirmContent.title}</Typography></DialogTitle>
