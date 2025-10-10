@@ -1021,8 +1021,10 @@ const StatsPage = ({ user, role, onBack }) => {
 
   const generateActivityData = (observations, period) => {
     const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const hourMs = 60 * 60 * 1000;
     const data = [];
-    
+
     // Helper function to get observation date with fallback
     const getObservationDate = (obs) => {
       if (obs.observedAt?.toDate) return obs.observedAt.toDate();
@@ -1031,37 +1033,45 @@ const StatsPage = ({ user, role, onBack }) => {
       if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
       return new Date(0); // fallback
     };
-    
+
+    const startOfDay = (d) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    };
+
     switch (period) {
-      case '1D':
-        // Last 24 hours in 4-hour intervals
+      case '1D': {
+        // Last 24 hours in 4-hour trailing windows ending at now
         for (let i = 5; i >= 0; i--) {
-          const start = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
-          const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
-          
+          const end = new Date(now.getTime() - i * 4 * hourMs);
+          const start = new Date(end.getTime() - 4 * hourMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
-          
+
           data.push({
             period: `${start.getHours()}:00`,
             count
           });
         }
         break;
-        
-      case '1W':
-        // Last 7 days
+      }
+
+      case '1W': {
+        // Last 7 days aligned to local midnights; last bucket includes today so far
+        const end0 = new Date(startOfDay(now).getTime() + dayMs); // tomorrow 00:00
         for (let i = 6; i >= 0; i--) {
-          const start = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-          const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-          
+          const start = new Date(end0.getTime() - (i + 1) * dayMs);
+          const end = new Date(end0.getTime() - i * dayMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
-          
+
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           data.push({
             period: dayNames[start.getDay()],
@@ -1069,24 +1079,27 @@ const StatsPage = ({ user, role, onBack }) => {
           });
         }
         break;
-        
-      case '1M':
-        // Last 4 weeks
+      }
+
+      case '1M': {
+        // Last 4 rolling weeks, aligned to local midnight; last bucket includes today so far
+        const end0 = new Date(startOfDay(now).getTime() + dayMs); // tomorrow 00:00
         for (let i = 3; i >= 0; i--) {
-          const weekStart = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-          const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-          
+          const weekStart = new Date(end0.getTime() - (i + 1) * 7 * dayMs);
+          const weekEnd = new Date(end0.getTime() - i * 7 * dayMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
-          
+
           data.push({
             period: `Week ${4 - i}`,
             count
           });
         }
         break;
+      }
         
       case '3M':
         // Last 3 months
