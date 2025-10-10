@@ -648,7 +648,7 @@ function AddNoteModal({
                       Voice Note
                     </Typography>
                     <NewFeaturePill 
-                      label="Latest Feature: Pause an ongoing voice note!" 
+                      label="Latest Feature: Pause and Resume an ongoing voice note!" 
                       size="sm" 
                     />
                   </Box>
