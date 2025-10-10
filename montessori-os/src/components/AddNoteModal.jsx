@@ -19,6 +19,7 @@ import {
   ArrowBack
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
+import NewFeaturePill from './NewFeaturePill';
 import { cleanUpText, localCleanupFallback } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
@@ -646,6 +647,10 @@ function AddNoteModal({
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Voice Note
                     </Typography>
+                    <NewFeaturePill 
+                      label="Latest Feature: Pause an ongoing voice note!" 
+                      size="sm" 
+                    />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note

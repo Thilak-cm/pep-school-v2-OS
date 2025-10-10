@@ -1429,6 +1429,7 @@ const StatsPage = ({ user, role, onBack }) => {
               </Box>
 
               {/* Note Distribution Card */}
+              
               <Box sx={{ 
                 backgroundColor: 'white',
                 borderRadius: 2,
@@ -1437,9 +1438,11 @@ const StatsPage = ({ user, role, onBack }) => {
                 mb: 3
               }}>
                 {/* Header */}
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
-                  Note Distribution
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Note Distribution
+                  </Typography>
+                </Box>
                 
                 {/* Pie Chart */}
                 <Box sx={{ height: 250, width: '100%' }}>
