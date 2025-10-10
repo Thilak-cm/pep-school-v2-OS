@@ -11,6 +11,10 @@ import {
   Tab,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   ToggleButtonGroup,
   ToggleButton,
   IconButton,
@@ -88,6 +92,13 @@ const StatsPage = ({ user, role, onBack }) => {
   // Student search state
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  // Teacher search state
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  // Teachers tab local filters (like Manage Users)
+  const [teacherStatusFilter, setTeacherStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [teacherOnlyNoClassrooms, setTeacherOnlyNoClassrooms] = useState(false);
+  const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
+  const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -374,6 +385,7 @@ const StatsPage = ({ user, role, onBack }) => {
             id: teacher.id,
             name: teacher.displayName || teacher.email,
             email: teacher.email,
+            status: teacher.status,
             totalObservations: teacherObservations.length,
             thisWeekObservations: thisWeekObs.length,
             target: PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK,
@@ -561,6 +573,64 @@ const StatsPage = ({ user, role, onBack }) => {
     
     return filters.join(' • ');
   };
+
+  // Helpers for Teachers tab: sort by first name and filter by search
+  const getFirstName = (name, email) => {
+    const source = name || email || '';
+    const base = source.includes('@') ? source.split('@')[0] : source;
+    const token = String(base).trim().split(/[\s._-]+/)[0] || '';
+    return token.toLowerCase();
+  };
+
+  // Map teacherId -> classroomIds using loaded classrooms
+  const teacherToClassroomIds = useMemo(() => {
+    const map = new Map();
+    (classrooms || []).forEach(c => {
+      const tids = c?.teacherIds || [];
+      tids.forEach(tid => {
+        if (!map.has(tid)) map.set(tid, new Set());
+        map.get(tid).add(c.id);
+      });
+    });
+    return map;
+  }, [classrooms]);
+
+  const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
+
+  const sortedTeacherStats = useMemo(() => {
+    const list = stats?.teacherStats || [];
+    return [...list].sort((a, b) =>
+      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
+    );
+  }, [stats?.teacherStats]);
+
+  const filteredTeacherStats = useMemo(() => {
+    const q = teacherSearchQuery?.trim();
+    let base = sortedTeacherStats;
+    if (q) {
+      base = fuzzySearchTeachers(base, q);
+    }
+    // Status filter
+    base = base.filter(t => {
+      const status = (t.status || 'active');
+      if (teacherStatusFilter === 'active') return status === 'active';
+      if (teacherStatusFilter === 'inactive') return status !== 'active';
+      return true;
+    });
+    // Classroom filters
+    base = base.filter(t => {
+      const assigned = getTeacherClassroomIds(t.id);
+      if (teacherOnlyNoClassrooms) return assigned.length === 0;
+      if (selectedTeacherClassroomFilterIds.length > 0) {
+        return assigned.some(cid => selectedTeacherClassroomFilterIds.includes(cid));
+      }
+      return true;
+    });
+    // Keep alphabetical order
+    return [...base].sort((a, b) =>
+      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
+    );
+  }, [sortedTeacherStats, teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds, teacherToClassroomIds]);
 
   const hasActiveFilters = () => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
@@ -1490,9 +1560,65 @@ const StatsPage = ({ user, role, onBack }) => {
               
               {stats.teacherStats.length > 0 ? (
                 <Box>
+                  {/* Search Bar */}
+                  <Box sx={{ mb: 3 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search teachers by name..."
+                      value={teacherSearchQuery}
+                      onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ color: 'text.secondary', mr: 1 }}>
+                            <People sx={{ fontSize: 20 }} />
+                          </Box>
+                        ),
+                        endAdornment: (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {teacherSearchQuery && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setTeacherSearchQuery('')}
+                                sx={{ p: 0.5 }}
+                                aria-label="Clear search"
+                              >
+                                <Clear sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                        )
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          backgroundColor: 'white',
+                          '&:hover': {
+                            backgroundColor: 'grey.50'
+                          }
+                        }
+                      }}
+                    />
+                  </Box>
+                  {/* Filters (like Manage Users) */}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                    <Chip label="All" size="small" clickable onClick={() => setTeacherStatusFilter('all')} color={teacherStatusFilter==='all'?'primary':'default'} variant={teacherStatusFilter==='all'?'filled':'outlined'} />
+                    <Chip label="Active" size="small" clickable onClick={() => setTeacherStatusFilter('active')} color={teacherStatusFilter==='active'?'primary':'default'} variant={teacherStatusFilter==='active'?'filled':'outlined'} />
+                    <Chip label="Inactive" size="small" clickable onClick={() => setTeacherStatusFilter('inactive')} color={teacherStatusFilter==='inactive'?'primary':'default'} variant={teacherStatusFilter==='inactive'?'filled':'outlined'} />
+                    <Chip label="No Classrooms" size="small" clickable onClick={() => setTeacherOnlyNoClassrooms(v=>!v)} color={teacherOnlyNoClassrooms?'primary':'default'} variant={teacherOnlyNoClassrooms?'filled':'outlined'} />
+                    <Chip
+                      label={selectedTeacherClassroomFilterIds.length > 0 ? `Classrooms (${selectedTeacherClassroomFilterIds.length})` : 'Classrooms'}
+                      size="small"
+                      clickable
+                      onClick={() => setTeacherClassroomFilterOpen(true)}
+                      color={selectedTeacherClassroomFilterIds.length>0?'primary':'default'}
+                      variant={selectedTeacherClassroomFilterIds.length>0?'filled':'outlined'}
+                      disabled={teacherOnlyNoClassrooms}
+                    />
+                  </Box>
                   {/* Teacher Performance Bars */}
                   <Box sx={{ mb: 3 }}>
-                    {stats.teacherStats.map((teacher) => (
+                    {filteredTeacherStats.map((teacher) => (
                       <Box key={teacher.id} sx={{ mb: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                           <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
@@ -1515,6 +1641,31 @@ const StatsPage = ({ user, role, onBack }) => {
                       </Box>
                     ))}
                   </Box>
+                  {/* Classroom Filter dialog */}
+                  <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>
+                    <DialogTitle component="div">
+                      <Typography component="h2" variant="h6">Filter by Classrooms</Typography>
+                    </DialogTitle>
+                    <DialogContent>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                        {classrooms.map(c => (
+                          <Chip
+                            key={c.id}
+                            label={c.name || c.id}
+                            onClick={() => setSelectedTeacherClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                            color={selectedTeacherClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
+                            variant={selectedTeacherClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
+                            clickable
+                            size="small"
+                          />
+                        ))}
+                      </Box>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setSelectedTeacherClassroomFilterIds([])}>Clear</Button>
+                      <Button variant="contained" onClick={() => setTeacherClassroomFilterOpen(false)}>Apply</Button>
+                    </DialogActions>
+                  </Dialog>
                   
                   {/* Summary Stats */}
                   <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 1, border: '1px solid #e2e8f0' }}>
