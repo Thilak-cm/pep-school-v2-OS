@@ -5,8 +5,15 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.8.1] - 2025-10-08
+## [3.8.2] - 2025-10-10
 
+### Added
+- Stats → Teachers: search bar with fuzzy matching and alphabetical ordering by first name.
+- Stats → Teachers: Manage Users–style filters — status chips (All/Active/Inactive), "No Classrooms" toggle, and a Classrooms selector dialog.
+
+### Changed
+
+## [3.8.1] - 2025-10-08
 ### Added
 - Manage Users → Teachers: quick filters for status (All / Active / Inactive) and a “No Classrooms” filter.
 

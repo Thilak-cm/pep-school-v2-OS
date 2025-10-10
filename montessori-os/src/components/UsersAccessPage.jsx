@@ -582,7 +582,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 label={selectedClassroomFilterIds.length > 0 ? `Classrooms (${selectedClassroomFilterIds.length})` : 'Classrooms'}
                 size="small"
                 clickable
-                onClick={() => notify.info("Feature isn't available yet")}
+                onClick={() => setClassroomFilterOpen(true)}
                 color={selectedClassroomFilterIds.length>0?'primary':'default'}
                 variant={selectedClassroomFilterIds.length>0?'filled':'outlined'}
                 disabled={onlyNoClassrooms}
@@ -785,7 +785,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 label={selectedStudentClassroomFilterIds.length > 0 ? `Classrooms (${selectedStudentClassroomFilterIds.length})` : 'Classrooms'}
                 size="small"
                 clickable
-                onClick={() => notify.info("Feature isn't available yet")}
+                onClick={() => setStudentClassroomFilterOpen(true)}
                 color={selectedStudentClassroomFilterIds.length>0?'primary':'default'}
                 variant={selectedStudentClassroomFilterIds.length>0?'filled':'outlined'}
               />
