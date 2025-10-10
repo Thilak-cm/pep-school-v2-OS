@@ -380,6 +380,26 @@ const StatsPage = ({ user, role, onBack }) => {
             const obsDate = getObservationDate(obs);
             return obsDate >= weekAgo;
           });
+          const last14DaysObs = teacherObservations.filter(obs => {
+            const obsDate = getObservationDate(obs);
+            return obsDate >= twoWeeksAgo;
+          });
+
+          // Voice/Text split for last 14 days
+          const isVoice = (obs) => (
+            obs?.tags?.type === 'voice' ||
+            obs?.type === 'voice' ||
+            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('voice')) ||
+            !!obs?.duration
+          );
+          const isText = (obs) => (
+            obs?.tags?.type === 'text' ||
+            obs?.type === 'text' ||
+            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('text')) ||
+            (!obs?.duration && !!obs?.text)
+          );
+          const last14Voice = last14DaysObs.filter(isVoice).length;
+          const last14Text = last14DaysObs.filter(isText).length;
           
           return {
             id: teacher.id,
@@ -388,6 +408,9 @@ const StatsPage = ({ user, role, onBack }) => {
             status: teacher.status,
             totalObservations: teacherObservations.length,
             thisWeekObservations: thisWeekObs.length,
+            last14DaysObservations: last14DaysObs.length,
+            last14DaysVoice: last14Voice,
+            last14DaysText: last14Text,
             target: PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK,
             performance: calculateTeacherPerformance(thisWeekObs.length)
           };
@@ -1616,27 +1639,39 @@ const StatsPage = ({ user, role, onBack }) => {
                       disabled={teacherOnlyNoClassrooms}
                     />
                   </Box>
-                  {/* Teacher Performance Bars */}
+                  {/* Teacher List (14-day activity) */}
                   <Box sx={{ mb: 3 }}>
                     {filteredTeacherStats.map((teacher) => (
-                      <Box key={teacher.id} sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
-                            {teacher.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {teacher.thisWeekObservations}/{PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes
-                          </Typography>
+                      <Box
+                        key={teacher.id}
+                        sx={{
+                          mb: 1.5,
+                          p: 2,
+                          backgroundColor: 'white',
+                          borderRadius: 2,
+                          border: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {teacher.name}
+                            </Typography>
+                            {teacher.status && teacher.status !== 'active' && (
+                              <Chip size="small" color="warning" variant="outlined" label="Inactive" />
+                            )}
+                          </Box>
+                          <Chip
+                            size="small"
+                            label={`${teacher.last14DaysObservations} ${teacher.last14DaysObservations === 1 ? 'note' : 'notes'} in 14d`}
+                            color={teacher.last14DaysObservations === 0 ? 'error' : 'primary'}
+                            variant={teacher.last14DaysObservations === 0 ? 'filled' : 'outlined'}
+                          />
                         </Box>
-                        <Box sx={{ position: 'relative', height: 24, backgroundColor: '#f1f5f9', borderRadius: 2 }}>
-                          <Box sx={{
-                            height: '100%',
-                            width: `${Math.min(calculateTeacherPerformance(teacher.thisWeekObservations), 100)}%`,
-                            backgroundColor: isHighPerformer(teacher.performance) ? '#10b981' : 
-                                           isMediumPerformer(teacher.performance) ? '#f59e0b' : '#ef4444',
-                            borderRadius: 2,
-                            transition: 'width 0.3s ease'
-                          }} />
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Chip size="small" variant="outlined" color="success" label={`Voice: ${teacher.last14DaysVoice}`} />
+                          <Chip size="small" variant="outlined" color="info" label={`Text: ${teacher.last14DaysText}`} />
                         </Box>
                       </Box>
                     ))}
@@ -1667,26 +1702,6 @@ const StatsPage = ({ user, role, onBack }) => {
                     </DialogActions>
                   </Dialog>
                   
-                  {/* Summary Stats */}
-                  <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 1, border: '1px solid #e2e8f0' }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Team Performance Summary
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 3 }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">High Engagement</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {stats.teacherStats.filter(t => isHighPerformer(t.performance)).length} teachers
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Average Notes</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {(stats.teacherStats.reduce((sum, t) => sum + t.thisWeekObservations, 0) / stats.teacherStats.length).toFixed(1)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
                 </Box>
               ) : (
                 <Alert severity="info">
