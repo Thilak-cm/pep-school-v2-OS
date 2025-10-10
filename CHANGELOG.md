@@ -5,6 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.3] - 2025-10-10
+
+### Changed
+- Stats → Teachers: revamped cards show total notes in the last 14 days and a split between Voice/Text; removed progress bars and teacher email.
+- Stats → Teachers: highlight zero activity (0 notes in 14 days) in red for quick scanning.
+
+### Removed
+- Stats → Teachers: removed the Team Performance Summary section.
+
+### Fixed
+- Stats → Overview → Activity Trend: latest day/week updates immediately. Buckets aligned to local midnight boundaries for 1W/1M and use trailing 4‑hour windows for 1D.
+- Stats → Overview → Activity Trend: 1D labels now use 12‑hour time (AM/PM) and render vertically to avoid crowding.
+
 ## [3.8.2] - 2025-10-10
 
 ### Added
