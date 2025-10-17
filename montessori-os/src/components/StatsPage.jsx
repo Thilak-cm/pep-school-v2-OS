@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -11,6 +11,10 @@ import {
   Tab,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   ToggleButtonGroup,
   ToggleButton,
   IconButton,
@@ -88,6 +92,13 @@ const StatsPage = ({ user, role, onBack }) => {
   // Student search state
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  // Teacher search state
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  // Teachers tab local filters (like Manage Users)
+  const [teacherStatusFilter, setTeacherStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [teacherOnlyNoClassrooms, setTeacherOnlyNoClassrooms] = useState(false);
+  const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
+  const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -331,37 +342,8 @@ const StatsPage = ({ user, role, onBack }) => {
           sampleText: textNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration }))
         });
 
-        // Voice language distribution
-        const languageName = (code) => {
-          if (!code) return 'Other';
-          const v = String(code).toLowerCase();
-          const base = v.includes('-') ? v.split('-')[0] : v;
-          const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
-          if (map[base]) return map[base];
-          if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
-            return base.charAt(0).toUpperCase() + base.slice(1);
-          }
-          return 'Other';
-        };
-
-        const langCounts = new Map();
-        voiceNotes.forEach((obs) => {
-          const lang = languageName(obs.spokenLanguage || obs.languageCode);
-          langCounts.set(lang, (langCounts.get(lang) || 0) + 1);
-        });
-
-        const LANG_COLORS = {
-          English: '#4f46e5',
-          Hindi: '#f59e0b',
-          Tamil: '#8b5cf6',
-          Kannada: '#06b6d4',
-          Telugu: '#ec4899',
-          Other: '#94a3b8'
-        };
-
-        const voiceLanguageDistribution = Array.from(langCounts.entries())
-          .sort((a, b) => b[1] - a[1])
-          .map(([name, value]) => ({ name, value, color: LANG_COLORS[name] || '#94a3b8' }));
+        // Voice language distribution removed
+        const voiceLanguageDistribution = [];
 
         // Calculate classroom performance
         const classroomStats = classroomsData.map(classroom => {
@@ -398,13 +380,37 @@ const StatsPage = ({ user, role, onBack }) => {
             const obsDate = getObservationDate(obs);
             return obsDate >= weekAgo;
           });
+          const last14DaysObs = teacherObservations.filter(obs => {
+            const obsDate = getObservationDate(obs);
+            return obsDate >= twoWeeksAgo;
+          });
+
+          // Voice/Text split for last 14 days
+          const isVoice = (obs) => (
+            obs?.tags?.type === 'voice' ||
+            obs?.type === 'voice' ||
+            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('voice')) ||
+            !!obs?.duration
+          );
+          const isText = (obs) => (
+            obs?.tags?.type === 'text' ||
+            obs?.type === 'text' ||
+            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('text')) ||
+            (!obs?.duration && !!obs?.text)
+          );
+          const last14Voice = last14DaysObs.filter(isVoice).length;
+          const last14Text = last14DaysObs.filter(isText).length;
           
           return {
             id: teacher.id,
             name: teacher.displayName || teacher.email,
             email: teacher.email,
+            status: teacher.status,
             totalObservations: teacherObservations.length,
             thisWeekObservations: thisWeekObs.length,
+            last14DaysObservations: last14DaysObs.length,
+            last14DaysVoice: last14Voice,
+            last14DaysText: last14Text,
             target: PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK,
             performance: calculateTeacherPerformance(thisWeekObs.length)
           };
@@ -540,6 +546,32 @@ const StatsPage = ({ user, role, onBack }) => {
     setSelectedStudents([]);
   };
 
+  // Compute Activity Trend count based on selected timePeriod
+  const getObservationDateFast = (obs) => {
+    if (obs?.observedAt?.toDate) return obs.observedAt.toDate();
+    if (obs?.createdAt?.toDate) return obs.createdAt.toDate();
+    if (obs?.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+    if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+    return new Date(0);
+  };
+
+  const activityCount = useMemo(() => {
+    const list = stats?.allObservations || [];
+    const now = new Date();
+    let days = 7; // default 1W
+    switch (timePeriod) {
+      case '1D': days = 1; break;
+      case '1W': days = 7; break;
+      case '1M': days = 30; break;
+      case '3M': days = 90; break;
+      case '6M': days = 180; break;
+      case '1Y': days = 365; break;
+      default: days = 7;
+    }
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return list.filter(o => getObservationDateFast(o) >= start).length;
+  }, [stats?.allObservations, timePeriod]);
+
   const getFilterSummary = () => {
     const filters = [];
     
@@ -564,6 +596,64 @@ const StatsPage = ({ user, role, onBack }) => {
     
     return filters.join(' • ');
   };
+
+  // Helpers for Teachers tab: sort by first name and filter by search
+  const getFirstName = (name, email) => {
+    const source = name || email || '';
+    const base = source.includes('@') ? source.split('@')[0] : source;
+    const token = String(base).trim().split(/[\s._-]+/)[0] || '';
+    return token.toLowerCase();
+  };
+
+  // Map teacherId -> classroomIds using loaded classrooms
+  const teacherToClassroomIds = useMemo(() => {
+    const map = new Map();
+    (classrooms || []).forEach(c => {
+      const tids = c?.teacherIds || [];
+      tids.forEach(tid => {
+        if (!map.has(tid)) map.set(tid, new Set());
+        map.get(tid).add(c.id);
+      });
+    });
+    return map;
+  }, [classrooms]);
+
+  const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
+
+  const sortedTeacherStats = useMemo(() => {
+    const list = stats?.teacherStats || [];
+    return [...list].sort((a, b) =>
+      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
+    );
+  }, [stats?.teacherStats]);
+
+  const filteredTeacherStats = useMemo(() => {
+    const q = teacherSearchQuery?.trim();
+    let base = sortedTeacherStats;
+    if (q) {
+      base = fuzzySearchTeachers(base, q);
+    }
+    // Status filter
+    base = base.filter(t => {
+      const status = (t.status || 'active');
+      if (teacherStatusFilter === 'active') return status === 'active';
+      if (teacherStatusFilter === 'inactive') return status !== 'active';
+      return true;
+    });
+    // Classroom filters
+    base = base.filter(t => {
+      const assigned = getTeacherClassroomIds(t.id);
+      if (teacherOnlyNoClassrooms) return assigned.length === 0;
+      if (selectedTeacherClassroomFilterIds.length > 0) {
+        return assigned.some(cid => selectedTeacherClassroomFilterIds.includes(cid));
+      }
+      return true;
+    });
+    // Keep alphabetical order
+    return [...base].sort((a, b) =>
+      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
+    );
+  }, [sortedTeacherStats, teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds, teacherToClassroomIds]);
 
   const hasActiveFilters = () => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
@@ -834,178 +924,7 @@ const StatsPage = ({ user, role, onBack }) => {
     </Card>
   );
 
-  const TabNavigationGrid = () => (
-    <Grid container spacing={2} sx={{ mb: 3 }}>
-      {/* Overview Tab */}
-      <Grid item xs={6}>
-        <Card 
-          sx={{ 
-            borderRadius: 2,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: activeTab === 0 ? '2px solid' : '1px solid',
-            borderColor: activeTab === 0 ? 'primary.main' : '#e2e8f0',
-            backgroundColor: activeTab === 0 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-            }
-          }}
-          onClick={() => handleTabChange(null, 0)}
-        >
-          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <BarChart sx={{ 
-              fontSize: 32, 
-              color: activeTab === 0 ? 'primary.main' : 'text.secondary',
-              mb: 1 
-            }} />
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontWeight: 600,
-                color: activeTab === 0 ? 'primary.main' : 'text.primary'
-              }}
-            >
-              Overview
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Classrooms Tab */}
-      <Grid item xs={6}>
-        <Card 
-          sx={{ 
-            borderRadius: 2,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            border: activeTab === 1 ? '2px solid' : '1px solid',
-            borderColor: activeTab === 1 ? 'primary.main' : '#e2e8f0',
-            backgroundColor: activeTab === 1 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-            }
-          }}
-          onClick={() => handleTabChange(null, 1)}
-        >
-          <CardContent sx={{ p: 2, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <School sx={{ 
-              fontSize: 32, 
-              color: activeTab === 1 ? 'primary.main' : 'text.secondary',
-              mb: 1 
-            }} />
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontWeight: 600,
-                color: activeTab === 1 ? 'primary.main' : 'text.primary'
-              }}
-            >
-              Classrooms
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-
-      {/* Teachers Tab - Only show for admins */}
-      {role !== 'teacher' && (
-        <Grid item xs={6}>
-          <Card 
-            sx={{ 
-              borderRadius: 2,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              border: activeTab === 2 ? '2px solid' : '1px solid',
-              borderColor: activeTab === 2 ? 'primary.main' : '#e2e8f0',
-                          backgroundColor: activeTab === 2 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }
-            }}
-            onClick={() => handleTabChange(null, 2)}
-          >
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <People sx={{ 
-                fontSize: 32, 
-                color: activeTab === 2 ? 'primary.main' : 'text.secondary',
-                mb: 1 
-              }} />
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 600,
-                  color: activeTab === 2 ? 'primary.main' : 'text.primary'
-                }}
-              >
-                Teachers
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-
-      {/* Students Tab - Only show for admins */}
-      {role !== 'teacher' && (
-        <Grid item xs={6}>
-          <Card 
-            sx={{ 
-              borderRadius: 2,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              border: activeTab === 3 ? '2px solid' : '1px solid',
-              borderColor: activeTab === 3 ? 'primary.main' : '#e2e8f0',
-                          backgroundColor: activeTab === 3 ? 'primary.50' : 'white',
-            height: 120,
-            '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-              }
-            }}
-            onClick={() => handleTabChange(null, 3)}
-          >
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <People sx={{ 
-                fontSize: 32, 
-                color: activeTab === 3 ? 'primary.main' : 'text.secondary',
-                mb: 1 
-              }} />
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 600,
-                  color: activeTab === 3 ? 'primary.main' : 'text.primary'
-                }}
-              >
-                Students
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-
-      {/* For teachers, show a placeholder in the bottom right to maintain grid layout */}
-      {role === 'teacher' && (
-        <Grid item xs={6}>
-          <Card sx={{ 
-            borderRadius: 2,
-            backgroundColor: 'grey.50',
-            border: '1px dashed #cbd5e1'
-          }}>
-            <CardContent sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                Student and teacher view coming soon
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      )}
-    </Grid>
-  );
+  // Removed TabNavigationGrid (replaced with compact Tabs header)
 
 
 
@@ -1102,8 +1021,10 @@ const StatsPage = ({ user, role, onBack }) => {
 
   const generateActivityData = (observations, period) => {
     const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const hourMs = 60 * 60 * 1000;
     const data = [];
-    
+
     // Helper function to get observation date with fallback
     const getObservationDate = (obs) => {
       if (obs.observedAt?.toDate) return obs.observedAt.toDate();
@@ -1112,37 +1033,45 @@ const StatsPage = ({ user, role, onBack }) => {
       if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
       return new Date(0); // fallback
     };
-    
+
+    const startOfDay = (d) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    };
+
     switch (period) {
-      case '1D':
-        // Last 24 hours in 4-hour intervals
+      case '1D': {
+        // Last 24 hours in 4-hour trailing windows ending at now
         for (let i = 5; i >= 0; i--) {
-          const start = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
-          const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
-          
+          const end = new Date(now.getTime() - i * 4 * hourMs);
+          const start = new Date(end.getTime() - 4 * hourMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
-          
+
           data.push({
             period: `${start.getHours()}:00`,
             count
           });
         }
         break;
-        
-      case '1W':
-        // Last 7 days
+      }
+
+      case '1W': {
+        // Last 7 days aligned to local midnights; last bucket includes today so far
+        const end0 = new Date(startOfDay(now).getTime() + dayMs); // tomorrow 00:00
         for (let i = 6; i >= 0; i--) {
-          const start = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-          const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-          
+          const start = new Date(end0.getTime() - (i + 1) * dayMs);
+          const end = new Date(end0.getTime() - i * dayMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= start && obsDate < end;
           }).length;
-          
+
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           data.push({
             period: dayNames[start.getDay()],
@@ -1150,24 +1079,27 @@ const StatsPage = ({ user, role, onBack }) => {
           });
         }
         break;
-        
-      case '1M':
-        // Last 4 weeks
+      }
+
+      case '1M': {
+        // Last 4 rolling weeks, aligned to local midnight; last bucket includes today so far
+        const end0 = new Date(startOfDay(now).getTime() + dayMs); // tomorrow 00:00
         for (let i = 3; i >= 0; i--) {
-          const weekStart = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-          const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-          
+          const weekStart = new Date(end0.getTime() - (i + 1) * 7 * dayMs);
+          const weekEnd = new Date(end0.getTime() - i * 7 * dayMs);
+
           const count = observations.filter(obs => {
             const obsDate = getObservationDate(obs);
             return obsDate >= weekStart && obsDate < weekEnd;
           }).length;
-          
+
           data.push({
             period: `Week ${4 - i}`,
             count
           });
         }
         break;
+      }
         
       case '3M':
         // Last 3 months
@@ -1374,33 +1306,46 @@ const StatsPage = ({ user, role, onBack }) => {
       }}>
         {/* Replace tabs with grid navigation */}
         <CardContent sx={{ p: 3 }}>
-          {/* Tab Navigation Grid */}
-          <TabNavigationGrid />
+          {/* Compact Tabs Header */}
+          <Box sx={{ 
+            backgroundColor: 'white',
+            borderRadius: 1,
+            overflow: 'hidden',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            borderBottom: '1px solid #e2e8f0',
+            mb: 2
+          }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange}
+              variant="scrollable"
+              allowScrollButtonsMobile
+              sx={{
+                '& .MuiTab-root': {
+                  minHeight: 44,
+                  textTransform: 'none',
+                  fontWeight: 600
+                }
+              }}
+            >
+              <Tab icon={<BarChart />} label="Overview" iconPosition="start" />
+              <Tab icon={<School />} label="Classrooms" iconPosition="start" />
+              {role !== 'teacher' && (
+                <Tab icon={<People />} label="Teachers" iconPosition="start" />
+              )}
+              {role !== 'teacher' && (
+                <Tab icon={<People />} label="Students" iconPosition="start" />
+              )}
+            </Tabs>
+          </Box>
           
-          {/* Persistent Divider */}
-          <Divider sx={{ my: 3, borderColor: 'grey.300' }} />
+          {/* Divider removed to reduce visual clutter */}
 
           {/* Content based on active tab */}
           
-          {/* Common Target Header */}
-          <Box sx={{ 
-            mb: 3, 
-            p: 2, 
-            backgroundColor: 'info.50', 
-            borderRadius: 2, 
-            border: '1px solid',
-            borderColor: 'info.200',
-            textAlign: 'center'
-          }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'info.main', mb: 0.5 }}>
-              📊 Performance Targets
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Target: {PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK} notes per student per week</strong> • 
-              Teachers: {PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes per week • 
-              Classrooms: {PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK} notes per student per week
-            </Typography>
-          </Box>
+          {/* Performance target header removed */}
           
           {/* Overview Tab */}
           {activeTab === 0 && (
@@ -1432,7 +1377,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {stats.thisWeek}
+                    {activityCount}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     notes created
@@ -1484,6 +1429,7 @@ const StatsPage = ({ user, role, onBack }) => {
               </Box>
 
               {/* Note Distribution Card */}
+              
               <Box sx={{ 
                 backgroundColor: 'white',
                 borderRadius: 2,
@@ -1492,9 +1438,11 @@ const StatsPage = ({ user, role, onBack }) => {
                 mb: 3
               }}>
                 {/* Header */}
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', mb: 2 }}>
-                  Note Distribution
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Note Distribution
+                  </Typography>
+                </Box>
                 
                 {/* Pie Chart */}
                 <Box sx={{ height: 250, width: '100%' }}>
@@ -1651,52 +1599,125 @@ const StatsPage = ({ user, role, onBack }) => {
               
               {stats.teacherStats.length > 0 ? (
                 <Box>
-                  {/* Teacher Performance Bars */}
+                  {/* Search Bar */}
                   <Box sx={{ mb: 3 }}>
-                    {stats.teacherStats.map((teacher) => (
-                      <Box key={teacher.id} sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
-                            {teacher.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {teacher.thisWeekObservations}/{PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK} notes
-                          </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search teachers by name..."
+                      value={teacherSearchQuery}
+                      onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <Box sx={{ color: 'text.secondary', mr: 1 }}>
+                            <People sx={{ fontSize: 20 }} />
+                          </Box>
+                        ),
+                        endAdornment: (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {teacherSearchQuery && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setTeacherSearchQuery('')}
+                                sx={{ p: 0.5 }}
+                                aria-label="Clear search"
+                              >
+                                <Clear sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                          </Box>
+                        )
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          backgroundColor: 'white',
+                          '&:hover': {
+                            backgroundColor: 'grey.50'
+                          }
+                        }
+                      }}
+                    />
+                  </Box>
+                  {/* Filters (like Manage Users) */}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                    <Chip label="All" size="small" clickable onClick={() => setTeacherStatusFilter('all')} color={teacherStatusFilter==='all'?'primary':'default'} variant={teacherStatusFilter==='all'?'filled':'outlined'} />
+                    <Chip label="Active" size="small" clickable onClick={() => setTeacherStatusFilter('active')} color={teacherStatusFilter==='active'?'primary':'default'} variant={teacherStatusFilter==='active'?'filled':'outlined'} />
+                    <Chip label="Inactive" size="small" clickable onClick={() => setTeacherStatusFilter('inactive')} color={teacherStatusFilter==='inactive'?'primary':'default'} variant={teacherStatusFilter==='inactive'?'filled':'outlined'} />
+                    <Chip label="No Classrooms" size="small" clickable onClick={() => setTeacherOnlyNoClassrooms(v=>!v)} color={teacherOnlyNoClassrooms?'primary':'default'} variant={teacherOnlyNoClassrooms?'filled':'outlined'} />
+                    <Chip
+                      label={selectedTeacherClassroomFilterIds.length > 0 ? `Classrooms (${selectedTeacherClassroomFilterIds.length})` : 'Classrooms'}
+                      size="small"
+                      clickable
+                      onClick={() => setTeacherClassroomFilterOpen(true)}
+                      color={selectedTeacherClassroomFilterIds.length>0?'primary':'default'}
+                      variant={selectedTeacherClassroomFilterIds.length>0?'filled':'outlined'}
+                      disabled={teacherOnlyNoClassrooms}
+                    />
+                  </Box>
+                  {/* Teacher List (14-day activity) */}
+                  <Box sx={{ mb: 3 }}>
+                    {filteredTeacherStats.map((teacher) => (
+                      <Box
+                        key={teacher.id}
+                        sx={{
+                          mb: 1.5,
+                          p: 2,
+                          backgroundColor: 'white',
+                          borderRadius: 2,
+                          border: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {teacher.name}
+                            </Typography>
+                            {teacher.status && teacher.status !== 'active' && (
+                              <Chip size="small" color="warning" variant="outlined" label="Inactive" />
+                            )}
+                          </Box>
+                          <Chip
+                            size="small"
+                            label={`${teacher.last14DaysObservations} ${teacher.last14DaysObservations === 1 ? 'note' : 'notes'} in 14d`}
+                            color={teacher.last14DaysObservations === 0 ? 'error' : 'primary'}
+                            variant={teacher.last14DaysObservations === 0 ? 'filled' : 'outlined'}
+                          />
                         </Box>
-                        <Box sx={{ position: 'relative', height: 24, backgroundColor: '#f1f5f9', borderRadius: 2 }}>
-                          <Box sx={{
-                            height: '100%',
-                            width: `${Math.min(calculateTeacherPerformance(teacher.thisWeekObservations), 100)}%`,
-                            backgroundColor: isHighPerformer(teacher.performance) ? '#10b981' : 
-                                           isMediumPerformer(teacher.performance) ? '#f59e0b' : '#ef4444',
-                            borderRadius: 2,
-                            transition: 'width 0.3s ease'
-                          }} />
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Chip size="small" variant="outlined" color="success" label={`Voice: ${teacher.last14DaysVoice}`} />
+                          <Chip size="small" variant="outlined" color="info" label={`Text: ${teacher.last14DaysText}`} />
                         </Box>
                       </Box>
                     ))}
                   </Box>
+                  {/* Classroom Filter dialog */}
+                  <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>
+                    <DialogTitle component="div">
+                      <Typography component="h2" variant="h6">Filter by Classrooms</Typography>
+                    </DialogTitle>
+                    <DialogContent>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                        {classrooms.map(c => (
+                          <Chip
+                            key={c.id}
+                            label={c.name || c.id}
+                            onClick={() => setSelectedTeacherClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                            color={selectedTeacherClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
+                            variant={selectedTeacherClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
+                            clickable
+                            size="small"
+                          />
+                        ))}
+                      </Box>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setSelectedTeacherClassroomFilterIds([])}>Clear</Button>
+                      <Button variant="contained" onClick={() => setTeacherClassroomFilterOpen(false)}>Apply</Button>
+                    </DialogActions>
+                  </Dialog>
                   
-                  {/* Summary Stats */}
-                  <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 1, border: '1px solid #e2e8f0' }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Team Performance Summary
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 3 }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">High Engagement</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {stats.teacherStats.filter(t => isHighPerformer(t.performance)).length} teachers
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Average Notes</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {(stats.teacherStats.reduce((sum, t) => sum + t.thisWeekObservations, 0) / stats.teacherStats.length).toFixed(1)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
                 </Box>
               ) : (
                 <Alert severity="info">

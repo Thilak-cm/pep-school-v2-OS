@@ -5,6 +5,113 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2025-10-17
+
+### Added
+- Admin-only "AI Capabilities" page to manage prompts used by AI features (Text Cleanup and Voice Transcriber).
+- Read-only formatted view with Edit toggle; Change note on save; version history (keeps last 5) with one-click Revert.
+- Test Run panel for Text Cleanup; tone selector positioned beneath the User Prompt; prominent Test Run heading.
+- Save/Cancel actions moved to the bottom of the editor for better UX on mobile scroll.
+
+### Changed
+- Text Cleanup and Whisper STT now fetch prompts from Firestore (`ai_prompts`) with a 5-minute TTL cache and safe fallbacks to baked-in defaults.
+- Landing page: new admin card "AI Capabilities"; new `aiPrompts` route gated to admins.
+
+### Security
+- Firestore rules for `ai_prompts`: reads allowed for authenticated users; writes restricted to admins.
+
+### Ops
+- Seed script `scripts/seed_ai_prompts.mjs` to populate initial prompt documents (`text_summarizer`, `voice_transcriber`).
+
+## [3.8.2] - 2025-10-10
+
+### Added
+- Stats → Teachers: search bar with fuzzy matching and alphabetical ordering by first name.
+- Stats → Teachers: Manage Users–style filters — status chips (All/Active/Inactive), "No Classrooms" toggle, and a Classrooms selector dialog.
+
+### Changed
+
+## [3.8.1] - 2025-10-08
+### Added
+- Manage Users → Teachers: quick filters for status (All / Active / Inactive) and a “No Classrooms” filter.
+
+### Changed
+- Teachers list redesign: tap-to-manage list items (avatar + chevron) replace per-row Manage buttons.
+- Classroom chips capped to 3 with "+N more" overflow; “No classrooms” shown when empty.
+- “Add Teacher” is a full-width primary button beneath search/filters.
+
+### Fixed
+- Firestore rules now clearly allow admins to query `users`; removed ambiguous collection-level match, resolving Missing/Insufficient permissions when loading teachers.
+
+### Technical
+- Lazy-load teachers only when opening Manage → Teachers and suppress errors on the home/cards view.
+
+## [3.8.0] - 2025-10-08
+
+### Added
+- Users & Access page with card-based IA: “Add Users” and “Manage Users”.
+- Manage Users → Teachers tab: search, view classroom chips, and edit access via batch updates (`arrayUnion`/`arrayRemove`).
+
+### Changed
+- Replaced legacy Add User screen with the new Users & Access flow; updated App title and landing card label accordingly.
+- Improved Teachers list UI: moved “Add Teacher” button below the search field for clearer layout.
+- Lazy-load teachers only when opening Manage → Teachers to avoid noisy errors on the home/cards view.
+
+### Removed
+- Deleted obsolete `montessori-os/src/components/AddUserPage.jsx`.
+
+### Fixed
+- Eliminated spurious “Failed to fetch teachers” alert on the Users & Access home by deferring the query until needed.
+
+## [3.7.2] - 2025-10-07
+
+### Fixed
+- Activity Trend number now reflects the selected period (1D/1W/1M/3M/6M/1Y) instead of always showing last 7 days.
+
+### Changed
+- Replaced the large 2x2 navigation cards with a compact Tabs header (Overview, Classrooms, Teachers, Students).
+- Swapped the period toggle buttons for a minimal dropdown placed at the top‑right of the Activity Trend card.
+
+### Removed
+- Performance Targets header box removed from the Stats page.
+
+## [3.7.1] - 2025-10-02
+
+### Removed
+- Language picker and language filter across the app.
+
+### Changed
+- Voice labels simplified to “Voice Note” (removed language-specific labels).
+- Note details and Stats no longer reference spoken language.
+
+### Technical
+- Purged `filters.languages` and related logic; removed `languageName` helpers.
+- Retained STT `languageCode` hints internally only (no UI exposure).
+
+## [3.7.0] - 2025-10-02
+
+### Added
+- Confirm-on-exit flow for Add Note with dirty checks: prompts on backdrop click, ESC, close (X), and Back actions. Adds browser leave-site warning when there is progress.
+
+### Changed
+- Voice Recorder integration: when the exit prompt appears during recording, auto‑pause the recording and show an inline paused notice in the recorder panel only (no message in the confirm dialog). Discard cancels recording without creating a blob/transcription.
+
+### Technical
+- Dirty rules: Text (any character typed), Voice (recording started, audio blob/transcript, or edit mode), Recipients (always considered in progress).
+- Wiring between `AddNoteModal` and `VoiceRecorder` via `onDirtyChange` and `exposeControls`; adds a discard path that skips transcription.
+
+## [3.6.0] - 2025-10-02
+
+### Added
+- Voice Recorder: Pause and Resume controls during recording using the MediaRecorder API (with capability checks). The timer now pauses/resumes alongside recording so the 5‑minute auto‑stop applies to active recording time only.
+
+### Changed
+- Voice Recorder: recording action label shortened from "Stop Recording" to "Stop" for simpler, media‑style controls.
+- When paused, the recording indicator turns grey and the 15‑second pre‑limit warning is hidden until recording resumes.
+
+### Notes
+- No schema or API changes. Transcription flow and MIME type selection remain unchanged.
+
 ## [3.5.5] - 2025-09-29
 
 ### Changed

@@ -310,51 +310,7 @@ const FilterPanel = ({
                 {/* Removed helper text per request */}
               </Box>
 
-              {/* Language Filter */}
-              <Box>
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
-                  Language
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {[
-                    { code: 'en', label: 'English' },
-                    { code: 'hi', label: 'Hindi' },
-                    { code: 'ta', label: 'Tamil' },
-                    { code: 'kn', label: 'Kannada' }
-                  ].map(lang => {
-                    const active = (filters.languages || []).includes(lang.code);
-                    return (
-                      <Button
-                        key={lang.code}
-                        variant={active ? 'contained' : 'outlined'}
-                        size="small"
-                        onClick={() => {
-                          const current = filters.languages || [];
-                          const newValue = active
-                            ? current.filter(c => c !== lang.code)
-                            : [...current, lang.code];
-                          onFilterChange('languages', newValue);
-                        }}
-                        sx={{
-                          minWidth: 120,
-                          height: 40,
-                          borderRadius: 2,
-                          textTransform: 'none',
-                          fontWeight: 500,
-                          borderWidth: 2,
-                          ...(active && {
-                            backgroundColor: '#0ea5e9',
-                            color: 'white',
-                            '&:hover': { backgroundColor: '#0284c7' }
-                          })
-                        }}
-                      >
-                        {lang.label}
-                      </Button>
-                    );
-                  })}
-                </Box>
-              </Box>
+              {/* Language filter removed to reduce clicks */}
             </Box>
           </Box>
         </Paper>

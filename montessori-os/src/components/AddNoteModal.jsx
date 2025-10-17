@@ -29,7 +29,7 @@ import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
 
 // TextInput Component
-function TextInput({ onSave, onNext, onBack }) {
+function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
   const [text, setText] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
@@ -54,6 +54,8 @@ function TextInput({ onSave, onNext, onBack }) {
     const newText = event.target.value;
     setText(newText);
     setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
+    // Dirty if user has typed at least one character (even whitespace)
+    if (onDirtyChange) onDirtyChange(newText.length > 0);
     // Debounced nudge that never interrupts typing
     clearTimeout(pauseTimerRef.current);
     if (nudgeDismissed || cleanedOnce) {
@@ -424,6 +426,13 @@ function AddNoteModal({
     return fields;
   }
 
+  // Dirty tracking across steps
+  const [textDirty, setTextDirty] = useState(false); // any input (even whitespace)
+  const [voiceDirty, setVoiceDirty] = useState(false); // recording started or any audio/transcript present
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const voiceControlsRef = useRef(null); // controls exposed by VoiceRecorder
+  // no confirm-level voice notice; message shown inline in VoiceRecorder panel only
+
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {
     setSelectedStudents(initialStudents);
@@ -439,6 +448,88 @@ function AddNoteModal({
     setSnackbarOpen(false);
     setSnackbarMessage('');
     onClose();
+  };
+
+  // Derive if the modal has unsaved work
+  const hasUnsavedWork = () => {
+    if (step === STEP_NOTE_TYPE) return false; // silent close for window 1
+    if (step === STEP_TEXT_INPUT) return textDirty;
+    if (step === STEP_RECORD) return voiceDirty;
+    if (step === STEP_RECIPIENTS) {
+      return (
+        selectedStudents.length > 0 ||
+        !!textData || !!transcriptionData ||
+        textDirty || voiceDirty
+      );
+    }
+    return false;
+  };
+
+  // Guard against accidental page unload when there is unsaved work
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!hasUnsavedWork() || saving || !open) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    if (open) {
+      window.addEventListener('beforeunload', onBeforeUnload);
+      return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }
+  }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, saving]);
+
+  const pauseVoiceIfRecording = () => {
+    try {
+      const c = voiceControlsRef.current;
+      if (c && typeof c.pauseIfRecording === 'function') c.pauseIfRecording();
+    } catch (_) { /* no-op */ }
+  };
+
+  const cancelVoiceIfNeeded = () => {
+    try {
+      const c = voiceControlsRef.current;
+      if (c && typeof c.cancelRecording === 'function') c.cancelRecording();
+    } catch (_) { /* no-op */ }
+  };
+
+  // Centralized close request handler (backdrop, ESC, X, back buttons)
+  const requestClose = (reason) => {
+    if (saving) return; // disable closing while saving
+    const dirty = hasUnsavedWork();
+    if (!dirty) {
+      handleClose();
+      return;
+    }
+    // If dirty, pause voice if currently recording and show confirm
+    let shouldShowVoicePaused = false;
+    if (step === STEP_RECORD && voiceControlsRef.current && typeof voiceControlsRef.current.getState === 'function') {
+      try {
+        const st = voiceControlsRef.current.getState();
+        shouldShowVoicePaused = !!st?.isRecording;
+      } catch (_) { /* no-op */ }
+    }
+    if (shouldShowVoicePaused) {
+      try {
+        if (voiceControlsRef.current && typeof voiceControlsRef.current.pauseForExit === 'function') {
+          voiceControlsRef.current.pauseForExit();
+        } else {
+          pauseVoiceIfRecording();
+        }
+      } catch (_) { /* no-op */ }
+    }
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmDiscard = () => {
+    // Cancel any in-progress recording and close
+    cancelVoiceIfNeeded();
+    setConfirmOpen(false);
+    handleClose();
+  };
+
+  const handleKeepEditing = () => {
+    setConfirmOpen(false);
+    // Intentionally do not auto-resume recording; user can press Resume
   };
 
   const handleSelectVoice = () => {
@@ -578,7 +669,12 @@ function AddNoteModal({
   return (
     <Dialog
       open={open}
-      onClose={handleClose}
+      onClose={(e, reason) => {
+        // Intercept backdrop/ESC closes
+        if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+          requestClose(reason);
+        }
+      }}
       fullWidth
       maxWidth="sm"
       scroll="body"
@@ -603,31 +699,31 @@ function AddNoteModal({
           padding: 0
         }
       }}
-    >
-      {/* Top actions */}
-      <Box
-        sx={{
-          flex: 1,
+      >
+        {/* Top actions */}
+        <Box
+          sx={{
+            flex: 1,
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
           position: 'relative'
         }}
-      >
-        <IconButton
-          aria-label="Close"
-          onClick={handleClose}
-          sx={{
-            position: 'absolute',
-            top: 16,
-            right: 16,
-            color: '#1e293b',
-            '&:hover': { backgroundColor: '#f1f5f9' },
-            zIndex: 2
-          }}
         >
-          <Close sx={{ fontSize: 28 }} />
-        </IconButton>
+          <IconButton
+            aria-label="Close"
+          onClick={() => requestClose('closeButton')}
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              color: '#1e293b',
+              '&:hover': { backgroundColor: '#f1f5f9' },
+              zIndex: 2
+            }}
+          >
+            <Close sx={{ fontSize: 28 }} />
+          </IconButton>
         {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
@@ -709,6 +805,7 @@ function AddNoteModal({
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Voice Note
                     </Typography>
+                    <NewFeaturePill label="New language: Malayalam" size="sm" />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
@@ -724,7 +821,13 @@ function AddNoteModal({
             <VoiceRecorder 
               onSave={handleVoiceSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
-              onBack={() => setStep(STEP_NOTE_TYPE)}
+              onBack={() => {
+                // Back from voice: confirm if any recording progress exists
+                if (voiceDirty) return requestClose('backFromVoice');
+                setStep(STEP_NOTE_TYPE);
+              }}
+              onDirtyChange={setVoiceDirty}
+              exposeControls={(controls) => { voiceControlsRef.current = controls; }}
             />
           </Box>
         )}
@@ -734,7 +837,12 @@ function AddNoteModal({
             <TextInput 
               onSave={handleTextSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
-              onBack={() => setStep(STEP_NOTE_TYPE)}
+              onBack={() => {
+                // Back from text: confirm if any input exists (even whitespace)
+                if (textDirty) return requestClose('backFromText');
+                setStep(STEP_NOTE_TYPE);
+              }}
+              onDirtyChange={setTextDirty}
             />
           </Box>
         )}
@@ -771,7 +879,10 @@ function AddNoteModal({
             }}>
               <Button 
                 variant="text" 
-                onClick={() => setStep(transcriptionData ? STEP_RECORD : STEP_TEXT_INPUT)}
+                onClick={() => {
+                  // Back from recipients: always confirm (final stage)
+                  return requestClose('backFromRecipients');
+                }}
               >
                 Back
               </Button>
@@ -787,6 +898,31 @@ function AddNoteModal({
           </Box>
         )}
       </Box>
+      {/* Exit confirmation dialog */}
+      <Dialog
+        open={confirmOpen}
+        onClose={handleKeepEditing}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Exit without saving?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            You have an unfinished note. If you exit now, your current progress will be lost.
+          </Typography>
+          {/* Voice paused notice intentionally omitted in confirm dialog. */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button onClick={handleKeepEditing} variant="contained" autoFocus>
+              Keep Editing
+            </Button>
+            <Button onClick={handleConfirmDiscard} color="error" variant="outlined">
+              Discard
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
       <Snackbar 
         open={snackbarOpen} 
         autoHideDuration={6000} 

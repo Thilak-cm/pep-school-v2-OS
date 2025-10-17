@@ -4,6 +4,7 @@ import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
 import LandingPage from "./components/LandingPage";
+import AICapabilitiesPage from "./components/AICapabilitiesPage.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -13,7 +14,7 @@ import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
 import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
-import AddUserPage from "./components/AddUserPage";
+import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import app, { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
@@ -37,7 +38,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiPrompts'
+  const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -224,8 +226,13 @@ function App() {
   else if (screen === 'stats') pageTitle = 'Statistics';
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
   else if (screen === 'feedbackTimeline') pageTitle = 'Feedback Dashboard';
-  else if (screen === 'addUser') pageTitle = 'Add New User';
+  else if (screen === 'addUser') {
+    if (usersAccessView === 'add') pageTitle = 'Add Users';
+    else if (usersAccessView === 'manage') pageTitle = 'Manage Users';
+    else pageTitle = 'Users & Access';
+  }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
+  else if (screen === 'aiPrompts') pageTitle = 'AI Capabilities';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -245,9 +252,16 @@ function App() {
       case 'profile':
       case 'stats':
       case 'feedback':
-      case 'addUser':
       case 'classroomNotesReview':
+      case 'aiPrompts':
         return () => setScreen('landingPage');
+      case 'addUser':
+        // Handle UsersAccessPage internal navigation
+        if (usersAccessView === 'home') {
+          return () => setScreen('landingPage');
+        } else {
+          return () => setUsersAccessView('home');
+        }
       case 'feedbackTimeline':
         return () => setScreen('landingPage');
       default:
@@ -416,6 +430,8 @@ function App() {
                       setScreen('feedback');
                     } else if (path === '/addUser') {
                       setScreen('addUser');
+                    } else if (path === '/aiPrompts') {
+                      if (role === 'admin') setScreen('aiPrompts');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -454,6 +470,8 @@ function App() {
                           setScreen('stats');
                         } else if (path === '/addUser') {
                           setScreen('addUser');
+                        } else if (path === '/aiPrompts') {
+                          if (role === 'admin') setScreen('aiPrompts');
                         }
                       }}
                     />
@@ -539,9 +557,11 @@ function App() {
                   )}
 
                   {screen === 'addUser' && (
-                    <AddUserPage
+                    <UsersAccessPage
                       currentUser={user}
                       userRole={role}
+                      view={usersAccessView}
+                      onViewChange={setUsersAccessView}
                     />
                   )}
 
@@ -549,6 +569,10 @@ function App() {
                     <ReviewClassroomNotes
                       currentUser={user}
                     />
+                  )}
+
+                  {screen === 'aiPrompts' && (
+                    <AICapabilitiesPage currentUser={user} userRole={role} />
                   )}
 
                   {screen === 'accessDenied' && (

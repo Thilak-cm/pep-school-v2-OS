@@ -373,7 +373,7 @@ function NoteExpansionDialog({
               </Typography>
             </Box>
             
-            {observation.type === 'voice' && (observation.duration || observation.spokenLanguage || observation.languageCode) && (
+            {observation.type === 'voice' && observation.duration && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
