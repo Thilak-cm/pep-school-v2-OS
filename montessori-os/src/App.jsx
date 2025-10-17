@@ -4,6 +4,7 @@ import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
 import LandingPage from "./components/LandingPage";
+import AICapabilitiesPage from "./components/AICapabilitiesPage.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -37,7 +38,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiPrompts'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -231,6 +232,7 @@ function App() {
     else pageTitle = 'Users & Access';
   }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
+  else if (screen === 'aiPrompts') pageTitle = 'AI Capabilities';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -251,6 +253,7 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
+      case 'aiPrompts':
         return () => setScreen('landingPage');
       case 'addUser':
         // Handle UsersAccessPage internal navigation
@@ -427,6 +430,8 @@ function App() {
                       setScreen('feedback');
                     } else if (path === '/addUser') {
                       setScreen('addUser');
+                    } else if (path === '/aiPrompts') {
+                      if (role === 'admin') setScreen('aiPrompts');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -465,6 +470,8 @@ function App() {
                           setScreen('stats');
                         } else if (path === '/addUser') {
                           setScreen('addUser');
+                        } else if (path === '/aiPrompts') {
+                          if (role === 'admin') setScreen('aiPrompts');
                         }
                       }}
                     />
@@ -564,6 +571,10 @@ function App() {
                     />
                   )}
 
+                  {screen === 'aiPrompts' && (
+                    <AICapabilitiesPage currentUser={user} userRole={role} />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -599,4 +610,3 @@ function App() {
 }
 
 export default App;
-

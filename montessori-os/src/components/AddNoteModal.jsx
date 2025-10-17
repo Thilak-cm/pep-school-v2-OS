@@ -648,7 +648,8 @@ function AddNoteModal({
                       Voice Note
                     </Typography>
                     <NewFeaturePill 
-                      label="Latest Feature: Pause and Resume an ongoing voice note!" 
+                      // Removed outdated feature pill about pause/resume
+                      label=""
                       size="sm" 
                     />
                   </Box>

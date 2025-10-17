@@ -2,10 +2,12 @@
 // Simple, direct audio transcription and translation without chunking
 
 import { trackEvent, lengthBucket } from './utils/analytics';
+import { getWhisperContextPrompt } from './services/promptProvider';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_SPEECH_TO_TEXT_API_KEY;
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/audio/transcriptions';
 const OPENAI_TRANSLATE_ENDPOINT = 'https://api.openai.com/v1/audio/translations';
+export const WHISPER_MODEL_INFO = { model: 'whisper-1' };
 
 /**
  * Convert audio blob to MP3 format for OpenAI Whisper API
@@ -70,9 +72,17 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     
     formData.append('file', mp3Blob, filename);
     formData.append('model', 'whisper-1');
-    
+
     // Add context prompt to improve transcription accuracy for educational observations
-    formData.append('prompt', "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.");
+    let contextPrompt = "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.";
+    try {
+      const live = await getWhisperContextPrompt();
+      if (live?.contextPrompt) contextPrompt = String(live.contextPrompt);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[whisperSTT] Using fallback context prompt due to fetch error', e);
+    }
+    formData.append('prompt', contextPrompt);
     
     // Add language hint if specified (OpenAI will auto-detect if not provided)
     if (languageCode && languageCode !== 'en-US') {
@@ -164,7 +174,16 @@ export const translateAudioToEnglish = async (audioBlob) => {
     formData.append('model', 'whisper-1');
     // Ask for verbose_json to capture detected language and segments
     formData.append('response_format', 'verbose_json');
-    formData.append('prompt', "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.");
+    let contextPrompt = "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.";
+    try {
+      const live = await getWhisperContextPrompt();
+      if (live?.contextPrompt) contextPrompt = String(live.contextPrompt);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[whisperSTT] Using fallback context prompt due to fetch error', e);
+    }
+    formData.append('prompt', contextPrompt);
+
 
     console.log('Sending translation request to OpenAI Whisper (to English):', {
       filename,

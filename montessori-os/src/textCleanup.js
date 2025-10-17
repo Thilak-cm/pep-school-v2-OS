@@ -1,5 +1,6 @@
 // OpenAI Text Cleanup utility for refining teacher text notes
 // Uses a dedicated API key if provided, otherwise falls back to speech-to-text key
+import { getTextSummarizerPrompts } from './services/promptProvider';
 
 const CLEANUP_API_KEY = import.meta.env.VITE_OPENAI_TEXT_CLEANUP_API_KEY || import.meta.env.VITE_OPENAI_SPEECH_TO_TEXT_API_KEY;
 const CHAT_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -12,6 +13,8 @@ const CHAT_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
  * @param {('concise'|'standard'|'detailed')} [options.tone='standard'] Output density preference
  * @returns {Promise<string>} Cleaned up note
  */
+export const CLEANUP_MODEL_INFO = { model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 600 };
+
 export async function cleanUpText(text, options = {}) {
   if (!CLEANUP_API_KEY) {
     throw new Error('OpenAI API key not configured. Set VITE_OPENAI_TEXT_CLEANUP_API_KEY or VITE_OPENAI_SPEECH_TO_TEXT_API_KEY');
@@ -19,8 +22,8 @@ export async function cleanUpText(text, options = {}) {
 
   const tone = options.tone || 'standard';
 
-  // System prompt tailored for Montessori observation notes
-  const systemPrompt = `You are an assistant that cleans up Montessori observation notes.
+  // Fallback prompts (used if Firestore read fails)
+  let systemPrompt = `You are an assistant that cleans up Montessori observation notes.
 Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each);
 use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational.
 Rules:
@@ -31,14 +34,31 @@ Rules:
 - Output plain text with line breaks (no headings, no markdown formatting beyond simple "- " bullets).
 - Return only the refined note text, with clean, readable structure.`;
 
-  const userPrompt = `Please clean up the following observation. Density: ${tone}.
+  let userTemplate = `Please clean up the following observation. Density: ${'${tone}'}.
 
 ---
-${text}
+${'${text}'}
 ---`;
 
+  // Attempt to fetch prompts from Firestore with TTL caching
+  try {
+    const live = await getTextSummarizerPrompts();
+    if (live?.systemPrompt) systemPrompt = String(live.systemPrompt);
+    if (live?.userPrompt) userTemplate = String(live.userPrompt);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[textCleanup] Using fallback prompts due to fetch error', e);
+  }
+
+  const interpolate = (tpl, vars) =>
+    String(tpl)
+      .replaceAll('${' + 'tone}', vars.tone)
+      .replaceAll('${' + 'text}', vars.text);
+
+  const userPrompt = interpolate(userTemplate, { tone, text });
+
   // Prefer a small, capable model for cost/speed; the server may map aliases
-  const model = 'gpt-4o-mini';
+  const model = CLEANUP_MODEL_INFO.model;
 
   const body = {
     model,
@@ -46,8 +66,8 @@ ${text}
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    temperature: 0.2,
-    max_tokens: 600,
+    temperature: CLEANUP_MODEL_INFO.temperature,
+    max_tokens: CLEANUP_MODEL_INFO.max_tokens,
   };
 
   const res = await fetch(CHAT_ENDPOINT, {
