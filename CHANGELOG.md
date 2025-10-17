@@ -5,6 +5,24 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2025-10-17
+
+### Added
+- Admin-only "AI Capabilities" page to manage prompts used by AI features (Text Cleanup and Voice Transcriber).
+- Read-only formatted view with Edit toggle; Change note on save; version history (keeps last 5) with one-click Revert.
+- Test Run panel for Text Cleanup; tone selector positioned beneath the User Prompt; prominent Test Run heading.
+- Save/Cancel actions moved to the bottom of the editor for better UX on mobile scroll.
+
+### Changed
+- Text Cleanup and Whisper STT now fetch prompts from Firestore (`ai_prompts`) with a 5-minute TTL cache and safe fallbacks to baked-in defaults.
+- Landing page: new admin card "AI Capabilities"; new `aiPrompts` route gated to admins.
+
+### Security
+- Firestore rules for `ai_prompts`: reads allowed for authenticated users; writes restricted to admins.
+
+### Ops
+- Seed script `scripts/seed_ai_prompts.mjs` to populate initial prompt documents (`text_summarizer`, `voice_transcriber`).
+
 ## [3.8.2] - 2025-10-10
 
 ### Added
