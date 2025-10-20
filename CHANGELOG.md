@@ -5,6 +5,28 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2025-10-20
+
+### Added
+- Migration scripts
+  - `scripts/admin/rename-classroom.js`: safely rename a classroom document (adolescent → allstars), update all affected students and observations, and archive the old document.
+  - `scripts/admin/migrate-program-field.js`: replace legacy `ageGroup` with `programId` and append canonical age ranges to `description`.
+  - `scripts/admin/check-program-field.js`: verify migration health (missing programId, lingering ageGroup, and optional student-count verification).
+  - `scripts/admin/recount-student-counts.js`: reconcile `classrooms.studentCount` with actual student documents.
+  - NPM tasks wired: `migrate:rename-classroom`, `migrate:program`, `check:program`, `fix:studentCounts`.
+
+### Changed
+- Data model: `ageGroup` → `programId` with canonical values `toddler | primary | elementary | adolescent`; updated DATA_STRUCTURE.md with migration notes and age ranges.
+- Frontend now hides archived classrooms everywhere (lists, filters, pickers) and admin queries fetch only `status == 'active'` classrooms.
+- Seeding utility `scripts/admin/upsert-students.js` now writes `programId` and normalized `teacherIds`.
+
+### Fixed
+- UsersAccessPage: creating a student now atomically increments the classroom's `studentCount` within the same transaction and updates the UI optimistically.
+- Repair utility (`fix:studentCounts`) to correct existing count mismatches.
+
+### Ops
+- Documented migration order and verification steps; tools are idempotent and safe to dry-run before applying.
+
 ## [3.9.0] - 2025-10-17
 
 ### Added
