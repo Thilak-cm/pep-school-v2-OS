@@ -470,8 +470,9 @@ const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens:
 const PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let textSummarizerCache = { data: null, ts: 0 };
 
-async function getTextSummarizerPromptsServer() {
+async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
   const fresh =
+    !forceRefresh &&
     textSummarizerCache.data &&
     (Date.now() - textSummarizerCache.ts < PROMPT_TTL_MS);
   if (fresh) return textSummarizerCache.data;
@@ -523,7 +524,8 @@ export const aiTextCleanup = functions
       throw new functions.https.HttpsError("invalid-argument", "invalid tone");
     }
 
-    const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer();
+    const forceRefresh = !!data?.forceRefresh;
+    const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer({ forceRefresh });
 
     const interpolate = (tpl, vars) =>
       String(tpl)
@@ -587,8 +589,9 @@ const WHISPER_MODEL_INFO = { model: "whisper-1" };
 const VOICE_PROMPT_TTL_MS = 5 * 60 * 1000;
 let voicePromptCache = { data: null, ts: 0 };
 
-async function getVoiceContextPromptServer() {
+async function getVoiceContextPromptServer({ forceRefresh = false } = {}) {
   const fresh =
+    !forceRefresh &&
     voicePromptCache.data &&
     (Date.now() - voicePromptCache.ts < VOICE_PROMPT_TTL_MS);
   if (fresh) return voicePromptCache.data;
@@ -640,7 +643,7 @@ export const aiWhisperTranscribe = functions
     const filename = `recording_${Date.now()}.mp3`;
     form.append("file", blob, filename);
     form.append("model", WHISPER_MODEL_INFO.model);
-    const contextPrompt = await getVoiceContextPromptServer();
+    const contextPrompt = await getVoiceContextPromptServer({ forceRefresh: !!data?.forceRefresh });
     form.append("prompt", contextPrompt);
     if (languageCode && languageCode !== "en-US") {
       form.append("language", languageCode.split("-")[0]);
@@ -820,7 +823,7 @@ export const aiWhisperTranslate = functions
     form.append("file", blob, filename);
     form.append("model", WHISPER_MODEL_INFO.model);
     form.append("response_format", "verbose_json");
-    const contextPrompt = await getVoiceContextPromptServer();
+    const contextPrompt = await getVoiceContextPromptServer({ forceRefresh: !!data?.forceRefresh });
     form.append("prompt", contextPrompt);
 
     let response;

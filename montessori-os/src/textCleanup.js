@@ -15,7 +15,7 @@ export const CLEANUP_MODEL_INFO = { model: 'gpt-4o-mini', temperature: 0.2, max_
 export async function cleanUpText(text, options = {}) {
   const tone = options.tone || 'standard';
   const call = httpsCallable(cloudFunctions, 'aiTextCleanup');
-  const res = await call({ text, tone });
+  const res = await call({ text, tone, forceRefresh: true });
   const cleaned = res?.data?.cleanedText;
   if (!cleaned) {
     throw new Error('Cleanup failed');

@@ -4,7 +4,9 @@ import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
 import LandingPage from "./components/LandingPage";
-import AICapabilitiesPage from "./components/AICapabilitiesPage.jsx";
+import AIHomePage from "./components/AIHomePage.jsx";
+import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
+import AIVoiceTranscriberEditor from "./components/AIVoiceTranscriberEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -38,7 +40,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiPrompts'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -232,7 +234,9 @@ function App() {
     else pageTitle = 'Users & Access';
   }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
-  else if (screen === 'aiPrompts') pageTitle = 'AI Capabilities';
+  else if (screen === 'aiHome') pageTitle = 'AI Home';
+  else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
+  else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -253,8 +257,12 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-      case 'aiPrompts':
+      case 'aiHome':
         return () => setScreen('landingPage');
+      case 'aiTextEditor':
+        return () => setScreen('aiHome');
+      case 'aiVoiceEditor':
+        return () => setScreen('aiHome');
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
@@ -431,7 +439,7 @@ function App() {
                     } else if (path === '/addUser') {
                       setScreen('addUser');
                     } else if (path === '/aiPrompts') {
-                      if (role === 'admin') setScreen('aiPrompts');
+                      if (role === 'admin') setScreen('aiHome');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -471,7 +479,7 @@ function App() {
                         } else if (path === '/addUser') {
                           setScreen('addUser');
                         } else if (path === '/aiPrompts') {
-                          if (role === 'admin') setScreen('aiPrompts');
+                          if (role === 'admin') setScreen('aiHome');
                         }
                       }}
                     />
@@ -571,8 +579,20 @@ function App() {
                     />
                   )}
 
-                  {screen === 'aiPrompts' && (
-                    <AICapabilitiesPage currentUser={user} userRole={role} />
+                  {screen === 'aiHome' && (
+                    <AIHomePage
+                      userRole={role}
+                      onOpenTextEditor={() => setScreen('aiTextEditor')}
+                      onOpenVoiceEditor={() => setScreen('aiVoiceEditor')}
+                    />
+                  )}
+
+                  {screen === 'aiTextEditor' && (
+                    <AITextCleanupEditor currentUser={user} userRole={role} />
+                  )}
+
+                  {screen === 'aiVoiceEditor' && (
+                    <AIVoiceTranscriberEditor currentUser={user} userRole={role} />
                   )}
 
                   {screen === 'accessDenied' && (

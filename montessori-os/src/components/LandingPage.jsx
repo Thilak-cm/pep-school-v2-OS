@@ -263,7 +263,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
 
-            {/* AI Capabilities */}
+            {/* AI Home */}
             <Grid size={12}>
               <Card
                 sx={{
@@ -284,10 +284,10 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         </Avatar>
                         <Box>
                           <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                            AI Capabilities
+                            AI Home
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                            Here’s where you can finetune AI outputs
+                            Manage AI tools: Text Cleanup and Voice Transcriber
                           </Typography>
                         </Box>
                       </Box>
