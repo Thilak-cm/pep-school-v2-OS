@@ -49,6 +49,12 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
           classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         }
 
+        // Exclude any classrooms labeled as "Adolescent" by name (case-insensitive)
+        classroomsToShow = classroomsToShow.filter(c => {
+          const name = String(c?.name || '').toLowerCase();
+          return !name.includes('adolescent');
+        });
+
         setClassrooms(classroomsToShow);
 
         // Get student counts for each classroom
