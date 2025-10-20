@@ -1,5 +1,5 @@
 // ClassroomList.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -11,6 +11,7 @@ import {
   Avatar,
   TextField,
   InputAdornment,
+  Divider,
 } from '@mui/material';
 import { School, Group, ArrowForward, Search } from '@mui/icons-material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -22,11 +23,28 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
 
   useEffect(() => {
     const fetchClassrooms = async () => {
       try {
         let classroomsToShow = [];
+
+        // Fetch programs -> classroom mapping
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        const pMap = {};
+        programsSnap.forEach((doc) => {
+          const data = doc.data() || {};
+          const list = Array.isArray(data.classrooms) ? data.classrooms : [];
+          const ids = list
+            .map((p) => String(p))
+            .map((p) => {
+              const parts = p.split('/');
+              return parts[parts.length - 1];
+            });
+          pMap[doc.id] = ids;
+        });
+        setProgramMap(pMap);
 
         if (userRole === 'teacher') {
           // Get all classrooms first (should work with list permission)
@@ -79,21 +97,91 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
     fetchClassrooms();
   }, [currentUser?.uid, userRole]);
 
-  if (loading) {
-    return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center',
-        minHeight: '200px'
-      }}>
-        <CircularProgress size={32} />
-      </Box>
-    );
-  }
-
   // Use fuzzy search for better matching
   const visibleClassrooms = fuzzySearchClassrooms(classrooms, searchQuery);
+
+  // Build reverse index: classroomId -> programId
+  const classroomToProgram = useMemo(() => {
+    const map = {};
+    Object.entries(programMap).forEach(([pid, ids]) => {
+      (ids || []).forEach((cid) => {
+        if (!map[cid]) map[cid] = pid;
+      });
+    });
+    return map;
+  }, [programMap]);
+
+  // Sort available programs alphabetically
+  const sortedProgramIds = useMemo(() => {
+    const present = new Set();
+    for (const c of visibleClassrooms) {
+      const pid = classroomToProgram[c.id];
+      if (pid) present.add(pid);
+    }
+    return Array.from(present).sort((a, b) => a.localeCompare(b));
+  }, [visibleClassrooms, classroomToProgram]);
+
+  // Group classrooms by program using programs collection; anything unmapped goes to 'unassigned'
+  const groupedByProgram = useMemo(() => {
+    const groups = {};
+    for (const pid of sortedProgramIds) groups[pid] = [];
+    const unassigned = [];
+    for (const c of visibleClassrooms) {
+      const pid = classroomToProgram[c.id];
+      if (pid) {
+        if (!groups[pid]) groups[pid] = [];
+        groups[pid].push(c);
+      } else {
+        unassigned.push(c);
+      }
+    }
+    return { groups, unassigned };
+  }, [visibleClassrooms, classroomToProgram, sortedProgramIds]);
+
+  const PROGRAM_TITLES = {
+    adolescent: 'Adolescent',
+    elementary: 'Elementary',
+    primary: 'Primary',
+    toddler: 'Toddler',
+  };
+
+  const renderCard = (classroom) => (
+    <Card
+      key={classroom.id}
+      sx={{
+        borderRadius: 2,
+        '&:hover': {
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          transform: 'translateY(-2px)',
+        },
+        transition: 'all 0.2s ease-in-out',
+      }}
+    >
+      <CardActionArea onClick={() => onSelectClassroom(classroom)} sx={{ p: 0 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
+                <School />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                  {classroom.name}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                  <Group sx={{ fontSize: 16, color: '#64748b' }} />
+                  <Typography variant="body2" sx={{ color: '#64748b' }}>
+                    {studentCounts[classroom.id] || 0} students
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+            <ArrowForward sx={{ color: '#94a3b8' }} />
+          </Box>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -154,9 +242,18 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
         />
       )}
 
-      {/* Classrooms Grid */}
+      {/* Classrooms grouped by Program (from programs/*) */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {visibleClassrooms.length === 0 ? (
+        {loading ? (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            minHeight: '200px'
+          }}>
+            <CircularProgress size={32} />
+          </Box>
+        ) : visibleClassrooms.length === 0 ? (
           <Card sx={{ 
             p: 4, 
             textAlign: 'center',
@@ -175,57 +272,47 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
             </Typography>
           </Card>
         ) : (
-          visibleClassrooms.map((classroom) => (
-            <Card
-              key={classroom.id}
-              sx={{
-                borderRadius: 2,
-                '&:hover': {
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  transform: 'translateY(-2px)',
-                },
-                transition: 'all 0.2s ease-in-out',
-              }}
-            >
-              <CardActionArea
-                onClick={() => onSelectClassroom(classroom)}
-                sx={{ p: 0 }}
-              >
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ 
-                        bgcolor: '#4f46e5',
-                        width: 48,
-                        height: 48
-                      }}>
-                        <School />
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" component="h3" sx={{ 
-                          color: '#1e293b',
-                          fontWeight: 600
-                        }}>
-                          {classroom.name}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                          <Group sx={{ fontSize: 16, color: '#64748b' }} />
-                          <Typography variant="body2" sx={{ color: '#64748b' }}>
-                            {studentCounts[classroom.id] || 0} students
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                    <ArrowForward sx={{ color: '#94a3b8' }} />
-                  </Box>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          ))
+          <>
+            {sortedProgramIds.map((pid) => {
+              const items = groupedByProgram.groups[pid] || [];
+              if (!items.length) return null;
+              const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+              return (
+                <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Divider
+                    textAlign="left"
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      color: '#64748b',        // slate-500
+                      '&::before, &::after': {
+                        borderColor: '#e2e8f0', // slate-200
+                      },
+                    }}
+                  >
+                    {label}
+                  </Divider>
+                  {items.map(renderCard)}
+                </Box>
+              );
+            })}
+            {groupedByProgram.unassigned.length > 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Divider
+                  textAlign="left"
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    color: '#64748b',
+                    '&::before, &::after': { borderColor: '#e2e8f0' },
+                  }}
+                >
+                  Unassigned
+                </Divider>
+                {groupedByProgram.unassigned.map(renderCard)}
+              </Box>
+            )}
+          </>
         )}
       </Box>
     </Box>

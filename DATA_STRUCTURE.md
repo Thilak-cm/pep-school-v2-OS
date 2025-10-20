@@ -238,7 +238,7 @@ Notes
 - Document IDs are fixed to the four environments above.
 - `classrooms` stores document-path strings (not DocumentReference) for portability with admin scripts and simple reads.
 - Populated by `scripts/admin/seed-programs.js`, which scans `classrooms` by `programId` and writes `programs/{programId}`.
-- Client UI currently does not read this collection directly; it’s primarily for admin/ops and reporting.
+- Client UI reads this collection to group classrooms by program on the Classrooms list.
 
 ---
 
