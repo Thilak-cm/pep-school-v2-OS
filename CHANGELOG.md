@@ -21,7 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Admin-only access preserved for AI Home and both editors.
 
-## [4.0.0] - 2025-10-20
+## [4.2.0] - 2025-10-20
+
+### UI/UX
+- AI Home: new “Coach” card and admin-only “Coach Editor”.
+- Coach Editor lets admins toggle which nudges are enabled (duration, modality, independence, evidence, subjective), provides versioned history with revert, a rendered system prompt preview, and a test run panel.
+
+### Backend
+- Added Firestore-backed Coach config at `ai_prompts/coach` with TTL caching and versioning; disabled nudges are fully omitted from the system prompt (allowed ids, chips, microcopy list).
+- `aiCoachReview` now reads Coach config, supports `forceRefresh`, and returns `promptVersion` tied to the config version.
+
+### Security
+- Admin-only access for Coach Editor; no analytics logging for test runs.
+
+## [4.1.0] - 2025-10-20
 
 ### Coach (Server Intelligence + Robust UX)
 - Added callable `aiCoachReview` and integrated server-driven nudges for Coach.
