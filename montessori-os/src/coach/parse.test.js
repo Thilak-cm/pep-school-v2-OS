@@ -55,10 +55,10 @@ test('parseCoachResponse handles malformed JSON safely', () => {
 });
 
 test('makeCoachRequest builds safe context', () => {
-  const req = makeCoachRequest('Hello', { subject_tags: ['Math', 42, null], student_age_band: null, class_name: 123 });
+  const req = makeCoachRequest('Hello', { classroomId: 'allstars', programId: 123 });
   assert.equal(req.note_text, 'Hello');
-  assert.deepEqual(req.context.subject_tags, ['Math']);
-  assert.equal(req.context.class_name, null);
+  assert.equal(req.context.classroomId, 'allstars');
+  assert.equal(req.context.programId, null);
 });
 
 test('isValidCoachResponse basic shape check', () => {

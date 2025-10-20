@@ -6,6 +6,7 @@ import { getAuth } from "firebase-admin/auth";
 import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
+import crypto from "node:crypto";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -664,6 +665,137 @@ export const aiWhisperTranscribe = functions
     const json = await response.json();
     const text = (json?.text || "").trim();
     return { text, languageCode };
+  });
+
+// -----------------------------------------------
+// Coach Review (AI nudges) — callable
+// -----------------------------------------------
+const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
+const COACH_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
+const coachCache = new Map(); // key -> { ts, data }
+
+function coachCacheKey(text, ctx) {
+  const base = `${text}\n|${ctx?.classroomId || ""}|${ctx?.programId || ""}`;
+  return crypto.createHash("sha256").update(base).digest("hex");
+}
+
+function coachSystemPrompt() {
+  return [
+    "You are a Montessori teacher coach that proposes up to 2 nudges to improve",
+    "a Montessori observation note. Do not rewrite the teacher's text. Only suggest:",
+    "- Duration, Modality, Independence, Evidence, or Subjective (objective one-liner).",
+    "",
+    "Rules:",
+    "- Output strict JSON with top-level {\"nudges\": [...]} with at most 2 items.",
+    "- Allowed ids: duration | modality | independence | evidence | subjective.",
+    "- Chips by id:",
+    "  duration: [\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"]",
+    "  modality: [\"Material\",\"Pen & paper\",\"Mental\"]",
+    "  independence: [\"Independent\",\"Peer pair\",\"Small group\",\"Teacher-guided\"]",
+    "  evidence: [\"# attempts\",\"# correct\",\"Add quote\"]",
+    "  subjective: []",
+    "- microcopy_key values: about_how_long | how_was_this_done | add_tiny_evidence | objective_line_invite",
+    "- Do not infer a duration; only suggest if missing.",
+    "- Prefer high precision. If unsure, return an empty array.",
+    "",
+    "Example (one-shot):",
+    "INPUT:",
+    "{\"note_text\":\"STUDENT_A used number rods today.\",\"context\":{\"classroomId\":\"allstars\",\"programId\":\"adolescent\"}}",
+    "OUTPUT:",
+    "{\"nudges\":[",
+    "  {\"id\":\"duration\",\"reason\":\"Activity noted without a time range.\",\"confidence\":0.86,\"microcopy_key\":\"about_how_long\",\"chips\":[\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"],\"append_line\":\"Duration: 10–20 min\",\"metadata\":{\"duration_range\":\"10–20m\"}},",
+    "  {\"id\":\"modality\",\"reason\":\"Math work without modality context.\",\"confidence\":0.62,\"microcopy_key\":\"how_was_this_done\",\"chips\":[\"Material\",\"Pen & paper\",\"Mental\"],\"append_line\":\"Modality: Material\",\"metadata\":{\"modality\":\"Material\"}}",
+    "]}",
+    "",
+    "Return only JSON. No extra text."
+  ].join("\n");
+}
+
+function coachUserPrompt(payload) {
+  return [
+    "INPUT:",
+    JSON.stringify(payload)
+  ].join("\n");
+}
+
+export const aiCoachReview = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    if (!OPENAI_API_KEY) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+
+    const note_text = typeof data?.note_text === "string" ? data.note_text : "";
+    const ctx = (data && data.context && typeof data.context === "object") ? data.context : {};
+    const classroomId = typeof ctx.classroomId === "string" ? ctx.classroomId : null;
+    const programId = typeof ctx.programId === "string" ? ctx.programId : null;
+    if (!note_text.trim()) return { nudges: [], status: "ok", latency_ms: 0 };
+
+    // Cache
+    const key = coachCacheKey(note_text, { classroomId, programId });
+    const cached = coachCache.get(key);
+    if (cached && (Date.now() - cached.ts < COACH_TTL_MS)) {
+      return { ...cached.data, status: "ok", cache: true };
+    }
+
+    const payload = { note_text, context: { classroomId, programId } };
+    const messages = [
+      { role: "system", content: coachSystemPrompt() },
+      { role: "user", content: coachUserPrompt(payload) },
+    ];
+
+    const body = {
+      model: COACH_MODEL_INFO.model,
+      temperature: COACH_MODEL_INFO.temperature,
+      max_tokens: COACH_MODEL_INFO.max_tokens,
+      messages,
+    };
+
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), 9000); // ~9s budget
+    const t0 = Date.now();
+    let response;
+    try {
+      response = await fetch(CHAT_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(to);
+      if (e?.name === "AbortError") return { nudges: [], status: "timeout", latency_ms: Date.now() - t0 };
+      console.error("[aiCoachReview] network error", e);
+      return { nudges: [], status: "error", reason: "net", latency_ms: Date.now() - t0 };
+    }
+    clearTimeout(to);
+
+    const latency_ms = Date.now() - t0;
+    if (!response.ok) {
+      const txt = await response.text().catch(() => "");
+      console.error("[aiCoachReview] OpenAI error", response.status, txt?.slice?.(0, 200));
+      return { nudges: [], status: "error", reason: "ai", latency_ms };
+    }
+
+    let content;
+    try {
+      const json = await response.json();
+      content = json?.choices?.[0]?.message?.content || "";
+    } catch {
+      return { nudges: [], status: "error", reason: "parse_ai", latency_ms };
+    }
+    
+    try {
+      const parsed = JSON.parse(content);
+      const out = { nudges: Array.isArray(parsed?.nudges) ? parsed.nudges : [] };
+      coachCache.set(key, { ts: Date.now(), data: out });
+      return { ...out, status: "ok", latency_ms, promptVersion: 1 };
+    } catch {
+      return { nudges: [], status: "error", reason: "parse_json", latency_ms };
+    }    
   });
 
 export const aiWhisperTranslate = functions

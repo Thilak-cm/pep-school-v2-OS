@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Typography, Button, TextField } from '@mui/material';
 import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES } from './constants';
-import { FORCED_NUDGES } from './config';
 
 // Microcopy comes directly from constants.MICROCOPY_KEYS mapping by nudge id
 
@@ -45,24 +44,11 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges }) 
     NUDGE_IDS.SUBJECTIVE,
   ];
   const sampledIds = useMemo(() => {
-    // Determine desired nudges from prop or config; filter to valid ids
-    const desired = (forcedNudges && Array.isArray(forcedNudges) ? forcedNudges : FORCED_NUDGES)
-      .filter((id) => ALL_IDS.includes(id));
-    // De-duplicate while preserving order of appearance
+    const desired = Array.isArray(forcedNudges) ? forcedNudges.filter((id) => ALL_IDS.includes(id)) : [];
     const dedup = Array.from(new Set(desired));
-    // Enforce PRD priority order and cap to MAX_NUDGES
     dedup.sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b));
     return dedup.slice(0, MAX_NUDGES);
-  }, [noteText, forcedNudges]);
-
-  // Auto-skip if no nudges selected to mimic 0 result
-  useEffect(() => {
-    if (sampledIds.length === 0 && onSkip) {
-      // next tick to let dialog mount
-      const id = setTimeout(() => onSkip(), 0);
-      return () => clearTimeout(id);
-    }
-  }, [sampledIds, onSkip]);
+  }, [forcedNudges]);
 
   // Selections per nudge (no defaults)
   const [selections, setSelections] = useState({

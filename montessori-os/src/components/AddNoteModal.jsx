@@ -26,6 +26,9 @@ import NewFeaturePill from './NewFeaturePill';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
+import { httpsCallable } from 'firebase/functions';
+import { cloudFunctions } from '../firebase';
+import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
 
@@ -292,7 +295,10 @@ function AddNoteModal({
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachNudges, setCoachNudges] = useState([]);
   const [coachSelections, setCoachSelections] = useState({});
-  const [coachReviewing, setCoachReviewing] = useState(false); // 5s spinner notice
+  const [coachReviewing, setCoachReviewing] = useState(false); // not used in new flow
+  // Analyzing overlay (replaces snackbar for this flow)
+  const [analyzingOpen, setAnalyzingOpen] = useState(false);
+  const [analyzingMessage, setAnalyzingMessage] = useState('');
 
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
@@ -304,36 +310,54 @@ function AddNoteModal({
     setCoachReviewing(false);
   };
 
-  const runCoachReview = async (noteText) => {
-    // Duration-only MVP: open nudge dialog and wait for user action
+  const runCoachReview = async (noteText, { classroomId = null, programId = null } = {}) => {
     resetCoach();
-    setCoachOpen(true);
-    // Stash the note text in selections for preview use
-    setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
-    // Non-blocking reviewing notice after 5s; hard auto-continue at 10s
-    setCoachReviewing(false);
-    const t5 = setTimeout(() => setCoachReviewing(true), 5000);
+    // Show analyzing overlay with progressive copy (0s / 5s / 10s)
+    let timedOut = false;
+    setAnalyzingMessage('Coach Pepper is analyzing your note!');
+    setAnalyzingOpen(true);
+    const t5 = setTimeout(() => {
+      if (!timedOut) setAnalyzingMessage('Oh no, Coach Pepper is taking longer than usual. Hang on tight!');
+    }, 5000);
     const t10 = setTimeout(() => {
-      if (coachActionRef.current == null) {
-        coachActionRef.current = { skipped: true, timeout: true };
-        setCoachOpen(false);
-        setCoachReviewing(false);
-      }
+      timedOut = true;
+      setAnalyzingMessage('Coach Pepper is running into issues :( saving note as is for now.');
     }, 10000);
 
-    return await new Promise((resolve) => {
-      const interval = setInterval(() => {
-        if (coachActionRef.current != null) {
-          const v = coachActionRef.current;
-          coachActionRef.current = null;
-          clearInterval(interval);
-          clearTimeout(t5);
-          clearTimeout(t10);
-          setCoachReviewing(false);
-          resolve(v);
-        }
-      }, 50);
-    });
+    try {
+      const payload = makeCoachRequest(noteText, { classroomId, programId });
+      const call = httpsCallable(cloudFunctions, 'aiCoachReview');
+      const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
+      if (timedOut) { clearTimeout(t5); clearTimeout(t10); setAnalyzingOpen(false); return { skipped: true, timeout: true }; }
+      const parsed = parseCoachResponse(res?.data || { nudges: [] });
+      clearTimeout(t5); clearTimeout(t10);
+      // Hide analyzing overlay now that we have a result
+      setAnalyzingOpen(false);
+      const nudges = parsed.nudges || [];
+      if (!nudges.length) {
+        return { skipped: true };
+      }
+      // Open dialog with available nudges and wait for user interaction
+      setCoachNudges(nudges);
+      setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
+      setCoachOpen(true);
+
+      return await new Promise((resolve) => {
+        const interval = setInterval(() => {
+          if (coachActionRef.current != null) {
+            const v = coachActionRef.current;
+            coachActionRef.current = null;
+            clearInterval(interval);
+            resolve(v);
+          }
+        }, 50);
+      });
+    } catch (_) {
+      clearTimeout(t5); clearTimeout(t10);
+      // Hide analyzing overlay and skip without blocking save
+      setAnalyzingOpen(false);
+      return { skipped: true };
+    }
   };
 
   const handleCoachSkip = () => {
@@ -581,7 +605,22 @@ function AddNoteModal({
     // If text note, run Coach review first
     let coachResult = null;
     if (!transcriptionData && noteData && noteData.text) {
-      coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
+      // Derive context from first selected student: classroomId and programId
+      let classroomId = null; let programId = null;
+      try {
+        const firstStudentId = selectedStudents && selectedStudents.length > 0 ? selectedStudents[0] : null;
+        if (firstStudentId) {
+          const studentDocRef = doc(db, 'students', firstStudentId);
+          const studentDocSnap = await getDoc(studentDocRef);
+          classroomId = studentDocSnap?.data()?.classroomId || null;
+          if (classroomId) {
+            const classroomRef = doc(db, 'classrooms', classroomId);
+            const classroomSnap = await getDoc(classroomRef);
+            programId = classroomSnap?.data()?.programId || null;
+          }
+        }
+      } catch (_) { /* ignore context errors */ }
+      coachResult = await runCoachReview(noteData.text, { classroomId, programId }).catch(() => ({ skipped: true }));
       if (!coachResult) return; // safety
     }
 
@@ -593,8 +632,8 @@ function AddNoteModal({
         const studentDocSnap = await getDoc(studentDocRef);
         const studentData = studentDocSnap.data();
 
-        // Prefer exact preview text from the nudge dialog to avoid mismatch
-        let textToSave = coachResult?.updated_text || buildFinalText(noteData.text);
+        // Prefer exact text from the user’s Apply in the Coach dialog; otherwise save original
+        let textToSave = coachResult?.updated_text || noteData.text;
 
         const observationData = {
           // Identity
@@ -637,7 +676,7 @@ function AddNoteModal({
         }
 
         // Coach structured fields (if any were selected)
-        let coachFields = coachResult?.selections ? { ...coachResult.selections } : buildCoachStructuredFields();
+        let coachFields = coachResult?.selections ? { ...coachResult.selections } : {};
         Object.assign(observationData, coachFields);
 
         // No default spoken language for text notes
@@ -945,21 +984,21 @@ function AddNoteModal({
         </Box>
       </Dialog>
       <Snackbar 
-        open={snackbarOpen} 
-        autoHideDuration={6000} 
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        sx={{ 
-          top: '80px !important', // Position below app header
-          right: { xs: '16px', sm: 'calc(50% - 187.5px + 16px)' }, // Center within mobile container on desktop
-          maxWidth: { xs: '343px', sm: '343px' }, // Constrain width to mobile dimensions
-          width: { xs: 'calc(100vw - 32px)', sm: '343px' } // Full width on mobile, fixed on desktop
-        }}
+        open={false}
+        onClose={() => {}}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Analyzing overlay dialog */}
+      <Dialog open={analyzingOpen} onClose={() => {}} fullWidth maxWidth="xs">
+        <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <CircularProgress size={22} />
+          <Typography variant="body2" color="text.secondary">{analyzingMessage}</Typography>
+        </Box>
+      </Dialog>
 
       {/* Coach nudge popup — duration-only MVP */}
       <Dialog open={coachOpen} onClose={handleCoachSkip} fullWidth maxWidth="sm">
@@ -968,6 +1007,7 @@ function AddNoteModal({
             noteText={coachSelections?._noteText || ''}
             onSkip={handleCoachSkip}
             onApply={handleCoachApply}
+            forcedNudges={coachNudges.map(n => n.id)}
           />
           {coachReviewing && (
             <Box

@@ -91,14 +91,11 @@ export function parseCoachResponse(raw) {
 export function makeCoachRequest(noteText, context) {
   const safeText = isString(noteText) ? noteText : '';
   const ctx = isObject(context) ? context : {};
-  const subject_tags = Array.isArray(ctx.subject_tags) ? ctx.subject_tags.filter(isString) : [];
   return {
     note_text: safeText,
     context: {
-      student_age_band: isString(ctx.student_age_band) ? ctx.student_age_band : null,
-      subject_tags,
-      teacher_first_name_token: isString(ctx.teacher_first_name_token) ? ctx.teacher_first_name_token : null,
-      class_name: isString(ctx.class_name) ? ctx.class_name : null,
+      classroomId: isString(ctx.classroomId) ? ctx.classroomId : null,
+      programId: isString(ctx.programId) ? ctx.programId : null,
     },
   };
 }
@@ -115,4 +112,3 @@ export function isValidCoachResponse(obj) {
   }
   return true;
 }
-
