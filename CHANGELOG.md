@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2025-10-20
+
+### UI/UX
+- Replaced tabbed “AI Capabilities” screen with card-based “AI Home”.
+- Added separate editor screens: “Text Cleanup Editor” and “Voice Transcriber Editor”.
+- Navigation mirrors “Users & Access”: AI Home → Editors with back to AI Home; titles updated accordingly.
+- Landing page card renamed to “AI Home” with updated description.
+
+### Backend
+- Cloud Functions now read Text Cleanup and Voice Transcriber prompts from Firestore (`ai_prompts/*`) with a 5‑minute TTL cache.
+- Added `forceRefresh` option to `aiTextCleanup`, `aiWhisperTranscribe`, and `aiWhisperTranslate` to bypass cache after UI edits.
+- Client Text Cleanup test run calls now use `forceRefresh` for immediate prompt changes.
+
+### Security
+- Admin-only access preserved for AI Home and both editors.
+
 ## [4.0.0] - 2025-10-20
 
 ### Coach (Server Intelligence + Robust UX)
