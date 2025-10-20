@@ -1,8 +1,9 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 // import { getStorage } from "firebase-admin/storage";
-import * as functions from "firebase-functions";
+// Use v1 compatibility API for region(), https.onCall(), etc.
+import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 
@@ -456,3 +457,254 @@ export const requestAccess = functions.region("asia-south1").https.onCall(async 
     throw new functions.https.HttpsError("internal", "Failed to submit access request");
   }
 });
+
+// -----------------------------------------------
+// AI: Text Cleanup (server-side OpenAI invocation)
+// -----------------------------------------------
+const OPENAI_API_KEY = functions.config().openai?.key || process.env.OPENAI_API_KEY || null;
+const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
+
+// In-memory TTL cache for prompts to reduce Firestore reads
+const PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let textSummarizerCache = { data: null, ts: 0 };
+
+async function getTextSummarizerPromptsServer() {
+  const fresh =
+    textSummarizerCache.data &&
+    (Date.now() - textSummarizerCache.ts < PROMPT_TTL_MS);
+  if (fresh) return textSummarizerCache.data;
+
+  try {
+    const snap = await db.collection("ai_prompts").doc("text_summarizer").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      systemPrompt: String(data.systemPrompt || ""),
+      userPrompt: String(data.userPrompt || ""),
+      version: Number.isFinite(data.version) ? data.version : 1,
+    };
+    textSummarizerCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[aiTextCleanup] prompt fetch failed:", err);
+    const out = {
+      systemPrompt:
+        "You are an assistant that cleans up Montessori observation notes. Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each); use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational. Rules: - Preserve all factual content, names, and dates; do not add or infer details. - Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL). - Ensure consistent spacing and final punctuation for sentences. - Keep it parent- and teacher-friendly; avoid clinical jargon. - Output plain text with line breaks (no headings, no markdown formatting beyond simple \"- \" bullets). - Return only the refined note text, with clean, readable structure.",
+      userPrompt:
+        "Please clean up the following observation. Density: ${tone}. --- ${text} ---",
+      version: 1,
+    };
+    textSummarizerCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+export const aiTextCleanup = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const text = String(data?.text || "").trim();
+    const tone = String(data?.tone || "standard");
+    if (!text) {
+      throw new functions.https.HttpsError("invalid-argument", "text is required");
+    }
+    if (text.length > 12000) {
+      throw new functions.https.HttpsError("invalid-argument", "text too long");
+    }
+    if (!["concise", "standard", "detailed"].includes(tone)) {
+      throw new functions.https.HttpsError("invalid-argument", "invalid tone");
+    }
+
+    const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer();
+
+    const interpolate = (tpl, vars) =>
+      String(tpl)
+        .replaceAll("${" + "tone}", vars.tone)
+        .replaceAll("${" + "text}", vars.text);
+
+    const renderedUser = interpolate(userPrompt || "Please clean up the following observation. Density: ${tone}. --- ${text} ---", { tone, text });
+
+    const body = {
+      model: CLEANUP_MODEL_INFO.model,
+      messages: [
+        { role: "system", content: systemPrompt || "" },
+        { role: "user", content: renderedUser }
+      ],
+      temperature: CLEANUP_MODEL_INFO.temperature,
+      max_tokens: CLEANUP_MODEL_INFO.max_tokens,
+    };
+
+    let response;
+    try {
+      response = await fetch(CHAT_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      console.error("[aiTextCleanup] network error", e);
+      throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error("[aiTextCleanup] OpenAI error", response.status, errText?.slice?.(0, 300));
+      throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+    }
+
+    const json = await response.json();
+    const cleanedText = json?.choices?.[0]?.message?.content?.trim();
+    if (!cleanedText) {
+      throw new functions.https.HttpsError("internal", "AI returned no content");
+    }
+
+  return {
+    cleanedText,
+    model: CLEANUP_MODEL_INFO.model,
+    promptVersion: version || 1,
+  };
+});
+
+// -----------------------------------------------
+// AI: Whisper STT (server-side OpenAI invocation)
+// -----------------------------------------------
+const WHISPER_TRANSCRIBE_ENDPOINT = 'https://api.openai.com/v1/audio/transcriptions';
+const WHISPER_TRANSLATE_ENDPOINT = 'https://api.openai.com/v1/audio/translations';
+const WHISPER_MODEL_INFO = { model: 'whisper-1' };
+
+// TTL cache for voice context prompt
+const VOICE_PROMPT_TTL_MS = 5 * 60 * 1000;
+let voicePromptCache = { data: null, ts: 0 };
+
+async function getVoiceContextPromptServer() {
+  const fresh = voicePromptCache.data && (Date.now() - voicePromptCache.ts < VOICE_PROMPT_TTL_MS);
+  if (fresh) return voicePromptCache.data;
+  try {
+    const snap = await db.collection('ai_prompts').doc('voice_transcriber').get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const contextPrompt = String(
+      data.contextPrompt ||
+      'This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.'
+    );
+    voicePromptCache = { data: contextPrompt, ts: Date.now() };
+    return contextPrompt;
+  } catch (_) {
+    const fallback = 'This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities.';
+    voicePromptCache = { data: fallback, ts: Date.now() };
+    return fallback;
+  }
+}
+
+function base64ToBlob(base64, mimeType = 'application/octet-stream') {
+  const buf = Buffer.from(base64, 'base64');
+  return new Blob([buf], { type: mimeType });
+}
+
+// Max payload we allow for callable to avoid request-size limits (approx 9.5MB raw)
+const MAX_CALLABLE_BYTES = 9.5 * 1024 * 1024;
+
+export const aiWhisperTranscribe = functions
+  .region('asia-south1')
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    if (!OPENAI_API_KEY) throw new functions.https.HttpsError('failed-precondition', 'OpenAI key not configured');
+
+    const audioBase64 = data?.audioBase64;
+    const mimeType = String(data?.mimeType || 'audio/mpeg');
+    const languageCode = String(data?.languageCode || 'en-US');
+    if (!audioBase64) throw new functions.https.HttpsError('invalid-argument', 'audioBase64 is required');
+
+    const rawBytes = Buffer.byteLength(audioBase64, 'base64');
+    if (rawBytes > MAX_CALLABLE_BYTES) {
+      throw new functions.https.HttpsError('invalid-argument', 'Audio too large; please use a shorter recording');
+    }
+
+    const blob = base64ToBlob(audioBase64, mimeType);
+    const form = new FormData();
+    const filename = `recording_${Date.now()}.mp3`;
+    form.append('file', blob, filename);
+    form.append('model', WHISPER_MODEL_INFO.model);
+    const contextPrompt = await getVoiceContextPromptServer();
+    form.append('prompt', contextPrompt);
+    if (languageCode && languageCode !== 'en-US') {
+      form.append('language', languageCode.split('-')[0]);
+    }
+
+    let response;
+    try {
+      response = await fetch(WHISPER_TRANSCRIBE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        body: form,
+      });
+    } catch (e) {
+      console.error('[aiWhisperTranscribe] network error', e);
+      throw new functions.https.HttpsError('unavailable', 'STT service unavailable');
+    }
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      console.error('[aiWhisperTranscribe] OpenAI error', response.status, errText?.slice?.(0, 300));
+      throw new functions.https.HttpsError('internal', `STT error: ${response.status}`);
+    }
+    const json = await response.json();
+    const text = (json?.text || '').trim();
+    return { text, languageCode };
+  });
+
+export const aiWhisperTranslate = functions
+  .region('asia-south1')
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    if (!OPENAI_API_KEY) throw new functions.https.HttpsError('failed-precondition', 'OpenAI key not configured');
+
+    const audioBase64 = data?.audioBase64;
+    const mimeType = String(data?.mimeType || 'audio/mpeg');
+    if (!audioBase64) throw new functions.https.HttpsError('invalid-argument', 'audioBase64 is required');
+
+    const rawBytes = Buffer.byteLength(audioBase64, 'base64');
+    if (rawBytes > MAX_CALLABLE_BYTES) {
+      throw new functions.https.HttpsError('invalid-argument', 'Audio too large; please use a shorter recording');
+    }
+
+    const blob = base64ToBlob(audioBase64, mimeType);
+    const form = new FormData();
+    const filename = `recording_${Date.now()}.mp3`;
+    form.append('file', blob, filename);
+    form.append('model', WHISPER_MODEL_INFO.model);
+    form.append('response_format', 'verbose_json');
+    const contextPrompt = await getVoiceContextPromptServer();
+    form.append('prompt', contextPrompt);
+
+    let response;
+    try {
+      response = await fetch(WHISPER_TRANSLATE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        body: form,
+      });
+    } catch (e) {
+      console.error('[aiWhisperTranslate] network error', e);
+      throw new functions.https.HttpsError('unavailable', 'STT service unavailable');
+    }
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      console.error('[aiWhisperTranslate] OpenAI error', response.status, errText?.slice?.(0, 300));
+      throw new functions.https.HttpsError('internal', `STT error: ${response.status}`);
+    }
+    const json = await response.json();
+    const text = (json?.text || '').trim();
+    const language = json?.language || undefined;
+    return { text, detectedLanguage: language };
+  });

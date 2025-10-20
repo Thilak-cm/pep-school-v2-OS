@@ -19,7 +19,7 @@ import {
   ArrowBack
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
-import { cleanUpText, localCleanupFallback } from '../textCleanup';
+import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import NewFeaturePill from './NewFeaturePill';
@@ -89,11 +89,15 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       setCleaning(true);
       setPrevText(text);
       const refined = await cleanUpText(text).catch(() => null);
-      const out = (refined || localCleanupFallback(text)).trim();
-      setText(out);
-      setCleanedOnce(true);
-      setShowNudge(false);
-      setNudgeDismissed(true);
+      if (refined) {
+        setText(String(refined).trim());
+        setCleanedOnce(true);
+        setShowNudge(false);
+        setNudgeDismissed(true);
+      } else {
+        // No change; keep original text and mark as not cleaned
+        setCleanedOnce(false);
+      }
       const dt = Math.round(performance.now() - t0);
       trackEvent('polish_success', {
         source: 'text',
@@ -103,7 +107,7 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       });
     } catch (e) {
       console.error('Cleanup error:', e);
-      setText(localCleanupFallback(text));
+      // Do not modify text on error; transparency matters
       trackEvent('polish_error', {
         source: 'text',
         component: 'AddNoteModal.TextInput',

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
-import { cleanUpText, localCleanupFallback } from './textCleanup';
+import { cleanUpText } from './textCleanup';
 import { db } from './firebase';
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
@@ -988,9 +988,14 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
                             setCleaning(true);
                             setPrevTranscription(transcription);
                             const refined = await cleanUpText(transcription).catch(() => null);
-                            const out = (refined || localCleanupFallback(transcription)).trim();
-                            setTranscription(out);
-                            setCleanedOnce(true);
+                            if (refined) {
+                              const out = String(refined).trim();
+                              setTranscription(out);
+                              setCleanedOnce(true);
+                            } else {
+                              // Keep original transcription unchanged
+                              setCleanedOnce(false);
+                            }
                             const dt = Math.round(performance.now() - t0);
                             trackEvent('polish_success', {
                               source: 'voice',

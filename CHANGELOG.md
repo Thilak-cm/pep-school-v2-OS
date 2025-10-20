@@ -5,6 +5,14 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.1] - 2025-10-20
+
+### Changed
+- classroomList.jsx now segregates classrooms based on programs pulled from firestore
+
+### Added
+- read access for programs/ to all users and write access to admins
+
 ## [3.10.0] - 2025-10-20
 
 ### Added

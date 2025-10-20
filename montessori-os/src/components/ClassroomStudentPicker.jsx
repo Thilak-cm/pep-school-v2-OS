@@ -31,7 +31,7 @@ import {
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { cleanUpText, localCleanupFallback } from '../textCleanup';
+import { cleanUpText } from '../textCleanup';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
 /*
@@ -279,12 +279,16 @@ function ClassroomStudentPicker({
     if (!editableText.trim() || cleaning || cleanedOnce) return;
     try {
       setCleaning(true);
-      setCleanedOnce(true);
       const refined = await cleanUpText(editableText).catch(() => null);
-      setEditableText((refined || localCleanupFallback(editableText)).trim());
+      if (refined) {
+        setEditableText(String(refined).trim());
+        setCleanedOnce(true);
+      } else {
+        // No change if cleanup failed
+        setCleanedOnce(false);
+      }
     } catch (e) {
       console.error('Cleanup error:', e);
-      setEditableText(localCleanupFallback(editableText));
     } finally {
       setCleaning(false);
     }
