@@ -5,6 +5,29 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2025-10-20
+
+### Security/Infra
+- Moved all OpenAI calls off the browser to Cloud Functions.
+  - New callables: `aiTextCleanup`, `aiWhisperTranscribe`, `aiWhisperTranslate`.
+  - Server reads prompts from `ai_prompts/*` with a 5‑minute TTL cache.
+  - OpenAI key pulled from `functions.config().openai.key` (no key in client).
+- Removed all local client fallbacks for cleanup to ensure transparency when AI is unavailable.
+
+### UI/UX
+- Classroom List: grouped by `programs/*` with subtle section dividers; alphabetical program ordering.
+- Fixed React hook‑order error in `ClassroomList.jsx` by rendering inline loading state (no early return before hooks).
+
+### Data/Rules/Docs
+- `DATA_STRUCTURE.md`: added `programs` collection schema and per‑document field breakdown for `ai_prompts/text_summarizer` and `ai_prompts/voice_transcriber`.
+- Firestore rules: allow signed‑in reads for `programs/*`; writes admin‑only.
+
+### Developer
+- Functions import switched to `firebase-functions/v1` to use `region().https.onCall()` with ESM.
+
+### Ops
+- To configure: `firebase functions:config:set openai.key="<YOUR_KEY>"` and deploy functions.
+
 ## [3.10.1] - 2025-10-20
 
 ### Changed

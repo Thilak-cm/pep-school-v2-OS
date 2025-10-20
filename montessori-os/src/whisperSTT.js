@@ -1,5 +1,5 @@
 // OpenAI Whisper Speech-to-Text API Service
-// Simple, direct audio transcription and translation without chunking
+// Simple, direct audio transcription and translation
 
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { httpsCallable } from 'firebase/functions';
