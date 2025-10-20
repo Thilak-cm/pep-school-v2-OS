@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2025-10-20
+
+### Coach (Server Intelligence + Robust UX)
+- Added callable `aiCoachReview` and integrated server-driven nudges for Coach.
+- Dialog opens only after nudges are available (no flicker); removed modal auto‑skip scaffolding.
+- New analyzing overlay during fetch with progressive messages (0s/5s/10s) and 10s fail‑closed path that saves as‑is.
+- Appends and structured fields are applied only on explicit Apply; no metadata-based auto‑append.
+
+### Security/Infra
+- All AI calls run on Cloud Functions; no browser‑side OpenAI usage. OpenAI key pulled from `functions.config().openai.key`.
+- Maintains short TTL caches on functions to reduce Firestore reads for prompts.
+
+### Developer
+- Functions code uses `firebase-functions/v1` compat import for `region().https.onCall()` with ESM.
+- Whisper STT and Text Cleanup already run via callables; this release consolidates Coach flow and stabilizes UX.
+
 ## [3.11.0] - 2025-10-20
 
 ### Security/Infra
