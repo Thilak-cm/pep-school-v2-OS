@@ -13,6 +13,8 @@
 - `students/{studentId}`
 - `students/{studentId}/observations/{observationId}` (collection group: `observations`)
 - `feedback/{feedbackId}`
+- `programs/{programId}`
+- `ai_prompts/{docId}`
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -75,6 +77,14 @@ Migration notes
   - Elementary: Age range 6–11 yo (Grades 1–5)
   - Primary: Age range 3–6 yo
   - Toddler: Age range <3 yo
+
+Environments → current classrooms
+- adolescent (grades 6–8 · 12–14 yo): allstars
+- elementary (grades 1–5 · 6–11 yo): amazing, power
+- primary (3–6 yo): plumeria, periwinkle, gulmohar
+- toddler (<3 yo): parijat
+
+These are captured in the `programs` collection (see below), with each program document listing its classroom document paths.
 
 ---
 
@@ -212,6 +222,114 @@ Guidance
 
 ---
 
+## 🧭 Programs (`/programs/{programId}`)
+Program documents represent Montessori environments and list the classrooms belonging to each program. Seeded/managed by admin scripts.
+
+```typescript
+type ProgramId = 'adolescent' | 'elementary' | 'primary' | 'toddler';
+
+interface ProgramDoc {
+  classrooms: string[]; // e.g., ["classrooms/allstars", "classrooms/amazing"]
+  updatedAt: Timestamp; // server time
+}
+```
+
+Notes
+- Document IDs are fixed to the four environments above.
+- `classrooms` stores document-path strings (not DocumentReference) for portability with admin scripts and simple reads.
+- Populated by `scripts/admin/seed-programs.js`, which scans `classrooms` by `programId` and writes `programs/{programId}`.
+- Client UI currently does not read this collection directly; it’s primarily for admin/ops and reporting.
+
+---
+
+## 🤖 AI Prompts (`/ai_prompts/{docId}`)
+Centralized prompts for AI features with simple version history. Read by clients at runtime with a 5‑minute TTL cache; writes restricted to admins.
+
+Documents
+- `text_summarizer` — prompts for the Text Cleanup feature
+- `voice_transcriber` — context string for Whisper speech‑to‑text
+
+ai_prompts/text_summarizer
+```typescript
+interface TextSummarizerDoc {
+  // Display metadata
+  title: string;                 // e.g., "Text Cleanup (Observation Notes)"
+  description: string;           // e.g., "Prompts used to clean up observation notes via AI."
+
+  // Prompts used by src/textCleanup.js
+  systemPrompt: string;          // system role content guiding the model
+  userPrompt: string;            // supports ${tone} and ${text} template vars
+
+  // Change tracking (managed by admin UI)
+  version: number;               // monotonically increasing
+  updatedAt: Timestamp;          // server time
+  updatedBy: { uid: string; email: string; name: string };
+  seed?: boolean;                // true if populated by seed script
+  versions?: Array<{
+    version: number;
+    systemPrompt?: string;
+    userPrompt?: string;
+    updatedAt: Timestamp;
+    updatedBy: { uid: string; email: string; name: string };
+    changeNote?: string;
+  }>;                            // last few snapshots (UI keeps up to 5)
+}
+```
+Example current values
+- title: "Text Cleanup (Observation Notes)"
+- description: "Prompts used to clean up observation notes via AI."
+- systemPrompt: "You are an assistant that cleans up Montessori observation notes. Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each); use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational. Rules: - Preserve all factual content, names, and dates; do not add or infer details. - Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL). - Ensure consistent spacing and final punctuation for sentences. - Keep it parent- and teacher-friendly; avoid clinical jargon. - Output plain text with line breaks (no headings, no markdown formatting beyond simple "- " bullets). - Return only the refined note text, with clean, readable structure."
+- userPrompt: "Please clean up the following observation. Density: ${tone}. --- ${text} ---"
+- version: 1
+- updatedAt: <Timestamp>
+- updatedBy: { uid, email, name }
+- seed: true
+
+ai_prompts/voice_transcriber
+```typescript
+interface VoiceTranscriberDoc {
+  // Display metadata
+  title: string;                 // e.g., "Voice Transcriber Context"
+  description: string;           // e.g., "Context string provided to the STT engine to bias educational content."
+
+  // Prompt used by src/whisperSTT.js (sent to Whisper as `prompt`)
+  contextPrompt: string;
+
+  // Change tracking (managed by admin UI)
+  version: number;               // monotonically increasing
+  updatedAt: Timestamp;          // server time
+  updatedBy: { uid: string; email: string; name: string };
+  seed?: boolean;                // true if populated by seed script
+  versions?: Array<{
+    version: number;
+    contextPrompt?: string;
+    updatedAt: Timestamp;
+    updatedBy: { uid: string; email: string; name: string };
+    changeNote?: string;
+  }>;                            // last few snapshots (UI keeps up to 5)
+}
+```
+Example current values
+- title: "Voice Transcriber Context"
+- description: "Context string provided to the STT engine to bias educational content."
+- contextPrompt: "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities."
+- version: 1
+- updatedAt: <Timestamp>
+- updatedBy: { uid, email, name }
+- seed: true
+
+Client usage
+- `src/services/promptProvider.js` reads `ai_prompts` with a 5‑minute TTL cache.
+- `src/textCleanup.js` uses `systemPrompt` and `userPrompt`; falls back to baked‑in defaults on fetch failure.
+- `src/whisperSTT.js` uses `contextPrompt`; falls back to a safe default on fetch failure.
+- Admins manage these via `AICapabilitiesPage` (`/aiPrompts`) with edit, save, and one‑click revert (maintains `versions`).
+
+Security
+- Reads: any authenticated user (rules allow read on `ai_prompts/*`).
+- Writes: admins only.
+
+---
+
 ## 🔎 Core Query Patterns
 - Teacher’s classrooms: `classrooms` where `teacherIds` array-contains `uid`
 - Students in a classroom: `students` where `classroomId == X` and `isActive == true`
@@ -250,6 +368,8 @@ Reads
 - `classrooms`: admin all; teacher if `classroomHasTeacher(id, uid)`
 - `students`: admin all; teacher if `classroomHasTeacher(student.classroomId, uid)`
 - `observations` (collection group): admin all; teacher if `classroomHasTeacher(classroomId, uid)`
+- `ai_prompts`: any authenticated user (client fetch)
+- `programs`: not read by client UI; default deny unless added explicitly
 
 Creates – observations
 - Allow if teacher AND all of the following:
@@ -284,6 +404,7 @@ Field immutability (on update)
 
 ## 🛠 Backend Maintenance (recommended)
 - Maintain `classrooms.studentCount` via triggers on student create/update/delete
+- Keep `programs/*` refreshed using `scripts/admin/seed-programs.js` after classroom changes
 - If needed later: sharded counters for classroom/teacher observation counts
 - For group notes, generate a `groupId` once and fan-out to all targeted students
 
