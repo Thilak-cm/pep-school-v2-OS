@@ -40,12 +40,16 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
           }));
           
           // Filter to only show classrooms where this teacher is assigned
-          classroomsToShow = allClassrooms.filter(classroom => {
+          classroomsToShow = allClassrooms
+            // exclude archived classrooms
+            .filter(classroom => (classroom.status || 'active') !== 'archived')
+            .filter(classroom => {
             return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
           });
         } else {
           // For admins: get all classrooms
-          const qSnap = await getDocs(collection(db, 'classrooms'));
+          const q = query(collection(db, 'classrooms'), where('status', '==', 'active'));
+          const qSnap = await getDocs(q);
           classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         }
 

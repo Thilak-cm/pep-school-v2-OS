@@ -84,18 +84,20 @@ function ClassroomStudentPicker({
             id: doc.id, 
             ...doc.data() 
           }));
+          // Filter out archived rooms client-side to avoid composite index requirement
+          const activeTeacherClassrooms = teacherClassrooms.filter(c => (c.status || 'active') !== 'archived');
           
           // Get classroom names for filtering students later
-          assignedClassroomNames = teacherClassrooms.map(cls => cls.name);
+          assignedClassroomNames = activeTeacherClassrooms.map(cls => cls.name);
           
           // Set classrooms directly from the query
-          classList = teacherClassrooms;
+          classList = activeTeacherClassrooms;
           
           // Update the classrooms state for the Browse by Classroom section
           setClassrooms(classList);
         } else {
           // For admins: get all classrooms
-          const allClassroomsSnap = await getDocs(collection(db, 'classrooms'));
+          const allClassroomsSnap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
           classList = allClassroomsSnap.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data() 

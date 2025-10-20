@@ -21,6 +21,7 @@ import {
   arrayUnion,
   arrayRemove
 } from 'firebase/firestore';
+import { increment } from 'firebase/firestore';
 
 const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, onViewChange }) => {
   const notify = useNotify();
@@ -98,7 +99,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const fetchClassrooms = async () => {
     try {
       setLoading(true);
-      const snap = await getDocs(collection(db, 'classrooms'));
+      const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
       list.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
       setClassrooms(list.map(c => ({ id: c.id, name: c.name || c.id, studentCount: c.studentCount || 0, teacherIds: c.teacherIds || [] })));
@@ -390,7 +391,15 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 payload.guardianRelationship = studentForm.guardianRelationship.trim();
                 payload.guardianPhone = studentForm.guardianPhone.trim();
               }
+              // Create student
               tx.set(ref, payload);
+              // Maintain classrooms.studentCount atomically
+              const classroomRef = doc(db, 'classrooms', studentForm.classroomId);
+              tx.set(
+                classroomRef,
+                { studentCount: increment(1), updatedAt: serverTimestamp() },
+                { merge: true }
+              );
             });
             return sid;
           };
@@ -398,6 +407,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           try { createdId = await attempt(); }
           catch { createdId = await attempt(); }
           notify.success(`Student ${studentForm.firstName} ${studentForm.lastName || ''} has been added to the roster!`);
+          // Optimistically increment local classrooms list for chip counts
+          const addedClassroomId = studentForm.classroomId;
+          setClassrooms(prev => prev.map(c => c.id === addedClassroomId ? { ...c, studentCount: (c.studentCount || 0) + 1 } : c));
           setStudentForm({ firstName: '', lastName: '', classroomId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: '' });
           setSuccess(true);
         };

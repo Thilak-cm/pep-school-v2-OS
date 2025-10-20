@@ -2,6 +2,12 @@
 
 A phased, atomic TODO plan for implementing Coach. Tackle milestones in order; resolve pinned decisions as they come up.
 
+Current status
+- Milestone 0 — Contracts & Constants: completed
+- Milestone 1 — UI Scaffolding (stubbed): completed
+- Milestone 2 — Redaction Pipeline: skipped for now (plan to use student list cross-check later)
+- Milestone 3 — Server Integration (model call): in progress
+
 ## Milestone 0 — Contracts & Constants
 - Freeze chip labels as code constants (exact strings + order).
 - Decide append behavior (template-only vs default pick) for `append_line`.
@@ -76,4 +82,3 @@ A phased, atomic TODO plan for implementing Coach. Tackle milestones in order; r
 - PRD: `coach_prd.md` (ground rules, input/output contract, chips, examples, acceptance).
 - UI hook: `montessori-os/src/components/AddNoteModal.jsx`.
 - Security rules: `firestore.rules`.
-

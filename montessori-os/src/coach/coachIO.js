@@ -1,7 +1,5 @@
-// Coach response parser with strict sanitization and safe fallback.
-// Does not depend on external libraries.
-
-import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES, chipsFor } from './constants';
+// Coach response parser and request builder (contract layer between UI and backend)
+import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES, chipsFor } from './constants.js';
 
 const ID_VALUES = new Set(Object.values(NUDGE_IDS));
 
@@ -65,7 +63,6 @@ function sanitizeNudge(n) {
   const microcopy_key = n.microcopy_key === microcopyKeyExpected ? n.microcopy_key : microcopyKeyExpected;
   const append_line = isString(n.append_line) ? n.append_line : '';
   const metadata = sanitizeMetadataById(id, n.metadata);
-  // Subjective must have no chips
   const finalChips = id === NUDGE_IDS.SUBJECTIVE ? [] : chips;
   return { id, reason, confidence, microcopy_key, chips: finalChips, append_line, metadata };
 }
@@ -80,18 +77,17 @@ export function parseCoachResponse(raw) {
     for (const item of nudges) {
       const s = sanitizeNudge(item);
       if (!s) continue;
-      if (seen.has(s.id)) continue; // de-dupe by id
+      if (seen.has(s.id)) continue;
       seen.add(s.id);
       out.push(s);
       if (out.length >= MAX_NUDGES) break;
     }
     return { nudges: out };
-  } catch (e) {
+  } catch (_) {
     return { nudges: [] };
   }
 }
 
-// Prepare a request payload (redaction handled elsewhere in Milestone 2)
 export function makeCoachRequest(noteText, context) {
   const safeText = isString(noteText) ? noteText : '';
   const ctx = isObject(context) ? context : {};
@@ -107,7 +103,6 @@ export function makeCoachRequest(noteText, context) {
   };
 }
 
-// Simple validators (optional): check if object looks like a coach response (after parse)
 export function isValidCoachResponse(obj) {
   if (!isObject(obj) || !Array.isArray(obj.nudges)) return false;
   if (obj.nudges.length > MAX_NUDGES) return false;

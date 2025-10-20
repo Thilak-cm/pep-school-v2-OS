@@ -1,7 +1,7 @@
 // Developer-only examples for quick sanity checks of parseCoachResponse.
 // Run with: node -e "import('./montessori-os/src/coach/parse.examples.js')"
 
-import { parseCoachResponse } from './parse';
+import { parseCoachResponse } from './coachIO.js';
 
 const ex1 = {
   nudges: [
@@ -36,4 +36,3 @@ const exBad = {
 
 console.log('ex1 =>', JSON.stringify(parseCoachResponse(ex1)));
 console.log('exBad =>', JSON.stringify(parseCoachResponse(exBad)));
-

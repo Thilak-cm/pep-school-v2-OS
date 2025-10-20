@@ -119,7 +119,7 @@ const StatsPage = ({ user, role, onBack }) => {
         // Fetch classrooms
         console.log('Fetching classrooms...');
         try {
-          const classroomsQuery = query(collection(db, 'classrooms'));
+          const classroomsQuery = query(collection(db, 'classrooms'), where('status', '==', 'active'));
           const classroomsSnap = await getDocs(classroomsQuery);
           console.log('Classrooms fetched:', classroomsSnap.size, 'found');
           classroomsData = classroomsSnap.docs.map(doc => ({

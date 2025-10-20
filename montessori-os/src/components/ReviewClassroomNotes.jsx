@@ -87,7 +87,7 @@ function ReviewClassroomNotes({ currentUser }) {
     const fetchClassrooms = async () => {
       setLoadingClassrooms(true);
       try {
-        const snapshot = await getDocs(collection(db, 'classrooms'));
+        const snapshot = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
         const list = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
           .sort((a, b) => (a?.name || '').localeCompare(b?.name || ''));

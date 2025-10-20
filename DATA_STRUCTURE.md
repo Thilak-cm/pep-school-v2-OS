@@ -48,7 +48,8 @@ Guidance
 ```typescript
 interface Classroom {
   name: string;                  // "Room 3"
-  ageGroup: 'toddler' | 'primary' | 'elementary' | 'adolescence';
+  // Renamed from ageGroup → programId
+  programId: 'toddler' | 'primary' | 'elementary' | 'adolescent';
   status: 'active' | 'inactive' | 'archived';
   
   teacherIds: string[];          // UIDs assigned to this classroom
@@ -65,6 +66,15 @@ interface Classroom {
 Guidance
 - `teacherIds` is the source of truth for teacher access in rules.
 - Maintain `studentCount` via backend trigger on student create/delete/move.
+
+Migration notes
+- The previous field `ageGroup` is replaced by `programId`.
+- Valid values: `toddler`, `primary`, `elementary`, `adolescent`.
+- Recommended descriptions per program:
+  - Adolescent: Age range 12–14 yo (Grades 6–8)
+  - Elementary: Age range 6–11 yo (Grades 1–5)
+  - Primary: Age range 3–6 yo
+  - Toddler: Age range <3 yo
 
 ---
 

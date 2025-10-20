@@ -22,6 +22,7 @@ import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText, localCleanupFallback } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
+import NewFeaturePill from './NewFeaturePill';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -287,6 +288,7 @@ function AddNoteModal({
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachNudges, setCoachNudges] = useState([]);
   const [coachSelections, setCoachSelections] = useState({});
+  const [coachReviewing, setCoachReviewing] = useState(false); // 5s spinner notice
 
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
@@ -295,6 +297,7 @@ function AddNoteModal({
     setCoachOpen(false);
     setCoachNudges([]);
     setCoachSelections({});
+    setCoachReviewing(false);
   };
 
   const runCoachReview = async (noteText) => {
@@ -303,12 +306,26 @@ function AddNoteModal({
     setCoachOpen(true);
     // Stash the note text in selections for preview use
     setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
+    // Non-blocking reviewing notice after 5s; hard auto-continue at 10s
+    setCoachReviewing(false);
+    const t5 = setTimeout(() => setCoachReviewing(true), 5000);
+    const t10 = setTimeout(() => {
+      if (coachActionRef.current == null) {
+        coachActionRef.current = { skipped: true, timeout: true };
+        setCoachOpen(false);
+        setCoachReviewing(false);
+      }
+    }, 10000);
+
     return await new Promise((resolve) => {
       const interval = setInterval(() => {
         if (coachActionRef.current != null) {
           const v = coachActionRef.current;
           coachActionRef.current = null;
           clearInterval(interval);
+          clearTimeout(t5);
+          clearTimeout(t10);
+          setCoachReviewing(false);
           resolve(v);
         }
       }, 50);
@@ -942,11 +959,35 @@ function AddNoteModal({
 
       {/* Coach nudge popup — duration-only MVP */}
       <Dialog open={coachOpen} onClose={handleCoachSkip} fullWidth maxWidth="sm">
-        <CoachNudge
-          noteText={coachSelections?._noteText || ''}
-          onSkip={handleCoachSkip}
-          onApply={handleCoachApply}
-        />
+        <Box sx={{ position: 'relative' }}>
+          <CoachNudge
+            noteText={coachSelections?._noteText || ''}
+            onSkip={handleCoachSkip}
+            onApply={handleCoachApply}
+          />
+          {coachReviewing && (
+            <Box
+              aria-label="Coach reviewing"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                backgroundColor: 'rgba(15, 23, 42, 0.06)'
+              }}
+            >
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                Reviewing…
+              </Typography>
+            </Box>
+          )}
+        </Box>
       </Dialog>
     </Dialog>
   );
