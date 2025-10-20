@@ -674,15 +674,74 @@ export const aiWhisperTranscribe = functions
 // Coach Review (AI nudges) — callable
 // -----------------------------------------------
 const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
-const COACH_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
+const COACH_TTL_MS = 3 * 60 * 1000; // 3 minutes cache (response cache)
 const coachCache = new Map(); // key -> { ts, data }
+
+// Coach config (enabled nudges) TTL cache
+const COACH_PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let coachConfigCache = { ts: 0, data: null };
+
+const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
+const DEFAULT_ENABLED_NUDGES = NUDGE_IDS.slice();
+
+async function getCoachConfigServer({ forceRefresh = false } = {}) {
+  const fresh =
+    !forceRefresh &&
+    coachConfigCache.data &&
+    (Date.now() - coachConfigCache.ts < COACH_PROMPT_TTL_MS);
+  if (fresh) return coachConfigCache.data;
+
+  try {
+    const snap = await db.collection("ai_prompts").doc("coach").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const enabled = Array.isArray(data.enabledNudges)
+      ? data.enabledNudges.filter((x) => NUDGE_IDS.includes(x))
+      : DEFAULT_ENABLED_NUDGES;
+    const out = {
+      enabledNudges: enabled.length ? enabled : DEFAULT_ENABLED_NUDGES,
+      version: Number.isFinite(data.version) ? data.version : 1,
+      title: data.title || "Coach Nudges",
+      description: data.description || "Toggle which nudges are active for Coach.",
+    };
+    coachConfigCache = { ts: Date.now(), data: out };
+    return out;
+  } catch (e) {
+    console.warn("[aiCoachReview] coach config fetch failed", e);
+    const out = { enabledNudges: DEFAULT_ENABLED_NUDGES, version: 1 };
+    coachConfigCache = { ts: Date.now(), data: out };
+    return out;
+  }
+}
 
 function coachCacheKey(text, ctx) {
   const base = `${text}\n|${ctx?.classroomId || ""}|${ctx?.programId || ""}`;
   return crypto.createHash("sha256").update(base).digest("hex");
 }
 
-function coachSystemPrompt() {
+function coachSystemPrompt(enabledNudges) {
+  const set = new Set(enabledNudges || DEFAULT_ENABLED_NUDGES);
+  const allowList = [
+    set.has("duration") ? "duration" : null,
+    set.has("modality") ? "modality" : null,
+    set.has("independence") ? "independence" : null,
+    set.has("evidence") ? "evidence" : null,
+    set.has("subjective") ? "subjective" : null,
+  ].filter(Boolean).join(" | ");
+
+  const chipsLines = [];
+  if (set.has("duration")) chipsLines.push("  duration: [\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"]");
+  if (set.has("modality")) chipsLines.push("  modality: [\"Material\",\"Pen & paper\",\"Mental\"]");
+  if (set.has("independence")) chipsLines.push("  independence: [\"Independent\",\"Peer pair\",\"Small group\",\"Teacher-guided\"]");
+  if (set.has("evidence")) chipsLines.push("  evidence: [\"# attempts\",\"# correct\",\"Add quote\"]");
+  if (set.has("subjective")) chipsLines.push("  subjective: []");
+
+  const microcopyMap = [];
+  if (set.has("duration")) microcopyMap.push("about_how_long");
+  if (set.has("modality")) microcopyMap.push("how_was_this_done");
+  if (set.has("evidence")) microcopyMap.push("add_tiny_evidence");
+  if (set.has("subjective")) microcopyMap.push("objective_line_invite");
+  // independence intentionally has no microcopy_key per current spec
+
   return [
     "You are a Montessori teacher coach that proposes up to 2 nudges to improve",
     "a Montessori observation note. Do not rewrite the teacher's text. Only suggest:",
@@ -690,14 +749,10 @@ function coachSystemPrompt() {
     "",
     "Rules:",
     "- Output strict JSON with top-level {\"nudges\": [...]} with at most 2 items.",
-    "- Allowed ids: duration | modality | independence | evidence | subjective.",
+    `- Allowed ids: ${allowList}.`,
     "- Chips by id:",
-    "  duration: [\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"]",
-    "  modality: [\"Material\",\"Pen & paper\",\"Mental\"]",
-    "  independence: [\"Independent\",\"Peer pair\",\"Small group\",\"Teacher-guided\"]",
-    "  evidence: [\"# attempts\",\"# correct\",\"Add quote\"]",
-    "  subjective: []",
-    "- microcopy_key values: about_how_long | how_was_this_done | add_tiny_evidence | objective_line_invite",
+    ...chipsLines,
+    (microcopyMap.length ? `- microcopy_key values: ${microcopyMap.join(' | ')}` : null),
     "- Do not infer a duration; only suggest if missing.",
     "- Prefer high precision. If unsure, return an empty array.",
     "",
@@ -711,7 +766,7 @@ function coachSystemPrompt() {
     "]}",
     "",
     "Return only JSON. No extra text."
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function coachUserPrompt(payload) {
@@ -734,16 +789,19 @@ export const aiCoachReview = functions
     const programId = typeof ctx.programId === "string" ? ctx.programId : null;
     if (!note_text.trim()) return { nudges: [], status: "ok", latency_ms: 0 };
 
-    // Cache
+    // Response cache (skip when forceRefresh=true)
+    const forceRefresh = !!data?.forceRefresh;
     const key = coachCacheKey(note_text, { classroomId, programId });
     const cached = coachCache.get(key);
-    if (cached && (Date.now() - cached.ts < COACH_TTL_MS)) {
+    if (!forceRefresh && cached && (Date.now() - cached.ts < COACH_TTL_MS)) {
       return { ...cached.data, status: "ok", cache: true };
     }
 
+    const cfg = await getCoachConfigServer({ forceRefresh });
+    const system = coachSystemPrompt(cfg.enabledNudges);
     const payload = { note_text, context: { classroomId, programId } };
     const messages = [
-      { role: "system", content: coachSystemPrompt() },
+      { role: "system", content: system },
       { role: "user", content: coachUserPrompt(payload) },
     ];
 
@@ -795,7 +853,7 @@ export const aiCoachReview = functions
       const parsed = JSON.parse(content);
       const out = { nudges: Array.isArray(parsed?.nudges) ? parsed.nudges : [] };
       coachCache.set(key, { ts: Date.now(), data: out });
-      return { ...out, status: "ok", latency_ms, promptVersion: 1 };
+      return { ...out, status: "ok", latency_ms, promptVersion: cfg?.version || 1 };
     } catch {
       return { nudges: [], status: "error", reason: "parse_json", latency_ms };
     }    
