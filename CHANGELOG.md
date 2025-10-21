@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2025-10-21
+
+### Changed
+- Coach (Cloud Function): reads `finalPrompt` and `effectiveEnabled` from Firestore on every call (removed TTL/caching to avoid stale prompts). Falls back to built‑in default if `finalPrompt` is missing; skips LLM if `finalPrompt` is empty.
+- Coach (Cloud Function): filters LLM nudges to enabled ids only; added detailed logs of system prompt, user message, and request body for debugging.
+
+### UI/Editor
+- Coach Editor now composes and saves `finalPrompt` + `effectiveEnabled`; “Final Prompt” preview reflects the stored value.
+
+### Scripts
+- `seed-coach-prompt.js` updated to write `finalPrompt` and `effectiveEnabled`.
+
 ## [4.3.0] - 2025-10-21
 
 ### Changed

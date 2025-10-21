@@ -143,24 +143,21 @@ export default function AICoachEditor({ currentUser, userRole }) {
         email: currentUser?.email || '',
         name: currentUser?.displayName || '',
       };
-      const curr = docState || { version: 0 };
-
+      const curr = docState || {};
+      const composed = composeFinalPrompt(curr, enabled);
+      const finalPromptToSave = enabled.length === 0 ? '' : composed.text;
       const payload = {
         title: curr.title || 'Coach Nudges',
         description: curr.description || 'Select which nudges Coach can suggest.',
         enabledNudges: enabled,
         disabledNudges: ALL_NUDGES.filter((n) => !enabled.includes(n)),
-        version: (curr.version || 1) + 1,
+        effectiveEnabled: enabled.length === 0 ? [] : composed.effectiveEnabled,
+        finalPrompt: finalPromptToSave,
         updatedAt: nowServer,
         updatedBy,
-        // No version history maintained
       };
 
-      if (docState) {
-        await updateDoc(coachRef, payload);
-      } else {
-        await setDoc(coachRef, { ...payload, version: 1 });
-      }
+      if (docState) await updateDoc(coachRef, payload); else await setDoc(coachRef, payload);
       setChangeNote('');
       // Refresh
       const snap = await getDoc(coachRef);
@@ -223,7 +220,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               ) : (
                 <Chip size="small" color="warning" label="Editing" />
               )}
-              {docState?.version && <Chip size="small" label={`v${docState.version}`} />}
+              {/* version removed */}
             </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -329,11 +326,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
                     </Box>
                   </Box>
 
-                  {/* Final composed prompt */}
+                  {/* Final composed prompt (from Firestore) */}
                   <Box>
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>Final Prompt (used by Coach)</Typography>
                     <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                      {final?.text || ''}
+                      {docState?.finalPrompt ?? ''}
                     </Box>
                   </Box>
                 </>
