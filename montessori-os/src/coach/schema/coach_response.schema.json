@@ -9,132 +9,15 @@
       "type": "array",
       "maxItems": 2,
       "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "id",
-              "reason",
-              "confidence",
-              "microcopy_key",
-              "chips",
-              "append_line",
-              "metadata"
-            ],
-            "properties": {
-              "id": { "const": "duration" },
-              "reason": { "type": "string" },
-              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-              "microcopy_key": { "const": "about_how_long" },
-              "chips": {
-                "type": "array",
-                "items": { "type": "string", "enum": ["<5m", "5–10m", "10–20m", "20m+"] }
-              },
-              "append_line": { "type": "string" },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true,
-                "properties": {
-                  "duration_range": { "type": "string", "enum": ["<5m", "5–10m", "10–20m", "20m+"] }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "reason", "confidence", "microcopy_key", "chips", "append_line", "metadata"],
-            "properties": {
-              "id": { "const": "modality" },
-              "reason": { "type": "string" },
-              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-              "microcopy_key": { "const": "how_was_this_done" },
-              "chips": {
-                "type": "array",
-                "items": { "type": "string", "enum": ["Material", "Pen & paper", "Mental"] }
-              },
-              "append_line": { "type": "string" },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true,
-                "properties": {
-                  "modality": { "type": "string", "enum": ["Material", "Pen & paper", "Mental"] }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "reason", "confidence", "microcopy_key", "chips", "append_line", "metadata"],
-            "properties": {
-              "id": { "const": "independence" },
-              "reason": { "type": "string" },
-              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-              "microcopy_key": { "const": "how_was_this_done" },
-              "chips": {
-                "type": "array",
-                "items": { "type": "string", "enum": ["Independent", "Peer pair", "Small group", "Teacher-guided"] }
-              },
-              "append_line": { "type": "string" },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true,
-                "properties": {
-                  "independence": { "type": "string", "enum": ["Independent", "Peer pair", "Small group", "Teacher-guided"] }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "reason", "confidence", "microcopy_key", "chips", "append_line", "metadata"],
-            "properties": {
-              "id": { "const": "evidence" },
-              "reason": { "type": "string" },
-              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-              "microcopy_key": { "const": "add_tiny_evidence" },
-              "chips": {
-                "type": "array",
-                "items": { "type": "string", "enum": ["# attempts", "# correct", "Add quote"] }
-              },
-              "append_line": { "type": "string" },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true,
-                "properties": {
-                  "evidence_attempts": { "type": "integer", "minimum": 0 },
-                  "evidence_correct": { "type": "integer", "minimum": 0 },
-                  "evidence_quote": { "type": "string" }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "reason", "confidence", "microcopy_key", "chips", "append_line", "metadata"],
-            "properties": {
-              "id": { "const": "subjective" },
-              "reason": { "type": "string" },
-              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-              "microcopy_key": { "const": "objective_line_invite" },
-              "chips": { "type": "array", "maxItems": 0 },
-              "append_line": { "type": "string" },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true,
-                "properties": {
-                  "objective_line": { "type": "string" }
-                }
-              }
-            }
-          }
-        ]
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "reason", "confidence"],
+        "properties": {
+          "id": { "type": "string", "enum": ["duration", "modality", "independence", "evidence", "subjective"] },
+          "reason": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
       }
     }
   }
 }
-

@@ -310,7 +310,7 @@ function AddNoteModal({
     setCoachReviewing(false);
   };
 
-  const runCoachReview = async (noteText, { classroomId = null, programId = null } = {}) => {
+  const runCoachReview = async (noteText) => {
     resetCoach();
     // Show analyzing overlay with progressive copy (0s / 5s / 10s)
     let timedOut = false;
@@ -325,7 +325,7 @@ function AddNoteModal({
     }, 10000);
 
     try {
-      const payload = makeCoachRequest(noteText, { classroomId, programId });
+      const payload = makeCoachRequest(noteText);
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
       const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
       if (timedOut) { clearTimeout(t5); clearTimeout(t10); setAnalyzingOpen(false); return { skipped: true, timeout: true }; }
@@ -605,22 +605,7 @@ function AddNoteModal({
     // If text note, run Coach review first
     let coachResult = null;
     if (!transcriptionData && noteData && noteData.text) {
-      // Derive context from first selected student: classroomId and programId
-      let classroomId = null; let programId = null;
-      try {
-        const firstStudentId = selectedStudents && selectedStudents.length > 0 ? selectedStudents[0] : null;
-        if (firstStudentId) {
-          const studentDocRef = doc(db, 'students', firstStudentId);
-          const studentDocSnap = await getDoc(studentDocRef);
-          classroomId = studentDocSnap?.data()?.classroomId || null;
-          if (classroomId) {
-            const classroomRef = doc(db, 'classrooms', classroomId);
-            const classroomSnap = await getDoc(classroomRef);
-            programId = classroomSnap?.data()?.programId || null;
-          }
-        }
-      } catch (_) { /* ignore context errors */ }
-      coachResult = await runCoachReview(noteData.text, { classroomId, programId }).catch(() => ({ skipped: true }));
+      coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
       if (!coachResult) return; // safety
     }
 

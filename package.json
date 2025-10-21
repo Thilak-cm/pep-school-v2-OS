@@ -15,7 +15,9 @@
     "fix:studentCounts": "node scripts/admin/recount-student-counts.js",
     "add:student": "node scripts/admin/add-student.js",
     "cleanup:spokenLanguage": "node scripts/remove_spoken_language.js",
-    "cleanup:spokenLanguage:all": "node scripts/remove_spoken_language.js --also-language-code"
+    "cleanup:spokenLanguage:all": "node scripts/remove_spoken_language.js --also-language-code",
+    "seed:coach": "node scripts/admin/seed-coach-prompt.js",
+    "seed:coach:push": "node scripts/admin/seed-coach-prompt.js --push"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

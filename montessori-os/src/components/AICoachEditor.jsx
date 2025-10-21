@@ -9,6 +9,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 
 const ALL_NUDGES = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
+const DEFAULT_PRIORITY = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
 
 const SectionCard = ({ title, subtitle, children }) => (
   <Card sx={{ borderRadius: 2 }}>
@@ -23,46 +24,46 @@ const SectionCard = ({ title, subtitle, children }) => (
   </Card>
 );
 
-function buildCoachSystemPrompt(enabled) {
-  const set = new Set(enabled);
-  const allow = ALL_NUDGES.filter(n => set.has(n)).join(' | ');
-  const chips = [];
-  if (set.has('duration')) chips.push('  duration: ["<5m","5–10m","10–20m","20m+"]');
-  if (set.has('modality')) chips.push('  modality: ["Material","Pen & paper","Mental"]');
-  if (set.has('independence')) chips.push('  independence: ["Independent","Peer pair","Small group","Teacher-guided"]');
-  if (set.has('evidence')) chips.push('  evidence: ["# attempts","# correct","Add quote"]');
-  if (set.has('subjective')) chips.push('  subjective: []');
-  const micro = [];
-  if (set.has('duration')) micro.push('about_how_long');
-  if (set.has('modality')) micro.push('how_was_this_done');
-  if (set.has('evidence')) micro.push('add_tiny_evidence');
-  if (set.has('subjective')) micro.push('objective_line_invite');
-
-  return [
-    'You are a Montessori teacher coach that proposes up to 2 nudges to improve',
-    "a Montessori observation note. Do not rewrite the teacher's text. Only suggest:",
-    '- Duration, Modality, Independence, Evidence, or Subjective (objective one-liner).',
-    '',
-    'Rules:',
-    '- Output strict JSON with top-level {"nudges": [...]} with at most 2 items.',
-    `- Allowed ids: ${allow}.`,
-    '- Chips by id:',
-    ...chips,
-    micro.length ? `- microcopy_key values: ${micro.join(' | ')}` : null,
-    '- Do not infer a duration; only suggest if missing.',
-    '- Prefer high precision. If unsure, return an empty array.',
-    '',
-    'Example (one-shot):',
-    'INPUT:',
-    '{"note_text":"STUDENT_A used number rods today.","context":{"classroomId":"allstars","programId":"adolescent"}}',
-    'OUTPUT:',
-    '{"nudges":[',
-    '  {"id":"duration","reason":"Activity noted without a time range.","confidence":0.86,"microcopy_key":"about_how_long","chips":["<5m","5–10m","10–20m","20m+"],"append_line":"Duration: 10–20 min","metadata":{"duration_range":"10–20m"}},',
-    '  {"id":"modality","reason":"Math work without modality context.","confidence":0.62,"microcopy_key":"how_was_this_done","chips":["Material","Pen & paper","Mental"],"append_line":"Modality: Material","metadata":{"modality":"Material"}}',
-    ']}',
-    '',
-    'Return only JSON. No extra text.'
-  ].filter(Boolean).join('\n');
+function composeFinalPrompt(doc, enabled) {
+  const set = new Set(enabled || []);
+  const blocks = (doc && doc.nudgeBlocks) || {};
+  const priority = Array.isArray(doc?.priorityOrder) && doc.priorityOrder.length ? doc.priorityOrder : DEFAULT_PRIORITY;
+  const effective = priority.filter((id) => set.has(id) && blocks[id] && Array.isArray(blocks[id].lines) && blocks[id].lines.length);
+  const allow = effective.join(' | ');
+  const lines = [];
+  if (Array.isArray(doc?.introLines)) lines.push(...doc.introLines);
+  lines.push('');
+  lines.push('How to respond');
+  if (Array.isArray(doc?.howToLines)) lines.push(...doc.howToLines);
+  lines.push('Each nudge must include exactly: id, reason, confidence.');
+  lines.push(`Allowed ids: ${allow}.`);
+  if (effective.length) lines.push(`Prioritize in this order: ${effective.join(' → ')}.`);
+  lines.push('');
+  lines.push('Nudge types and triggers');
+  for (const id of effective) {
+    const block = blocks[id];
+    for (const s of (block?.lines || [])) lines.push(String(s));
+    lines.push('');
+  }
+  const baseInput = doc?.examples?.baseInput || 'STUDENT_A used number rods today.';
+  const reasons = (doc?.examples?.reasonsById) || {};
+  const exampleIds = effective.slice(0, 2);
+  lines.push('Example');
+  lines.push('INPUT:');
+  lines.push(JSON.stringify({ note_text: baseInput }));
+  lines.push('OUTPUT:');
+  lines.push('{');
+  lines.push('  "nudges": [');
+  for (let i = 0; i < exampleIds.length; i++) {
+    const id = exampleIds[i];
+    const reason = reasons[id] || 'Relevant missing element.';
+    const conf = i === 0 ? 0.86 : 0.62;
+    const comma = i < exampleIds.length - 1 ? ',' : '';
+    lines.push(`    {"id": "${id}", "reason": "${reason}", "confidence": ${conf}}${comma}`);
+  }
+  lines.push('  ]');
+  lines.push('}');
+  return { text: lines.join('\n'), allowList: allow, order: effective, effectiveEnabled: effective };
 }
 
 export default function AICoachEditor({ currentUser, userRole }) {
@@ -116,8 +117,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
     setEnabled((prev) => {
       const set = new Set(prev);
       if (set.has(id)) set.delete(id); else set.add(id);
-      const out = ALL_NUDGES.filter(n => set.has(n));
-      return out.length ? out : prev; // prevent empty set
+      return ALL_NUDGES.filter(n => set.has(n)); // allow zero enabled
     });
   };
 
@@ -149,6 +149,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
         title: curr.title || 'Coach Nudges',
         description: curr.description || 'Select which nudges Coach can suggest.',
         enabledNudges: enabled,
+        disabledNudges: ALL_NUDGES.filter((n) => !enabled.includes(n)),
         version: (curr.version || 1) + 1,
         updatedAt: nowServer,
         updatedBy,
@@ -187,7 +188,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
     try {
       setTesting(true);
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
-      const res = await call({ note_text: text, context: {}, forceRefresh: true });
+      const res = await call({ note_text: text, forceRefresh: true });
       setTestOutput(JSON.stringify(res?.data || {}, null, 2));
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -206,7 +207,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
     );
   }
 
-  const preview = buildCoachSystemPrompt(enabled);
+  const final = composeFinalPrompt(docState || {}, enabled);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -268,13 +269,75 @@ export default function AICoachEditor({ currentUser, userRole }) {
 
               {/* Version history removed */}
 
-              {/* Preview */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Rendered System Prompt (preview)</Typography>
-                <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                  {preview}
-                </Box>
-              </Box>
+              {/* Preview Panels */}
+              {enabled.length === 0 ? (
+                <Alert severity="info">Coach feature disabled. No enhancements will be suggested on note save.</Alert>
+              ) : (
+                <>
+                  {/* Intro */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Intro</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {(Array.isArray(docState?.introLines) ? docState.introLines : []).join('\n')}
+                    </Box>
+                  </Box>
+
+                  {/* How To */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>How To</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {[
+                        ...(Array.isArray(docState?.howToLines) ? docState.howToLines : []),
+                        'Each nudge must include exactly: id, reason, confidence.',
+                        `Allowed ids: ${(final?.allowList || '')}.`,
+                        final?.order?.length ? `Prioritize in this order: ${final.order.join(' → ')}.` : '',
+                      ].filter(Boolean).join('\n')}
+                    </Box>
+                  </Box>
+
+                  {/* Nudge Blocks */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Nudge Blocks</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1 }}>
+                      {ALL_NUDGES.map((id) => {
+                        const block = docState?.nudgeBlocks?.[id];
+                        const isOn = enabled.includes(id);
+                        const text = Array.isArray(block?.lines) ? block.lines.join('\n') : '• Not configured';
+                        return (
+                          <Box key={id} component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.25, border: '1px solid #e2e8f0', borderRadius: 1, bgcolor: '#ffffff', color: isOn ? 'text.primary' : 'text.disabled' }}>
+                            {text}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+
+                  {/* Example (expanded) */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Example (expanded preview)</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1, mb: 1 }}>
+                      {`INPUT:\n${JSON.stringify({ note_text: (docState?.examples?.baseInput || 'STUDENT_A used number rods today.') })}`}
+                    </Box>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {['OUTPUT candidates:', ...ALL_NUDGES.map((id, i) => {
+                        const reason = docState?.examples?.reasonsById?.[id] || 'Relevant missing element.';
+                        const conf = i === 0 ? 0.86 : 0.62;
+                        const obj = { id, reason, confidence: conf };
+                        const json = JSON.stringify(obj);
+                        return enabled.includes(id) ? json : `// ${json}`;
+                      })].join('\n')}
+                    </Box>
+                  </Box>
+
+                  {/* Final composed prompt */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Final Prompt (used by Coach)</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {final?.text || ''}
+                    </Box>
+                  </Box>
+                </>
+              )}
 
               {/* Test Run */}
               <Box>
@@ -283,7 +346,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                 </Typography>
                 <TextField fullWidth multiline minRows={4} placeholder="Paste an observation to get nudges" value={testNote} onChange={(e) => setTestNote(e.target.value)} />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  <Button variant="outlined" onClick={runTest} disabled={testing}>Run Coach</Button>
+                  <Button variant="outlined" onClick={runTest} disabled={testing || enabled.length === 0}>Run Coach</Button>
                   {testing && <CircularProgress size={16} />}
                   {testError && <Alert severity="error" sx={{ ml: 1 }}>{testError}</Alert>}
                 </Box>

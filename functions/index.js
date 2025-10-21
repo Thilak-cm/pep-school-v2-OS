@@ -464,7 +464,7 @@ export const requestAccess = functions.region("asia-south1").https.onCall(async 
 // -----------------------------------------------
 const OPENAI_API_KEY = functions.config().openai?.key || process.env.OPENAI_API_KEY || null;
 const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
+const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 600 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
 const PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -676,6 +676,7 @@ export const aiWhisperTranscribe = functions
 const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
 const COACH_TTL_MS = 3 * 60 * 1000; // 3 minutes cache (response cache)
 const coachCache = new Map(); // key -> { ts, data }
+const COACH_SCHEMA_VERSION = 2; // minimal nudge shape returned to client
 
 // Coach config (enabled nudges) TTL cache
 const COACH_PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -683,6 +684,7 @@ let coachConfigCache = { ts: 0, data: null };
 
 const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
 const DEFAULT_ENABLED_NUDGES = NUDGE_IDS.slice();
+const DEFAULT_PRIORITY_ORDER = ["duration", "modality", "independence", "evidence", "subjective"]; // global order
 
 async function getCoachConfigServer({ forceRefresh = false } = {}) {
   const fresh =
@@ -697,8 +699,65 @@ async function getCoachConfigServer({ forceRefresh = false } = {}) {
     const enabled = Array.isArray(data.enabledNudges)
       ? data.enabledNudges.filter((x) => NUDGE_IDS.includes(x))
       : DEFAULT_ENABLED_NUDGES;
+    const disabled = Array.isArray(data.disabledNudges)
+      ? data.disabledNudges.filter((x) => NUDGE_IDS.includes(x))
+      : NUDGE_IDS.filter((x) => !enabled.includes(x));
+    const priorityOrder = Array.isArray(data.priorityOrder)
+      ? data.priorityOrder.filter((x) => NUDGE_IDS.includes(x))
+      : DEFAULT_PRIORITY_ORDER.slice();
+    const introLines = Array.isArray(data.introLines)
+      ? data.introLines.map((s) => String(s))
+      : [
+          "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
+          "and returns up to 2 nudges highlighting missing or subjective elements.",
+          "Do not rewrite or rate the text — only detect clear information gaps.",
+        ];
+    const howToLines = Array.isArray(data.howToLines)
+      ? data.howToLines.map((s) => String(s))
+      : [
+          "1. Read the note carefully.",
+          "2. Decide which of the five aspects below are missing or unclear.",
+          "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
+          "4. Stop after 2 nudges or if no confident gaps exist.",
+          "5. Output strict JSON with top-level { \"nudges\": [...] }.",
+          "6. Each nudge must include exactly: id, reason, confidence.",
+          "9. If uncertain, return an empty array.",
+          "10. Return only JSON — no commentary or extra text.",
+        ];
+    const rawBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object") ? data.nudgeBlocks : {};
+    const nudgeBlocks = {};
+    for (const id of NUDGE_IDS) {
+      const block = rawBlocks[id];
+      if (block && Array.isArray(block.lines) && block.lines.length) {
+        nudgeBlocks[id] = { lines: block.lines.map((s) => String(s)) };
+      }
+    }
+    const examples = (data.examples && typeof data.examples === "object") ? data.examples : {};
+    const exampleBaseInput = typeof examples.baseInput === "string" && examples.baseInput.trim()
+      ? examples.baseInput
+      : "STUDENT_A used number rods today.";
+    const reasonsByIdIn = (examples.reasonsById && typeof examples.reasonsById === "object") ? examples.reasonsById : {};
+    const defaultReasons = {
+      duration: "Activity noted without a time range.",
+      modality: "Math work mentioned but no modality term found.",
+      independence: "No independence/grouping label present.",
+      evidence: "Claim without count or quote.",
+      subjective: "Adjective can be replaced by one objective observation.",
+    };
+    const reasonsById = {};
+    for (const id of NUDGE_IDS) {
+      const r = reasonsByIdIn[id];
+      reasonsById[id] = typeof r === "string" && r.trim() ? r : defaultReasons[id];
+    }
+
     const out = {
-      enabledNudges: enabled.length ? enabled : DEFAULT_ENABLED_NUDGES,
+      enabledNudges: enabled.length ? enabled : [],
+      disabledNudges: disabled,
+      priorityOrder,
+      introLines,
+      howToLines,
+      nudgeBlocks,
+      examples: { baseInput: exampleBaseInput, reasonsById },
       version: Number.isFinite(data.version) ? data.version : 1,
       title: data.title || "Coach Nudges",
       description: data.description || "Toggle which nudges are active for Coach.",
@@ -707,66 +766,72 @@ async function getCoachConfigServer({ forceRefresh = false } = {}) {
     return out;
   } catch (e) {
     console.warn("[aiCoachReview] coach config fetch failed", e);
-    const out = { enabledNudges: DEFAULT_ENABLED_NUDGES, version: 1 };
+    const out = {
+      enabledNudges: DEFAULT_ENABLED_NUDGES,
+      disabledNudges: [],
+      priorityOrder: DEFAULT_PRIORITY_ORDER,
+      introLines: [
+        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
+        "and returns up to 2 nudges highlighting missing or subjective elements.",
+        "Do not rewrite or rate the text — only detect clear information gaps.",
+      ],
+      howToLines: [
+        "1. Read the note carefully.",
+        "2. Decide which of the five aspects below are missing or unclear.",
+        "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
+        "4. Stop after 2 nudges or if no confident gaps exist.",
+        "5. Output strict JSON with top-level { \"nudges\": [...] }.",
+        "6. Each nudge must include exactly: id, reason, confidence.",
+        "9. If uncertain, return an empty array.",
+        "10. Return only JSON — no commentary or extra text.",
+      ],
+      nudgeBlocks: {
+        duration: { lines: [
+          "- duration → Activity or work is described, but no time range (e.g. \"5–10 min\") appears.",
+          "  Trigger if the note implies action or work but has no duration tokens (min, minutes, m, hour, etc.).",
+        ]},
+        modality: { lines: [
+          "- modality → Math or material-based work is mentioned (add, subtract, number rods, bead frame, golden beads, etc.)",
+          "  but the method (Material / Pen & paper / Mental) is not specified.",
+        ]},
+        independence: { lines: [
+          "- independence → The note mentions the child doing something",
+          "  but does not state whether it was independent, in a group, or with help (independent, peer, teacher-guided, with help, etc. missing).",
+        ]},
+        evidence: { lines: [
+          "- evidence → The note makes a claim of success or struggle (understood, did well, grasped, struggled, identified)",
+          "  but gives no supporting detail such as a number or short quote.",
+        ]},
+        subjective: { lines: [
+          "- subjective → The note uses emotional or judgmental adjectives (happy, sad, lazy, always, never, good, bad)",
+          "  without an objective observation line to balance it.",
+        ]},
+      },
+      examples: {
+        baseInput: "STUDENT_A used number rods today.",
+        reasonsById: {
+          duration: "Activity noted without a time range.",
+          modality: "Math work mentioned but no modality term found.",
+          independence: "No independence/grouping label present.",
+          evidence: "Claim without count or quote.",
+          subjective: "Adjective can be replaced by one objective observation.",
+        },
+      },
+      version: 1,
+      title: "Coach Nudges",
+      description: "Toggle which nudges are active for Coach.",
+    };
     coachConfigCache = { ts: Date.now(), data: out };
     return out;
   }
 }
 
-function coachCacheKey(text, ctx) {
-  const base = `${text}\n|${ctx?.classroomId || ""}|${ctx?.programId || ""}`;
+function coachCacheKey(text) {
+  const base = String(text || "");
   return crypto.createHash("sha256").update(base).digest("hex");
 }
 
-function coachSystemPrompt(enabledNudges) {
-  const set = new Set(enabledNudges || DEFAULT_ENABLED_NUDGES);
-  const allowList = [
-    set.has("duration") ? "duration" : null,
-    set.has("modality") ? "modality" : null,
-    set.has("independence") ? "independence" : null,
-    set.has("evidence") ? "evidence" : null,
-    set.has("subjective") ? "subjective" : null,
-  ].filter(Boolean).join(" | ");
-
-  const chipsLines = [];
-  if (set.has("duration")) chipsLines.push("  duration: [\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"]");
-  if (set.has("modality")) chipsLines.push("  modality: [\"Material\",\"Pen & paper\",\"Mental\"]");
-  if (set.has("independence")) chipsLines.push("  independence: [\"Independent\",\"Peer pair\",\"Small group\",\"Teacher-guided\"]");
-  if (set.has("evidence")) chipsLines.push("  evidence: [\"# attempts\",\"# correct\",\"Add quote\"]");
-  if (set.has("subjective")) chipsLines.push("  subjective: []");
-
-  const microcopyMap = [];
-  if (set.has("duration")) microcopyMap.push("about_how_long");
-  if (set.has("modality")) microcopyMap.push("how_was_this_done");
-  if (set.has("evidence")) microcopyMap.push("add_tiny_evidence");
-  if (set.has("subjective")) microcopyMap.push("objective_line_invite");
-  // independence intentionally has no microcopy_key per current spec
-
-  return [
-    "You are a Montessori teacher coach that proposes up to 2 nudges to improve",
-    "a Montessori observation note. Do not rewrite the teacher's text. Only suggest:",
-    "- Duration, Modality, Independence, Evidence, or Subjective (objective one-liner).",
-    "",
-    "Rules:",
-    "- Output strict JSON with top-level {\"nudges\": [...]} with at most 2 items.",
-    `- Allowed ids: ${allowList}.`,
-    "- Chips by id:",
-    ...chipsLines,
-    (microcopyMap.length ? `- microcopy_key values: ${microcopyMap.join(' | ')}` : null),
-    "- Do not infer a duration; only suggest if missing.",
-    "- Prefer high precision. If unsure, return an empty array.",
-    "",
-    "Example (one-shot):",
-    "INPUT:",
-    "{\"note_text\":\"STUDENT_A used number rods today.\",\"context\":{\"classroomId\":\"allstars\",\"programId\":\"adolescent\"}}",
-    "OUTPUT:",
-    "{\"nudges\":[",
-    "  {\"id\":\"duration\",\"reason\":\"Activity noted without a time range.\",\"confidence\":0.86,\"microcopy_key\":\"about_how_long\",\"chips\":[\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"],\"append_line\":\"Duration: 10–20 min\",\"metadata\":{\"duration_range\":\"10–20m\"}}",
-    "]}",
-    "",
-    "Return only JSON. No extra text."
-  ].filter(Boolean).join("\n");
-}
+// (legacy coachSystemPrompt removed; system prompt now built from Firestore config)
 
 function coachUserPrompt(payload) {
   return [
@@ -783,22 +848,65 @@ export const aiCoachReview = functions
     if (!OPENAI_API_KEY) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
 
     const note_text = typeof data?.note_text === "string" ? data.note_text : "";
-    const ctx = (data && data.context && typeof data.context === "object") ? data.context : {};
-    const classroomId = typeof ctx.classroomId === "string" ? ctx.classroomId : null;
-    const programId = typeof ctx.programId === "string" ? ctx.programId : null;
     if (!note_text.trim()) return { nudges: [], status: "ok", latency_ms: 0 };
 
     // Response cache (skip when forceRefresh=true)
     const forceRefresh = !!data?.forceRefresh;
-    const key = coachCacheKey(note_text, { classroomId, programId });
+    const key = coachCacheKey(note_text);
     const cached = coachCache.get(key);
     if (!forceRefresh && cached && (Date.now() - cached.ts < COACH_TTL_MS)) {
-      return { ...cached.data, status: "ok", cache: true };
+      return { ...cached.data, status: "ok", cache: true, schemaVersion: COACH_SCHEMA_VERSION };
     }
 
     const cfg = await getCoachConfigServer({ forceRefresh });
-    const system = coachSystemPrompt(cfg.enabledNudges);
-    const payload = { note_text, context: { classroomId, programId } };
+    const { systemPrompt, effectiveEnabled } = (() => {
+      // Build prompt from Firestore-backed modular config
+      const enabled = Array.isArray(cfg?.enabledNudges) ? cfg.enabledNudges.filter((x) => NUDGE_IDS.includes(x)) : [];
+      const blocks = (cfg && cfg.nudgeBlocks) || {};
+      const effective = enabled.filter((id) => blocks[id] && Array.isArray(blocks[id].lines) && blocks[id].lines.length);
+      const allowList = effective.join(" | ");
+      const order = Array.isArray(cfg?.priorityOrder) ? cfg.priorityOrder.filter((x) => effective.includes(x)) : effective;
+      const lines = [];
+      if (Array.isArray(cfg?.introLines)) lines.push(...cfg.introLines);
+      lines.push("");
+      lines.push("How to respond");
+      if (Array.isArray(cfg?.howToLines)) lines.push(...cfg.howToLines);
+      lines.push("Each nudge must include exactly: id, reason, confidence.");
+      lines.push(`Allowed ids: ${allowList}.`);
+      if (order.length) lines.push(`Prioritize in this order: ${order.join(' → ')}.`);
+      lines.push("");
+      lines.push("Nudge types and triggers");
+      for (const id of order) {
+        const block = blocks[id];
+        if (!block) continue;
+        for (const s of block.lines) lines.push(String(s));
+        lines.push("");
+      }
+      const baseInput = cfg?.examples?.baseInput || "STUDENT_A used number rods today.";
+      const reasons = (cfg?.examples?.reasonsById) || {};
+      const exampleIds = order.slice(0, 2);
+      lines.push("Example");
+      lines.push("INPUT:");
+      lines.push(JSON.stringify({ note_text: baseInput }));
+      lines.push("OUTPUT:");
+      lines.push("{");
+      lines.push("  \"nudges\": [");
+      for (let i = 0; i < exampleIds.length; i++) {
+        const id = exampleIds[i];
+        const reason = reasons[id] || "Relevant missing element.";
+        const conf = i === 0 ? 0.86 : 0.62;
+        const comma = i < exampleIds.length - 1 ? "," : "";
+        lines.push(`    {\"id\": \"${id}\", \"reason\": \"${reason}\", \"confidence\": ${conf}}${comma}`);
+      }
+      lines.push("  ]");
+      lines.push("}");
+      return { systemPrompt: lines.join("\n"), effectiveEnabled: effective };
+    })();
+    if (!effectiveEnabled || effectiveEnabled.length === 0) {
+      return { nudges: [], status: "ok", latency_ms: 0, promptVersion: cfg?.version || 1, schemaVersion: COACH_SCHEMA_VERSION, skipped: true };
+    }
+    const system = systemPrompt;
+    const payload = { note_text };
     const messages = [
       { role: "system", content: system },
       { role: "user", content: coachUserPrompt(payload) },
@@ -852,7 +960,7 @@ export const aiCoachReview = functions
       const parsed = JSON.parse(content);
       const out = { nudges: Array.isArray(parsed?.nudges) ? parsed.nudges : [] };
       coachCache.set(key, { ts: Date.now(), data: out });
-      return { ...out, status: "ok", latency_ms, promptVersion: cfg?.version || 1 };
+      return { ...out, status: "ok", latency_ms, promptVersion: cfg?.version || 1, schemaVersion: COACH_SCHEMA_VERSION };
     } catch {
       return { nudges: [], status: "error", reason: "parse_json", latency_ms };
     }    

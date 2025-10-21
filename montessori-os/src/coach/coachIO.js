@@ -54,16 +54,13 @@ function sanitizeNudge(n) {
   const id = isString(n.id) && ID_VALUES.has(n.id) ? n.id : null;
   if (!id) return null;
   const allowedChips = chipsFor(id);
-  const chips = Array.isArray(n.chips)
-    ? n.chips.filter((c) => allowedChips.includes(c))
-    : [];
+  // Minimal GPT output only includes id, reason, confidence. Enrich locally.
   const reason = isString(n.reason) ? n.reason : '';
   const confidence = clamp01(n.confidence);
-  const microcopyKeyExpected = MICROCOPY_KEYS[id];
-  const microcopy_key = n.microcopy_key === microcopyKeyExpected ? n.microcopy_key : microcopyKeyExpected;
-  const append_line = isString(n.append_line) ? n.append_line : '';
-  const metadata = sanitizeMetadataById(id, n.metadata);
-  const finalChips = id === NUDGE_IDS.SUBJECTIVE ? [] : chips;
+  const microcopy_key = MICROCOPY_KEYS[id];
+  const append_line = '';
+  const metadata = {}; // no model-provided metadata; selections populate later
+  const finalChips = id === NUDGE_IDS.SUBJECTIVE ? [] : allowedChips;
   return { id, reason, confidence, microcopy_key, chips: finalChips, append_line, metadata };
 }
 
@@ -88,16 +85,9 @@ export function parseCoachResponse(raw) {
   }
 }
 
-export function makeCoachRequest(noteText, context) {
+export function makeCoachRequest(noteText, _context) {
   const safeText = isString(noteText) ? noteText : '';
-  const ctx = isObject(context) ? context : {};
-  return {
-    note_text: safeText,
-    context: {
-      classroomId: isString(ctx.classroomId) ? ctx.classroomId : null,
-      programId: isString(ctx.programId) ? ctx.programId : null,
-    },
-  };
+  return { note_text: safeText };
 }
 
 export function isValidCoachResponse(obj) {
@@ -107,8 +97,7 @@ export function isValidCoachResponse(obj) {
     if (!isObject(n)) return false;
     if (!ID_VALUES.has(n.id)) return false;
     if (typeof n.confidence !== 'number') return false;
-    if (n.microcopy_key !== MICROCOPY_KEYS[n.id]) return false;
-    if (!Array.isArray(n.chips)) return false;
+    if (!isString(n.reason)) return false;
   }
   return true;
 }
