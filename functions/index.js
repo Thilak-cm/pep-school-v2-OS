@@ -6,7 +6,6 @@ import { getAuth } from "firebase-admin/auth";
 import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
-import crypto from "node:crypto";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -674,25 +673,16 @@ export const aiWhisperTranscribe = functions
 // Coach Review (AI nudges) — callable
 // -----------------------------------------------
 const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
-const COACH_TTL_MS = 3 * 60 * 1000; // 3 minutes cache (response cache)
-const coachCache = new Map(); // key -> { ts, data }
+// Response caching removed to avoid stale prompts; always compute fresh
 const COACH_SCHEMA_VERSION = 2; // minimal nudge shape returned to client
 
-// Coach config (enabled nudges) TTL cache
-const COACH_PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
-let coachConfigCache = { ts: 0, data: null };
+// No TTL cache for coach config — read Firestore on each call
 
 const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
 const DEFAULT_ENABLED_NUDGES = NUDGE_IDS.slice();
 const DEFAULT_PRIORITY_ORDER = ["duration", "modality", "independence", "evidence", "subjective"]; // global order
 
-async function getCoachConfigServer({ forceRefresh = false } = {}) {
-  const fresh =
-    !forceRefresh &&
-    coachConfigCache.data &&
-    (Date.now() - coachConfigCache.ts < COACH_PROMPT_TTL_MS);
-  if (fresh) return coachConfigCache.data;
-
+async function getCoachConfigServer() {
   try {
     const snap = await db.collection("ai_prompts").doc("coach").get();
     const data = snap.exists ? (snap.data() || {}) : {};
@@ -758,11 +748,13 @@ async function getCoachConfigServer({ forceRefresh = false } = {}) {
       howToLines,
       nudgeBlocks,
       examples: { baseInput: exampleBaseInput, reasonsById },
-      version: Number.isFinite(data.version) ? data.version : 1,
+      finalPrompt: typeof data.finalPrompt === "string" ? data.finalPrompt : undefined,
+      effectiveEnabled: Array.isArray(data.effectiveEnabled)
+        ? data.effectiveEnabled.filter((x) => NUDGE_IDS.includes(x))
+        : enabled.filter((id) => nudgeBlocks[id]),
       title: data.title || "Coach Nudges",
       description: data.description || "Toggle which nudges are active for Coach.",
     };
-    coachConfigCache = { ts: Date.now(), data: out };
     return out;
   } catch (e) {
     console.warn("[aiCoachReview] coach config fetch failed", e);
@@ -817,19 +809,15 @@ async function getCoachConfigServer({ forceRefresh = false } = {}) {
           subjective: "Adjective can be replaced by one objective observation.",
         },
       },
-      version: 1,
+      finalPrompt: undefined,
+      effectiveEnabled: DEFAULT_PRIORITY_ORDER,
       title: "Coach Nudges",
       description: "Toggle which nudges are active for Coach.",
     };
-    coachConfigCache = { ts: Date.now(), data: out };
     return out;
   }
 }
 
-function coachCacheKey(text) {
-  const base = String(text || "");
-  return crypto.createHash("sha256").update(base).digest("hex");
-}
 
 // (legacy coachSystemPrompt removed; system prompt now built from Firestore config)
 
@@ -844,73 +832,106 @@ export const aiCoachReview = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 60, memory: "512MB" })
   .https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    if (!OPENAI_API_KEY) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
 
     const note_text = typeof data?.note_text === "string" ? data.note_text : "";
     if (!note_text.trim()) return { nudges: [], status: "ok", latency_ms: 0 };
 
-    // Response cache (skip when forceRefresh=true)
-    const forceRefresh = !!data?.forceRefresh;
-    const key = coachCacheKey(note_text);
-    const cached = coachCache.get(key);
-    if (!forceRefresh && cached && (Date.now() - cached.ts < COACH_TTL_MS)) {
-      return { ...cached.data, status: "ok", cache: true, schemaVersion: COACH_SCHEMA_VERSION };
+    const cfg = await getCoachConfigServer();
+    try {
+      console.log("[aiCoachReview] cfg summary:", JSON.stringify({
+        enabledNudges: cfg?.enabledNudges || [],
+        effectiveEnabled: cfg?.effectiveEnabled || [],
+        finalPromptLen: (cfg?.finalPrompt || "").length,
+      }));
+    } catch (err) {
+      console.warn("[aiCoachReview] failed to log cfg summary", err);
     }
 
-    const cfg = await getCoachConfigServer({ forceRefresh });
-    const { systemPrompt, effectiveEnabled } = (() => {
-      // Build prompt from Firestore-backed modular config
-      const enabled = Array.isArray(cfg?.enabledNudges) ? cfg.enabledNudges.filter((x) => NUDGE_IDS.includes(x)) : [];
-      const blocks = (cfg && cfg.nudgeBlocks) || {};
-      const effective = enabled.filter((id) => blocks[id] && Array.isArray(blocks[id].lines) && blocks[id].lines.length);
-      const allowList = effective.join(" | ");
-      const order = Array.isArray(cfg?.priorityOrder) ? cfg.priorityOrder.filter((x) => effective.includes(x)) : effective;
-      const lines = [];
-      if (Array.isArray(cfg?.introLines)) lines.push(...cfg.introLines);
-      lines.push("");
-      lines.push("How to respond");
-      if (Array.isArray(cfg?.howToLines)) lines.push(...cfg.howToLines);
-      lines.push("Each nudge must include exactly: id, reason, confidence.");
-      lines.push(`Allowed ids: ${allowList}.`);
-      if (order.length) lines.push(`Prioritize in this order: ${order.join(' → ')}.`);
-      lines.push("");
-      lines.push("Nudge types and triggers");
-      for (const id of order) {
-        const block = blocks[id];
-        if (!block) continue;
-        for (const s of block.lines) lines.push(String(s));
-        lines.push("");
-      }
-      const baseInput = cfg?.examples?.baseInput || "STUDENT_A used number rods today.";
-      const reasons = (cfg?.examples?.reasonsById) || {};
-      const exampleIds = order.slice(0, 2);
-      lines.push("Example");
-      lines.push("INPUT:");
-      lines.push(JSON.stringify({ note_text: baseInput }));
-      lines.push("OUTPUT:");
-      lines.push("{");
-      lines.push("  \"nudges\": [");
-      for (let i = 0; i < exampleIds.length; i++) {
-        const id = exampleIds[i];
-        const reason = reasons[id] || "Relevant missing element.";
-        const conf = i === 0 ? 0.86 : 0.62;
-        const comma = i < exampleIds.length - 1 ? "," : "";
-        lines.push(`    {\"id\": \"${id}\", \"reason\": \"${reason}\", \"confidence\": ${conf}}${comma}`);
-      }
-      lines.push("  ]");
-      lines.push("}");
-      return { systemPrompt: lines.join("\n"), effectiveEnabled: effective };
-    })();
-    if (!effectiveEnabled || effectiveEnabled.length === 0) {
-      return { nudges: [], status: "ok", latency_ms: 0, promptVersion: cfg?.version || 1, schemaVersion: COACH_SCHEMA_VERSION, skipped: true };
+    const rawFinal = cfg?.finalPrompt;
+    const effectiveEnabled = Array.isArray(cfg?.effectiveEnabled) ? cfg.effectiveEnabled : [];
+    if (rawFinal === "") {
+      console.log("[aiCoachReview] SKIP: finalPrompt empty or coach disabled");
+      return {
+        nudges: [],
+        status: "ok",
+        latency_ms: 0,
+        schemaVersion: COACH_SCHEMA_VERSION,
+        skipped: true,
+      };
     }
-    const system = systemPrompt;
+
+    let system = "";
+    if (typeof rawFinal === "string" && rawFinal.trim()) {
+      system = rawFinal;
+    } else {
+      console.log("[aiCoachReview] FALLBACK: finalPrompt missing; using built-in default");
+      system = [
+        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
+        "and returns up to 2 nudges highlighting missing or subjective elements.",
+        "Do not rewrite or rate the text — only detect clear information gaps.",
+        "",
+        "How to respond",
+        "1. Read the note carefully.",
+        "2. Decide which of the five aspects below are missing or unclear.",
+        "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
+        "4. Stop after 2 nudges or if no confident gaps exist.",
+        "5. Output strict JSON with top-level {\"nudges\": [...] }.",
+        "6. Each nudge must include exactly: id, reason, confidence.",
+        "Allowed ids: duration | modality | independence | evidence | subjective.",
+        "Prioritize in this order: duration → modality → independence → evidence → subjective.",
+        "",
+        "Nudge types and triggers",
+        "- duration → Activity or work is described, but no time range (e.g. \"5–10 min\") appears.",
+        "  Trigger if the note implies action or work but has no duration tokens (min, minutes, m, hour, etc.).",
+        "",
+        "- modality → Math or material-based work is mentioned (add, subtract, number rods, bead frame, golden beads, etc.)",
+        "  but the method (Material / Pen & paper / Mental) is not specified.",
+        "",
+        "- independence → The note mentions the child doing something",
+        "  but does not state whether it was independent, in a group, or with help (independent, peer, teacher-guided, with help, etc. missing).",
+        "",
+        "- evidence → The note makes a claim of success or struggle (understood, did well, grasped, struggled, identified)",
+        "  but gives no supporting detail such as a number or short quote.",
+        "",
+        "- subjective → The note uses emotional or judgmental adjectives (happy, sad, lazy, always, never, good, bad)",
+        "  without an objective observation line to balance it.",
+        "",
+        "Example",
+        "INPUT:",
+        JSON.stringify({ note_text: "STUDENT_A used number rods today." }),
+        "OUTPUT:",
+        "{",
+        "  \"nudges\": [",
+        "    {\"id\": \"duration\", \"reason\": \"Activity noted without a time range.\", \"confidence\": 0.86},",
+        "    {\"id\": \"modality\", \"reason\": \"Math work mentioned but no modality term found.\", \"confidence\": 0.62}",
+        "  ]",
+        "}",
+      ].join("\n");
+    }
+
     const payload = { note_text };
     const messages = [
       { role: "system", content: system },
       { role: "user", content: coachUserPrompt(payload) },
     ];
+
+    // Debug logging
+    console.log(
+      "[aiCoachReview] effectiveEnabled:",
+      Array.isArray(effectiveEnabled) ? effectiveEnabled.join(",") : "none"
+    );
+    console.log("[aiCoachReview] SYSTEM PROMPT BEGIN");
+    console.log(system);
+    console.log("[aiCoachReview] SYSTEM PROMPT END");
+    console.log("[aiCoachReview] USER MESSAGE BEGIN");
+    console.log(coachUserPrompt(payload));
+    console.log("[aiCoachReview] USER MESSAGE END");
 
     const body = {
       model: COACH_MODEL_INFO.model,
@@ -919,15 +940,21 @@ export const aiCoachReview = functions
       messages,
     };
 
+    console.log(
+      "[aiCoachReview] OpenAI chat body (sans auth):",
+      JSON.stringify({ ...body, messages }, null, 2)
+    );
+
     const controller = new AbortController();
-    const to = setTimeout(() => controller.abort(), 9000); // ~9s budget
+    const to = setTimeout(() => controller.abort(), 9000);
     const t0 = Date.now();
     let response;
+
     try {
       response = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
@@ -935,7 +962,9 @@ export const aiCoachReview = functions
       });
     } catch (e) {
       clearTimeout(to);
-      if (e?.name === "AbortError") return { nudges: [], status: "timeout", latency_ms: Date.now() - t0 };
+      if (e?.name === "AbortError") {
+        return { nudges: [], status: "timeout", latency_ms: Date.now() - t0 };
+      }
       console.error("[aiCoachReview] network error", e);
       return { nudges: [], status: "error", reason: "net", latency_ms: Date.now() - t0 };
     }
@@ -948,22 +977,29 @@ export const aiCoachReview = functions
       return { nudges: [], status: "error", reason: "ai", latency_ms };
     }
 
-    let content;
+    let content = "";
     try {
       const json = await response.json();
       content = json?.choices?.[0]?.message?.content || "";
-    } catch {
+    } catch (err) {
+      console.error("[aiCoachReview] parse_ai error", err);
       return { nudges: [], status: "error", reason: "parse_ai", latency_ms };
     }
-    
+
     try {
       const parsed = JSON.parse(content);
-      const out = { nudges: Array.isArray(parsed?.nudges) ? parsed.nudges : [] };
-      coachCache.set(key, { ts: Date.now(), data: out });
-      return { ...out, status: "ok", latency_ms, promptVersion: cfg?.version || 1, schemaVersion: COACH_SCHEMA_VERSION };
-    } catch {
+      const raw = Array.isArray(parsed?.nudges) ? parsed.nudges : [];
+      const allowedSet = new Set(
+        Array.isArray(effectiveEnabled) && effectiveEnabled.length ? effectiveEnabled : NUDGE_IDS
+      );
+      const filtered = raw.filter((n) => n && allowedSet.has(n.id)).slice(0, 2);
+      const out = { nudges: filtered };
+      console.log("[aiCoachReview] nudges returned:", filtered.map((n) => n.id).join(","));
+      return { ...out, status: "ok", latency_ms, schemaVersion: COACH_SCHEMA_VERSION };
+    } catch (err) {
+      console.error("[aiCoachReview] parse_json error", err);
       return { nudges: [], status: "error", reason: "parse_json", latency_ms };
-    }    
+    }
   });
 
 export const aiWhisperTranslate = functions
