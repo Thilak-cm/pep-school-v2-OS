@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Divider, Alert, CircularProgress,
-  Chip, Tooltip, List, ListItem, ListItemText, ListItemSecondaryAction, TextField, FormGroup, FormControlLabel, Switch
+  Chip, Tooltip, TextField, FormGroup, FormControlLabel, Switch
 } from '@mui/material';
-import { Restore, Save, Psychology } from '@mui/icons-material';
+import { Save, Psychology } from '@mui/icons-material';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 
-const MAX_HISTORY = 5;
 const ALL_NUDGES = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
 
 const SectionCard = ({ title, subtitle, children }) => (
@@ -102,6 +101,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setEnabled(ALL_NUDGES);
         }
       } catch (e) {
+        // Surface the underlying Firestore error details in console
+        // Common causes: permission denied or FieldValue in arrays
+        // eslint-disable-next-line no-console
+        console.error('[AICoachEditor] load failed', e);
         setError('Failed to load Coach config');
       } finally {
         setLoading(false);
@@ -133,39 +136,29 @@ export default function AICoachEditor({ currentUser, userRole }) {
     if (!isAdmin) return;
     try {
       setSaving(true);
-      const now = serverTimestamp();
+      const nowServer = serverTimestamp();
+      const nowIso = new Date().toISOString();
       const updatedBy = {
         uid: currentUser?.uid || '',
         email: currentUser?.email || '',
         name: currentUser?.displayName || '',
       };
-      const curr = docState || { version: 0, versions: [] };
-      const prevSnapshot = curr.enabledNudges ? {
-        version: curr.version || 1,
-        enabledNudges: curr.enabledNudges || ALL_NUDGES,
-        updatedAt: now,
-        updatedBy,
-        changeNote: changeNote || 'Updated enabled nudges',
-      } : null;
-      const newVersions = [
-        ...(prevSnapshot ? [prevSnapshot] : []),
-        ...((curr.versions || []).slice(0, MAX_HISTORY - (prevSnapshot ? 1 : 0)))
-      ];
+      const curr = docState || { version: 0 };
 
       const payload = {
         title: curr.title || 'Coach Nudges',
         description: curr.description || 'Select which nudges Coach can suggest.',
         enabledNudges: enabled,
         version: (curr.version || 1) + 1,
-        updatedAt: now,
+        updatedAt: nowServer,
         updatedBy,
-        versions: newVersions,
+        // No version history maintained
       };
 
       if (docState) {
         await updateDoc(coachRef, payload);
       } else {
-        await setDoc(coachRef, { ...payload, version: 1, versions: [] });
+        await setDoc(coachRef, { ...payload, version: 1 });
       }
       setChangeNote('');
       // Refresh
@@ -173,50 +166,15 @@ export default function AICoachEditor({ currentUser, userRole }) {
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[AICoachEditor] save failed', e);
       setError('Failed to save');
     } finally {
       setSaving(false);
     }
   };
 
-  const revert = async (versionItem) => {
-    if (!isAdmin || !docState) return;
-    try {
-      setSaving(true);
-      const now = serverTimestamp();
-      const updatedBy = {
-        uid: currentUser?.uid || '',
-        email: currentUser?.email || '',
-        name: currentUser?.displayName || '',
-      };
-      const curr = docState;
-      const prevSnapshot = {
-        version: curr.version || 1,
-        enabledNudges: curr.enabledNudges || ALL_NUDGES,
-        updatedAt: now,
-        updatedBy,
-        changeNote: `Revert to v${versionItem?.version || ''}`,
-      };
-      const newVersions = [prevSnapshot, ...(curr.versions || []).filter(v => v !== versionItem)].slice(0, MAX_HISTORY);
-
-      const payload = {
-        enabledNudges: Array.isArray(versionItem.enabledNudges) ? versionItem.enabledNudges : ALL_NUDGES,
-        version: (curr.version || 1) + 1,
-        updatedAt: now,
-        updatedBy,
-        versions: newVersions,
-      };
-      await updateDoc(coachRef, payload);
-      const snap = await getDoc(coachRef);
-      if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
-      setEnabled(payload.enabledNudges);
-      setEditing(false);
-    } catch (e) {
-      setError('Failed to revert');
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Version history removed — revert functionality no longer applicable
 
   const runTest = async () => {
     setTestError('');
@@ -232,6 +190,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
       const res = await call({ note_text: text, context: {}, forceRefresh: true });
       setTestOutput(JSON.stringify(res?.data || {}, null, 2));
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[AICoachEditor] test run failed', e);
       setTestError(e?.message || 'Failed to run');
     } finally {
       setTesting(false);
@@ -270,9 +230,21 @@ export default function AICoachEditor({ currentUser, userRole }) {
                 <>
                   <Typography variant="subtitle2">Enabled nudges</Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {enabled.map((n) => (
-                      <Chip key={n} label={n} size="small" />
-                    ))}
+                    {ALL_NUDGES.map((n) => {
+                      const isOn = enabled.includes(n);
+                      return (
+                        <Chip
+                          key={n}
+                          label={n}
+                          size="small"
+                          color={isOn ? 'success' : 'error'}
+                          variant={isOn ? 'filled' : 'outlined'}
+                          sx={{
+                            textDecoration: isOn ? 'none' : 'line-through',
+                          }}
+                        />
+                      );
+                    })}
                   </Box>
                 </>
               ) : (
@@ -294,25 +266,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                 </>
               )}
 
-              {/* History */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
-                {!docState?.versions?.length && (
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
-                )}
-                {docState?.versions?.length > 0 && (
-                  <List dense>
-                    {docState.versions.map((v, idx) => (
-                      <ListItem key={idx} divider>
-                        <ListItemText primary={`v${v.version || '?'}`} secondary={v.changeNote || ''} />
-                        <ListItemSecondaryAction>
-                          <Button size="small" startIcon={<Restore />} onClick={() => revert(v)}>Revert</Button>
-                        </ListItemSecondaryAction>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </Box>
+              {/* Version history removed */}
 
               {/* Preview */}
               <Box>
@@ -351,4 +305,3 @@ export default function AICoachEditor({ currentUser, userRole }) {
     </Box>
   );
 }
-

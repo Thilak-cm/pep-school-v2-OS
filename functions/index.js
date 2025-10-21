@@ -761,8 +761,7 @@ function coachSystemPrompt(enabledNudges) {
     "{\"note_text\":\"STUDENT_A used number rods today.\",\"context\":{\"classroomId\":\"allstars\",\"programId\":\"adolescent\"}}",
     "OUTPUT:",
     "{\"nudges\":[",
-    "  {\"id\":\"duration\",\"reason\":\"Activity noted without a time range.\",\"confidence\":0.86,\"microcopy_key\":\"about_how_long\",\"chips\":[\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"],\"append_line\":\"Duration: 10–20 min\",\"metadata\":{\"duration_range\":\"10–20m\"}},",
-    "  {\"id\":\"modality\",\"reason\":\"Math work without modality context.\",\"confidence\":0.62,\"microcopy_key\":\"how_was_this_done\",\"chips\":[\"Material\",\"Pen & paper\",\"Mental\"],\"append_line\":\"Modality: Material\",\"metadata\":{\"modality\":\"Material\"}}",
+    "  {\"id\":\"duration\",\"reason\":\"Activity noted without a time range.\",\"confidence\":0.86,\"microcopy_key\":\"about_how_long\",\"chips\":[\"<5m\",\"5–10m\",\"10–20m\",\"20m+\"],\"append_line\":\"Duration: 10–20 min\",\"metadata\":{\"duration_range\":\"10–20m\"}}",
     "]}",
     "",
     "Return only JSON. No extra text."
