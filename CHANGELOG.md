@@ -5,6 +5,26 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2025-10-21
+
+### Changed
+- Coach (Cloud Function): `aiCoachReview` uses a minimal GPT schema `{ id, reason, confidence }`, returns `schemaVersion: 2`, and composes the system prompt from Firestore (`ai_prompts/coach`) using modular fields (`introLines`, `howToLines`, `nudgeBlocks`, `examples`, `priorityOrder`).
+- Coach (Cloud Function): skips the LLM call entirely when no effective enabled nudges are configured (fast‑path save).
+- Removed legacy `coachSystemPrompt` helper; prompt is now fully Firestore‑driven with a 5‑minute TTL cache and hardcoded fallback.
+- Client: coach request/response streamlined — minimal ingress `{ note_text }`; enrichment (chips, microcopy) happens client‑side; context derivation removed from Add Note flow.
+
+### UI/UX
+- Coach Editor (admin): preview restructured into sections — Intro, How To, Nudge Blocks (all shown; disabled greyed), and Example (expanded). Displays the Final composed prompt exactly as sent to GPT.
+- Coach Editor allows zero enabled nudges; when none enabled, the preview indicates Coach is disabled and test run is disabled.
+- Editor now saves `disabledNudges` explicitly (complement of `enabledNudges`).
+
+### Scripts
+- Added `scripts/admin/seed-coach-prompt.js` to seed/update the modular `ai_prompts/coach` document.
+- NPM tasks: `seed:coach`, `seed:coach:push`.
+
+### Dev
+- Updated client tests/schema for the minimal nudge shape; parser sanitizes and enriches locally.
+
 ## [4.2.1] - 2025-10-20
 
 ### Fixed
