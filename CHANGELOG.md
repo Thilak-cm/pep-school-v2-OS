@@ -5,6 +5,18 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2025-10-20
+
+### Fixed
+- Coach Editor: Firestore save error caused by `serverTimestamp()` inside arrays. Writes now keep `updatedAt` at the top level and avoid array transforms.
+
+### Changed
+- Coach Editor: removed version history UI and associated writes for a simpler `ai_prompts/coach` document.
+- Added console error logging (load/save/test) to surface detailed failure reasons in DevTools.
+
+### Scripts
+- Added `scripts/admin/remove-coach-versions.js` to delete the legacy `versions` field from `ai_prompts/coach`.
+
 ## [4.1.0] - 2025-10-20
 
 ### UI/UX
