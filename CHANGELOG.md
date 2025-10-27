@@ -5,6 +5,28 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.2] - 2025-01-21
+
+### Changed
+- AI Coach Editor: replaced verbose prompt preview with collapsible accordion UI for cleaner information architecture
+- AI Coach Editor: moved save button to top of page, right under nudge toggles for better UX
+- AI Coach Editor: nudges state now pulls from Firebase as source of truth (initializes as empty array)
+- Landing Page: removed "Bulk Upload Roster" and "Search & Filter Notes" placeholder cards
+
+### Improved
+- AI Coach Editor: formatted test run results to display detected nudges in user-friendly cards
+  - Shows nudge type with green chip
+  - Displays confidence percentage badge
+  - Shows nudge reason in clean card layout
+  - Includes collapsible raw JSON view for debugging
+- AI Coach Editor: "Final Composed Prompt" section now expanded by default with indigo theme
+- AI Coach Editor: shows red error alert when all nudges are disabled (instead of blue info)
+- AI Coach Editor: hides Test Run section when all nudges are disabled
+
+### Removed
+- AI Coach Editor: removed "change note" optional field from save dialog
+- Landing Page: removed unused feature placeholder cards
+
 ## [4.3.1] - 2025-10-21
 
 ### Changed
