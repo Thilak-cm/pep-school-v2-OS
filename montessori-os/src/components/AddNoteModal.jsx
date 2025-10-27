@@ -296,6 +296,7 @@ function AddNoteModal({
   const [coachNudges, setCoachNudges] = useState([]);
   const [coachSelections, setCoachSelections] = useState({});
   const [coachReviewing, setCoachReviewing] = useState(false); // not used in new flow
+  const [coachData, setCoachData] = useState(null); // stores AI response data (status, reason, nudgesShown)
   // Analyzing overlay (replaces snackbar for this flow)
   const [analyzingOpen, setAnalyzingOpen] = useState(false);
   const [analyzingMessage, setAnalyzingMessage] = useState('');
@@ -303,11 +304,23 @@ function AddNoteModal({
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
 
+  // Normalize cloud function reason codes to schema values
+  const normalizeCoachReason = (reason) => {
+    const reasonMap = {
+      'net': 'net_timeout',
+      'ai': 'server_error',
+      'parse_ai': 'parse_error',
+      'parse_json': 'parse_error'
+    };
+    return reasonMap[reason] || 'none';
+  };
+
   const resetCoach = () => {
     setCoachOpen(false);
     setCoachNudges([]);
     setCoachSelections({});
     setCoachReviewing(false);
+    setCoachData(null);
   };
 
   const runCoachReview = async (noteText) => {
@@ -328,18 +341,34 @@ function AddNoteModal({
       const payload = makeCoachRequest(noteText);
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
       const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
-      if (timedOut) { clearTimeout(t5); clearTimeout(t10); setAnalyzingOpen(false); return { skipped: true, timeout: true }; }
-      const parsed = parseCoachResponse(res?.data || { nudges: [] });
+      if (timedOut) { 
+        clearTimeout(t5); 
+        clearTimeout(t10); 
+        setAnalyzingOpen(false); 
+        return { skipped: true, timeout: true, coachData: { status: 'timeout', reason: 'net_timeout', nudgesShown: [] } }; 
+      }
+      const aiResponse = res?.data || { nudges: [] };
+      const parsed = parseCoachResponse(aiResponse);
       clearTimeout(t5); clearTimeout(t10);
       // Hide analyzing overlay now that we have a result
       setAnalyzingOpen(false);
       const nudges = parsed.nudges || [];
+      
+      // Store AI response data for saving
+      const coachStatus = aiResponse.status || 'ok';
+      const coachReason = normalizeCoachReason(aiResponse.reason || 'none');
+      const nudgesShown = nudges.map(n => ({ id: n.id, confidence: n.confidence }));
+      
       if (!nudges.length) {
-        return { skipped: true };
+        return { skipped: true, coachData: { status: coachStatus, reason: coachReason, nudgesShown: [] } };
       }
       // Open dialog with available nudges and wait for user interaction
       setCoachNudges(nudges);
       setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
+      
+      // Store the coach data for later saving
+      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown });
+      
       setCoachOpen(true);
 
       return await new Promise((resolve) => {
@@ -356,17 +385,17 @@ function AddNoteModal({
       clearTimeout(t5); clearTimeout(t10);
       // Hide analyzing overlay and skip without blocking save
       setAnalyzingOpen(false);
-      return { skipped: true };
+      return { skipped: true, coachData: { status: 'error', reason: 'server_error', nudgesShown: [] } };
     }
   };
 
   const handleCoachSkip = () => {
-    coachActionRef.current = { skipped: true }; // proceed to save without changes
+    coachActionRef.current = { skipped: true, coachData }; // proceed to save without changes
     resetCoach();
   };
 
   const handleCoachApply = ({ updated_text, selections }) => {
-    coachActionRef.current = { updated_text, selections };
+    coachActionRef.current = { updated_text, selections, coachData };
     setCoachOpen(false);
   };
 
@@ -660,9 +689,19 @@ function AddNoteModal({
           observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
         }
 
-        // Coach structured fields (if any were selected)
-        let coachFields = coachResult?.selections ? { ...coachResult.selections } : {};
-        Object.assign(observationData, coachFields);
+        // Coach structured fields - wrap according to DATA_STRUCTURE.md
+        // Save coach object if coach was invoked (whether nudges shown or selections made)
+        if (coachResult && coachResult.coachData) {
+          observationData.coach = {
+            status: coachResult.coachData.status || 'ok',
+            reason: coachResult.coachData.reason || 'none',
+            nudgesShown: coachResult.coachData.nudgesShown || []
+          };
+          // Add selections if any were made
+          if (coachResult.selections && Object.keys(coachResult.selections).length > 0) {
+            observationData.coach.selections = coachResult.selections;
+          }
+        }
 
         // No default spoken language for text notes
 

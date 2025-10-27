@@ -130,8 +130,7 @@ interface Observation {
   
   // Content
   type: 'text' | 'voice';        // core types for v1
-  text?: string;
-  audioUrl?: string;
+  text: string;
   durationSec?: number;
   sttConfidence?: number;
 

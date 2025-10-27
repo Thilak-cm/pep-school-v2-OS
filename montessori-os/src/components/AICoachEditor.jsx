@@ -46,24 +46,27 @@ function composeFinalPrompt(doc, enabled) {
     for (const s of (block?.lines || [])) lines.push(String(s));
     lines.push('');
   }
-  const baseInput = doc?.examples?.baseInput || 'STUDENT_A used number rods today.';
-  const reasons = (doc?.examples?.reasonsById) || {};
-  const exampleIds = effective.slice(0, 2);
-  lines.push('Example');
-  lines.push('INPUT:');
-  lines.push(JSON.stringify({ note_text: baseInput }));
-  lines.push('OUTPUT:');
-  lines.push('{');
-  lines.push('  "nudges": [');
-  for (let i = 0; i < exampleIds.length; i++) {
-    const id = exampleIds[i];
-    const reason = reasons[id] || 'Relevant missing element.';
+  // Pick examples from enabled nudges, similar to nudgeBlocks
+  const examplesToShow = effective.slice(0, 2);
+  for (let i = 0; i < examplesToShow.length; i++) {
+    const id = examplesToShow[i];
+    const exampleData = doc?.examples?.[id];
+    if (!exampleData) continue;
+    
+    const exampleText = exampleData.exampleText || 'STUDENT_A used number rods today.';
+    const reason = exampleData.reason || 'Relevant missing element.';
     const conf = i === 0 ? 0.86 : 0.62;
-    const comma = i < exampleIds.length - 1 ? ',' : '';
-    lines.push(`    {"id": "${id}", "reason": "${reason}", "confidence": ${conf}}${comma}`);
+    
+    if (i === 0) {
+      lines.push('Examples');
+    }
+    lines.push('');
+    lines.push(`Example ${i + 1} (${id})`);
+    lines.push('INPUT:');
+    lines.push(JSON.stringify({ note_text: exampleText }));
+    lines.push('OUTPUT:');
+    lines.push(JSON.stringify({ nudges: [{ id, reason, confidence: conf }] }, null, 2));
   }
-  lines.push('  ]');
-  lines.push('}');
   return { text: lines.join('\n'), allowList: allow, order: effective, effectiveEnabled: effective };
 }
 
@@ -378,51 +381,85 @@ export default function AICoachEditor({ currentUser, userRole }) {
                     </AccordionDetails>
                   </Accordion>
 
-                  {/* Example */}
+                  {/* Examples */}
                   <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
                     <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                        Example
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                          Examples
+                        </Typography>
+                        <Chip label={`${enabled.length} enabled`} size="small" sx={{ ml: 'auto', height: '20px' }} />
+                      </Box>
                     </AccordionSummary>
                     <AccordionDetails sx={{ px: 2, pb: 2 }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Box>
-                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block' }}>INPUT</Typography>
-                          <Box component="pre" sx={{ 
-                            fontFamily: 'monospace', 
-                            whiteSpace: 'pre-wrap', 
-                            p: 1.5, 
-                            bgcolor: '#f8fafc', 
-                            border: '1px solid #e2e8f0', 
-                            borderRadius: 1,
-                            fontSize: '0.8rem',
-                            m: 0
-                          }}>
-                            {JSON.stringify({ note_text: (docState?.examples?.baseInput || 'STUDENT_A used number rods today.') })}
-                          </Box>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block' }}>OUTPUT candidates</Typography>
-                          <Box component="pre" sx={{ 
-                            fontFamily: 'monospace', 
-                            whiteSpace: 'pre-wrap', 
-                            p: 1.5, 
-                            bgcolor: '#f8fafc', 
-                            border: '1px solid #e2e8f0', 
-                            borderRadius: 1,
-                            fontSize: '0.8rem',
-                            m: 0
-                          }}>
-                            {ALL_NUDGES.map((id, i) => {
-                              const reason = docState?.examples?.reasonsById?.[id] || 'Relevant missing element.';
-                              const conf = i === 0 ? 0.86 : 0.62;
-                              const obj = { id, reason, confidence: conf };
-                              const json = JSON.stringify(obj);
-                              return enabled.includes(id) ? json : `// ${json}`;
-                            }).join('\n')}
-                          </Box>
-                        </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {ALL_NUDGES.map((id) => {
+                          const exampleData = docState?.examples?.[id];
+                          const isOn = enabled.includes(id);
+                          const exampleText = exampleData?.exampleText || 'No example configured';
+                          const reason = exampleData?.reason || 'No reason configured';
+                          const conf = enabled.indexOf(id) === 0 ? 0.86 : 0.62;
+                          
+                          return (
+                            <Box key={id} sx={{ 
+                              border: isOn ? '2px solid #059669' : '1px solid #e2e8f0',
+                              borderRadius: 1,
+                              overflow: 'hidden'
+                            }}>
+                              <Box sx={{ 
+                                bgcolor: isOn ? '#f0fdf4' : '#f8fafc', 
+                                px: 1.5, 
+                                py: 0.75,
+                                borderBottom: '1px solid #e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1
+                              }}>
+                                <Chip 
+                                  label={id} 
+                                  size="small" 
+                                  color={isOn ? 'success' : 'default'}
+                                  sx={{ fontWeight: 600 }}
+                                />
+                                {!isOn && <Typography variant="caption" sx={{ color: '#94a3b8' }}>(disabled)</Typography>}
+                              </Box>
+                              <Box sx={{ p: 1.5, bgcolor: '#ffffff' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block' }}>
+                                  INPUT
+                                </Typography>
+                                <Box component="pre" sx={{ 
+                                  fontFamily: 'monospace', 
+                                  whiteSpace: 'pre-wrap', 
+                                  p: 1, 
+                                  bgcolor: '#f8fafc', 
+                                  border: '1px solid #e2e8f0', 
+                                  borderRadius: 1,
+                                  fontSize: '0.8rem',
+                                  m: 0,
+                                  color: isOn ? '#111827' : '#9ca3af'
+                                }}>
+                                  {JSON.stringify({ note_text: exampleText })}
+                                </Box>
+                                <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block', mt: 1 }}>
+                                  OUTPUT
+                                </Typography>
+                                <Box component="pre" sx={{ 
+                                  fontFamily: 'monospace', 
+                                  whiteSpace: 'pre-wrap', 
+                                  p: 1, 
+                                  bgcolor: '#f8fafc', 
+                                  border: '1px solid #e2e8f0', 
+                                  borderRadius: 1,
+                                  fontSize: '0.8rem',
+                                  m: 0,
+                                  color: isOn ? '#111827' : '#9ca3af'
+                                }}>
+                                  {isOn ? JSON.stringify({ nudges: [{ id, reason, confidence: conf }] }, null, 2) : '// Disabled'}
+                                </Box>
+                              </Box>
+                            </Box>
+                          );
+                        })}
                       </Box>
                     </AccordionDetails>
                   </Accordion>

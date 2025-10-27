@@ -28,6 +28,9 @@ if (!admin.apps.length) {
   });
 }
 
+// Import shared examples - single source of truth
+const DEFAULT_EXAMPLES = require('./coach-examples.js');
+
 const db = admin.firestore();
 
 const ALL_NUDGES = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
@@ -70,16 +73,7 @@ const DEFAULT_BLOCKS = {
   ]},
 };
 
-const DEFAULT_EXAMPLES = {
-  baseInput: 'STUDENT_A used number rods today.',
-  reasonsById: {
-    duration: 'Activity noted without a time range.',
-    modality: 'Material-based math work mentioned; no method (Material/Pen & paper/Mental).',
-    independence: 'No independence/grouping label present.',
-    evidence: 'Claim without count or quote.',
-    subjective: 'Adjective can be replaced by one objective observation.',
-  },
-};
+// DEFAULT_EXAMPLES is imported from ./coach-examples.js above
 
 function composeFinalPrompt(doc, enabled) {
   const set = new Set(enabled || []);
@@ -102,24 +96,27 @@ function composeFinalPrompt(doc, enabled) {
     for (const s of (block?.lines || [])) lines.push(String(s));
     lines.push('');
   }
-  const baseInput = doc?.examples?.baseInput || DEFAULT_EXAMPLES.baseInput;
-  const reasons = (doc?.examples?.reasonsById) || DEFAULT_EXAMPLES.reasonsById;
-  const exampleIds = (effective.length ? effective : ALL_NUDGES).slice(0, 3);
-  lines.push('Example');
-  lines.push('INPUT:');
-  lines.push(JSON.stringify({ note_text: baseInput }));
-  lines.push('OUTPUT:');
-  lines.push('{');
-  lines.push('  "nudges": [');
-  for (let i = 0; i < exampleIds.length; i++) {
-    const id = exampleIds[i];
-    const reason = reasons[id] || 'Relevant missing element.';
-    const conf = i === 0 ? 0.84 : (i === 1 ? 0.71 : 0.63);
-    const comma = i < exampleIds.length - 1 ? ',' : '';
-    lines.push(`    {"id": "${id}", "reason": "${reason}", "confidence": ${conf}}${comma}`);
+  // Pick examples from enabled nudges, similar to nudgeBlocks
+  const examplesToShow = (effective.length ? effective : ALL_NUDGES).slice(0, 2);
+  for (let i = 0; i < examplesToShow.length; i++) {
+    const id = examplesToShow[i];
+    const exampleData = doc?.examples?.[id] || DEFAULT_EXAMPLES[id];
+    if (!exampleData) continue;
+    
+    const exampleText = exampleData.exampleText || 'STUDENT_A used number rods today.';
+    const reason = exampleData.reason || 'Relevant missing element.';
+    const conf = i === 0 ? 0.86 : 0.62;
+    
+    if (i === 0) {
+      lines.push('Examples');
+    }
+    lines.push('');
+    lines.push(`Example ${i + 1} (${id})`);
+    lines.push('INPUT:');
+    lines.push(JSON.stringify({ note_text: exampleText }));
+    lines.push('OUTPUT:');
+    lines.push(JSON.stringify({ nudges: [{ id, reason, confidence: conf }] }, null, 2));
   }
-  lines.push('  ]');
-  lines.push('}');
   return { text: lines.join('\n'), allowList: allow, order: effective, effectiveEnabled: effective };
 }
 
@@ -135,9 +132,14 @@ function composeFinalPrompt(doc, enabled) {
       nudgeBlocks[id] = DEFAULT_BLOCKS[id];
     }
   }
+  
+  // Merge examples with nudge IDs as keys
   const examples = { ...(curr.examples || {}) };
-  if (!examples.baseInput) examples.baseInput = DEFAULT_EXAMPLES.baseInput;
-  examples.reasonsById = { ...(examples.reasonsById || {}), ...DEFAULT_EXAMPLES.reasonsById };
+  for (const id of ALL_NUDGES) {
+    if (!examples[id] || !examples[id].exampleText || !examples[id].reason) {
+      examples[id] = DEFAULT_EXAMPLES[id];
+    }
+  }
 
   const enabled = Array.isArray(curr.enabledNudges) && curr.enabledNudges.length
     ? curr.enabledNudges.filter((x) => ALL_NUDGES.includes(x))

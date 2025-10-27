@@ -6,6 +6,11 @@ import { getAuth } from "firebase-admin/auth";
 import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
+import { createRequire } from "module";
+
+// Import CommonJS module from scripts folder
+const require = createRequire(import.meta.url);
+const COACH_DEFAULT_EXAMPLES = require("../scripts/coach-examples.js");
 
 initializeApp({ credential: applicationDefault() });
 
@@ -720,22 +725,20 @@ async function getCoachConfigServer() {
         nudgeBlocks[id] = { lines: block.lines.map((s) => String(s)) };
       }
     }
-    const examples = (data.examples && typeof data.examples === "object") ? data.examples : {};
-    const exampleBaseInput = typeof examples.baseInput === "string" && examples.baseInput.trim()
-      ? examples.baseInput
-      : "STUDENT_A used number rods today.";
-    const reasonsByIdIn = (examples.reasonsById && typeof examples.reasonsById === "object") ? examples.reasonsById : {};
-    const defaultReasons = {
-      duration: "Activity noted without a time range.",
-      modality: "Math work mentioned but no modality term found.",
-      independence: "No independence/grouping label present.",
-      evidence: "Claim without count or quote.",
-      subjective: "Adjective can be replaced by one objective observation.",
-    };
-    const reasonsById = {};
+    // Read examples in new format (nudge IDs as keys)
+    const examplesIn = (data.examples && typeof data.examples === "object") ? data.examples : {};
+    const examples = {};
+    
+    // Use shared default examples - single source of truth
+    const defaultExamples = COACH_DEFAULT_EXAMPLES;
+    
     for (const id of NUDGE_IDS) {
-      const r = reasonsByIdIn[id];
-      reasonsById[id] = typeof r === "string" && r.trim() ? r : defaultReasons[id];
+      const ex = examplesIn[id];
+      if (ex && typeof ex === "object" && ex.exampleText && ex.reason) {
+        examples[id] = ex;
+      } else {
+        examples[id] = defaultExamples[id];
+      }
     }
 
     const out = {
@@ -745,7 +748,7 @@ async function getCoachConfigServer() {
       introLines,
       howToLines,
       nudgeBlocks,
-      examples: { baseInput: exampleBaseInput, reasonsById },
+      examples,
       finalPrompt: typeof data.finalPrompt === "string" ? data.finalPrompt : undefined,
       effectiveEnabled: Array.isArray(data.effectiveEnabled)
         ? data.effectiveEnabled.filter((x) => NUDGE_IDS.includes(x))
@@ -794,16 +797,7 @@ async function getCoachConfigServer() {
           "  without an objective observation line to balance it.",
         ]},
       },
-      examples: {
-        baseInput: "STUDENT_A used number rods today.",
-        reasonsById: {
-          duration: "Activity noted without a time range.",
-          modality: "Math work mentioned but no modality term found.",
-          independence: "No independence/grouping label present.",
-          evidence: "Claim without count or quote.",
-          subjective: "Adjective can be replaced by one objective observation.",
-        },
-      },
+      examples: COACH_DEFAULT_EXAMPLES,
       finalPrompt: undefined,
       effectiveEnabled: DEFAULT_PRIORITY_ORDER,
       title: "Coach Nudges",
@@ -1001,8 +995,7 @@ export const aiCoachReview = functions
       list.sort((a, b) => {
         const pa = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
         const pb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
-        if (pa !== pb) return pa - pb;
-        return (b.confidence ?? 0) - (a.confidence ?? 0);
+        return pa - pb;
       });
       const top = list.slice(0, MAX_RETURN_NUDGES);
       const out = { nudges: top };
