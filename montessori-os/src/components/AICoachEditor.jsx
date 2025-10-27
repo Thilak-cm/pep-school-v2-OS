@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Divider, Alert, CircularProgress,
-  Chip, Tooltip, TextField, FormGroup, FormControlLabel, Switch
+  Chip, Tooltip, TextField, FormGroup, FormControlLabel, Switch,
+  Accordion, AccordionSummary, AccordionDetails, AccordionActions
 } from '@mui/material';
-import { Save, Psychology } from '@mui/icons-material';
+import { Save, Psychology, ExpandMore } from '@mui/icons-material';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -72,8 +73,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [docState, setDocState] = useState(null);
-  const [enabled, setEnabled] = useState(ALL_NUDGES);
-  const [changeNote, setChangeNote] = useState('');
+  const [enabled, setEnabled] = useState([]);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -95,11 +95,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setDocState({ id: snap.id, ...d });
           const arr = Array.isArray(d.enabledNudges) && d.enabledNudges.length
             ? d.enabledNudges.filter((x) => ALL_NUDGES.includes(x))
-            : ALL_NUDGES;
+            : [];
           setEnabled(arr);
         } else {
           setDocState(null);
-          setEnabled(ALL_NUDGES);
+          setEnabled([]);
         }
       } catch (e) {
         // Surface the underlying Firestore error details in console
@@ -124,11 +124,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const cancelEdit = () => {
     if (docState && Array.isArray(docState.enabledNudges)) {
       const arr = docState.enabledNudges.filter((x) => ALL_NUDGES.includes(x));
-      setEnabled(arr.length ? arr : ALL_NUDGES);
+      setEnabled(arr);
     } else {
-      setEnabled(ALL_NUDGES);
+      setEnabled([]);
     }
-    setChangeNote('');
     setEditing(false);
   };
 
@@ -158,7 +157,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
       };
 
       if (docState) await updateDoc(coachRef, payload); else await setDoc(coachRef, payload);
-      setChangeNote('');
       // Refresh
       const snap = await getDoc(coachRef);
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
@@ -214,38 +212,32 @@ export default function AICoachEditor({ currentUser, userRole }) {
         ) : (
           <>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              {!editing ? (
-                <Button variant="outlined" startIcon={<Psychology />} onClick={() => setEditing(true)}>Edit</Button>
-              ) : (
-                <Chip size="small" color="warning" label="Editing" />
-              )}
-              {/* version removed */}
-            </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {!editing ? (
-                <>
-                  <Typography variant="subtitle2">Enabled nudges</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {ALL_NUDGES.map((n) => {
-                      const isOn = enabled.includes(n);
-                      return (
-                        <Chip
-                          key={n}
-                          label={n}
-                          size="small"
-                          color={isOn ? 'success' : 'error'}
-                          variant={isOn ? 'filled' : 'outlined'}
-                          sx={{
-                            textDecoration: isOn ? 'none' : 'line-through',
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-                </>
-              ) : (
+              {/* Show all nudges - enabled and disabled */}
+              <Box>
+                <Typography variant="subtitle2">All nudges</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {ALL_NUDGES.map((n) => {
+                    const isOn = enabled.includes(n);
+                    return (
+                      <Chip
+                        key={n}
+                        label={n}
+                        size="small"
+                        color={isOn ? 'success' : 'error'}
+                        variant={isOn ? 'filled' : 'outlined'}
+                        sx={{
+                          textDecoration: isOn ? 'none' : 'line-through',
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
+              </Box>
+
+              {/* Edit mode: show toggles */}
+              {editing && (
                 <>
                   <Typography variant="subtitle2">Enable nudges</Typography>
                   <FormGroup>
@@ -257,105 +249,323 @@ export default function AICoachEditor({ currentUser, userRole }) {
                       />
                     ))}
                   </FormGroup>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>Change note (optional)</Typography>
-                    <TextField fullWidth placeholder="e.g., testing evidence only" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>Save</Button>
+                    <Button variant="text" onClick={cancelEdit}>Cancel</Button>
                   </Box>
                 </>
+              )}
+
+              {/* View mode: show edit button */}
+              {!editing && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Button variant="outlined" startIcon={<Psychology />} onClick={() => setEditing(true)}>Edit</Button>
+                </Box>
               )}
 
               {/* Version history removed */}
 
               {/* Preview Panels */}
               {enabled.length === 0 ? (
-                <Alert severity="info">Coach feature disabled. No enhancements will be suggested on note save.</Alert>
+                <Alert severity="error" sx={{ bgcolor: '#fee2e2', border: '1px solid #fecaca' }}>Coach feature disabled. No enhancements will be suggested on note save.</Alert>
               ) : (
                 <>
                   {/* Intro */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Intro</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                      {(Array.isArray(docState?.introLines) ? docState.introLines : []).join('\n')}
-                    </Box>
-                  </Box>
+                  <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                        Intro
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                      <Box component="pre" sx={{ 
+                        fontFamily: 'monospace', 
+                        whiteSpace: 'pre-wrap', 
+                        p: 1.5, 
+                        bgcolor: '#f8fafc', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: 1,
+                        fontSize: '0.8rem',
+                        m: 0
+                      }}>
+                        {(Array.isArray(docState?.introLines) ? docState.introLines : []).join('\n') || 'No intro configured'}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
 
                   {/* How To */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>How To</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                      {[
-                        ...(Array.isArray(docState?.howToLines) ? docState.howToLines : []),
-                        'Each nudge must include exactly: id, reason, confidence.',
-                        `Allowed ids: ${(final?.allowList || '')}.`,
-                        final?.order?.length ? `Prioritize in this order: ${final.order.join(' → ')}.` : '',
-                      ].filter(Boolean).join('\n')}
-                    </Box>
-                  </Box>
+                  <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                        How To Respond
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                      <Box component="pre" sx={{ 
+                        fontFamily: 'monospace', 
+                        whiteSpace: 'pre-wrap', 
+                        p: 1.5, 
+                        bgcolor: '#f8fafc', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: 1,
+                        fontSize: '0.8rem',
+                        m: 0
+                      }}>
+                        {[
+                          ...(Array.isArray(docState?.howToLines) ? docState.howToLines : []),
+                          'Each nudge must include exactly: id, reason, confidence.',
+                          `Allowed ids: ${(final?.allowList || '')}.`,
+                          final?.order?.length ? `Prioritize in this order: ${final.order.join(' → ')}.` : '',
+                        ].filter(Boolean).join('\n') || 'No instructions configured'}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
 
                   {/* Nudge Blocks */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Nudge Blocks</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1 }}>
-                      {ALL_NUDGES.map((id) => {
-                        const block = docState?.nudgeBlocks?.[id];
-                        const isOn = enabled.includes(id);
-                        const text = Array.isArray(block?.lines) ? block.lines.join('\n') : '• Not configured';
-                        return (
-                          <Box key={id} component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.25, border: '1px solid #e2e8f0', borderRadius: 1, bgcolor: '#ffffff', color: isOn ? 'text.primary' : 'text.disabled' }}>
-                            {text}
+                  <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                          Nudge Blocks
+                        </Typography>
+                        <Chip label={`${enabled.length} enabled`} size="small" sx={{ ml: 'auto', height: '20px' }} />
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {ALL_NUDGES.map((id) => {
+                          const block = docState?.nudgeBlocks?.[id];
+                          const isOn = enabled.includes(id);
+                          const text = Array.isArray(block?.lines) ? block.lines.join('\n') : '• Not configured';
+                          return (
+                            <Box key={id} sx={{ 
+                              border: isOn ? '2px solid #059669' : '1px solid #e2e8f0',
+                              borderRadius: 1,
+                              overflow: 'hidden'
+                            }}>
+                              <Box sx={{ 
+                                bgcolor: isOn ? '#f0fdf4' : '#f8fafc', 
+                                px: 1.5, 
+                                py: 0.75,
+                                borderBottom: '1px solid #e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1
+                              }}>
+                                <Chip 
+                                  label={id} 
+                                  size="small" 
+                                  color={isOn ? 'success' : 'default'}
+                                  sx={{ fontWeight: 600 }}
+                                />
+                                {!isOn && <Typography variant="caption" sx={{ color: '#94a3b8' }}>(disabled)</Typography>}
+                              </Box>
+                              <Box component="pre" sx={{ 
+                                fontFamily: 'monospace', 
+                                whiteSpace: 'pre-wrap', 
+                                p: 1.25, 
+                                fontSize: '0.8rem',
+                                m: 0,
+                                bgcolor: '#ffffff',
+                                color: isOn ? '#111827' : '#9ca3af'
+                              }}>
+                                {text}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  {/* Example */}
+                  <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                        Example
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block' }}>INPUT</Typography>
+                          <Box component="pre" sx={{ 
+                            fontFamily: 'monospace', 
+                            whiteSpace: 'pre-wrap', 
+                            p: 1.5, 
+                            bgcolor: '#f8fafc', 
+                            border: '1px solid #e2e8f0', 
+                            borderRadius: 1,
+                            fontSize: '0.8rem',
+                            m: 0
+                          }}>
+                            {JSON.stringify({ note_text: (docState?.examples?.baseInput || 'STUDENT_A used number rods today.') })}
                           </Box>
-                        );
-                      })}
-                    </Box>
-                  </Box>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', mb: 0.5, display: 'block' }}>OUTPUT candidates</Typography>
+                          <Box component="pre" sx={{ 
+                            fontFamily: 'monospace', 
+                            whiteSpace: 'pre-wrap', 
+                            p: 1.5, 
+                            bgcolor: '#f8fafc', 
+                            border: '1px solid #e2e8f0', 
+                            borderRadius: 1,
+                            fontSize: '0.8rem',
+                            m: 0
+                          }}>
+                            {ALL_NUDGES.map((id, i) => {
+                              const reason = docState?.examples?.reasonsById?.[id] || 'Relevant missing element.';
+                              const conf = i === 0 ? 0.86 : 0.62;
+                              const obj = { id, reason, confidence: conf };
+                              const json = JSON.stringify(obj);
+                              return enabled.includes(id) ? json : `// ${json}`;
+                            }).join('\n')}
+                          </Box>
+                        </Box>
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
 
-                  {/* Example (expanded) */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Example (expanded preview)</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1, mb: 1 }}>
-                      {`INPUT:\n${JSON.stringify({ note_text: (docState?.examples?.baseInput || 'STUDENT_A used number rods today.') })}`}
-                    </Box>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                      {['OUTPUT candidates:', ...ALL_NUDGES.map((id, i) => {
-                        const reason = docState?.examples?.reasonsById?.[id] || 'Relevant missing element.';
-                        const conf = i === 0 ? 0.86 : 0.62;
-                        const obj = { id, reason, confidence: conf };
-                        const json = JSON.stringify(obj);
-                        return enabled.includes(id) ? json : `// ${json}`;
-                      })].join('\n')}
-                    </Box>
-                  </Box>
-
-                  {/* Final composed prompt (from Firestore) */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Final Prompt (used by Coach)</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-                      {docState?.finalPrompt ?? ''}
-                    </Box>
-                  </Box>
+                  {/* Final composed prompt */}
+                  <Accordion defaultExpanded sx={{ boxShadow: 'none', border: '1px solid #6366f1', borderRadius: 1, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2, bgcolor: '#eef2ff' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4f46e5' }}>
+                        Final Composed Prompt
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                        Complete prompt sent to AI (scroll to view full text)
+                      </Typography>
+                      <Box component="pre" sx={{ 
+                        fontFamily: 'monospace', 
+                        whiteSpace: 'pre-wrap', 
+                        p: 1.5, 
+                        bgcolor: '#f8fafc', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: 1, 
+                        maxHeight: '400px', 
+                        overflow: 'auto',
+                        fontSize: '0.75rem',
+                        m: 0
+                      }}>
+                        {docState?.finalPrompt || 'No prompt configured'}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
                 </>
               )}
 
-              {/* Test Run */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Psychology fontSize="small" /> Test Run
-                </Typography>
-                <TextField fullWidth multiline minRows={4} placeholder="Paste an observation to get nudges" value={testNote} onChange={(e) => setTestNote(e.target.value)} />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  <Button variant="outlined" onClick={runTest} disabled={testing || enabled.length === 0}>Run Coach</Button>
-                  {testing && <CircularProgress size={16} />}
-                  {testError && <Alert severity="error" sx={{ ml: 1 }}>{testError}</Alert>}
-                </Box>
-                {testOutput && (
-                  <TextField sx={{ mt: 1 }} fullWidth multiline minRows={6} value={testOutput} onChange={(e) => setTestOutput(e.target.value)} />
-                )}
-              </Box>
+              {/* Test Run - only show when nudges are enabled */}
+              {enabled.length > 0 && (
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Psychology fontSize="small" /> Test Run
+                  </Typography>
+                  <TextField fullWidth multiline minRows={4} placeholder="Paste an observation to get nudges" value={testNote} onChange={(e) => setTestNote(e.target.value)} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                    <Button variant="outlined" onClick={runTest} disabled={testing}>Run Coach</Button>
+                    {testing && <CircularProgress size={16} />}
+                    {testError && <Alert severity="error" sx={{ ml: 1 }}>{testError}</Alert>}
+                  </Box>
+                  {testOutput && (() => {
+                    let parsed = {};
+                    let displayText = testOutput;
+                    try {
+                      parsed = JSON.parse(testOutput);
+                    } catch (e) {
+                      // If not JSON, use raw text
+                    }
+                    
+                    const nudges = parsed.nudges || [];
+                    const status = parsed.status;
+                    const latency = parsed.latency_ms;
+                    
+                    return (
+                      <Box sx={{ mt: 2 }}>
+                        {/* Results Header */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: nudges.length > 0 ? '#059669' : '#64748b' }}>
+                              {nudges.length === 0 ? 'No nudges suggested' : `${nudges.length} nudge${nudges.length === 1 ? '' : 's'} detected`}
+                            </Typography>
+                          </Box>
+                          {latency && (
+                            <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                              {latency}ms
+                            </Typography>
+                          )}
+                        </Box>
 
-              {editing && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
-                  <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>Save</Button>
-                  <Button variant="text" onClick={cancelEdit}>Cancel</Button>
+                        {/* Display Nudges */}
+                        {nudges.length > 0 ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+                            {nudges.map((nudge, idx) => (
+                              <Card key={idx} sx={{ border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+                                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                    <Chip 
+                                      label={nudge.id} 
+                                      size="small" 
+                                      color="success"
+                                      sx={{ fontWeight: 700, textTransform: 'capitalize' }}
+                                    />
+                                    {nudge.confidence && (
+                                      <Chip 
+                                        label={`${Math.round(nudge.confidence * 100)}% confidence`}
+                                        size="small"
+                                        sx={{ 
+                                          bgcolor: '#fef3c7',
+                                          color: '#92400e',
+                                          fontWeight: 600,
+                                          height: '20px'
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
+                                  {nudge.reason && (
+                                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                      {nudge.reason}
+                                    </Typography>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Alert severity="info" sx={{ mb: 2 }}>
+                            The observation looks good. No enhancements needed.
+                          </Alert>
+                        )}
+
+                        {/* Show raw JSON (collapsible) */}
+                        <Accordion sx={{ boxShadow: 'none', border: '1px solid #e2e8f0', borderRadius: 1, '&:before': { display: 'none' } }}>
+                          <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2, py: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b' }}>
+                              View raw JSON response
+                            </Typography>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Box component="pre" sx={{ 
+                              fontFamily: 'monospace', 
+                              whiteSpace: 'pre-wrap', 
+                              p: 1.5, 
+                              bgcolor: '#f8fafc', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: 1,
+                              fontSize: '0.8rem',
+                              m: 0,
+                              maxHeight: '300px',
+                              overflow: 'auto'
+                            }}>
+                              {typeof parsed === 'object' && Object.keys(parsed).length > 0 ? JSON.stringify(parsed, null, 2) : displayText}
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
+                      </Box>
+                    );
+                  })()}
                 </Box>
               )}
             </Box>
