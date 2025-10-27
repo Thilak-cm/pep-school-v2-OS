@@ -185,7 +185,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
     try {
       setTesting(true);
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
-      const res = await call({ note_text: text, forceRefresh: true });
+      const res = await call({ note_text: text });
       setTestOutput(JSON.stringify(res?.data || {}, null, 2));
     } catch (e) {
       // eslint-disable-next-line no-console

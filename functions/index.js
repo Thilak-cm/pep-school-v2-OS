@@ -675,6 +675,7 @@ export const aiWhisperTranscribe = functions
 const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
 // Response caching removed to avoid stale prompts; always compute fresh
 const COACH_SCHEMA_VERSION = 2; // minimal nudge shape returned to client
+const MAX_RETURN_NUDGES = 2; // select top-K after model returns all relevant
 
 // No TTL cache for coach config — read Firestore on each call
 
@@ -698,21 +699,18 @@ async function getCoachConfigServer() {
     const introLines = Array.isArray(data.introLines)
       ? data.introLines.map((s) => String(s))
       : [
-          "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
-          "and returns up to 2 nudges highlighting missing or subjective elements.",
-          "Do not rewrite or rate the text — only detect clear information gaps.",
+          "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
+          "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
         ];
     const howToLines = Array.isArray(data.howToLines)
       ? data.howToLines.map((s) => String(s))
       : [
           "1. Read the note carefully.",
-          "2. Decide which of the five aspects below are missing or unclear.",
-          "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
-          "4. Stop after 2 nudges or if no confident gaps exist.",
-          "5. Output strict JSON with top-level { \"nudges\": [...] }.",
+          "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
+          "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
+          "4. Use only the allowed ids listed below. Output strict JSON with top-level { \"nudges\": [...] } and nothing else.",
+          "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
           "6. Each nudge must include exactly: id, reason, confidence.",
-          "9. If uncertain, return an empty array.",
-          "10. Return only JSON — no commentary or extra text.",
         ];
     const rawBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object") ? data.nudgeBlocks : {};
     const nudgeBlocks = {};
@@ -763,19 +761,16 @@ async function getCoachConfigServer() {
       disabledNudges: [],
       priorityOrder: DEFAULT_PRIORITY_ORDER,
       introLines: [
-        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
-        "and returns up to 2 nudges highlighting missing or subjective elements.",
-        "Do not rewrite or rate the text — only detect clear information gaps.",
+        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
+        "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
       ],
       howToLines: [
         "1. Read the note carefully.",
-        "2. Decide which of the five aspects below are missing or unclear.",
-        "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
-        "4. Stop after 2 nudges or if no confident gaps exist.",
-        "5. Output strict JSON with top-level { \"nudges\": [...] }.",
+        "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
+        "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
+        "4. Use only the allowed ids listed below. Output strict JSON with top-level { \"nudges\": [...] } and nothing else.",
+        "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
         "6. Each nudge must include exactly: id, reason, confidence.",
-        "9. If uncertain, return an empty array.",
-        "10. Return only JSON — no commentary or extra text.",
       ],
       nudgeBlocks: {
         duration: { lines: [
@@ -872,16 +867,15 @@ export const aiCoachReview = functions
     } else {
       console.log("[aiCoachReview] FALLBACK: finalPrompt missing; using built-in default");
       system = [
-        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note",
-        "and returns up to 2 nudges highlighting missing or subjective elements.",
-        "Do not rewrite or rate the text — only detect clear information gaps.",
+        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
+        "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
         "",
         "How to respond",
         "1. Read the note carefully.",
-        "2. Decide which of the five aspects below are missing or unclear.",
-        "3. For each detected gap, output a short reason and a numeric confidence between 0 and 1.",
-        "4. Stop after 2 nudges or if no confident gaps exist.",
-        "5. Output strict JSON with top-level {\"nudges\": [...] }.",
+        "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
+        "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
+        "4. Use only the allowed ids listed below. Output strict JSON with top-level {\\\"nudges\\\": [...] } and nothing else.",
+        "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
         "6. Each nudge must include exactly: id, reason, confidence.",
         "Allowed ids: duration | modality | independence | evidence | subjective.",
         "Prioritize in this order: duration → modality → independence → evidence → subjective.",
@@ -989,12 +983,30 @@ export const aiCoachReview = functions
     try {
       const parsed = JSON.parse(content);
       const raw = Array.isArray(parsed?.nudges) ? parsed.nudges : [];
-      const allowedSet = new Set(
-        Array.isArray(effectiveEnabled) && effectiveEnabled.length ? effectiveEnabled : NUDGE_IDS
-      );
-      const filtered = raw.filter((n) => n && allowedSet.has(n.id)).slice(0, 2);
-      const out = { nudges: filtered };
-      console.log("[aiCoachReview] nudges returned:", filtered.map((n) => n.id).join(","));
+      const allowedOrder = Array.isArray(effectiveEnabled) && effectiveEnabled.length ? effectiveEnabled : NUDGE_IDS;
+      const allowedSet = new Set(allowedOrder);
+      // Keep best per id, prefer higher confidence
+      const byId = new Map();
+      for (const n of raw) {
+        if (!n || typeof n.id !== "string" || !allowedSet.has(n.id)) continue;
+        const confidence = typeof n.confidence === "number" ? n.confidence : 0;
+        const reason = typeof n.reason === "string" ? n.reason : "";
+        const prev = byId.get(n.id);
+        if (!prev || confidence > (prev.confidence ?? 0)) {
+          byId.set(n.id, { id: n.id, reason, confidence });
+        }
+      }
+      const list = Array.from(byId.values());
+      const rank = new Map(allowedOrder.map((id, idx) => [id, idx]));
+      list.sort((a, b) => {
+        const pa = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+        const pb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+        if (pa !== pb) return pa - pb;
+        return (b.confidence ?? 0) - (a.confidence ?? 0);
+      });
+      const top = list.slice(0, MAX_RETURN_NUDGES);
+      const out = { nudges: top };
+      console.log("[aiCoachReview] nudges returned:", top.map((n) => n.id).join(","));
       return { ...out, status: "ok", latency_ms, schemaVersion: COACH_SCHEMA_VERSION };
     } catch (err) {
       console.error("[aiCoachReview] parse_json error", err);
