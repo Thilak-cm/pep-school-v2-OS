@@ -402,34 +402,6 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
 
-            {/* Bulk Upload Roster */}
-            <Grid size={12}>
-              <Card aria-label="Bulk upload roster coming soon" sx={{ opacity: 0.5 }}>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    Bulk Upload Roster
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Feature coming soon
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Search & Filter Notes */}
-            <Grid size={12}>
-              <Card aria-label="Search and filter notes coming soon" sx={{ opacity: 0.5 }}>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    Search &amp; Filter Notes
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Feature coming soon
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
           </>
         )}
 
