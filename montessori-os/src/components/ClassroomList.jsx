@@ -71,13 +71,11 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
           classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         }
 
-        // Temporary migration label for All Stars
-        const patched = classroomsToShow.map(c => c.id === 'allstars' ? { ...c, name: 'All Stars (Previously Adolescent)' } : c);
-        setClassrooms(patched);
+        setClassrooms(classroomsToShow);
 
         // Get student counts for each classroom
         const counts = {};
-        for (const classroom of patched) {
+        for (const classroom of classroomsToShow) {
           const studentsQuery = query(
             collection(db, 'students'),
             where('classroomId', '==', classroom.id)
