@@ -8,17 +8,58 @@
 ---
 
 ## 📚 Collections Overview
+- `branches/{branchId}`
+- `programs/{programId}`
 - `users/{uid}`
 - `classrooms/{classroomId}`
 - `students/{studentId}`
-- `students/{studentId}/observations/{observationId}` (collection group: `observations`)
+- `students/{studentId}/observations/{observationId}`  // collection group: `observations`
 - `feedback/{feedbackId}`
-- `programs/{programId}`
 - `ai_prompts/{docId}`
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
 - Observation docs are fan-out per student (for group notes, write one doc per student). This makes student timelines trivial and admin analytics fast via collection group queries.
+
+Branch model overview
+- Add a first-class `branchId` dimension to core docs (users, classrooms, students, observations) to isolate data per campus/center.
+- `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `hyderabad`.
+- Admins are global; teachers/staff are scoped to one or more branches via `branchIds`.
+- Programs are global at `/programs/{programId}`.
+
+```typescript
+// Shared types
+type BranchId = 'hsr' | 'whitefield' | 'varthur' | 'hyderabad';
+type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
+```
+
+---
+
+## 🌿 Branches (`/branches/{branchId}`)
+Purpose: Metadata and feature toggles per physical branch. Docs may be empty; fields below are optional and can be added over time.
+
+```typescript
+interface BranchDoc {
+  // Display
+  id: BranchId;                  // document ID (e.g., 'hsr')
+  name?: string;                 // e.g., 'HSR'
+  status?: 'active' | 'inactive';
+  order?: number;                // for UI sorting
+  color?: string;                // e.g., '#4f46e5'
+  timezone?: string;            // IANA, e.g., 'Asia/Kolkata'
+
+  // Optional toggles / metadata
+  featureFlags?: string[];
+
+  // Audit
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+```
+Guidance
+- Keep docs simple; the presence of a doc is enough to list a branch.
+- Use slugs `hsr`, `whitefield`, `varthur`, `hyderabad` as document IDs.
+- UI: show the currently selected branch in Profile; admins choose a branch on entry before landing.
 
 ---
 
@@ -31,7 +72,11 @@ interface User {
   photoURL?: string;
 
   // Access
-  role: 'admin' | 'teacher';
+  role: 'admin' | 'teacher';     // admins are global; teachers are branch-scoped
+  
+  // Branch scope
+  branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
+  homeBranchId?: BranchId;       // preferred/default branch for UI selection
   status: 'active' | 'inactive' | 'suspended';
   
   // Metadata
@@ -43,6 +88,8 @@ interface User {
 Guidance
 - Use document ID as the Auth UID; do not duplicate as a field.
 - Roles live here and are read by rules; no custom claims required.
+- Admins: global by default (ignore branchIds for access control, but you may store `homeBranchId` to preselect UI branch).
+- Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
 
 ---
 
@@ -53,6 +100,8 @@ interface Classroom {
   // Renamed from ageGroup → programId
   programId: 'toddler' | 'primary' | 'elementary' | 'adolescent';
   status: 'active' | 'inactive' | 'archived';
+  
+  branchId: BranchId;            // exactly one branch per classroom
   
   teacherIds: string[];          // UIDs assigned to this classroom
   
@@ -68,6 +117,7 @@ interface Classroom {
 Guidance
 - `teacherIds` is the source of truth for teacher access in rules.
 - Maintain `studentCount` via backend trigger on student create/delete/move.
+- Classroom IDs must be globally unique across branches if kept at the collection root. If you plan to reuse names/IDs per branch, generate unique IDs (e.g., prefix with branch slug) and store human-friendly names separately.
 
 Migration notes
 - The previous field `ageGroup` is replaced by `programId`.
@@ -96,6 +146,7 @@ interface Student {
   displayName: string;           // convenience: "First Last"
 
   classroomId: string;           // reference by ID to classrooms/{classroomId}
+  branchId: BranchId;            // denorm; must equal the classroom's branchId
 
   status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'withdrawn';
   isActive: boolean;             // mirrors status == 'active' for fast filters
@@ -111,11 +162,17 @@ interface Student {
 Guidance
 - Queries commonly include `classroomId` and `isActive`.
 - If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
+ - When a student transfers across branches, update `branchId` to the new classroom's branch; historical observations remain under their original `branchId` for analytics integrity.
  - Student IDs follow `YYYY-XXX-NNN` where:
    - `YYYY` is the current year at creation time (e.g., 2026)
    - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
    - `NNN` is a zero-padded index per classroom and year starting from 001
    - The index resets each new year per classroom. On create, clients compute the next index by scanning existing IDs for the same classroom and year, then attempt to write `students/{studentId}`. If a collision occurs, recompute and retry once.
+
+ID uniqueness note
+- If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
+  - Include a branch code in the ID (e.g., `YYYY-BBB-XXX-NNN` where `BBB` is the branch slug), or
+  - Ensure classroom IDs are globally unique across branches and keep the current `YYYY-XXX-NNN` format.
 
 ---
 
@@ -126,6 +183,7 @@ interface Observation {
   // Identity
   studentId: string;             // must equal parent {studentId}
   classroomId: string;           // denorm for queries/rules; must equal student's classroomId
+  branchId: BranchId;            // denorm for rules and analytics; equals the student's branch at time of creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
   
   // Content
@@ -184,6 +242,9 @@ Why fan-out per student?
 - Classroom, teacher, and admin analytics = collection group queries
 - No need for `array-contains` tricks or cross-doc joins in rules
 
+Branch transfer behavior
+- Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
+
 ---
 
 ## 💬 Feedback (`/feedback/{feedbackId}`)
@@ -218,6 +279,7 @@ Guidance
 - `userId` must match `request.auth.uid` for security
 - Status workflow: new → reviewed → implemented/declined
 - Admin notes are private and only visible to admins
+- Keep feedback global (not branch-scoped) per product decision.
 
 ---
 
@@ -330,23 +392,27 @@ Security
 ---
 
 ## 🔎 Core Query Patterns
-- Teacher’s classrooms: `classrooms` where `teacherIds` array-contains `uid`
-- Students in a classroom: `students` where `classroomId == X` and `isActive == true`
+- Branch listing (for UI): list `branches` (all docs)
+- Teacher’s classrooms (by branch): `classrooms` where `branchId == B` AND `teacherIds` array-contains `uid`
+- Students in a classroom: `students` where `branchId == B` AND `classroomId == X` AND `isActive == true`
 - Student timeline: `students/{studentId}/observations` order by `observedAt` desc
-- Classroom timeline: collection group `observations` where `classroomId == X` order by `observedAt` desc
-- Teacher’s notes: collection group `observations` where `createdBy == uid` order by `observedAt` desc
-- Admin analytics: collection group `observations` filter by `classroomId`, `createdBy`, and `observedAt` range
+- Classroom timeline: collection group `observations` where `branchId == B` AND `classroomId == X` order by `observedAt` desc
+- Teacher’s notes: collection group `observations` where `branchId == B` AND `createdBy == uid` order by `observedAt` desc
+- Admin analytics: collection group `observations` filter by `branchId`, `classroomId`, `createdBy`, and `observedAt` range
 - User feedback: `feedback` where `userId == uid` order by `timestamp` desc
 - Admin feedback management: `feedback` order by `timestamp` desc (all feedback)
 
 ---
 
 ## 📇 Indexes
+- `classrooms`
+  - `branchId ASC, status ASC`
 - `students`
-  - `classroomId ASC, isActive ASC`
+  - `branchId ASC, classroomId ASC, isActive ASC`
 - collection group `observations`
+  - `branchId ASC, observedAt DESC`
+  - `branchId ASC, createdBy ASC, observedAt DESC`
   - `classroomId ASC, observedAt DESC`
-  - `createdBy ASC, observedAt DESC`
   - optionally `groupId ASC, observedAt DESC`
 - `feedback`
   - `userId ASC, timestamp DESC`
@@ -361,27 +427,36 @@ Helper checks (pseudocode names):
 - `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
 - `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
 - `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
+// Branch helpers
+- `userBranches(uid)`: `get(/users/uid).branchIds` or `[get(/users/uid).homeBranchId]`
+- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isAdmin(uid)`
+
+Branch invariants
+- `students/{id}.branchId == classrooms/{classroomId}.branchId`
+- `observations/{id}.branchId == students/{studentId}.branchId` at creation time
 
 Reads
 - `users`: user reads own; admin reads all
-- `classrooms`: admin all; teacher if `classroomHasTeacher(id, uid)`
-- `students`: admin all; teacher if `classroomHasTeacher(student.classroomId, uid)`
-- `observations` (collection group): admin all; teacher if `classroomHasTeacher(classroomId, uid)`
+- `classrooms`: admin all; teacher if `classroomHasTeacher(id, uid)` AND `userInBranch(uid, classroom.branchId)`
+- `students`: admin all; teacher if `classroomHasTeacher(student.classroomId, uid)` AND `userInBranch(uid, student.branchId)`
+- `observations` (collection group): admin all; teacher if `classroomHasTeacher(classroomId, uid)` AND `userInBranch(uid, observation.branchId)`
 - `ai_prompts`: any authenticated user (client fetch)
-- `programs`: not read by client UI; default deny unless added explicitly
+- `branches`: any authenticated user can read (for UI selection; writes admin-only)
+- `programs`: signed-in read; admin write
 
 Creates – observations
 - Allow if teacher AND all of the following:
   - `createdBy == request.auth.uid`
   - `studentId == path.studentId`
   - `classroomId == studentClassroomId(studentId)`
+  - `branchId == get(/students/studentId).branchId`
   - `createdAt`/`updatedAt` set to `request.time` (server), `observedAt` provided by client
 
 Updates/Deletes – observations
 - Admin only (matches current behavior). If enabling teacher edits later, restrict mutable fields and preserve ownership/IDs.
 
 Field immutability (on update)
-- `studentId`, `classroomId`, `createdBy`, `createdAt`, `observedAt` unchanged
+- `studentId`, `classroomId`, `branchId`, `createdBy`, `createdAt`, `observedAt` unchanged
 
 ---
 
@@ -407,11 +482,16 @@ Field immutability (on update)
 - If needed later: sharded counters for classroom/teacher observation counts
 - For group notes, generate a `groupId` once and fan-out to all targeted students
 
+Migration/backfill (branches)
+- Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
+- For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins, optionally set `homeBranchId`.
+- Validate invariants and fix mismatches before enabling rules.
+
 ---
 
 ## ✅ Rationale
 - Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
 - Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
-- Denormalized `classroomId` on observations avoids extra reads in queries and security rules
+- Denormalized `classroomId` and `branchId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback system provides user input channel while maintaining security through user ownership and admin-only management

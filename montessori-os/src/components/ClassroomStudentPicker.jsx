@@ -55,6 +55,7 @@ function ClassroomStudentPicker({
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(!!textData?.cleaned);
+  const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
   
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
@@ -66,6 +67,22 @@ function ClassroomStudentPicker({
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Fetch programs -> classroom mapping
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        const pMap = {};
+        programsSnap.forEach((doc) => {
+          const data = doc.data() || {};
+          const list = Array.isArray(data.classrooms) ? data.classrooms : [];
+          const ids = list
+            .map((p) => String(p))
+            .map((p) => {
+              const parts = p.split('/');
+              return parts[parts.length - 1];
+            });
+          pMap[doc.id] = ids;
+        });
+        setProgramMap(pMap);
         
         // Fetch classrooms based on user role
         let classList = [];
@@ -219,6 +236,51 @@ function ClassroomStudentPicker({
     
     return Object.values(grouped);
   }, [allStudents, classrooms]);
+
+  // Build reverse index: classroomId -> programId
+  const classroomToProgram = useMemo(() => {
+    const map = {};
+    Object.entries(programMap).forEach(([pid, ids]) => {
+      (ids || []).forEach((cid) => {
+        if (!map[cid]) map[cid] = pid;
+      });
+    });
+    return map;
+  }, [programMap]);
+
+  // Sort available programs alphabetically
+  const sortedProgramIds = useMemo(() => {
+    const present = new Set();
+    for (const group of studentsByClassroom) {
+      const pid = classroomToProgram[group.classroom.id];
+      if (pid) present.add(pid);
+    }
+    return Array.from(present).sort((a, b) => a.localeCompare(b));
+  }, [studentsByClassroom, classroomToProgram]);
+
+  // Group classrooms by program using programs collection; anything unmapped goes to 'unassigned'
+  const groupedByProgram = useMemo(() => {
+    const groups = {};
+    for (const pid of sortedProgramIds) groups[pid] = [];
+    const unassigned = [];
+    for (const group of studentsByClassroom) {
+      const pid = classroomToProgram[group.classroom.id];
+      if (pid) {
+        if (!groups[pid]) groups[pid] = [];
+        groups[pid].push(group);
+      } else {
+        unassigned.push(group);
+      }
+    }
+    return { groups, unassigned };
+  }, [studentsByClassroom, classroomToProgram, sortedProgramIds]);
+
+  const PROGRAM_TITLES = {
+    adolescent: 'Adolescent',
+    elementary: 'Elementary',
+    primary: 'Primary',
+    toddler: 'Toddler',
+  };
 
   // Helper: is this student disabled?
   const isDisabled = (studentId) => disabledStudentIds?.includes?.(studentId);
@@ -586,68 +648,115 @@ function ClassroomStudentPicker({
         </Typography>
 
         <List>
-          {studentsByClassroom.map((group) => {
-            const isExpanded = expandedClassrooms.includes(group.classroom.id);
-            
-            return (
-              <Box key={group.classroom.id} sx={{ mb: 1 }}>
-                {/* Classroom Header */}
-                <ListItem disablePadding>
-                  <ListItemButton 
-                    dense
-                    onClick={() => toggleClassroomExpansion(group.classroom.id)}
-                    sx={{ 
-                      backgroundColor: '#f8fafc',
-                      borderRadius: 1,
-                      mb: isExpanded ? 1 : 0
-                    }}
-                  >
-                    <ListItemText
-                      primary={group.classroom.name}
-                      secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
-                    />
-                    <IconButton size="small">
-                      {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                    </IconButton>
-                  </ListItemButton>
-                </ListItem>
+          {/* Helper function to render a classroom group */}
+          {(() => {
+            const renderClassroomGroup = (group) => {
+              const isExpanded = expandedClassrooms.includes(group.classroom.id);
+              
+              return (
+                <Box key={group.classroom.id} sx={{ mb: 1 }}>
+                  {/* Classroom Header */}
+                  <ListItem disablePadding>
+                    <ListItemButton 
+                      dense
+                      onClick={() => toggleClassroomExpansion(group.classroom.id)}
+                      sx={{ 
+                        backgroundColor: '#f8fafc',
+                        borderRadius: 1,
+                        mb: isExpanded ? 1 : 0
+                      }}
+                    >
+                      <ListItemText
+                        primary={group.classroom.name}
+                        secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
+                      />
+                      <IconButton size="small">
+                        {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                      </IconButton>
+                    </ListItemButton>
+                  </ListItem>
 
-                {/* Students in Classroom */}
-                <Collapse in={isExpanded}>
-                  <List dense sx={{ pl: 4 }}>
-                    {group.students.map((student) => {
-                      const disabled = isDisabled(student.id);
-                      return (
-                        <ListItem key={student.id} disablePadding>
-                          <ListItemButton
-                            dense
-                            onClick={() => handleStudentToggle(student.id)}
-                            disabled={disabled}
-                            sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                          >
-                            <ListItemIcon>
-                              <Checkbox
-                                checked={selectedStudents.includes(student.id)}
-                                edge="start"
-                                tabIndex={-1}
-                                disableRipple
-                                disabled={disabled}
+                  {/* Students in Classroom */}
+                  <Collapse in={isExpanded}>
+                    <List dense sx={{ pl: 4 }}>
+                      {group.students.map((student) => {
+                        const disabled = isDisabled(student.id);
+                        return (
+                          <ListItem key={student.id} disablePadding>
+                            <ListItemButton
+                              dense
+                              onClick={() => handleStudentToggle(student.id)}
+                              disabled={disabled}
+                              sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                            >
+                              <ListItemIcon>
+                                <Checkbox
+                                  checked={selectedStudents.includes(student.id)}
+                                  edge="start"
+                                  tabIndex={-1}
+                                  disableRipple
+                                  disabled={disabled}
+                                />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={disabled
+                                  ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                  : getStudentName(student)}
                               />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={disabled
-                                ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
-                                : getStudentName(student)}
-                            />
-                          </ListItemButton>
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                </Collapse>
-              </Box>
+                            </ListItemButton>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  </Collapse>
+                </Box>
+              );
+            };
+
+            return (
+              <>
+                {sortedProgramIds.map((pid) => {
+                  const items = groupedByProgram.groups[pid] || [];
+                  if (!items.length) return null;
+                  const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+                  return (
+                    <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                      <Divider
+                        textAlign="left"
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          color: '#64748b',
+                          '&::before, &::after': {
+                            borderColor: '#e2e8f0',
+                          },
+                        }}
+                      >
+                        {label}
+                      </Divider>
+                      {items.map(renderClassroomGroup)}
+                    </Box>
+                  );
+                })}
+                {groupedByProgram.unassigned.length > 0 && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                    <Divider
+                      textAlign="left"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        color: '#64748b',
+                        '&::before, &::after': { borderColor: '#e2e8f0' },
+                      }}
+                    >
+                      Unassigned
+                    </Divider>
+                    {groupedByProgram.unassigned.map(renderClassroomGroup)}
+                  </Box>
+                )}
+              </>
             );
-          })}
+          })()}
         </List>
       </Box>
 
