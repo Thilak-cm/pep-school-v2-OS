@@ -5,8 +5,10 @@ import {
 } from '@mui/material';
 import { Settings, Bolt, ExpandMore, ExpandLess, Save, Cancel } from '@mui/icons-material';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, cloudFunctions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
+import { COACH_MODEL_DISPLAY } from '../../../config/coachConstants';
 
 const SectionCard = ({ title, subtitle, children }) => (
   <Card sx={{ borderRadius: 2, mb: 2 }}>
@@ -44,6 +46,13 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [introExpanded, setIntroExpanded] = useState(false);
   const [nudgeBlocksExpanded, setNudgeBlocksExpanded] = useState(false);
   const [finalPromptExpanded, setFinalPromptExpanded] = useState(false);
+  
+  // Coach test run states
+  const [noteText, setNoteText] = useState('');
+  const [coachResult, setCoachResult] = useState(null);
+  const [runningCoach, setRunningCoach] = useState(false);
+  const [showRawJson, setShowRawJson] = useState(false);
+  const [coachError, setCoachError] = useState('');
 
   const coachRef = useMemo(() => doc(db, 'ai_prompts', 'coach'), []);
 
@@ -153,6 +162,42 @@ export default function AICoachEditor({ currentUser, userRole }) {
     JSON.stringify(enabledNudges.sort()) !== JSON.stringify(originalEnabledNudges.sort()) ||
     maxReturnNudges !== originalMaxReturnNudges;
 
+  // Handle Coach test run
+  const handleRunCoach = async () => {
+    if (!noteText.trim()) {
+      setCoachError('Please enter observation text to test');
+      return;
+    }
+
+    setRunningCoach(true);
+    setCoachError('');
+    setCoachResult(null);
+    setShowRawJson(false);
+
+    try {
+      const trimmedText = noteText.trim();
+      if (!trimmedText) {
+        setCoachError('Please enter observation text to test');
+        setRunningCoach(false);
+        return;
+      }
+
+      const call = httpsCallable(cloudFunctions, 'aiCoachReview');
+      const payload = { noteText: trimmedText };
+      const result = await call(payload);
+      setCoachResult(result.data);
+    } catch (error) {
+      // Swallow detailed logs; surface clean error to UI
+      // Extract Firebase error message properly
+      const errorMessage = error?.code === 'functions/invalid-argument' 
+        ? error?.message || 'Invalid request. Please check your input.'
+        : error?.message || 'Failed to run coach review';
+      setCoachError(errorMessage);
+    } finally {
+      setRunningCoach(false);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <Box sx={{ p: 2 }}>
@@ -183,7 +228,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
         subtitle="Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt."
       >
         <Box>
-          <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>All nudges</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>All nudges</Typography>
+            <Chip label={`Model: ${COACH_MODEL_DISPLAY}`} size="small" color="default" variant="outlined" />
+          </Box>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
             {ALL_NUDGES.map((nudgeId) => {
               const isEnabled = enabledNudges.includes(nudgeId);
@@ -351,29 +399,111 @@ export default function AICoachEditor({ currentUser, userRole }) {
       </Card>
 
       {/* Test Run Section */}
-      <SectionCard title="Test Run" subtitle="">
+      <SectionCard title="Test Run" subtitle="Test Coach on sample observation text">
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField
             fullWidth
             multiline
             minRows={4}
             placeholder="Paste an observation to get nudges..."
-            disabled
-            sx={{
-              '& .MuiInputBase-input.Mui-disabled': {
-                WebkitTextFillColor: '#94a3b8',
-                backgroundColor: '#f8fafc'
-              }
+            value={noteText}
+            onChange={(e) => {
+              setNoteText(e.target.value);
+              setCoachError('');
+              setCoachResult(null);
             }}
+            disabled={runningCoach || saving}
+            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
           />
+          
+          {coachError && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {coachError}
+            </Alert>
+          )}
+
+          {coachResult && (
+            <Card sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Coach Response
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={() => setShowRawJson(!showRawJson)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {showRawJson ? 'Hide' : 'View'} Raw JSON
+                  </Button>
+                </Box>
+
+                {showRawJson ? (
+                  <Box
+                    component="pre"
+                    sx={{
+                      fontFamily: 'monospace',
+                      whiteSpace: 'pre-wrap',
+                      p: 1.5,
+                      bgcolor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      maxHeight: '400px',
+                      overflow: 'auto'
+                    }}
+                  >
+                    {coachResult.rawResponse || JSON.stringify(coachResult, null, 2)}
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    {coachResult.nudges && coachResult.nudges.length > 0 ? (
+                      coachResult.nudges.map((nudge, index) => (
+                        <Card
+                          key={index}
+                          sx={{
+                            p: 1.5,
+                            bgcolor: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 1
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                            <Chip
+                              label={nudge.id}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                              Confidence: {(nudge.confidence * 100).toFixed(0)}%
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" sx={{ color: '#1e293b' }}>
+                            {nudge.reason}
+                          </Typography>
+                        </Card>
+                      ))
+                    ) : (
+                      <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>
+                        No nudges identified. The observation looks complete!
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               variant="contained"
-              startIcon={<Bolt />}
-              disabled
+              startIcon={runningCoach ? <CircularProgress size={16} /> : <Bolt />}
+              onClick={handleRunCoach}
+              disabled={runningCoach || saving || !noteText.trim()}
               sx={{ textTransform: 'none' }}
             >
-              Run Coach
+              {runningCoach ? 'Running Coach...' : 'Run Coach'}
             </Button>
           </Box>
         </Box>
@@ -388,4 +518,3 @@ export default function AICoachEditor({ currentUser, userRole }) {
     </Box>
   );
 }
-

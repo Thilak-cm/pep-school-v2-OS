@@ -6,11 +6,7 @@ import { getAuth } from "firebase-admin/auth";
 import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
-import { createRequire } from "module";
-
-// Import CommonJS module from scripts folder
-const require = createRequire(import.meta.url);
-const COACH_DEFAULT_EXAMPLES = require("../scripts/coach-examples.js");
+import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -19,7 +15,7 @@ const auth = getAuth();
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config
-const smtpUser = functions.config().smtp?.user;
+const smtpUser = functions.config().smtp?.user; // TODO: update .config everywhere because it will be deprecated soon
 const smtpPass = functions.config().smtp?.pass;
 const transporter = (smtpUser && smtpPass)
   ? nodemailer.createTransport({
@@ -258,7 +254,7 @@ export const createAuthUserAndProfile = functions
       if (err instanceof functions.https.HttpsError) throw err;
       throw new functions.https.HttpsError("internal", err?.message || "Failed to create/update user");
     }
-  });
+});
 
 // Callable: Update basic profile fields for existing users (no role change)
 export const updateUserProfileIfExists = functions
@@ -293,7 +289,7 @@ export const updateUserProfileIfExists = functions
 
     await userRef.set(updateData, { merge: true });
     return { ok: true, uid };
-  });
+});
 
 // Callable function: Update user with email uniqueness check
 export const updateUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {
@@ -397,7 +393,7 @@ export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firest
     } catch (err) {
       console.error("Failed to send unauthorized access email", err);
     }
-  }); 
+}); 
 
 // Callable: log unauthorized access from client (bypasses Firestore rules)
 export const logUnauthorizedAccess = functions.region("asia-south1").https.onCall(async (data, context) => {
@@ -672,340 +668,7 @@ export const aiWhisperTranscribe = functions
     return { text, languageCode };
   });
 
-// -----------------------------------------------
-// Coach Review (AI nudges) — callable
-// -----------------------------------------------
-const COACH_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0.2, max_tokens: 600 };
-// Response caching removed to avoid stale prompts; always compute fresh
-const COACH_SCHEMA_VERSION = 2; // minimal nudge shape returned to client
-const MAX_RETURN_NUDGES = 2; // select top-K after model returns all relevant
-
-// No TTL cache for coach config — read Firestore on each call
-
-const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
-const DEFAULT_ENABLED_NUDGES = NUDGE_IDS.slice();
-const DEFAULT_PRIORITY_ORDER = ["duration", "modality", "independence", "evidence", "subjective"]; // global order
-
-async function getCoachConfigServer() {
-  try {
-    const snap = await db.collection("ai_prompts").doc("coach").get();
-    const data = snap.exists ? (snap.data() || {}) : {};
-    const enabled = Array.isArray(data.enabledNudges)
-      ? data.enabledNudges.filter((x) => NUDGE_IDS.includes(x))
-      : DEFAULT_ENABLED_NUDGES;
-    const disabled = Array.isArray(data.disabledNudges)
-      ? data.disabledNudges.filter((x) => NUDGE_IDS.includes(x))
-      : NUDGE_IDS.filter((x) => !enabled.includes(x));
-    const priorityOrder = Array.isArray(data.priorityOrder)
-      ? data.priorityOrder.filter((x) => NUDGE_IDS.includes(x))
-      : DEFAULT_PRIORITY_ORDER.slice();
-    const introLines = Array.isArray(data.introLines)
-      ? data.introLines.map((s) => String(s))
-      : [
-          "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
-          "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
-        ];
-    const howToLines = Array.isArray(data.howToLines)
-      ? data.howToLines.map((s) => String(s))
-      : [
-          "1. Read the note carefully.",
-          "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
-          "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
-          "4. Use only the allowed ids listed below. Output strict JSON with top-level { \"nudges\": [...] } and nothing else.",
-          "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
-          "6. Each nudge must include exactly: id, reason, confidence.",
-        ];
-    const rawBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object") ? data.nudgeBlocks : {};
-    const nudgeBlocks = {};
-    for (const id of NUDGE_IDS) {
-      const block = rawBlocks[id];
-      if (block && Array.isArray(block.lines) && block.lines.length) {
-        nudgeBlocks[id] = { lines: block.lines.map((s) => String(s)) };
-      }
-    }
-    // Read examples in new format (nudge IDs as keys)
-    const examplesIn = (data.examples && typeof data.examples === "object") ? data.examples : {};
-    const examples = {};
-    
-    // Use shared default examples - single source of truth
-    const defaultExamples = COACH_DEFAULT_EXAMPLES;
-    
-    for (const id of NUDGE_IDS) {
-      const ex = examplesIn[id];
-      if (ex && typeof ex === "object" && ex.exampleText && ex.reason) {
-        examples[id] = ex;
-      } else {
-        examples[id] = defaultExamples[id];
-      }
-    }
-
-    const out = {
-      enabledNudges: enabled.length ? enabled : [],
-      disabledNudges: disabled,
-      priorityOrder,
-      introLines,
-      howToLines,
-      nudgeBlocks,
-      examples,
-      finalPrompt: typeof data.finalPrompt === "string" ? data.finalPrompt : undefined,
-      effectiveEnabled: Array.isArray(data.effectiveEnabled)
-        ? data.effectiveEnabled.filter((x) => NUDGE_IDS.includes(x))
-        : enabled.filter((id) => nudgeBlocks[id]),
-      title: data.title || "Coach Nudges",
-      description: data.description || "Toggle which nudges are active for Coach.",
-    };
-    return out;
-  } catch (e) {
-    console.warn("[aiCoachReview] coach config fetch failed", e);
-    const out = {
-      enabledNudges: DEFAULT_ENABLED_NUDGES,
-      disabledNudges: [],
-      priorityOrder: DEFAULT_PRIORITY_ORDER,
-      introLines: [
-        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
-        "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
-      ],
-      howToLines: [
-        "1. Read the note carefully.",
-        "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
-        "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
-        "4. Use only the allowed ids listed below. Output strict JSON with top-level { \"nudges\": [...] } and nothing else.",
-        "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
-        "6. Each nudge must include exactly: id, reason, confidence.",
-      ],
-      nudgeBlocks: {
-        duration: { lines: [
-          "- duration → Activity or work is described, but no time range (e.g. \"5–10 min\") appears.",
-          "  Trigger if the note implies action or work but has no duration tokens (min, minutes, m, hour, etc.).",
-        ]},
-        modality: { lines: [
-          "- modality → Math or material-based work is mentioned (add, subtract, number rods, bead frame, golden beads, etc.)",
-          "  but the method (Material / Pen & paper / Mental) is not specified.",
-        ]},
-        independence: { lines: [
-          "- independence → The note mentions the child doing something",
-          "  but does not state whether it was independent, in a group, or with help (independent, peer, teacher-guided, with help, etc. missing).",
-        ]},
-        evidence: { lines: [
-          "- evidence → The note makes a claim of success or struggle (understood, did well, grasped, struggled, identified)",
-          "  but gives no supporting detail such as a number or short quote.",
-        ]},
-        subjective: { lines: [
-          "- subjective → The note uses emotional or judgmental adjectives (happy, sad, lazy, always, never, good, bad)",
-          "  without an objective observation line to balance it.",
-        ]},
-      },
-      examples: COACH_DEFAULT_EXAMPLES,
-      finalPrompt: undefined,
-      effectiveEnabled: DEFAULT_PRIORITY_ORDER,
-      title: "Coach Nudges",
-      description: "Toggle which nudges are active for Coach.",
-    };
-    return out;
-  }
-}
-
-
-// (legacy coachSystemPrompt removed; system prompt now built from Firestore config)
-
-function coachUserPrompt(payload) {
-  return [
-    "INPUT:",
-    JSON.stringify(payload)
-  ].join("\n");
-}
-
-export const aiCoachReview = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB" })
-  .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-    if (!OPENAI_API_KEY) {
-      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-    }
-
-    const note_text = typeof data?.note_text === "string" ? data.note_text : "";
-    if (!note_text.trim()) return { nudges: [], status: "ok", latency_ms: 0 };
-
-    const cfg = await getCoachConfigServer();
-    try {
-      console.log("[aiCoachReview] cfg summary:", JSON.stringify({
-        enabledNudges: cfg?.enabledNudges || [],
-        effectiveEnabled: cfg?.effectiveEnabled || [],
-        finalPromptLen: (cfg?.finalPrompt || "").length,
-      }));
-    } catch (err) {
-      console.warn("[aiCoachReview] failed to log cfg summary", err);
-    }
-
-    const rawFinal = cfg?.finalPrompt;
-    const effectiveEnabled = Array.isArray(cfg?.effectiveEnabled) ? cfg.effectiveEnabled : [];
-    if (rawFinal === "") {
-      console.log("[aiCoachReview] SKIP: finalPrompt empty or coach disabled");
-      return {
-        nudges: [],
-        status: "ok",
-        latency_ms: 0,
-        schemaVersion: COACH_SCHEMA_VERSION,
-        skipped: true,
-      };
-    }
-
-    let system = "";
-    if (typeof rawFinal === "string" && rawFinal.trim()) {
-      system = rawFinal;
-    } else {
-      console.log("[aiCoachReview] FALLBACK: finalPrompt missing; using built-in default");
-      system = [
-        "You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.",
-        "Do not rewrite or rate the text — only detect clear gaps that would improve completeness and objectivity.",
-        "",
-        "How to respond",
-        "1. Read the note carefully.",
-        "2. Consider each allowed nudge id independently; include at most one entry per id when relevant.",
-        "3. Include all relevant nudges that apply; there is no hard limit. If none apply confidently, return an empty array.",
-        "4. Use only the allowed ids listed below. Output strict JSON with top-level {\\\"nudges\\\": [...] } and nothing else.",
-        "5. Keep reasons short, specific, and objective (1–2 short lines). If unsure, omit that id.",
-        "6. Each nudge must include exactly: id, reason, confidence.",
-        "Allowed ids: duration | modality | independence | evidence | subjective.",
-        "Prioritize in this order: duration → modality → independence → evidence → subjective.",
-        "",
-        "Nudge types and triggers",
-        "- duration → Activity or work is described, but no time range (e.g. \"5–10 min\") appears.",
-        "  Trigger if the note implies action or work but has no duration tokens (min, minutes, m, hour, etc.).",
-        "",
-        "- modality → Math or material-based work is mentioned (add, subtract, number rods, bead frame, golden beads, etc.)",
-        "  but the method (Material / Pen & paper / Mental) is not specified.",
-        "",
-        "- independence → The note mentions the child doing something",
-        "  but does not state whether it was independent, in a group, or with help (independent, peer, teacher-guided, with help, etc. missing).",
-        "",
-        "- evidence → The note makes a claim of success or struggle (understood, did well, grasped, struggled, identified)",
-        "  but gives no supporting detail such as a number or short quote.",
-        "",
-        "- subjective → The note uses emotional or judgmental adjectives (happy, sad, lazy, always, never, good, bad)",
-        "  without an objective observation line to balance it.",
-        "",
-        "Example",
-        "INPUT:",
-        JSON.stringify({ note_text: "STUDENT_A used number rods today." }),
-        "OUTPUT:",
-        "{",
-        "  \"nudges\": [",
-        "    {\"id\": \"duration\", \"reason\": \"Activity noted without a time range.\", \"confidence\": 0.86},",
-        "    {\"id\": \"modality\", \"reason\": \"Math work mentioned but no modality term found.\", \"confidence\": 0.62}",
-        "  ]",
-        "}",
-      ].join("\n");
-    }
-
-    const payload = { note_text };
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: coachUserPrompt(payload) },
-    ];
-
-    // Debug logging
-    console.log(
-      "[aiCoachReview] effectiveEnabled:",
-      Array.isArray(effectiveEnabled) ? effectiveEnabled.join(",") : "none"
-    );
-    console.log("[aiCoachReview] SYSTEM PROMPT BEGIN");
-    console.log(system);
-    console.log("[aiCoachReview] SYSTEM PROMPT END");
-    console.log("[aiCoachReview] USER MESSAGE BEGIN");
-    console.log(coachUserPrompt(payload));
-    console.log("[aiCoachReview] USER MESSAGE END");
-
-    const body = {
-      model: COACH_MODEL_INFO.model,
-      temperature: COACH_MODEL_INFO.temperature,
-      max_tokens: COACH_MODEL_INFO.max_tokens,
-      messages,
-    };
-
-    console.log(
-      "[aiCoachReview] OpenAI chat body (sans auth):",
-      JSON.stringify({ ...body, messages }, null, 2)
-    );
-
-    const controller = new AbortController();
-    const to = setTimeout(() => controller.abort(), 9000);
-    const t0 = Date.now();
-    let response;
-
-    try {
-      response = await fetch(CHAT_ENDPOINT, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(to);
-      if (e?.name === "AbortError") {
-        return { nudges: [], status: "timeout", latency_ms: Date.now() - t0 };
-      }
-      console.error("[aiCoachReview] network error", e);
-      return { nudges: [], status: "error", reason: "net", latency_ms: Date.now() - t0 };
-    }
-    clearTimeout(to);
-
-    const latency_ms = Date.now() - t0;
-    if (!response.ok) {
-      const txt = await response.text().catch(() => "");
-      console.error("[aiCoachReview] OpenAI error", response.status, txt?.slice?.(0, 200));
-      return { nudges: [], status: "error", reason: "ai", latency_ms };
-    }
-
-    let content = "";
-    try {
-      const json = await response.json();
-      content = json?.choices?.[0]?.message?.content || "";
-    } catch (err) {
-      console.error("[aiCoachReview] parse_ai error", err);
-      return { nudges: [], status: "error", reason: "parse_ai", latency_ms };
-    }
-
-    try {
-      const parsed = JSON.parse(content);
-      const raw = Array.isArray(parsed?.nudges) ? parsed.nudges : [];
-      const allowedOrder = Array.isArray(effectiveEnabled) && effectiveEnabled.length ? effectiveEnabled : NUDGE_IDS;
-      const allowedSet = new Set(allowedOrder);
-      // Keep best per id, prefer higher confidence
-      const byId = new Map();
-      for (const n of raw) {
-        if (!n || typeof n.id !== "string" || !allowedSet.has(n.id)) continue;
-        const confidence = typeof n.confidence === "number" ? n.confidence : 0;
-        const reason = typeof n.reason === "string" ? n.reason : "";
-        const prev = byId.get(n.id);
-        if (!prev || confidence > (prev.confidence ?? 0)) {
-          byId.set(n.id, { id: n.id, reason, confidence });
-        }
-      }
-      const list = Array.from(byId.values());
-      const rank = new Map(allowedOrder.map((id, idx) => [id, idx]));
-      list.sort((a, b) => {
-        const pa = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
-        const pb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
-        return pa - pb;
-      });
-      const top = list.slice(0, MAX_RETURN_NUDGES);
-      const out = { nudges: top };
-      console.log("[aiCoachReview] nudges returned:", top.map((n) => n.id).join(","));
-      return { ...out, status: "ok", latency_ms, schemaVersion: COACH_SCHEMA_VERSION };
-    } catch (err) {
-      console.error("[aiCoachReview] parse_json error", err);
-      return { nudges: [], status: "error", reason: "parse_json", latency_ms };
-    }
-  });
-
-export const aiWhisperTranslate = functions
+  export const aiWhisperTranslate = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 300, memory: "512MB" })
   .https.onCall(async (data, context) => {
@@ -1050,4 +713,181 @@ export const aiWhisperTranslate = functions
     const text = (json?.text || "").trim();
     const language = json?.language || undefined;
     return { text, detectedLanguage: language };
+  });
+
+// -----------------------------------------------
+// Coach Review (AI nudges) — callable
+// -----------------------------------------------
+
+const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
+
+async function getCoachConfigServer() {
+  const snap = await db.collection("ai_prompts").doc("coach").get();
+  if (!snap.exists) {
+    throw new Error("Coach prompt configuration not found in Firestore");
+  }
+  
+  const data = snap.data() || {};
+  
+  // Validate and extract enabled/disabled nudges
+  const enabledNudges = Array.isArray(data.enabledNudges)
+    ? data.enabledNudges.filter((x) => NUDGE_IDS.includes(x))
+    : [];
+  const disabledNudges = Array.isArray(data.disabledNudges)
+    ? data.disabledNudges.filter((x) => NUDGE_IDS.includes(x))
+    : [];
+  
+  // Extract nudgeBlocks (object with string values)
+  const nudgeBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object") 
+    ? data.nudgeBlocks 
+    : {};
+  
+  // Extract other fields
+  const title = typeof data.title === "string" ? data.title : undefined;
+  const description = typeof data.description === "string" ? data.description : undefined;
+  const maxReturnNudges = typeof data.maxReturnNudges === "number" ? data.maxReturnNudges : undefined;
+  const introBlock = typeof data.introBlock === "string" ? data.introBlock : undefined;
+  const finalPrompt = typeof data.finalPrompt === "string" ? data.finalPrompt : undefined;
+  
+  return {
+    title,
+    description,
+    enabledNudges,
+    disabledNudges,
+    maxReturnNudges,
+    nudgeBlocks,
+    introBlock,
+    finalPrompt,
+  };
+}
+
+// Callable: Run Coach Review on observation text
+export const aiCoachReview = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    // minimal logging in production; remove verbose payload logs
+    const noteText = String(data?.noteText || "").trim();
+    // note length intentionally not logged
+    if (!noteText) {
+      console.error("[aiCoachReview] noteText is empty or missing");
+      throw new functions.https.HttpsError("invalid-argument", "noteText is required");
+    }
+
+    try {
+      // Get coach configuration from Firestore
+      const config = await getCoachConfigServer();
+      
+      if (!config.finalPrompt) {
+        throw new functions.https.HttpsError("failed-precondition", "Coach prompt configuration missing finalPrompt");
+      }
+
+      // Prepare messages for OpenAI chat completion
+      const systemPrompt = config.finalPrompt;
+      const userPrompt = noteText;
+
+      // Ensure system prompt explicitly mentions JSON when using json_object format
+      // OpenAI requires explicit JSON instruction for response_format: json_object
+      const enhancedSystemPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
+        ? systemPrompt
+        : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
+
+      // avoid logging prompt contents in production
+
+      const body = {
+        model: COACH_MODEL_INFO.model,
+        messages: [
+          { role: "system", content: enhancedSystemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: COACH_MODEL_INFO.temperature,
+        max_tokens: COACH_MODEL_INFO.max_tokens,
+        response_format: { type: "json_object" }, // Force JSON response
+      };
+
+      // avoid logging request body details
+
+      let response;
+      try {
+        response = await fetch(CHAT_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        console.error("[aiCoachReview] network error", e);
+        throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+      }
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        console.error("[aiCoachReview] OpenAI API error", response.status);
+        console.error("[aiCoachReview] OpenAI error details:", errText?.slice?.(0, 500));
+        let errorMessage = `AI error: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errText);
+          errorMessage = errorJson?.error?.message || errorMessage;
+          console.error("[aiCoachReview] Parsed error:", errorMessage);
+        } catch {
+          // Not JSON, use raw text
+        }
+        throw new functions.https.HttpsError("internal", errorMessage);
+      }
+
+      const json = await response.json();
+      const rawContent = json?.choices?.[0]?.message?.content?.trim();
+      
+      if (!rawContent) {
+        throw new functions.https.HttpsError("internal", "AI returned no content");
+      }
+
+      // Parse JSON response
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(rawContent);
+      } catch (parseError) {
+        console.error("[aiCoachReview] JSON parse error", parseError, "Raw content:", rawContent);
+        throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+      }
+
+      // Extract nudges array from response
+      const nudges = Array.isArray(parsedResponse.nudges) ? parsedResponse.nudges : [];
+      
+      // Apply maxReturnNudges limit if configured
+      let limitedNudges = nudges;
+      if (config.maxReturnNudges && config.maxReturnNudges > 0) {
+        limitedNudges = nudges.slice(0, config.maxReturnNudges);
+      }
+
+      return {
+        nudges: limitedNudges,
+        rawResponse: rawContent,
+        model: COACH_MODEL_INFO.model,
+        enabledNudges: config.enabledNudges,
+        maxReturnNudges: config.maxReturnNudges,
+      };
+    } catch (error) {
+      console.error("[aiCoachReview] error:", error);
+      
+      // Re-throw Firebase Functions errors
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      
+      // Handle other errors
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to run coach review: " + (error?.message || "Unknown error")
+      );
+    }
   });

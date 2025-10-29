@@ -88,7 +88,7 @@ How to respond
 - If no nudge fits confidently, return an empty array.
 - Output strict JSON with top-level "nudges", which is an array of objects.  
    Each object must include exactly:
-   - "id": string (the nudge type)
+   - "id": string (the nudge type) - must be one of: ${allowedIds}
    - "reason": short explanation of what's missing
    - "confidence": numeric value between 0 and 1
 
@@ -106,7 +106,7 @@ Example outputs:
      "nudges": []
    }
 
-Nudge types and triggers
+Nudge types and triggers:
 ${nudgeBlocksText}
 `;
 }
