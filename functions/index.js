@@ -28,8 +28,6 @@ const transporter = (smtpUser && smtpPass)
     })
   : null;
 
-// Note: Removed legacy transcribeVoiceNote storage trigger as STT is no longer used. 
-
 // Callable function: Atomic user creation with email uniqueness enforcement
 export const createUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {
   // Only allow authenticated users to create accounts
