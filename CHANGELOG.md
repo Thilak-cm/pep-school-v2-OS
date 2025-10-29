@@ -5,6 +5,28 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.4] - 2025-10-29
+
+### Added
+- Complete rebuild of AICoachEditor component with full Firestore integration
+- Manual save workflow: Save and Cancel buttons (replaced auto-save)
+- Save confirmation notifications via useNotify hook (success/error messages)
+- Maximum Return Nudges input field with validation (capped at total number of nudges)
+- Collapsible sections for introBlock, nudgeBlocks, and finalPrompt display
+- Visual nudge indicators: green filled chips for enabled, red outlined with strikethrough for disabled
+
+### Changed
+- AICoachEditor now loads coach prompt configuration from Firestore (`ai_prompts/coach`) on mount
+- Save button only enables when there are unsaved changes
+- Cancel button (red) resets to original saved state
+- Enabled nudge blocks count in header only updates after save (not on toggle)
+- Updated to MUI v7 syntax: replaced deprecated `inputProps` with `slotProps` for TextField
+
+### Improved
+- User experience: manual save gives users control over when changes are persisted
+- Visual feedback: clear distinction between enabled/disabled nudges with color and strikethrough
+- Change tracking: buttons properly reflect unsaved state before committing to Firestore
+
 ## [4.3.3] - 2025-10-29
 
 ### Added
