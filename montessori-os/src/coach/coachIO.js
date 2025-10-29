@@ -1,5 +1,5 @@
 // Coach response parser and request builder (contract layer between UI and backend)
-import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES, chipsFor } from './constants.js';
+import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, chipsFor } from './constants.js';
 
 const ID_VALUES = new Set(Object.values(NUDGE_IDS));
 
@@ -77,7 +77,6 @@ export function parseCoachResponse(raw) {
       if (seen.has(s.id)) continue;
       seen.add(s.id);
       out.push(s);
-      if (out.length >= MAX_NUDGES) break;
     }
     return { nudges: out };
   } catch (_) {
@@ -87,12 +86,12 @@ export function parseCoachResponse(raw) {
 
 export function makeCoachRequest(noteText, _context) {
   const safeText = isString(noteText) ? noteText : '';
-  return { note_text: safeText };
+  // Cloud Function expects `noteText`
+  return { noteText: safeText };
 }
 
 export function isValidCoachResponse(obj) {
   if (!isObject(obj) || !Array.isArray(obj.nudges)) return false;
-  if (obj.nudges.length > MAX_NUDGES) return false;
   for (const n of obj.nudges) {
     if (!isObject(n)) return false;
     if (!ID_VALUES.has(n.id)) return false;

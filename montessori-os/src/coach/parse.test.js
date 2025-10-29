@@ -5,9 +5,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { parseCoachResponse, makeCoachRequest, isValidCoachResponse } from './coachIO.js';
-import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES } from './constants.js';
+import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS } from './constants.js';
 
-test('parseCoachResponse clamps to MAX_NUDGES and de-dupes', () => {
+test('parseCoachResponse de-dupes and preserves valid items', () => {
   const raw = {
     nudges: [
       { id: NUDGE_IDS.DURATION, reason: 'r1', confidence: 1 },
@@ -18,7 +18,6 @@ test('parseCoachResponse clamps to MAX_NUDGES and de-dupes', () => {
   };
   const out = parseCoachResponse(raw);
   assert.ok(Array.isArray(out.nudges));
-  assert.ok(out.nudges.length <= MAX_NUDGES);
   const ids = out.nudges.map((n) => n.id);
   // No duplicates
   assert.equal(new Set(ids).size, ids.length);
@@ -56,7 +55,7 @@ test('parseCoachResponse handles malformed JSON safely', () => {
 
 test('makeCoachRequest builds minimal payload', () => {
   const req = makeCoachRequest('Hello', { classroomId: 'allstars', programId: 123 });
-  assert.equal(req.note_text, 'Hello');
+  assert.equal(req.noteText, 'Hello');
   assert.equal(Object.prototype.hasOwnProperty.call(req, 'context'), false);
 });
 

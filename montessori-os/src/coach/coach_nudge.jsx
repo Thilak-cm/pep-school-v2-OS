@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Typography, Button, TextField } from '@mui/material';
-import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS, MAX_NUDGES } from './constants';
+import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS } from './constants';
 
 // Microcopy comes directly from constants.MICROCOPY_KEYS mapping by nudge id
 
@@ -27,7 +27,7 @@ function buildPreviewParts(noteText, appendedText) {
   return { originalPreview, appended: appendedText };
 }
 
-export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges }) {
+export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, maxNudges }) {
   // Allowed IDs universe
   const ALL_IDS = [
     NUDGE_IDS.DURATION,
@@ -47,8 +47,9 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges }) 
     const desired = Array.isArray(forcedNudges) ? forcedNudges.filter((id) => ALL_IDS.includes(id)) : [];
     const dedup = Array.from(new Set(desired));
     dedup.sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b));
-    return dedup.slice(0, MAX_NUDGES);
-  }, [forcedNudges]);
+    if (Number.isInteger(maxNudges) && maxNudges > 0) return dedup.slice(0, maxNudges);
+    return dedup;
+  }, [forcedNudges, maxNudges]);
 
   // Selections per nudge (no defaults)
   const [selections, setSelections] = useState({

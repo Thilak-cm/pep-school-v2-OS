@@ -1,7 +1,7 @@
 // Mocked Coach review service for Milestone 1 UI scaffolding.
 // Simulates an LLM response with up to 2 nudges based on simple cues.
 
-import { NUDGE_IDS, MICROCOPY_KEYS, CHIPS, MAX_NUDGES } from './constants';
+import { NUDGE_IDS, MICROCOPY_KEYS, CHIPS } from './constants';
 
 function containsAny(text, words) {
   const t = text.toLowerCase();
@@ -87,6 +87,5 @@ export async function reviewNote(noteText, context = {}, opts = {}) {
     });
   }
 
-  return { nudges: nudges.slice(0, MAX_NUDGES) };
+  return { nudges };
 }
-

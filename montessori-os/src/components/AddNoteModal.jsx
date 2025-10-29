@@ -352,7 +352,15 @@ function AddNoteModal({
       clearTimeout(t5); clearTimeout(t10);
       // Hide analyzing overlay now that we have a result
       setAnalyzingOpen(false);
-      const nudges = parsed.nudges || [];
+      let nudges = parsed.nudges || [];
+      // UI hard-cap using backend-provided maxReturnNudges (defensive double-cap)
+      const uiMax = Number.isInteger(aiResponse?.maxReturnNudges) && aiResponse.maxReturnNudges > 0
+        ? aiResponse.maxReturnNudges
+        : undefined;
+      if (uiMax) nudges = nudges.slice(0, uiMax);
+      // Sort by PRD priority order for display and telemetry
+      const PRIORITY = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
+      nudges.sort((a, b) => PRIORITY.indexOf(a.id) - PRIORITY.indexOf(b.id));
       
       // Store AI response data for saving
       const coachStatus = aiResponse.status || 'ok';
@@ -367,7 +375,7 @@ function AddNoteModal({
       setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
       
       // Store the coach data for later saving
-      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown });
+      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown, maxNudges: uiMax });
       
       setCoachOpen(true);
 
@@ -633,7 +641,7 @@ function AddNoteModal({
 
     // If text note, run Coach review first
     let coachResult = null;
-    if (!transcriptionData && noteData && noteData.text) {
+    if (noteData && noteData.text) {
       coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
       if (!coachResult) return; // safety
     }
@@ -657,7 +665,6 @@ function AddNoteModal({
           // Content
           type: transcriptionData ? 'voice' : 'text',
           text: textToSave,
-          tags: [],
 
           // Timestamps
           observedAt: serverTimestamp(),
@@ -668,25 +675,17 @@ function AddNoteModal({
           createdBy: currentUser?.uid || 'unknown',
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
-
-          // Misc
-          editCount: 0,
         };
 
         // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
         if (transcriptionData) {
           if (typeof transcriptionData.duration === 'number') {
-            observationData.duration = transcriptionData.duration;
+            observationData.durationSec = transcriptionData.duration;
           }
           if (typeof transcriptionData.sttConfidence === 'number') {
             observationData.sttConfidence = transcriptionData.sttConfidence;
           }
-          if (Array.isArray(transcriptionData.sttAlternatives) && transcriptionData.sttAlternatives.length > 0) {
-            observationData.sttAlternatives = transcriptionData.sttAlternatives;
-          }
-          // Language fields removed to reduce user clicks
-          // Track STT provider for debugging/analytics
-          observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
+          // Drop alternatives/spoken language/provider per schema simplification
         }
 
         // Coach structured fields - wrap according to DATA_STRUCTURE.md
@@ -695,6 +694,7 @@ function AddNoteModal({
           observationData.coach = {
             status: coachResult.coachData.status || 'ok',
             reason: coachResult.coachData.reason || 'none',
+            // Record nudges shown in PRD sort order
             nudgesShown: coachResult.coachData.nudgesShown || []
           };
           // Add selections if any were made
@@ -1031,6 +1031,7 @@ function AddNoteModal({
             onSkip={handleCoachSkip}
             onApply={handleCoachApply}
             forcedNudges={coachNudges.map(n => n.id)}
+            maxNudges={coachData?.maxNudges}
           />
           {coachReviewing && (
             <Box

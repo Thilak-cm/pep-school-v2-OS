@@ -1,11 +1,5 @@
 // Coach constants — chip labels and IDs must match PRD exactly.
 
-export const COACH_MODEL = {
-  model: 'gpt-4.1-mini',
-  temperatureMin: 0.2,
-  temperatureMax: 0.3,
-};
-
 // Nudge IDs (canonical)
 export const NUDGE_IDS = Object.freeze({
   DURATION: 'duration',
@@ -38,10 +32,7 @@ export const CHIPS = Object.freeze({
   [NUDGE_IDS.SUBJECTIVE]: Object.freeze([]),
 });
 
-export const MAX_NUDGES = 2;
-
 // Utility: get allowed chips for a nudge id
 export function chipsFor(id) {
   return CHIPS[id] || Object.freeze([]);
 }
-
