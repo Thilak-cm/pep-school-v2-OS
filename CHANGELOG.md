@@ -5,6 +5,19 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.3] - 2025-10-29
+
+### Added
+- Admin script `scripts/pushCoachPrompt.js` to programmatically push/update coach prompt configuration to Firestore
+- Script replicates `coach_playground.py` `get_system_prompt()` logic exactly for consistency across implementations
+- Dynamically composes `finalPrompt` from enabled nudges and nudgeBlocks to match Python playground behavior
+
+### Scripts
+- `pushCoachPrompt.js`: Syncs coach configuration to `ai_prompts/coach` document with proper prompt structure
+- Handles all Firestore fields: enabledNudges, disabledNudges, nudgeBlocks, introBlock, finalPrompt, etc.
+- Uses Firebase Admin SDK with service account authentication
+- Supports both creating new documents and updating existing ones
+
 ## [4.3.2] - 2025-01-21
 
 ### Changed
