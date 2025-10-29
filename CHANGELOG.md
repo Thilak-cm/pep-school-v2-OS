@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.5.0 — 2025-10-29
+
+Coach flow revamp and constants unification.
+
+- Unify Coach model constants across FE/BE via root shim `config/coachConstants.js` re-exporting `functions/config/coachConstants.js`.
+- Vite dev config allows importing from repo root/functions to support shared constants.
+- Fix callable payload: send `noteText` to `aiCoachReview` (was `note_text`).
+- Run Coach on Save for both Text and Voice notes (post-transcription) with timeout-safe fallback to save as-is.
+- Align observation schema to DATA_STRUCTURE.md: `durationSec` for voice, drop `tags`, `editCount`, `sttAlternatives`, `sttProvider`; keep `sttConfidence`, `createdBy*`.
+- UI sorts nudges by PRD priority; microcopy from static UI constants; hide reason/confidence in teacher flow.
+- Persist Coach telemetry: `status`, `reason`, `nudgesShown` (even on skip), and `selections` when applied.
+- Remove client-only MAX_NUDGES clamp; UI defensively caps to backend `maxReturnNudges` when provided.
+
+
 All notable changes to the Montessori Observation Hub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
