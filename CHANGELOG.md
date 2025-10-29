@@ -5,6 +5,22 @@ All notable changes to the Montessori Observation Hub will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.0] - 2025-10-29
+
+### Added
+- AI Coach Review Cloud Function (`aiCoachReview`) with OpenAI integration reading `finalPrompt` from Firestore and returning minimal `{ id, reason, confidence }` nudge objects.
+- Admin test run in `AICoachEditor` with formatted cards and a Raw JSON toggle.
+
+### Changed
+- Consolidated Coach constants; backend imports from `functions/config/coachConstants.js` and frontend from `config/coachConstants.js`.
+- Push script now includes allowedIds in the template for clarity and consistency with the Python playground.
+- Removed verbose debugging logs added during investigation from both frontend editor and `aiCoachReview` implementation.
+
+### Fixed
+- ESM import error during deploy by using explicit extension in Cloud Functions import path.
+
+---
+
 ## [4.3.4] - 2025-10-29
 
 ### Added
