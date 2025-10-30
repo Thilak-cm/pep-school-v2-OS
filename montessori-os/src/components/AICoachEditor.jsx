@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, TextField, Divider,
-  Alert, CircularProgress, Chip, ListItemButton, Collapse
+  Alert, CircularProgress, Chip, ListItemButton, Collapse,
+  FormControl, InputLabel, Select, MenuItem, FormControlLabel, Switch
 } from '@mui/material';
 import { Settings, Bolt, ExpandMore, ExpandLess, Save, Cancel } from '@mui/icons-material';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -37,12 +38,16 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [enabledNudges, setEnabledNudges] = useState([]);
   const [maxReturnNudges, setMaxReturnNudges] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [programId, setProgramId] = useState('toddler');
+  const [coachEnabled, setCoachEnabled] = useState(true);
   
   // Track original values to detect changes
   const [originalEnabledNudges, setOriginalEnabledNudges] = useState([]);
   const [originalMaxReturnNudges, setOriginalMaxReturnNudges] = useState(1);
+  const [originalCoachEnabled, setOriginalCoachEnabled] = useState(true);
   
   // Collapsible section states
+  const [coachConfigExpanded, setCoachConfigExpanded] = useState(true); // Default to true since it's the main editing section
   const [introExpanded, setIntroExpanded] = useState(false);
   const [nudgeBlocksExpanded, setNudgeBlocksExpanded] = useState(false);
   const [finalPromptExpanded, setFinalPromptExpanded] = useState(false);
@@ -54,15 +59,15 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [showRawJson, setShowRawJson] = useState(false);
   const [coachError, setCoachError] = useState('');
 
-  const coachRef = useMemo(() => doc(db, 'ai_prompts', 'coach'), []);
+  const coachRef = useMemo(() => doc(db, 'ai_prompts', `coach_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {
     if (!isAdmin) return;
-    
     (async () => {
       try {
         setLoading(true);
+        setError('');
         const snap = await getDoc(coachRef);
         if (snap.exists()) {
           const data = snap.data() || {};
@@ -71,14 +76,30 @@ export default function AICoachEditor({ currentUser, userRole }) {
           const initialMaxReturnNudges = data.maxReturnNudges || 1;
           setEnabledNudges(initialEnabledNudges);
           setMaxReturnNudges(initialMaxReturnNudges);
-          // Store original values for change detection
+          const initialCoachEnabled = data.coach_feature_enable === true;
+          setCoachEnabled(initialCoachEnabled);
           setOriginalEnabledNudges(initialEnabledNudges);
           setOriginalMaxReturnNudges(initialMaxReturnNudges);
+          setOriginalCoachEnabled(initialCoachEnabled);
         } else {
-          setError('Coach prompt configuration not found in Firestore');
+          setDocState(null);
+          setEnabledNudges([]);
+          setMaxReturnNudges(1);
+          setCoachEnabled(false);
+          setOriginalEnabledNudges([]);
+          setOriginalMaxReturnNudges(1);
+          setOriginalCoachEnabled(false);
+          setError('Coach prompt configuration not found for this program');
         }
       } catch (e) {
         console.error('Error loading coach prompt:', e);
+        setDocState(null);
+        setEnabledNudges([]);
+        setMaxReturnNudges(1);
+        setCoachEnabled(false);
+        setOriginalEnabledNudges([]);
+        setOriginalMaxReturnNudges(1);
+        setOriginalCoachEnabled(false);
         setError('Failed to load coach prompt configuration');
       } finally {
         setLoading(false);
@@ -101,6 +122,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
         enabledNudges,
         maxReturnNudges,
         disabledNudges,
+        coach_feature_enable: coachEnabled === true,
+        programId,
         updatedAt: serverTimestamp(),
         updatedBy: {
           uid: currentUser?.uid || '',
@@ -119,6 +142,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
         // Update original values to mark as saved
         setOriginalEnabledNudges(enabledNudges);
         setOriginalMaxReturnNudges(maxReturnNudges);
+        setOriginalCoachEnabled(coachEnabled);
       }
       
       // Show success notification
@@ -155,12 +179,14 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const handleCancel = () => {
     setEnabledNudges([...originalEnabledNudges]);
     setMaxReturnNudges(originalMaxReturnNudges);
+    setCoachEnabled(originalCoachEnabled);
   };
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = 
     JSON.stringify(enabledNudges.sort()) !== JSON.stringify(originalEnabledNudges.sort()) ||
-    maxReturnNudges !== originalMaxReturnNudges;
+    maxReturnNudges !== originalMaxReturnNudges ||
+    coachEnabled !== originalCoachEnabled;
 
   // Handle Coach test run
   const handleRunCoach = async () => {
@@ -183,7 +209,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
       }
 
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
-      const payload = { noteText: trimmedText };
+      const payload = { noteText: trimmedText, programId };
       const result = await call(payload);
       setCoachResult(result.data);
     } catch (error) {
@@ -222,75 +248,134 @@ export default function AICoachEditor({ currentUser, userRole }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Coach Nudges Section */}
-      <SectionCard 
-        title="Coach Nudges" 
-        subtitle="Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt."
-      >
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>All nudges</Typography>
-            <Chip label={`Model: ${COACH_MODEL_DISPLAY}`} size="small" color="default" variant="outlined" />
-          </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-            {ALL_NUDGES.map((nudgeId) => {
-              const isEnabled = enabledNudges.includes(nudgeId);
-              return (
-                <Chip
-                  key={nudgeId}
-                  label={nudgeId}
-                  clickable
-                  onClick={() => handleNudgeToggle(nudgeId)}
-                  color={isEnabled ? 'success' : 'error'}
-                  variant={isEnabled ? 'filled' : 'outlined'}
+      {/* Coach Configuration Section - Collapsible */}
+      <Card sx={{ borderRadius: 2, mb: 2 }}>
+        <ListItemButton
+          onClick={() => setCoachConfigExpanded(!coachConfigExpanded)}
+          sx={{ borderRadius: 2 }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Coach Configuration</Typography>
+          {hasUnsavedChanges && (
+            <Chip 
+              label="Unsaved changes" 
+              size="small" 
+              color="warning" 
+              variant="outlined"
+              sx={{ mr: 1 }}
+            />
+          )}
+          {coachConfigExpanded ? <ExpandLess /> : <ExpandMore />}
+        </ListItemButton>
+        <Collapse in={coachConfigExpanded}>
+          <CardContent>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+              Configure program settings, coach features, and nudges
+            </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* Program Selector and Enable Toggle */}
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Program Settings</Typography>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'nowrap', mt: 1 }}>
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="coach-program-select-label">Program</InputLabel>
+                <Select
+                  labelId="coach-program-select-label"
+                  id="coach-program-select"
+                  value={programId}
+                  label="Program"
+                  onChange={(e) => setProgramId(e.target.value)}
                   disabled={saving}
-                  sx={{
-                    textDecoration: isEnabled ? 'none' : 'line-through',
-                    '&:hover': {
-                      cursor: saving ? 'not-allowed' : 'pointer'
-                    }
-                  }}
-                />
-              );
-            })}
-          </Box>
-          
-          {/* Maximum Return Nudges */}
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Maximum Return Nudges</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <TextField
-                type="number"
-                value={maxReturnNudges}
-                onChange={handleMaxReturnNudgesChange}
-                slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}
-                size="small"
-                disabled={saving}
-                sx={{ maxWidth: '120px' }}
+                >
+                  <MenuItem value="toddler">toddler</MenuItem>
+                  <MenuItem value="primary">primary</MenuItem>
+                  <MenuItem value="elementary">elementary</MenuItem>
+                  <MenuItem value="adolescent">adolescent</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControlLabel
+                control={<Switch checked={coachEnabled} onChange={(e) => setCoachEnabled(e.target.checked)} disabled={saving} />}
+                label={coachEnabled ? 'Coach enabled' : 'Coach disabled'}
               />
-              <Button
-                variant="outlined"
-                startIcon={<Cancel />}
-                onClick={handleCancel}
-                disabled={!hasUnsavedChanges || saving}
-                color="error"
-                sx={{ textTransform: 'none' }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<Save />}
-                onClick={handleSave}
-                disabled={!hasUnsavedChanges || saving}
-                sx={{ textTransform: 'none' }}
-              >
-                Save
-              </Button>
             </Box>
           </Box>
-        </Box>
-      </SectionCard>
+
+          <Divider />
+
+          {/* Coach Nudges */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Coach Nudges</Typography>
+              <Chip label={`Model: ${COACH_MODEL_DISPLAY}`} size="small" color="default" variant="outlined" />
+            </Box>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+              Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt.
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+              {ALL_NUDGES.map((nudgeId) => {
+                const isEnabled = enabledNudges.includes(nudgeId);
+                return (
+                  <Chip
+                    key={nudgeId}
+                    label={nudgeId}
+                    clickable
+                    onClick={() => handleNudgeToggle(nudgeId)}
+                    color={isEnabled ? 'success' : 'error'}
+                    variant={isEnabled ? 'filled' : 'outlined'}
+                    disabled={saving}
+                    sx={{
+                      textDecoration: isEnabled ? 'none' : 'line-through',
+                      '&:hover': {
+                        cursor: saving ? 'not-allowed' : 'pointer'
+                      }
+                    }}
+                  />
+                );
+              })}
+            </Box>
+          </Box>
+
+          {/* Maximum Return Nudges */}
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Maximum Return Nudges</Typography>
+            <TextField
+              type="number"
+              value={maxReturnNudges}
+              onChange={handleMaxReturnNudgesChange}
+              slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}
+              size="small"
+              disabled={saving}
+              sx={{ maxWidth: '120px' }}
+            />
+          </Box>
+
+          <Divider />
+
+          {/* Save/Cancel Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, pt: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Cancel />}
+              onClick={handleCancel}
+              disabled={!hasUnsavedChanges || saving}
+              color="error"
+              sx={{ textTransform: 'none', minWidth: '100px' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Save />}
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges || saving}
+              sx={{ textTransform: 'none', minWidth: '100px' }}
+            >
+              Save
+            </Button>
+          </Box>
+            </Box>
+          </CardContent>
+        </Collapse>
+      </Card>
 
       {/* Collapsible Sections */}
       {/* Intro Block */}

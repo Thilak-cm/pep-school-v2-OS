@@ -309,6 +309,7 @@ Centralized prompts for AI features with simple version history. Read by clients
 Documents
 - `text_summarizer` — prompts for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech‑to‑text
+- `coach_{program}` — per‑program configuration for the Coach feature where `program` ∈ `toddler | primary | elementary | adolescent`
 
 ai_prompts/text_summarizer
 ```typescript
@@ -388,6 +389,46 @@ Client usage
 Security
 - Reads: any authenticated user (rules allow read on `ai_prompts/*`).
 - Writes: admins only.
+
+ai_prompts/coach_{program}
+```typescript
+type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
+
+interface CoachProgramDoc {
+  // Display metadata
+  title: string;                 // e.g., "Coach Prompt (primary)"
+  description: string;           // e.g., "Select which nudges Coach can suggest."
+
+  // Feature gate (server + client honor this)
+  coach_feature_enable: boolean; // if false → no nudges; note saves as-is
+  programId: ProgramId;          // redundancy for clarity
+
+  // Configuration
+  enabledNudges: Array<'duration' | 'modality' | 'independence' | 'evidence' | 'subjective'>;
+  disabledNudges: string[];      // derived in UI: all minus enabled
+  maxReturnNudges: number;       // server caps return count
+  nudgeBlocks: Record<string, string>; // per-nudge prompt blocks
+  introBlock: string;            // intro/system preface
+  finalPrompt: string;           // composed prompt used by the model
+
+  // Change tracking (managed by admin UI)
+  updatedAt: Timestamp;          // server time
+  updatedBy: { uid: string; email: string; name: string };
+}
+```
+
+Routing and gating
+- Client computes selected students’ `programId`(s): if multiple or none → skip Coach (no overlay) and save directly.
+- For a single `programId`, client checks `ai_prompts/coach_{program}.coach_feature_enable`:
+  - If `false` or doc missing → skip Coach and save directly.
+  - If `true` → call callable `aiCoachReview` with `{ noteText, programId }`.
+- Cloud Function requires `programId`/`programIds`:
+  - Multiple programs → returns `{ nudges: [] }` (no model call).
+  - Reads `ai_prompts/coach_{program}`; if missing/disabled or `finalPrompt` empty → returns `{ nudges: [] }`.
+  - Only calls the model when enabled and properly configured.
+
+Admin UI
+- `AICoachEditor` lets admins pick a program, toggle enable, and edit per‑program config. Test runs pass the selected `programId` to the server.
 
 ---
 

@@ -721,10 +721,13 @@ export const aiWhisperTranscribe = functions
 
 const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
 
-async function getCoachConfigServer() {
-  const snap = await db.collection("ai_prompts").doc("coach").get();
+async function getCoachConfigServer(docId) {
+  if (!docId || typeof docId !== 'string') {
+    throw new Error('Invalid coach docId');
+  }
+  const snap = await db.collection("ai_prompts").doc(docId).get();
   if (!snap.exists) {
-    throw new Error("Coach prompt configuration not found in Firestore");
+    throw new Error(`Coach prompt configuration not found in Firestore for doc ${docId}`);
   }
   
   const data = snap.data() || {};
@@ -748,6 +751,7 @@ async function getCoachConfigServer() {
   const maxReturnNudges = typeof data.maxReturnNudges === "number" ? data.maxReturnNudges : undefined;
   const introBlock = typeof data.introBlock === "string" ? data.introBlock : undefined;
   const finalPrompt = typeof data.finalPrompt === "string" ? data.finalPrompt : undefined;
+  const coachFeatureEnable = data.coach_feature_enable === true; // default false
   
   return {
     title,
@@ -758,6 +762,7 @@ async function getCoachConfigServer() {
     nudgeBlocks,
     introBlock,
     finalPrompt,
+    coachFeatureEnable,
   };
 }
 
@@ -782,12 +787,59 @@ export const aiCoachReview = functions
     }
 
     try {
-      // Get coach configuration from Firestore
-      const config = await getCoachConfigServer();
-      
-      if (!config.finalPrompt) {
-        throw new functions.https.HttpsError("failed-precondition", "Coach prompt configuration missing finalPrompt");
+      // Determine program routing
+      const rawProgramIds = Array.isArray(data?.programIds)
+        ? data.programIds
+        : (data?.programId ? [data.programId] : []);
+      const programIds = Array.from(new Set((rawProgramIds || []).map((x) => String(x || '').trim()).filter(Boolean)));
+
+      // If no program provided → log and skip nudges (client should pass program)
+      if (programIds.length === 0) {
+        console.error('[aiCoachReview] missing programId/programIds; returning empty nudges');
+        return {
+          nudges: [],
+          model: COACH_MODEL_INFO.model,
+          enabledNudges: [],
+          maxReturnNudges: 0,
+        };
       }
+
+      // If multiple programs provided (group note across programs) → skip nudges
+      if (programIds.length > 1) {
+        return {
+          nudges: [],
+          model: COACH_MODEL_INFO.model,
+          enabledNudges: [],
+          maxReturnNudges: 0,
+        };
+      }
+
+      // Resolve document id by program (no legacy fallback)
+      const coachDocId = `coach_${programIds[0]}`;
+
+      // Get coach configuration from Firestore; if missing treat as disabled
+      let config;
+      try {
+        config = await getCoachConfigServer(coachDocId);
+      } catch (e) {
+        return {
+          nudges: [],
+          model: COACH_MODEL_INFO.model,
+          enabledNudges: [],
+          maxReturnNudges: 0,
+        };
+      }
+
+      // If feature disabled or prompt missing → skip nudges
+      if (!config.coachFeatureEnable || !config.finalPrompt) {
+        return {
+          nudges: [],
+          model: COACH_MODEL_INFO.model,
+          enabledNudges: config.enabledNudges,
+          maxReturnNudges: config.maxReturnNudges,
+        };
+      }
+
 
       // Prepare messages for OpenAI chat completion
       const systemPrompt = config.finalPrompt;

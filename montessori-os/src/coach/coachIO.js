@@ -84,10 +84,15 @@ export function parseCoachResponse(raw) {
   }
 }
 
-export function makeCoachRequest(noteText, _context) {
+export function makeCoachRequest(noteText, context = {}) {
   const safeText = isString(noteText) ? noteText : '';
-  // Cloud Function expects `noteText`
-  return { noteText: safeText };
+  const payload = { noteText: safeText };
+  const programId = isString(context.programId) ? context.programId.trim() : '';
+  if (programId) payload.programId = programId;
+  if (Array.isArray(context.programIds) && context.programIds.length > 0) {
+    payload.programIds = context.programIds.filter(isString).map((s) => s.trim()).filter(Boolean);
+  }
+  return payload;
 }
 
 export function isValidCoachResponse(obj) {

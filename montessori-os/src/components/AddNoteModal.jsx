@@ -303,6 +303,8 @@ function AddNoteModal({
 
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
+  const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
+  const coachEnableCacheRef = useRef({}); // { [programId]: boolean }
 
   // Normalize cloud function reason codes to schema values
   const normalizeCoachReason = (reason) => {
@@ -321,9 +323,63 @@ function AddNoteModal({
     setCoachSelections({});
     setCoachReviewing(false);
     setCoachData(null);
+    coachProgramContextRef.current = null;
   };
 
+  // Resolve selected students' programIds via their classrooms; dedupe classroom reads
+  async function getSelectedProgramIds(studentIds) {
+    try {
+      const studentSnaps = await Promise.all(
+        (studentIds || []).map((sid) => getDoc(doc(db, 'students', sid)))
+      );
+      const classroomIds = Array.from(
+        new Set(
+          studentSnaps
+            .filter((s) => s.exists())
+            .map((s) => s.data()?.classroomId)
+            .filter(Boolean)
+        )
+      );
+      const classroomSnaps = await Promise.all(
+        classroomIds.map((cid) => getDoc(doc(db, 'classrooms', cid)))
+      );
+      const programIds = Array.from(
+        new Set(
+          classroomSnaps
+            .filter((c) => c.exists())
+            .map((c) => c.data()?.programId)
+            .filter(Boolean)
+        )
+      );
+      return programIds;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function isCoachEnabledForProgram(programId) {
+    try {
+      // In-modal cache: avoid frequent reads; docs rarely change during a session
+      if (coachEnableCacheRef.current && Object.prototype.hasOwnProperty.call(coachEnableCacheRef.current, programId)) {
+        return coachEnableCacheRef.current[programId];
+      }
+      const ref = doc(db, 'ai_prompts', `coach_${programId}`);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        coachEnableCacheRef.current[programId] = false;
+        return false;
+      }
+      const data = snap.data() || {};
+      const enabled = data.coach_feature_enable === true;
+      coachEnableCacheRef.current[programId] = enabled;
+      return enabled;
+    } catch (_) {
+      return false;
+    }
+  }
+
   const runCoachReview = async (noteText) => {
+    // This function assumes gating is already done by caller.
     resetCoach();
     // Show analyzing overlay with progressive copy (0s / 5s / 10s)
     let timedOut = false;
@@ -338,7 +394,7 @@ function AddNoteModal({
     }, 10000);
 
     try {
-      const payload = makeCoachRequest(noteText);
+      const payload = makeCoachRequest(noteText, coachProgramContextRef.current || {});
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
       const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
       if (timedOut) { 
@@ -639,11 +695,23 @@ function AddNoteModal({
       return;
     }
 
-    // If text note, run Coach review first
+    // If note has text, evaluate Coach gating by program and run if enabled
     let coachResult = null;
     if (noteData && noteData.text) {
-      coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
-      if (!coachResult) return; // safety
+      // Determine selected programs
+      const programIds = await getSelectedProgramIds(selectedStudents);
+      if (programIds.length === 1) {
+        const programId = programIds[0];
+        const enabled = await isCoachEnabledForProgram(programId);
+        if (enabled) {
+          coachProgramContextRef.current = { programId };
+          coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
+          if (!coachResult) return; // safety
+        }
+        // if not enabled → skip coach silently
+      } else {
+        // multiple or zero programs → skip coach silently per policy
+      }
     }
 
     try {
