@@ -304,7 +304,6 @@ function AddNoteModal({
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
   const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
-  const coachEnableCacheRef = useRef({}); // { [programId]: boolean }
 
   // Normalize cloud function reason codes to schema values
   const normalizeCoachReason = (reason) => {
@@ -323,7 +322,6 @@ function AddNoteModal({
     setCoachSelections({});
     setCoachReviewing(false);
     setCoachData(null);
-    coachProgramContextRef.current = null;
   };
 
   // Resolve selected students' programIds via their classrooms; dedupe classroom reads
@@ -359,20 +357,11 @@ function AddNoteModal({
 
   async function isCoachEnabledForProgram(programId) {
     try {
-      // In-modal cache: avoid frequent reads; docs rarely change during a session
-      if (coachEnableCacheRef.current && Object.prototype.hasOwnProperty.call(coachEnableCacheRef.current, programId)) {
-        return coachEnableCacheRef.current[programId];
-      }
       const ref = doc(db, 'ai_prompts', `coach_${programId}`);
       const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        coachEnableCacheRef.current[programId] = false;
-        return false;
-      }
+      if (!snap.exists()) return false;
       const data = snap.data() || {};
-      const enabled = data.coach_feature_enable === true;
-      coachEnableCacheRef.current[programId] = enabled;
-      return enabled;
+      return data.coach_feature_enable === true;
     } catch (_) {
       return false;
     }

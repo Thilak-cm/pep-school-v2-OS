@@ -51,6 +51,9 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
     return dedup;
   }, [forcedNudges, maxNudges]);
 
+  // Track if save attempt has been made (only after save attempt)
+  const [saveAttempted, setSaveAttempted] = useState(false);
+
   // Selections per nudge (no defaults)
   const [selections, setSelections] = useState({
     [NUDGE_IDS.DURATION]: { range: undefined },
@@ -81,11 +84,17 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
       const q = selections[NUDGE_IDS.EVIDENCE]?.quote;
       const hasCounts = Number.isInteger(a) && Number.isInteger(c);
       const hasQuote = q && String(q).trim();
-      if (hasCounts) {
-        out.push(`Evidence: ${c}/${a} correct`);
-      }
-      if (hasQuote) {
-        out.push(`Evidence: "${String(q).trim()}"`);
+      if (hasCounts || hasQuote) {
+        const parts = [];
+        if (hasCounts) {
+          parts.push(`Evidence: ${c}/${a} correct`);
+        } else {
+          parts.push('Evidence:');
+        }
+        if (hasQuote) {
+          parts.push(`- ${String(q).trim()}`);
+        }
+        out.push(parts.join(' '));
       }
     }
     if (sampledIds.includes(NUDGE_IDS.SUBJECTIVE)) {
@@ -97,20 +106,55 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
 
   // Full text that will actually be saved (always full original + appended lines)
   const fullUpdatedText = useMemo(() => {
-    const original = String(noteText || '');
+    const original = String(noteText || '').trimEnd();
     if (!appendedLines.length) return original;
-    // Always add a blank line gap between old note and the appended lines
+    // Always add a --- divider between original note and the appended lines
+    // This allows parsing the text later to separate original from enhanced content
     let gap = '';
     if (original.length > 0) {
-      if (/\n\n$/.test(original)) gap = '';
-      else if (/\n$/.test(original)) gap = '\n';
-      else gap = '\n\n';
+      if (/\n$/.test(original)) gap = '\n---\n';
+      else gap = '\n----\n';
+    } else {
+      gap = '---\n';
     }
     return `${original}${gap}${appendedLines.join('\n')}`;
   }, [noteText, appendedLines]);
 
   // Preview: truncated original + faint divider + appended lines
   const previewParts = useMemo(() => buildPreviewParts(noteText, appendedLines.join('\n')), [noteText, appendedLines]);
+
+  // Check if any enhancement has been selected
+  const hasAnySelection = useMemo(() => {
+    // Check duration
+    if (sampledIds.includes(NUDGE_IDS.DURATION)) {
+      const r = selections[NUDGE_IDS.DURATION]?.range;
+      if (r && CHIPS[NUDGE_IDS.DURATION].includes(r)) return true;
+    }
+    // Check modality
+    if (sampledIds.includes(NUDGE_IDS.MODALITY)) {
+      const m = selections[NUDGE_IDS.MODALITY]?.modality;
+      if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) return true;
+    }
+    // Check independence
+    if (sampledIds.includes(NUDGE_IDS.INDEPENDENCE)) {
+      const g = selections[NUDGE_IDS.INDEPENDENCE]?.independence;
+      if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) return true;
+    }
+    // Check evidence (either counts or quote)
+    if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
+      const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
+      const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
+      const q = selections[NUDGE_IDS.EVIDENCE]?.quote;
+      if (Number.isInteger(a) && Number.isInteger(c)) return true;
+      if (q && String(q).trim()) return true;
+    }
+    // Check subjective/objective
+    if (sampledIds.includes(NUDGE_IDS.SUBJECTIVE)) {
+      const l = selections[NUDGE_IDS.SUBJECTIVE]?.objective_line;
+      if (l && String(l).trim()) return true;
+    }
+    return false;
+  }, [selections, sampledIds]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -182,36 +226,104 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
               const cInt = Number.isInteger(c);
               const oneFilled = (aInt && !cInt) || (!aInt && cInt);
               const tooMany = aInt && cInt && c > a;
-              const invalid = oneFilled || tooMany;
-              const helper = oneFilled
-                ? 'Provide both # attempts and # correct'
-                : (tooMany ? '# correct cannot exceed # attempts' : '');
+              const invalid = saveAttempted && (oneFilled || tooMany);
+              const helper = saveAttempted && oneFilled
+                ? 'Please provide both values'
+                : (saveAttempted && tooMany ? '# correct cannot exceed # attempts' : '');
               return (
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <TextField
+                      placeholder="__"
+                      size="small"
+                      type="number"
+                      inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
+                      sx={{ 
+                        width: '80px',
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: invalid ? '#d32f2f' : '#d0d7de',
+                          },
+                        },
+                      }}
+                      value={selections[NUDGE_IDS.EVIDENCE]?.correct ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
+                        setSelections((s) => {
+                          const updated = { 
+                            ...s, 
+                            [NUDGE_IDS.EVIDENCE]: { 
+                              ...(s[NUDGE_IDS.EVIDENCE]||{}), 
+                              correct: Number.isNaN(val) ? undefined : val 
+                            } 
+                          };
+                          // Clear validation if both fields are now valid
+                          const newAttempts = updated[NUDGE_IDS.EVIDENCE]?.attempts;
+                          const newCorrect = Number.isNaN(val) ? undefined : val;
+                          const bothFilled = Number.isInteger(newAttempts) && Number.isInteger(newCorrect);
+                          const bothValid = bothFilled && newCorrect <= newAttempts;
+                          if (bothValid && saveAttempted) {
+                            setSaveAttempted(false);
+                          }
+                          return updated;
+                        });
+                      }}
+                      error={invalid && oneFilled}
+                    />
+                    <Typography variant="body1" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                      /
+                    </Typography>
+                    <TextField
+                      placeholder="__"
+                      size="small"
+                      type="number"
+                      inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
+                      sx={{ 
+                        width: '80px',
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: invalid ? '#d32f2f' : '#d0d7de',
+                          },
+                        },
+                      }}
+                      value={selections[NUDGE_IDS.EVIDENCE]?.attempts ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
+                        setSelections((s) => {
+                          const updated = { 
+                            ...s, 
+                            [NUDGE_IDS.EVIDENCE]: { 
+                              ...(s[NUDGE_IDS.EVIDENCE]||{}), 
+                              attempts: Number.isNaN(val) ? undefined : val 
+                            } 
+                          };
+                          // Clear validation if both fields are now valid
+                          const newAttempts = Number.isNaN(val) ? undefined : val;
+                          const newCorrect = updated[NUDGE_IDS.EVIDENCE]?.correct;
+                          const bothFilled = Number.isInteger(newAttempts) && Number.isInteger(newCorrect);
+                          const bothValid = bothFilled && newCorrect <= newAttempts;
+                          if (bothValid && saveAttempted) {
+                            setSaveAttempted(false);
+                          }
+                          return updated;
+                        });
+                      }}
+                      error={invalid && oneFilled}
+                    />
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                      correct
+                    </Typography>
+                  </Box>
+                  {invalid && helper && (
+                    <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1 }}>
+                      {helper}
+                    </Typography>
+                  )}
                   <TextField
-                    label="# attempts"
-                    size="small"
-                    type="number"
-                    inputProps={{ min: 0 }}
-                    value={selections[NUDGE_IDS.EVIDENCE]?.attempts ?? ''}
-                    onChange={(e) => setSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), attempts: Number.isNaN(parseInt(e.target.value,10)) ? undefined : parseInt(e.target.value,10) } }))}
-                    error={invalid}
-                    helperText={invalid ? helper : undefined}
-                  />
-                  <TextField
-                    label="# correct"
-                    size="small"
-                    type="number"
-                    inputProps={{ min: 0 }}
-                    value={selections[NUDGE_IDS.EVIDENCE]?.correct ?? ''}
-                    onChange={(e) => setSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), correct: Number.isNaN(parseInt(e.target.value,10)) ? undefined : parseInt(e.target.value,10) } }))}
-                    error={invalid}
-                    helperText={invalid ? helper : undefined}
-                  />
-                  <TextField
-                    label="Add quote"
+                    label="Add quote (optional)"
                     size="small"
                     fullWidth
+                    sx={{ mt: 1 }}
                     value={selections[NUDGE_IDS.EVIDENCE]?.quote ?? ''}
                     onChange={(e) => setSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), quote: e.target.value } }))}
                   />
@@ -261,6 +373,23 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
           variant="contained"
           onClick={() => {
             if (!onApply) return;
+            
+            // Check if evidence validation is needed
+            if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
+              const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
+              const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
+              const aInt = Number.isInteger(a);
+              const cInt = Number.isInteger(c);
+              const oneFilled = (aInt && !cInt) || (!aInt && cInt);
+              const tooMany = aInt && cInt && c > a;
+              
+              // Show validation errors if there are issues
+              if (oneFilled || tooMany) {
+                setSaveAttempted(true);
+                return; // Don't save if validation fails
+              }
+            }
+            
             // Flatten structured selections for saving
             const out = {};
             if (sampledIds.includes(NUDGE_IDS.DURATION)) {
@@ -293,15 +422,20 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
             }
             onApply({ updated_text: fullUpdatedText, selections: out });
           }}
-          disabled={(function(){
-            if (!sampledIds.includes(NUDGE_IDS.EVIDENCE)) return false;
-            const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
-            const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
-            const aInt = Number.isInteger(a);
-            const cInt = Number.isInteger(c);
-            const oneFilled = (aInt && !cInt) || (!aInt && cInt);
-            const tooMany = aInt && cInt && c > a;
-            return oneFilled || tooMany;
+          disabled={(() => {
+            // Disable if nothing is selected
+            if (!hasAnySelection) return true;
+            // Disable if evidence validation fails (one field filled or correct > attempts)
+            if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
+              const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
+              const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
+              const aInt = Number.isInteger(a);
+              const cInt = Number.isInteger(c);
+              const oneFilled = (aInt && !cInt) || (!aInt && cInt);
+              const tooMany = aInt && cInt && c > a;
+              if (oneFilled || tooMany) return true;
+            }
+            return false;
           })()}
         >
           Apply and Save

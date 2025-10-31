@@ -2,7 +2,7 @@
   "name": "voice-note-functions",
   "description": "Cloud Functions for Montessori Observation Hub",
   "engines": {
-    "node": "20"
+    "node": "18"
   },
   "main": "index.js",
   "type": "module",

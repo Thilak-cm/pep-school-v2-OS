@@ -118,12 +118,34 @@ export default function AICoachEditor({ currentUser, userRole }) {
       // Calculate disabledNudges from current enabledNudges
       const disabledNudges = ALL_NUDGES.filter(n => !enabledNudges.includes(n));
       
+      // Compose finalPrompt from enabled nudges and configured nudgeBlocks
+      const composeFinalPrompt = (enabled) => {
+        if (!enabled || enabled.length === 0) return '';
+        const nb = (docState && docState.nudgeBlocks) || {};
+        const blocks = [];
+        if (enabled.includes('duration') && nb.duration) blocks.push(nb.duration);
+        if (enabled.includes('modality') && nb.modality) blocks.push(nb.modality);
+        if (enabled.includes('independence') && nb.independence) blocks.push(nb.independence);
+        if (enabled.includes('evidence') && nb.evidence) blocks.push(nb.evidence);
+        if (enabled.includes('subjective') && nb.subjective) blocks.push(nb.subjective);
+        const allowedIds = enabled.join(' | ');
+        const nudgeBlocksText = blocks.join('\n\n');
+        const intro = `You are Coach Pepper, a Montessori observation coach that inspects one teacher note and identifies objective information gaps.\n\nHow to respond\n- Read the note carefully and understand its meaning.\n- Evaluate each nudge type independently — whether or not another applies.\n- A note may trigger multiple nudges at once; include all that clearly fit.\n- If no nudge fits confidently, return an empty array.\n- Output strict JSON with top-level "nudges", which is an array of objects.  \n   Each object must include exactly:\n   - "id": string (the nudge type) - must be one of: ${allowedIds}\n   - "reason": short explanation of what's missing\n   - "confidence": numeric value between 0 and 1\n\nExample outputs:\n1. \n   {\n     "nudges": [\n       { "id": "duration", "reason": "Missing time range.", "confidence": 0.8 },\n       { "id": "modality", "reason": "No activity method specified.", "confidence": 0.6 },\n       { "id": "subjective", "reason": "Includes emotional adjective without objective observation.", "confidence": 0.7 }\n     ]\n   }\n2. \n   {\n     "nudges": []\n   }`;
+        const tail = `\n\nNudge types and triggers:\n${nudgeBlocksText}\n`;
+        return `${intro}${tail}`;
+      };
+
+      const finalPrompt = composeFinalPrompt(enabledNudges);
+      const introBlock = finalPrompt ? finalPrompt.split('\n\nNudge types and triggers')[0] : '';
+
       const payload = {
         enabledNudges,
         maxReturnNudges,
         disabledNudges,
         coach_feature_enable: coachEnabled === true,
         programId,
+        introBlock,
+        finalPrompt,
         updatedAt: serverTimestamp(),
         updatedBy: {
           uid: currentUser?.uid || '',
@@ -321,11 +343,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
                     onClick={() => handleNudgeToggle(nudgeId)}
                     color={isEnabled ? 'success' : 'error'}
                     variant={isEnabled ? 'filled' : 'outlined'}
-                    disabled={saving}
+                    disabled={saving || !coachEnabled}
                     sx={{
                       textDecoration: isEnabled ? 'none' : 'line-through',
                       '&:hover': {
-                        cursor: saving ? 'not-allowed' : 'pointer'
+                        cursor: (saving || !coachEnabled) ? 'not-allowed' : 'pointer'
                       }
                     }}
                   />
@@ -343,7 +365,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               onChange={handleMaxReturnNudgesChange}
               slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}
               size="small"
-              disabled={saving}
+              disabled={saving || !coachEnabled}
               sx={{ maxWidth: '120px' }}
             />
           </Box>
@@ -356,7 +378,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               variant="outlined"
               startIcon={<Cancel />}
               onClick={handleCancel}
-              disabled={!hasUnsavedChanges || saving}
+              disabled={!hasUnsavedChanges || saving || !coachEnabled}
               color="error"
               sx={{ textTransform: 'none', minWidth: '100px' }}
             >
@@ -366,7 +388,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               variant="contained"
               startIcon={<Save />}
               onClick={handleSave}
-              disabled={!hasUnsavedChanges || saving}
+              disabled={!hasUnsavedChanges || saving || !coachEnabled}
               sx={{ textTransform: 'none', minWidth: '100px' }}
             >
               Save
@@ -382,6 +404,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setIntroExpanded(!introExpanded)}
+          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Intro</Typography>
@@ -411,6 +434,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setNudgeBlocksExpanded(!nudgeBlocksExpanded)}
+          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Nudge Blocks</Typography>
@@ -458,6 +482,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setFinalPromptExpanded(!finalPromptExpanded)}
+          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Final Composed Prompt</Typography>
@@ -497,7 +522,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               setCoachError('');
               setCoachResult(null);
             }}
-            disabled={runningCoach || saving}
+            disabled={runningCoach || saving || !coachEnabled}
             sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
           />
           
@@ -517,6 +542,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                   <Button
                     size="small"
                     onClick={() => setShowRawJson(!showRawJson)}
+                    disabled={!coachEnabled}
                     sx={{ textTransform: 'none' }}
                   >
                     {showRawJson ? 'Hide' : 'View'} Raw JSON
@@ -571,7 +597,9 @@ export default function AICoachEditor({ currentUser, userRole }) {
                       ))
                     ) : (
                       <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>
-                        No nudges identified. The observation looks complete!
+                        {coachEnabled
+                          ? 'No nudges identified. The observation looks complete!'
+                          : 'Coach is disabled for this program. Enable it above to run a test and see nudges.'}
                       </Typography>
                     )}
                   </Box>
