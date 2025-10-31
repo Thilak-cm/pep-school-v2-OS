@@ -1,5 +1,42 @@
 # Changelog
 
+## 4.6.0 — 2025-01-30
+
+Coach nudge UI/UX improvements and validation enhancements.
+
+### Added
+- Add `---` divider separator in enhanced notes to allow parsing original vs enhanced content when retrieving from Firebase
+- Redesigned evidence input with intuitive `__/__` format (correct/attempts) with clearer visual layout
+- Auto-clear validation errors when evidence fields become valid during input
+- Disable "Apply and Save" button until at least one enhancement is selected
+- Visual disabled state for all coach configuration options when coach is disabled
+- Per‑program Coach configuration docs at `ai_prompts/coach_{program}` with `coach_feature_enable` gate (`toddler | primary | elementary | adolescent`)
+- AICoachEditor: Program selector and per‑program enable toggle; Test Run now sends `programId`
+- Admin scripts: `scripts/admin/seed-coach-programs.js` (seed per‑program docs) and `scripts/admin/sync-coach-programs.js` (copy/enable across programs); npm tasks added
+
+### Changed
+- Evidence display combined into single line format: "Evidence: X/Y correct - quote" (replaces duplicate separate lines)
+- Validation errors now only show after save button click, not during typing
+- Evidence input fields: correct field before `/`, attempts field after `/` for intuitive ratio display
+- Program dropdown remains enabled even when coach is disabled for program switching
+- Cloud Function `aiCoachReview` now requires `programId/programIds` and routes to `ai_prompts/coach_{program}`; legacy `ai_prompts/coach` fallback removed
+- AICoachEditor recomposes and saves `finalPrompt` + `introBlock` from enabled nudges and `nudgeBlocks` on Save, so Firestore prompt reflects toggles
+
+### Fixed
+- Evidence validation prevents saving when only one field is filled or correct exceeds attempts
+- Validation state properly tracks save attempts and clears when fields become valid
+- AddNote flow: preserve `programId` across Coach run (stop clearing ref in `resetCoach()`), preventing responses with `maxReturnNudges: 0`
+
+### Improved
+- Better user feedback with disabled states and validation timing
+- More intuitive evidence input that clearly shows the ratio format
+- Cleaner enhanced note display without duplicate evidence lines
+- Enhanced note structure allows easy parsing to separate original from enhanced content
+- Client gating for Add Note (text and voice):
+  - If multiple programs selected or program disabled → skip analyzing overlay and save directly
+  - Only call Coach when exactly one enabled program; request includes `programId`
+- Editor/test: clearer message when program is disabled (no misleading “observation looks complete”)
+
 ## 4.5.0 — 2025-10-29
 
 Coach flow revamp and constants unification.
