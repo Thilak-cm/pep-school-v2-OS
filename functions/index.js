@@ -722,8 +722,8 @@ export const aiWhisperTranscribe = functions
 const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
 
 async function getCoachConfigServer(docId) {
-  if (!docId || typeof docId !== 'string') {
-    throw new Error('Invalid coach docId');
+  if (!docId || typeof docId !== "string") {
+    throw new Error("Invalid coach docId");
   }
   const snap = await db.collection("ai_prompts").doc(docId).get();
   if (!snap.exists) {
@@ -791,11 +791,11 @@ export const aiCoachReview = functions
       const rawProgramIds = Array.isArray(data?.programIds)
         ? data.programIds
         : (data?.programId ? [data.programId] : []);
-      const programIds = Array.from(new Set((rawProgramIds || []).map((x) => String(x || '').trim()).filter(Boolean)));
+      const programIds = Array.from(new Set((rawProgramIds || []).map((x) => String(x || "").trim()).filter(Boolean)));
 
       // If no program provided → log and skip nudges (client should pass program)
       if (programIds.length === 0) {
-        console.error('[aiCoachReview] missing programId/programIds; returning empty nudges');
+        console.error("[aiCoachReview] missing programId/programIds; returning empty nudges");
         return {
           nudges: [],
           model: COACH_MODEL_INFO.model,
@@ -821,7 +821,7 @@ export const aiCoachReview = functions
       let config;
       try {
         config = await getCoachConfigServer(coachDocId);
-      } catch (e) {
+      } catch {
         return {
           nudges: [],
           model: COACH_MODEL_INFO.model,
