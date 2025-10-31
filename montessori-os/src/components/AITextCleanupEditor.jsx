@@ -1,0 +1,319 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Box, Typography, Card, CardContent, Button, Grid, TextField, Divider,
+  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Tooltip
+} from '@mui/material';
+import { Restore, Save, Bolt, Science } from '@mui/icons-material';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { forceRefreshKey } from '../services/promptProvider';
+import { cleanUpText, CLEANUP_MODEL_INFO } from '../textCleanup';
+
+const MAX_HISTORY = 5;
+
+const SectionCard = ({ title, subtitle, children }) => (
+  <Card sx={{ borderRadius: 2 }}>
+    <CardContent>
+      <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
+      {subtitle && (
+        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>{subtitle}</Typography>
+      )}
+      <Divider sx={{ my: 2 }} />
+      {children}
+    </CardContent>
+  </Card>
+);
+
+export default function AITextCleanupEditor({ currentUser, userRole }) {
+  const isAdmin = userRole === 'admin';
+
+  // Text Summarizer state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [docState, setDocState] = useState(null);
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [userPrompt, setUserPrompt] = useState('');
+  const [changeNote, setChangeNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  // Test run
+  const [testInput, setTestInput] = useState('');
+  const [testTone, setTestTone] = useState('standard');
+  const [testing, setTesting] = useState(false);
+  const [testOutput, setTestOutput] = useState('');
+  const [testError, setTestError] = useState('');
+
+  const textRef = useMemo(() => doc(db, 'ai_prompts', 'text_summarizer'), []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        setLoading(true);
+        const tSnap = await getDoc(textRef);
+        if (tSnap.exists()) {
+          const t = tSnap.data() || {};
+          setDocState({ id: tSnap.id, ...t });
+          setSystemPrompt(t.systemPrompt || '');
+          setUserPrompt(t.userPrompt || '');
+        } else {
+          setDocState(null);
+        }
+      } catch (e) {
+        setError('Failed to load prompts');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [isAdmin, textRef]);
+
+  const cancelEdit = () => {
+    if (docState) {
+      setSystemPrompt(docState.systemPrompt || '');
+      setUserPrompt(docState.userPrompt || '');
+    }
+    setChangeNote('');
+    setEditing(false);
+  };
+
+  const save = async () => {
+    if (!isAdmin) return;
+    try {
+      setSaving(true);
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+      const curr = docState || { version: 0, versions: [] };
+      const prevSnapshot = curr.systemPrompt || curr.userPrompt ? {
+        version: curr.version || 1,
+        systemPrompt: curr.systemPrompt || '',
+        userPrompt: curr.userPrompt || '',
+        updatedAt: now,
+        updatedBy,
+        changeNote: changeNote || 'Updated prompts',
+      } : null;
+      const newVersions = [
+        ...(prevSnapshot ? [prevSnapshot] : []),
+        ...((curr.versions || []).slice(0, MAX_HISTORY - (prevSnapshot ? 1 : 0)))
+      ];
+
+      const payload = {
+        title: curr.title || 'Text Cleanup (Observation Notes)',
+        description: curr.description || 'Prompts used to clean up observation notes via AI.',
+        systemPrompt,
+        userPrompt,
+        version: (curr.version || 1) + 1,
+        updatedAt: now,
+        updatedBy,
+        versions: newVersions,
+      };
+
+      if (docState) {
+        await updateDoc(textRef, payload);
+      } else {
+        await setDoc(textRef, { ...payload, version: 1, versions: [] });
+      }
+      setChangeNote('');
+      forceRefreshKey('text_summarizer');
+      const snap = await getDoc(textRef);
+      if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
+      setEditing(false);
+    } catch (e) {
+      setError('Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revert = async (versionItem) => {
+    if (!isAdmin || !docState) return;
+    try {
+      setSaving(true);
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+      const curr = docState;
+      const prevSnapshot = {
+        version: curr.version || 1,
+        systemPrompt: curr.systemPrompt || '',
+        userPrompt: curr.userPrompt || '',
+        updatedAt: now,
+        updatedBy,
+        changeNote: `Revert to v${versionItem?.version || ''}`,
+      };
+      const newVersions = [prevSnapshot, ...(curr.versions || []).filter(v => v !== versionItem)].slice(0, MAX_HISTORY);
+
+      const payload = {
+        systemPrompt: versionItem.systemPrompt || '',
+        userPrompt: versionItem.userPrompt || '',
+        version: (curr.version || 1) + 1,
+        updatedAt: now,
+        updatedBy,
+        versions: newVersions,
+      };
+      await updateDoc(textRef, payload);
+      forceRefreshKey('text_summarizer');
+      const snap = await getDoc(textRef);
+      if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
+      setSystemPrompt(payload.systemPrompt);
+      setUserPrompt(payload.userPrompt);
+      setEditing(false);
+    } catch (e) {
+      setError('Failed to revert');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runTest = async () => {
+    setTestError('');
+    setTestOutput('');
+    if (!testInput.trim()) {
+      setTestError('Enter some sample text');
+      return;
+    }
+    try {
+      setTesting(true);
+      const out = await cleanUpText(testInput, { tone: testTone });
+      setTestOutput(out);
+    } catch (e) {
+      setTestError(e?.message || 'Failed to run');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="error">Access denied. Admins only.</Alert>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <SectionCard title="Text Cleanup (Observation Notes)" subtitle="Edit system/user prompts used for cleaning up free-form notes.">
+        {loading ? (
+          <CircularProgress size={24} />
+        ) : (
+          <>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
+              {!editing ? (
+                <Button variant="outlined" onClick={() => setEditing(true)}>Edit</Button>
+              ) : (
+                <Chip size="small" color="warning" label="Editing" />
+              )}
+              {docState?.version && <Chip size="small" color="default" label={`v${docState.version}`} />}
+              <Tooltip title={`Model ${CLEANUP_MODEL_INFO.model}, temp ${CLEANUP_MODEL_INFO.temperature}, max_tokens ${CLEANUP_MODEL_INFO.max_tokens}`}>
+                <Chip size="small" icon={<Science />} label="Model info" />
+              </Tooltip>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+              {!editing ? (
+                <>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>System Prompt</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {systemPrompt || '—'}
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{tone}'} and ${'{text}'})</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                      {userPrompt || '—'}
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>Test Tone</Typography>
+                    <TextField fullWidth placeholder="standard" value={testTone} onChange={(e) => setTestTone(e.target.value)} />
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>System Prompt</Typography>
+                    <TextField fullWidth multiline minRows={4} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{tone}'} and ${'{text}'})</Typography>
+                    <TextField fullWidth multiline minRows={6} value={userPrompt} onChange={(e) => setUserPrompt(e.target.value)} />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>Test Tone</Typography>
+                    <TextField fullWidth placeholder="standard" value={testTone} onChange={(e) => setTestTone(e.target.value)} />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>Change note (optional)</Typography>
+                    <TextField fullWidth placeholder="e.g., softer tone for parents" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} />
+                  </Box>
+                </>
+              )}
+
+              {/* History */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
+                {!docState?.versions?.length && (
+                  <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
+                )}
+                {docState?.versions?.length > 0 && (
+                  <List dense>
+                    {docState.versions.map((v, idx) => (
+                      <ListItem key={idx} divider>
+                        <ListItemText 
+                          primary={`v${v.version || '?'} — ${v.changeNote || 'Updated'}`} 
+                          secondary={(v.updatedBy?.email || v.updatedBy?.name) ? `${v.updatedBy?.name || ''} ${v.updatedBy?.email || ''}` : ''}
+                        />
+                        <ListItemSecondaryAction>
+                          <Button size="small" startIcon={<Restore />} onClick={() => revert(v)}>Revert</Button>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Box>
+
+              {/* Test Run */}
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="h6" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Bolt fontSize="small" /> Test Run
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField fullWidth multiline minRows={4} placeholder="Paste some raw observation text here" value={testInput} onChange={(e) => setTestInput(e.target.value)} />
+                </Grid>
+                <Grid item xs={12} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button variant="outlined" startIcon={<Bolt />} onClick={runTest} disabled={testing}>Run cleanup with updated prompt</Button>
+                  {testing && <CircularProgress size={16} />}
+                  {testError && <Alert severity="error" sx={{ ml: 1 }}>{testError}</Alert>}
+                </Grid>
+                {testOutput && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>Output</Typography>
+                    <TextField fullWidth multiline minRows={6} value={testOutput} onChange={(e) => setTestOutput(e.target.value)} />
+                  </Grid>
+                )}
+              </Grid>
+              {editing && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
+                  <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>Save updated prompt(s)</Button>
+                  <Button variant="text" onClick={cancelEdit}>Cancel</Button>
+                </Box>
+              )}
+            </Box>
+          </>
+        )}
+      </SectionCard>
+    </Box>
+  );
+}
+

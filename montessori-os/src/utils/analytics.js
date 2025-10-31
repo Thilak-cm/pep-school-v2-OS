@@ -10,6 +10,10 @@ let _analyticsPromise = null;
 
 async function ensureAnalytics() {
   if (typeof window === 'undefined') return null; // SSR/Node guard
+  
+  // Disable analytics in development to reduce console noise
+  if (import.meta.env.DEV) return null;
+  
   if (_analyticsPromise) return _analyticsPromise;
 
   _analyticsPromise = (async () => {

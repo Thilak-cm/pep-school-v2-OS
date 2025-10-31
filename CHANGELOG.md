@@ -1,9 +1,293 @@
 # Changelog
 
+## 4.6.0 — 2025-01-30
+
+Coach nudge UI/UX improvements and validation enhancements.
+
+### Added
+- Add `---` divider separator in enhanced notes to allow parsing original vs enhanced content when retrieving from Firebase
+- Redesigned evidence input with intuitive `__/__` format (correct/attempts) with clearer visual layout
+- Auto-clear validation errors when evidence fields become valid during input
+- Disable "Apply and Save" button until at least one enhancement is selected
+- Visual disabled state for all coach configuration options when coach is disabled
+- Per‑program Coach configuration docs at `ai_prompts/coach_{program}` with `coach_feature_enable` gate (`toddler | primary | elementary | adolescent`)
+- AICoachEditor: Program selector and per‑program enable toggle; Test Run now sends `programId`
+- Admin scripts: `scripts/admin/seed-coach-programs.js` (seed per‑program docs) and `scripts/admin/sync-coach-programs.js` (copy/enable across programs); npm tasks added
+
+### Changed
+- Evidence display combined into single line format: "Evidence: X/Y correct - quote" (replaces duplicate separate lines)
+- Validation errors now only show after save button click, not during typing
+- Evidence input fields: correct field before `/`, attempts field after `/` for intuitive ratio display
+- Program dropdown remains enabled even when coach is disabled for program switching
+- Cloud Function `aiCoachReview` now requires `programId/programIds` and routes to `ai_prompts/coach_{program}`; legacy `ai_prompts/coach` fallback removed
+- AICoachEditor recomposes and saves `finalPrompt` + `introBlock` from enabled nudges and `nudgeBlocks` on Save, so Firestore prompt reflects toggles
+
+### Fixed
+- Evidence validation prevents saving when only one field is filled or correct exceeds attempts
+- Validation state properly tracks save attempts and clears when fields become valid
+- AddNote flow: preserve `programId` across Coach run (stop clearing ref in `resetCoach()`), preventing responses with `maxReturnNudges: 0`
+
+### Improved
+- Better user feedback with disabled states and validation timing
+- More intuitive evidence input that clearly shows the ratio format
+- Cleaner enhanced note display without duplicate evidence lines
+- Enhanced note structure allows easy parsing to separate original from enhanced content
+- Client gating for Add Note (text and voice):
+  - If multiple programs selected or program disabled → skip analyzing overlay and save directly
+  - Only call Coach when exactly one enabled program; request includes `programId`
+- Editor/test: clearer message when program is disabled (no misleading “observation looks complete”)
+
+## 4.5.0 — 2025-10-29
+
+Coach flow revamp and constants unification.
+
+- Unify Coach model constants across FE/BE via root shim `config/coachConstants.js` re-exporting `functions/config/coachConstants.js`.
+- Vite dev config allows importing from repo root/functions to support shared constants.
+- Fix callable payload: send `noteText` to `aiCoachReview` (was `note_text`).
+- Run Coach on Save for both Text and Voice notes (post-transcription) with timeout-safe fallback to save as-is.
+- Align observation schema to DATA_STRUCTURE.md: `durationSec` for voice, drop `tags`, `editCount`, `sttAlternatives`, `sttProvider`; keep `sttConfidence`, `createdBy*`.
+- UI sorts nudges by PRD priority; microcopy from static UI constants; hide reason/confidence in teacher flow.
+- Persist Coach telemetry: `status`, `reason`, `nudgesShown` (even on skip), and `selections` when applied.
+- Remove client-only MAX_NUDGES clamp; UI defensively caps to backend `maxReturnNudges` when provided.
+
+
 All notable changes to the Montessori Observation Hub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [4.4.0] - 2025-10-29
+
+### Added
+- AI Coach Review Cloud Function (`aiCoachReview`) with OpenAI integration reading `finalPrompt` from Firestore and returning minimal `{ id, reason, confidence }` nudge objects.
+- Admin test run in `AICoachEditor` with formatted cards and a Raw JSON toggle.
+
+### Changed
+- Consolidated Coach constants; backend imports from `functions/config/coachConstants.js` and frontend from `config/coachConstants.js`.
+- Push script now includes allowedIds in the template for clarity and consistency with the Python playground.
+- Removed verbose debugging logs added during investigation from both frontend editor and `aiCoachReview` implementation.
+
+### Fixed
+- ESM import error during deploy by using explicit extension in Cloud Functions import path.
+
+---
+
+## [4.3.4] - 2025-10-29
+
+### Added
+- Complete rebuild of AICoachEditor component with full Firestore integration
+- Manual save workflow: Save and Cancel buttons (replaced auto-save)
+- Save confirmation notifications via useNotify hook (success/error messages)
+- Maximum Return Nudges input field with validation (capped at total number of nudges)
+- Collapsible sections for introBlock, nudgeBlocks, and finalPrompt display
+- Visual nudge indicators: green filled chips for enabled, red outlined with strikethrough for disabled
+
+### Changed
+- AICoachEditor now loads coach prompt configuration from Firestore (`ai_prompts/coach`) on mount
+- Save button only enables when there are unsaved changes
+- Cancel button (red) resets to original saved state
+- Enabled nudge blocks count in header only updates after save (not on toggle)
+- Updated to MUI v7 syntax: replaced deprecated `inputProps` with `slotProps` for TextField
+
+### Improved
+- User experience: manual save gives users control over when changes are persisted
+- Visual feedback: clear distinction between enabled/disabled nudges with color and strikethrough
+- Change tracking: buttons properly reflect unsaved state before committing to Firestore
+
+## [4.3.3] - 2025-10-29
+
+### Added
+- Admin script `scripts/pushCoachPrompt.js` to programmatically push/update coach prompt configuration to Firestore
+- Script replicates `coach_playground.py` `get_system_prompt()` logic exactly for consistency across implementations
+- Dynamically composes `finalPrompt` from enabled nudges and nudgeBlocks to match Python playground behavior
+
+### Scripts
+- `pushCoachPrompt.js`: Syncs coach configuration to `ai_prompts/coach` document with proper prompt structure
+- Handles all Firestore fields: enabledNudges, disabledNudges, nudgeBlocks, introBlock, finalPrompt, etc.
+- Uses Firebase Admin SDK with service account authentication
+- Supports both creating new documents and updating existing ones
+
+## [4.3.2] - 2025-01-21
+
+### Changed
+- AI Coach Editor: replaced verbose prompt preview with collapsible accordion UI for cleaner information architecture
+- AI Coach Editor: moved save button to top of page, right under nudge toggles for better UX
+- AI Coach Editor: nudges state now pulls from Firebase as source of truth (initializes as empty array)
+- Landing Page: removed "Bulk Upload Roster" and "Search & Filter Notes" placeholder cards
+
+### Improved
+- AI Coach Editor: formatted test run results to display detected nudges in user-friendly cards
+  - Shows nudge type with green chip
+  - Displays confidence percentage badge
+  - Shows nudge reason in clean card layout
+  - Includes collapsible raw JSON view for debugging
+- AI Coach Editor: "Final Composed Prompt" section now expanded by default with indigo theme
+- AI Coach Editor: shows red error alert when all nudges are disabled (instead of blue info)
+- AI Coach Editor: hides Test Run section when all nudges are disabled
+
+### Removed
+- AI Coach Editor: removed "change note" optional field from save dialog
+- Landing Page: removed unused feature placeholder cards
+
+## [4.3.1] - 2025-10-21
+
+### Changed
+- Coach (Cloud Function): reads `finalPrompt` and `effectiveEnabled` from Firestore on every call (removed TTL/caching to avoid stale prompts). Falls back to built‑in default if `finalPrompt` is missing; skips LLM if `finalPrompt` is empty.
+- Coach (Cloud Function): filters LLM nudges to enabled ids only; added detailed logs of system prompt, user message, and request body for debugging.
+
+### UI/Editor
+- Coach Editor now composes and saves `finalPrompt` + `effectiveEnabled`; “Final Prompt” preview reflects the stored value.
+
+### Scripts
+- `seed-coach-prompt.js` updated to write `finalPrompt` and `effectiveEnabled`.
+
+## [4.3.0] - 2025-10-21
+
+### Changed
+- Coach (Cloud Function): `aiCoachReview` uses a minimal GPT schema `{ id, reason, confidence }`, returns `schemaVersion: 2`, and composes the system prompt from Firestore (`ai_prompts/coach`) using modular fields (`introLines`, `howToLines`, `nudgeBlocks`, `examples`, `priorityOrder`).
+- Coach (Cloud Function): skips the LLM call entirely when no effective enabled nudges are configured (fast‑path save).
+- Removed legacy `coachSystemPrompt` helper; prompt is now fully Firestore‑driven with a 5‑minute TTL cache and hardcoded fallback.
+- Client: coach request/response streamlined — minimal ingress `{ note_text }`; enrichment (chips, microcopy) happens client‑side; context derivation removed from Add Note flow.
+
+### UI/UX
+- Coach Editor (admin): preview restructured into sections — Intro, How To, Nudge Blocks (all shown; disabled greyed), and Example (expanded). Displays the Final composed prompt exactly as sent to GPT.
+- Coach Editor allows zero enabled nudges; when none enabled, the preview indicates Coach is disabled and test run is disabled.
+- Editor now saves `disabledNudges` explicitly (complement of `enabledNudges`).
+
+### Scripts
+- Added `scripts/admin/seed-coach-prompt.js` to seed/update the modular `ai_prompts/coach` document.
+- NPM tasks: `seed:coach`, `seed:coach:push`.
+
+### Dev
+- Updated client tests/schema for the minimal nudge shape; parser sanitizes and enriches locally.
+
+## [4.2.1] - 2025-10-20
+
+### Fixed
+- Coach Editor: Firestore save error caused by `serverTimestamp()` inside arrays. Writes now keep `updatedAt` at the top level and avoid array transforms.
+
+### Changed
+- Coach Editor: removed version history UI and associated writes for a simpler `ai_prompts/coach` document.
+- Added console error logging (load/save/test) to surface detailed failure reasons in DevTools.
+
+### Scripts
+- Added `scripts/admin/remove-coach-versions.js` to delete the legacy `versions` field from `ai_prompts/coach`.
+
+## [4.1.0] - 2025-10-20
+
+### UI/UX
+- Replaced tabbed “AI Capabilities” screen with card-based “AI Home”.
+- Added separate editor screens: “Text Cleanup Editor” and “Voice Transcriber Editor”.
+- Navigation mirrors “Users & Access”: AI Home → Editors with back to AI Home; titles updated accordingly.
+- Landing page card renamed to “AI Home” with updated description.
+
+### Backend
+- Cloud Functions now read Text Cleanup and Voice Transcriber prompts from Firestore (`ai_prompts/*`) with a 5‑minute TTL cache.
+- Added `forceRefresh` option to `aiTextCleanup`, `aiWhisperTranscribe`, and `aiWhisperTranslate` to bypass cache after UI edits.
+- Client Text Cleanup test run calls now use `forceRefresh` for immediate prompt changes.
+
+### Security
+- Admin-only access preserved for AI Home and both editors.
+
+## [4.2.0] - 2025-10-20
+
+### UI/UX
+- AI Home: new “Coach” card and admin-only “Coach Editor”.
+- Coach Editor lets admins toggle which nudges are enabled (duration, modality, independence, evidence, subjective), provides versioned history with revert, a rendered system prompt preview, and a test run panel.
+
+### Backend
+- Added Firestore-backed Coach config at `ai_prompts/coach` with TTL caching and versioning; disabled nudges are fully omitted from the system prompt (allowed ids, chips, microcopy list).
+- `aiCoachReview` now reads Coach config, supports `forceRefresh`, and returns `promptVersion` tied to the config version.
+
+### Security
+- Admin-only access for Coach Editor; no analytics logging for test runs.
+
+## [4.1.0] - 2025-10-20
+
+### Coach (Server Intelligence + Robust UX)
+- Added callable `aiCoachReview` and integrated server-driven nudges for Coach.
+- Dialog opens only after nudges are available (no flicker); removed modal auto‑skip scaffolding.
+- New analyzing overlay during fetch with progressive messages (0s/5s/10s) and 10s fail‑closed path that saves as‑is.
+- Appends and structured fields are applied only on explicit Apply; no metadata-based auto‑append.
+
+### Security/Infra
+- All AI calls run on Cloud Functions; no browser‑side OpenAI usage. OpenAI key pulled from `functions.config().openai.key`.
+- Maintains short TTL caches on functions to reduce Firestore reads for prompts.
+
+### Developer
+- Functions code uses `firebase-functions/v1` compat import for `region().https.onCall()` with ESM.
+- Whisper STT and Text Cleanup already run via callables; this release consolidates Coach flow and stabilizes UX.
+
+## [3.11.0] - 2025-10-20
+
+### Security/Infra
+- Moved all OpenAI calls off the browser to Cloud Functions.
+  - New callables: `aiTextCleanup`, `aiWhisperTranscribe`, `aiWhisperTranslate`.
+  - Server reads prompts from `ai_prompts/*` with a 5‑minute TTL cache.
+  - OpenAI key pulled from `functions.config().openai.key` (no key in client).
+- Removed all local client fallbacks for cleanup to ensure transparency when AI is unavailable.
+
+### UI/UX
+- Classroom List: grouped by `programs/*` with subtle section dividers; alphabetical program ordering.
+- Fixed React hook‑order error in `ClassroomList.jsx` by rendering inline loading state (no early return before hooks).
+
+### Data/Rules/Docs
+- `DATA_STRUCTURE.md`: added `programs` collection schema and per‑document field breakdown for `ai_prompts/text_summarizer` and `ai_prompts/voice_transcriber`.
+- Firestore rules: allow signed‑in reads for `programs/*`; writes admin‑only.
+
+### Developer
+- Functions import switched to `firebase-functions/v1` to use `region().https.onCall()` with ESM.
+
+### Ops
+- To configure: `firebase functions:config:set openai.key="<YOUR_KEY>"` and deploy functions.
+
+## [3.10.1] - 2025-10-20
+
+### Changed
+- classroomList.jsx now segregates classrooms based on programs pulled from firestore
+
+### Added
+- read access for programs/ to all users and write access to admins
+
+## [3.10.0] - 2025-10-20
+
+### Added
+- Migration scripts
+  - `scripts/admin/rename-classroom.js`: safely rename a classroom document (adolescent → allstars), update all affected students and observations, and archive the old document.
+  - `scripts/admin/migrate-program-field.js`: replace legacy `ageGroup` with `programId` and append canonical age ranges to `description`.
+  - `scripts/admin/check-program-field.js`: verify migration health (missing programId, lingering ageGroup, and optional student-count verification).
+  - `scripts/admin/recount-student-counts.js`: reconcile `classrooms.studentCount` with actual student documents.
+  - NPM tasks wired: `migrate:rename-classroom`, `migrate:program`, `check:program`, `fix:studentCounts`.
+
+### Changed
+- Data model: `ageGroup` → `programId` with canonical values `toddler | primary | elementary | adolescent`; updated DATA_STRUCTURE.md with migration notes and age ranges.
+- Frontend now hides archived classrooms everywhere (lists, filters, pickers) and admin queries fetch only `status == 'active'` classrooms.
+- Seeding utility `scripts/admin/upsert-students.js` now writes `programId` and normalized `teacherIds`.
+
+### Fixed
+- UsersAccessPage: creating a student now atomically increments the classroom's `studentCount` within the same transaction and updates the UI optimistically.
+- Repair utility (`fix:studentCounts`) to correct existing count mismatches.
+
+### Ops
+- Documented migration order and verification steps; tools are idempotent and safe to dry-run before applying.
+
+## [3.9.0] - 2025-10-17
+
+### Added
+- Admin-only "AI Capabilities" page to manage prompts used by AI features (Text Cleanup and Voice Transcriber).
+- Read-only formatted view with Edit toggle; Change note on save; version history (keeps last 5) with one-click Revert.
+- Test Run panel for Text Cleanup; tone selector positioned beneath the User Prompt; prominent Test Run heading.
+- Save/Cancel actions moved to the bottom of the editor for better UX on mobile scroll.
+
+### Changed
+- Text Cleanup and Whisper STT now fetch prompts from Firestore (`ai_prompts`) with a 5-minute TTL cache and safe fallbacks to baked-in defaults.
+- Landing page: new admin card "AI Capabilities"; new `aiPrompts` route gated to admins.
+
+### Security
+- Firestore rules for `ai_prompts`: reads allowed for authenticated users; writes restricted to admins.
+
+### Ops
+- Seed script `scripts/seed_ai_prompts.mjs` to populate initial prompt documents (`text_summarizer`, `voice_transcriber`).
 
 ## [3.8.2] - 2025-10-10
 

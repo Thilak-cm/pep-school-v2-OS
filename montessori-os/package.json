@@ -1,14 +1,15 @@
 {
   "name": "montessori-os",
   "private": true,
-  "version": "3.8.3",
+  "version": "4.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "prebuild": "node scripts/update-sw-version.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

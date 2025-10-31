@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
-import { cleanUpText, localCleanupFallback } from './textCleanup';
+import { cleanUpText } from './textCleanup';
 import { db } from './firebase';
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
@@ -742,69 +742,46 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
                 backgroundColor: 'white',
                 borderRadius: '8px',
                 border: '1px solid #e2e8f0',
-                textAlign: 'center',
-                color: '#64748b'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
-                <CircularProgress size={20} sx={{ color: '#059669' }} />
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  Converting speech to text...
-                </Typography>
-              </Box>
-              
-              {/* Show chunking info if available */}
-              {transcriptionData?.chunkCount > 1 && (
-                <Box sx={{ mb: 2, p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                    Transcribing in progress...
+              {/* Show progress bar if we have determinate progress */}
+              {transcriptionProgress.total > 0 && transcriptionProgress.current > 0 ? (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                      Converting speech to text...
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {transcriptionProgress.current}/{transcriptionProgress.total}
+                    </Typography>
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
+                    sx={{ 
+                      height: 8, 
+                      borderRadius: 4,
+                      backgroundColor: '#e2e8f0',
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: '#059669'
+                      }
+                    }}
+                  />
+                </Box>
+              ) : (
+                /* Show spinner if no determinate progress */
+                <Box sx={{ textAlign: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 1 }}>
+                    <CircularProgress size={20} sx={{ color: '#059669' }} />
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                      Converting speech to text...
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    This may take a few seconds
                   </Typography>
-                  {transcriptionProgress.total > 0 && (
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
-                      sx={{ height: 6, borderRadius: 3 }}
-                    />
-                  )}
                 </Box>
               )}
-              
-              {/* Show fallback info if chunking failed */}
-              {transcriptionData?.fallbackUsed && (
-                <Box sx={{ mb: 2, p: 2, backgroundColor: '#fef3c7', borderRadius: 1, border: '1px solid #fbbf24' }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Warning sx={{ fontSize: 14, color: '#f59e0b' }} />
-                    Transcribing in progress...
-                  </Typography>
-                  {transcriptionProgress.total > 0 && (
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
-                      sx={{ height: 6, borderRadius: 3 }}
-                    />
-                  )}
-                </Box>
-              )}
-              
-              {/* Show general progress for all transcriptions */}
-              {transcriptionProgress.message && !transcriptionData?.chunkCount && !transcriptionData?.fallbackUsed && (
-                <Box sx={{ mb: 2, p: 2, backgroundColor: '#f8fafc', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                    Transcribing in progress...
-                  </Typography>
-                  {transcriptionProgress.total > 0 && (
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(transcriptionProgress.current / transcriptionProgress.total) * 100} 
-                      sx={{ height: 6, borderRadius: 3 }}
-                    />
-                  )}
-                </Box>
-              )}
-              
-              <Typography variant="caption" color="text.secondary">
-                This may take a few seconds
-              </Typography>
             </Paper>
           )}
 
@@ -988,9 +965,14 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
                             setCleaning(true);
                             setPrevTranscription(transcription);
                             const refined = await cleanUpText(transcription).catch(() => null);
-                            const out = (refined || localCleanupFallback(transcription)).trim();
-                            setTranscription(out);
-                            setCleanedOnce(true);
+                            if (refined) {
+                              const out = String(refined).trim();
+                              setTranscription(out);
+                              setCleanedOnce(true);
+                            } else {
+                              // Keep original transcription unchanged
+                              setCleanedOnce(false);
+                            }
                             const dt = Math.round(performance.now() - t0);
                             trackEvent('polish_success', {
                               source: 'voice',

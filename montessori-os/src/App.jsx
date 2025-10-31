@@ -4,6 +4,10 @@ import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
 import LandingPage from "./components/LandingPage";
+import AIHomePage from "./components/AIHomePage.jsx";
+import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
+import AIVoiceTranscriberEditor from "./components/AIVoiceTranscriberEditor.jsx";
+import AICoachEditor from "./components/AICoachEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -37,7 +41,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -231,6 +235,10 @@ function App() {
     else pageTitle = 'Users & Access';
   }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
+  else if (screen === 'aiHome') pageTitle = 'AI Home';
+  else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
+  else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
+  else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -251,7 +259,14 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
+      case 'aiHome':
         return () => setScreen('landingPage');
+      case 'aiTextEditor':
+        return () => setScreen('aiHome');
+      case 'aiVoiceEditor':
+        return () => setScreen('aiHome');
+      case 'aiCoachEditor':
+        return () => setScreen('aiHome');
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
@@ -427,6 +442,8 @@ function App() {
                       setScreen('feedback');
                     } else if (path === '/addUser') {
                       setScreen('addUser');
+                    } else if (path === '/aiPrompts') {
+                      if (role === 'admin') setScreen('aiHome');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -465,6 +482,8 @@ function App() {
                           setScreen('stats');
                         } else if (path === '/addUser') {
                           setScreen('addUser');
+                        } else if (path === '/aiPrompts') {
+                          if (role === 'admin') setScreen('aiHome');
                         }
                       }}
                     />
@@ -564,6 +583,27 @@ function App() {
                     />
                   )}
 
+                  {screen === 'aiHome' && (
+                    <AIHomePage
+                      userRole={role}
+                      onOpenTextEditor={() => setScreen('aiTextEditor')}
+                      onOpenVoiceEditor={() => setScreen('aiVoiceEditor')}
+                      onOpenCoachEditor={() => setScreen('aiCoachEditor')}
+                    />
+                  )}
+
+                  {screen === 'aiTextEditor' && (
+                    <AITextCleanupEditor currentUser={user} userRole={role} />
+                  )}
+
+                  {screen === 'aiVoiceEditor' && (
+                    <AIVoiceTranscriberEditor currentUser={user} userRole={role} />
+                  )}
+
+                  {screen === 'aiCoachEditor' && (
+                    <AICoachEditor currentUser={user} userRole={role} />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -599,4 +639,3 @@ function App() {
 }
 
 export default App;
-

@@ -19,13 +19,18 @@ import {
   ArrowBack
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
-import NewFeaturePill from './NewFeaturePill';
-import { cleanUpText, localCleanupFallback } from '../textCleanup';
+import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
+import NewFeaturePill from './NewFeaturePill';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
+import { httpsCallable } from 'firebase/functions';
+import { cloudFunctions } from '../firebase';
+import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
+import { NUDGE_IDS, CHIPS } from '../coach/constants';
+import CoachNudge from '../coach/coach_nudge';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
@@ -87,11 +92,15 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       setCleaning(true);
       setPrevText(text);
       const refined = await cleanUpText(text).catch(() => null);
-      const out = (refined || localCleanupFallback(text)).trim();
-      setText(out);
-      setCleanedOnce(true);
-      setShowNudge(false);
-      setNudgeDismissed(true);
+      if (refined) {
+        setText(String(refined).trim());
+        setCleanedOnce(true);
+        setShowNudge(false);
+        setNudgeDismissed(true);
+      } else {
+        // No change; keep original text and mark as not cleaned
+        setCleanedOnce(false);
+      }
       const dt = Math.round(performance.now() - t0);
       trackEvent('polish_success', {
         source: 'text',
@@ -101,7 +110,7 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       });
     } catch (e) {
       console.error('Cleanup error:', e);
-      setText(localCleanupFallback(text));
+      // Do not modify text on error; transparency matters
       trackEvent('polish_error', {
         source: 'text',
         component: 'AddNoteModal.TextInput',
@@ -282,6 +291,268 @@ function AddNoteModal({
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
+  // Coach UI state (Duration-only MVP)
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachNudges, setCoachNudges] = useState([]);
+  const [coachSelections, setCoachSelections] = useState({});
+  const [coachReviewing, setCoachReviewing] = useState(false); // not used in new flow
+  const [coachData, setCoachData] = useState(null); // stores AI response data (status, reason, nudgesShown)
+  // Analyzing overlay (replaces snackbar for this flow)
+  const [analyzingOpen, setAnalyzingOpen] = useState(false);
+  const [analyzingMessage, setAnalyzingMessage] = useState('');
+
+  // ----- Coach helpers (moved to AddNoteModal scope) -----
+  const coachActionRef = useRef(null);
+  const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
+
+  // Normalize cloud function reason codes to schema values
+  const normalizeCoachReason = (reason) => {
+    const reasonMap = {
+      'net': 'net_timeout',
+      'ai': 'server_error',
+      'parse_ai': 'parse_error',
+      'parse_json': 'parse_error'
+    };
+    return reasonMap[reason] || 'none';
+  };
+
+  const resetCoach = () => {
+    setCoachOpen(false);
+    setCoachNudges([]);
+    setCoachSelections({});
+    setCoachReviewing(false);
+    setCoachData(null);
+  };
+
+  // Resolve selected students' programIds via their classrooms; dedupe classroom reads
+  async function getSelectedProgramIds(studentIds) {
+    try {
+      const studentSnaps = await Promise.all(
+        (studentIds || []).map((sid) => getDoc(doc(db, 'students', sid)))
+      );
+      const classroomIds = Array.from(
+        new Set(
+          studentSnaps
+            .filter((s) => s.exists())
+            .map((s) => s.data()?.classroomId)
+            .filter(Boolean)
+        )
+      );
+      const classroomSnaps = await Promise.all(
+        classroomIds.map((cid) => getDoc(doc(db, 'classrooms', cid)))
+      );
+      const programIds = Array.from(
+        new Set(
+          classroomSnaps
+            .filter((c) => c.exists())
+            .map((c) => c.data()?.programId)
+            .filter(Boolean)
+        )
+      );
+      return programIds;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function isCoachEnabledForProgram(programId) {
+    try {
+      const ref = doc(db, 'ai_prompts', `coach_${programId}`);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return false;
+      const data = snap.data() || {};
+      return data.coach_feature_enable === true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  const runCoachReview = async (noteText) => {
+    // This function assumes gating is already done by caller.
+    resetCoach();
+    // Show analyzing overlay with progressive copy (0s / 5s / 10s)
+    let timedOut = false;
+    setAnalyzingMessage('Coach Pepper is analyzing your note!');
+    setAnalyzingOpen(true);
+    const t5 = setTimeout(() => {
+      if (!timedOut) setAnalyzingMessage('Oh no, Coach Pepper is taking longer than usual. Hang on tight!');
+    }, 5000);
+    const t10 = setTimeout(() => {
+      timedOut = true;
+      setAnalyzingMessage('Coach Pepper is running into issues :( saving note as is for now.');
+    }, 10000);
+
+    try {
+      const payload = makeCoachRequest(noteText, coachProgramContextRef.current || {});
+      const call = httpsCallable(cloudFunctions, 'aiCoachReview');
+      const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
+      if (timedOut) { 
+        clearTimeout(t5); 
+        clearTimeout(t10); 
+        setAnalyzingOpen(false); 
+        return { skipped: true, timeout: true, coachData: { status: 'timeout', reason: 'net_timeout', nudgesShown: [] } }; 
+      }
+      const aiResponse = res?.data || { nudges: [] };
+      const parsed = parseCoachResponse(aiResponse);
+      clearTimeout(t5); clearTimeout(t10);
+      // Hide analyzing overlay now that we have a result
+      setAnalyzingOpen(false);
+      let nudges = parsed.nudges || [];
+      // UI hard-cap using backend-provided maxReturnNudges (defensive double-cap)
+      const uiMax = Number.isInteger(aiResponse?.maxReturnNudges) && aiResponse.maxReturnNudges > 0
+        ? aiResponse.maxReturnNudges
+        : undefined;
+      if (uiMax) nudges = nudges.slice(0, uiMax);
+      // Sort by PRD priority order for display and telemetry
+      const PRIORITY = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
+      nudges.sort((a, b) => PRIORITY.indexOf(a.id) - PRIORITY.indexOf(b.id));
+      
+      // Store AI response data for saving
+      const coachStatus = aiResponse.status || 'ok';
+      const coachReason = normalizeCoachReason(aiResponse.reason || 'none');
+      const nudgesShown = nudges.map(n => ({ id: n.id, confidence: n.confidence }));
+      
+      if (!nudges.length) {
+        return { skipped: true, coachData: { status: coachStatus, reason: coachReason, nudgesShown: [] } };
+      }
+      // Open dialog with available nudges and wait for user interaction
+      setCoachNudges(nudges);
+      setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
+      
+      // Store the coach data for later saving
+      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown, maxNudges: uiMax });
+      
+      setCoachOpen(true);
+
+      return await new Promise((resolve) => {
+        const interval = setInterval(() => {
+          if (coachActionRef.current != null) {
+            const v = coachActionRef.current;
+            coachActionRef.current = null;
+            clearInterval(interval);
+            resolve(v);
+          }
+        }, 50);
+      });
+    } catch (_) {
+      clearTimeout(t5); clearTimeout(t10);
+      // Hide analyzing overlay and skip without blocking save
+      setAnalyzingOpen(false);
+      return { skipped: true, coachData: { status: 'error', reason: 'server_error', nudgesShown: [] } };
+    }
+  };
+
+  const handleCoachSkip = () => {
+    coachActionRef.current = { skipped: true, coachData }; // proceed to save without changes
+    resetCoach();
+  };
+
+  const handleCoachApply = ({ updated_text, selections }) => {
+    coachActionRef.current = { updated_text, selections, coachData };
+    setCoachOpen(false);
+  };
+
+  function humanizeDuration(chip) {
+    if (!chip) return '';
+    if (chip.endsWith('m+')) return chip.replace('m+', '+ min');
+    return chip.replace('m', ' min');
+  }
+
+  function buildAppendedLines() {
+    const out = [];
+    for (const n of coachNudges) {
+      const sel = coachSelections[n.id] || {};
+      switch (n.id) {
+        case NUDGE_IDS.DURATION: {
+          const range = sel.range || n.metadata?.duration_range;
+          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) out.push(`Duration: ${humanizeDuration(range)}`);
+          break;
+        }
+        case NUDGE_IDS.MODALITY: {
+          const m = sel.modality || n.metadata?.modality;
+          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) out.push(`Modality: ${m}`);
+          break;
+        }
+        case NUDGE_IDS.INDEPENDENCE: {
+          const g = sel.independence || n.metadata?.independence;
+          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) out.push(`Independence: ${g}`);
+          break;
+        }
+        case NUDGE_IDS.EVIDENCE: {
+          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
+          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
+          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
+          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
+            out.push(`Evidence: ${correct}/${attempts} correct`);
+          } else if (quote && String(quote).trim()) {
+            out.push(`Evidence: "${String(quote).trim()}"`);
+          }
+          break;
+        }
+        case NUDGE_IDS.SUBJECTIVE: {
+          const line = sel.objective_line || n.metadata?.objective_line;
+          if (line && String(line).trim()) out.push(`Objective note: ${String(line).trim()}`);
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return out;
+  }
+
+  function buildFinalText(original) {
+    if (!coachNudges.length) return original;
+    const lines = buildAppendedLines();
+    if (!lines.length) return original;
+    const sep = original.endsWith('\n') ? '' : '\n';
+    return `${original}${sep}${lines.join('\n')}`;
+  }
+
+  function buildCoachStructuredFields() {
+    const fields = {};
+    for (const n of coachNudges) {
+      const sel = coachSelections[n.id] || {};
+      switch (n.id) {
+        case NUDGE_IDS.DURATION: {
+          const range = sel.range || n.metadata?.duration_range;
+          if (range && CHIPS[NUDGE_IDS.DURATION].includes(range)) fields.duration_range = range;
+          break;
+        }
+        case NUDGE_IDS.MODALITY: {
+          const m = sel.modality || n.metadata?.modality;
+          if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) fields.modality = m;
+          break;
+        }
+        case NUDGE_IDS.INDEPENDENCE: {
+          const g = sel.independence || n.metadata?.independence;
+          if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) fields.independence = g;
+          break;
+        }
+        case NUDGE_IDS.EVIDENCE: {
+          const attempts = Number.isInteger(sel.attempts) ? sel.attempts : n.metadata?.evidence_attempts;
+          const correct = Number.isInteger(sel.correct) ? sel.correct : n.metadata?.evidence_correct;
+          const quote = sel.quote != null ? sel.quote : n.metadata?.evidence_quote;
+          if (Number.isInteger(attempts) && Number.isInteger(correct)) {
+            fields.evidence_attempts = attempts;
+            fields.evidence_correct = correct;
+          } else if (quote && String(quote).trim()) {
+            fields.evidence_quote = String(quote).trim();
+          }
+          break;
+        }
+        case NUDGE_IDS.SUBJECTIVE: {
+          const line = sel.objective_line || n.metadata?.objective_line;
+          if (line && String(line).trim()) fields.objective_line = String(line).trim();
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return fields;
+  }
+
   // Dirty tracking across steps
   const [textDirty, setTextDirty] = useState(false); // any input (even whitespace)
   const [voiceDirty, setVoiceDirty] = useState(false); // recording started or any audio/transcript present
@@ -413,6 +684,25 @@ function AddNoteModal({
       return;
     }
 
+    // If note has text, evaluate Coach gating by program and run if enabled
+    let coachResult = null;
+    if (noteData && noteData.text) {
+      // Determine selected programs
+      const programIds = await getSelectedProgramIds(selectedStudents);
+      if (programIds.length === 1) {
+        const programId = programIds[0];
+        const enabled = await isCoachEnabledForProgram(programId);
+        if (enabled) {
+          coachProgramContextRef.current = { programId };
+          coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
+          if (!coachResult) return; // safety
+        }
+        // if not enabled → skip coach silently
+      } else {
+        // multiple or zero programs → skip coach silently per policy
+      }
+    }
+
     try {
       setSaving(true);
       const promises = selectedStudents.map(async (stuId) => {
@@ -421,6 +711,9 @@ function AddNoteModal({
         const studentDocSnap = await getDoc(studentDocRef);
         const studentData = studentDocSnap.data();
 
+        // Prefer exact text from the user’s Apply in the Coach dialog; otherwise save original
+        let textToSave = coachResult?.updated_text || noteData.text;
+
         const observationData = {
           // Identity
           studentId: stuId,
@@ -428,8 +721,7 @@ function AddNoteModal({
 
           // Content
           type: transcriptionData ? 'voice' : 'text',
-          text: noteData.text,
-          tags: [],
+          text: textToSave,
 
           // Timestamps
           observedAt: serverTimestamp(),
@@ -440,25 +732,32 @@ function AddNoteModal({
           createdBy: currentUser?.uid || 'unknown',
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
-
-          // Misc
-          editCount: 0,
         };
 
         // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
         if (transcriptionData) {
           if (typeof transcriptionData.duration === 'number') {
-            observationData.duration = transcriptionData.duration;
+            observationData.durationSec = transcriptionData.duration;
           }
           if (typeof transcriptionData.sttConfidence === 'number') {
             observationData.sttConfidence = transcriptionData.sttConfidence;
           }
-          if (Array.isArray(transcriptionData.sttAlternatives) && transcriptionData.sttAlternatives.length > 0) {
-            observationData.sttAlternatives = transcriptionData.sttAlternatives;
+          // Drop alternatives/spoken language/provider per schema simplification
+        }
+
+        // Coach structured fields - wrap according to DATA_STRUCTURE.md
+        // Save coach object if coach was invoked (whether nudges shown or selections made)
+        if (coachResult && coachResult.coachData) {
+          observationData.coach = {
+            status: coachResult.coachData.status || 'ok',
+            reason: coachResult.coachData.reason || 'none',
+            // Record nudges shown in PRD sort order
+            nudgesShown: coachResult.coachData.nudgesShown || []
+          };
+          // Add selections if any were made
+          if (coachResult.selections && Object.keys(coachResult.selections).length > 0) {
+            observationData.coach.selections = coachResult.selections;
           }
-          // Language fields removed to reduce user clicks
-          // Track STT provider for debugging/analytics
-          observationData.sttProvider = transcriptionData.sttProvider || 'OpenAI Whisper';
         }
 
         // No default spoken language for text notes
@@ -647,10 +946,6 @@ function AddNoteModal({
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Voice Note
                     </Typography>
-                    <NewFeaturePill 
-                      label="Latest Feature: Pause and Resume an ongoing voice note!" 
-                      size="sm" 
-                    />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
@@ -769,21 +1064,56 @@ function AddNoteModal({
         </Box>
       </Dialog>
       <Snackbar 
-        open={snackbarOpen} 
-        autoHideDuration={6000} 
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        sx={{ 
-          top: '80px !important', // Position below app header
-          right: { xs: '16px', sm: 'calc(50% - 187.5px + 16px)' }, // Center within mobile container on desktop
-          maxWidth: { xs: '343px', sm: '343px' }, // Constrain width to mobile dimensions
-          width: { xs: 'calc(100vw - 32px)', sm: '343px' } // Full width on mobile, fixed on desktop
-        }}
+        open={false}
+        onClose={() => {}}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Analyzing overlay dialog */}
+      <Dialog open={analyzingOpen} onClose={() => {}} fullWidth maxWidth="xs">
+        <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <CircularProgress size={22} />
+          <Typography variant="body2" color="text.secondary">{analyzingMessage}</Typography>
+        </Box>
+      </Dialog>
+
+      {/* Coach nudge popup — duration-only MVP */}
+      <Dialog open={coachOpen} onClose={handleCoachSkip} fullWidth maxWidth="sm">
+        <Box sx={{ position: 'relative' }}>
+          <CoachNudge
+            noteText={coachSelections?._noteText || ''}
+            onSkip={handleCoachSkip}
+            onApply={handleCoachApply}
+            forcedNudges={coachNudges.map(n => n.id)}
+            maxNudges={coachData?.maxNudges}
+          />
+          {coachReviewing && (
+            <Box
+              aria-label="Coach reviewing"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                backgroundColor: 'rgba(15, 23, 42, 0.06)'
+              }}
+            >
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                Reviewing…
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </Dialog>
     </Dialog>
   );
 }

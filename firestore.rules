@@ -101,6 +101,22 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // AI Prompts
+    // - Any signed-in user can read (clients fetch prompts at runtime)
+    // - Only admins can write
+    match /ai_prompts/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Programs (environment groupings of classrooms)
+    // - Read allowed for signed-in users (used by client UI to group classrooms)
+    // - Writes restricted to admins (typically performed via admin scripts)
+    match /programs/{programId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Temporarily removed default deny to test if it's blocking teacher access
     // match /{document=**} {
     //   allow read, write: if false;

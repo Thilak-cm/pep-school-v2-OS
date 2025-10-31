@@ -16,7 +16,8 @@ import {
   Feedback,
   BarChart,
   PersonAdd,
-  Download
+  Download,
+  Psychology
 } from '@mui/icons-material';
 
 function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
@@ -262,6 +263,41 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
 
+            {/* AI Home */}
+            <Grid size={12}>
+              <Card
+                sx={{
+                  borderRadius: 2,
+                  '&:hover': {
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              >
+                <CardActionArea onClick={() => onNavigate('/aiPrompts')} sx={{ p: 0 }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: '#7c3aed', width: 56, height: 56 }}>
+                          <Psychology />
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                            AI Home
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                            Manage AI tools: Text Cleanup and Voice Transcriber
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <ArrowForward sx={{ color: '#94a3b8' }} />
+                    </Box>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+
             {/* Review Classroom Notes */}
             <Grid size={12}>
               <Card
@@ -363,34 +399,6 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     </Box>
                   </CardContent>
                 </CardActionArea>
-              </Card>
-            </Grid>
-
-            {/* Bulk Upload Roster */}
-            <Grid size={12}>
-              <Card aria-label="Bulk upload roster coming soon" sx={{ opacity: 0.5 }}>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    Bulk Upload Roster
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Feature coming soon
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Search & Filter Notes */}
-            <Grid size={12}>
-              <Card aria-label="Search and filter notes coming soon" sx={{ opacity: 0.5 }}>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    Search &amp; Filter Notes
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Feature coming soon
-                  </Typography>
-                </CardContent>
               </Card>
             </Grid>
 
