@@ -25,7 +25,11 @@ import {
   Paper,
   Stack,
   Badge,
-  Tooltip
+  Tooltip,
+  Select,
+  FormControl,
+  InputLabel,
+  MenuItem
 } from '@mui/material';
 import {
   BarChart,
@@ -45,7 +49,7 @@ import {
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 import { 
   PERFORMANCE_TARGETS, 
@@ -99,6 +103,10 @@ const StatsPage = ({ user, role, onBack }) => {
   const [teacherOnlyNoClassrooms, setTeacherOnlyNoClassrooms] = useState(false);
   const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
   const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
+  
+  // Branch filter state (admin only)
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -110,11 +118,52 @@ const StatsPage = ({ user, role, onBack }) => {
         console.log('Current user:', user);
         console.log('User role:', role);
         console.log('User UID:', user?.uid);
+        console.log('Branches state before fetch:', branches.length);
         
         // Initialize data variables
         let classroomsData = [];
         let teachersData = [];
         let studentsData = [];
+        let branchesData = [];
+        
+        // Fetch branches (for admin branch filter)
+        if (role === 'admin') {
+          console.log('Fetching branches...');
+          try {
+            const branchesQuery = query(collection(db, 'branches'));
+            const branchesSnap = await getDocs(branchesQuery);
+            console.log('Branches fetched:', branchesSnap.size, 'found');
+            branchesData = branchesSnap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                name: data.name || doc.id.toUpperCase(),
+                classrooms: data.classrooms || [], // Array of classroom IDs
+                ...data
+              };
+            });
+            // Sort branches by name or order
+            branchesData.sort((a, b) => {
+              if (a.order !== undefined && b.order !== undefined) {
+                return a.order - b.order;
+              }
+              return (a.name || a.id).localeCompare(b.name || b.id);
+            });
+            setBranches(branchesData);
+            console.log('Branches set:', branchesData.length, branchesData.map(b => ({ id: b.id, name: b.name, classrooms: b.classrooms?.length || 0 })));
+            // Set default selected branch to first one if not set
+            if (selectedBranchId === null && branchesData.length > 0) {
+              setSelectedBranchId(branchesData[0].id);
+              console.log('Default branch selected:', branchesData[0].id);
+            }
+          } catch (error) {
+            console.error('Branches query failed:', error);
+            console.error('Error details:', error.message, error.code);
+            setBranches([]);
+          }
+        } else {
+          console.log('Skipping branch fetch - not admin role');
+        }
         
         // Fetch classrooms
         console.log('Fetching classrooms...');
@@ -361,6 +410,7 @@ const StatsPage = ({ user, role, onBack }) => {
           return {
             id: classroom.id,
             name: classroom.name,
+            branchId: classroom.branchId, // Include branchId for filtering
             studentCount: classroomStudents.length,
             totalObservations: classroomObservations.length,
             thisWeekObservations: thisWeekObs.length,
@@ -929,7 +979,30 @@ const StatsPage = ({ user, role, onBack }) => {
 
 
   const ClassroomComparisonChart = () => {
-    if (stats.classroomStats.length === 0) {
+    // Filter classroom stats by selected branch (admin only)
+    const filteredClassroomStats = useMemo(() => {
+      if (role === 'admin' && selectedBranchId) {
+        // Find the selected branch to get its classrooms array
+        const selectedBranch = branches.find(b => b.id === selectedBranchId);
+        if (selectedBranch && selectedBranch.classrooms && selectedBranch.classrooms.length > 0) {
+          // Filter by classroom IDs from branch document
+          const branchClassroomIds = selectedBranch.classrooms.map(cid => {
+            // Handle both full paths (e.g., "classrooms/allstars") and just IDs (e.g., "allstars")
+            const parts = String(cid).split('/');
+            return parts[parts.length - 1];
+          });
+          return stats.classroomStats.filter(classroom => 
+            branchClassroomIds.includes(classroom.id)
+          );
+        }
+        // Fallback: if branch doesn't have classrooms array, use branchId
+        return stats.classroomStats.filter(classroom => classroom.branchId === selectedBranchId);
+      }
+      // For teachers, return all their accessible classrooms (already filtered)
+      return stats.classroomStats;
+    }, [stats.classroomStats, selectedBranchId, role, branches]);
+
+    if (filteredClassroomStats.length === 0) {
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -946,11 +1019,11 @@ const StatsPage = ({ user, role, onBack }) => {
       );
     }
 
-    const data = stats.classroomStats.map(classroom => ({
+    const data = filteredClassroomStats.map(classroom => ({
       name: classroom.name,
       'This Week': classroom.thisWeekObservations,
-      'Target': classroom.studentCount * classroom.target,
-      'Performance %': classroom.performance
+      percentage: classroom.performance,
+      target: classroom.studentCount * classroom.target
     }));
 
     return (
@@ -982,6 +1055,9 @@ const StatsPage = ({ user, role, onBack }) => {
               }}
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
+                  const notesCount = payload[0].value;
+                  const percentage = payload[0].payload.percentage;
+                  const target = payload[0].payload.target;
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
@@ -990,11 +1066,14 @@ const StatsPage = ({ user, role, onBack }) => {
                       p: 1.5,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
-                        {payload[0].value}
+                      <Typography sx={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', mb: 0.5 }}>
+                        {label}
+                      </Typography>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5', mb: 0.5 }}>
+                        {notesCount} {notesCount === 1 ? 'note' : 'notes'}
                       </Typography>
                       <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                        {payload[0].dataKey}: {payload[0].payload.name}
+                        {percentage.toFixed(1)}% of target ({notesCount}/{Math.round(target)})
                       </Typography>
                     </Box>
                   );
@@ -1003,16 +1082,6 @@ const StatsPage = ({ user, role, onBack }) => {
               }}
             />
             <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Target" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
-            <Legend 
-              verticalAlign="top" 
-              height={36}
-              iconType="circle"
-              iconSize={8}
-              wrapperStyle={{
-                paddingTop: '10px'
-              }}
-            />
           </RechartsBarChart>
         </ResponsiveContainer>
       </Box>
@@ -1523,64 +1592,98 @@ const StatsPage = ({ user, role, onBack }) => {
           {/* Classrooms Tab */}
           {activeTab === 1 && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
+                </Typography>
+                {/* Branch Selector (Admin Only) - Dropdown */}
+                {role === 'admin' && (
+                  <Box sx={{ mb: 3 }}>
+                    {branches.length > 0 ? (
+                      <FormControl 
+                        size="small" 
+                        sx={{ 
+                          minWidth: 220,
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            color: 'text.secondary'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.9375rem',
+                            fontWeight: 600,
+                            backgroundColor: 'white',
+                            '& .MuiSelect-select': {
+                              py: 1.25,
+                              px: 1.5
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: 'primary.main'
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: 'primary.main',
+                              borderWidth: 2
+                            }
+                          }
+                        }}
+                      >
+                        <InputLabel id="branch-select-label">Select Branch</InputLabel>
+                        <Select
+                          labelId="branch-select-label"
+                          value={selectedBranchId || ''}
+                          label="Select Branch"
+                          onChange={(e) => setSelectedBranchId(e.target.value)}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                mt: 1,
+                                borderRadius: 2,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                '& .MuiMenuItem-root': {
+                                  fontSize: '0.9375rem',
+                                  fontWeight: 500,
+                                  py: 1.25,
+                                  px: 1.5,
+                                  '&:hover': {
+                                    backgroundColor: 'primary.50'
+                                  },
+                                  '&.Mui-selected': {
+                                    backgroundColor: 'primary.100',
+                                    fontWeight: 600,
+                                    '&:hover': {
+                                      backgroundColor: 'primary.100'
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }}
+                        >
+                          {branches.map((branch) => (
+                            <MenuItem key={branch.id} value={branch.id}>
+                              {branch.name || branch.id.toUpperCase()}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                        Loading branches...
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </Box>
               
               {stats.classroomStats.length > 0 ? (
                 <Box>
                   {/* Classroom Comparison Chart */}
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                      {role === 'teacher' ? 'My Classrooms This Week' : 'This Week vs Target'}
+                      {role === 'teacher' ? 'My Classrooms This Week' : 'Notes This Week'}
                     </Typography>
                     <ClassroomComparisonChart />
                   </Box>
-                  
-                  {/* Classroom Details */}
-                  <Grid container spacing={2}>
-                    {stats.classroomStats.map((classroom) => (
-                      <Grid item xs={12} sm={6} key={classroom.id}>
-                        <Card sx={{ 
-                          borderRadius: 2,
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'flex-start' }}>
-                              <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                                {classroom.name}
-                              </Typography>
-                              <Chip 
-                                label={`${classroom.performance.toFixed(1)}%`}
-                                color={isHighPerformer(classroom.performance) ? 'success' : 
-                                       isMediumPerformer(classroom.performance) ? 'warning' : 'error'}
-                                size="small"
-                                sx={{ ml: 1, flexShrink: 0 }}
-                              />
-                            </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                              {classroom.studentCount} students
-                            </Typography>
-                            <Box sx={{ mt: 'auto' }}>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 500 }}>This Week</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {classroom.thisWeekObservations}/{classroom.studentCount * PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK}
-                                </Typography>
-                              </Box>
-                              <LinearProgress 
-                                variant="determinate" 
-                                value={Math.min(classroom.performance, 100)} 
-                                sx={{ height: 8, borderRadius: 4 }}
-                              />
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
                 </Box>
               ) : (
                 <Alert severity="info">

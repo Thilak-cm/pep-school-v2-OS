@@ -117,6 +117,14 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Branches (center metadata)
+    // - Read allowed for signed-in users (used by client UI for branch selection)
+    // - Writes restricted to admins (typically performed via admin scripts)
+    match /branches/{branchId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Temporarily removed default deny to test if it's blocking teacher access
     // match /{document=**} {
     //   allow read, write: if false;
