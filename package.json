@@ -21,7 +21,11 @@
     "seed:coach:programs": "node scripts/admin/seed-coach-programs.js",
     "seed:coach:programs:dry": "node scripts/admin/seed-coach-programs.js --dry-run",
     "sync:coach": "node scripts/admin/sync-coach-programs.js",
-    "sync:coach:dry": "node scripts/admin/sync-coach-programs.js --dry-run"
+    "sync:coach:dry": "node scripts/admin/sync-coach-programs.js --dry-run",
+    "upsert:accel-classrooms": "node scripts/admin/upsert-accel-whitefield-classrooms.js",
+    "upsert:accel-classrooms:dry": "node scripts/admin/upsert-accel-whitefield-classrooms.js --dry-run",
+    "upsert:accel-students": "node scripts/admin/upsert-accel-students.js",
+    "upsert:accel-students:dry": "node scripts/admin/upsert-accel-students.js --dry-run"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

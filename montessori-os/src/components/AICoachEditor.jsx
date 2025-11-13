@@ -343,11 +343,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
                     onClick={() => handleNudgeToggle(nudgeId)}
                     color={isEnabled ? 'success' : 'error'}
                     variant={isEnabled ? 'filled' : 'outlined'}
-                    disabled={saving || !coachEnabled}
+                    disabled={saving}
                     sx={{
                       textDecoration: isEnabled ? 'none' : 'line-through',
                       '&:hover': {
-                        cursor: (saving || !coachEnabled) ? 'not-allowed' : 'pointer'
+                        cursor: (saving) ? 'not-allowed' : 'pointer'
                       }
                     }}
                   />
@@ -365,7 +365,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               onChange={handleMaxReturnNudgesChange}
               slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}
               size="small"
-              disabled={saving || !coachEnabled}
+              disabled={saving}
               sx={{ maxWidth: '120px' }}
             />
           </Box>
@@ -378,7 +378,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               variant="outlined"
               startIcon={<Cancel />}
               onClick={handleCancel}
-              disabled={!hasUnsavedChanges || saving || !coachEnabled}
+              disabled={!hasUnsavedChanges || saving}
               color="error"
               sx={{ textTransform: 'none', minWidth: '100px' }}
             >
@@ -388,7 +388,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               variant="contained"
               startIcon={<Save />}
               onClick={handleSave}
-              disabled={!hasUnsavedChanges || saving || !coachEnabled}
+              disabled={!hasUnsavedChanges || saving}
               sx={{ textTransform: 'none', minWidth: '100px' }}
             >
               Save
@@ -404,7 +404,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setIntroExpanded(!introExpanded)}
-          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Intro</Typography>
@@ -434,7 +433,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setNudgeBlocksExpanded(!nudgeBlocksExpanded)}
-          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Nudge Blocks</Typography>
@@ -482,7 +480,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setFinalPromptExpanded(!finalPromptExpanded)}
-          disabled={!coachEnabled}
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Final Composed Prompt</Typography>
@@ -522,7 +519,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               setCoachError('');
               setCoachResult(null);
             }}
-            disabled={runningCoach || saving || !coachEnabled}
+            disabled={runningCoach || saving}
             sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
           />
           
@@ -542,7 +539,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
                   <Button
                     size="small"
                     onClick={() => setShowRawJson(!showRawJson)}
-                    disabled={!coachEnabled}
                     sx={{ textTransform: 'none' }}
                   >
                     {showRawJson ? 'Hide' : 'View'} Raw JSON

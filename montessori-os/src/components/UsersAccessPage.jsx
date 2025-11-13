@@ -4,7 +4,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
   List, ListItemButton, ListItemAvatar, ListItemText
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight } from '@mui/icons-material';
+import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight, Delete } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -19,7 +19,8 @@ import {
   serverTimestamp,
   writeBatch,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  deleteDoc
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 
@@ -219,6 +220,111 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setInfoMessage(message);
     setInfoOpen(true);
   };
+
+  // Action dialog state (shows Manage Access / Delete options)
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionUser, setActionUser] = useState(null); // { type: 'teacher' | 'admin' | 'student', user: {...} }
+
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'teacher' | 'admin' | 'student', user: {...} }
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
+
+  const openActionDialog = (type, user) => {
+    setActionUser({ type, user });
+    setActionDialogOpen(true);
+  };
+
+  const closeActionDialog = () => {
+    setActionDialogOpen(false);
+    setActionUser(null);
+  };
+
+  const openDeleteConfirm = (type, user) => {
+    setDeleteTarget({ type, user });
+    setDeleteConfirmOpen(true);
+    closeActionDialog();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { type, user } = deleteTarget;
+    
+    // Prevent deleting the current user
+    if (user.id === currentUser?.uid) {
+      notify.error('You cannot delete your own account');
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      return;
+    }
+    
+    try {
+      setDeleteDeleting(true);
+      const batch = writeBatch(db);
+
+      if (type === 'teacher') {
+        // Remove teacher from all classrooms
+        const assignedClassrooms = getTeacherClassroomIds(user.id);
+        assignedClassrooms.forEach(cid => {
+          batch.update(doc(db, 'classrooms', cid), { 
+            teacherIds: arrayRemove(user.id),
+            updatedAt: serverTimestamp()
+          });
+        });
+        // Delete user document
+        batch.delete(doc(db, 'users', user.id));
+        
+        await batch.commit();
+        
+        // Update local state
+        setClassrooms(prev => prev.map(c => ({
+          ...c,
+          teacherIds: (c.teacherIds || []).filter(tid => tid !== user.id)
+        })));
+        setTeachers(prev => prev.filter(t => t.id !== user.id));
+        
+        notify.success('Teacher deleted successfully');
+      } else if (type === 'admin') {
+        // Delete admin user document
+        await deleteDoc(doc(db, 'users', user.id));
+        setAdmins(prev => prev.filter(a => a.id !== user.id));
+        notify.success('Admin deleted successfully');
+      } else if (type === 'student') {
+        // Decrement classroom student count
+        if (user.classroomId) {
+          batch.update(doc(db, 'classrooms', user.classroomId), {
+            studentCount: increment(-1),
+            updatedAt: serverTimestamp()
+          });
+        }
+        // Delete student document
+        batch.delete(doc(db, 'students', user.id));
+        
+        await batch.commit();
+        
+        // Update local state
+        if (user.classroomId) {
+          setClassrooms(prev => prev.map(c => 
+            c.id === user.classroomId 
+              ? { ...c, studentCount: Math.max(0, (c.studentCount || 0) - 1) }
+              : c
+          ));
+        }
+        setStudents(prev => prev.filter(s => s.id !== user.id));
+        
+        notify.success('Student deleted successfully');
+      }
+
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Delete user error', error);
+      notify.error('Failed to delete user: ' + (error.message || 'Unknown error'));
+    } finally {
+      setDeleteDeleting(false);
+    }
+  };
+
   const toggleManageClassroom = (id) => {
     setManageSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
@@ -644,7 +750,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                     const overflow = Math.max(0, assigned.length - 3);
                     return (
                       <React.Fragment key={t.id}>
-                        <ListItemButton onClick={() => openManage(t)} disabled={inactive} alignItems="flex-start" sx={{ py: 1.25 }}>
+                        <ListItemButton onClick={() => openActionDialog('teacher', t)} disabled={inactive} alignItems="flex-start" sx={{ py: 1.25 }}>
                           <ListItemAvatar>
                             <Avatar 
                               src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=ffffff&size=40&format=png`}
@@ -762,7 +868,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                   const initials = (displayName || 'A').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase();
                   return (
                     <React.Fragment key={a.id}>
-                      <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openInfo('Admin')}>
+                      <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openActionDialog('admin', a)}>
                         <ListItemAvatar><Avatar>{initials}</Avatar></ListItemAvatar>
                         <ListItemText
                           primary={<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>}
@@ -834,7 +940,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                     const clsLabel = cls ? (cls.name || cls.id) : (s.classroomId || 'Unknown');
                     return (
                       <React.Fragment key={s.id}>
-                        <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openInfo('Student')}>
+                        <ListItemButton alignItems="flex-start" sx={{ py: 1.25 }} onClick={() => openActionDialog('student', s)}>
                           <ListItemAvatar><Avatar>{initials}</Avatar></ListItemAvatar>
                           <ListItemText
                             primary={<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>}
@@ -955,6 +1061,59 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         )}
       </Box>
 
+      {/* Action dialog (Manage Access / Delete) */}
+      <Dialog open={actionDialogOpen} onClose={closeActionDialog}>
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6">
+            {actionUser?.user && (
+              [actionUser.user.firstName, actionUser.user.lastName].filter(Boolean).join(' ') || 
+              actionUser.user.email || 
+              actionUser.user.displayName || 
+              'User'
+            )}
+          </Typography>
+          {actionUser?.user?.email && (
+            <Typography variant="body2" color="text.secondary">{actionUser.user.email}</Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              startIcon={<ManageAccounts />}
+              onClick={() => {
+                if (actionUser?.user && actionUser.type === 'teacher') {
+                  openManage(actionUser.user);
+                  closeActionDialog();
+                }
+              }}
+              disabled={actionUser?.type !== 'teacher'}
+              sx={{ py: 1.5 }}
+            >
+              Manage Classroom Access
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              fullWidth
+              startIcon={<Delete />}
+              onClick={() => {
+                if (actionUser) {
+                  openDeleteConfirm(actionUser.type, actionUser.user);
+                }
+              }}
+              sx={{ py: 1.5 }}
+            >
+              Delete User
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeActionDialog}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Info dialog for Admin/Student rows */}
       <Dialog open={infoOpen} onClose={() => setInfoOpen(false)}>
         <DialogTitle component="div"><Typography component="h2" variant="h6">{infoTitle}</Typography></DialogTitle>
@@ -972,6 +1131,55 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => confirmContent.onConfirm && confirmContent.onConfirm()}>Confirm</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={() => !deleteDeleting && setDeleteConfirmOpen(false)}>
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6">Delete {deleteTarget?.type === 'teacher' ? 'Teacher' : deleteTarget?.type === 'admin' ? 'Admin' : 'Student'}?</Typography>
+        </DialogTitle>
+        <DialogContent>
+          {deleteTarget?.user && deleteTarget.user.id === currentUser?.uid && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              You cannot delete your own account. Please ask another admin to perform this action.
+            </Alert>
+          )}
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This action cannot be undone. Are you sure you want to delete this user?
+          </Alert>
+          {deleteTarget?.user && (
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Name:</strong> {[deleteTarget.user.firstName, deleteTarget.user.lastName].filter(Boolean).join(' ') || deleteTarget.user.email || deleteTarget.user.displayName || 'Unknown'}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Email:</strong> {deleteTarget.user.email || 'N/A'}
+              </Typography>
+              {deleteTarget.type === 'teacher' && (
+                <Typography variant="body2" color="text.secondary">
+                  This will remove the teacher from all assigned classrooms.
+                </Typography>
+              )}
+              {deleteTarget.type === 'student' && deleteTarget.user.classroomId && (
+                <Typography variant="body2" color="text.secondary">
+                  This will remove the student from their classroom and decrement the student count.
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={deleteDeleting}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={handleDelete} 
+            disabled={deleteDeleting || (deleteTarget?.user?.id === currentUser?.uid)}
+            startIcon={deleteDeleting ? <CircularProgress size={16} /> : <Delete />}
+          >
+            {deleteDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
