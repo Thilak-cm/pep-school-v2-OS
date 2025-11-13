@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.8.0 — 2025-11-13
+
+### Added
+- Student placements history: `students/{id}/placements/{YYYY-MM-DD__classroomId}` with end-date inclusive semantics (IST) and optional note.
+- Firestore security rules for placements: teachers/admins can read; admins only can write with field validation.
+- Backfill script `scripts/admin/backfill-placements.js` to create initial active placements from `students.classroomId`.
+- Graduate Students admin page: multi-select by classroom, search bar, Selected/Unselected filter, sticky action bar, backdrop progress message, and success toasts via `useNotify`.
+
+### Changed
+- Navigation: moved “Graduate Students” entry under Users & Access; added screen header title and hid Add Note FAB on this screen.
+- Documentation: updated DATA_STRUCTURE.md with Placements section and invariants.
+
 ## 4.7.0 — 2025-01-30
 
 ### Added
