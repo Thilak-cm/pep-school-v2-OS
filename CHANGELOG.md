@@ -1,5 +1,40 @@
 # Changelog
 
+## 4.7.0 — 2025-01-30
+
+### Added
+- Branch selector dropdown in Classroom tab (admin only) for filtering classroom statistics by branch
+- Firestore security rules for branches collection (read access for signed-in users, write access for admins)
+- Enhanced tooltip in histogram showing percentage and target numbers (e.g., "30.6% of target (30/98)")
+
+### Changed
+- Classroom tab now filters classrooms by branch using branches collection's classrooms array
+- Histogram displays only "This Week" bars (removed Target bars for cleaner visualization)
+- Improved dropdown typography and styling for better UX and readability
+- Branch filtering uses branch document's classrooms array instead of classroom.branchId field
+
+### Removed
+- Individual classroom detail cards from Classroom tab (kept only histogram for cleaner interface)
+- Target column from histogram chart
+
+### Improved
+- Branch selector visibility and accessibility for admin users
+- Histogram tooltip provides more context with both percentage and actual numbers
+- Cleaner Classroom tab interface focused on histogram visualization
+- Better branch filtering logic that handles both full paths and IDs from branch documents
+
+### Technical
+- Added branches collection fetching in StatsPage useEffect hook
+- Implemented branch-based filtering in ClassroomComparisonChart component
+- Updated Firestore rules to allow authenticated users to read branches collection
+- Enhanced dropdown styling with proper font sizes, weights, and hover states
+
+### Result
+- Admins can now filter classroom statistics by branch, showing focused histograms per branch
+- Teachers see all their accessible classrooms without branch filtering (maintains existing behavior)
+- Cleaner, more focused Classroom tab with histogram-only view
+- Better data visualization with improved tooltip information
+
 ## 4.6.1 — 2025-01-30
 
 ### Added
