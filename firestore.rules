@@ -44,6 +44,51 @@ service cloud.firestore {
       allow read: if isAdmin() || isTeacher();
       allow create, update, delete: if isAdmin();
 
+      // Placements subcollection: classroom history per student
+      // - Reads: admins and teachers
+      // - Writes: admins only (with validation on create/update)
+      match /placements/{placementId} {
+        allow read: if isAdmin() || isTeacher();
+
+        // Create validation
+        allow create: if isAdmin() &&
+          request.resource.data.keys().hasAll(['classroomId','startDate']) &&
+          (request.resource.data.classroomId is string) &&
+          (request.resource.data.startDate is string &&
+           request.resource.data.startDate.matches('^\\d{4}-\\d{2}-\\d{2}$')) &&
+          (
+            // endDate optional; if present, must be a date string
+            !('endDate' in request.resource.data) ||
+            request.resource.data.endDate == null ||
+            (request.resource.data.endDate is string &&
+             request.resource.data.endDate.matches('^\\d{4}-\\d{2}-\\d{2}$'))
+          ) &&
+          (
+            // If endDate present, ensure startDate <= endDate (YYYY-MM-DD lexicographic)
+            !(request.resource.data.endDate is string) ||
+            request.resource.data.startDate <= request.resource.data.endDate
+          );
+
+        // Update validation: keep startDate and classroomId immutable; validate endDate shape
+        allow update: if isAdmin() &&
+          request.resource.data.startDate == resource.data.startDate &&
+          request.resource.data.classroomId == resource.data.classroomId &&
+          (request.resource.data.classroomId is string) &&
+          (
+            !('endDate' in request.resource.data) ||
+            request.resource.data.endDate == null ||
+            (request.resource.data.endDate is string &&
+             request.resource.data.endDate.matches('^\\d{4}-\\d{2}-\\d{2}$'))
+          ) &&
+          (
+            !(request.resource.data.endDate is string) ||
+            request.resource.data.startDate <= request.resource.data.endDate
+          );
+
+        // Admins can delete placement docs (e.g., to fix bad backfills)
+        allow delete: if isAdmin();
+      }
+
       // Observations subcollection - simplified access
       match /observations/{observationId} {
         // Allow reading observations for both admins and teachers

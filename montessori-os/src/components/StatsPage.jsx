@@ -103,6 +103,7 @@ const StatsPage = ({ user, role, onBack }) => {
   const [teacherOnlyNoClassrooms, setTeacherOnlyNoClassrooms] = useState(false);
   const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
   const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
+  const [teachersToShow, setTeachersToShow] = useState(5); // Pagination: show 5 initially
   
   // Branch filter state (admin only)
   const [branches, setBranches] = useState([]);
@@ -704,6 +705,11 @@ const StatsPage = ({ user, role, onBack }) => {
       getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
     );
   }, [sortedTeacherStats, teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds, teacherToClassroomIds]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setTeachersToShow(5);
+  }, [teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds]);
 
   const hasActiveFilters = () => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
@@ -1760,7 +1766,7 @@ const StatsPage = ({ user, role, onBack }) => {
                   </Box>
                   {/* Teacher List (14-day activity) */}
                   <Box sx={{ mb: 3 }}>
-                    {filteredTeacherStats.map((teacher) => (
+                    {filteredTeacherStats.slice(0, teachersToShow).map((teacher) => (
                       <Box
                         key={teacher.id}
                         sx={{
@@ -1794,6 +1800,30 @@ const StatsPage = ({ user, role, onBack }) => {
                         </Box>
                       </Box>
                     ))}
+                    {/* Show "View 5 more teachers" button if there are more teachers to show */}
+                    {filteredTeacherStats.length > teachersToShow && (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                        <Button
+                          variant="outlined"
+                          onClick={() => setTeachersToShow(prev => prev + 5)}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            px: 3,
+                            py: 1,
+                            borderRadius: 2,
+                            borderColor: 'primary.main',
+                            color: 'primary.main',
+                            '&:hover': {
+                              borderColor: 'primary.dark',
+                              backgroundColor: 'primary.50'
+                            }
+                          }}
+                        >
+                          View 5 more teachers
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
                   {/* Classroom Filter dialog */}
                   <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>

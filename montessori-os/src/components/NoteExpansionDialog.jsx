@@ -25,7 +25,8 @@ import {
   SwapHoriz, 
   Close, 
   Mic,
-  Visibility
+  Visibility,
+  School
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -70,6 +71,9 @@ function NoteExpansionDialog({
   const [reassigning, setReassigning] = useState(false);
   const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
   const [reassignToStudentName, setReassignToStudentName] = useState('');
+  
+  // Previous classroom info (when note was logged from a different classroom)
+  const [previousClassroomName, setPreviousClassroomName] = useState(null);
 
   // Reset states when dialog opens/closes
   React.useEffect(() => {
@@ -78,6 +82,56 @@ function NoteExpansionDialog({
       setEditing(false);
     }
   }, [open, observation]);
+
+  // Check if note was logged from a previous classroom and fetch classroom name
+  React.useEffect(() => {
+    const checkPreviousClassroom = async () => {
+      if (!observation || !student || !open) {
+        setPreviousClassroomName(null);
+        return;
+      }
+
+      // Get classroom IDs (handle different formats)
+      const noteClassroomId = observation.classroomId;
+      const studentClassroomId = student.classroomId;
+
+      // Normalize classroom IDs (handle string paths)
+      const normalizeId = (id) => {
+        if (!id) return null;
+        if (typeof id === 'string') {
+          return id.includes('/') ? id.split('/').pop() : id;
+        }
+        if (typeof id === 'object' && id.id) {
+          return id.id;
+        }
+        return id;
+      };
+
+      const normalizedNoteClassroomId = normalizeId(noteClassroomId);
+      const normalizedStudentClassroomId = normalizeId(studentClassroomId);
+
+      // If classroomIds don't match, fetch the previous classroom name
+      if (normalizedNoteClassroomId && normalizedStudentClassroomId && 
+          normalizedNoteClassroomId !== normalizedStudentClassroomId) {
+        try {
+          const classroomDoc = await getDoc(doc(db, 'classrooms', normalizedNoteClassroomId));
+          if (classroomDoc.exists()) {
+            const classroomData = classroomDoc.data();
+            setPreviousClassroomName(classroomData.name || normalizedNoteClassroomId);
+          } else {
+            setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID if doc doesn't exist
+          }
+        } catch (error) {
+          console.error('Error fetching previous classroom:', error);
+          setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID on error
+        }
+      } else {
+        setPreviousClassroomName(null);
+      }
+    };
+
+    checkPreviousClassroom();
+  }, [observation, student, open]);
 
   const handleCloseDialog = () => {
     onClose();
@@ -423,6 +477,24 @@ function NoteExpansionDialog({
                 </Button>
               )}
             </Box>
+
+            {/* Show previous classroom info if note was logged from a different classroom */}
+            {previousClassroomName && (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                p: 1.5,
+                backgroundColor: '#fef3c7',
+                borderRadius: 1,
+                border: '1px solid #fde68a'
+              }}>
+                <School sx={{ fontSize: 16, color: '#d97706' }} />
+                <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic' }}>
+                  Note logged when {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'this student'} was in {previousClassroomName}
+                </Typography>
+              </Box>
+            )}
 
             {/* View Student Timeline Button - Only show in classroom context */}
             {isClassroomContext && onNavigateToStudent && student && (

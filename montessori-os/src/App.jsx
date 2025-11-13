@@ -15,6 +15,7 @@ import StudentDashboard from "./components/StudentDashboard";
 import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
+import GraduateStudentsPage from "./components/GraduateStudentsPage.jsx";
 import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
@@ -40,7 +41,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -238,6 +239,7 @@ function App() {
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
+  else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -245,6 +247,8 @@ function App() {
     
     switch (screen) {
       case 'classroomList':
+        return () => setScreen('landingPage');
+      case 'graduateStudents':
         return () => setScreen('landingPage');
       case 'classroomTimeline':
         return () => setScreen('classroomList');
@@ -552,6 +556,10 @@ function App() {
                     />
                   )}
 
+                  {screen === 'graduateStudents' && (
+                    <GraduateStudentsPage currentUser={user} userRole={role} />
+                  )}
+
                   {screen === 'feedback' && (
                     <FeedbackPage
                       currentUser={user}
@@ -571,6 +579,7 @@ function App() {
                       userRole={role}
                       view={usersAccessView}
                       onViewChange={setUsersAccessView}
+                      onNavigateGraduate={() => setScreen('graduateStudents')}
                     />
                   )}
 
@@ -614,7 +623,7 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && (
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

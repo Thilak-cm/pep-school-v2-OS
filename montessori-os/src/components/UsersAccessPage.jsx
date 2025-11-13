@@ -71,7 +71,7 @@ const TAB_SX = {
 // COMPONENT
 // ============================================================================
 
-const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, onViewChange }) => {
+const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, onViewChange, onNavigateGraduate }) => {
   const notify = useNotify();
 
   // Page IA: cards home, add users, manage users
@@ -857,7 +857,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       <Avatar sx={{ bgcolor: '#059669', width: 56, height: 56 }}><ManageAccounts /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Manage Users</Typography>
-                        <Typography variant="body2" color="text.secondary">Update teacher classroom access</Typography>
+                        <Typography variant="body2" color="text.secondary">Update teacher, admin, or student info</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+            <Grid item xs={12}>
+              <Card sx={{ borderRadius: 2 }}>
+                <CardActionArea onClick={() => onNavigateGraduate && onNavigateGraduate()} sx={{ p: 0 }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{ bgcolor: '#10b981', width: 56, height: 56 }}><School /></Avatar>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>Graduate Students</Typography>
+                        <Typography variant="body2" color="text.secondary">Move selected students to a new classroom with history</Typography>
                       </Box>
                     </Box>
                   </CardContent>

@@ -180,6 +180,67 @@ ID uniqueness note
 
 ---
 
+## 📦 Placements (history) (`/students/{studentId}/placements/{placementId}`)
+Purpose: Keep an append-only history of which classroom a student belonged to over time, while `students/{id}.classroomId` remains the canonical current classroom.
+
+Key points
+- One active placement at a time (the doc with `endDate == null`).
+- End-date inclusive semantics. The next placement starts on `previous.endDate + 1 day` (IST calendar day boundaries at 00:00 IST).
+- Deterministic placementId naming for readability and idempotency: `YYYY-MM-DD__<classroomId>` where the date is the placement `startDate`.
+
+Schema
+```typescript
+interface PlacementDoc {
+  classroomId: string;        // classroom ID at the time
+  startDate: string;          // 'YYYY-MM-DD' (IST), inclusive
+  endDate: string | null;     // 'YYYY-MM-DD' (IST), inclusive; null = ongoing
+  note?: string;              // optional free-text reason/comment
+
+  // Optional convenience (not required by rules; keep if helpful)
+  status?: 'active' | 'ended';
+  createdAt?: Timestamp;      // server time (if set by scripts)
+  createdByUid?: string;      // uid who created the doc
+  updatedAt?: Timestamp;      // server time (if set by scripts)
+}
+```
+
+Placement ID
+- `placementId = ${startDate}__${classroomId}` (e.g., `2020-01-01__parijat`).
+- Example graduation (Parijat → Periwinkle for Devisha):
+  - Before: students/devishaYadav.classroomId = `parijat`
+  - placements/`2020-01-01__parijat`: `{ startDate: '2020-01-01', endDate: null }`
+  - Graduate with last day in Parijat: `2025-06-09`
+    - Update placements/`2020-01-01__parijat`.endDate = `2025-06-09`
+    - Create placements/`2025-06-10__periwinkle` with `{ startDate: '2025-06-10', endDate: null }`
+    - Update students/devishaYadav.classroomId = `periwinkle`
+
+Graduation write (per student, single transaction/batch)
+- Inputs: `effectiveLastDay` (YYYY-MM-DD IST), `toClassroomId`, optional `note`.
+- Steps:
+  - Close current active placement: set `endDate = effectiveLastDay`.
+  - Create new placement: `startDate = addOneDay(effectiveLastDay)`, `endDate = null`, `note` if provided.
+  - Update `students/{id}.classroomId = toClassroomId`.
+
+Invariants (client-enforced)
+- Exactly one placement with `endDate == null` per student.
+- No overlaps; new.startDate = prev.endDate + 1 day (IST).
+- If `endDate` present, `startDate <= endDate`.
+
+Query notes
+- Current classroom: read from `students/{id}.classroomId`.
+- History UI: list `/students/{id}/placements` ordered by `startDate` descending.
+
+Indexes (optional, future)
+- Collection group `placements`: composite on `classroomId ASC, startDate DESC` for classroom history.
+- If needed: `classroomId ASC, endDate ASC` to find students active on a given day.
+
+Backfill (one-time)
+- For each student that has a `classroomId` and no placements:
+  - Create placements/`2020-01-01__<classroomId>` with `{ startDate: '2020-01-01', endDate: null }`.
+  - Do NOT add `currentPlacement` to the student; `classroomId` remains the source of truth for current.
+
+---
+
 ## 📝 Observations (`/students/{studentId}/observations/{observationId}`)
 Collection group name: `observations`
 ```typescript

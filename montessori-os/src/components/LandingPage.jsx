@@ -263,6 +263,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
               </Card>
             </Grid>
 
+
             {/* AI Home */}
             <Grid size={12}>
               <Card

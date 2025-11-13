@@ -50,6 +50,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef(null);
+  const unsubscribeRef = useRef(null);
 
   useEffect(() => {
     if (showSearch && searchInputRef.current) {
@@ -68,13 +69,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     
     setLoading(true);
     
+    // Shared students query for both fetching students and notes
+    const studentsQuery = query(
+      collection(db, 'students'),
+      where('classroomId', '==', classroom.id)
+    );
+    
     // Fetch classroom students
     const fetchStudents = async () => {
       try {
-        const studentsQuery = query(
-          collection(db, 'students'),
-          where('classroomId', '==', classroom.id)
-        );
         const studentsSnap = await getDocs(studentsQuery);
         const students = studentsSnap.docs.map(doc => ({
           id: doc.id,
@@ -82,8 +85,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
         }));
         setClassroomStudents(students);
         setStudentCount(students.length);
+        return students;
       } catch (err) {
         console.error('Error fetching classroom students:', err);
+        return [];
       }
     };
 
@@ -107,28 +112,99 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
       }
     };
 
-    // Fetch classroom notes using collection group query
-    const fetchNotes = async () => {
+    // Fetch classroom notes by studentId (not classroomId) to include notes from previous classrooms
+    const fetchNotes = async (studentIds) => {
       try {
-        // Use collectionGroup to query across all student observation subcollections
-        const notesQuery = query(
-          collectionGroup(db, 'observations'),
-          where('classroomId', '==', classroom.id),
-          orderBy('observedAt', 'desc')
-        );
+        if (!studentIds || studentIds.length === 0) {
+          setClassroomNotes([]);
+          setLoading(false);
+          return;
+        }
+
+        // Query notes for all students in the classroom
+        // Firestore 'in' queries support up to 10 items, so we need to batch if more
+        const batchSize = 10;
+        const noteQueries = [];
         
-        const unsubscribe = onSnapshot(notesQuery, (snapshot) => {
-          const notes = snapshot.docs.map(doc => ({
-            id: doc.id,
-            parentStudentId: doc.ref.parent?.parent?.id,
-            docPath: doc.ref.path,
-            ...doc.data()
-          }));
-          setClassroomNotes(notes);
-          setLoading(false);
+        for (let i = 0; i < studentIds.length; i += batchSize) {
+          const batch = studentIds.slice(i, i + batchSize);
+          noteQueries.push(
+            query(
+              collectionGroup(db, 'observations'),
+              where('studentId', 'in', batch),
+              orderBy('observedAt', 'desc')
+            )
+          );
+        }
+
+        // Execute all queries and combine results
+        const allSnapshots = await Promise.all(noteQueries.map(q => getDocs(q)));
+        const allNotes = [];
+        allSnapshots.forEach(snapshot => {
+          snapshot.docs.forEach(doc => {
+            allNotes.push({
+              id: doc.id,
+              parentStudentId: doc.ref.parent?.parent?.id,
+              docPath: doc.ref.path,
+              ...doc.data()
+            });
+          });
+        });
+
+        // Sort by observedAt descending (since we combined multiple queries)
+        allNotes.sort((a, b) => {
+          const aDate = a.observedAt?.toDate?.() || a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0);
+          const bDate = b.observedAt?.toDate?.() || b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0);
+          return bDate - aDate;
+        });
+
+        setClassroomNotes(allNotes);
+        setLoading(false);
+
+        // Set up listener for real-time updates
+        // Listen to students query changes and re-fetch notes when students change
+        const unsubscribe = onSnapshot(studentsQuery, async (snapshot) => {
+          const updatedStudentIds = snapshot.docs.map(doc => doc.id);
+          
+          if (updatedStudentIds.length === 0) {
+            setClassroomNotes([]);
+            return;
+          }
+
+          const updatedNoteQueries = [];
+          for (let i = 0; i < updatedStudentIds.length; i += batchSize) {
+            const batch = updatedStudentIds.slice(i, i + batchSize);
+            updatedNoteQueries.push(
+              query(
+                collectionGroup(db, 'observations'),
+                where('studentId', 'in', batch),
+                orderBy('observedAt', 'desc')
+              )
+            );
+          }
+
+          const updatedSnapshots = await Promise.all(updatedNoteQueries.map(q => getDocs(q)));
+          const updatedNotes = [];
+          updatedSnapshots.forEach(snapshot => {
+            snapshot.docs.forEach(doc => {
+              updatedNotes.push({
+                id: doc.id,
+                parentStudentId: doc.ref.parent?.parent?.id,
+                docPath: doc.ref.path,
+                ...doc.data()
+              });
+            });
+          });
+
+          updatedNotes.sort((a, b) => {
+            const aDate = a.observedAt?.toDate?.() || a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0);
+            const bDate = b.observedAt?.toDate?.() || b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0);
+            return bDate - aDate;
+          });
+
+          setClassroomNotes(updatedNotes);
         }, (err) => {
-          console.error('Error fetching classroom notes:', err);
-          setLoading(false);
+          console.error('Error in notes listener:', err);
         });
 
         return unsubscribe;
@@ -138,9 +214,27 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
       }
     };
 
-    fetchStudents();
-    fetchTeachers();
-    fetchNotes();
+    // Fetch data sequentially: students first, then notes (to avoid duplicate queries)
+    (async () => {
+      // Clean up any existing listener
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      
+      const students = await fetchStudents();
+      const studentIds = students.map(s => s.id);
+      unsubscribeRef.current = await fetchNotes(studentIds);
+      fetchTeachers(); // Teachers can load in parallel
+    })();
+
+    // Cleanup function
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [classroom]);
 
   const handleTabChange = (event, newValue) => {

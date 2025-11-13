@@ -88,14 +88,42 @@ function StudentList({ classroom, onSelectStudent }) {
         const studentsList = studentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setStudents(studentsList);
 
-        // Fetch classroom observations using collection group query
-        const observationsQuery = query(
-          collectionGroup(db, 'observations'),
-          where('classroomId', '==', classroom.id)
-        );
-        const observationsSnap = await getDocs(observationsQuery);
-        const observationsList = observationsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setClassroomObservations(observationsList);
+        // Fetch observations by studentId (not classroomId) to include notes from previous classrooms
+        const studentIds = studentsList.map(s => s.id);
+        
+        if (studentIds.length === 0) {
+          setClassroomObservations([]);
+          setLoading(false);
+          return;
+        }
+
+        // Firestore 'in' queries support up to 10 items, so we need to batch if more
+        const batchSize = 10;
+        const observationQueries = [];
+        
+        for (let i = 0; i < studentIds.length; i += batchSize) {
+          const batch = studentIds.slice(i, i + batchSize);
+          observationQueries.push(
+            query(
+              collectionGroup(db, 'observations'),
+              where('studentId', 'in', batch)
+            )
+          );
+        }
+
+        // Execute all queries and combine results
+        const allSnapshots = await Promise.all(observationQueries.map(q => getDocs(q)));
+        const allObservations = [];
+        allSnapshots.forEach(snapshot => {
+          snapshot.docs.forEach(doc => {
+            allObservations.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+        });
+
+        setClassroomObservations(allObservations);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
