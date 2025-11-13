@@ -48,6 +48,10 @@ interface BranchDoc {
   color?: string;                // e.g., '#4f46e5'
   timezone?: string;            // IANA, e.g., 'Asia/Kolkata'
 
+  // Classrooms
+  classrooms?: string[];         // array of classroom document IDs belonging to this branch
+                                 // e.g., ['adolescent', 'allstars', 'amazing'] for 'hsr'
+
   // Optional toggles / metadata
   featureFlags?: string[];
 
