@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.6.1 — 2025-01-30
+
+### Added
+- Delete user functionality for teachers, admins, and students in Users & Access page
+- Action dialog that appears when clicking on any user row with two action buttons:
+  - "Manage Classroom Access" (enabled for teachers only, opens existing manage dialog)
+  - "Delete User" (available for all user types)
+- Delete confirmation dialog with:
+  - Warning message about irreversible action
+  - User details display (name, email)
+  - Context-specific warnings (classroom removal, student count impact)
+  - Protection to prevent deleting current logged-in user
+- Proper cleanup logic for user deletion:
+  - Teachers: Remove from all assigned classrooms' teacherIds arrays
+  - Students: Decrement classroom studentCount atomically using `increment(-1)`
+  - Admins: Delete user document from Firestore
+
+### Changed
+- Removed three-dot menu buttons from user list items
+- Replaced menu-based approach with cleaner click-to-action flow
+- User rows now open action dialog on click instead of directly opening manage/info dialogs
+
+### Improved
+- Better user experience with immediate access to both manage and delete operations
+- Optimistic local state updates after successful deletions
+- Comprehensive error handling and success notifications
+- Cleaner UI without menu clutter
+
 ## 4.6.0 — 2025-01-30
 
 Coach nudge UI/UX improvements and validation enhancements.

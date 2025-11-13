@@ -29,7 +29,6 @@ import {
   CircularProgress, 
   Card
 } from "@mui/material";
-import VersionBadge from "./components/VersionBadge";
 import AccessDenied from './AccessDenied';
 import AddNoteFab from './components/AddNoteFab';
 import AddNoteModal from './components/AddNoteModal';
@@ -351,7 +350,6 @@ function App() {
                   Loading...
                 </Typography>
               </Box>
-              <VersionBadge userRole={role} />
             </Box>
           )}
 
@@ -420,7 +418,6 @@ function App() {
                 </Typography>
                 <SignIn />
               </Card>
-              <VersionBadge userRole={role} />
             </Box>
           )}
 
@@ -627,7 +624,6 @@ function App() {
                 currentUser={user}
                 userRole={role}
               />
-              <VersionBadge userRole={role} />
               <UpdateNotification />
             </>
           )}
