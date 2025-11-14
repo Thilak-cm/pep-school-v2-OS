@@ -31,16 +31,9 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
           color: 'black',
           fontWeight: 600
         }}>
-          {isTeacher 
-            ? 'Welcome back!'
-            : (
-              <>
-                {`Hey ${currentUser.displayName},`}
-                <br />
-                {`Welcome to Pep School V2 OS!`}
-              </>
-            )
-          }
+          {`Hey ${currentUser.displayName},`}
+          <br />
+          {`Welcome to Pep School V2 OS!`}
         </Typography>
       </Box>
 
