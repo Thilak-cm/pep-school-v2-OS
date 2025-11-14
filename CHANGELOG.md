@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.8.1 — 2025-11-13
+
+### Added
+- Greyed-out 'Lesson Note' option in Add Note modal with MenuBook icon (coming soon feature)
+- Migration script `scripts/admin/remove-appversion-from-feedback.js` to remove `appVersion` field from existing feedback documents
+
+### Changed
+- Removed "What type of note do you want to add?" heading from Add Note modal for cleaner UI
+- Removed `appVersion` field from feedback creation in FeedbackPage component
+
+### Technical
+- Migration script successfully removed `appVersion` from 24 existing feedback documents
+- Script supports `--dry-run` flag for safe preview before execution
+
 ## 4.8.0 — 2025-11-13
 
 ### Added
