@@ -962,16 +962,20 @@ function AddNoteModal({
                   width: '100%',
                   cursor: 'not-allowed',
                   backgroundColor: '#f8fafc',
-                  opacity: 0.6
                 }}
                 aria-label="Add lesson note (coming soon)"
               >
-                <MenuBook sx={{ fontSize: 32, color: '#94a3b8' }} />
-                <Box>
-                  <Typography variant="body1" sx={{ color: '#94a3b8' }}>
-                    Lesson Note
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                <MenuBook sx={{ fontSize: 32, color: '#94a3b8', opacity: 0.6 }} />
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Typography variant="body1" sx={{ color: '#94a3b8', opacity: 0.6 }}>
+                      Lesson Note
+                    </Typography>
+                    <Box sx={{ opacity: 1 }}>
+                      <NewFeaturePill label="Coming Soon" size="sm" />
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', opacity: 0.6 }}>
                     Structured lesson observation
                   </Typography>
                 </Box>
