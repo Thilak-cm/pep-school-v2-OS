@@ -102,7 +102,6 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
         category: category || null,
         
         timestamp: serverTimestamp(),
-        appVersion: '2.1.2', // TODO: Get from package.json or env
         userAgent: navigator.userAgent,
         
         status: 'new',

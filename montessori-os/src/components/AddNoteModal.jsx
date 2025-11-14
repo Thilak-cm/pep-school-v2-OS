@@ -16,7 +16,8 @@ import {
   KeyboardVoice,
   TextFields,
   AutoFixHigh,
-  ArrowBack
+  ArrowBack,
+  MenuBook
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
@@ -878,9 +879,6 @@ function AddNoteModal({
               minHeight: 'fit-content'
             }}
           >
-            <Typography variant="h6" sx={{ mb: 1, mt: 0 }}>
-              What type of note do you want to add?
-            </Typography>
             <Box
               sx={{
                 display: 'flex',
@@ -949,6 +947,32 @@ function AddNoteModal({
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Record audio note
+                  </Typography>
+                </Box>
+              </Box>
+              {/* Lesson Note (disabled/greyed out) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 2,
+                  p: 2,
+                  width: '100%',
+                  cursor: 'not-allowed',
+                  backgroundColor: '#f8fafc',
+                  opacity: 0.6
+                }}
+                aria-label="Add lesson note (coming soon)"
+              >
+                <MenuBook sx={{ fontSize: 32, color: '#94a3b8' }} />
+                <Box>
+                  <Typography variant="body1" sx={{ color: '#94a3b8' }}>
+                    Lesson Note
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                    Structured lesson observation
                   </Typography>
                 </Box>
               </Box>
