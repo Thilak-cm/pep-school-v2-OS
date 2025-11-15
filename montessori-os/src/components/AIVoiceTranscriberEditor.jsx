@@ -8,6 +8,7 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firest
 import { db } from '../firebase';
 import { forceRefreshKey } from '../services/promptProvider';
 import { WHISPER_MODEL_INFO } from '../whisperSTT';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 const MAX_HISTORY = 5;
 
@@ -25,7 +26,15 @@ const SectionCard = ({ title, subtitle, children }) => (
 );
 
 export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
-  const isAdmin = userRole === 'admin';
+  const isAdmin = isSuperAdmin(userRole);
+
+  if (!isAdmin) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
+      </Box>
+    );
+  }
 
   // Voice Transcriber state
   const [loading, setLoading] = useState(true);
@@ -243,4 +252,3 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
     </Box>
   );
 }
-

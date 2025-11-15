@@ -40,6 +40,7 @@ import {
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchFeedback } from '../utils/fuzzySearch';
+import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
 
 const FEEDBACK_CATEGORIES = [
   { value: 'bug', label: 'Bug Report', icon: <BugReport /> },
@@ -56,7 +57,7 @@ const STATUS_OPTIONS = [
   { value: 'declined', label: 'Declined', color: 'error' }
 ];
 
-function FeedbackTimeline() {
+function FeedbackTimeline({ currentUser, userRole }) {
   const [allFeedback, setAllFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
@@ -65,6 +66,8 @@ function FeedbackTimeline() {
   const [adminNotes, setAdminNotes] = useState('');
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const canView = isAdminRole(userRole);
+  const canEdit = isSuperAdmin(userRole);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +77,10 @@ function FeedbackTimeline() {
 
   // Load all feedback
   useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return undefined;
+    }
     const q = query(
       collection(db, 'feedback'),
       orderBy('timestamp', 'desc')
@@ -136,20 +143,21 @@ function FeedbackTimeline() {
   };
 
   const handleEditClick = () => {
+    if (!canEdit) return;
     setEditing(true);
   };
 
   const handleSave = async () => {
-    if (!selectedFeedback) return;
+    if (!selectedFeedback || !canEdit) return;
 
     try {
       setSaving(true);
-      
+
       const updateData = {
         status: status,
         adminNotes: adminNotes.trim(),
         updatedAt: serverTimestamp(),
-        lastReviewedBy: 'admin', // TODO: Get actual admin user
+        lastReviewedBy: currentUser?.uid || 'unknown',
         lastReviewedAt: serverTimestamp()
       };
 
@@ -198,6 +206,14 @@ function FeedbackTimeline() {
   };
 
   const hasActiveFilters = searchQuery || categoryFilter || statusFilter || userFilter;
+
+  if (!canView) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="error">Access denied. Admin access required.</Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pb: 8 }}>
@@ -583,7 +599,7 @@ function FeedbackTimeline() {
             </DialogContent>
             
             <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-              {editing ? (
+              {editing && canEdit ? (
                 <>
                   <Button 
                     onClick={handleCancel} 
@@ -606,14 +622,16 @@ function FeedbackTimeline() {
                 </>
               ) : (
                 <>
-                  <Button 
-                    onClick={handleEditClick} 
-                    variant="outlined" 
-                    startIcon={<Edit />}
-                    sx={{ flex: 1 }}
-                  >
-                    Edit Status & Notes
-                  </Button>
+                  {canEdit && (
+                    <Button 
+                      onClick={handleEditClick} 
+                      variant="outlined" 
+                      startIcon={<Edit />}
+                      sx={{ flex: 1 }}
+                    >
+                      Edit Status & Notes
+                    </Button>
+                  )}
                   <Button 
                     onClick={handleCloseDialog} 
                     variant="contained" 

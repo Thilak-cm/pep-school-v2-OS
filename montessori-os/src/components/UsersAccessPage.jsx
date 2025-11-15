@@ -67,6 +67,13 @@ const TAB_SX = {
   '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' }
 };
 
+const PROGRAM_OPTIONS = [
+  { id: 'toddler', label: 'Toddler' },
+  { id: 'primary', label: 'Primary' },
+  { id: 'elementary', label: 'Elementary' },
+  { id: 'adolescent', label: 'Adolescent' },
+];
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -80,6 +87,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
 
   // Role selection for Add tab
   const [role, setRole] = useState('teacher');
+  const [selectedPrograms, setSelectedPrograms] = useState([]);
 
   // Admin/Teacher form (Add tab)
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '' });
@@ -115,9 +123,19 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [userLoading, setUserLoading] = useState(true);
+  const [programDialogOpen, setProgramDialogOpen] = useState(false);
+  const [programDialogTarget, setProgramDialogTarget] = useState(null);
+  const [programDialogSelection, setProgramDialogSelection] = useState([]);
+  const [programDialogSaving, setProgramDialogSaving] = useState(false);
+  const [programDialogError, setProgramDialogError] = useState('');
 
   // Callables
   const createAuthUserAndProfile = httpsCallable(cloudFunctions, 'createAuthUserAndProfile');
+
+  const isSuperAdminUser = userRole === 'superadmin';
+  const isProgramAdminUser = userRole === 'admin';
+  const hasUserManagementAccess = isSuperAdminUser || isProgramAdminUser;
+  const canManageAdmins = isSuperAdminUser;
 
   // Sync external view prop with internal state
   useEffect(() => {
@@ -128,24 +146,42 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
 
   // Admin gate + classrooms
   useEffect(() => {
-    if (userRole !== 'admin') {
+    if (!hasUserManagementAccess) {
       setError('Access denied. Only admins can access this page.');
       setUserLoading(false);
       return;
     }
     setUserLoading(false);
     fetchClassrooms();
-  }, [userRole]);
+  }, [hasUserManagementAccess]);
+
+  useEffect(() => {
+    if (!canManageAdmins && manageTab === 'admins') {
+      setManageTab('teachers');
+    }
+  }, [canManageAdmins, manageTab]);
+
+  useEffect(() => {
+    if (!canManageAdmins && role === 'admin') {
+      setRole('teacher');
+    }
+  }, [canManageAdmins, role]);
+
+  useEffect(() => {
+    if (role !== 'admin' && selectedPrograms.length > 0) {
+      setSelectedPrograms([]);
+    }
+  }, [role, selectedPrograms.length]);
 
   // Lazily fetch data when entering Manage view
   useEffect(() => {
-    if (userRole !== 'admin') return;
+    if (!hasUserManagementAccess) return;
     if (view === 'manage') {
       if (manageTab === 'teachers' && teachers.length === 0) fetchTeachers();
-      if (manageTab === 'admins' && admins.length === 0) fetchAdmins();
+      if (manageTab === 'admins' && canManageAdmins && admins.length === 0) fetchAdmins();
       if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
-  }, [view, manageTab, userRole]);
+  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, students.length]);
 
   // ============================================================================
   // DATA FETCHING
@@ -245,6 +281,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       }
       if (!userForm.firstName) errors.firstName = 'First name is required';
       if (role === 'teacher' && selectedClassrooms.length === 0) errors.classrooms = 'Select at least one classroom';
+      if (role === 'admin' && selectedPrograms.length === 0) errors.programs = 'Select at least one program';
     } else {
       if (!studentForm.firstName) errors.stuFirstName = 'First name is required';
       if (!studentForm.classroomId) errors.classroomId = 'Select a classroom';
@@ -301,6 +338,21 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const closeActionDialog = () => {
     setActionDialogOpen(false);
     setActionUser(null);
+  };
+
+  const openProgramDialog = (adminUser) => {
+    setProgramDialogTarget(adminUser);
+    setProgramDialogSelection(Array.isArray(adminUser?.manageablePrograms) ? adminUser.manageablePrograms : []);
+    setProgramDialogError('');
+    setProgramDialogOpen(true);
+  };
+
+  const closeProgramDialog = () => {
+    if (programDialogSaving) return;
+    setProgramDialogOpen(false);
+    setProgramDialogTarget(null);
+    setProgramDialogSelection([]);
+    setProgramDialogError('');
   };
 
   const openDeleteConfirm = (type, user) => {
@@ -503,6 +555,20 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     }
   };
 
+  const handleProgramToggle = (id) => {
+    setSelectedPrograms(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    if (validationErrors.programs) {
+      setValidationErrors(prev => ({ ...prev, programs: '' }));
+    }
+  };
+
+  const handleProgramDialogToggle = (id) => {
+    setProgramDialogSelection(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    if (programDialogError) {
+      setProgramDialogError('');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
@@ -526,6 +592,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   };
 
   const handleUserSubmit = async () => {
+    if (role === 'admin' && !canManageAdmins) {
+      notify.error('Only super admins can create admins');
+      return;
+    }
     const res = await createAuthUserAndProfile({
       email: userForm.email.trim(),
       firstName: userForm.firstName.trim(),
@@ -533,6 +603,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       role,
       selectedClassrooms: role === 'teacher' ? selectedClassrooms : [],
       updateIfExists: false,
+      manageablePrograms: role === 'admin' ? selectedPrograms : undefined,
     });
     
     const data = res.data || {};
@@ -548,19 +619,26 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
             role,
             selectedClassrooms: role === 'teacher' ? selectedClassrooms : [],
             updateIfExists: true,
+            manageablePrograms: role === 'admin' ? selectedPrograms : undefined,
           });
           notify.success('User updated');
           resetUserForm();
           setConfirmOpen(false);
           setSuccess(true);
-          try { await fetchTeachers(); } catch {}
+          try {
+            if (role === 'teacher') await fetchTeachers();
+            if (role === 'admin') await fetchAdmins();
+          } catch {}
         }
       );
     } else if (data.ok) {
       notify.success('User created');
       resetUserForm();
       setSuccess(true);
-      try { await fetchTeachers(); } catch {}
+      try {
+        if (role === 'teacher') await fetchTeachers();
+        if (role === 'admin') await fetchAdmins();
+      } catch {}
     } else {
       throw new Error('Failed to create user');
     }
@@ -637,9 +715,39 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     }
   };
 
+  const handleProgramDialogSave = async () => {
+    if (!programDialogTarget) return;
+    if (programDialogSelection.length === 0) {
+      setProgramDialogError('Select at least one program');
+      return;
+    }
+    try {
+      setProgramDialogSaving(true);
+      await createAuthUserAndProfile({
+        email: programDialogTarget.email,
+        firstName: programDialogTarget.firstName || '',
+        lastName: programDialogTarget.lastName || '',
+        role: 'admin',
+        manageablePrograms: programDialogSelection,
+        updateIfExists: true,
+      });
+      notify.success('Program access updated');
+      setProgramDialogOpen(false);
+      setProgramDialogTarget(null);
+      setProgramDialogSelection([]);
+      await fetchAdmins();
+    } catch (err) {
+      console.error('Program update error', err);
+      notify.error(err?.message || 'Failed to update program access');
+    } finally {
+      setProgramDialogSaving(false);
+    }
+  };
+
   const resetUserForm = () => {
     setUserForm({ email: '', firstName: '', lastName: '' });
     setSelectedClassrooms([]);
+    setSelectedPrograms([]);
   };
 
   const resetStudentForm = () => {
@@ -701,16 +809,21 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   // SUB-COMPONENTS
   // ============================================================================
 
-  const RoleTabs = ({ value, onChange }) => {
+  const getProgramLabel = (programId) => {
+    const found = PROGRAM_OPTIONS.find(p => p.id === programId);
+    return found ? found.label : programId;
+  };
+
+  const RoleTabs = ({ value, onChange, canManageAdmins }) => {
     const items = [
       { key: 'teacher', label: 'Teacher', icon: <School fontSize="small" /> },
-      { key: 'admin', label: 'Admin', icon: <ManageAccounts fontSize="small" /> },
+      ...(canManageAdmins ? [{ key: 'admin', label: 'Admin', icon: <ManageAccounts fontSize="small" /> }] : []),
       { key: 'student', label: 'Student', icon: <Groups fontSize="small" /> },
     ];
     const index = Math.max(0, items.findIndex(i => i.key === value));
     return (
       <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
-        <Tabs value={index} onChange={(e, newIndex) => onChange(items[newIndex].key)} variant="fullWidth" sx={TAB_SX}>
+        <Tabs value={index} onChange={(e, newIndex) => onChange(items[newIndex]?.key || 'teacher')} variant="fullWidth" sx={TAB_SX}>
           {items.map((it) => (
             <Tab key={it.key} icon={it.icon} iconPosition="start" label={it.label} aria-label={it.label} />
           ))}
@@ -812,7 +925,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     );
   }
 
-  if (userRole !== 'admin') {
+  if (!hasUserManagementAccess) {
     return (
       <Box sx={MOBILE_CONTAINER_SX}>
         <Box sx={{ p: 3 }}>
@@ -892,13 +1005,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         {view === 'manage' && (
           <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', mb: 2 }}>
             <Tabs
-              value={{ teachers: 0, admins: 1, students: 2 }[manageTab]}
-              onChange={(e, idx) => setManageTab(idx === 0 ? 'teachers' : idx === 1 ? 'admins' : 'students')}
+              value={Math.max(0, (canManageAdmins ? ['teachers','admins','students'] : ['teachers','students']).indexOf(manageTab))}
+              onChange={(e, idx) => {
+                const options = canManageAdmins ? ['teachers','admins','students'] : ['teachers','students'];
+                setManageTab(options[idx] || 'teachers');
+              }}
               variant="fullWidth"
               sx={TAB_SX}
             >
               <Tab label="Teachers" />
-              <Tab label="Admins" />
+              {canManageAdmins && <Tab label="Admins" />}
               <Tab label="Students" />
             </Tabs>
           </Box>
@@ -1027,7 +1143,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         )}
 
         {/* Admins tab */}
-        {view === 'manage' && manageTab === 'admins' && (
+        {view === 'manage' && manageTab === 'admins' && canManageAdmins && (
           <>
             {loading ? <LoadingSpinner /> : (
               <List disablePadding>
@@ -1037,7 +1153,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       user={a}
                       type="admin"
                       onClick={() => openActionDialog('admin', a)}
-                      secondaryContent={<Typography variant="caption" color="text.secondary">{a.email}</Typography>}
+                      secondaryContent={
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="caption" color="text.secondary">{a.email}</Typography>
+                          {(a.manageablePrograms || []).map((programId) => (
+                            <Chip key={programId} size="small" label={getProgramLabel(programId)} />
+                          ))}
+                        </Box>
+                      }
                     />
                     {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
                   </React.Fragment>
@@ -1109,7 +1232,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           <form onSubmit={handleSubmit}>
             <Grid container spacing={2}>
               <Grid item xs={12}>
-                <RoleTabs value={role} onChange={setRole} />
+                <RoleTabs value={role} onChange={setRole} canManageAdmins={canManageAdmins} />
               </Grid>
 
               {(role === 'admin' || role === 'teacher') && (
@@ -1148,6 +1271,29 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       onChange={(e) => setUserForm(p => ({ ...p, lastName: e.target.value }))}
                     />
                   </Grid>
+
+                  {role === 'admin' && (
+                    <Grid item xs={12}>
+                      <Divider sx={{ my: 2 }} />
+                      <Typography variant="subtitle1" sx={{ mb: 1 }}>Assign Programs</Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, backgroundColor: 'white', p: 2, borderRadius: 1, border: '1px solid #e2e8f0' }}>
+                        {PROGRAM_OPTIONS.map((program) => (
+                          <Chip
+                            key={program.id}
+                            label={program.label}
+                            onClick={() => handleProgramToggle(program.id)}
+                            color={selectedPrograms.includes(program.id) ? 'primary' : 'default'}
+                            variant={selectedPrograms.includes(program.id) ? 'filled' : 'outlined'}
+                            clickable
+                            size="small"
+                          />
+                        ))}
+                      </Box>
+                      {validationErrors.programs && (
+                        <Typography variant="caption" color="error">{validationErrors.programs}</Typography>
+                      )}
+                    </Grid>
+                  )}
 
                   {role === 'teacher' && (
                     <Grid item xs={12}>

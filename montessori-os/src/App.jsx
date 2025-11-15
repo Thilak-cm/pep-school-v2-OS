@@ -12,6 +12,7 @@ import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
+import StudentStatsPage from "./components/StudentStatsPage";
 import LessonNotesPage from "./components/LessonNotesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
@@ -43,7 +44,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -262,6 +263,11 @@ function App() {
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
+  else if (screen === 'studentStats') {
+    const studentName = selectedStudent?.displayName || selectedStudent?.name || 
+                       `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
+    pageTitle = `${studentName}'s Stats`;
+  }
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -278,6 +284,8 @@ function App() {
         return () => setScreen('classroomList');
       case 'studentDashboard':
         return () => setScreen('classroomTimeline');
+      case 'studentStats':
+        return () => setScreen('studentDashboard');
       case 'timeline':
         return () => setScreen('studentDashboard');
       case 'profile':
@@ -556,6 +564,13 @@ function App() {
                       student={selectedStudent}
                       onOpenTextNotes={() => openTimeline('textVoice')}
                       onOpenLessonNotes={() => openTimeline('lesson')}
+                      onOpenStats={() => setScreen('studentStats')}
+                    />
+                  )}
+
+                  {screen === 'studentStats' && (
+                    <StudentStatsPage
+                      student={selectedStudent}
                     />
                   )}
 

@@ -10,6 +10,7 @@ import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
 import { COACH_MODEL_DISPLAY } from '../../../config/coachConstants';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 const SectionCard = ({ title, subtitle, children }) => (
   <Card sx={{ borderRadius: 2, mb: 2 }}>
@@ -28,8 +29,16 @@ const SectionCard = ({ title, subtitle, children }) => (
 const ALL_NUDGES = ['duration', 'modality', 'independence', 'evidence', 'subjective'];
 
 export default function AICoachEditor({ currentUser, userRole }) {
-  const isAdmin = userRole === 'admin';
+  const isAdmin = isSuperAdmin(userRole);
   const notify = useNotify();
+
+  if (!isAdmin) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
+      </Box>
+    );
+  }
 
   // State management
   const [loading, setLoading] = useState(true);

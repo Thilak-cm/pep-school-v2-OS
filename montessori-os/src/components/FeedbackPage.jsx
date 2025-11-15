@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { isAdminRole } from '../utils/roleUtils';
 
 const FEEDBACK_CATEGORIES = [
   { value: 'bug', label: 'Bug Report', icon: <BugReport /> },
@@ -49,6 +50,7 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
   const [loading, setLoading] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
+  const isAdmin = isAdminRole(userRole);
 
   // Load user's feedback history
   useEffect(() => {
@@ -297,7 +299,7 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
       </Card>
 
       {/* Admin Section */}
-      {userRole === 'admin' && (
+      {isAdmin && (
         <Card sx={{ borderRadius: 3 }}>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>

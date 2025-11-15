@@ -39,6 +39,7 @@ import {
   exportStudentTimelineAsText, 
   exportFilteredTimelineAsText 
 } from '../utils/export_student_observations';
+import { isAdminRole } from '../utils/roleUtils';
 import { 
   getLessonDimensions, 
   LESSON_RATING_LABELS, 
@@ -48,6 +49,7 @@ import {
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
+  const isAdmin = isAdminRole(userRole);
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
@@ -499,7 +501,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         student,
         finalList,
         currentUser,
-        userRole === 'admin' ? exportFormat : 'txt',
+        isAdmin ? exportFormat : 'txt',
         true,
         finalList
       );
@@ -575,7 +577,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             </Button>
             
             {/* Format Dropdown - Only for admins */}
-            {userRole === 'admin' && showFormatDropdown && (
+            {isAdmin && showFormatDropdown && (
               <Box sx={{
                 position: 'absolute',
                 top: '100%',
@@ -948,7 +950,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               <strong>Date Range:</strong> {exportDateFrom || 'Any'} to {exportDateTo || 'Any'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              <strong>Format:</strong> {userRole === 'admin' ? `${exportFormat.toUpperCase()} file (.${exportFormat})` : 'Text file (.txt)'}
+              <strong>Format:</strong> {isAdmin ? `${exportFormat.toUpperCase()} file (.${exportFormat})` : 'Text file (.txt)'}
             </Typography>
           </Box>
           

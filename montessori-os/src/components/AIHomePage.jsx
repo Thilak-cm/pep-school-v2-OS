@@ -1,9 +1,10 @@
 import React from 'react';
 import { Box, Card, CardContent, CardActionArea, Typography, Avatar } from '@mui/material';
 import { Description, GraphicEq, Psychology } from '@mui/icons-material';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEditor, onOpenCoachEditor }) {
-  const isAdmin = userRole === 'admin';
+  const isAdmin = isSuperAdmin(userRole);
 
   if (!isAdmin) {
     return (

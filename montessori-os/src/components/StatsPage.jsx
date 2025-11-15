@@ -51,6 +51,7 @@ import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, wher
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
+import { isAdminRole } from '../utils/roleUtils';
 import { 
   PERFORMANCE_TARGETS, 
   calculateStudentPerformance, 
@@ -108,6 +109,7 @@ const StatsPage = ({ user, role, onBack }) => {
   // Branch filter state (admin only)
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const isAdmin = isAdminRole(role);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,7 +130,7 @@ const StatsPage = ({ user, role, onBack }) => {
         let branchesData = [];
         
         // Fetch branches (for admin branch filter)
-        if (role === 'admin') {
+        if (isAdmin) {
           console.log('Fetching branches...');
           try {
             const branchesQuery = query(collection(db, 'branches'));
@@ -563,8 +565,14 @@ const StatsPage = ({ user, role, onBack }) => {
     setActiveTab(newValue);
   };
 
-  // Custom label to show % inside each pie slice
-  const renderNoteDistributionLabel = ({
+  // Memoize pie chart data to prevent re-renders when time period changes
+  const pieChartData = useMemo(() => [
+    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
+    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
+  ], [stats.voiceNotes, stats.textNotes]);
+
+  // Custom label to show % inside each pie slice - memoized to prevent flickering
+  const renderNoteDistributionLabel = React.useCallback(({
     cx,
     cy,
     midAngle,
@@ -583,7 +591,7 @@ const StatsPage = ({ user, role, onBack }) => {
         {label}
       </text>
     );
-  };
+  }, []);
 
   const handleTimePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) {
@@ -987,7 +995,7 @@ const StatsPage = ({ user, role, onBack }) => {
   const ClassroomComparisonChart = () => {
     // Filter classroom stats by selected branch (admin only)
     const filteredClassroomStats = useMemo(() => {
-      if (role === 'admin' && selectedBranchId) {
+      if (isAdmin && selectedBranchId) {
         // Find the selected branch to get its classrooms array
         const selectedBranch = branches.find(b => b.id === selectedBranchId);
         if (selectedBranch && selectedBranch.classrooms && selectedBranch.classrooms.length > 0) {
@@ -1515,7 +1523,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 {/* Header */}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                    Note Distribution
+                    All Time Note Distribution
                   </Typography>
                 </Box>
                 
@@ -1524,10 +1532,7 @@ const StatsPage = ({ user, role, onBack }) => {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={[
-                          { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
-                          { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-                        ]}
+                        data={pieChartData}
                         cx="50%"
                         cy="50%"
                         innerRadius={0}
@@ -1536,13 +1541,11 @@ const StatsPage = ({ user, role, onBack }) => {
                         dataKey="value"
                         label={renderNoteDistributionLabel}
                         labelLine={false}
+                        isAnimationActive={false}
                       >
-                        {[
-                          { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
-                          { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-                        ].map((entry, index) => (
+                        {pieChartData.map((entry, index) => (
                           <Cell 
-                            key={`cell-${index}`} 
+                            key={`cell-${entry.name}-${entry.value}`}
                             fill={entry.color}
                             stroke="#ffffff"
                             strokeWidth={2}
@@ -1565,10 +1568,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 
                 {/* Simple Legend */}
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                  {[
-                    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
-                    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-                  ].map((item, index) => (
+                  {pieChartData.map((item, index) => (
                     <Box key={index} sx={{ textAlign: 'center' }}>
                       <Box sx={{ 
                         width: 16, 
@@ -1600,10 +1600,10 @@ const StatsPage = ({ user, role, onBack }) => {
             <Box>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
-                </Typography>
-                {/* Branch Selector (Admin Only) - Dropdown */}
-                {role === 'admin' && (
+                {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
+              </Typography>
+              {/* Branch Selector (Admin Only) - Dropdown */}
+                {isAdmin && (
                   <Box sx={{ mb: 3 }}>
                     {branches.length > 0 ? (
                       <FormControl 

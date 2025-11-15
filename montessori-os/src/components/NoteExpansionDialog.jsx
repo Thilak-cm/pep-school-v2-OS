@@ -34,6 +34,7 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
+import { isAdminRole } from '../utils/roleUtils';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { 
   getLessonDimensions, 
@@ -505,7 +506,7 @@ function NoteExpansionDialog({
               </Box>
             )}
             
-            {userRole === 'admin' && !isLessonObservation && (
+            {isAdminRole(userRole) && !isLessonObservation && (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />

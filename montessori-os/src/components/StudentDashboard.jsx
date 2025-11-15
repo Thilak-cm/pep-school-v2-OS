@@ -19,7 +19,7 @@ import {
 } from '@mui/icons-material';
 import { trackEvent } from '../utils/analytics';
 
-function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes }) {
+function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes, onOpenStats }) {
   const getFirstName = (s) => {
     if (!s) return 'Student';
     if (s.firstName) return s.firstName;
@@ -135,6 +135,47 @@ function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes }) {
           </Card>
         </Grid>
 
+        {/* Statistics */}
+        <Grid size={12}>
+          <Card
+            sx={{
+              borderRadius: 2,
+              '&:hover': {
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            <CardActionArea
+              onClick={() => { 
+                handleCardClick('stats'); 
+                onOpenStats && onOpenStats();
+              }}
+              sx={{ p: 0 }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: '#f59e0b', width: 56, height: 56 }}>
+                      <BarChartIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                        Statistics
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                        View activity trends and note distribution for {getFirstName(student)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <ArrowForward sx={{ color: '#94a3b8' }} />
+                </Box>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        </Grid>
+
         {/* Intelligent Insights (coming soon) */}
         <Grid size={12}>
           <Card sx={{ borderRadius: 2 }}>
@@ -173,31 +214,6 @@ function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes }) {
                     <Box>
                       <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
                         Report Generation
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                        Feature coming soon!
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              </CardContent>
-            </CardActionArea>
-          </Card>
-        </Grid>
-
-        {/* Statistics (coming soon) */}
-        <Grid size={12}>
-          <Card sx={{ borderRadius: 2 }}>
-            <CardActionArea {...disabledCardProps} onClick={() => handleCardClick('stats')}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ bgcolor: '#f59e0b', width: 56, height: 56 }}>
-                      <BarChartIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                        Statistics
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
                         Feature coming soon!
