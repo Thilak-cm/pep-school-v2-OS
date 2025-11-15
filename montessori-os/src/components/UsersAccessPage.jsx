@@ -14,6 +14,7 @@ import {
   query,
   where,
   doc,
+  setDoc,
   runTransaction,
   Timestamp,
   serverTimestamp,
@@ -739,7 +740,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       setProgramDialogSaving(true);
       if (programDialogMode === 'promote') {
         const userRef = doc(db, 'users', programDialogTarget.id);
-        await userRef.set({
+        await setDoc(userRef, {
           role: 'admin',
           manageablePrograms: programDialogSelection,
           updatedAt: serverTimestamp(),
@@ -932,6 +933,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         <ListItemText
           primary={<Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{displayName}</Typography>}
           secondary={secondaryContent}
+          secondaryTypographyProps={{ component: 'div' }}
         />
         <ChevronRight color="disabled" />
       </ListItemButton>
@@ -1527,6 +1529,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
             >
               Manage Classroom Access
             </Button>
+            {canManageAdmins && actionUser?.type === 'teacher' && (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<ManageAccounts />}
+                onClick={() => {
+                  if (actionUser?.user) {
+                    openProgramDialog(actionUser.user, 'promote');
+                    closeActionDialog();
+                  }
+                }}
+                sx={{ py: 1.5 }}
+              >
+                Promote to Program Admin
+              </Button>
+            )}
             {actionUser?.type === 'admin' && canManageAdmins && (
               <Button
                 variant="outlined"
@@ -1566,14 +1584,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
 
       <Dialog open={programDialogOpen} onClose={closeProgramDialog}>
         <DialogTitle component="div">
-          <Typography component="h2" variant="h6">Edit Program Access</Typography>
+          <Typography component="h2" variant="h6">
+            {programDialogMode === 'promote' ? 'Promote to Program Admin' : 'Edit Program Access'}
+          </Typography>
           {programDialogTarget?.email && (
             <Typography variant="body2" color="text.secondary">{programDialogTarget.email}</Typography>
           )}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            Select programs this program admin can manage.
+            Select programs this admin can manage.
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {PROGRAM_OPTIONS.map((program) => (
