@@ -2,6 +2,13 @@
 
 # Changelog
 
+## 5.2.0 — 2025-11-15
+
+### Improved
+- Stats dashboard now caches Firestore-derived aggregates in `localStorage` for 15 minutes per user/filter combo, dramatically reducing repeat load times.
+- Cached payloads hydrate classrooms/teachers/students/branches instantly on revisit while still refetching automatically after the TTL expires.
+- Added defensive cache read/write helpers so stale entries are ignored and errors never block the page.
+
 ## 5.1.0 — 2025-01-15
 
 ### Changed
