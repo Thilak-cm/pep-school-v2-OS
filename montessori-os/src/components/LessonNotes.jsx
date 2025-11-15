@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -15,8 +15,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  ArrowBack,
-  MenuBook,
   CheckCircle,
   Clear,
   RadioButtonUnchecked
@@ -93,6 +91,7 @@ function LessonNoteWizard({
   const [studentSearch, setStudentSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const scrollContainerRef = useRef(null);
 
   const markDirty = () => {
     if (!isDirty) {
@@ -105,6 +104,15 @@ function LessonNoteWizard({
       onDirtyChange(isDirty);
     }
   }, [isDirty, onDirtyChange]);
+
+  // Scroll to top when step changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+    // Also scroll window to top as fallback
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeStep]);
 
   const selectedClassroom = useMemo(
     () => classrooms.find((cls) => cls.id === context.classroomId),
@@ -411,18 +419,8 @@ function LessonNoteWizard({
     }
   };
 
-  const renderLessonBadge = () => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-      <MenuBook sx={{ color: '#4f46e5' }} />
-      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-        Add Lesson Note
-      </Typography>
-    </Box>
-  );
-
   const renderContextStep = () => (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {renderLessonBadge()}
       <TextField
         fullWidth
         label="Lesson Title"
@@ -477,7 +475,6 @@ function LessonNoteWizard({
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {renderLessonBadge()}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
             {selectedClassroom?.name || 'Classroom'} roster
@@ -500,8 +497,19 @@ function LessonNoteWizard({
         <Typography variant="body2" color="text.secondary">
           Present: {presentCount}/{studentsInClass.length}
         </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 360, overflowY: 'auto' }}>
-          {filteredStudents.map((student) => {
+        <Paper
+          variant="outlined"
+          sx={{
+            border: '1px solid #e2e8f0',
+            borderRadius: 2,
+            p: 1.5,
+            maxHeight: 360,
+            overflowY: 'auto',
+            backgroundColor: '#f8fafc'
+          }}
+        >
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {filteredStudents.map((student) => {
             const selected = selectedStudents.includes(student.id);
             const status = getAttendance(student.id);
             const cardBg = selected
@@ -561,19 +569,19 @@ function LessonNoteWizard({
               </Paper>
             );
           })}
-          {filteredStudents.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-              No students match this search.
-            </Typography>
-          )}
-        </Box>
+            {filteredStudents.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                No students match this search.
+              </Typography>
+            )}
+          </Box>
+        </Paper>
       </Box>
     );
   };
 
   const renderDefaultsStep = () => (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {renderLessonBadge()}
       <Typography variant="subtitle1">
         Step 2: Set group defaults. You can override individual students next.
       </Typography>
@@ -621,7 +629,6 @@ function LessonNoteWizard({
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {renderLessonBadge()}
         <Typography variant="subtitle1">
           Step 3: Override individual students if needed.
         </Typography>
@@ -714,19 +721,6 @@ function LessonNoteWizard({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Button
-          startIcon={<ArrowBack />}
-          onClick={handleBack}
-          sx={{ color: '#64748b' }}
-        >
-          {activeStep === 0 ? 'Back to note types' : 'Back'}
-        </Button>
-        <IconButton onClick={onCancel}>
-          <Clear />
-        </IconButton>
-      </Box>
-
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
         {STEP_CONFIG.map((step) => (
           <Step key={step.id}>
@@ -735,17 +729,27 @@ function LessonNoteWizard({
         ))}
       </Stepper>
 
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
         {activeStep === 0 && renderContextStep()}
         {activeStep === 1 && renderStudentsStep()}
         {activeStep === 2 && renderDefaultsStep()}
         {activeStep === 3 && renderExceptionsStep()}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button onClick={handleBack} disabled={activeStep === 0}>
-            Back
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {activeStep > 0 && (
+            <Button onClick={handleBack}>
+              Back
+            </Button>
+          )}
+          <Button
+            onClick={onCancel}
+            variant="outlined"
+            color="error"
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            Discard All Progress
           </Button>
         </Box>
         {activeStep < STEP_CONFIG.length - 1 ? (

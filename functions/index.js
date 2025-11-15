@@ -463,7 +463,7 @@ export const requestAccess = functions.region("asia-south1").https.onCall(async 
 // -----------------------------------------------
 const OPENAI_API_KEY = functions.config().openai?.key || process.env.OPENAI_API_KEY || null;
 const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 600 };
+const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 1000 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
 const PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes

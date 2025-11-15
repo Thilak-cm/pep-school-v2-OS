@@ -12,6 +12,7 @@ import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
+import LessonNotesPage from "./components/LessonNotesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
@@ -48,6 +49,7 @@ function App() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState(null);
+  const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
@@ -55,6 +57,11 @@ function App() {
   const openTimeline = (filter = null) => {
     setTimelineFilter(filter);
     setScreen('timeline');
+  };
+
+  const openLessonNotesScreen = () => {
+    setLessonNotesReturnScreen(screen);
+    setScreen('lessonNotes');
   };
 
   useEffect(() => {
@@ -248,6 +255,7 @@ function App() {
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
+  else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -550,6 +558,14 @@ function App() {
                     />
                   )}
 
+                  {screen === 'lessonNotes' && (
+                    <LessonNotesPage
+                      currentUser={user}
+                      userRole={role}
+                      onClose={() => setScreen(lessonNotesReturnScreen || 'timeline')}
+                    />
+                  )}
+
 
 
                   {screen === 'profile' && (
@@ -633,7 +649,7 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && (
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal
@@ -642,6 +658,10 @@ function App() {
                 initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.id] : []}
                 currentUser={user}
                 userRole={role}
+                onOpenLessonNotePage={() => {
+                  setAddNoteOpen(false);
+                  openLessonNotesScreen();
+                }}
               />
               <UpdateNotification />
             </>

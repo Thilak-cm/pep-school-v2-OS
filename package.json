@@ -39,5 +39,8 @@
     "montessori"
   ],
   "author": "Montessori OS Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "firebase-tools": "^14.25.0"
+  }
 }

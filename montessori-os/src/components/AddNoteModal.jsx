@@ -8,8 +8,7 @@ import {
   Button,
   TextField,
   Snackbar,
-  Alert,
-  Tooltip
+  Alert
 } from '@mui/material';
 import {
   Close,
@@ -32,7 +31,6 @@ import { cloudFunctions } from '../firebase';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import LessonNoteWizard from './LessonNotes';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
@@ -41,20 +39,6 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(false);
   const [prevText, setPrevText] = useState('');
-  const [showNudge, setShowNudge] = useState(false);
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const pauseTimerRef = useRef(null);
-
-  // Heuristic to detect "rough" text without being noisy
-  const looksRough = (s) => {
-    const trimmed = s.trim();
-    if (trimmed.length < 24) return false; // avoid nudging for very short inputs
-    const words = trimmed.split(/\s+/).length;
-    const startsLower = /^(?:\s|\n)*[a-z]/.test(trimmed);
-    const lacksPunct = !/[.!?]\s*$/.test(trimmed) && /\s/.test(trimmed);
-    const manyCommas = (trimmed.match(/,/g) || []).length >= 3 && !/[.!?]/.test(trimmed);
-    return words >= 5 && (startsLower || lacksPunct || manyCommas);
-  };
 
   const handleTextChange = (event) => {
     const newText = event.target.value;
@@ -62,15 +46,6 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
     setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
     // Dirty if user has typed at least one character (even whitespace)
     if (onDirtyChange) onDirtyChange(newText.length > 0);
-    // Debounced nudge that never interrupts typing
-    clearTimeout(pauseTimerRef.current);
-    if (nudgeDismissed || cleanedOnce) {
-      setShowNudge(false);
-      return;
-    }
-    pauseTimerRef.current = setTimeout(() => {
-      setShowNudge(looksRough(newText));
-    }, 1200);
   };
 
   const handleSave = () => {
@@ -97,8 +72,6 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       if (refined) {
         setText(String(refined).trim());
         setCleanedOnce(true);
-        setShowNudge(false);
-        setNudgeDismissed(true);
       } else {
         // No change; keep original text and mark as not cleaned
         setCleanedOnce(false);
@@ -193,21 +166,6 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
           Please enter some text to continue
         </Typography>
       )}
-
-      {/* Gentle, non-blocking nudge after user pauses typing */}
-      {showNudge && !nudgeDismissed && !cleanedOnce && (
-        <Alert 
-          severity="info" 
-          variant="outlined" 
-          sx={{ mt: -0.5 }}
-          onClose={() => { setNudgeDismissed(true); setShowNudge(false); }}
-        >
-          Looks a bit rough. Want to polish with AI?
-          <Button size="small" onClick={handleCleanUp} sx={{ ml: 1 }}>
-            Polish now
-          </Button>
-        </Alert>
-      )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button 
@@ -218,34 +176,30 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
           Back
         </Button>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Tooltip title={cleanedOnce ? 'Already polished' : 'Polish with AI: grammar, tone, and structure — no length changes'}>
-            <span>
-              <Button
-                variant="contained"
-                onClick={handleCleanUp}
-                disabled={!text.trim() || cleaning || cleanedOnce}
-                startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                sx={{
-                  textTransform: 'none',
-                  backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
-                  color: 'white',
-                  boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
-                  '&:hover': {
-                    backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
-                    boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
-                  },
-                  '&.Mui-disabled': {
-                    backgroundImage: 'none',
-                    backgroundColor: '#e2e8f0',
-                    color: '#64748b',
-                    boxShadow: 'none'
-                  }
-                }}
-              >
-                {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
-              </Button>
-            </span>
-          </Tooltip>
+          <Button
+            variant="contained"
+            onClick={handleCleanUp}
+            disabled={!text.trim() || cleaning || cleanedOnce}
+            startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+            sx={{
+              textTransform: 'none',
+              backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+              color: 'white',
+              boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+              '&:hover': {
+                backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+              },
+              '&.Mui-disabled': {
+                backgroundImage: 'none',
+                backgroundColor: '#e2e8f0',
+                color: '#64748b',
+                boxShadow: 'none'
+              }
+            }}
+          >
+            {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
+          </Button>
           {cleanedOnce && prevText && (
             <Button variant="text" onClick={handleUndoClean} sx={{ color: '#64748b' }}>
               Undo
@@ -274,7 +228,6 @@ const STEP_NOTE_TYPE = 'noteType';
 const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
-const STEP_LESSON_NOTE = 'lessonNote';
 
 function AddNoteModal({
   open,
@@ -282,7 +235,8 @@ function AddNoteModal({
   initialClassrooms = [],
   initialStudents = [],
   currentUser,
-  userRole
+  userRole,
+  onOpenLessonNotePage
 }) {
   const notify = useNotify();
   const [step, setStep] = useState(STEP_NOTE_TYPE);
@@ -293,7 +247,6 @@ function AddNoteModal({
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-  const [lessonDirty, setLessonDirty] = useState(false);
 
   // Coach UI state (Duration-only MVP)
   const [coachOpen, setCoachOpen] = useState(false);
@@ -578,7 +531,6 @@ function AddNoteModal({
     setSaving(false);
     setSnackbarOpen(false);
     setSnackbarMessage('');
-    setLessonDirty(false);
     onClose();
   };
 
@@ -593,9 +545,6 @@ function AddNoteModal({
         !!textData || !!transcriptionData ||
         textDirty || voiceDirty
       );
-    }
-    if (step === STEP_LESSON_NOTE) {
-      return lessonDirty;
     }
     return false;
   };
@@ -676,7 +625,8 @@ function AddNoteModal({
   };
 
   const handleSelectLesson = () => {
-    setStep(STEP_LESSON_NOTE);
+    handleClose();
+    if (onOpenLessonNotePage) onOpenLessonNotePage();
   };
 
   const handleVoiceSave = (transcriptionData) => {
@@ -819,10 +769,6 @@ function AddNoteModal({
     setSnackbarOpen(false);
   };
 
-  const isLessonStep = step === STEP_LESSON_NOTE;
-  const dialogMaxWidth = isLessonStep ? 'md' : 'sm';
-  const dialogWidth = isLessonStep ? 720 : 560;
-
   return (
     <Dialog
       open={open}
@@ -833,13 +779,13 @@ function AddNoteModal({
         }
       }}
       fullWidth
-      maxWidth={dialogMaxWidth}
+      maxWidth="sm"
       scroll="body"
       PaperProps={{
         sx: {
           // Centered dialog on all viewports
-          width: { xs: 'calc(100% - 32px)', sm: dialogWidth },
-          maxWidth: { xs: dialogWidth, sm: dialogWidth },
+          width: { xs: 'calc(100% - 32px)', sm: 560 },
+          maxWidth: { xs: 560, sm: 560 },
           maxHeight: '90vh',
           margin: 'auto',
           borderRadius: 3,
@@ -867,23 +813,20 @@ function AddNoteModal({
           position: 'relative'
         }}
         >
-          {/* Hide close button when in lesson note step - LessonNoteWizard has its own */}
-          {step !== STEP_LESSON_NOTE && (
-            <IconButton
-              aria-label="Close"
-              onClick={() => requestClose('closeButton')}
-              sx={{
-                position: 'absolute',
-                top: 16,
-                right: 16,
-                color: '#1e293b',
-                '&:hover': { backgroundColor: '#f1f5f9' },
-                zIndex: 2
-              }}
-            >
-              <Close sx={{ fontSize: 28 }} />
-            </IconButton>
-          )}
+          <IconButton
+            aria-label="Close"
+            onClick={() => requestClose('closeButton')}
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              color: '#1e293b',
+              '&:hover': { backgroundColor: '#f1f5f9' },
+              zIndex: 2
+            }}
+          >
+            <Close sx={{ fontSize: 28 }} />
+          </IconButton>
         {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
@@ -1089,23 +1032,6 @@ function AddNoteModal({
           </Box>
         )}
 
-        {step === STEP_LESSON_NOTE && (
-          <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
-            <LessonNoteWizard
-              currentUser={currentUser}
-              userRole={userRole}
-              onCancel={() => {
-                setLessonDirty(false);
-                setStep(STEP_NOTE_TYPE);
-              }}
-              onDirtyChange={setLessonDirty}
-              onSaved={() => {
-                setLessonDirty(false);
-                handleClose();
-              }}
-            />
-          </Box>
-        )}
       </Box>
       {/* Exit confirmation dialog */}
       <Dialog

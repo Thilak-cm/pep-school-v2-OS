@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, Divider,
-  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Tooltip
+  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip
 } from '@mui/material';
 import { Restore, Save, Bolt, Science } from '@mui/icons-material';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -212,10 +212,17 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               ) : (
                 <Chip size="small" color="warning" label="Editing" />
               )}
-              {docState?.version && <Chip size="small" color="default" label={`v${docState.version}`} />}
-              <Tooltip title={`Model ${CLEANUP_MODEL_INFO.model}, temp ${CLEANUP_MODEL_INFO.temperature}, max_tokens ${CLEANUP_MODEL_INFO.max_tokens}`}>
-                <Chip size="small" icon={<Science />} label="Model info" />
-              </Tooltip>
+            </Box>
+            <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Science sx={{ fontSize: 18, color: '#64748b' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                  Model Configuration
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: '#64748b', fontFamily: 'monospace' }}>
+                Model: {CLEANUP_MODEL_INFO.model} • Temperature: {CLEANUP_MODEL_INFO.temperature} • Max tokens: {CLEANUP_MODEL_INFO.max_tokens}
+              </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
