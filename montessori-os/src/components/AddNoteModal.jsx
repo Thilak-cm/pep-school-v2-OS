@@ -32,6 +32,7 @@ import { cloudFunctions } from '../firebase';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
+import LessonNoteWizard from './LessonNotes';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
@@ -273,6 +274,7 @@ const STEP_NOTE_TYPE = 'noteType';
 const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
+const STEP_LESSON_NOTE = 'lessonNote';
 
 function AddNoteModal({
   open,
@@ -291,6 +293,7 @@ function AddNoteModal({
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [lessonDirty, setLessonDirty] = useState(false);
 
   // Coach UI state (Duration-only MVP)
   const [coachOpen, setCoachOpen] = useState(false);
@@ -575,6 +578,7 @@ function AddNoteModal({
     setSaving(false);
     setSnackbarOpen(false);
     setSnackbarMessage('');
+    setLessonDirty(false);
     onClose();
   };
 
@@ -589,6 +593,9 @@ function AddNoteModal({
         !!textData || !!transcriptionData ||
         textDirty || voiceDirty
       );
+    }
+    if (step === STEP_LESSON_NOTE) {
+      return lessonDirty;
     }
     return false;
   };
@@ -666,6 +673,10 @@ function AddNoteModal({
 
   const handleSelectText = () => {
     setStep(STEP_TEXT_INPUT);
+  };
+
+  const handleSelectLesson = () => {
+    setStep(STEP_LESSON_NOTE);
   };
 
   const handleVoiceSave = (transcriptionData) => {
@@ -808,6 +819,10 @@ function AddNoteModal({
     setSnackbarOpen(false);
   };
 
+  const isLessonStep = step === STEP_LESSON_NOTE;
+  const dialogMaxWidth = isLessonStep ? 'md' : 'sm';
+  const dialogWidth = isLessonStep ? 720 : 560;
+
   return (
     <Dialog
       open={open}
@@ -818,13 +833,13 @@ function AddNoteModal({
         }
       }}
       fullWidth
-      maxWidth="sm"
+      maxWidth={dialogMaxWidth}
       scroll="body"
       PaperProps={{
         sx: {
           // Centered dialog on all viewports
-          width: { xs: 'calc(100% - 32px)', sm: 560 },
-          maxWidth: { xs: 560, sm: 560 },
+          width: { xs: 'calc(100% - 32px)', sm: dialogWidth },
+          maxWidth: { xs: dialogWidth, sm: dialogWidth },
           maxHeight: '90vh',
           margin: 'auto',
           borderRadius: 3,
@@ -852,20 +867,23 @@ function AddNoteModal({
           position: 'relative'
         }}
         >
-          <IconButton
-            aria-label="Close"
-          onClick={() => requestClose('closeButton')}
-            sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              color: '#1e293b',
-              '&:hover': { backgroundColor: '#f1f5f9' },
-              zIndex: 2
-            }}
-          >
-            <Close sx={{ fontSize: 28 }} />
-          </IconButton>
+          {/* Hide close button when in lesson note step - LessonNoteWizard has its own */}
+          {step !== STEP_LESSON_NOTE && (
+            <IconButton
+              aria-label="Close"
+              onClick={() => requestClose('closeButton')}
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                color: '#1e293b',
+                '&:hover': { backgroundColor: '#f1f5f9' },
+                zIndex: 2
+              }}
+            >
+              <Close sx={{ fontSize: 28 }} />
+            </IconButton>
+          )}
         {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
@@ -908,7 +926,7 @@ function AddNoteModal({
                 onClick={handleSelectText}
                 aria-label="Add text note"
               >
-                <TextFields sx={{ fontSize: 32, color: '#64748b' }} />
+                <TextFields sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box>
                   <Typography variant="body1" sx={{ color: '#1e293b' }}>
                     Text Note
@@ -938,7 +956,7 @@ function AddNoteModal({
                 onClick={handleSelectVoice}
                 aria-label="Add voice note"
               >
-                <KeyboardVoice sx={{ fontSize: 32, color: '#64748b' }} />
+                <KeyboardVoice sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
@@ -950,7 +968,7 @@ function AddNoteModal({
                   </Typography>
                 </Box>
               </Box>
-              {/* Lesson Note (disabled/greyed out) */}
+              {/* Lesson Note */}
               <Box
                 sx={{
                   display: 'flex',
@@ -960,22 +978,27 @@ function AddNoteModal({
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: 'not-allowed',
-                  backgroundColor: '#f8fafc',
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #4f46e5'
+                  }
                 }}
-                aria-label="Add lesson note (coming soon)"
+                onClick={handleSelectLesson}
+                aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: '#94a3b8', opacity: 0.6 }} />
+                <MenuBook sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: '#94a3b8', opacity: 0.6 }}>
+                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Lesson Note
                     </Typography>
                     <Box sx={{ opacity: 1 }}>
-                      <NewFeaturePill label="Coming Soon" size="sm" />
+                      <NewFeaturePill label="New" size="sm" />
                     </Box>
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#94a3b8', opacity: 0.6 }}>
+                  <Typography variant="caption" color="text.secondary">
                     Structured lesson observation
                   </Typography>
                 </Box>
@@ -1063,6 +1086,24 @@ function AddNoteModal({
                 {saving ? <CircularProgress size={24} /> : 'Save Note'}
               </Button>
             </Box>
+          </Box>
+        )}
+
+        {step === STEP_LESSON_NOTE && (
+          <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
+            <LessonNoteWizard
+              currentUser={currentUser}
+              userRole={userRole}
+              onCancel={() => {
+                setLessonDirty(false);
+                setStep(STEP_NOTE_TYPE);
+              }}
+              onDirtyChange={setLessonDirty}
+              onSaved={() => {
+                setLessonDirty(false);
+                handleClose();
+              }}
+            />
           </Box>
         )}
       </Box>

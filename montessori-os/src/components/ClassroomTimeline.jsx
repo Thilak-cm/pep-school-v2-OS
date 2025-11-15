@@ -21,8 +21,6 @@ import {
   Group,
   Notes,
   FilterList,
-  Mic,
-  EditNote,
   AccessTime,
   Person,
   ExpandMore,
@@ -30,12 +28,70 @@ import {
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { formatTimestamp } from '../utils/observationUtils.jsx';
+import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
+import {
+  getLessonDimensions,
+  LESSON_RATING_LABELS,
+  LESSON_RATING_COLORS,
+  LESSON_ATTENDANCE_LABELS
+} from '../utils/lessonNoteConstraints';
+
+const renderLessonSummary = (note) => {
+  const dimensions = getLessonDimensions(note);
+  const attendanceStatus = note.attendanceStatus || 'present';
+  const attendanceLabel = LESSON_ATTENDANCE_LABELS[attendanceStatus] || LESSON_ATTENDANCE_LABELS.present;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+        {note.lessonTitle || 'Lesson Note'}
+      </Typography>
+      {note.lessonDescription && (
+        <Typography variant="body2" color="text.secondary">
+          {note.lessonDescription}
+        </Typography>
+      )}
+      {note.groupComment && (
+        <Typography variant="body2" color="text.secondary">
+          {note.groupComment}
+        </Typography>
+      )}
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+        {dimensions.map((dimension) => {
+          const rating = dimension.value || 'na';
+          const color = LESSON_RATING_COLORS[rating] || '#475569';
+          return (
+            <Chip
+              key={`${note.id}-${dimension.name}`}
+              size="small"
+              label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+              sx={{ backgroundColor: `${color}22`, color }}
+            />
+          );
+        })}
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Chip
+          label={attendanceLabel}
+          size="small"
+          sx={{
+            backgroundColor: attendanceStatus === 'present' ? '#dcfce7' : '#fef3c7',
+            color: attendanceStatus === 'present' ? '#15803d' : '#a16207'
+          }}
+        />
+        {note.studentComment && (
+          <Typography variant="body2" color="text.secondary">
+            💬 {note.studentComment}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+};
 
 
 function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStudent }) {
@@ -725,17 +781,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
 function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
-  // Determine note type and icon (no language label for voice notes)
-  const getNoteTypeInfo = (note) => {
-    if (note.type === 'voice') {
-      return { type: 'Voice Note', icon: <Mic sx={{ fontSize: 16, color: 'text.secondary' }} /> };
-    } else if (note.type === 'text' || note.text) {
-      return { type: 'Text Note', icon: <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} /> };
-    }
-    return { type: 'Note', icon: <Notes sx={{ fontSize: 16, color: 'text.secondary' }} /> };
+  const noteTypeInfo = {
+    type: getObservationTypeText(note.type),
+    icon: getObservationTypeIcon(note.type)
   };
-
-  const noteTypeInfo = getNoteTypeInfo(note);
+  const isLesson = note.type === 'lesson';
 
   return (
     <Card
@@ -772,7 +822,7 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
       </Box>
 
       {/* Copy button overlay - subtle utility near type badge */}
-      {note.text && (
+      {note.type !== 'lesson' && note.text && (
         <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
           <CopyToClipboardButton
             text={note.text}
@@ -813,9 +863,13 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
           </Typography>
         </Box>
         
-        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {note.text || '(transcribing…)'}
-        </Typography>
+        {isLesson ? (
+          renderLessonSummary(note)
+        ) : (
+          <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {note.text || '(transcribing…)'}
+          </Typography>
+        )}
         
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

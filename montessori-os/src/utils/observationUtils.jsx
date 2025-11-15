@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, TextFields } from '@mui/icons-material';
+import { Mic, TextFields, MenuBook } from '@mui/icons-material';
 
 /**
  * Format timestamp for display
@@ -23,7 +23,9 @@ export const formatTimestamp = (timestamp) => {
  * @returns {React.Element} MUI Icon component
  */
 export const getObservationTypeIcon = (type) => {
-  return type === 'voice' ? <Mic sx={{ fontSize: 16 }} /> : <TextFields sx={{ fontSize: 16 }} />;
+  if (type === 'voice') return <Mic sx={{ fontSize: 16 }} />;
+  if (type === 'lesson') return <MenuBook sx={{ fontSize: 16 }} />;
+  return <TextFields sx={{ fontSize: 16 }} />;
 };
 
 /**
@@ -32,7 +34,9 @@ export const getObservationTypeIcon = (type) => {
  * @returns {string} Display text
  */
 export const getObservationTypeText = (type) => {
-  return type === 'voice' ? 'Voice Note' : 'Text Note';
+  if (type === 'voice') return 'Voice Note';
+  if (type === 'lesson') return 'Lesson Note';
+  return 'Text Note';
 };
 
 /**

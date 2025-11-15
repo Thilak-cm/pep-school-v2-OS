@@ -35,6 +35,12 @@ import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
+import { 
+  getLessonDimensions, 
+  LESSON_RATING_LABELS, 
+  LESSON_RATING_COLORS,
+  LESSON_ATTENDANCE_LABELS
+} from '../utils/lessonNoteConstraints';
 
 function NoteExpansionDialog({ 
   open, 
@@ -75,10 +81,65 @@ function NoteExpansionDialog({
   // Previous classroom info (when note was logged from a different classroom)
   const [previousClassroomName, setPreviousClassroomName] = useState(null);
 
+  const isLessonObservation = observation?.type === 'lesson';
+
+  const renderLessonDetail = () => {
+    if (!observation) return null;
+    const dimensions = getLessonDimensions(observation);
+    const attendanceStatus = observation.attendanceStatus || 'present';
+    const attendanceLabel = LESSON_ATTENDANCE_LABELS[attendanceStatus] || LESSON_ATTENDANCE_LABELS.present;
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          {observation.lessonTitle || 'Lesson Note'}
+        </Typography>
+        {observation.lessonDescription && (
+          <Typography variant="body2" color="text.secondary">
+            {observation.lessonDescription}
+          </Typography>
+        )}
+        {observation.groupComment && (
+          <Typography variant="body2" color="text.secondary">
+            {observation.groupComment}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {dimensions.map((dimension) => {
+            const rating = dimension.value || 'na';
+            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            return (
+              <Chip
+                key={`${observation.id}-${dimension.name}`}
+                size="small"
+                label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+                sx={{ backgroundColor: `${color}22`, color }}
+              />
+            );
+          })}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Chip
+            label={attendanceLabel}
+            size="small"
+            sx={{
+              backgroundColor: attendanceStatus === 'present' ? '#dcfce7' : '#fef3c7',
+              color: attendanceStatus === 'present' ? '#15803d' : '#a16207'
+            }}
+          />
+          {observation.studentComment && (
+            <Typography variant="body2" color="text.secondary">
+              💬 {observation.studentComment}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    );
+  };
+
   // Reset states when dialog opens/closes
   React.useEffect(() => {
     if (open && observation) {
-      setEditText(observation.text || '');
+      setEditText(observation.type === 'lesson' ? '' : (observation.text || ''));
       setEditing(false);
     }
   }, [open, observation]);
@@ -185,7 +246,7 @@ function NoteExpansionDialog({
   };
 
   const handleEditSave = async () => {
-    if (!observation || !editText.trim()) return;
+    if (!observation || observation.type === 'lesson' || !editText.trim()) return;
 
     try {
       setSaving(true);
@@ -362,7 +423,7 @@ function NoteExpansionDialog({
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               {/* Copy button - unobtrusive, near the title controls */}
-              {!!observation.text && (
+              {!!observation.text && !isLessonObservation && (
                 <CopyToClipboardButton 
                   text={observation.text}
                   ariaLabel="Copy note text"
@@ -385,7 +446,7 @@ function NoteExpansionDialog({
           </Box>
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
-          {editing ? (
+          {editing && !isLessonObservation ? (
             <TextField
               multiline
               rows={4}
@@ -402,12 +463,20 @@ function NoteExpansionDialog({
               }}
             />
           ) : (
-            <Typography 
-              variant="body1" 
-              sx={{ mb: 3, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-            >
-              {observation.text}
-            </Typography>
+            <>
+              {isLessonObservation ? (
+                <Box sx={{ mb: 3 }}>
+                  {renderLessonDetail()}
+                </Box>
+              ) : (
+                <Typography 
+                  variant="body1" 
+                  sx={{ mb: 3, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                >
+                  {observation.text}
+                </Typography>
+              )}
+            </>
           )}
           
           <Divider sx={{ my: 2 }} />
@@ -444,7 +513,7 @@ function NoteExpansionDialog({
                     Edit count: {observation.editCount || 0}
                   </Typography>
                 </Box>
-                {canEditObservation(observation, currentUser, userRole) && (
+                {!isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
                   <Button 
                     onClick={handleEditClick} 
                     size="small"
@@ -683,7 +752,13 @@ function NoteExpansionDialog({
                 border: '1px solid #e2e8f0',
                 mb: 2
               }}>
-                "{observation?.text?.substring(0, 100)}{observation?.text?.length > 100 ? '...' : ''}"
+                {(() => {
+                  const previewSource = observation?.type === 'lesson'
+                    ? (observation?.lessonTitle || 'Lesson Note')
+                    : (observation?.text || '');
+                  if (!previewSource) return 'No preview available';
+                  return `"${previewSource.substring(0, 100)}${previewSource.length > 100 ? '...' : ''}"`;
+                })()}
               </Typography>
             </>
           )}

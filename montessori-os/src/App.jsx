@@ -47,9 +47,15 @@ function App() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState(null);
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
+
+  const openTimeline = (filter = null) => {
+    setTimelineFilter(filter);
+    setScreen('timeline');
+  };
 
   useEffect(() => {
     const handleNavigateToStudentNotes = (e) => {
@@ -59,7 +65,7 @@ function App() {
         if (!studentId) return;
         const studentLike = detail.student || { id: studentId };
         setSelectedStudent(studentLike);
-        setScreen('timeline');
+        openTimeline(detail.noteTypeFilter ?? null);
         if (detail.titleAsDashboard) setTimelineTitleAsDashboard(true);
 
         // Best effort: fetch full student profile to populate names for header/dialogs
@@ -530,7 +536,8 @@ function App() {
                   {screen === 'studentDashboard' && (
                     <StudentDashboard
                       student={selectedStudent}
-                      onOpenNotes={() => setScreen('timeline')}
+                      onOpenTextNotes={() => openTimeline('textVoice')}
+                      onOpenLessonNotes={() => openTimeline('lesson')}
                     />
                   )}
 
@@ -539,6 +546,7 @@ function App() {
                       student={selectedStudent}
                       currentUser={user}
                       userRole={role}
+                      noteTypeFilter={timelineFilter}
                     />
                   )}
 

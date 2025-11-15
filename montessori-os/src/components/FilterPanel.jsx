@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search, Mic, EditNote, Close } from '@mui/icons-material';
+import { Clear, Search, Mic, EditNote, Close, MenuBook } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -40,7 +40,8 @@ const FilterPanel = ({
   totalCount,
   onFilterChange,
   onClearFilters,
-  onToggleFilters
+  onToggleFilters,
+  noteTypeFilter = null
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
   
@@ -48,6 +49,12 @@ const FilterPanel = ({
   const filteredTeachers = useMemo(() => {
     return fuzzySearchTeachers(classroomTeachers, creatorSearch);
   }, [classroomTeachers, creatorSearch]);
+
+  const lockedToLesson = noteTypeFilter === 'lesson';
+  const lockedToTextVoice = noteTypeFilter === 'textVoice';
+  const voiceActive = !lockedToLesson && filters.types?.includes('voice');
+  const textActive = !lockedToLesson && filters.types?.includes('text');
+  const lessonActive = lockedToLesson || filters.types?.includes('lesson');
   return (
     <Box>
 
@@ -205,13 +212,15 @@ const FilterPanel = ({
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
-                    variant={filters.types?.includes('voice') ? 'contained' : 'outlined'}
+                    variant={voiceActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<Mic />}
+                    disabled={lockedToLesson}
                     onClick={() => {
+                      if (lockedToLesson) return;
                       const currentTypes = filters.types || [];
-                      const newTypes = currentTypes.includes('voice') 
-                        ? currentTypes.filter(t => t !== 'voice')
+                      const newTypes = currentTypes.includes('voice')
+                        ? currentTypes.filter((t) => t !== 'voice')
                         : [...currentTypes, 'voice'];
                       onFilterChange('types', newTypes);
                     }}
@@ -233,7 +242,7 @@ const FilterPanel = ({
                         transform: 'translateY(0px)',
                       },
                       transition: 'all 0.2s ease-in-out',
-                      ...(filters.types?.includes('voice') && {
+                      ...(voiceActive && {
                         backgroundColor: '#4f46e5',
                         color: 'white',
                         '&:hover': {
@@ -247,22 +256,27 @@ const FilterPanel = ({
                           right: 0,
                           bottom: 0,
                           background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                          pointerEvents: 'none'
-                        }
-                      })
+                          pointerEvents: 'none',
+                        },
+                      }),
+                      ...(lockedToLesson && {
+                        opacity: 0.4,
+                      }),
                     }}
                   >
                     Voice Notes
                   </Button>
-                  
+
                   <Button
-                    variant={filters.types?.includes('text') ? 'contained' : 'outlined'}
+                    variant={textActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<EditNote />}
+                    disabled={lockedToLesson}
                     onClick={() => {
+                      if (lockedToLesson) return;
                       const currentTypes = filters.types || [];
-                      const newTypes = currentTypes.includes('text') 
-                        ? currentTypes.filter(t => t !== 'text')
+                      const newTypes = currentTypes.includes('text')
+                        ? currentTypes.filter((t) => t !== 'text')
                         : [...currentTypes, 'text'];
                       onFilterChange('types', newTypes);
                     }}
@@ -284,7 +298,7 @@ const FilterPanel = ({
                         transform: 'translateY(0px)',
                       },
                       transition: 'all 0.2s ease-in-out',
-                      ...(filters.types?.includes('text') && {
+                      ...(textActive && {
                         backgroundColor: '#059669',
                         color: 'white',
                         '&:hover': {
@@ -298,12 +312,71 @@ const FilterPanel = ({
                           right: 0,
                           bottom: 0,
                           background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                          pointerEvents: 'none'
-                        }
-                      })
+                          pointerEvents: 'none',
+                        },
+                      }),
+                      ...(lockedToLesson && {
+                        opacity: 0.4,
+                      }),
                     }}
                   >
                     Text Notes
+                  </Button>
+
+                  <Button
+                    variant={lessonActive ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<MenuBook />}
+                    disabled={lockedToTextVoice}
+                    onClick={() => {
+                      if (lockedToTextVoice) return;
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('lesson')
+                        ? currentTypes.filter((t) => t !== 'lesson')
+                        : [...currentTypes, 'lesson'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(lessonActive && {
+                        backgroundColor: '#6366f1',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#4f46e5',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none',
+                        },
+                      }),
+                      ...(lockedToTextVoice && {
+                        opacity: 0.4,
+                      }),
+                    }}
+                  >
+                    Lesson Notes
                   </Button>
                 </Box>
                 

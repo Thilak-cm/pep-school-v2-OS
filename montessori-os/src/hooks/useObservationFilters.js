@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 /**
  * Custom hook for managing observation filters
  * @param {Array} observations - Array of observations to filter
  * @returns {Object} Filter state and handlers
  */
-export const useObservationFilters = (observations = []) => {
+export const useObservationFilters = (observations = [], noteTypeFilter = null) => {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: '',
@@ -80,15 +80,22 @@ export const useObservationFilters = (observations = []) => {
     }
 
     // Types filter (multi)
-    if (filters.types && filters.types.length > 0) {
-      const selectedTypes = new Set(filters.types);
+    if ((filters.types && filters.types.length > 0) || noteTypeFilter) {
+      const selectedTypes = new Set(filters.types || []);
+      if (noteTypeFilter === 'lesson') {
+        selectedTypes.add('lesson');
+      }
+      if (noteTypeFilter === 'textVoice') {
+        selectedTypes.add('voice');
+        selectedTypes.add('text');
+      }
       filtered = filtered.filter(obs => selectedTypes.has(obs.type));
     }
 
     // Language filter removed
 
     return filtered;
-  }, [observations, filters]);
+  }, [observations, filters, noteTypeFilter]);
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
@@ -96,9 +103,10 @@ export const useObservationFilters = (observations = []) => {
       filters.dateFrom ||
       filters.dateTo ||
       (filters.creators && filters.creators.length > 0) ||
-      (filters.types && filters.types.length > 0)
+      (filters.types && filters.types.length > 0) ||
+      !!noteTypeFilter
     );
-  }, [filters]);
+  }, [filters, noteTypeFilter]);
 
   // Filter handlers
   const handleFilterChange = (filterType, value) => {

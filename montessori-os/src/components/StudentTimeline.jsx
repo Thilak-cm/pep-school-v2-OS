@@ -39,8 +39,14 @@ import {
   exportStudentTimelineAsText, 
   exportFilteredTimelineAsText 
 } from '../utils/export_student_observations';
+import { 
+  getLessonDimensions, 
+  LESSON_RATING_LABELS, 
+  LESSON_RATING_COLORS,
+  LESSON_ATTENDANCE_LABELS
+} from '../utils/lessonNoteConstraints';
 
-function StudentTimeline({ student, currentUser, userRole }) {
+function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +70,61 @@ function StudentTimeline({ student, currentUser, userRole }) {
   
   // Refs
   const exportButtonRef = useRef(null);
+
+  const renderLessonContent = (obs) => {
+    const dimensions = getLessonDimensions(obs);
+    const attendanceStatus = obs.attendanceStatus || 'present';
+    const attendanceLabel = LESSON_ATTENDANCE_LABELS[attendanceStatus] || LESSON_ATTENDANCE_LABELS.present;
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          {obs.lessonTitle || 'Lesson Note'}
+        </Typography>
+        {obs.lessonDescription && (
+          <Typography variant="body2" color="text.secondary">
+            {obs.lessonDescription}
+          </Typography>
+        )}
+        {obs.groupComment && (
+          <Typography variant="body2" color="text.secondary">
+            {obs.groupComment}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {dimensions.map((dimension) => {
+            const rating = dimension.value || 'na';
+            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            return (
+              <Chip
+                key={`${obs.id}-${dimension.name}`}
+                label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+                size="small"
+                sx={{
+                  backgroundColor: `${color}22`,
+                  color
+                }}
+              />
+            );
+          })}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Chip
+            label={attendanceLabel}
+            size="small"
+            sx={{
+              backgroundColor: attendanceStatus === 'present' ? '#dcfce7' : '#fef3c7',
+              color: attendanceStatus === 'present' ? '#15803d' : '#a16207'
+            }}
+          />
+          {obs.studentComment && (
+            <Typography variant="body2" color="text.secondary">
+              💬 {obs.studentComment}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    );
+  };
 
   // Derived counts for header summary
   const { totalNotes, notesLast7Days } = useMemo(() => {
@@ -93,7 +154,20 @@ function StudentTimeline({ student, currentUser, userRole }) {
     handleFilterChange,
     handleClearFilters,
     toggleFilters
-  } = useObservationFilters(observations);
+  } = useObservationFilters(observations, noteTypeFilter);
+
+  const visibleObservations = useMemo(() => {
+    const source = filteredObservations || [];
+    if (noteTypeFilter === 'lesson') {
+      return source.filter((obs) => obs.type === 'lesson');
+    }
+    if (noteTypeFilter === 'textVoice') {
+      return source.filter((obs) => obs.type !== 'lesson');
+    }
+    return source;
+  }, [filteredObservations, noteTypeFilter]);
+
+  const combinedFiltersActive = hasActiveFilters || !!noteTypeFilter;
 
   useEffect(() => {
     if (!student) return;
@@ -364,7 +438,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
       return;
     }
     
-    if (type === 'filtered' && (!filteredObservations || filteredObservations.length === 0)) {
+    if (type === 'filtered' && (!visibleObservations || visibleObservations.length === 0)) {
       notify.warning('No filtered observations to export.', { id: `export-${student?.id || 'unknown'}-filtered`, duration: 3000 });
       return;
     }
@@ -415,7 +489,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
       setExportConfirmOpen(false);
       
       // Base list depending on export type
-      const baseList = exportType === 'all' ? observations : filteredObservations;
+    const baseList = exportType === 'all' ? observations : visibleObservations;
       // Apply export date range if provided
       const finalList = (exportDateFrom || exportDateTo) ? baseList.filter(isWithinExportRange) : baseList;
 
@@ -467,9 +541,9 @@ function StudentTimeline({ student, currentUser, userRole }) {
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {hasActiveFilters && (
+          {combinedFiltersActive && (
             <Chip 
-              label={`Showing ${filteredObservations.length} of ${observations.length} notes`}
+              label={`Showing ${visibleObservations.length} of ${observations.length} notes`}
               size="small"
               color="primary"
               variant="outlined"
@@ -489,13 +563,13 @@ function StudentTimeline({ student, currentUser, userRole }) {
           <Box sx={{ position: 'relative' }} ref={exportButtonRef}>
             <Button
               startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-              onClick={() => handleExportClick(hasActiveFilters ? 'filtered' : 'all')}
+              onClick={() => handleExportClick(combinedFiltersActive ? 'filtered' : 'all')}
               variant="outlined"
               color="secondary"
               size="small"
-              disabled={exporting || (hasActiveFilters ? filteredObservations.length === 0 : observations.length === 0)}
-              aria-label={hasActiveFilters ? 'Export filtered observations' : 'Export all observations'}
-              title={hasActiveFilters ? `Export ${filteredObservations.length} filtered observations` : `Export ${observations.length} observations`}
+              disabled={exporting || (combinedFiltersActive ? visibleObservations.length === 0 : observations.length === 0)}
+              aria-label={combinedFiltersActive ? 'Export filtered observations' : 'Export all observations'}
+              title={combinedFiltersActive ? `Export ${visibleObservations.length} filtered observations` : `Export ${observations.length} observations`}
             >
               {exporting ? 'Exporting...' : 'Export'}
             </Button>
@@ -555,7 +629,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
         uniqueCreators={uniqueCreators}
         classroomTeachers={classroomTeachers}
         hasActiveFilters={hasActiveFilters}
-        filteredCount={filteredObservations.length}
+        filteredCount={visibleObservations.length}
+        noteTypeFilter={noteTypeFilter}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
         onToggleFilters={toggleFilters}
@@ -583,7 +658,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
               if (ts.seconds) return new Date(ts.seconds * 1000);
               return new Date(ts);
             };
-            (filteredObservations || []).forEach((obs) => {
+            (visibleObservations || []).forEach((obs) => {
               let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
               if (d >= today) groups.today.push(obs);
               else if (d >= lastWeek) groups.last7Days.push(obs);
@@ -616,14 +691,8 @@ function StudentTimeline({ student, currentUser, userRole }) {
                     >
                       {/* Note Type Indicator - Top Right */}
                       {(() => {
-                        const isVoice = obs.type === 'voice';
-                        const icon = isVoice ? <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                             : (obs.type === 'text' || obs.text)
-                                               ? <EditNote sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                               : <Notes sx={{ fontSize: 16, color: 'text.secondary' }} />;
-                        const label = isVoice
-                          ? 'Voice Note'
-                          : (obs.type === 'text' || obs.text) ? 'Text Note' : 'Note';
+                        const icon = getObservationTypeIcon(obs.type);
+                        const label = getObservationTypeText(obs.type);
                         return (
                           <Box sx={{
                             position: 'absolute',
@@ -646,7 +715,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
                         );
                       })()}
                       {/* Copy button overlay - subtle, does not interfere with card click */}
-                      {obs.text && (
+                      {obs.type !== 'lesson' && obs.text && (
                         <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
                           <CopyToClipboardButton
                             text={obs.text}
@@ -656,22 +725,33 @@ function StudentTimeline({ student, currentUser, userRole }) {
                         </Box>
                       )}
                       <CardContent sx={{ p: 2 }}>
-                        {/* Teacher Information */}
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                          <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                            👩‍🏫
-                          </span>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                            {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {obs.text || '(transcribing…)'}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
-                        </Box>
+                        {(() => {
+                          const isLesson = obs.type === 'lesson';
+                          return (
+                            <>
+                              {/* Teacher Information */}
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                                <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                                  👩‍🏫
+                                </span>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                  {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
+                                </Typography>
+                              </Box>
+                              {isLesson ? (
+                                renderLessonContent(obs)
+                              ) : (
+                                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  {obs.text || '(transcribing…)'}
+                                </Typography>
+                              )}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
+                              </Box>
+                            </>
+                          );
+                        })()}
                       </CardContent>
                     </Card>
                   ))}
@@ -687,7 +767,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
               </>
             );
           })()}
-          {filteredObservations.length === 0 && observations.length > 0 && (
+          {visibleObservations.length === 0 && observations.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
               No observations match the current filters.
             </Typography>
@@ -799,7 +879,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
         </DialogTitle>
         <DialogContent sx={{ p: 3 }}>
           {(() => {
-            const baseListForPreview = exportType === 'all' ? (observations || []) : (filteredObservations || []);
+            const baseListForPreview = exportType === 'all' ? (observations || []) : (visibleObservations || []);
             const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
             const previewCount = exportPreviewList.length;
             const studentLabel = student?.name || student?.displayName || 'this student';
@@ -853,7 +933,7 @@ function StudentTimeline({ student, currentUser, userRole }) {
               <strong>Export Type:</strong> {exportType === 'all' ? 'All Observations' : 'Filtered Observations'}
             </Typography>
             {(() => {
-              const baseListForPreview = exportType === 'all' ? (observations || []) : (filteredObservations || []);
+              const baseListForPreview = exportType === 'all' ? (observations || []) : (visibleObservations || []);
               const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
               const previewCount = exportPreviewList.length;
               const baseTotal = baseListForPreview.length;
