@@ -2,6 +2,22 @@
 
 # Changelog
 
+## 5.1.0 — 2025-01-15
+
+### Changed
+- Lesson Notes navigation: removed back button from header, moved "Discard Progress" button to bottom navigation area
+- Renamed "Discard Progress" to "Discard All Progress" for clarity
+- Back button now appears conditionally: shown on steps 2-4, hidden on step 1 (Lesson Context)
+- Removed "Add Lesson Note" header component with MenuBook icon from all wizard steps
+- Added visible scrollable container (Paper with border) around student list on step 2 to make scrolling area obvious
+- Auto-scroll to top when navigating between steps (Next/Back buttons)
+
+### Improved
+- Better navigation UX: all navigation controls consolidated at bottom of wizard
+- Clearer visual hierarchy: removed redundant headers, improved step focus
+- Enhanced scrollability: student list now has clear visual boundary indicating scrollable area
+- Smoother step transitions: automatic scroll-to-top ensures users start at top of each new step
+
 ## 5.0.0 — 2025-11-14
 
 ### Added
