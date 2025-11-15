@@ -402,19 +402,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header - different for teachers vs admins */}
       {userRole === 'teacher' ? (
-        // Teacher header
-        <Box sx={{ textAlign: 'center', mb: 2 }}>
-          <Typography variant="h4" component="h1" sx={{ 
-            color: '#1e293b', 
-            fontWeight: 600,
-            mb: 1
-          }}>
-            Welcome back, {currentUser.displayName?.split(' ')[0] || 'Teacher'}!
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#64748b' }}>
-            {activeTab === 0 ? 'Select a classroom to view your students' : 'Browse all students'}
-          </Typography>
-        </Box>
+        // Teacher header - removed welcome message
+        null
       ) : (
         // Admin header with search
         <Box sx={{ display: 'flex', alignItems: 'center' }}>

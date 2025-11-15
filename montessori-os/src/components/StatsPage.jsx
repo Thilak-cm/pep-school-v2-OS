@@ -1404,12 +1404,18 @@ const StatsPage = ({ user, role, onBack }) => {
               value={activeTab} 
               onChange={handleTabChange}
               variant="scrollable"
+              scrollButtons="auto"
               allowScrollButtonsMobile
               sx={{
                 '& .MuiTab-root': {
                   minHeight: 44,
                   textTransform: 'none',
                   fontWeight: 600
+                },
+                '& .MuiTabs-scrollButtons': {
+                  '&.Mui-disabled': {
+                    opacity: 0.3
+                  }
                 }
               }}
             >

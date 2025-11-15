@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
-  List, ListItemButton, ListItemAvatar, ListItemText
+  List, ListItemButton, ListItemAvatar, ListItemText, IconButton
 } from '@mui/material';
 import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight, Delete } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
@@ -109,6 +109,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   
   // Admins
   const [admins, setAdmins] = useState([]);
+  const [superAdmins, setSuperAdmins] = useState([]);
   
   // Students
   const [students, setStudents] = useState([]);
@@ -128,7 +129,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [programDialogSelection, setProgramDialogSelection] = useState([]);
   const [programDialogSaving, setProgramDialogSaving] = useState(false);
   const [programDialogError, setProgramDialogError] = useState('');
-
+  const [programDialogMode, setProgramDialogMode] = useState('edit'); // 'edit' | 'promote'
+  
   // Callables
   const createAuthUserAndProfile = httpsCallable(cloudFunctions, 'createAuthUserAndProfile');
 
@@ -156,7 +158,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   }, [hasUserManagementAccess]);
 
   useEffect(() => {
-    if (!canManageAdmins && manageTab === 'admins') {
+    if (!canManageAdmins && (manageTab === 'admins' || manageTab === 'superadmins')) {
       setManageTab('teachers');
     }
   }, [canManageAdmins, manageTab]);
@@ -179,9 +181,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     if (view === 'manage') {
       if (manageTab === 'teachers' && teachers.length === 0) fetchTeachers();
       if (manageTab === 'admins' && canManageAdmins && admins.length === 0) fetchAdmins();
+      if (manageTab === 'superadmins' && canManageAdmins && superAdmins.length === 0) fetchSuperAdmins();
       if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
-  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, students.length]);
+  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, superAdmins.length, students.length]);
 
   // ============================================================================
   // DATA FETCHING
@@ -229,6 +232,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const fetchAdmins = async () => {
     const list = await fetchUsersByRole('admin');
     setAdmins(list);
+  };
+
+  const fetchSuperAdmins = async () => {
+    const list = await fetchUsersByRole('superadmin');
+    setSuperAdmins(list);
   };
 
   const fetchStudents = async () => {
@@ -340,9 +348,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setActionUser(null);
   };
 
-  const openProgramDialog = (adminUser) => {
+  const openProgramDialog = (adminUser, mode = 'edit') => {
     setProgramDialogTarget(adminUser);
     setProgramDialogSelection(Array.isArray(adminUser?.manageablePrograms) ? adminUser.manageablePrograms : []);
+    setProgramDialogMode(mode);
     setProgramDialogError('');
     setProgramDialogOpen(true);
   };
@@ -353,6 +362,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setProgramDialogTarget(null);
     setProgramDialogSelection([]);
     setProgramDialogError('');
+    setProgramDialogMode('edit');
   };
 
   const openDeleteConfirm = (type, user) => {
@@ -406,7 +416,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       } else if (type === 'admin') {
         await deleteDoc(doc(db, 'users', user.id));
         setAdmins(prev => prev.filter(a => a.id !== user.id));
-        notify.success('Admin deleted successfully');
+        notify.success('Program Admin deleted successfully');
+      } else if (type === 'superadmin') {
+        await deleteDoc(doc(db, 'users', user.id));
+        setSuperAdmins(prev => prev.filter(a => a.id !== user.id));
+        notify.success('Super Admin deleted successfully');
       } else if (type === 'student') {
         if (user.classroomId) {
           batch.update(doc(db, 'classrooms', user.classroomId), {
@@ -593,7 +607,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
 
   const handleUserSubmit = async () => {
     if (role === 'admin' && !canManageAdmins) {
-      notify.error('Only super admins can create admins');
+      notify.error('Only super admins can create program admins');
       return;
     }
     const res = await createAuthUserAndProfile({
@@ -723,19 +737,38 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     }
     try {
       setProgramDialogSaving(true);
-      await createAuthUserAndProfile({
-        email: programDialogTarget.email,
-        firstName: programDialogTarget.firstName || '',
-        lastName: programDialogTarget.lastName || '',
-        role: 'admin',
-        manageablePrograms: programDialogSelection,
-        updateIfExists: true,
-      });
-      notify.success('Program access updated');
-      setProgramDialogOpen(false);
-      setProgramDialogTarget(null);
-      setProgramDialogSelection([]);
-      await fetchAdmins();
+      if (programDialogMode === 'promote') {
+        const userRef = doc(db, 'users', programDialogTarget.id);
+        await userRef.set({
+          role: 'admin',
+          manageablePrograms: programDialogSelection,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        notify.success('Teacher promoted to program admin');
+        setProgramDialogOpen(false);
+        setProgramDialogTarget(null);
+        setProgramDialogSelection([]);
+        try {
+          await fetchTeachers();
+        } catch (_) {}
+        try {
+          await fetchAdmins();
+        } catch (_) {}
+      } else {
+        await createAuthUserAndProfile({
+          email: programDialogTarget.email,
+          firstName: programDialogTarget.firstName || '',
+          lastName: programDialogTarget.lastName || '',
+          role: 'admin',
+          manageablePrograms: programDialogSelection,
+          updateIfExists: true,
+        });
+        notify.success('Program access updated');
+        setProgramDialogOpen(false);
+        setProgramDialogTarget(null);
+        setProgramDialogSelection([]);
+        await fetchAdmins();
+      }
     } catch (err) {
       console.error('Program update error', err);
       notify.error(err?.message || 'Failed to update program access');
@@ -817,7 +850,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const RoleTabs = ({ value, onChange, canManageAdmins }) => {
     const items = [
       { key: 'teacher', label: 'Teacher', icon: <School fontSize="small" /> },
-      ...(canManageAdmins ? [{ key: 'admin', label: 'Admin', icon: <ManageAccounts fontSize="small" /> }] : []),
+      ...(canManageAdmins ? [{ key: 'admin', label: 'Program Admin', icon: <ManageAccounts fontSize="small" /> }] : []),
       { key: 'student', label: 'Student', icon: <Groups fontSize="small" /> },
     ];
     const index = Math.max(0, items.findIndex(i => i.key === value));
@@ -961,7 +994,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       <Avatar sx={{ bgcolor: '#4f46e5', width: 56, height: 56 }}><PersonAdd /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Add Users</Typography>
-                        <Typography variant="body2" color="text.secondary">Create admins, teachers, or students</Typography>
+                        <Typography variant="body2" color="text.secondary">Create program admins, teachers, or students</Typography>
                       </Box>
                     </Box>
                   </CardContent>
@@ -976,7 +1009,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                       <Avatar sx={{ bgcolor: '#059669', width: 56, height: 56 }}><ManageAccounts /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Manage Users</Typography>
-                        <Typography variant="body2" color="text.secondary">Update teacher, admin, or student info</Typography>
+                        <Typography variant="body2" color="text.secondary">Update teacher, program admin, or student info</Typography>
                       </Box>
                     </Box>
                   </CardContent>
@@ -1005,16 +1038,26 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         {view === 'manage' && (
           <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', mb: 2 }}>
             <Tabs
-              value={Math.max(0, (canManageAdmins ? ['teachers','admins','students'] : ['teachers','students']).indexOf(manageTab))}
+              value={Math.max(0, (canManageAdmins ? ['teachers','superadmins','admins','students'] : ['teachers','students']).indexOf(manageTab))}
               onChange={(e, idx) => {
-                const options = canManageAdmins ? ['teachers','admins','students'] : ['teachers','students'];
+                const options = canManageAdmins ? ['teachers','superadmins','admins','students'] : ['teachers','students'];
                 setManageTab(options[idx] || 'teachers');
               }}
-              variant="fullWidth"
-              sx={TAB_SX}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                ...TAB_SX,
+                '& .MuiTabs-scrollButtons': {
+                  '&.Mui-disabled': {
+                    opacity: 0.3
+                  }
+                }
+              }}
             >
               <Tab label="Teachers" />
-              {canManageAdmins && <Tab label="Admins" />}
+              {canManageAdmins && <Tab label="Super Admins" />}
+              {canManageAdmins && <Tab label="Program Admins" />}
               <Tab label="Students" />
             </Tabs>
           </Box>
@@ -1142,7 +1185,33 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           </>
         )}
 
-        {/* Admins tab */}
+        {/* Super Admins tab */}
+        {view === 'manage' && manageTab === 'superadmins' && canManageAdmins && (
+          <>
+            {loading ? <LoadingSpinner /> : (
+              <List disablePadding>
+                {superAdmins.map((a, idx, arr) => (
+                  <React.Fragment key={a.id}>
+                    <UserListItem
+                      user={a}
+                      type="superadmin"
+                      onClick={() => openActionDialog('superadmin', a)}
+                      secondaryContent={
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="caption" color="text.secondary">{a.email}</Typography>
+                          <Chip size="small" label="Super Admin" color="primary" />
+                        </Box>
+                      }
+                    />
+                    {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
+                  </React.Fragment>
+                ))}
+              </List>
+            )}
+          </>
+        )}
+
+        {/* Program Admins tab */}
         {view === 'manage' && manageTab === 'admins' && canManageAdmins && (
           <>
             {loading ? <LoadingSpinner /> : (
@@ -1239,7 +1308,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 <>
                   <Grid item xs={12}>
                     <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                      {role === 'admin' ? 'Admin Details' : 'Teacher Details'}
+                      {role === 'admin' ? 'Program Admin Details' : 'Teacher Details'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12}>
@@ -1504,7 +1573,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            Select programs this admin can manage.
+            Select programs this program admin can manage.
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {PROGRAM_OPTIONS.map((program) => (
@@ -1558,7 +1627,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       <Dialog open={deleteConfirmOpen} onClose={() => !deleteDeleting && setDeleteConfirmOpen(false)}>
         <DialogTitle component="div">
           <Typography component="h2" variant="h6">
-            Delete {deleteTarget?.type === 'teacher' ? 'Teacher' : deleteTarget?.type === 'admin' ? 'Admin' : 'Student'}?
+            Delete {deleteTarget?.type === 'teacher' ? 'Teacher' : deleteTarget?.type === 'admin' ? 'Program Admin' : deleteTarget?.type === 'superadmin' ? 'Super Admin' : 'Student'}?
           </Typography>
         </DialogTitle>
         <DialogContent>

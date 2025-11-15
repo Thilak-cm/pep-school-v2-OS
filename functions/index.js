@@ -12,7 +12,7 @@ initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
 const auth = getAuth();
-const PROGRAM_IDS = ['toddler', 'primary', 'elementary', 'adolescent'];
+const PROGRAM_IDS = ["toddler", "primary", "elementary", "adolescent"];
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config

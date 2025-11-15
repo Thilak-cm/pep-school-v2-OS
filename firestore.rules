@@ -25,11 +25,9 @@ service cloud.firestore {
 
     function hasManageableProgram(programId) {
       return isProgramAdmin() &&
-        (let user = requesterDoc().data;
-          ('manageablePrograms' in user) &&
-          (user.manageablePrograms is list) &&
-          user.manageablePrograms.hasAny([programId])
-        );
+        ('manageablePrograms' in requesterDoc().data) &&
+        (requesterDoc().data.manageablePrograms is list) &&
+        requesterDoc().data.manageablePrograms.hasAny([programId]);
     }
 
     function managesProgram(programId) {
@@ -210,8 +208,10 @@ service cloud.firestore {
     match /{path=**}/observations/{observationId} {
       // Allow reading observations for both admins and teachers
       function adminCanQueryObservation() {
-        return ('classroomId' in resource.data) &&
-          managesProgram(classroomProgramId(resource.data.classroomId));
+        return isSuperAdmin() || (
+          ('classroomId' in resource.data) &&
+          managesProgram(classroomProgramId(resource.data.classroomId))
+        );
       }
 
       allow read: if adminCanQueryObservation() || isTeacher();

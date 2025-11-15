@@ -43,7 +43,7 @@ import { isAdminRole, isProgramAdmin, isSuperAdmin } from './utils/roleUtils';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState(null); // 'admin' | 'teacher'
+  const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
   const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
@@ -52,14 +52,13 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState(null);
   const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
+  const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
 
   const isTeacher = role === 'teacher';
   const isSuperAdminUser = isSuperAdmin(role);
-  const isProgramAdminUser = isProgramAdmin(role);
-  const isAdminUser = isAdminRole(role);
 
   const openTimeline = (filter = null) => {
     setTimelineFilter(filter);
@@ -115,6 +114,13 @@ function App() {
       setTimelineTitleAsDashboard(false);
     }
   }, [screen, timelineTitleAsDashboard]);
+
+  // Reset studentDashboard return screen when entering classroomList
+  useEffect(() => {
+    if (screen === 'classroomList') {
+      setStudentDashboardReturnScreen('classroomList');
+    }
+  }, [screen]);
 
   useEffect(() => {
     // Log runtime Firebase project configuration once on mount
@@ -283,7 +289,7 @@ function App() {
       case 'studentList':
         return () => setScreen('classroomList');
       case 'studentDashboard':
-        return () => setScreen('classroomTimeline');
+        return () => setScreen(studentDashboardReturnScreen || 'classroomTimeline');
       case 'studentStats':
         return () => setScreen('studentDashboard');
       case 'timeline':
@@ -531,6 +537,7 @@ function App() {
                         userRole={role}
                         onNavigateToStudent={(student) => {
                           setSelectedStudent(student);
+                          setStudentDashboardReturnScreen('classroomList');
                           setScreen('studentDashboard');
                         }}
                       />
@@ -544,6 +551,7 @@ function App() {
                       userRole={role}
                       onNavigateToStudent={(student) => {
                         setSelectedStudent(student);
+                        setStudentDashboardReturnScreen('classroomTimeline');
                         setScreen('studentDashboard');
                       }}
                     />
@@ -554,6 +562,7 @@ function App() {
                       classroom={selectedClassroom}
                       onSelectStudent={(stu) => {
                         setSelectedStudent(stu);
+                        setStudentDashboardReturnScreen('studentList');
                         setScreen('studentDashboard');
                       }}
                     />
