@@ -252,13 +252,22 @@ interface Observation {
   groupId?: string;              // shared id across fan-out docs for a multi-student note
   
   // Content
-  type: 'text' | 'voice';        // core types for v1
-  text: string;
-  durationSec?: number;
-  sttConfidence?: number;
+  type: 'text' | 'voice' | 'lesson';
+  text?: string;                 // free text for text/voice notes
+  durationSec?: number;          // voice notes only
+  sttConfidence?: number;        // voice notes only
+  lessonTitle?: string;          // lesson notes
+  lessonDescription?: string;    // lesson notes
+  groupComment?: string;         // lesson notes
+  programId?: ProgramId;         // lesson notes – derived from classroom
+  dimensionOrder?: string[];     // lesson notes – ordered list of dimension names
+  groupDefaults?: Record<string, 'yes' | 'partial' | 'no' | 'na'>; // lesson notes – initial ratings
+  ratings?: Record<string, 'yes' | 'partial' | 'no' | 'na'>;       // lesson notes – per student after overrides
+  studentComment?: string;       // lesson notes – optional per-student comment
+  attendanceStatus?: 'present' | 'absent'; // lesson notes
 
-  // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields)
-  coach: {
+  // 🆕 Coach (GPT review result + telemetry; no schema/prompt version fields) — text/voice notes
+  coach?: {
     status: 'ok' | 'timeout' | 'error';
     reason?: 'none' | 'rate_limit' | 'parse_error' | 'net_timeout' | 'server_error';
 
