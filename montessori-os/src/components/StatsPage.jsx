@@ -62,6 +62,56 @@ import {
   isLowPerformer
 } from '../config/performanceTargets';
 
+// Local cache so subsequent visits avoid re-fetching every collection.
+const CACHE_KEY_PREFIX = 'statsPageCache';
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+const getFilterKeySegment = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) return 'all';
+  const ids = items
+    .map(item => item?.id)
+    .filter(Boolean)
+    .sort();
+  return ids.length ? ids.join('|') : 'all';
+};
+
+const buildCacheKey = (userId, role, classrooms, teachers, students) => {
+  const userKey = userId || 'anonymous';
+  const roleKey = role || 'unknown';
+  const classroomKey = getFilterKeySegment(classrooms);
+  const teacherKey = getFilterKeySegment(teachers);
+  const studentKey = getFilterKeySegment(students);
+  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}`;
+};
+
+const getCachedStatsPayload = (key) => {
+  if (typeof window === 'undefined' || !key) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.timestamp || !parsed?.payload) return null;
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return parsed.payload;
+  } catch (error) {
+    console.error('Failed to read stats cache', error);
+    return null;
+  }
+};
+
+const setCachedStatsPayload = (key, payload) => {
+  if (typeof window === 'undefined' || !key) return;
+  try {
+    const value = JSON.stringify({ timestamp: Date.now(), payload });
+    window.localStorage.setItem(key, value);
+  } catch (error) {
+    console.error('Failed to write stats cache', error);
+  }
+};
+
 const StatsPage = ({ user, role, onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
@@ -110,8 +160,33 @@ const StatsPage = ({ user, role, onBack }) => {
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const isAdmin = isAdminRole(role);
+  const cacheKey = useMemo(() => buildCacheKey(
+    user?.uid,
+    role,
+    selectedClassrooms,
+    selectedTeachers,
+    selectedStudents
+  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents]);
 
   useEffect(() => {
+    const cachedPayload = getCachedStatsPayload(cacheKey);
+    if (cachedPayload) {
+      if (cachedPayload.stats) {
+        setStats({ ...cachedPayload.stats, loading: false });
+      } else {
+        setStats(prev => ({ ...prev, loading: false }));
+      }
+      setClassrooms(cachedPayload.classrooms || []);
+      setTeachers(cachedPayload.teachers || []);
+      setStudents(cachedPayload.students || []);
+      setBranches(cachedPayload.branches || []);
+      if (isAdmin && selectedBranchId === null && cachedPayload.branches && cachedPayload.branches.length > 0) {
+        setSelectedBranchId(cachedPayload.branches[0].id);
+      }
+      setFilterLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         setFilterLoading(true);
@@ -178,12 +253,11 @@ const StatsPage = ({ user, role, onBack }) => {
             id: doc.id,
             ...doc.data()
           }));
-          setClassrooms(classroomsData);
         } catch (error) {
           console.error('Classrooms query failed:', error);
           console.log('Classrooms error code:', error.code);
           console.log('Classrooms error message:', error.message);
-          setClassrooms([]);
+          classroomsData = [];
         }
         
         // Fetch teachers (users with teacher role)
@@ -203,12 +277,11 @@ const StatsPage = ({ user, role, onBack }) => {
             id: doc.id,
             ...doc.data()
           }));
-          setTeachers(teachersData);
         } catch (error) {
           console.error('Teachers query failed:', error);
           console.log('Teachers error code:', error.code);
           console.log('Teachers error message:', error.message);
-          setTeachers([]);
+          teachersData = [];
         }
         
         // Fetch students
@@ -222,12 +295,11 @@ const StatsPage = ({ user, role, onBack }) => {
             id: doc.id,
             ...doc.data()
           }));
-          setStudents(studentsData);
         } catch (error) {
           console.error('Students query failed:', error);
           console.log('Students error code:', error.code);
           console.log('Students error message:', error.message);
-          setStudents([]);
+          studentsData = [];
         }
         
         // Fetch observations using collection group query
@@ -276,6 +348,9 @@ const StatsPage = ({ user, role, onBack }) => {
 
         // Apply filters
         let filteredObservations = allObservations;
+        let filteredClassroomsData = classroomsData;
+        let filteredTeachersData = teachersData;
+        let filteredStudentsData = studentsData;
         
         // Role-based filtering: teachers only see their assigned classrooms
         if (role === 'teacher') {
@@ -297,12 +372,12 @@ const StatsPage = ({ user, role, onBack }) => {
           const teacherClassrooms = classroomsData.filter(classroom => 
             classroom.teacherIds && classroom.teacherIds.includes(user.uid)
           );
-          setClassrooms(teacherClassrooms);
+          filteredClassroomsData = teacherClassrooms;
           
           const teacherStudents = studentsData.filter(student => 
             teacherClassroomIds.includes(student.classroomId)
           );
-          setStudents(teacherStudents);
+          filteredStudentsData = teacherStudents;
           
           // For teachers, only show teachers from their assigned classrooms
           const teacherClassroomTeacherIds = new Set();
@@ -315,12 +390,7 @@ const StatsPage = ({ user, role, onBack }) => {
           const teacherClassroomTeachers = teachersData.filter(teacher => 
             teacherClassroomTeacherIds.has(teacher.id)
           );
-          setTeachers(teacherClassroomTeachers);
-        } else {
-          // Admin sees all data
-          setClassrooms(classroomsData);
-          setTeachers(teachersData);
-          setStudents(studentsData);
+          filteredTeachersData = teacherClassroomTeachers;
         }
         
         // Apply user-selected filters with AND logic between different filter types
@@ -349,6 +419,10 @@ const StatsPage = ({ user, role, onBack }) => {
             selectedStudentIds.includes(obs.studentId)
           );
         }
+
+        setClassrooms(filteredClassroomsData);
+        setTeachers(filteredTeachersData);
+        setStudents(filteredStudentsData);
 
         // Calculate weekly stats
         const now = new Date();
@@ -525,7 +599,7 @@ const StatsPage = ({ user, role, onBack }) => {
         console.log('This week count:', thisWeek.length);
         console.log('Last week count:', lastWeek.length);
         
-        setStats({
+        const statsPayload = {
           totalObservations: filteredObservations.length,
           thisWeek: thisWeek.length,
           lastWeek: lastWeek.length,
@@ -540,6 +614,15 @@ const StatsPage = ({ user, role, onBack }) => {
           allObservations: filteredObservations,
           voiceLanguageDistribution,
           loading: false
+        };
+        
+        setStats(statsPayload);
+        setCachedStatsPayload(cacheKey, {
+          stats: statsPayload,
+          classrooms: filteredClassroomsData,
+          teachers: filteredTeachersData,
+          students: filteredStudentsData,
+          branches: branchesData
         });
         
         console.log('Stats set successfully!');
@@ -553,7 +636,7 @@ const StatsPage = ({ user, role, onBack }) => {
     };
 
     fetchData();
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role]);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey]);
 
   const handleTabChange = (event, newValue) => {
     // Teachers can't access certain tabs
