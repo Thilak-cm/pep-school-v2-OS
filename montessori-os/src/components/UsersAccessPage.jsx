@@ -236,7 +236,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     const errors = {};
     if (role === 'admin' || role === 'teacher') {
       if (!userForm.email) errors.email = 'Email is required';
-      else if (!userForm.email.toLowerCase().endsWith('@pepschoolv2.com')) errors.email = 'Email must be @pepschoolv2.com';
+      else {
+        const emailLower = userForm.email.toLowerCase();
+        const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
+        if (!allowedDomains.some(domain => emailLower.endsWith(domain))) {
+          errors.email = 'Email must be from @pepschoolv2.com, @ribbons.education, or @accelschool.in';
+        }
+      }
       if (!userForm.firstName) errors.firstName = 'First name is required';
       if (role === 'teacher' && selectedClassrooms.length === 0) errors.classrooms = 'Select at least one classroom';
     } else {
@@ -1116,7 +1122,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                   <Grid item xs={12}>
                     <TextField
                       label="Email"
-                      placeholder="name@pepschoolv2.com"
+                      placeholder="name@pepschoolv2.com, @ribbons.education, or @accelschool.in"
                       fullWidth
                       value={userForm.email}
                       onChange={(e) => setUserForm(p => ({ ...p, email: e.target.value }))}

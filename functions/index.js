@@ -153,8 +153,9 @@ export const createAuthUserAndProfile = functions
     }
 
     const emailLc = String(email).trim().toLowerCase();
-    if (!emailLc.endsWith("@pepschoolv2.com")) {
-      throw new functions.https.HttpsError("failed-precondition", "Email must be @pepschoolv2.com");
+    const allowedDomains = ["@pepschoolv2.com", "@ribbons.education", "@accelschool.in"];
+    if (!allowedDomains.some(domain => emailLc.endsWith(domain))) {
+      throw new functions.https.HttpsError("failed-precondition", "Email must be from an allowed domain (@pepschoolv2.com, @ribbons.education, or @accelschool.in)");
     }
 
     const displayName = `${firstName} ${lastName || ""}`.trim();

@@ -142,8 +142,10 @@ function App() {
     };
 
     const validateAccess = async () => {
-      // Domain check
-      if (!user.email.endsWith('@pepschoolv2.com')) {
+      // Domain check - allow multiple domains
+      const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
+      const emailLower = user.email.toLowerCase();
+      if (!allowedDomains.some(domain => emailLower.endsWith(domain))) {
         await logUnauthorized('invalid_domain');
         setUnauthorized(true);
         setScreen('accessDenied');
