@@ -505,7 +505,7 @@ function NoteExpansionDialog({
               </Box>
             )}
             
-            {userRole === 'admin' && (
+            {userRole === 'admin' && !isLessonObservation && (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -513,7 +513,7 @@ function NoteExpansionDialog({
                     Edit count: {observation.editCount || 0}
                   </Typography>
                 </Box>
-                {!isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
+                {canEditObservation(observation, currentUser, userRole) && (
                   <Button 
                     onClick={handleEditClick} 
                     size="small"

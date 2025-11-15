@@ -19,9 +19,11 @@ import {
   Download,
   Psychology
 } from '@mui/icons-material';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
   const isTeacher = userRole === 'teacher';
+  const isSuperAdminUser = isSuperAdmin(userRole);
   
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -74,7 +76,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         color: '#1e293b',
                         fontWeight: 600
                       }}>
-                        {isTeacher ? 'View My Classrooms' : 'View All Classrooms'}
+                        Classrooms & Students
                       </Typography>
                       <Typography variant="body2" sx={{ 
                         color: '#64748b',
@@ -82,7 +84,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       }}>
                         {isTeacher 
                           ? 'Access your assigned classrooms and students'
-                          : 'Tap to view every classroom in the school'
+                          : 'Browse all classrooms and students in the school'
                         }
                       </Typography>
                     </Box>
@@ -203,11 +205,11 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
           </Card>
         </Grid>
 
-        {/* Admin-only cards */}
-        {!isTeacher && (
-          <>
-            {/* Users & Access */}
-            <Grid size={12}>
+            {/* Admin-only cards */}
+            {!isTeacher && (
+              <>
+                {/* Users & Access */}
+                <Grid size={12}>
               <Card 
                 aria-label="Users & Access"
                 sx={{ 
@@ -246,7 +248,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                           color: '#64748b',
                           mt: 0.5
                         }}>
-                          Manage teacher access; create admins, teachers, or students
+                          Manage teacher access and student onboarding{isSuperAdminUser ? '; create admins and assign programs' : ''}
                         </Typography>
                       </Box>
                     </Box>
@@ -258,39 +260,41 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
 
 
             {/* AI Home */}
-            <Grid size={12}>
-              <Card
-                sx={{
-                  borderRadius: 2,
-                  '&:hover': {
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <CardActionArea onClick={() => onNavigate('/aiPrompts')} sx={{ p: 0 }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ bgcolor: '#7c3aed', width: 56, height: 56 }}>
-                          <Psychology />
-                        </Avatar>
-                        <Box>
-                          <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                            AI Home
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                            Manage AI tools: Text Cleanup and Voice Transcriber
-                          </Typography>
+            {isSuperAdminUser && (
+              <Grid size={12}>
+                <Card
+                  sx={{
+                    borderRadius: 2,
+                    '&:hover': {
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.2s ease-in-out',
+                  }}
+                >
+                  <CardActionArea onClick={() => onNavigate('/aiPrompts')} sx={{ p: 0 }}>
+                    <CardContent sx={{ p: 3 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ bgcolor: '#7c3aed', width: 56, height: 56 }}>
+                            <Psychology />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                              AI Home
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                              Manage AI tools: Text Cleanup and Voice Transcriber
+                            </Typography>
+                          </Box>
                         </Box>
+                        <ArrowForward sx={{ color: '#94a3b8' }} />
                       </Box>
-                      <ArrowForward sx={{ color: '#94a3b8' }} />
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            )}
 
             {/* Review Classroom Notes */}
             <Grid size={12}>

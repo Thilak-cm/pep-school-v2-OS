@@ -5,8 +5,12 @@ import {
   Avatar
 } from '@mui/material';
 import VersionBadge from './VersionBadge';
+import { getRoleLabel, isProgramAdmin, isSuperAdmin } from '../utils/roleUtils';
 
 const ProfilePage = ({ user, role }) => {
+
+  const roleLabel = getRoleLabel(role);
+  const roleColor = isSuperAdmin(role) ? '#dc2626' : (isProgramAdmin(role) ? '#ea580c' : '#4f46e5');
 
   return (
     <Box sx={{ 
@@ -63,12 +67,12 @@ const ProfilePage = ({ user, role }) => {
         </Typography>
         
         <Typography variant="body2" sx={{ 
-          color: role === 'admin' ? '#dc2626' : '#4f46e5',
+          color: roleColor,
           textAlign: 'center',
           fontWeight: 600,
           textTransform: 'capitalize'
         }}>
-          {role === 'admin' ? 'Administrator' : 'Teacher'}
+          {roleLabel}
         </Typography>
       </Box>
 

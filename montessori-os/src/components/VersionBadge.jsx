@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { isAdminRole } from '../utils/roleUtils';
 
 /**
  * A version badge that can be displayed either:
@@ -8,7 +9,7 @@ import { Box, Typography } from '@mui/material';
  */
 const VersionBadge = ({ userRole, showInProfile = false }) => {
   // For universal display: only show for admin users
-  if (!showInProfile && userRole !== 'admin') {
+  if (!showInProfile && !isAdminRole(userRole)) {
     return null;
   }
 

@@ -1,3 +1,5 @@
+import { isAdminRole } from './roleUtils';
+
 /**
  * Check if user can delete an observation
  * @param {Object} observation - Observation object
@@ -7,8 +9,7 @@
  */
 export const canDeleteObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
-  // Only admin can delete notes
-  return userRole === 'admin';
+  return isAdminRole(userRole);
 };
 
 /**
@@ -20,8 +21,7 @@ export const canDeleteObservation = (observation, currentUser, userRole) => {
  */
 export const canEditObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
-  // Only admin can edit notes
-  return userRole === 'admin';
+  return isAdminRole(userRole);
 };
 
 /**
@@ -48,7 +48,7 @@ export const canViewObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
   
   // Admin can view all observations
-  if (userRole === 'admin') return true;
+  if (isAdminRole(userRole)) return true;
   
   // Teachers can view observations they created
   if (observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid) return true;
@@ -70,7 +70,7 @@ export const canStarObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
   
   // Admin can star any observation
-  if (userRole === 'admin') return true;
+  if (isAdminRole(userRole)) return true;
   
   // Teachers can star observations they created
   return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
@@ -88,7 +88,7 @@ export const canCreateObservationForStudent = (student, currentUser, userRole, u
   if (!currentUser || !student) return false;
   
   // Admin can create observations for any student
-  if (userRole === 'admin') return true;
+  if (isAdminRole(userRole)) return true;
   
   // Teachers can create observations for students in their assigned classrooms
   if (userRole === 'teacher') {

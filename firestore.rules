@@ -7,51 +7,129 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Admins only (do not elevate 'other')
-    function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function requesterDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && requesterDoc().data.role == 'superadmin';
+    }
+
+    function isProgramAdmin() {
+      return isSignedIn() && requesterDoc().data.role == 'admin';
+    }
+
+    function isPrivilegedAdmin() {
+      return isSuperAdmin() || isProgramAdmin();
+    }
+
+    function hasManageableProgram(programId) {
+      return isProgramAdmin() &&
+        (let user = requesterDoc().data;
+          ('manageablePrograms' in user) &&
+          (user.manageablePrograms is list) &&
+          user.manageablePrograms.hasAny([programId])
+        );
+    }
+
+    function managesProgram(programId) {
+      return isSuperAdmin() || hasManageableProgram(programId);
     }
 
     function isTeacher() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+      return isSignedIn() && requesterDoc().data.role == 'teacher';
+    }
+
+    function classroomProgramId(classroomId) {
+      return get(/databases/$(database)/documents/classrooms/$(classroomId)).data.programId;
+    }
+
+    function studentClassroomId(studentId) {
+      return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
+    }
+
+    function studentProgramId(studentId) {
+      return classroomProgramId(studentClassroomId(studentId));
+    }
+
+    function requiresManageablePrograms(data) {
+      return data.role == 'admin' &&
+        ('manageablePrograms' in data) &&
+        (data.manageablePrograms is list) &&
+        data.manageablePrograms.size() > 0;
+    }
+
+    function isValidAdminPayload(data) {
+      return data.role != 'admin' || requiresManageablePrograms(data);
     }
 
     // Users: user can read own profile; admins can read/query all, write any
     match /users/{uid} {
-      // Allow single-doc get and collection queries for admins; allow self-reads for everyone signed-in
-      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+      function isSelf() {
+        return isSignedIn() && uid == request.auth.uid;
+      }
+
+      allow read: if isSignedIn() && (isSelf() || isPrivilegedAdmin());
       
-      // Create/Update: admins; also allow users to create/update their own profile if needed
-      allow create, update: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow create: if
+        (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
+        (isProgramAdmin() && request.resource.data.role == 'teacher') ||
+        (isSelf() && request.resource.data.role == 'teacher');
       
-      allow delete: if isAdmin();
+      allow update: if
+        (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
+        (isProgramAdmin() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher') ||
+        (isSelf() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher');
+
+      allow delete: if isSuperAdmin() || (isProgramAdmin() && resource.data.role == 'teacher');
     }
 
     // Classrooms - simplified security that works
     match /classrooms/{classroomId} {
       // Allow reading individual classroom documents
-      allow read: if isAdmin() || isTeacher();
+      allow read: if isPrivilegedAdmin() || isTeacher();
       // Only admins can modify
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // Classrooms collection queries allowed via read above (no extra collection-level match needed)
 
     // Students
     match /students/{studentId} {
-      allow read: if isAdmin() || isTeacher();
-      allow create, update, delete: if isAdmin();
+      function programForRequestStudent() {
+        return classroomProgramId(request.resource.data.classroomId);
+      }
+
+      function programForExistingStudent() {
+        return classroomProgramId(resource.data.classroomId);
+      }
+
+      allow read: if isPrivilegedAdmin() || isTeacher();
+
+      allow create: if isSuperAdmin() ||
+        (isProgramAdmin() && managesProgram(programForRequestStudent()));
+
+      allow update: if isSuperAdmin() || (
+        isProgramAdmin() &&
+        managesProgram(programForRequestStudent()) &&
+        managesProgram(programForExistingStudent())
+      );
+
+      allow delete: if isSuperAdmin() ||
+        (isProgramAdmin() && managesProgram(programForExistingStudent()));
 
       // Placements subcollection: classroom history per student
       // - Reads: admins and teachers
       // - Writes: admins only (with validation on create/update)
       match /placements/{placementId} {
-        allow read: if isAdmin() || isTeacher();
+        function canManagePlacement() {
+          return managesProgram(studentProgramId(studentId));
+        }
+
+        allow read: if isPrivilegedAdmin() || isTeacher();
 
         // Create validation
-        allow create: if isAdmin() &&
+        allow create: if canManagePlacement() &&
           request.resource.data.keys().hasAll(['classroomId','startDate']) &&
           (request.resource.data.classroomId is string) &&
           (request.resource.data.startDate is string &&
@@ -70,7 +148,7 @@ service cloud.firestore {
           );
 
         // Update validation: keep startDate and classroomId immutable; validate endDate shape
-        allow update: if isAdmin() &&
+        allow update: if canManagePlacement() &&
           request.resource.data.startDate == resource.data.startDate &&
           request.resource.data.classroomId == resource.data.classroomId &&
           (request.resource.data.classroomId is string) &&
@@ -85,20 +163,24 @@ service cloud.firestore {
             request.resource.data.startDate <= request.resource.data.endDate
           );
 
-        // Admins can delete placement docs (e.g., to fix bad backfills)
-        allow delete: if isAdmin();
+        // Privileged admins can delete placement docs (e.g., to fix bad backfills)
+        allow delete: if canManagePlacement();
       }
 
       // Observations subcollection - simplified access
       match /observations/{observationId} {
+        function adminCanAccessObservation() {
+          return managesProgram(studentProgramId(studentId));
+        }
+
         // Allow reading observations for both admins and teachers
-        allow read: if isAdmin() || isTeacher();
+        allow read: if adminCanAccessObservation() || isTeacher();
         
         // Allow creating observations for both admins and teachers
-        allow create: if isAdmin() || isTeacher();
+        allow create: if adminCanAccessObservation() || isTeacher();
         
         // Updates: allow admins, or allow creators to update limited metadata fields
-        allow update: if isAdmin() || (
+        allow update: if adminCanAccessObservation() || (
           isTeacher() &&
           (
             // Author-only updates with restricted field changes
@@ -114,7 +196,7 @@ service cloud.firestore {
         );
 
         // Allow delete by admins OR by the author (to enable reassign by author)
-        allow delete: if isAdmin() || (
+        allow delete: if adminCanAccessObservation() || (
           isTeacher() && (
             // Support both current 'createdBy' and legacy 'teacherId'
             resource.data.createdBy == request.auth.uid ||
@@ -127,14 +209,19 @@ service cloud.firestore {
     // Collection group rule for observations (needed for collectionGroup queries)
     match /{path=**}/observations/{observationId} {
       // Allow reading observations for both admins and teachers
-      allow read: if isAdmin() || isTeacher();
+      function adminCanQueryObservation() {
+        return ('classroomId' in resource.data) &&
+          managesProgram(classroomProgramId(resource.data.classroomId));
+      }
+
+      allow read: if adminCanQueryObservation() || isTeacher();
     }
 
     // Feedback collection
     match /feedback/{feedbackId} {
       // Users can read their own feedback
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+        resource.data.userId == request.auth.uid || isPrivilegedAdmin()
       );
       
       // Users can create their own feedback
@@ -142,8 +229,8 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid
       );
       
-      // Only admins can update/delete feedback
-      allow update, delete: if isAdmin();
+      // Only super admins can update/delete feedback
+      allow update, delete: if isSuperAdmin();
     }
 
     // AI Prompts
@@ -151,7 +238,7 @@ service cloud.firestore {
     // - Only admins can write
     match /ai_prompts/{docId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // Programs (environment groupings of classrooms)
@@ -159,7 +246,7 @@ service cloud.firestore {
     // - Writes restricted to admins (typically performed via admin scripts)
     match /programs/{programId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // Branches (center metadata)
@@ -167,7 +254,7 @@ service cloud.firestore {
     // - Writes restricted to admins (typically performed via admin scripts)
     match /branches/{branchId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
 
     // Temporarily removed default deny to test if it's blocking teacher access

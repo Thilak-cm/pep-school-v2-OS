@@ -12,6 +12,7 @@ initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
 const auth = getAuth();
+const PROGRAM_IDS = ['toddler', 'primary', 'elementary', 'adolescent'];
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config
@@ -132,9 +133,11 @@ export const createAuthUserAndProfile = functions
     }
 
     const requesterUid = context.auth.uid;
-    // Require requester to be an admin
     const requesterSnap = await db.collection("users").doc(requesterUid).get();
-    if (!requesterSnap.exists || requesterSnap.data()?.role !== "admin") {
+    const requesterRole = requesterSnap.data()?.role;
+    const isSuperAdmin = requesterRole === "superadmin";
+    const isProgramAdmin = requesterRole === "admin";
+    if (!requesterSnap.exists || (!isSuperAdmin && !isProgramAdmin)) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can create users");
     }
 
@@ -142,10 +145,11 @@ export const createAuthUserAndProfile = functions
       email,
       firstName,
       lastName,
-      role = "teacher", // 'admin' | 'teacher'
+      role = "teacher", // 'superadmin' | 'admin' | 'teacher'
       selectedClassrooms = [], // array of classroom IDs for teachers
       updateIfExists = false,
       status = "active",
+      manageablePrograms = [],
     } = data || {};
 
     if (!email || !firstName) {
@@ -159,6 +163,26 @@ export const createAuthUserAndProfile = functions
     }
 
     const displayName = `${firstName} ${lastName || ""}`.trim();
+    const normalizedRole = role === "admin"
+      ? "admin"
+      : (role === "superadmin" ? "superadmin" : "teacher");
+    const hasManageableProgramsInput = Array.isArray(manageablePrograms);
+    const normalizedManageablePrograms = hasManageableProgramsInput
+      ? Array.from(new Set(manageablePrograms.filter((p) => PROGRAM_IDS.includes(p))))
+      : [];
+
+    if (normalizedRole === "admin") {
+      if (!isSuperAdmin) {
+        throw new functions.https.HttpsError("permission-denied", "Only super admins can create program admins");
+      }
+      if (normalizedManageablePrograms.length === 0) {
+        throw new functions.https.HttpsError("invalid-argument", "Program admins must have at least one manageable program");
+      }
+    }
+
+    if (normalizedRole === "superadmin" && !isSuperAdmin) {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can create super admin accounts");
+    }
 
     try {
       // 1) Resolve or create Auth user
@@ -196,6 +220,15 @@ export const createAuthUserAndProfile = functions
           status: status || userSnap.data()?.status || "active",
           updatedAt: new Date(),
         };
+        if (existingRole === "admin" && hasManageableProgramsInput) {
+          if (!isSuperAdmin) {
+            throw new functions.https.HttpsError("permission-denied", "Only super admins can edit program admins");
+          }
+          if (normalizedManageablePrograms.length === 0) {
+            throw new functions.https.HttpsError("invalid-argument", "Program admins must manage at least one program");
+          }
+          updateData.manageablePrograms = normalizedManageablePrograms;
+        }
         await userRef.set(updateData, { merge: true });
 
         // Assign teacher to classrooms (non-destructive)
@@ -223,12 +256,15 @@ export const createAuthUserAndProfile = functions
       const newUserData = {
         displayName,
         email: emailLc,
-        role: role === "admin" ? "admin" : "teacher",
+        role: normalizedRole,
         status: status,
         createdAt: new Date(),
         updatedAt: new Date(),
         createdBy: requesterUid,
       };
+      if (normalizedRole === "admin") {
+        newUserData.manageablePrograms = normalizedManageablePrograms;
+      }
       await userRef.set(newUserData, { merge: true });
 
       // 4) Assign teacher classrooms
@@ -272,7 +308,8 @@ export const updateUserProfileIfExists = functions
 
     // Only admins can update
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!requesterSnap.exists || requesterSnap.data()?.role !== "admin") {
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || (requesterRole !== "admin" && requesterRole !== "superadmin")) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update users");
     }
 

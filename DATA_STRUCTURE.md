@@ -7,6 +7,13 @@
 
 ---
 
+## 👥 Roles & access tiers
+- **Super admins** – current global admins. Full CRUD everywhere (users/programs/branches/AI prompts/classrooms/students/placements/observations/feedback). They can promote/demote other admins, edit `manageablePrograms`, and use any cross-program tooling.
+- **Program admins** – program-scoped operators. They read `classrooms`, `programs`, `branches`, and `feedback`, but only write student-facing data within the programs in their `manageablePrograms` list: CRUD students, placements, observations, and teacher/student user docs. They cannot touch AI prompts nor promote other admins.
+- **Teachers** – unchanged. Classroom-scoped contributors who create observations for assigned classrooms and manage their own profiles.
+
+---
+
 ## 📚 Collections Overview
 - `branches/{branchId}`
 - `programs/{programId}`
@@ -76,7 +83,8 @@ interface User {
   photoURL?: string;
 
   // Access
-  role: 'admin' | 'teacher';     // admins are global; teachers are branch-scoped
+  role: 'superadmin' | 'admin' | 'teacher'; // superadmin is global, admin is program-scoped
+  manageablePrograms?: ProgramId[];         // required (non-empty) when role == 'admin'
   
   // Branch scope
   branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
@@ -92,7 +100,9 @@ interface User {
 Guidance
 - Use document ID as the Auth UID; do not duplicate as a field.
 - Roles live here and are read by rules; no custom claims required.
-- Admins: global by default (ignore branchIds for access control, but you may store `homeBranchId` to preselect UI branch).
+- Super admins ignore `manageablePrograms`/`branchIds` for access control but can edit any admin’s `manageablePrograms` list.
+- Program admins MUST have `manageablePrograms` populated with at least one `ProgramId`; UI should block save otherwise. These admins can act on students/placements/observations within those programs and invite teachers/students across branches.
+- Program admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'admin' | 'superadmin'` are rejected unless performed by a super admin.
 - Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
 
 ---
@@ -177,6 +187,7 @@ ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
   - Include a branch code in the ID (e.g., `YYYY-BBB-XXX-NNN` where `BBB` is the branch slug), or
   - Ensure classroom IDs are globally unique across branches and keep the current `YYYY-XXX-NNN` format.
+- Access: program admins can only create/update/delete students whose `classroomId` resolves to a `programId` contained in their `manageablePrograms`. Super admins bypass this check.
 
 ---
 
@@ -229,6 +240,7 @@ Invariants (client-enforced)
 Query notes
 - Current classroom: read from `students/{id}.classroomId`.
 - History UI: list `/students/{id}/placements` ordered by `startDate` descending.
+- Access: program admins may edit placements only when the underlying student’s classroom belongs to one of their `manageablePrograms`. Super admins can edit any placement.
 
 Indexes (optional, future)
 - Collection group `placements`: composite on `classroomId ASC, startDate DESC` for classroom history.
@@ -318,6 +330,7 @@ Why fan-out per student?
 
 Branch transfer behavior
 - Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
+- Access: program admins can create/update/delete observations for students when `classroom.programId ∈ manageablePrograms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
 
 ---
 
@@ -327,7 +340,7 @@ interface Feedback {
   // User Information
   userId: string;                // must equal request.auth.uid
   userEmail: string;             // cached for admin review
-  userRole: 'admin' | 'teacher';
+  userRole: 'superadmin' | 'admin' | 'teacher';
   userDisplayName: string;       // cached for admin review
   userClassrooms: string[];      // classroom IDs user has access to
   
@@ -349,10 +362,10 @@ interface Feedback {
 }
 ```
 Guidance
-- All users can create feedback; only admins can update/delete
+- All users can create feedback; super admins manage status + notes, while program admins have read-only access to all feedback.
 - `userId` must match `request.auth.uid` for security
 - Status workflow: new → reviewed → implemented/declined
-- Admin notes are private and only visible to admins
+- Admin notes are private and only visible to admins (read) and super admins (write)
 - Keep feedback global (not branch-scoped) per product decision.
 
 ---
@@ -374,11 +387,12 @@ Notes
 - `classrooms` stores document-path strings (not DocumentReference) for portability with admin scripts and simple reads.
 - Populated by `scripts/admin/seed-programs.js`, which scans `classrooms` by `programId` and writes `programs/{programId}`.
 - Client UI reads this collection to group classrooms by program on the Classrooms list.
+- Program admin `manageablePrograms` values must match these document IDs.
 
 ---
 
 ## 🤖 AI Prompts (`/ai_prompts/{docId}`)
-Centralized prompts for AI features with simple version history. Read by clients at runtime with a 5‑minute TTL cache; writes restricted to admins.
+Centralized prompts for AI features with simple version history. Read by clients at runtime with a 5‑minute TTL cache; writes restricted to super admins.
 
 Documents
 - `text_summarizer` — prompts for the Text Cleanup feature
@@ -396,7 +410,7 @@ interface TextSummarizerDoc {
   systemPrompt: string;          // system role content guiding the model
   userPrompt: string;            // supports ${tone} and ${text} template vars
 
-  // Change tracking (managed by admin UI)
+  // Change tracking (managed by super admin UI)
   version: number;               // monotonically increasing
   updatedAt: Timestamp;          // server time
   updatedBy: { uid: string; email: string; name: string };
@@ -431,7 +445,7 @@ interface VoiceTranscriberDoc {
   // Prompt used by src/whisperSTT.js (sent to Whisper as `prompt`)
   contextPrompt: string;
 
-  // Change tracking (managed by admin UI)
+  // Change tracking (managed by super admin UI)
   version: number;               // monotonically increasing
   updatedAt: Timestamp;          // server time
   updatedBy: { uid: string; email: string; name: string };
@@ -458,11 +472,11 @@ Client usage
 - `src/services/promptProvider.js` reads `ai_prompts` with a 5‑minute TTL cache.
 - `src/textCleanup.js` uses `systemPrompt` and `userPrompt`; falls back to baked‑in defaults on fetch failure.
 - `src/whisperSTT.js` uses `contextPrompt`; falls back to a safe default on fetch failure.
-- Admins manage these via `AICapabilitiesPage` (`/aiPrompts`) with edit, save, and one‑click revert (maintains `versions`).
+- Super admins manage these via `AICapabilitiesPage` (`/aiPrompts`) with edit, save, and one-click revert (maintains `versions`).
 
 Security
 - Reads: any authenticated user (rules allow read on `ai_prompts/*`).
-- Writes: admins only.
+- Writes: super admins only.
 
 ai_prompts/coach_{program}
 ```typescript
@@ -485,7 +499,7 @@ interface CoachProgramDoc {
   introBlock: string;            // intro/system preface
   finalPrompt: string;           // composed prompt used by the model
 
-  // Change tracking (managed by admin UI)
+  // Change tracking (managed by super admin UI)
   updatedAt: Timestamp;          // server time
   updatedBy: { uid: string; email: string; name: string };
 }
@@ -502,7 +516,7 @@ Routing and gating
   - Only calls the model when enabled and properly configured.
 
 Admin UI
-- `AICoachEditor` lets admins pick a program, toggle enable, and edit per‑program config. Test runs pass the selected `programId` to the server.
+- `AICoachEditor` lets super admins pick a program, toggle enable, and edit per-program config. Test runs pass the selected `programId` to the server.
 
 ---
 
@@ -538,37 +552,57 @@ Admin UI
 
 ## 🔒 Security Rules – Hooks
 Helper checks (pseudocode names):
-- `isAdmin(uid)`: `get(/users/uid).role == 'admin'`
+- `isSuperAdmin(uid)`: `get(/users/uid).role == 'superadmin'`
+- `isProgramAdmin(uid)`: `get(/users/uid).role == 'admin'`
+- `isPrivilegedAdmin(uid)`: `isSuperAdmin(uid) || isProgramAdmin(uid)`
 - `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
-- `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
+- `managesProgram(uid, programId)`: `isSuperAdmin(uid)` OR (`isProgramAdmin(uid)` AND `programId` in `get(/users/uid).manageablePrograms`)
+- `classroomProgramId(classroomId)`: `get(/classrooms/classroomId).programId`
 - `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
+- `studentProgramId(studentId)`: `classroomProgramId(studentClassroomId(studentId))`
+- `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
 // Branch helpers
 - `userBranches(uid)`: `get(/users/uid).branchIds` or `[get(/users/uid).homeBranchId]`
-- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isAdmin(uid)`
+- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isSuperAdmin(uid)` OR `isProgramAdmin(uid)`
 
 Branch invariants
 - `students/{id}.branchId == classrooms/{classroomId}.branchId`
 - `observations/{id}.branchId == students/{studentId}.branchId` at creation time
 
 Reads
-- `users`: user reads own; admin reads all
-- `classrooms`: admin all; teacher if `classroomHasTeacher(id, uid)` AND `userInBranch(uid, classroom.branchId)`
-- `students`: admin all; teacher if `classroomHasTeacher(student.classroomId, uid)` AND `userInBranch(uid, student.branchId)`
-- `observations` (collection group): admin all; teacher if `classroomHasTeacher(classroomId, uid)` AND `userInBranch(uid, observation.branchId)`
-- `ai_prompts`: any authenticated user (client fetch)
-- `branches`: any authenticated user can read (for UI selection; writes admin-only)
-- `programs`: signed-in read; admin write
+- `users`: self-read always; privileged admins can read/query all user docs to manage staffing.
+- `classrooms`: super admins and program admins can read all classrooms; teachers can read classrooms where `classroomHasTeacher` + `userInBranch`.
+- `students`: super admins can read all; program admins can read when `managesProgram(classroomProgramId(student.classroomId))`; teachers may read active students when assigned to the classroom + branch.
+- `students/{studentId}/placements`: same gating as `students`.
+- `observations` (collection group): super admins can read all; program admins can read when `managesProgram(classroomProgramId(observation.classroomId))`; teachers follow existing classroom/branch scoping.
+- `ai_prompts`: any authenticated user (client fetch).
+- `branches`: any authenticated user can read (UI picker); writes restricted to super admins.
+- `programs`: signed-in read for grouping; super admins write.
+- `feedback`: user reads own; both admin tiers read all for triage.
+
+Writes – users
+- Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageablePrograms`.
+- Program admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'admin' | 'superadmin'`.
+
+Writes – classrooms/programs/branches/ai_prompts
+- Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `ai_prompts` documents.
+
+Writes – students
+- Super admins can CRUD any student.
+- Program admins can CRUD students when `managesProgram(classroomProgramId(request.resource.data.classroomId))` (and matching existing docs on update/delete).
+- Teachers do not write students.
+
+Writes – placements
+- Same gating as students: super admins always; program admins when `managesProgram(studentProgramId(studentId))`.
 
 Creates – observations
-- Allow if teacher AND all of the following:
-  - `createdBy == request.auth.uid`
-  - `studentId == path.studentId`
-  - `classroomId == studentClassroomId(studentId)`
-  - `branchId == get(/students/studentId).branchId`
-  - `createdAt`/`updatedAt` set to `request.time` (server), `observedAt` provided by client
+- Teachers: allowed when (existing constraints) `createdBy == request.auth.uid`, path `studentId` matches payload, `classroomId` equals the student’s classroom, `branchId` matches the student, and timestamps follow the contract.
+- Privileged admins: super admins bypass program checks; program admins must satisfy `managesProgram(studentProgramId(studentId))` for the student being written.
 
 Updates/Deletes – observations
-- Admin only (matches current behavior). If enabling teacher edits later, restrict mutable fields and preserve ownership/IDs.
+- Super admins: unrestricted.
+- Program admins: allowed when `managesProgram(studentProgramId(studentId))`.
+- Teachers: may update limited metadata (as in rules) or delete their own notes when `createdBy == request.auth.uid` (or legacy `teacherId`).
 
 Field immutability (on update)
 - `studentId`, `classroomId`, `branchId`, `createdBy`, `createdAt`, `observedAt` unchanged
@@ -577,13 +611,13 @@ Field immutability (on update)
 
 ## 🔒 Security Rules – Feedback
 Reads
-- `feedback`: user reads own; admin reads all
+- `feedback`: user reads own; program + super admins read all
 
 Creates
 - Allow if authenticated AND `userId == request.auth.uid`
 
 Updates/Deletes
-- Admin only (status management and admin notes)
+- Super admins only (status management and admin notes)
 
 Field immutability (on update)
 - `userId`, `userEmail`, `userRole`, `userDisplayName`, `userClassrooms`, `message`, `category`, `timestamp`, `appVersion`, `userAgent` unchanged
@@ -599,7 +633,7 @@ Field immutability (on update)
 
 Migration/backfill (branches)
 - Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
-- For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins, optionally set `homeBranchId`.
+- For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins (super + program), optionally set `homeBranchId`.
 - Validate invariants and fix mismatches before enabling rules.
 
 ---
@@ -609,4 +643,4 @@ Migration/backfill (branches)
 - Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
 - Denormalized `classroomId` and `branchId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
-- Feedback system provides user input channel while maintaining security through user ownership and admin-only management
+- Feedback system provides user input channel while maintaining security through user ownership and super-admin-only moderation

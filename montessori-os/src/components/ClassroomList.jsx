@@ -12,20 +12,79 @@ import {
   TextField,
   InputAdornment,
   Divider,
+  Tabs,
+  Tab,
+  Button,
 } from '@mui/material';
-import { School, Group, ArrowForward, Search } from '@mui/icons-material';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { School, Group, ArrowForward, Search, Person, ExpandMore } from '@mui/icons-material';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { fuzzySearchClassrooms } from '../utils/fuzzySearch';
+import { fuzzySearchClassrooms, fuzzySearchStudents } from '../utils/fuzzySearch';
 
-function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
+const CACHE_KEY_PREFIX = 'classroomListCache';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+const buildCacheKey = (uid, role) =>
+  `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}`;
+
+const readCachedClassrooms = (key) => {
+  if (typeof window === 'undefined' || !window?.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.timestamp || Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    console.warn('Unable to read classroom cache', err);
+    return null;
+  }
+};
+
+const writeCachedClassrooms = (key, payload) => {
+  if (typeof window === 'undefined' || !window?.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        ...payload,
+        timestamp: Date.now(),
+      })
+    );
+  } catch (err) {
+    console.warn('Unable to persist classroom cache', err);
+  }
+};
+
+function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToStudent }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
+  const [activeTab, setActiveTab] = useState(0); // 0 = Classrooms, 1 = Students
+  const [allStudents, setAllStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
+  const [displayedStudentsCount, setDisplayedStudentsCount] = useState(10); // Show first 10, then 10 more on each expansion
 
   useEffect(() => {
+    let isMounted = true;
+    const cacheKey = buildCacheKey(currentUser?.uid, userRole);
+    const cached = readCachedClassrooms(cacheKey);
+
+    if (cached) {
+      setProgramMap(cached.programMap || {});
+      setClassrooms(cached.classrooms || []);
+      setStudentCounts(cached.studentCounts || {});
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     const fetchClassrooms = async () => {
       try {
         let classroomsToShow = [];
@@ -44,6 +103,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
             });
           pMap[doc.id] = ids;
         });
+        if (!isMounted) return;
+
         setProgramMap(pMap);
 
         if (userRole === 'teacher') {
@@ -90,19 +151,141 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
           counts[classroom.id] = studentsSnap.size;
         }
         setStudentCounts(counts);
-
+        writeCachedClassrooms(cacheKey, {
+          classrooms: classroomsToShow,
+          studentCounts: counts,
+          programMap: pMap,
+        });
       } catch (err) {
         console.error('Error fetching classrooms', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchClassrooms();
+    if (!cached) {
+      fetchClassrooms();
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUser?.uid, userRole]);
 
+  // Fetch all students when Students tab is active
+  useEffect(() => {
+    if (activeTab !== 1) return; // Only fetch when Students tab is active
+
+    let isMounted = true;
+    setStudentsLoading(true);
+
+    const fetchAllStudents = async () => {
+      try {
+        let studentsToShow = [];
+        let classroomIdsToFetch = new Set();
+
+        if (userRole === 'teacher') {
+          // For teachers: get students from their assigned classrooms only
+          if (classrooms.length === 0) {
+            setAllStudents([]);
+            setStudentsLoading(false);
+            return;
+          }
+
+          const assignedClassroomIds = classrooms.map(c => c.id);
+          
+          // Handle batching if more than 10 classrooms (Firestore 'in' limit is 10)
+          if (assignedClassroomIds.length > 10) {
+            const allStudentPromises = [];
+            for (let i = 0; i < assignedClassroomIds.length; i += 10) {
+              const batch = assignedClassroomIds.slice(i, i + 10);
+              const batchQuery = query(
+                collection(db, 'students'),
+                where('classroomId', 'in', batch)
+              );
+              allStudentPromises.push(getDocs(batchQuery));
+            }
+            const allSnapshots = await Promise.all(allStudentPromises);
+            allSnapshots.forEach(snapshot => {
+              snapshot.docs.forEach(doc => {
+                studentsToShow.push({ id: doc.id, ...doc.data() });
+                if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
+              });
+            });
+          } else {
+            const studentsQuery = query(
+              collection(db, 'students'),
+              where('classroomId', 'in', assignedClassroomIds)
+            );
+            const studentsSnap = await getDocs(studentsQuery);
+            studentsSnap.docs.forEach(doc => {
+              studentsToShow.push({ id: doc.id, ...doc.data() });
+              if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
+            });
+          }
+        } else {
+          // For admins: get all students
+          const studentsQuery = query(collection(db, 'students'));
+          const studentsSnap = await getDocs(studentsQuery);
+          studentsSnap.docs.forEach(doc => {
+            studentsToShow.push({ id: doc.id, ...doc.data() });
+            if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
+          });
+        }
+
+        // Fetch classroom names for display
+        const classroomNameMap = {};
+        const classroomPromises = Array.from(classroomIdsToFetch).map(async (classroomId) => {
+          try {
+            const classroomDoc = await getDoc(doc(db, 'classrooms', classroomId));
+            if (classroomDoc.exists()) {
+              classroomNameMap[classroomId] = classroomDoc.data().name || classroomId;
+            }
+          } catch (err) {
+            console.error(`Error fetching classroom ${classroomId}:`, err);
+          }
+        });
+        await Promise.all(classroomPromises);
+
+        if (!isMounted) return;
+
+        setClassroomMap(classroomNameMap);
+        setAllStudents(studentsToShow);
+      } catch (err) {
+        console.error('Error fetching all students:', err);
+        if (isMounted) {
+          setAllStudents([]);
+        }
+      } finally {
+        if (isMounted) {
+          setStudentsLoading(false);
+        }
+      }
+    };
+
+    fetchAllStudents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, classrooms, userRole]);
+
   // Use fuzzy search for better matching
-  const visibleClassrooms = fuzzySearchClassrooms(classrooms, searchQuery);
+  const visibleClassrooms = fuzzySearchClassrooms(classrooms, activeTab === 0 ? searchQuery : '');
+  
+  // Filter students based on search query
+  const filteredStudents = useMemo(() => {
+    if (activeTab !== 1) return [];
+    return fuzzySearchStudents(allStudents, searchQuery);
+  }, [allStudents, searchQuery, activeTab]);
+
+  // Sort students alphabetically
+  const sortedFilteredStudents = useMemo(() => {
+    const getName = (s) => (
+      s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || ''
+    ).trim();
+    return [...filteredStudents].sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
+  }, [filteredStudents]);
 
   // Build reverse index: classroomId -> programId
   const classroomToProgram = useMemo(() => {
@@ -148,6 +331,34 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
     primary: 'Primary',
     toddler: 'Toddler',
   };
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+    // Clear search when switching tabs
+    setSearchQuery('');
+  };
+
+  const handleStudentClick = (student) => {
+    if (onNavigateToStudent) {
+      onNavigateToStudent(student);
+    }
+  };
+
+  const handleShowMoreStudents = () => {
+    setDisplayedStudentsCount(prev => prev + 10);
+  };
+
+  // Reset displayed count when switching tabs, changing search, or when students list changes
+  useEffect(() => {
+    if (activeTab === 1) {
+      setDisplayedStudentsCount(10);
+    }
+  }, [activeTab, searchQuery, allStudents.length]);
+
+  // Get students to display (paginated)
+  const studentsToDisplay = useMemo(() => {
+    return sortedFilteredStudents.slice(0, displayedStudentsCount);
+  }, [sortedFilteredStudents, displayedStudentsCount]);
 
   const renderCard = (classroom) => (
     <Card
@@ -201,17 +412,17 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
             Welcome back, {currentUser.displayName?.split(' ')[0] || 'Teacher'}!
           </Typography>
           <Typography variant="body1" sx={{ color: '#64748b' }}>
-            Select a classroom to view your students
+            {activeTab === 0 ? 'Select a classroom to view your students' : 'Browse all students'}
           </Typography>
         </Box>
       ) : (
-        // Admin header with search only (back button now in header)
+        // Admin header with search
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <TextField
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search classrooms…"
-            aria-label="Search classrooms"
+            placeholder={activeTab === 0 ? "Search classrooms…" : "Search students…"}
+            aria-label={activeTab === 0 ? "Search classrooms" : "Search students"}
             variant="outlined"
             size="small"
             fullWidth
@@ -226,13 +437,13 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
         </Box>
       )}
 
-      {/* Optional search for teachers (no back button) */}
+      {/* Optional search for teachers */}
       {userRole === 'teacher' && (
         <TextField
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search classrooms…"
-          aria-label="Search classrooms"
+          placeholder={activeTab === 0 ? "Search classrooms…" : "Search students…"}
+          aria-label={activeTab === 0 ? "Search classrooms" : "Search students"}
           variant="outlined"
           size="small"
           fullWidth
@@ -246,80 +457,225 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole }) {
         />
       )}
 
-      {/* Classrooms grouped by Program (from programs/*) */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {loading ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            minHeight: '200px'
-          }}>
-            <CircularProgress size={32} />
-          </Box>
-        ) : visibleClassrooms.length === 0 ? (
-          <Card sx={{ 
-            p: 4, 
-            textAlign: 'center',
-            backgroundColor: '#f8fafc',
-            border: '2px dashed #cbd5e1'
-          }}>
-            <School sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
-            <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
-              {userRole === 'teacher' ? 'No classrooms assigned' : 'No classrooms found'}
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              {userRole === 'teacher' 
-                ? 'Contact your administrator to get assigned to classrooms.'
-                : 'No classrooms have been created yet.'
-              }
-            </Typography>
-          </Card>
-        ) : (
-          <>
-            {sortedProgramIds.map((pid) => {
-              const items = groupedByProgram.groups[pid] || [];
-              if (!items.length) return null;
-              const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
-              return (
-                <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Tabs */}
+      <Box sx={{ 
+        backgroundColor: 'white',
+        borderRadius: 1,
+        overflow: 'hidden',
+        borderBottom: '1px solid #e2e8f0'
+      }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange}
+          variant="fullWidth"
+          sx={{
+            '& .MuiTab-root': {
+              minHeight: 48,
+              textTransform: 'none',
+              fontWeight: 500
+            }
+          }}
+        >
+          <Tab 
+            icon={<School />} 
+            label="Classrooms" 
+            iconPosition="start"
+            aria-label="View classrooms"
+          />
+          <Tab 
+            icon={<Person />} 
+            label="Students" 
+            iconPosition="start"
+            aria-label="View all students"
+          />
+        </Tabs>
+      </Box>
+
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {loading ? (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              minHeight: '200px'
+            }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : visibleClassrooms.length === 0 ? (
+            <Card sx={{ 
+              p: 4, 
+              textAlign: 'center',
+              backgroundColor: '#f8fafc',
+              border: '2px dashed #cbd5e1'
+            }}>
+              <School sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
+              <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
+                {userRole === 'teacher' ? 'No classrooms assigned' : 'No classrooms found'}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#64748b' }}>
+                {userRole === 'teacher' 
+                  ? 'Contact your administrator to get assigned to classrooms.'
+                  : 'No classrooms have been created yet.'
+                }
+              </Typography>
+            </Card>
+          ) : (
+            <>
+              {sortedProgramIds.map((pid) => {
+                const items = groupedByProgram.groups[pid] || [];
+                if (!items.length) return null;
+                const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+                return (
+                  <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Divider
+                      textAlign="left"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        color: '#64748b',        // slate-500
+                        '&::before, &::after': {
+                          borderColor: '#e2e8f0', // slate-200
+                        },
+                      }}
+                    >
+                      {label}
+                    </Divider>
+                    {items.map(renderCard)}
+                  </Box>
+                );
+              })}
+              {groupedByProgram.unassigned.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Divider
                     textAlign="left"
                     sx={{
                       fontWeight: 600,
                       fontSize: '0.85rem',
-                      color: '#64748b',        // slate-500
-                      '&::before, &::after': {
-                        borderColor: '#e2e8f0', // slate-200
-                      },
+                      color: '#64748b',
+                      '&::before, &::after': { borderColor: '#e2e8f0' },
                     }}
                   >
-                    {label}
+                    Unassigned
                   </Divider>
-                  {items.map(renderCard)}
+                  {groupedByProgram.unassigned.map(renderCard)}
                 </Box>
-              );
-            })}
-            {groupedByProgram.unassigned.length > 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Divider
-                  textAlign="left"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    color: '#64748b',
-                    '&::before, &::after': { borderColor: '#e2e8f0' },
-                  }}
-                >
-                  Unassigned
-                </Divider>
-                {groupedByProgram.unassigned.map(renderCard)}
-              </Box>
-            )}
-          </>
-        )}
-      </Box>
+              )}
+            </>
+          )}
+        </Box>
+      )}
+
+      {activeTab === 1 && (
+        <Box sx={{ 
+          backgroundColor: 'white',
+          borderRadius: 1,
+          p: 2,
+          minHeight: '200px'
+        }}>
+          {/* Students Count */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              {searchQuery 
+                ? `${sortedFilteredStudents.length} student${sortedFilteredStudents.length !== 1 ? 's' : ''} found`
+                : `Showing ${studentsToDisplay.length} of ${sortedFilteredStudents.length} student${sortedFilteredStudents.length !== 1 ? 's' : ''}`
+              }
+            </Typography>
+          </Box>
+
+          {/* Students List */}
+          {studentsLoading ? (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              minHeight: '200px'
+            }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : sortedFilteredStudents.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Person sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
+              <Typography variant="body2" color="text.secondary">
+                {searchQuery ? `No students found matching "${searchQuery}"` : 'No students found'}
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {studentsToDisplay.map((student) => (
+                <StudentCard
+                  key={student.id}
+                  student={student}
+                  classroomName={classroomMap[student.classroomId] || student.classroomId || 'Unassigned'}
+                  onClick={() => handleStudentClick(student)}
+                />
+              ))}
+              
+              {/* Show More Button */}
+              {sortedFilteredStudents.length > displayedStudentsCount && (
+                <Box sx={{ textAlign: 'center', pt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={handleShowMoreStudents}
+                    startIcon={<ExpandMore />}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Show 10 More
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
+  );
+}
+
+// StudentCard component for displaying individual students in the Students tab
+function StudentCard({ student, classroomName, onClick }) {
+  const studentName = student.displayName || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
+
+  return (
+    <Card
+      sx={{
+        cursor: 'pointer',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          transform: 'translateY(-1px)',
+        },
+        transition: 'all 0.2s ease-in-out',
+      }}
+      onClick={onClick}
+      aria-label={`View timeline for ${studentName}`}
+    >
+      <CardContent sx={{ p: 2 }}>
+        {/* Student Name - Prominent */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              fontWeight: 600, 
+              color: 'primary.main'
+            }}
+          >
+            {studentName}
+          </Typography>
+        </Box>
+
+        {/* Classroom */}
+        {classroomName && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <School sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+              {classroomName}
+            </Typography>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

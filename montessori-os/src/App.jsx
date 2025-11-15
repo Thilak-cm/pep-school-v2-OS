@@ -37,6 +37,7 @@ import AddNoteModal from './components/AddNoteModal';
 import UpdateNotification from './components/UpdateNotification';
 import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
+import { isAdminRole, isProgramAdmin, isSuperAdmin } from './utils/roleUtils';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -53,6 +54,11 @@ function App() {
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
+
+  const isTeacher = role === 'teacher';
+  const isSuperAdminUser = isSuperAdmin(role);
+  const isProgramAdminUser = isProgramAdmin(role);
+  const isAdminUser = isAdminRole(role);
 
   const openTimeline = (filter = null) => {
     setTimelineFilter(filter);
@@ -232,8 +238,8 @@ function App() {
 
   // Determine page title
   let pageTitle = '';
-  if (screen === 'landingPage') pageTitle = role === 'teacher' ? 'Teacher Panel' : 'Admin Panel';
-  else if (screen === 'classroomList') pageTitle = role === 'teacher' ? 'My Classrooms' : 'All Classrooms';
+  if (screen === 'landingPage') pageTitle = isTeacher ? 'Teacher Panel' : (isSuperAdminUser ? 'Super Admin Panel' : 'Program Admin Panel');
+  else if (screen === 'classroomList') pageTitle = isTeacher ? 'My Classrooms' : 'Classrooms & Students';
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'studentDashboard') pageTitle = `${getStudentDisplayName(selectedStudent)}'s Dashboard`;
@@ -460,7 +466,7 @@ function App() {
                     } else if (path === '/addUser') {
                       setScreen('addUser');
                     } else if (path === '/aiPrompts') {
-                      if (role === 'admin') setScreen('aiHome');
+                      if (isSuperAdminUser) setScreen('aiHome');
                     }
                   }}
                   onHome={() => setScreen('landingPage')}
@@ -500,7 +506,7 @@ function App() {
                         } else if (path === '/addUser') {
                           setScreen('addUser');
                         } else if (path === '/aiPrompts') {
-                          if (role === 'admin') setScreen('aiHome');
+                          if (isSuperAdminUser) setScreen('aiHome');
                         }
                       }}
                     />
@@ -515,6 +521,10 @@ function App() {
                         }}
                         currentUser={user}
                         userRole={role}
+                        onNavigateToStudent={(student) => {
+                          setSelectedStudent(student);
+                          setScreen('studentDashboard');
+                        }}
                       />
                     </>
                   )}
@@ -596,6 +606,8 @@ function App() {
 
                   {screen === 'feedbackTimeline' && (
                     <FeedbackTimeline
+                      currentUser={user}
+                      userRole={role}
                     />
                   )}
 
