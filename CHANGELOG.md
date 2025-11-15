@@ -1,5 +1,21 @@
 # Changelog
 
+# Changelog
+
+## 5.0.0 — 2025-11-14
+
+### Added
+- Lesson Notes PRD and implementation plan docs describing the structured capture flow.
+- Full Lesson Note wizard in `AddNoteModal` with classroom-scoped roster selection, present/absent tracking, dimension defaults/exceptions, and batch Firestore writes (one note per student).
+- `lessonNoteConstraints` module housing dimension/rating constants plus helper utilities shared by UI surfaces.
+- Lesson note rendering across student/classroom timelines and NoteExpansionDialog, including chips for dimension results, attendance badges, and per-student comments.
+- Student Dashboard now surfaces two actionable cards (“Text & Voice Notes” and “Lesson Notes”) that deep link into filtered timelines.
+
+### Changed
+- Timeline filters honour the entry point: note-type filters are locked (and buttons greyed out) when navigating from either dashboard card, with a third Lesson Notes button added to the filter panel.
+- Student timeline export chip counters and empty states now reflect the active note-type filter, keeping counts consistent with filtered views.
+- Lesson note selection UI improvements: roster cards show attendance chips even when deselected, cards toggle on full-row tap, and summary shows `Present: X/Y`.
+
 ## 4.8.1 — 2025-11-13
 
 ### Added
