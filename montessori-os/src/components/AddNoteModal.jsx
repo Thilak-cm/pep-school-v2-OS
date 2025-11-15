@@ -921,27 +921,30 @@ function AddNoteModal({
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': { 
+                  cursor: userRole === 'superadmin' ? 'pointer' : 'not-allowed',
+                  backgroundColor: userRole === 'superadmin' ? 'white' : '#f1f5f9',
+                  opacity: userRole === 'superadmin' ? 1 : 0.5,
+                  '&:hover': userRole === 'superadmin' ? { 
                     backgroundColor: '#f8fafc',
                     border: '1px solid #4f46e5'
-                  }
+                  } : {}
                 }}
-                onClick={handleSelectLesson}
+                onClick={userRole === 'superadmin' ? handleSelectLesson : undefined}
                 aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <MenuBook sx={{ fontSize: 32, color: userRole === 'superadmin' ? '#4f46e5' : '#94a3b8' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    <Typography variant="body1" sx={{ color: userRole === 'superadmin' ? '#1e293b' : '#64748b' }}>
                       Lesson Note
                     </Typography>
-                    <Box sx={{ opacity: 1 }}>
-                      <NewFeaturePill label="New" size="sm" />
-                    </Box>
+                    {userRole === 'superadmin' && (
+                      <Box sx={{ opacity: 1 }}>
+                        <NewFeaturePill label="New" size="sm" />
+                      </Box>
+                    )}
                   </Box>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color={userRole === 'superadmin' ? 'text.secondary' : 'text.disabled'}>
                     Structured lesson observation
                   </Typography>
                 </Box>
