@@ -1458,6 +1458,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
             >
               Manage Classroom Access
             </Button>
+            {actionUser?.type === 'admin' && canManageAdmins && (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<ManageAccounts />}
+                onClick={() => {
+                  if (actionUser?.user) {
+                    openProgramDialog(actionUser.user);
+                    closeActionDialog();
+                  }
+                }}
+                sx={{ py: 1.5 }}
+              >
+                Edit Program Access
+              </Button>
+            )}
             <Button
               variant="outlined"
               color="error"
@@ -1476,6 +1492,44 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         </DialogContent>
         <DialogActions>
           <Button onClick={closeActionDialog}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={programDialogOpen} onClose={closeProgramDialog}>
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6">Edit Program Access</Typography>
+          {programDialogTarget?.email && (
+            <Typography variant="body2" color="text.secondary">{programDialogTarget.email}</Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Select programs this admin can manage.
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {PROGRAM_OPTIONS.map((program) => (
+              <Chip
+                key={program.id}
+                label={program.label}
+                onClick={() => handleProgramDialogToggle(program.id)}
+                color={programDialogSelection.includes(program.id) ? 'primary' : 'default'}
+                variant={programDialogSelection.includes(program.id) ? 'filled' : 'outlined'}
+                clickable
+                size="small"
+              />
+            ))}
+          </Box>
+          {programDialogError && (
+            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+              {programDialogError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeProgramDialog} disabled={programDialogSaving}>Cancel</Button>
+          <Button variant="contained" onClick={handleProgramDialogSave} disabled={programDialogSaving}>
+            {programDialogSaving ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 
