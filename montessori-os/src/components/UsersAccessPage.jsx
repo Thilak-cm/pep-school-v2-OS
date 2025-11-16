@@ -21,7 +21,8 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
-  deleteDoc
+  deleteDoc,
+  deleteField
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 
@@ -319,6 +320,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const [manageSelectedIds, setManageSelectedIds] = useState([]);
   const [manageSaving, setManageSaving] = useState(false);
 
+  const [demoteOpen, setDemoteOpen] = useState(false);
+  const [demoteTarget, setDemoteTarget] = useState(null);
+  const [demoteSelectedIds, setDemoteSelectedIds] = useState([]);
+  const [demoteSaving, setDemoteSaving] = useState(false);
+  const [demoteError, setDemoteError] = useState('');
+
   const [infoOpen, setInfoOpen] = useState(false);
   const [infoTitle, setInfoTitle] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -376,6 +383,21 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setManageTeacher(teacher);
     setManageSelectedIds(getTeacherClassroomIds(teacher.id));
     setManageOpen(true);
+  };
+
+  const openDemoteDialog = (adminUser) => {
+    setDemoteTarget(adminUser);
+    setDemoteSelectedIds(getTeacherClassroomIds(adminUser.id));
+    setDemoteError('');
+    setDemoteOpen(true);
+  };
+
+  const closeDemoteDialog = () => {
+    if (demoteSaving) return;
+    setDemoteOpen(false);
+    setDemoteTarget(null);
+    setDemoteSelectedIds([]);
+    setDemoteError('');
   };
 
   // ============================================================================
@@ -461,6 +483,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
     setManageSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  const toggleDemoteClassroom = (id) => {
+    setDemoteSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setDemoteError('');
+  };
+
   const updateClassroomsState = (toAdd, toRemove, teacherId) => {
     return (prev) => prev.map(c => {
       if (toAdd.includes(c.id)) {
@@ -524,6 +551,51 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       notify.error('Failed to update access');
     } finally {
       setManageSaving(false);
+    }
+  };
+
+  const handleDemoteSave = async () => {
+    if (!demoteTarget) return;
+    if (demoteSelectedIds.length === 0) {
+      setDemoteError('Select at least one classroom');
+      return;
+    }
+
+    const currentIds = new Set(getTeacherClassroomIds(demoteTarget.id));
+    const nextIds = new Set(demoteSelectedIds);
+    const toAdd = [...nextIds].filter(x => !currentIds.has(x));
+    const toRemove = [...currentIds].filter(x => !nextIds.has(x));
+
+    try {
+      setDemoteSaving(true);
+      const batch = writeBatch(db);
+      const userRef = doc(db, 'users', demoteTarget.id);
+      batch.set(userRef, {
+        role: 'teacher',
+        manageablePrograms: deleteField(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      toAdd.forEach(cid => {
+        batch.update(doc(db, 'classrooms', cid), { teacherIds: arrayUnion(demoteTarget.id) });
+      });
+      toRemove.forEach(cid => {
+        batch.update(doc(db, 'classrooms', cid), { teacherIds: arrayRemove(demoteTarget.id) });
+      });
+
+      await batch.commit();
+      setClassrooms(updateClassroomsState(toAdd, toRemove, demoteTarget.id));
+      notify.success('Program admin demoted to teacher access');
+      setDemoteOpen(false);
+      setDemoteTarget(null);
+      setDemoteSelectedIds([]);
+      setDemoteError('');
+      await Promise.all([fetchTeachers(), fetchAdmins()]);
+    } catch (error) {
+      console.error('Demote program admin error', error);
+      notify.error(error?.message || 'Failed to demote program admin');
+    } finally {
+      setDemoteSaving(false);
     }
   };
 
@@ -1514,21 +1586,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={<ManageAccounts />}
-              onClick={() => {
-                if (actionUser?.user && actionUser.type === 'teacher') {
-                  openManage(actionUser.user);
-                  closeActionDialog();
-                }
-              }}
-              disabled={actionUser?.type !== 'teacher'}
-              sx={{ py: 1.5 }}
-            >
-              Manage Classroom Access
-            </Button>
+            {actionUser?.type === 'teacher' && (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<ManageAccounts />}
+                onClick={() => {
+                  if (actionUser?.user) {
+                    openManage(actionUser.user);
+                    closeActionDialog();
+                  }
+                }}
+                sx={{ py: 1.5 }}
+              >
+                Manage Classroom Access
+              </Button>
+            )}
             {canManageAdmins && actionUser?.type === 'teacher' && (
               <Button
                 variant="outlined"
@@ -1559,6 +1632,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
                 sx={{ py: 1.5 }}
               >
                 Edit Program Access
+              </Button>
+            )}
+            {actionUser?.type === 'admin' && canManageAdmins && (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<ManageAccounts />}
+                onClick={() => {
+                  if (actionUser?.user) {
+                    openDemoteDialog(actionUser.user);
+                    closeActionDialog();
+                  }
+                }}
+                sx={{ py: 1.5 }}
+              >
+                Demote to Teacher
               </Button>
             )}
             <Button
@@ -1618,6 +1707,47 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           <Button onClick={closeProgramDialog} disabled={programDialogSaving}>Cancel</Button>
           <Button variant="contained" onClick={handleProgramDialogSave} disabled={programDialogSaving}>
             {programDialogSaving ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={demoteOpen} onClose={closeDemoteDialog}>
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6">Demote to Teacher</Typography>
+          {demoteTarget && (
+            <Typography variant="body2" color="text.secondary">
+              {getFullName(demoteTarget)}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select classrooms this user should teach after demotion.
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {classrooms.map(c => (
+              <Chip
+                key={c.id}
+                label={c.name || c.id}
+                onClick={() => toggleDemoteClassroom(c.id)}
+                color={demoteSelectedIds.includes(c.id) ? 'primary' : 'default'}
+                variant={demoteSelectedIds.includes(c.id) ? 'filled' : 'outlined'}
+                clickable
+                size="small"
+                disabled={demoteSaving}
+              />
+            ))}
+          </Box>
+          {demoteError && (
+            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>
+              {demoteError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDemoteDialog} disabled={demoteSaving}>Cancel</Button>
+          <Button variant="contained" onClick={handleDemoteSave} disabled={demoteSaving}>
+            {demoteSaving ? 'Saving...' : 'Convert to Teacher'}
           </Button>
         </DialogActions>
       </Dialog>
