@@ -2,6 +2,26 @@
 
 # Changelog
 
+## 5.3.0 — 2025-11-18
+
+### Added
+- Per-user student aliases with full CRUD UI, navigation entry, and classroom-scoped expansion in lesson notes.
+
+### Changed
+- Lesson Notes flow now stacks sections with gated progression: auto classroom pick for single-class teachers, search disabled until classroom is chosen, group mode requires explicit “Done selecting students,” and save is gated until tweaks are reachable.
+- Group/individual toggle defaults by program mix and never auto-flips after user input; individual mode enforces single-student selection and disables aliases.
+- Consolidated rating UI (Yes/Partially/No/N/A) into a single compact row reused across group defaults and per-student tweaks, with consistent button sizing for small screens.
+- Lesson notes page renders full-width, removes redundant back controls, and keeps individual tweaks scrollable for large rosters.
+
+### Fixed
+- Prevents multi-class alias leakage in individual mode and keeps alias checkboxes disabled when single-student selection is required.
+- Rating buttons in individual tweaks section now display on a single row with compact sizing to match group defaults layout.
+- Removed redundant "Back to setup" button from group defaults section for cleaner UI.
+
+### Changed
+- Lesson note button in Add Note modal is now disabled and greyed out for non-superadmin users, with visual indicators (reduced opacity, disabled cursor, greyed icon/text).
+- Removed grey Paper container wrapper and helper text around student search bar in lesson notes for cleaner, more streamlined interface.
+
 ## 5.2.0 — 2025-11-15
 
 ### Improved
