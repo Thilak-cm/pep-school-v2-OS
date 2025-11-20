@@ -1,27 +1,36 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Typography,
   TextField,
   Button,
-  Stepper,
-  Step,
-  StepLabel,
   MenuItem,
   Chip,
   CircularProgress,
-  IconButton,
   Paper,
-  Divider
+  Divider,
+  ToggleButtonGroup,
+  ToggleButton,
+  IconButton,
+  Collapse,
+  Checkbox,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Stack
 } from '@mui/material';
 import {
-  CheckCircle,
-  Clear,
-  RadioButtonUnchecked
+  ExpandMore,
+  ExpandLess,
+  Group,
+  Person,
+  Search
 } from '@mui/icons-material';
 import {
   collection,
   getDocs,
+  getDoc,
   query,
   where,
   writeBatch,
@@ -35,24 +44,14 @@ import {
   LESSON_RATING_OPTIONS,
   LESSON_RATING_LABELS,
   LESSON_RATING_COLORS,
-  LESSON_ATTENDANCE_LABELS,
   deriveDimensionKeyFromProgram,
   normalizeClassroomId
 } from '../utils/lessonNoteConstraints';
 
-const STEP_CONFIG = [
-  { id: 'context', label: 'Lesson Context' },
-  { id: 'students', label: 'Select Students' },
-  { id: 'defaults', label: 'Group Defaults' },
-  { id: 'exceptions', label: 'Exceptions' }
-];
-
-const RATING_SEQUENCE = LESSON_RATING_OPTIONS.map((opt) => opt.value);
-
-const cycleRating = (current) => {
-  const idx = RATING_SEQUENCE.indexOf(current);
-  if (idx === -1) return RATING_SEQUENCE[0];
-  return RATING_SEQUENCE[(idx + 1) % RATING_SEQUENCE.length];
+const SECTION_IDS = {
+  setup: 'setup',
+  defaults: 'defaults',
+  overrides: 'overrides'
 };
 
 const getStudentDisplayName = (student) => {
@@ -66,6 +65,29 @@ const getStudentDisplayName = (student) => {
   );
 };
 
+const buildGroupId = () => `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+const ratingButtonStyles = (value, selected) => {
+  const active = selected === value;
+  const color = LESSON_RATING_COLORS[value] || '#475569';
+  const wide = value === 'partial';
+  return {
+    variant: active ? 'contained' : 'outlined',
+    sx: {
+      minWidth: wide ? 40 : 40,
+      borderColor: color,
+      color: active ? '#fff' : color,
+      backgroundColor: active ? color : '#fff',
+      fontWeight: 700,
+      textTransform: 'none',
+      borderRadius: 2,
+      '&:hover': {
+        backgroundColor: active ? color : `${color}14`
+      }
+    }
+  };
+};
+
 function LessonNoteWizard({
   currentUser,
   userRole,
@@ -74,29 +96,35 @@ function LessonNoteWizard({
   onDirtyChange
 }) {
   const notify = useNotify();
-  const [activeStep, setActiveStep] = useState(0);
   const [context, setContext] = useState({
     lessonTitle: '',
     lessonDescription: '',
     groupComment: '',
     classroomId: ''
   });
+  const [lessonMode, setLessonMode] = useState('individual'); // 'individual' | 'group'
   const [classrooms, setClassrooms] = useState([]);
-  const [studentsByClassroom, setStudentsByClassroom] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState([]);
+  const [aliases, setAliases] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [attendance, setAttendance] = useState({});
   const [dimensionDefaults, setDimensionDefaults] = useState({});
   const [studentOverrides, setStudentOverrides] = useState({});
-  const [studentSearch, setStudentSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
-  const scrollContainerRef = useRef(null);
+  const [expandedAliases, setExpandedAliases] = useState({});
+  const [autoScrolled, setAutoScrolled] = useState({ defaults: false, overrides: false });
+  const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
+
+  const setupRef = useRef(null);
+  const defaultsRef = useRef(null);
+  const overridesRef = useRef(null);
+  const modeLockedRef = useRef(false);
+  const lastSelectionRef = useRef([]);
 
   const markDirty = () => {
-    if (!isDirty) {
-      setIsDirty(true);
-    }
+    if (!isDirty) setIsDirty(true);
   };
 
   useEffect(() => {
@@ -105,66 +133,14 @@ function LessonNoteWizard({
     }
   }, [isDirty, onDirtyChange]);
 
-  // Scroll to top when step changes
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
-    }
-    // Also scroll window to top as fallback
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeStep]);
-
-  const selectedClassroom = useMemo(
-    () => classrooms.find((cls) => cls.id === context.classroomId),
-    [classrooms, context.classroomId]
-  );
-
-  const dimensionKey = deriveDimensionKeyFromProgram(selectedClassroom?.programId);
-  const dimensionList = LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
-
-  const studentsInClass = useMemo(() => {
-    if (!context.classroomId) return [];
-    return studentsByClassroom[context.classroomId] || [];
-  }, [context.classroomId, studentsByClassroom]);
-
-  const filteredStudents = useMemo(() => {
-    const queryText = studentSearch.trim().toLowerCase();
-    if (!queryText) return studentsInClass;
-    return studentsInClass.filter((student) =>
-      getStudentDisplayName(student).toLowerCase().includes(queryText)
-    );
-  }, [studentSearch, studentsInClass]);
-
-  const selectedStudentEntities = useMemo(() => {
-    const lookup = new Map(studentsInClass.map((s) => [s.id, s]));
-    return [...selectedStudents]
-      .map((id) => lookup.get(id))
-      .filter(Boolean)
-      .sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)));
-  }, [selectedStudents, studentsInClass]);
-
-  const presentCount = useMemo(() => {
-    return selectedStudents.filter(
-      (id) => (attendance[id] || 'present') === 'present'
-    ).length;
-  }, [attendance, selectedStudents]);
-
-  useEffect(() => {
-    const fetchInitialData = async () => {
+    const load = async () => {
       try {
         setLoading(true);
-        let classroomQuery;
-        if (userRole === 'teacher') {
-          classroomQuery = query(
-            collection(db, 'classrooms'),
-            where('teacherIds', 'array-contains', currentUser.uid)
-          );
-        } else {
-          classroomQuery = query(
-            collection(db, 'classrooms'),
-            where('status', '==', 'active')
-          );
-        }
+        const classroomQuery =
+          userRole === 'teacher'
+            ? query(collection(db, 'classrooms'), where('teacherIds', 'array-contains', currentUser.uid))
+            : query(collection(db, 'classrooms'), where('status', '==', 'active'));
 
         const classroomSnap = await getDocs(classroomQuery);
         const classList = classroomSnap.docs
@@ -172,8 +148,23 @@ function LessonNoteWizard({
           .filter((cls) => (cls.status || 'active') !== 'archived');
         setClassrooms(classList);
 
+        // Auto-select classroom when only one option exists
+        if (classList.length === 1) {
+          setContext((prev) => ({ ...prev, classroomId: prev.classroomId || classList[0].id }));
+        }
+
+        // Default group vs individual toggle based on programs (only if user hasn't touched it)
+        if (!modeLockedRef.current && classList.length > 0) {
+          const programs = new Set(classList.map((cls) => String(cls.programId || '').toLowerCase()));
+          const programList = [...programs];
+          const hasMixedPrograms = programList.length > 1;
+          const allGroupFriendly = programList.length > 0 && programList.every((p) => p.includes('elementary') || p.includes('adolescent'));
+          const isGroupDefault = hasMixedPrograms || allGroupFriendly;
+          setLessonMode(isGroupDefault ? 'group' : 'individual');
+        }
+
         const studentsSnap = await getDocs(collection(db, 'students'));
-        const students = studentsSnap.docs.map((docSnap) => {
+        const rawStudents = studentsSnap.docs.map((docSnap) => {
           const data = docSnap.data();
           return {
             id: docSnap.id,
@@ -185,102 +176,216 @@ function LessonNoteWizard({
         const allowedClassroomIds = new Set(classList.map((cls) => cls.id));
         const scopedStudents =
           userRole === 'teacher'
-            ? students.filter((stu) => allowedClassroomIds.has(stu.classroomId))
-            : students.filter((stu) => !stu.classroomId || allowedClassroomIds.size === 0 || allowedClassroomIds.has(stu.classroomId));
+            ? rawStudents.filter((stu) => allowedClassroomIds.has(stu.classroomId))
+            : rawStudents.filter(
+                (stu) => !stu.classroomId || allowedClassroomIds.size === 0 || allowedClassroomIds.has(stu.classroomId)
+              );
+        scopedStudents.sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)));
+        setStudents(scopedStudents);
 
-        const grouped = scopedStudents.reduce((acc, student) => {
-          if (!student.classroomId) return acc;
-          const list = acc[student.classroomId] || [];
-          list.push(student);
-          acc[student.classroomId] = list;
-          return acc;
-        }, {});
-
-        Object.values(grouped).forEach((list) =>
-          list.sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)))
-        );
-
-        setStudentsByClassroom(grouped);
+        const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+        const aliasMap = userSnap.exists() ? userSnap.data().studentAliases || {} : {};
+        const aliasList = Object.values(aliasMap).map((alias) => ({
+          ...alias,
+          studentIds: Array.isArray(alias.studentIds) ? alias.studentIds : []
+        }));
+        aliasList.sort((a, b) => a.name.localeCompare(b.name));
+        setAliases(aliasList);
       } catch (error) {
         console.error('Error loading lesson note data', error);
-        notify.error('Unable to load classrooms or students.');
+        notify.error('Unable to load classrooms, students, or groups.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchInitialData();
+    load();
   }, [currentUser?.uid, notify, userRole]);
 
+  // Reset selections when classroom or dimension set changes
   useEffect(() => {
-    if (!context.classroomId) return;
-    const students = studentsByClassroom[context.classroomId] || [];
-    const nextSelection = students.map((stu) => stu.id);
-    setSelectedStudents(nextSelection);
-    const defaultAttendance = Object.fromEntries(
-      nextSelection.map((id) => [id, 'present'])
-    );
-    setAttendance(defaultAttendance);
+    setSelectedStudents([]);
     setStudentOverrides({});
-    setDimensionDefaults({});
-  }, [context.classroomId, studentsByClassroom]);
+    setSearchQuery('');
+    setAutoScrolled({ defaults: false, overrides: false });
+    setStudentsLocked(lessonMode === 'individual');
+  }, [context.classroomId]);
+
+  // Reset defaults when program changes
+  const selectedClassroom = useMemo(
+    () => classrooms.find((cls) => cls.id === context.classroomId),
+    [classrooms, context.classroomId]
+  );
+  const dimensionKey = deriveDimensionKeyFromProgram(selectedClassroom?.programId);
+  const dimensionList = LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
 
   useEffect(() => {
-    if (!context.classroomId) {
-      setSelectedStudents([]);
-      setAttendance({});
-      setStudentOverrides({});
-    } else {
-      const allowed = new Set(studentsInClass.map((stu) => stu.id));
-      setSelectedStudents((prev) => prev.filter((id) => allowed.has(id)));
+    setDimensionDefaults({});
+    setStudentOverrides({});
+  }, [dimensionKey]);
+
+  useEffect(() => {
+    // Reset lock and scroll anchors when mode changes
+    setStudentsLocked(lessonMode === 'individual');
+    setAutoScrolled({ defaults: false, overrides: false });
+  }, [lessonMode]);
+
+  useEffect(() => {
+    // Unlock selection when students change in group mode
+    const prev = lastSelectionRef.current.join('|');
+    const now = [...selectedStudents].sort().join('|');
+    if (lessonMode === 'group' && prev !== now) {
+      setStudentsLocked(false);
+      setAutoScrolled({ defaults: false, overrides: false });
     }
-  }, [context.classroomId, studentsInClass]);
+    lastSelectionRef.current = [...selectedStudents].sort();
+  }, [selectedStudents, lessonMode]);
+
+  const studentsById = useMemo(
+    () => Object.fromEntries(students.map((stu) => [stu.id, stu])),
+    [students]
+  );
+
+  const studentsByClassroom = useMemo(() => {
+    const grouped = {};
+    students.forEach((student) => {
+      if (!student.classroomId) return;
+      if (!grouped[student.classroomId]) grouped[student.classroomId] = [];
+      grouped[student.classroomId].push(student);
+    });
+    Object.values(grouped).forEach((list) =>
+      list.sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)))
+    );
+    return grouped;
+  }, [students]);
+
+  const studentsInClass = useMemo(() => {
+    if (!context.classroomId) return [];
+    return studentsByClassroom[context.classroomId] || [];
+  }, [context.classroomId, studentsByClassroom]);
+
+  const searchDisabled = !context.classroomId;
+  const searchActive = searchQuery.trim().length > 0 && !searchDisabled;
+
+  const matchingStudents = useMemo(() => {
+    if (!searchActive) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return studentsInClass.filter((stu) => getStudentDisplayName(stu).toLowerCase().includes(q));
+  }, [searchActive, searchQuery, studentsInClass]);
+
+  const aliasMatches = useMemo(() => {
+    if (!searchActive) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return aliases
+      .map((alias) => {
+        const memberIds = alias.studentIds || [];
+        const inClassMembers = memberIds.filter((id) => studentsById[id]?.classroomId === context.classroomId);
+        const outOfClassMembers = memberIds.filter((id) => studentsById[id] && studentsById[id].classroomId !== context.classroomId);
+        const matchByName = alias.name.toLowerCase().includes(q);
+        const matchByMember = inClassMembers.some((id) =>
+          getStudentDisplayName(studentsById[id]).toLowerCase().includes(q)
+        );
+        return {
+          ...alias,
+          inClassMembers,
+          outOfClassMembers,
+          hasMatch: matchByName || matchByMember
+        };
+      })
+      .filter((alias) => alias.hasMatch);
+  }, [aliases, context.classroomId, searchActive, searchQuery, studentsById]);
+
+  const selectedStudentEntities = useMemo(() => {
+    const lookup = new Map(studentsInClass.map((stu) => [stu.id, stu]));
+    return selectedStudents
+      .map((id) => lookup.get(id))
+      .filter(Boolean)
+      .sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)));
+  }, [selectedStudents, studentsInClass]);
+
+  const showDefaults = lessonMode === 'group';
+  const effectiveDefaults = showDefaults ? dimensionDefaults : {};
+
+  const baseSetupComplete =
+    Boolean(context.lessonTitle.trim()) &&
+    Boolean(context.classroomId) &&
+    selectedStudents.length > 0;
+  const selectionFinalized = lessonMode === 'group' ? studentsLocked : true;
+  const setupComplete = baseSetupComplete && selectionFinalized;
+  const defaultsComplete = showDefaults ? dimensionList.every((dimension) => !!effectiveDefaults[dimension]) : true;
+  const showDefaultsSection = showDefaults && setupComplete;
+  const showOverridesSection = setupComplete && defaultsComplete;
+
+  const scrollToSection = (ref) => {
+    if (!ref?.current) return;
+    ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  useEffect(() => {
+    if (showDefaultsSection && !autoScrolled.defaults) {
+      scrollToSection(defaultsRef);
+      setAutoScrolled((prev) => ({ ...prev, defaults: true }));
+    }
+  }, [showDefaultsSection, autoScrolled.defaults]);
+
+  useEffect(() => {
+    if (showOverridesSection && !autoScrolled.overrides) {
+      scrollToSection(overridesRef);
+      setAutoScrolled((prev) => ({ ...prev, overrides: true }));
+    }
+  }, [showOverridesSection, autoScrolled.overrides]);
+
+  const toggleLessonMode = (_, next) => {
+    if (!next) return;
+    setLessonMode(next);
+    modeLockedRef.current = true;
+    markDirty();
+  };
 
   const setContextField = (field, value) => {
     setContext((prev) => ({ ...prev, [field]: value }));
     markDirty();
   };
 
-  const handleToggleStudent = (studentId) => {
+  const handleConfirmStudents = () => {
+    setStudentsLocked(true);
+  };
+
+  const toggleStudent = (studentId) => {
+    if (lessonMode === 'individual') {
+      setSelectedStudents((prev) => (prev.includes(studentId) ? [] : [studentId]));
+      return;
+    }
     setSelectedStudents((prev) => {
-      if (prev.includes(studentId)) {
-        const next = prev.filter((id) => id !== studentId);
-        const nextAttendance = { ...attendance };
-        delete nextAttendance[studentId];
-        setAttendance(nextAttendance);
-        return next;
+      const exists = prev.includes(studentId);
+      if (exists) {
+        return prev.filter((id) => id !== studentId);
       }
-      const next = [...prev, studentId];
-      setAttendance((prevAttendance) => ({
-        ...prevAttendance,
-        [studentId]: prevAttendance[studentId] || 'present'
-      }));
-      return next;
+      return [...prev, studentId];
     });
     markDirty();
   };
 
-  const handleSelectAll = () => {
-    const ids = studentsInClass.map((stu) => stu.id);
-    setSelectedStudents(ids);
-    const nextAttendance = Object.fromEntries(ids.map((id) => [id, 'present']));
-    setAttendance(nextAttendance);
+  const toggleAliasSelection = (alias) => {
+    if (lessonMode === 'individual') return;
+    const members = alias.inClassMembers || [];
+    if (members.length === 0) return;
+    setSelectedStudents((prev) => {
+      const next = new Set(prev);
+      const allSelected = members.every((id) => next.has(id));
+      if (allSelected) {
+        members.forEach((id) => next.delete(id));
+      } else {
+        members.forEach((id) => next.add(id));
+      }
+      return Array.from(next);
+    });
+    setExpandedAliases((prev) => ({ ...prev, [alias.id]: true }));
     markDirty();
   };
 
-  const handleClearSelection = () => {
-    setSelectedStudents([]);
-    setAttendance({});
-    setStudentOverrides({});
-    markDirty();
-  };
-
-  const toggleAttendance = (studentId) => {
-    setAttendance((prev) => ({
-      ...prev,
-      [studentId]: (prev[studentId] || 'present') === 'present' ? 'absent' : 'present'
-    }));
-    markDirty();
+  const toggleAliasExpanded = (aliasId) => {
+    setExpandedAliases((prev) => ({ ...prev, [aliasId]: !prev[aliasId] }));
   };
 
   const setDefaultRating = (dimension, value) => {
@@ -317,58 +422,30 @@ function LessonNoteWizard({
   const getRatingForStudent = (studentId, dimension) => {
     const studentValue = studentOverrides[studentId]?.dimensions?.[dimension];
     if (studentValue) return studentValue;
-    return dimensionDefaults[dimension] || 'na';
-  };
-
-  const getAttendance = (studentId) => attendance[studentId] || 'present';
-
-  const canProceedFromStep = () => {
-    if (activeStep === 0) {
-      return Boolean(context.lessonTitle.trim()) && Boolean(context.classroomId);
-    }
-    if (activeStep === 1) {
-      return selectedStudents.length > 0;
-    }
-    if (activeStep === 2) {
-      return dimensionList.every((dimension) => !!dimensionDefaults[dimension]);
-    }
-    return true;
-  };
-
-  const handleBack = () => {
-    if (activeStep === 0) {
-      onCancel();
-    } else {
-      setActiveStep((prev) => prev - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (activeStep < STEP_CONFIG.length - 1) {
-      setActiveStep((prev) => prev + 1);
-    }
+    return effectiveDefaults[dimension] || 'na';
   };
 
   const handleSave = async () => {
-    if (saving || selectedStudents.length === 0) return;
-    if (presentCount === 0) {
-      notify.error('Mark at least one student as present.');
+    if (saving) return;
+    if (!setupComplete) {
+      notify.warning('Add a lesson title, select a classroom, and pick at least one student.');
       return;
     }
-    if (!context.lessonTitle.trim()) {
-      notify.error('Lesson title is required.');
+    if (!defaultsComplete) {
+      notify.warning('Set a rating for every dimension.');
       return;
     }
+
     try {
       setSaving(true);
       const batch = writeBatch(db);
+      const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
       selectedStudents.forEach((studentId) => {
-        const attendanceState = getAttendance(studentId);
         const ratings = {};
         dimensionList.forEach((dimension) => {
           const overrideValue = studentOverrides[studentId]?.dimensions?.[dimension];
-          const baseValue = dimensionDefaults[dimension] || 'na';
-          ratings[dimension] = attendanceState === 'absent' ? 'na' : (overrideValue || baseValue);
+          const baseValue = effectiveDefaults[dimension] || 'na';
+          ratings[dimension] = overrideValue || baseValue;
         });
 
         const payload = {
@@ -380,10 +457,12 @@ function LessonNoteWizard({
           groupComment: context.groupComment.trim() || null,
           programId: selectedClassroom?.programId || null,
           dimensionOrder: dimensionList,
-          groupDefaults: dimensionDefaults,
+          ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
           ratings,
           studentComment: studentOverrides[studentId]?.comment?.trim() || null,
-          attendanceStatus: attendanceState,
+          attendanceStatus: 'present',
+          lessonMode,
+          ...(groupId ? { groupId } : {}),
           createdBy: currentUser?.uid || 'unknown',
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -419,295 +498,35 @@ function LessonNoteWizard({
     }
   };
 
-  const renderContextStep = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TextField
-        fullWidth
-        label="Lesson Title"
-        required
-        value={context.lessonTitle}
-        onChange={(e) => setContextField('lessonTitle', e.target.value)}
-      />
-      <TextField
-        fullWidth
-        label="Short Description"
-        multiline
-        minRows={2}
-        value={context.lessonDescription}
-        onChange={(e) => setContextField('lessonDescription', e.target.value)}
-      />
-      <TextField
-        fullWidth
-        label="Group Comment"
-        multiline
-        minRows={2}
-        helperText="Optional note that appears for every student"
-        value={context.groupComment}
-        onChange={(e) => setContextField('groupComment', e.target.value)}
-      />
-      <TextField
-        select
-        fullWidth
-        label="Classroom"
-        required
-        value={context.classroomId}
-        onChange={(e) => setContextField('classroomId', e.target.value)}
+  const renderStudentRow = (student, { dense = false, disabled = false } = {}) => {
+    const checked = selectedStudents.includes(student.id);
+    return (
+      <ListItem
+        key={student.id}
+        button
+        disabled={disabled}
+        onClick={() => !disabled && toggleStudent(student.id)}
+        sx={{
+          px: dense ? 1 : 1.5,
+          py: dense ? 0.5 : 1,
+          borderRadius: 1,
+          '&:hover': { backgroundColor: '#f8fafc' }
+        }}
       >
-        {classrooms.map((cls) => (
-          <MenuItem key={cls.id} value={cls.id}>
-            {cls.name || cls.id}
-          </MenuItem>
-        ))}
-      </TextField>
-    </Box>
-  );
-
-  const renderStudentsStep = () => {
-    if (!context.classroomId) {
-      return (
-        <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography variant="body2" color="text.secondary">
-            Select a classroom first to load students.
-          </Typography>
-        </Box>
-      );
-    }
-
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            {selectedClassroom?.name || 'Classroom'} roster
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button onClick={handleSelectAll} size="small" variant="outlined">
-              Select All
-            </Button>
-            <Button onClick={handleClearSelection} size="small" color="secondary">
-              Clear
-            </Button>
-          </Box>
-        </Box>
-        <TextField
-          fullWidth
-          placeholder="Search students"
-          value={studentSearch}
-          onChange={(e) => setStudentSearch(e.target.value)}
+        <Checkbox
+          edge="start"
+          tabIndex={-1}
+          disableRipple
+          checked={checked}
+          onChange={() => toggleStudent(student.id)}
+          disabled={disabled}
         />
-        <Typography variant="body2" color="text.secondary">
-          Present: {presentCount}/{studentsInClass.length}
-        </Typography>
-        <Paper
-          variant="outlined"
-          sx={{
-            border: '1px solid #e2e8f0',
-            borderRadius: 2,
-            p: 1.5,
-            maxHeight: 360,
-            overflowY: 'auto',
-            backgroundColor: '#f8fafc'
-          }}
-        >
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {filteredStudents.map((student) => {
-            const selected = selectedStudents.includes(student.id);
-            const status = getAttendance(student.id);
-            const cardBg = selected
-              ? status === 'present'
-                ? '#ecfdf5'
-                : '#fee2e2'
-              : '#ffffff';
-            const borderColor = selected ? '#4f46e5' : '#e2e8f0';
-            return (
-              <Paper
-                key={student.id}
-                variant="outlined"
-                onClick={() => handleToggleStudent(student.id)}
-                sx={{
-                  p: 1.5,
-                  borderColor,
-                  backgroundColor: cardBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  cursor: 'pointer',
-                  transition: 'border-color 0.2s, background-color 0.2s'
-                }}
-              >
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {getStudentDisplayName(student)}
-                  </Typography>
-                </Box>
-                <Chip
-                  label={LESSON_ATTENDANCE_LABELS[selected ? status : 'absent']}
-                  color={
-                    selected
-                      ? status === 'present'
-                        ? 'success'
-                        : 'warning'
-                      : 'error'
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (selected) {
-                      toggleAttendance(student.id);
-                    }
-                  }}
-                  sx={{ textTransform: 'capitalize' }}
-                />
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleStudent(student.id);
-                  }}
-                  color={selected ? 'primary' : 'default'}
-                >
-                  {selected ? <CheckCircle /> : <RadioButtonUnchecked />}
-                </IconButton>
-              </Paper>
-            );
-          })}
-            {filteredStudents.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                No students match this search.
-              </Typography>
-            )}
-          </Box>
-        </Paper>
-      </Box>
-    );
-  };
-
-  const renderDefaultsStep = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Typography variant="subtitle1">
-        Step 2: Set group defaults. You can override individual students next.
-      </Typography>
-      <Divider />
-      {dimensionList.map((dimension) => {
-        const selected = dimensionDefaults[dimension];
-        return (
-          <Box key={dimension} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {dimension}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {LESSON_RATING_OPTIONS.map((option) => (
-                <Button
-                  key={option.value}
-                  variant={selected === option.value ? 'contained' : 'outlined'}
-                  onClick={() => setDefaultRating(dimension, option.value)}
-                  size="small"
-                  sx={{
-                    borderColor: option.color,
-                    color: selected === option.value ? '#fff' : option.color,
-                    backgroundColor: selected === option.value ? option.color : 'transparent'
-                  }}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </Box>
-          </Box>
-        );
-      })}
-    </Box>
-  );
-
-  const renderExceptionsStep = () => {
-    if (selectedStudentEntities.length === 0) {
-      return (
-        <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography variant="body2" color="text.secondary">
-            Select at least one student to provide feedback.
-          </Typography>
-        </Box>
-      );
-    }
-
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography variant="subtitle1">
-          Step 3: Override individual students if needed.
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 420, overflowY: 'auto' }}>
-          {selectedStudentEntities.map((student) => {
-            const attendanceState = getAttendance(student.id);
-            const isAbsent = attendanceState === 'absent';
-            return (
-              <Paper
-                key={student.id}
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  opacity: isAbsent ? 0.6 : 1,
-                  borderColor: isAbsent ? '#cbd5f5' : '#e2e8f0',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1.5
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {getStudentDisplayName(student)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {student.classroom_name || selectedClassroom?.name || ''}
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={LESSON_ATTENDANCE_LABELS[attendanceState]}
-                    color={attendanceState === 'present' ? 'success' : 'warning'}
-                    onClick={() => toggleAttendance(student.id)}
-                    sx={{ textTransform: 'capitalize' }}
-                  />
-                </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 1 }}>
-                  {dimensionList.map((dimension) => {
-                    const rating = getRatingForStudent(student.id, dimension);
-                    return (
-                      <Button
-                        key={`${student.id}-${dimension}`}
-                        variant={rating === 'na' ? 'outlined' : 'contained'}
-                        onClick={() => setStudentRating(student.id, dimension, cycleRating(rating))}
-                        disabled={isAbsent}
-                        sx={{
-                          justifyContent: 'flex-start',
-                          textTransform: 'none',
-                          borderColor: LESSON_RATING_COLORS[rating] || '#cbd5e1',
-                          backgroundColor: LESSON_RATING_COLORS[rating] ? `${LESSON_RATING_COLORS[rating]}22` : undefined,
-                          color: LESSON_RATING_COLORS[rating] || 'inherit'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                            {dimension}
-                          </Typography>
-                          <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>
-                            {LESSON_RATING_LABELS[rating] || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Button>
-                    );
-                  })}
-                </Box>
-                <TextField
-                  fullWidth
-                  label="Student comment (optional)"
-                  multiline
-                  minRows={1}
-                  disabled={isAbsent}
-                  value={studentOverrides[student.id]?.comment || ''}
-                  onChange={(e) => setStudentComment(student.id, e.target.value)}
-                />
-              </Paper>
-            );
-          })}
-        </Box>
-      </Box>
+        <ListItemText
+          primary={getStudentDisplayName(student)}
+          secondary={studentsById[student.id]?.classroomId === context.classroomId ? selectedClassroom?.name : 'Different classroom'}
+          primaryTypographyProps={{ fontWeight: 600 }}
+        />
+      </ListItem>
     );
   };
 
@@ -720,55 +539,377 @@ function LessonNoteWizard({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
-        {STEP_CONFIG.map((step) => (
-          <Step key={step.id}>
-            <StepLabel>{step.label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-
-      <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: 'auto' }}>
-        {activeStep === 0 && renderContextStep()}
-        {activeStep === 1 && renderStudentsStep()}
-        {activeStep === 2 && renderDefaultsStep()}
-        {activeStep === 3 && renderExceptionsStep()}
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {activeStep > 0 && (
-            <Button onClick={handleBack}>
-              Back
-            </Button>
-          )}
-          <Button
-            onClick={onCancel}
-            variant="outlined"
-            color="error"
-            sx={{ textTransform: 'none', fontWeight: 600 }}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Paper id={SECTION_IDS.setup} ref={setupRef} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Lesson context & students
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Fill the basics, then pick students or a saved group.
+            </Typography>
+          </Box>
+          <ToggleButtonGroup
+            value={lessonMode}
+            exclusive
+            onChange={toggleLessonMode}
+            size="small"
           >
-            Discard All Progress
-          </Button>
+            <ToggleButton value="individual">Individual</ToggleButton>
+            <ToggleButton value="group">Group</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
-        {activeStep < STEP_CONFIG.length - 1 ? (
-          <Button
-            variant="contained"
-            onClick={handleNext}
-            disabled={!canProceedFromStep()}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+          <TextField
+            fullWidth
+            label="Lesson Title"
+            required
+            value={context.lessonTitle}
+            onChange={(e) => setContextField('lessonTitle', e.target.value)}
+          />
+          <TextField
+            fullWidth
+            label="Short Description"
+            multiline
+            minRows={2}
+            value={context.lessonDescription}
+            onChange={(e) => setContextField('lessonDescription', e.target.value)}
+          />
+          <TextField
+            fullWidth
+            label="Group Comment"
+            multiline
+            minRows={2}
+            helperText="Optional note that appears for every student"
+            value={context.groupComment}
+            onChange={(e) => setContextField('groupComment', e.target.value)}
+          />
+          <TextField
+            select
+            fullWidth
+            label="Classroom"
+            required
+            value={context.classroomId}
+            onChange={(e) => setContextField('classroomId', e.target.value)}
           >
-            Next
-          </Button>
-        ) : (
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving}
+            {classrooms.map((cls) => (
+              <MenuItem key={cls.id} value={cls.id}>
+                {cls.name || cls.id}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              borderRadius: 2,
+              border: '1px solid #e2e8f0',
+              backgroundColor: searchDisabled ? '#f8fafc' : 'white'
+            }}
           >
-            {saving ? 'Saving…' : 'Save Lesson Note'}
-          </Button>
-        )}
+            <TextField
+              fullWidth
+              placeholder="Search student or group"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={searchDisabled}
+              InputProps={{
+                startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
+              }}
+            />
+            {searchDisabled && (
+              <Typography variant="caption" color="text.secondary">
+                Select a classroom to search students.
+              </Typography>
+            )}
+
+            {searchActive && (
+              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                    Students
+                  </Typography>
+                  <Paper variant="outlined" sx={{ maxHeight: 220, overflowY: 'auto', borderRadius: 2 }}>
+                    {matchingStudents.length > 0 ? (
+                      <List dense disablePadding>
+                        {matchingStudents.map((student) => renderStudentRow(student))}
+                      </List>
+                    ) : (
+                      <Box sx={{ p: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          No students match this search.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Paper>
+                </Box>
+
+                {aliasMatches.length > 0 && (
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                      Groups
+                    </Typography>
+                    <Stack spacing={1}>
+                      {aliasMatches.map((alias) => {
+                        const inClassMembers = (alias.inClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
+                        const outOfClassMembers = (alias.outOfClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
+                        const checkedCount = inClassMembers.filter((stu) => selectedStudents.includes(stu.id)).length;
+                        const allSelected = inClassMembers.length > 0 && checkedCount === inClassMembers.length;
+                        const partiallySelected = checkedCount > 0 && !allSelected;
+                        return (
+                          <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 1
+                              }}
+                            >
+                              <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
+                                <Group />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={alias.name}
+                                secondary={`${checkedCount}/${inClassMembers.length} in this classroom`}
+                                primaryTypographyProps={{ fontWeight: 700 }}
+                              />
+                              <Checkbox
+                                edge="end"
+                                checked={allSelected}
+                                indeterminate={partiallySelected}
+                                onChange={() => toggleAliasSelection(alias)}
+                                disabled={lessonMode === 'individual'}
+                              />
+                              <IconButton onClick={() => toggleAliasExpanded(alias.id)} size="small" disabled={lessonMode === 'individual'}>
+                                {expandedAliases[alias.id] ? <ExpandLess /> : <ExpandMore />}
+                              </IconButton>
+                            </Box>
+                            <Collapse in={expandedAliases[alias.id]} timeout="auto" unmountOnExit>
+                              <Divider />
+                              <List dense disablePadding>
+                                {inClassMembers.map((student) => renderStudentRow(student, { dense: true }))}
+                                {outOfClassMembers.map((student) => (
+                                  <ListItem key={student.id} dense sx={{ px: 1.5, py: 1, opacity: 0.5 }}>
+                                    <Checkbox edge="start" disabled />
+                                    <ListItemText
+                                      primary={getStudentDisplayName(student)}
+                                      secondary="Not in selected classroom"
+                                    />
+                                  </ListItem>
+                                ))}
+                                {inClassMembers.length === 0 && (
+                                  <ListItem dense sx={{ px: 1.5, py: 1 }}>
+                                    <ListItemText
+                                      primary="No students from this group belong to the selected classroom."
+                                      primaryTypographyProps={{ color: 'text.secondary' }}
+                                    />
+                                  </ListItem>
+                                )}
+                              </List>
+                            </Collapse>
+                          </Paper>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                )}
+              </Stack>
+            )}
+
+            {!searchActive && !searchDisabled && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Start typing to find students or saved groups. Results stay scoped to the selected classroom.
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+
+          {selectedStudents.length > 0 && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {selectedStudentEntities.map((stu) => (
+                <Chip
+                  key={stu.id}
+                  label={getStudentDisplayName(stu)}
+                  onDelete={() => toggleStudent(stu.id)}
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                />
+              ))}
+            </Stack>
+          )}
+
+          {lessonMode === 'group' && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleConfirmStudents}
+                disabled={!baseSetupComplete || studentsLocked}
+              >
+                {studentsLocked ? 'Students locked' : 'Done selecting students'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </Paper>
+
+      {showDefaultsSection && (
+        <Paper
+          id={SECTION_IDS.defaults}
+          ref={defaultsRef}
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid #e2e8f0',
+            backgroundColor: setupComplete ? 'white' : '#f8fafc',
+            opacity: setupComplete ? 1 : 0.6
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Group defaults
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Set baseline ratings for the whole group. You can override individuals below.
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Stack spacing={2}>
+            {dimensionList.map((dimension) => {
+              const selected = dimensionDefaults[dimension];
+              return (
+                <Box key={dimension}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
+                    {dimension}
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {LESSON_RATING_OPTIONS.map((option) => {
+                      const props = ratingButtonStyles(option.value, selected);
+                      return (
+                        <Button
+                          key={`${dimension}-${option.value}`}
+                          {...props}
+                          onClick={() => setDefaultRating(dimension, option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        </Paper>
+      )}
+
+      {showOverridesSection && (
+        <Paper
+          id={SECTION_IDS.overrides}
+          ref={overridesRef}
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid #e2e8f0',
+            backgroundColor: defaultsComplete ? 'white' : '#f8fafc',
+            opacity: defaultsComplete ? 1 : 0.6
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+            Individual tweaks
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Adjust ratings or add comments for specific students.
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          {selectedStudentEntities.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Select at least one student to add ratings.
+            </Typography>
+          ) : (
+            <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5 }}>
+              <Stack spacing={2}>
+                {selectedStudentEntities.map((student) => (
+                  <Paper key={student.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Person fontSize="small" sx={{ color: '#4f46e5' }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {getStudentDisplayName(student)}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={selectedClassroom?.name || student.classroomId}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </Box>
+                    <Stack spacing={1.5}>
+                      {dimensionList.map((dimension) => {
+                        const rating = getRatingForStudent(student.id, dimension);
+                        return (
+                          <Box key={`${student.id}-${dimension}`}>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                              {dimension}
+                            </Typography>
+                            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                              {LESSON_RATING_OPTIONS.map((option) => {
+                                const props = ratingButtonStyles(option.value, rating);
+                                return (
+                                  <Button
+                                    key={`${student.id}-${dimension}-${option.value}`}
+                                    {...props}
+                                    size="small"
+                                    sx={{
+                                      ...props.sx,
+                                      minWidth: 'auto',
+                                      px: 1.25,
+                                      fontSize: '0.75rem'
+                                    }}
+                                    onClick={() => setStudentRating(student.id, dimension, option.value)}
+                                  >
+                                    {option.label}
+                                  </Button>
+                                );
+                              })}
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                    <TextField
+                      fullWidth
+                      label="Student comment (optional)"
+                      multiline
+                      minRows={1}
+                      value={studentOverrides[student.id]?.comment || ''}
+                      onChange={(e) => setStudentComment(student.id, e.target.value)}
+                      sx={{ mt: 1 }}
+                    />
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
+          )}
+        </Paper>
+      )}
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+        <Button variant="outlined" color="error" onClick={onCancel}>
+          Discard
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving || !showOverridesSection}
+        >
+          {saving ? 'Saving…' : 'Save Lesson Note'}
+        </Button>
       </Box>
     </Box>
   );

@@ -921,30 +921,27 @@ function AddNoteModal({
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: userRole === 'superadmin' ? 'pointer' : 'not-allowed',
-                  backgroundColor: userRole === 'superadmin' ? 'white' : '#f1f5f9',
-                  opacity: userRole === 'superadmin' ? 1 : 0.5,
-                  '&:hover': userRole === 'superadmin' ? { 
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
                     backgroundColor: '#f8fafc',
                     border: '1px solid #4f46e5'
-                  } : {}
+                  }
                 }}
-                onClick={userRole === 'superadmin' ? handleSelectLesson : undefined}
+                onClick={handleSelectLesson}
                 aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: userRole === 'superadmin' ? '#4f46e5' : '#94a3b8' }} />
+                <MenuBook sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: userRole === 'superadmin' ? '#1e293b' : '#64748b' }}>
+                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Lesson Note
                     </Typography>
-                    {userRole === 'superadmin' && (
-                      <Box sx={{ opacity: 1 }}>
-                        <NewFeaturePill label="New" size="sm" />
-                      </Box>
-                    )}
+                    <Box sx={{ opacity: 1 }}>
+                      <NewFeaturePill label="New" size="sm" />
+                    </Box>
                   </Box>
-                  <Typography variant="caption" color={userRole === 'superadmin' ? 'text.secondary' : 'text.disabled'}>
+                  <Typography variant="caption" color="text.secondary">
                     Structured lesson observation
                   </Typography>
                 </Box>

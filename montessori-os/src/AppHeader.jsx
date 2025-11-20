@@ -34,6 +34,7 @@ import {
   Feedback,
   ArrowBack
 } from "@mui/icons-material";
+import Group from "@mui/icons-material/Group";
 
 function AppHeader({ user, onSignOut, title = '', onNavigate, onHome, onBack, showBackButton = false }) {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -90,6 +91,14 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome, onBack, sh
       onClick: () => {
         setDrawerOpen(false);
         onNavigate('/stats');
+      }
+    },
+    {
+      text: 'Student Groups',
+      icon: <Group />,
+      onClick: () => {
+        setDrawerOpen(false);
+        onNavigate('/aliases');
       }
     },
     {

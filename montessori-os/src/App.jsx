@@ -14,6 +14,7 @@ import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentStatsPage from "./components/StudentStatsPage";
 import LessonNotesPage from "./components/LessonNotesPage";
+import StudentAliasesPage from "./components/StudentAliasesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
 import ProfilePage from "./components/ProfilePage";
 import StatsPage from "./components/StatsPage";
@@ -44,7 +45,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -269,6 +270,7 @@ function App() {
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
+  else if (screen === 'studentAliases') pageTitle = 'Student Groups';
   else if (screen === 'studentStats') {
     const studentName = selectedStudent?.displayName || selectedStudent?.name || 
                        `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
@@ -306,6 +308,10 @@ function App() {
         return () => setScreen('aiHome');
       case 'aiCoachEditor':
         return () => setScreen('aiHome');
+      case 'studentAliases':
+        return () => setScreen('landingPage');
+      case 'lessonNotes':
+        return () => setScreen(lessonNotesReturnScreen || 'landingPage');
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
@@ -479,6 +485,8 @@ function App() {
                       setScreen('feedback');
                     } else if (path === '/addUser') {
                       setScreen('addUser');
+                    } else if (path === '/aliases') {
+                      setScreen('studentAliases');
                     } else if (path === '/aiPrompts') {
                       if (isSuperAdminUser) setScreen('aiHome');
                     }
@@ -519,6 +527,8 @@ function App() {
                           setScreen('stats');
                         } else if (path === '/addUser') {
                           setScreen('addUser');
+                        } else if (path === '/aliases') {
+                          setScreen('studentAliases');
                         } else if (path === '/aiPrompts') {
                           if (isSuperAdminUser) setScreen('aiHome');
                         }
@@ -597,6 +607,13 @@ function App() {
                       currentUser={user}
                       userRole={role}
                       onClose={() => setScreen(lessonNotesReturnScreen || 'timeline')}
+                    />
+                  )}
+
+                  {screen === 'studentAliases' && (
+                    <StudentAliasesPage
+                      currentUser={user}
+                      userRole={role}
                     />
                   )}
 
@@ -685,7 +702,7 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && (
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && (
                 <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
               )}
               <AddNoteModal

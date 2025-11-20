@@ -91,6 +91,9 @@ interface User {
   homeBranchId?: BranchId;       // preferred/default branch for UI selection
   status: 'active' | 'inactive' | 'suspended';
   
+  // Lesson shortcuts
+  studentAliases?: Record<string, StudentAlias>; // keyed by aliasId
+  
   // Metadata
   createdAt: Timestamp; // server time
   updatedAt: Timestamp; // server time
@@ -104,6 +107,25 @@ Guidance
 - Program admins MUST have `manageablePrograms` populated with at least one `ProgramId`; UI should block save otherwise. These admins can act on students/placements/observations within those programs and invite teachers/students across branches.
 - Program admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'admin' | 'superadmin'` are rejected unless performed by a super admin.
 - Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
+- `studentAliases` is optional and only loaded for teachers that create personal student groups for faster lesson-note selection (see below).
+
+### Student aliases (per user)
+```typescript
+interface StudentAlias {
+  id: string;                    // convenience copy of the key from studentAliases.{id}
+  name: string;                  // unique per user; shown in search
+  description?: string;          // optional helper text
+  studentIds: string[];          // UIDs of students across any classroom the teacher can access
+  createdAt: Timestamp;          // server time
+  updatedAt: Timestamp;          // server time
+}
+```
+Guidance
+- Store aliases directly on each user doc under `studentAliases.{aliasId}` so reads stay on the same document as the profile; expect <25 aliases per teacher.
+- Alias IDs follow `alias_<slug>`; enforce uniqueness per user (UI lowercases + slugs names before writes). The `name` must be unique to keep search results deterministic.
+- Teachers can include students from multiple classrooms they have access to. When logging a lesson tied to a single classroom, show all alias members but disable checkboxes for students outside the selected classroom so teachers understand the mismatch.
+- Alias search results should list matching students first and then any alias chips containing those students. Selecting an alias expands to the familiar `ClassroomStudentPicker` list; all students start selected/present, and teachers uncheck out-of-scope students.
+- CRUD is entirely user-scoped: no sharing yet. Security rules only allow owners (or admins editing on their behalf) to manage their own aliases.
 
 ---
 
