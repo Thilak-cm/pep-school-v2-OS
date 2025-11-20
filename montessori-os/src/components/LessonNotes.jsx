@@ -601,134 +601,111 @@ function LessonNoteWizard({
             ))}
           </TextField>
 
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              border: '1px solid #e2e8f0',
-              backgroundColor: searchDisabled ? '#f8fafc' : 'white'
+          <TextField
+            fullWidth
+            placeholder="Search student or group"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={searchDisabled}
+            InputProps={{
+              startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
             }}
-          >
-            <TextField
-              fullWidth
-              placeholder="Search student or group"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={searchDisabled}
-              InputProps={{
-                startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
-              }}
-            />
-            {searchDisabled && (
-              <Typography variant="caption" color="text.secondary">
-                Select a classroom to search students.
-              </Typography>
-            )}
+          />
 
-            {searchActive && (
-              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+          {searchActive && (
+            <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  Students
+                </Typography>
+                <Paper variant="outlined" sx={{ maxHeight: 220, overflowY: 'auto', borderRadius: 2 }}>
+                  {matchingStudents.length > 0 ? (
+                    <List dense disablePadding>
+                      {matchingStudents.map((student) => renderStudentRow(student))}
+                    </List>
+                  ) : (
+                    <Box sx={{ p: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No students match this search.
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Box>
+
+              {aliasMatches.length > 0 && (
                 <Box>
                   <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                    Students
+                    Groups
                   </Typography>
-                  <Paper variant="outlined" sx={{ maxHeight: 220, overflowY: 'auto', borderRadius: 2 }}>
-                    {matchingStudents.length > 0 ? (
-                      <List dense disablePadding>
-                        {matchingStudents.map((student) => renderStudentRow(student))}
-                      </List>
-                    ) : (
-                      <Box sx={{ p: 2 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          No students match this search.
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
+                  <Stack spacing={1}>
+                    {aliasMatches.map((alias) => {
+                      const inClassMembers = (alias.inClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
+                      const outOfClassMembers = (alias.outOfClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
+                      const checkedCount = inClassMembers.filter((stu) => selectedStudents.includes(stu.id)).length;
+                      const allSelected = inClassMembers.length > 0 && checkedCount === inClassMembers.length;
+                      const partiallySelected = checkedCount > 0 && !allSelected;
+                      return (
+                        <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              px: 1.5,
+                              py: 1
+                            }}
+                          >
+                            <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
+                              <Group />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={alias.name}
+                              secondary={`${checkedCount}/${inClassMembers.length} in this classroom`}
+                              primaryTypographyProps={{ fontWeight: 700 }}
+                            />
+                            <Checkbox
+                              edge="end"
+                              checked={allSelected}
+                              indeterminate={partiallySelected}
+                              onChange={() => toggleAliasSelection(alias)}
+                              disabled={lessonMode === 'individual'}
+                            />
+                            <IconButton onClick={() => toggleAliasExpanded(alias.id)} size="small" disabled={lessonMode === 'individual'}>
+                              {expandedAliases[alias.id] ? <ExpandLess /> : <ExpandMore />}
+                            </IconButton>
+                          </Box>
+                          <Collapse in={expandedAliases[alias.id]} timeout="auto" unmountOnExit>
+                            <Divider />
+                            <List dense disablePadding>
+                              {inClassMembers.map((student) => renderStudentRow(student, { dense: true }))}
+                              {outOfClassMembers.map((student) => (
+                                <ListItem key={student.id} dense sx={{ px: 1.5, py: 1, opacity: 0.5 }}>
+                                  <Checkbox edge="start" disabled />
+                                  <ListItemText
+                                    primary={getStudentDisplayName(student)}
+                                    secondary="Not in selected classroom"
+                                  />
+                                </ListItem>
+                              ))}
+                              {inClassMembers.length === 0 && (
+                                <ListItem dense sx={{ px: 1.5, py: 1 }}>
+                                  <ListItemText
+                                    primary="No students from this group belong to the selected classroom."
+                                    primaryTypographyProps={{ color: 'text.secondary' }}
+                                  />
+                                </ListItem>
+                              )}
+                            </List>
+                          </Collapse>
+                        </Paper>
+                      );
+                    })}
+                  </Stack>
                 </Box>
-
-                {aliasMatches.length > 0 && (
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                      Groups
-                    </Typography>
-                    <Stack spacing={1}>
-                      {aliasMatches.map((alias) => {
-                        const inClassMembers = (alias.inClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
-                        const outOfClassMembers = (alias.outOfClassMembers || []).map((id) => studentsById[id]).filter(Boolean);
-                        const checkedCount = inClassMembers.filter((stu) => selectedStudents.includes(stu.id)).length;
-                        const allSelected = inClassMembers.length > 0 && checkedCount === inClassMembers.length;
-                        const partiallySelected = checkedCount > 0 && !allSelected;
-                        return (
-                          <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                px: 1.5,
-                                py: 1
-                              }}
-                            >
-                              <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
-                                <Group />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={alias.name}
-                                secondary={`${checkedCount}/${inClassMembers.length} in this classroom`}
-                                primaryTypographyProps={{ fontWeight: 700 }}
-                              />
-                              <Checkbox
-                                edge="end"
-                                checked={allSelected}
-                                indeterminate={partiallySelected}
-                                onChange={() => toggleAliasSelection(alias)}
-                                disabled={lessonMode === 'individual'}
-                              />
-                              <IconButton onClick={() => toggleAliasExpanded(alias.id)} size="small" disabled={lessonMode === 'individual'}>
-                                {expandedAliases[alias.id] ? <ExpandLess /> : <ExpandMore />}
-                              </IconButton>
-                            </Box>
-                            <Collapse in={expandedAliases[alias.id]} timeout="auto" unmountOnExit>
-                              <Divider />
-                              <List dense disablePadding>
-                                {inClassMembers.map((student) => renderStudentRow(student, { dense: true }))}
-                                {outOfClassMembers.map((student) => (
-                                  <ListItem key={student.id} dense sx={{ px: 1.5, py: 1, opacity: 0.5 }}>
-                                    <Checkbox edge="start" disabled />
-                                    <ListItemText
-                                      primary={getStudentDisplayName(student)}
-                                      secondary="Not in selected classroom"
-                                    />
-                                  </ListItem>
-                                ))}
-                                {inClassMembers.length === 0 && (
-                                  <ListItem dense sx={{ px: 1.5, py: 1 }}>
-                                    <ListItemText
-                                      primary="No students from this group belong to the selected classroom."
-                                      primaryTypographyProps={{ color: 'text.secondary' }}
-                                    />
-                                  </ListItem>
-                                )}
-                              </List>
-                            </Collapse>
-                          </Paper>
-                        );
-                      })}
-                    </Stack>
-                  </Box>
-                )}
-              </Stack>
-            )}
-
-            {!searchActive && !searchDisabled && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Start typing to find students or saved groups. Results stay scoped to the selected classroom.
-                </Typography>
-              </Box>
-            )}
-          </Paper>
+              )}
+            </Stack>
+          )}
 
           {selectedStudents.length > 0 && (
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
