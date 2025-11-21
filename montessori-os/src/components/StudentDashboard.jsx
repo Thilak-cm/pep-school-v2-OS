@@ -135,10 +135,10 @@ function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes, onOpenS
                     </Avatar>
                     <Box>
                       <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                        Text & Voice Notes
+                        Observations
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                        View and add text/voice notes for {getFirstName(student)}
+                        View text and voice notes for {getFirstName(student)}
                       </Typography>
                     </Box>
                   </Box>
@@ -179,7 +179,7 @@ function StudentDashboard({ student, onOpenTextNotes, onOpenLessonNotes, onOpenS
                         Lesson Notes
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                        Structured lesson notes for {getFirstName(student)}
+                        View lesson notes for {getFirstName(student)}
                       </Typography>
                     </Box>
                   </Box>

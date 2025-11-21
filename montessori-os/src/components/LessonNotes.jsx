@@ -563,6 +563,20 @@ function LessonNoteWizard({
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           <TextField
+            select
+            fullWidth
+            label="Classroom"
+            required
+            value={context.classroomId}
+            onChange={(e) => setContextField('classroomId', e.target.value)}
+          >
+            {classrooms.map((cls) => (
+              <MenuItem key={cls.id} value={cls.id}>
+                {cls.name || cls.id}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
             fullWidth
             label="Lesson Title"
             required
@@ -577,29 +591,17 @@ function LessonNoteWizard({
             value={context.lessonDescription}
             onChange={(e) => setContextField('lessonDescription', e.target.value)}
           />
-          <TextField
-            fullWidth
-            label="Group Comment"
-            multiline
-            minRows={2}
-            helperText="Optional note that appears for every student"
-            value={context.groupComment}
-            onChange={(e) => setContextField('groupComment', e.target.value)}
-          />
-          <TextField
-            select
-            fullWidth
-            label="Classroom"
-            required
-            value={context.classroomId}
-            onChange={(e) => setContextField('classroomId', e.target.value)}
-          >
-            {classrooms.map((cls) => (
-              <MenuItem key={cls.id} value={cls.id}>
-                {cls.name || cls.id}
-              </MenuItem>
-            ))}
-          </TextField>
+          {lessonMode === 'group' && (
+            <TextField
+              fullWidth
+              label="Group Comment"
+              multiline
+              minRows={2}
+              helperText="Optional note that appears for every student"
+              value={context.groupComment}
+              onChange={(e) => setContextField('groupComment', e.target.value)}
+            />
+          )}
 
           <TextField
             fullWidth
@@ -828,26 +830,23 @@ function LessonNoteWizard({
                     </Box>
                     <Stack spacing={1.5}>
                       {dimensionList.map((dimension) => {
-                        const rating = getRatingForStudent(student.id, dimension);
+                        const overrideRating = studentOverrides[student.id]?.dimensions?.[dimension];
+                        // In group mode, show defaults if no override; in individual mode, show nothing if no override
+                        const displayRating = overrideRating !== undefined 
+                          ? overrideRating 
+                          : (lessonMode === 'group' ? (effectiveDefaults[dimension] || null) : null);
                         return (
                           <Box key={`${student.id}-${dimension}`}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
                               {dimension}
                             </Typography>
-                            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
                               {LESSON_RATING_OPTIONS.map((option) => {
-                                const props = ratingButtonStyles(option.value, rating);
+                                const props = ratingButtonStyles(option.value, displayRating);
                                 return (
                                   <Button
                                     key={`${student.id}-${dimension}-${option.value}`}
                                     {...props}
-                                    size="small"
-                                    sx={{
-                                      ...props.sx,
-                                      minWidth: 'auto',
-                                      px: 1.25,
-                                      fontSize: '0.75rem'
-                                    }}
                                     onClick={() => setStudentRating(student.id, dimension, option.value)}
                                   >
                                     {option.label}
