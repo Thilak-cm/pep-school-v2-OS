@@ -2,6 +2,30 @@
 
 # Changelog
 
+## 5.4.0 — 2025-11-21
+
+### Changed
+- Lesson Notes: Moved classroom dropdown to second field position (right after individual-group toggle), shifting lesson title and subsequent fields down one position for better workflow.
+- Lesson Notes: Group comment field now only appears in group mode (hidden in individual mode) since individual notes don't need shared comments.
+- Lesson Notes: Individual tweaks section shows group defaults as pre-selected in group mode (so teachers can see baseline ratings and override as needed), but shows no pre-selected defaults in individual mode.
+
+### Fixed
+- User migration: Implemented server-side user migration via Cloud Function to handle pending users and existing users with mismatched UIDs
+- Firebase Admin SDK: Fixed `exists` property usage (changed from method call `exists()` to property access `exists`)
+- Access Denied issue: Users with Firestore documents but no Firebase Auth accounts can now sign in successfully
+- Migration flow: Client-side migration replaced with Cloud Function call to avoid Firestore rules permission issues
+
+### Added
+- `migratePendingUser` Cloud Function: Handles automatic migration of user documents when users sign in with Google
+- Migration support for both pending users (`pending_xxx`) and existing users with mismatched UIDs
+- Comprehensive error handling and logging for migration process
+- Deploy scripts to package.json (`deploy`, `deploy:functions`, `deploy:hosting`, `deploy:firestore`)
+
+### Improved
+- Lesson Notes: Ensured consistent UI styling for rating buttons between group defaults and individual tweaks sections for visual consistency.
+- User onboarding: Seamless migration flow that automatically handles users created before Auth account exists
+- Error handling: Better error messages and logging for debugging migration issues
+
 ## 5.3.0 — 2025-11-18
 
 ### Added
