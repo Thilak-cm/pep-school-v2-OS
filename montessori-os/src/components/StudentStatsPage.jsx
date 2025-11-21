@@ -364,8 +364,8 @@ const StudentStatsPage = ({ student }) => {
                   </Typography>
                 </Box>
               ) : (
-                <Box sx={{ height: 250, width: '100%' }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis 
@@ -431,8 +431,8 @@ const StudentStatsPage = ({ student }) => {
               </Typography>
               
               {/* Pie Chart */}
-              <Box sx={{ height: 250, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
+              <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={pieChartData}

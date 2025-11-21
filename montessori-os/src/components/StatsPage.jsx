@@ -192,11 +192,6 @@ const StatsPage = ({ user, role, onBack }) => {
         setFilterLoading(true);
         setStats(prev => ({ ...prev, loading: true }));
         
-        // Log user info for debugging
-        console.log('Current user:', user);
-        console.log('User role:', role);
-        console.log('User UID:', user?.uid);
-        console.log('Branches state before fetch:', branches.length);
         
         // Initialize data variables
         let classroomsData = [];
@@ -206,11 +201,9 @@ const StatsPage = ({ user, role, onBack }) => {
         
         // Fetch branches (for admin branch filter)
         if (isAdmin) {
-          console.log('Fetching branches...');
           try {
             const branchesQuery = query(collection(db, 'branches'));
             const branchesSnap = await getDocs(branchesQuery);
-            console.log('Branches fetched:', branchesSnap.size, 'found');
             branchesData = branchesSnap.docs.map(doc => {
               const data = doc.data();
               return {
@@ -228,50 +221,38 @@ const StatsPage = ({ user, role, onBack }) => {
               return (a.name || a.id).localeCompare(b.name || b.id);
             });
             setBranches(branchesData);
-            console.log('Branches set:', branchesData.length, branchesData.map(b => ({ id: b.id, name: b.name, classrooms: b.classrooms?.length || 0 })));
             // Set default selected branch to first one if not set
             if (selectedBranchId === null && branchesData.length > 0) {
               setSelectedBranchId(branchesData[0].id);
-              console.log('Default branch selected:', branchesData[0].id);
             }
           } catch (error) {
             console.error('Branches query failed:', error);
             console.error('Error details:', error.message, error.code);
             setBranches([]);
           }
-        } else {
-          console.log('Skipping branch fetch - not admin role');
         }
         
         // Fetch classrooms
-        console.log('Fetching classrooms...');
         try {
           const classroomsQuery = query(collection(db, 'classrooms'), where('status', '==', 'active'));
           const classroomsSnap = await getDocs(classroomsQuery);
-          console.log('Classrooms fetched:', classroomsSnap.size, 'found');
           classroomsData = classroomsSnap.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
         } catch (error) {
           console.error('Classrooms query failed:', error);
-          console.log('Classrooms error code:', error.code);
-          console.log('Classrooms error message:', error.message);
           classroomsData = [];
         }
         
         // Fetch teachers (users with teacher role)
-        console.log('Fetching teachers...');
         try {
           // First try to get all users to see if the collection is accessible
-          console.log('Testing users collection access...');
           const allUsersQuery = query(collection(db, 'users'));
           const allUsersSnap = await getDocs(allUsersQuery);
-          console.log('All users fetched:', allUsersSnap.size, 'found');
           
           // Now filter for teachers client-side
           const teacherUsers = allUsersSnap.docs.filter(doc => doc.data().role === 'teacher');
-          console.log('Teachers found after filtering:', teacherUsers.length);
           
           teachersData = teacherUsers.map(doc => ({
             id: doc.id,
@@ -279,42 +260,29 @@ const StatsPage = ({ user, role, onBack }) => {
           }));
         } catch (error) {
           console.error('Teachers query failed:', error);
-          console.log('Teachers error code:', error.code);
-          console.log('Teachers error message:', error.message);
           teachersData = [];
         }
         
         // Fetch students
-        console.log('Fetching students...');
         try {
           const studentsQuery = query(collection(db, 'students'));
-          console.log('Students query created successfully');
           const studentsSnap = await getDocs(studentsQuery);
-          console.log('Students fetched:', studentsSnap.size, 'found');
           studentsData = studentsSnap.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
         } catch (error) {
           console.error('Students query failed:', error);
-          console.log('Students error code:', error.code);
-          console.log('Students error message:', error.message);
           studentsData = [];
         }
         
         // Fetch observations using collection group query
-        console.log('Fetching observations...');
         let observationsSnap;
         try {
           let observationsQuery = query(collectionGroup(db, 'observations'));
-          console.log('Collection group query created successfully');
           observationsSnap = await getDocs(observationsQuery);
-          console.log('Collection group query successful:', observationsSnap.size, 'documents found');
         } catch (error) {
           console.error('Collection group query failed:', error);
-          console.log('Observations error code:', error.code);
-          console.log('Observations error message:', error.message);
-          console.log('Observations error details:', error);
           observationsSnap = { docs: [], size: 0 };
         }
         
@@ -325,15 +293,6 @@ const StatsPage = ({ user, role, onBack }) => {
             ...data
           };
         });
-        
-        // Debug: Log a few observations to see their structure
-        console.log('Sample observations:', allObservations.slice(0, 3).map(obs => ({
-          id: obs.id,
-          observedAt: obs.observedAt,
-          createdAt: obs.createdAt,
-          text: obs.text?.substring(0, 50) + '...',
-          studentId: obs.studentId
-        })));
         
         // Sort by observedAt client-side
         allObservations.sort((a, b) => {
@@ -458,15 +417,6 @@ const StatsPage = ({ user, role, onBack }) => {
         const textNotes = filteredObservations.filter(obs => 
           obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)
         );
-
-        // Debug: Log note type detection
-        console.log('Note type detection:', {
-          total: filteredObservations.length,
-          voiceNotes: voiceNotes.length,
-          textNotes: textNotes.length,
-          sampleVoice: voiceNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration })),
-          sampleText: textNotes.slice(0, 2).map(obs => ({ type: obs.type, tags: obs.tags, duration: obs.duration }))
-        });
 
         // Voice language distribution removed
         const voiceLanguageDistribution = [];
@@ -594,11 +544,6 @@ const StatsPage = ({ user, role, onBack }) => {
           });
         }
 
-        console.log('About to set stats...');
-        console.log('Filtered observations count:', filteredObservations.length);
-        console.log('This week count:', thisWeek.length);
-        console.log('Last week count:', lastWeek.length);
-        
         const statsPayload = {
           totalObservations: filteredObservations.length,
           thisWeek: thisWeek.length,
@@ -624,8 +569,6 @@ const StatsPage = ({ user, role, onBack }) => {
           students: filteredStudentsData,
           branches: branchesData
         });
-        
-        console.log('Stats set successfully!');
 
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -1124,7 +1067,7 @@ const StatsPage = ({ user, role, onBack }) => {
     }));
 
     return (
-      <Box sx={{ height: 300, width: '100%' }}>
+      <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           <RechartsBarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1352,7 +1295,7 @@ const StatsPage = ({ user, role, onBack }) => {
     }
 
     return (
-      <Box sx={{ height: 250, width: '100%' }}>
+      <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1617,7 +1560,7 @@ const StatsPage = ({ user, role, onBack }) => {
                 </Box>
                 
                 {/* Pie Chart */}
-                <Box sx={{ height: 250, width: '100%' }}>
+                <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie

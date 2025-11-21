@@ -34,5 +34,6 @@ const exBad = {
   ],
 };
 
-console.log('ex1 =>', JSON.stringify(parseCoachResponse(ex1)));
-console.log('exBad =>', JSON.stringify(parseCoachResponse(exBad)));
+// Uncomment to test:
+// console.log('ex1 =>', JSON.stringify(parseCoachResponse(ex1)));
+// console.log('exBad =>', JSON.stringify(parseCoachResponse(exBad)));

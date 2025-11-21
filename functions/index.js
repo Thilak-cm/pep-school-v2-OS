@@ -101,7 +101,6 @@ export const createUserWithEmailCheck = functions.region("asia-south1").https.on
       };
     });
 
-    console.log("User created successfully: " + result.uid + " (" + email + ")");
     return { success: true, user: result };
 
   } catch (error) {
@@ -372,7 +371,6 @@ export const updateUserWithEmailCheck = functions.region("asia-south1").https.on
       };
     });
 
-    console.log("User updated successfully: " + uid);
     return { success: true, user: result };
 
   } catch (error) {
@@ -417,7 +415,6 @@ export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firest
       };
 
       await transporter.sendMail(mailOptions);
-      console.log("Unauthorized access email sent to admins");
     } catch (err) {
       console.error("Failed to send unauthorized access email", err);
     }
@@ -493,8 +490,6 @@ export const migratePendingUser = functions
         return { ok: true, migrated: false, uid: userUid };
       }
 
-      console.log(`[migratePendingUser] Found ${isPending ? "pending" : "existing"} user doc at users/${oldDocId}, migrating to users/${userUid}`);
-
       // Prepare migrated data
       const migratedData = {
         ...oldDocData,
@@ -544,8 +539,6 @@ export const migratePendingUser = functions
 
       // Delete old doc
       await db.collection("users").doc(oldDocId).delete();
-
-      console.log(`[migratePendingUser] Successfully migrated user doc from ${oldDocId} to ${userUid}`);
 
       return { 
         ok: true, 

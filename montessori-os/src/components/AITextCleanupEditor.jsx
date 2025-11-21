@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Box, Typography, Card, CardContent, Button, Grid, TextField, Divider,
-  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip
+  Box, Typography, Card, CardContent, Button, TextField, Divider,
+  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Stack
 } from '@mui/material';
 import { Restore, Save, Bolt, Science } from '@mui/icons-material';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -302,22 +302,20 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               <Typography variant="h6" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Bolt fontSize="small" /> Test Run
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField fullWidth multiline minRows={4} placeholder="Paste some raw observation text here" value={testInput} onChange={(e) => setTestInput(e.target.value)} />
-                </Grid>
-                <Grid item xs={12} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Stack spacing={2}>
+                <TextField fullWidth multiline minRows={4} placeholder="Paste some raw observation text here" value={testInput} onChange={(e) => setTestInput(e.target.value)} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Button variant="outlined" startIcon={<Bolt />} onClick={runTest} disabled={testing}>Run cleanup with updated prompt</Button>
                   {testing && <CircularProgress size={16} />}
                   {testError && <Alert severity="error" sx={{ ml: 1 }}>{testError}</Alert>}
-                </Grid>
+                </Box>
                 {testOutput && (
-                  <Grid item xs={12}>
+                  <Box>
                     <Typography variant="caption" sx={{ color: '#64748b' }}>Output</Typography>
                     <TextField fullWidth multiline minRows={6} value={testOutput} onChange={(e) => setTestOutput(e.target.value)} />
-                  </Grid>
+                  </Box>
                 )}
-              </Grid>
+              </Stack>
               {editing && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
                   <Button variant="contained" startIcon={<Save />} onClick={save} disabled={saving}>Save updated prompt(s)</Button>

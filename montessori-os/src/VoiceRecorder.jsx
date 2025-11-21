@@ -191,13 +191,9 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
       // Create MediaRecorder instance with proper MIME type
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
-      
-      console.log('MediaRecorder created with MIME type:', mimeType);
-      console.log('MediaRecorder state:', mediaRecorderRef.current.state);
 
       // Handle data available event
       mediaRecorderRef.current.ondataavailable = (event) => {
-        console.log('Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
@@ -219,13 +215,6 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
         const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm;codecs=opus';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const audioUrl = URL.createObjectURL(audioBlob);
-        
-        console.log('Recording stopped:', {
-          mimeType,
-          blobSize: audioBlob.size,
-          chunksCount: audioChunksRef.current.length,
-          audioUrl
-        });
         
         setAudioBlob(audioBlob);
         setAudioUrl(audioUrl);
@@ -403,9 +392,6 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
       if (!transcriptionResult.text) {
         setTranscriptionError('No speech detected in the recording.');
       }
-      
-      // OpenAI Whisper handles long audio natively - no chunking needed
-      console.log('Translation to English completed with OpenAI Whisper');
       
     } catch (error) {
       console.error('Transcription failed:', error);

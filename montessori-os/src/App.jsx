@@ -124,14 +124,6 @@ function App() {
   }, [screen]);
 
   useEffect(() => {
-    // Log runtime Firebase project configuration once on mount
-    try {
-      // eslint-disable-next-line no-console
-      console.info('[Runtime] Firebase projectId:', app?.options?.projectId, '| env:', import.meta.env?.VITE_FIREBASE_PROJECT_ID);
-    } catch (e) {
-      // ignore
-    }
-
     // Record app version as a user property (persists across events)
     setAppVersionProperty();
 
@@ -148,10 +140,6 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-
-    // Log current user info and role resolution
-    // eslint-disable-next-line no-console
-    console.info('[Runtime] Auth user:', { uid: user?.uid, email: user?.email });
 
     const logUnauthorized = async (reason) => {
       try {
@@ -186,17 +174,15 @@ function App() {
         
         // If not found by UID, try migration via Cloud Function (for pending users)
         if (!userSnap.exists()) {
-          console.log(`[Migration] User doc not found at users/${user.uid}, attempting migration via Cloud Function...`);
           try {
             const migrateFn = httpsCallable(cloudFunctions, 'migratePendingUser');
             const migrateResult = await migrateFn({});
             
             if (migrateResult.data?.ok && migrateResult.data?.migrated) {
-              console.log(`[Migration] Successfully migrated pending user: ${migrateResult.data.oldDocId} -> ${user.uid}`);
               // Re-fetch the migrated doc
               userSnap = await getDoc(userRef);
             } else if (migrateResult.data?.ok === false) {
-              console.log(`[Migration] No pending user found for email: ${emailLower}`);
+              // No pending user found
             } else {
               // Migration didn't happen, but no error - re-fetch to be sure
               userSnap = await getDoc(userRef);

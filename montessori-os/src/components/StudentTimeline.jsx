@@ -174,7 +174,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   useEffect(() => {
     if (!student) return;
     
-    console.log('Student object:', student);
     setLoading(true);
     
     // Add timeout to prevent infinite loading
@@ -184,7 +183,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }, 10000); // 10 second timeout
     
     const studentIdToQuery = student.id;
-    console.log('Querying with studentId:', studentIdToQuery);
     
     const q = query(
       collectionGroup(db, 'observations'),
@@ -195,7 +193,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     // Temporary: run a one-time read to bypass Listen transport and isolate rules/index issues
     getDocs(q)
       .then((snap) => {
-        console.info('[debug] getDocs observations:', snap.docs.length);
         const list = snap.docs.map((d) => ({
           id: d.id,
           parentStudentId: d.ref.parent?.parent?.id,
@@ -214,7 +211,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
     // Keep listener for normal live updates once stable (can re-enable later)
     const unsub = onSnapshot(q, (snap) => {
-      console.log('Observations snapshot received:', snap.docs.length, 'documents');
       const list = snap.docs.map((d) => ({
         id: d.id,
         parentStudentId: d.ref.parent?.parent?.id,
@@ -507,7 +503,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       );
       
       if (result.success) {
-        console.log(`Exported ${result.observationCount} observations to ${result.filename}`);
         notify.success(`Exported ${result.observationCount} notes to ${result.filename || exportFormat}`, {
           id: `export-${student?.id || 'unknown'}-${exportType}`,
           duration: 3000,

@@ -69,21 +69,13 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
       
       fileReader.onload = async (event) => {
         try {
-          console.log('Starting audio chunking process...');
           const arrayBuffer = event.target.result;
-          console.log('ArrayBuffer size:', arrayBuffer.byteLength);
           
           if (arrayBuffer.byteLength === 0) {
             throw new Error('Empty audio file');
           }
           
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          console.log('AudioBuffer decoded:', {
-            length: audioBuffer.length,
-            sampleRate: audioBuffer.sampleRate,
-            channels: audioBuffer.numberOfChannels,
-            duration: audioBuffer.length / audioBuffer.sampleRate
-          });
           
           // Validate audio buffer
           if (audioBuffer.length === 0) {
@@ -101,13 +93,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
             throw new Error('Chunk duration too short for this audio');
           }
           
-          console.log('Chunking parameters:', {
-            samplesPerChunk,
-            overlapSamples,
-            totalSamples,
-            expectedChunks: Math.ceil(totalSamples / samplesPerChunk)
-          });
-          
           let startSample = 0;
           
           while (startSample < totalSamples) {
@@ -116,11 +101,8 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
             
             // Skip chunks that are too small
             if (chunkLength < samplesPerChunk / 4) {
-              console.log('Skipping small chunk at end');
               break;
             }
-            
-            console.log(`Creating chunk: ${startSample} to ${endSample} (${chunkLength} samples)`);
             
             // Create a new audio buffer for this chunk
             const chunkBuffer = audioContext.createBuffer(
@@ -142,12 +124,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
             try {
               // Convert chunk buffer to blob
               const chunkBlob = await audioBufferToWavBlob(chunkBuffer);
-              console.log(`Chunk ${chunks.length + 1} created:`, {
-                size: chunkBlob.size,
-                type: chunkBlob.type,
-                startTime: startSample / sampleRate,
-                endTime: endSample / sampleRate
-              });
               
               chunks.push({
                 blob: chunkBlob,
@@ -173,7 +149,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
             throw new Error('No valid chunks could be created');
           }
           
-          console.log(`Audio chunking completed. Created ${chunks.length} chunks.`);
           audioContext.close();
           resolve(chunks);
           
@@ -189,7 +164,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
         reject(new Error('Failed to read audio file'));
       };
       
-      console.log('Starting file read for chunking...');
       fileReader.readAsArrayBuffer(audioBlob);
       
     } catch (error) {
@@ -309,14 +283,11 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
       return await transcribeAudio(audioBlob, languageCode);
     }
     
-    console.log(`Audio duration: ${durationMs}ms, chunking into ${maxChunkDuration}ms segments...`);
-    
     if (onProgress) onProgress(0, 0, `Chunking ${Math.ceil(durationMs / maxChunkDuration)} audio segments...`);
     
     try {
       // Try chunking first
       const chunks = await chunkAudioBlob(audioBlob, maxChunkDuration);
-      console.log(`Created ${chunks.length} audio chunks`);
       
       if (onProgress) onProgress(0, chunks.length, `Starting transcription...`);
       
@@ -326,8 +297,6 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
         const chunk = chunks[i];
         
         if (onProgress) onProgress(i + 1, chunks.length, `Transcribing in progress...`);
-        
-        console.log(`Transcribing chunk ${i + 1}/${chunks.length} (${chunk.startTime.toFixed(1)}s - ${chunk.endTime.toFixed(1)}s)`);
         
         try {
           const result = await transcribeAudio(chunk.blob, languageCode);
@@ -452,8 +421,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
       }
     };
 
-    console.log('Sending transcription request with encoding:', encoding);
-
     // Make API request
     const response = await fetch(`${SPEECH_TO_TEXT_ENDPOINT}?key=${SPEECH_TO_TEXT_API_KEY}`, {
       method: 'POST',
@@ -470,7 +437,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     }
 
     const result = await response.json();
-    console.log('Transcription result:', result);
 
     // Extract transcribed text and metadata
     if (result.results && result.results.length > 0) {

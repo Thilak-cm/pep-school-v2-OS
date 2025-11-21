@@ -24,8 +24,6 @@ class VersionManager {
         
         // Check for immediate updates
         await this.checkForUpdates();
-        
-        console.log(`Version Manager initialized. Current version: ${this.currentVersion}`);
       } catch (error) {
         console.error('Service Worker registration failed:', error);
       }
@@ -36,11 +34,9 @@ class VersionManager {
     // Listen for new service worker installation
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing;
-      console.log('New service worker installing...');
       
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          console.log('New version available!');
           this.updateAvailable = true;
           this.notifyUpdateAvailable();
         }
@@ -49,7 +45,6 @@ class VersionManager {
 
     // Listen for service worker updates
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('Service worker updated, reloading...');
       // Reload the page to get the new version
       window.location.reload();
     });
@@ -61,7 +56,6 @@ class VersionManager {
     try {
       // Check if there's a waiting service worker
       if (this.serviceWorker.waiting) {
-        console.log('Update waiting to be activated');
         this.updateAvailable = true;
         this.notifyUpdateAvailable();
       }
