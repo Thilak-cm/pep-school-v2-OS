@@ -182,8 +182,39 @@ function App() {
       try {
         // Look up by UID (authoritative) instead of email query to avoid case/alias issues
         const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
+        let userSnap = await getDoc(userRef);
+        
+        // If not found by UID, try migration via Cloud Function (for pending users)
         if (!userSnap.exists()) {
+          console.log(`[Migration] User doc not found at users/${user.uid}, attempting migration via Cloud Function...`);
+          try {
+            const migrateFn = httpsCallable(cloudFunctions, 'migratePendingUser');
+            const migrateResult = await migrateFn({});
+            
+            if (migrateResult.data?.ok && migrateResult.data?.migrated) {
+              console.log(`[Migration] Successfully migrated pending user: ${migrateResult.data.oldDocId} -> ${user.uid}`);
+              // Re-fetch the migrated doc
+              userSnap = await getDoc(userRef);
+            } else if (migrateResult.data?.ok === false) {
+              console.log(`[Migration] No pending user found for email: ${emailLower}`);
+            } else {
+              // Migration didn't happen, but no error - re-fetch to be sure
+              userSnap = await getDoc(userRef);
+            }
+          } catch (migrateErr) {
+            console.error('[Migration] Failed to migrate pending user:', migrateErr);
+            // Continue to check if doc exists (might have been migrated by another process)
+            try {
+              userSnap = await getDoc(userRef);
+            } catch (refetchErr) {
+              console.error('[Migration] Failed to re-fetch user doc:', refetchErr);
+              // userSnap remains as the original (non-existent) snapshot
+            }
+          }
+        }
+        
+        // Ensure userSnap is valid before checking exists()
+        if (!userSnap || !userSnap.exists()) {
           await logUnauthorized('not_in_users_collection');
           setUnauthorized(true);
           setScreen('accessDenied');
