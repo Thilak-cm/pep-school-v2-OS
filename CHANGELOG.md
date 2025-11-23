@@ -2,6 +2,23 @@
 
 # Changelog
 
+## 5.4.1 — 2025-11-22
+
+### Changed
+- Grouped lesson notes: Show only group defaults in normal card view and expanded dialog top section (removed individual ratings from main display)
+- Grouped lesson notes: Converted student list in expanded dialog to expandable accordions showing custom ratings per student
+- Grouped lesson notes: Added "View Dashboard" button in each student dropdown for navigation to individual student timelines
+- Grouped lesson notes: Added "Custom" badge indicator on students with ratings that differ from group defaults
+
+### Removed
+- Removed all 'present' attendance status tags/chips from lesson note displays across ClassroomTimeline, NoteExpansionDialog, and StudentTimeline components
+
+### Added
+- Group defaults display in both normal card view and expanded dialog view for grouped lesson notes
+- Expandable student dropdowns in GroupedNoteDialog showing individual custom ratings with visual distinction
+- Visual indicator (dashed border) for group default chips to distinguish from individual ratings
+- "Uses group defaults" message when student ratings match group defaults
+
 ## 5.4.0 — 2025-11-21
 
 ### Changed
