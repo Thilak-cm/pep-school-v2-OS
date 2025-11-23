@@ -17,7 +17,11 @@ import {
   ListItem,
   ListItemText,
   Checkbox,
-  Stack
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Add,
@@ -76,6 +80,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedClassroomId, setSelectedClassroomId] = useState('');
 
   const studentsById = useMemo(
     () => Object.fromEntries(students.map((stu) => [stu.id, stu])),
@@ -142,16 +147,31 @@ function StudentAliasesPage({ currentUser, userRole }) {
     setEditingAliasId(null);
     setAliasForm({ name: '', description: '', studentIds: [] });
     setFormSearch('');
+    setSelectedClassroomId('');
     setFormOpen(true);
   };
 
   const startEdit = (alias) => {
     setEditingAliasId(alias.id);
+    const studentIds = Array.isArray(alias.studentIds) ? alias.studentIds : [];
     setAliasForm({
       name: alias.name || '',
       description: alias.description || '',
-      studentIds: Array.isArray(alias.studentIds) ? alias.studentIds : []
+      studentIds
     });
+    
+    // Detect classroom from existing students
+    if (studentIds.length > 0) {
+      const firstStudent = students.find(s => s.id === studentIds[0]);
+      if (firstStudent?.classroomId) {
+        setSelectedClassroomId(firstStudent.classroomId);
+      } else {
+        setSelectedClassroomId('');
+      }
+    } else {
+      setSelectedClassroomId('');
+    }
+    
     setFormSearch('');
     setFormOpen(true);
   };
@@ -172,8 +192,26 @@ function StudentAliasesPage({ currentUser, userRole }) {
       notify.warning('Name is required.');
       return;
     }
+    if (!selectedClassroomId) {
+      notify.warning('Please select a classroom first.');
+      return;
+    }
     if (aliasForm.studentIds.length === 0) {
       notify.warning('Select at least one student.');
+      return;
+    }
+    
+    // Validate all students are from the same classroom
+    const selectedStudents = aliasForm.studentIds
+      .map(id => students.find(s => s.id === id))
+      .filter(Boolean);
+    
+    const allSameClassroom = selectedStudents.every(
+      student => normalizeClassroomId(student.classroomId) === normalizeClassroomId(selectedClassroomId)
+    );
+    
+    if (!allSameClassroom) {
+      notify.warning('All students must be from the same classroom. Groups cannot mix students from different classrooms.');
       return;
     }
     const aliasId = editingAliasId || slugifyAliasName(trimmedName);
@@ -210,6 +248,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
       setAliases(ordered);
       setEditingAliasId(null);
       setAliasForm({ name: '', description: '', studentIds: [] });
+      setSelectedClassroomId('');
       setFormOpen(false);
       notify.success('Student group saved.');
     } catch (error) {
@@ -240,10 +279,19 @@ function StudentAliasesPage({ currentUser, userRole }) {
   };
 
   const filteredFormStudents = useMemo(() => {
+    // First filter by classroom
+    let filtered = selectedClassroomId
+      ? students.filter((stu) => normalizeClassroomId(stu.classroomId) === normalizeClassroomId(selectedClassroomId))
+      : [];
+    
+    // Then filter by search query
     const queryText = formSearch.trim().toLowerCase();
-    if (!queryText) return students;
-    return students.filter((stu) => getStudentDisplayName(stu).toLowerCase().includes(queryText));
-  }, [formSearch, students]);
+    if (queryText) {
+      filtered = filtered.filter((stu) => getStudentDisplayName(stu).toLowerCase().includes(queryText));
+    }
+    
+    return filtered;
+  }, [formSearch, students, selectedClassroomId]);
 
   if (loading) {
     return (
@@ -261,7 +309,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
             <Group sx={{ color: '#4f46e5' }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Student Groups
+                My Student Groups
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Create shortcuts for frequent group or individual lesson notes.
@@ -336,6 +384,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
           setEditingAliasId(null);
           setAliasForm({ name: '', description: '', studentIds: [] });
           setFormSearch('');
+          setSelectedClassroomId('');
           setFormOpen(false);
         }}
         fullWidth
@@ -347,6 +396,38 @@ function StudentAliasesPage({ currentUser, userRole }) {
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
+            <FormControl fullWidth required>
+              <InputLabel>Classroom</InputLabel>
+              <Select
+                value={selectedClassroomId}
+                onChange={(e) => {
+                  const newClassroomId = e.target.value;
+                  // Check if changing classroom would affect existing selections
+                  if (aliasForm.studentIds.length > 0) {
+                    const currentStudents = aliasForm.studentIds
+                      .map(id => students.find(s => s.id === id))
+                      .filter(Boolean);
+                    const currentClassroomIds = new Set(
+                      currentStudents.map(s => normalizeClassroomId(s.classroomId))
+                    );
+                    const newClassroomIdNormalized = normalizeClassroomId(newClassroomId);
+                    
+                    // If changing to a different classroom, clear selections
+                    if (!currentClassroomIds.has(newClassroomIdNormalized)) {
+                      setAliasForm((prev) => ({ ...prev, studentIds: [] }));
+                    }
+                  }
+                  setSelectedClassroomId(newClassroomId);
+                }}
+                label="Classroom"
+              >
+                {classrooms.map((classroom) => (
+                  <MenuItem key={classroom.id} value={classroom.id}>
+                    {classroom.name || classroom.id}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Group name"
               value={aliasForm.name}
@@ -367,9 +448,10 @@ function StudentAliasesPage({ currentUser, userRole }) {
               </Typography>
               <TextField
                 fullWidth
-                placeholder="Search students"
+                placeholder={selectedClassroomId ? "Search students" : "Select a classroom first"}
                 value={formSearch}
                 onChange={(e) => setFormSearch(e.target.value)}
+                disabled={!selectedClassroomId}
                 InputProps={{
                   startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
                 }}
@@ -385,34 +467,39 @@ function StudentAliasesPage({ currentUser, userRole }) {
                 }}
               >
                 <List dense disablePadding>
-                  {filteredFormStudents.map((student) => {
-                    const selected = aliasForm.studentIds.includes(student.id);
-                    const classroom = classrooms.find((cls) => cls.id === student.classroomId);
-                    return (
-                      <ListItem
-                        key={student.id}
-                        button
-                        onClick={() => handleToggleStudent(student.id)}
-                        sx={{ px: 1.5 }}
-                      >
-                        <Checkbox
-                          edge="start"
-                          tabIndex={-1}
-                          disableRipple
-                          checked={selected}
-                          onChange={() => handleToggleStudent(student.id)}
-                        />
-                        <ListItemText
-                          primary={getStudentDisplayName(student)}
-                          secondary={classroom?.name || student.classroomId || 'Unassigned'}
-                        />
-                      </ListItem>
-                    );
-                  })}
-                  {filteredFormStudents.length === 0 && (
+                  {!selectedClassroomId ? (
                     <ListItem>
-                      <ListItemText primary="No students match this search." />
+                      <ListItemText primary="Please select a classroom first to see students." />
                     </ListItem>
+                  ) : filteredFormStudents.length === 0 ? (
+                    <ListItem>
+                      <ListItemText primary={formSearch ? "No students match this search." : "No students in this classroom."} />
+                    </ListItem>
+                  ) : (
+                    filteredFormStudents.map((student) => {
+                      const selected = aliasForm.studentIds.includes(student.id);
+                      const classroom = classrooms.find((cls) => cls.id === student.classroomId);
+                      return (
+                        <ListItem
+                          key={student.id}
+                          button
+                          onClick={() => handleToggleStudent(student.id)}
+                          sx={{ px: 1.5 }}
+                        >
+                          <Checkbox
+                            edge="start"
+                            tabIndex={-1}
+                            disableRipple
+                            checked={selected}
+                            onChange={() => handleToggleStudent(student.id)}
+                          />
+                          <ListItemText
+                            primary={getStudentDisplayName(student)}
+                            secondary={classroom?.name || student.classroomId || 'Unassigned'}
+                          />
+                        </ListItem>
+                      );
+                    })
                   )}
                 </List>
               </Paper>
@@ -426,6 +513,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
               setEditingAliasId(null);
               setAliasForm({ name: '', description: '', studentIds: [] });
               setFormSearch('');
+              setSelectedClassroomId('');
               setFormOpen(false);
             }}
           >

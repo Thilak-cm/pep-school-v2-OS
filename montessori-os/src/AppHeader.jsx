@@ -94,7 +94,7 @@ function AppHeader({ user, onSignOut, title = '', onNavigate, onHome, onBack, sh
       }
     },
     {
-      text: 'Student Groups',
+      text: 'My Student Groups',
       icon: <Group />,
       onClick: () => {
         setDrawerOpen(false);

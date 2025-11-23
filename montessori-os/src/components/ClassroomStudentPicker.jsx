@@ -17,7 +17,8 @@ import {
   ListItemButton,
   Paper,
   Button,
-  Tooltip
+  Tooltip,
+  Stack
 } from '@mui/material';
 import { 
   ExpandMore, 
@@ -29,7 +30,7 @@ import {
   CheckCircle,
   AutoFixHigh
 } from '@mui/icons-material';
-import { collection, getDocs, query, where, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { cleanUpText } from '../textCleanup';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
@@ -56,6 +57,8 @@ function ClassroomStudentPicker({
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(!!textData?.cleaned);
   const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
+  const [aliases, setAliases] = useState([]);
+  const [expandedAliases, setExpandedAliases] = useState({});
   
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
@@ -191,6 +194,22 @@ function ClassroomStudentPicker({
         });
         
         setAllStudents(studentsWithClassroom);
+        
+        // Load student aliases/groups
+        if (currentUser?.uid) {
+          try {
+            const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+            const aliasMap = userSnap.exists() ? userSnap.data().studentAliases || {} : {};
+            const aliasList = Object.values(aliasMap).map((alias) => ({
+              ...alias,
+              studentIds: Array.isArray(alias.studentIds) ? alias.studentIds : []
+            }));
+            aliasList.sort((a, b) => a.name.localeCompare(b.name));
+            setAliases(aliasList);
+          } catch (err) {
+            console.error('Error loading student aliases:', err);
+          }
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -207,6 +226,35 @@ function ClassroomStudentPicker({
   const filteredStudents = useMemo(() => {
     return fuzzySearchStudents(allStudents, searchQuery);
   }, [allStudents, searchQuery]);
+
+  // Create studentsById lookup
+  const studentsById = useMemo(
+    () => Object.fromEntries(allStudents.map((stu) => [stu.id, stu])),
+    [allStudents]
+  );
+
+  // Filter aliases based on search query
+  const aliasMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return aliases
+      .map((alias) => {
+        const memberIds = alias.studentIds || [];
+        const members = memberIds
+          .map((id) => studentsById[id])
+          .filter(Boolean);
+        const matchByName = alias.name.toLowerCase().includes(q);
+        const matchByMember = members.some((student) =>
+          getStudentName(student).toLowerCase().includes(q)
+        );
+        return {
+          ...alias,
+          members,
+          hasMatch: matchByName || matchByMember
+        };
+      })
+      .filter((alias) => alias.hasMatch);
+  }, [aliases, searchQuery, studentsById]);
 
   // Group students by classroom
   const studentsByClassroom = useMemo(() => {
@@ -292,6 +340,26 @@ function ClassroomStudentPicker({
       ? selectedStudents.filter(id => id !== studentId)
       : [...selectedStudents, studentId];
     onStudentsChange(newSelected);
+  };
+
+  // Handle alias/group selection
+  const toggleAliasSelection = (alias) => {
+    const members = alias.members || [];
+    if (members.length === 0) return;
+    
+    const memberIds = members.map((s) => s.id);
+    const allSelected = memberIds.every((id) => selectedStudents.includes(id));
+    
+    const newSelected = allSelected
+      ? selectedStudents.filter((id) => !memberIds.includes(id))
+      : [...new Set([...selectedStudents, ...memberIds])];
+    
+    onStudentsChange(newSelected);
+    setExpandedAliases((prev) => ({ ...prev, [alias.id]: true }));
+  };
+
+  const toggleAliasExpanded = (aliasId) => {
+    setExpandedAliases((prev) => ({ ...prev, [aliasId]: !prev[aliasId] }));
   };
 
 
@@ -580,7 +648,7 @@ function ClassroomStudentPicker({
               color="text.secondary"
               sx={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
             >
-              Quick search for student or classroom
+              Search students, classrooms, or groups
             </Typography>
           )}
         </Box>
@@ -591,40 +659,135 @@ function ClassroomStudentPicker({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Search Results:
             </Typography>
-            <List dense>
-              {filteredStudents.map((student) => {
-                const disabled = isDisabled(student.id);
-                return (
-                  <ListItem key={student.id} disablePadding>
-                    <ListItemButton
-                      dense
-                      onClick={() => handleStudentToggle(student.id)}
-                      disabled={disabled}
-                      sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                    >
-                      <ListItemIcon>
-                        <Checkbox
-                          checked={selectedStudents.includes(student.id)}
-                          edge="start"
-                          tabIndex={-1}
-                          disableRipple
+            
+            {/* Groups/Aliases */}
+            {aliasMatches.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                  Groups
+                </Typography>
+                <Stack spacing={1}>
+                  {aliasMatches.map((alias) => {
+                    const members = alias.members || [];
+                    const checkedCount = members.filter((stu) => selectedStudents.includes(stu.id)).length;
+                    const allSelected = members.length > 0 && checkedCount === members.length;
+                    const partiallySelected = checkedCount > 0 && !allSelected;
+                    
+                    return (
+                      <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.5,
+                            py: 1
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
+                            <Group />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={alias.name}
+                            secondary={`${checkedCount}/${members.length} selected`}
+                            primaryTypographyProps={{ fontWeight: 700 }}
+                          />
+                          <Checkbox
+                            edge="end"
+                            checked={allSelected}
+                            indeterminate={partiallySelected}
+                            onChange={() => toggleAliasSelection(alias)}
+                          />
+                          <IconButton onClick={() => toggleAliasExpanded(alias.id)} size="small">
+                            {expandedAliases[alias.id] ? <ExpandLess /> : <ExpandMore />}
+                          </IconButton>
+                        </Box>
+                        <Collapse in={expandedAliases[alias.id]} timeout="auto" unmountOnExit>
+                          <Divider />
+                          <List dense disablePadding>
+                            {members.map((student) => {
+                              const disabled = isDisabled(student.id);
+                              return (
+                                <ListItem key={student.id} dense sx={{ px: 1.5, py: 0.5 }}>
+                                  <ListItemIcon>
+                                    <Checkbox
+                                      checked={selectedStudents.includes(student.id)}
+                                      edge="start"
+                                      tabIndex={-1}
+                                      disableRipple
+                                      disabled={disabled}
+                                      onChange={() => handleStudentToggle(student.id)}
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={getStudentName(student)}
+                                    secondary={student.classroom_name || 'Unknown Classroom'}
+                                  />
+                                </ListItem>
+                              );
+                            })}
+                            {members.length === 0 && (
+                              <ListItem dense sx={{ px: 1.5, py: 1 }}>
+                                <ListItemText
+                                  primary="No students in this group."
+                                  primaryTypographyProps={{ color: 'text.secondary' }}
+                                />
+                              </ListItem>
+                            )}
+                          </List>
+                        </Collapse>
+                      </Paper>
+                    );
+                  })}
+                </Stack>
+              </Box>
+            )}
+            
+            {/* Students */}
+            {(aliasMatches.length > 0 || filteredStudents.length > 0) && (
+              <Box>
+                {aliasMatches.length > 0 && (
+                  <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 600 }}>
+                    Students
+                  </Typography>
+                )}
+                <List dense>
+                  {filteredStudents.map((student) => {
+                    const disabled = isDisabled(student.id);
+                    return (
+                      <ListItem key={student.id} disablePadding>
+                        <ListItemButton
+                          dense
+                          onClick={() => handleStudentToggle(student.id)}
                           disabled={disabled}
-                        />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={disabled
-                          ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
-                          : getStudentName(student)}
-                        secondary={`${student.classroom_name}`}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                );
-              })}
-            </List>
-            {filteredStudents.length === 0 && (
+                          sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                        >
+                          <ListItemIcon>
+                            <Checkbox
+                              checked={selectedStudents.includes(student.id)}
+                              edge="start"
+                              tabIndex={-1}
+                              disableRipple
+                              disabled={disabled}
+                            />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={disabled
+                              ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                              : getStudentName(student)}
+                            secondary={`${student.classroom_name}`}
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              </Box>
+            )}
+            
+            {filteredStudents.length === 0 && aliasMatches.length === 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-                No students found matching "{searchQuery}"
+                No students or groups found matching "{searchQuery}"
               </Typography>
             )}
           </Box>

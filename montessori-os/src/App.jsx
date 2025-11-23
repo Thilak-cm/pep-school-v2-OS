@@ -304,7 +304,7 @@ function App() {
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
-  else if (screen === 'studentAliases') pageTitle = 'Student Groups';
+  else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
   else if (screen === 'studentStats') {
     const studentName = selectedStudent?.displayName || selectedStudent?.name || 
                        `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
