@@ -284,6 +284,11 @@ interface Observation {
   classroomId: string;           // denorm for queries/rules; must equal student's classroomId
   branchId: BranchId;            // denorm for rules and analytics; equals the student's branch at time of creation
   groupId?: string;              // shared id across fan-out docs for a multi-student note
+                                   // Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+                                   // Set when creating notes for multiple students (text/voice/lesson notes)
+                                   // All copies of the same note share the same groupId
+                                   // Used in UI to group and display multi-student notes in condensed format
+                                   // Optional: single-student notes and legacy notes may not have this field
   
   // Content
   type: 'text' | 'voice' | 'lesson';
@@ -349,6 +354,14 @@ Why fan-out per student?
 - Student timeline = 1 query
 - Classroom, teacher, and admin analytics = collection group queries
 - No need for `array-contains` tricks or cross-doc joins in rules
+
+Group notes (groupId)
+- When creating a note for multiple students, generate a single `groupId` and include it in all observation documents created for that note
+- Format: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}` (e.g., `group_lx1234_abc5`)
+- All observation documents sharing the same `groupId` represent the same note assigned to different students
+- UI uses `groupId` to group and display multi-student notes in condensed format (e.g., "Student A, Student B + X more")
+- Notes without `groupId` (single-student notes or legacy notes) display individually
+- For lesson notes: `groupId` is set when `lessonMode === 'group'`; individual lesson notes do not have `groupId`
 
 Branch transfer behavior
 - Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
@@ -564,7 +577,7 @@ Admin UI
   - `branchId ASC, observedAt DESC`
   - `branchId ASC, createdBy ASC, observedAt DESC`
   - `classroomId ASC, observedAt DESC`
-  - optionally `groupId ASC, observedAt DESC`
+  - `groupId ASC, observedAt DESC` (for grouping multi-student notes in UI)
 - `feedback`
   - `userId ASC, timestamp DESC`
   - `status ASC, timestamp DESC`
@@ -651,7 +664,11 @@ Field immutability (on update)
 - Maintain `classrooms.studentCount` via triggers on student create/update/delete
 - Keep `programs/*` refreshed using `scripts/admin/seed-programs.js` after classroom changes
 - If needed later: sharded counters for classroom/teacher observation counts
-- For group notes, generate a `groupId` once and fan-out to all targeted students
+- For group notes, generate a `groupId` once and fan-out to all targeted students:
+  - Generate `groupId` before creating observation documents: `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+  - Include the same `groupId` in all observation documents created for that multi-student note
+  - For text/voice notes: set `groupId` when `selectedStudents.length > 1`
+  - For lesson notes: set `groupId` when `lessonMode === 'group'`
 
 Migration/backfill (branches)
 - Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.

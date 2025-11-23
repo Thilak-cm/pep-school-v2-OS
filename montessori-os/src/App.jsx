@@ -45,7 +45,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -66,6 +66,14 @@ function App() {
     setScreen('timeline');
   };
 
+  const openStudentObservations = () => {
+    setScreen('studentObservations');
+  };
+
+  const openStudentLessonNotes = () => {
+    setScreen('studentLessonNotes');
+  };
+
   const openLessonNotesScreen = () => {
     setLessonNotesReturnScreen(screen);
     setScreen('lessonNotes');
@@ -79,7 +87,14 @@ function App() {
         if (!studentId) return;
         const studentLike = detail.student || { id: studentId };
         setSelectedStudent(studentLike);
-        openTimeline(detail.noteTypeFilter ?? null);
+        const noteTypeFilter = detail.noteTypeFilter ?? null;
+        if (noteTypeFilter === 'lesson') {
+          openStudentLessonNotes();
+        } else if (noteTypeFilter === 'textVoice') {
+          openStudentObservations();
+        } else {
+          openTimeline(noteTypeFilter);
+        }
         if (detail.titleAsDashboard) setTimelineTitleAsDashboard(true);
 
         // Best effort: fetch full student profile to populate names for header/dialogs
@@ -268,6 +283,8 @@ function App() {
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'studentDashboard') pageTitle = `${getStudentDisplayName(selectedStudent)}'s Dashboard`;
+  else if (screen === 'studentObservations') pageTitle = `${getStudentDisplayName(selectedStudent)}'s observations`;
+  else if (screen === 'studentLessonNotes') pageTitle = `${getStudentDisplayName(selectedStudent)}'s lesson notes`;
   else if (screen === 'timeline') pageTitle = timelineTitleAsDashboard
     ? `${getStudentDisplayName(selectedStudent)}'s Dashboard`
     : `${getStudentDisplayName(selectedStudent)} Timeline`;
@@ -310,6 +327,10 @@ function App() {
       case 'studentDashboard':
         return () => setScreen(studentDashboardReturnScreen || 'classroomTimeline');
       case 'studentStats':
+        return () => setScreen('studentDashboard');
+      case 'studentObservations':
+        return () => setScreen('studentDashboard');
+      case 'studentLessonNotes':
         return () => setScreen('studentDashboard');
       case 'timeline':
         return () => setScreen('studentDashboard');
@@ -511,6 +532,7 @@ function App() {
                   onHome={() => setScreen('landingPage')}
                   onBack={backNavigation}
                   showBackButton={showBackButton}
+                  showHomeButton={screen !== 'landingPage'}
                 />
               )}
 
@@ -598,8 +620,8 @@ function App() {
                   {screen === 'studentDashboard' && (
                     <StudentDashboard
                       student={selectedStudent}
-                      onOpenTextNotes={() => openTimeline('textVoice')}
-                      onOpenLessonNotes={() => openTimeline('lesson')}
+                      onOpenTextNotes={openStudentObservations}
+                      onOpenLessonNotes={openStudentLessonNotes}
                       onOpenStats={() => setScreen('studentStats')}
                     />
                   )}
@@ -607,6 +629,24 @@ function App() {
                   {screen === 'studentStats' && (
                     <StudentStatsPage
                       student={selectedStudent}
+                    />
+                  )}
+
+                  {screen === 'studentObservations' && (
+                    <StudentTimeline
+                      student={selectedStudent}
+                      currentUser={user}
+                      userRole={role}
+                      noteTypeFilter="textVoice"
+                    />
+                  )}
+
+                  {screen === 'studentLessonNotes' && (
+                    <StudentTimeline
+                      student={selectedStudent}
+                      currentUser={user}
+                      userRole={role}
+                      noteTypeFilter="lesson"
                     />
                   )}
 

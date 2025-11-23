@@ -669,6 +669,11 @@ function AddNoteModal({
 
     try {
       setSaving(true);
+      // Generate groupId for multi-student notes (matching lesson notes pattern)
+      const groupId = selectedStudents.length > 1 
+        ? `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+        : undefined;
+      
       const promises = selectedStudents.map(async (stuId) => {
         // Get student data to find classroomId
         const studentDocRef = doc(db, 'students', stuId);
@@ -696,6 +701,9 @@ function AddNoteModal({
           createdBy: currentUser?.uid || 'unknown',
           createdByName: currentUser?.displayName || 'Unknown Teacher',
           createdByEmail: currentUser?.email || 'unknown@email.com',
+          
+          // Group ID for multi-student notes
+          ...(groupId ? { groupId } : {}),
         };
 
         // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)

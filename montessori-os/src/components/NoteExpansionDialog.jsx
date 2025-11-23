@@ -87,8 +87,7 @@ function NoteExpansionDialog({
   const renderLessonDetail = () => {
     if (!observation) return null;
     const dimensions = getLessonDimensions(observation);
-    const attendanceStatus = observation.attendanceStatus || 'present';
-    const attendanceLabel = LESSON_ATTENDANCE_LABELS[attendanceStatus] || LESSON_ATTENDANCE_LABELS.present;
+    const groupDefaults = observation.groupDefaults || {};
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -104,6 +103,33 @@ function NoteExpansionDialog({
             {observation.groupComment}
           </Typography>
         )}
+        {/* Show group defaults if available */}
+        {Object.keys(groupDefaults).length > 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+              Group Defaults:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {Object.entries(groupDefaults).map(([dimension, rating]) => {
+                const color = LESSON_RATING_COLORS[rating] || '#475569';
+                return (
+                  <Chip
+                    key={`group-default-${dimension}`}
+                    size="small"
+                    label={`${dimension}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+                    sx={{ 
+                      backgroundColor: `${color}22`, 
+                      color,
+                      border: '1px dashed',
+                      borderColor: color
+                    }}
+                  />
+                );
+              })}
+            </Box>
+          </Box>
+        )}
+        {/* Individual ratings */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
@@ -118,21 +144,13 @@ function NoteExpansionDialog({
             );
           })}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={attendanceLabel}
-            size="small"
-            sx={{
-              backgroundColor: attendanceStatus === 'present' ? '#dcfce7' : '#fef3c7',
-              color: attendanceStatus === 'present' ? '#15803d' : '#a16207'
-            }}
-          />
-          {observation.studentComment && (
+        {observation.studentComment && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="body2" color="text.secondary">
               💬 {observation.studentComment}
             </Typography>
-          )}
-        </Box>
+          </Box>
+        )}
       </Box>
     );
   };

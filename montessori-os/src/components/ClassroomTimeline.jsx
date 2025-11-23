@@ -15,7 +15,20 @@ import {
   TextField,
   InputAdornment,
   Collapse,
-  OutlinedInput
+  OutlinedInput,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Checkbox,
+  ListItemIcon,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import { 
   Group,
@@ -24,9 +37,13 @@ import {
   AccessTime,
   Person,
   ExpandMore,
-  Search
+  Search,
+  Close,
+  Delete,
+  ChevronRight,
+  Visibility
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import CopyToClipboardButton from './CopyToClipboardButton';
@@ -34,6 +51,7 @@ import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
+import useNotify from '../notifications/useNotify.js';
 import {
   getLessonDimensions,
   LESSON_RATING_LABELS,
@@ -41,10 +59,9 @@ import {
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
 
-const renderLessonSummary = (note) => {
+const renderLessonSummary = (note, showGroupDefaults = false) => {
   const dimensions = getLessonDimensions(note);
-  const attendanceStatus = note.attendanceStatus || 'present';
-  const attendanceLabel = LESSON_ATTENDANCE_LABELS[attendanceStatus] || LESSON_ATTENDANCE_LABELS.present;
+  const groupDefaults = note.groupDefaults || {};
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -60,35 +77,55 @@ const renderLessonSummary = (note) => {
           {note.groupComment}
         </Typography>
       )}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-        {dimensions.map((dimension) => {
-          const rating = dimension.value || 'na';
-          const color = LESSON_RATING_COLORS[rating] || '#475569';
-          return (
-            <Chip
-              key={`${note.id}-${dimension.name}`}
-              size="small"
-              label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
-              sx={{ backgroundColor: `${color}22`, color }}
-            />
-          );
-        })}
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        <Chip
-          label={attendanceLabel}
-          size="small"
-          sx={{
-            backgroundColor: attendanceStatus === 'present' ? '#dcfce7' : '#fef3c7',
-            color: attendanceStatus === 'present' ? '#15803d' : '#a16207'
-          }}
-        />
-        {note.studentComment && (
+      {/* Show group defaults if available - ONLY show these for grouped notes */}
+      {showGroupDefaults && Object.keys(groupDefaults).length > 0 ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+            Group Defaults:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {Object.entries(groupDefaults).map(([dimension, rating]) => {
+              const color = LESSON_RATING_COLORS[rating] || '#475569';
+              return (
+                <Chip
+                  key={`group-default-${dimension}`}
+                  size="small"
+                  label={`${dimension}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+                  sx={{ 
+                    backgroundColor: `${color}22`, 
+                    color,
+                    border: '1px dashed',
+                    borderColor: color
+                  }}
+                />
+              );
+            })}
+          </Box>
+        </Box>
+      ) : (
+        /* Individual ratings - only show for non-grouped notes */
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {dimensions.map((dimension) => {
+            const rating = dimension.value || 'na';
+            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            return (
+              <Chip
+                key={`${note.id}-${dimension.name}`}
+                size="small"
+                label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
+                sx={{ backgroundColor: `${color}22`, color }}
+              />
+            );
+          })}
+        </Box>
+      )}
+      {note.studentComment && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="text.secondary">
             💬 {note.studentComment}
           </Typography>
-        )}
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 };
@@ -118,6 +155,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   // Note expansion states
   const [selectedNote, setSelectedNote] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedGroupedNote, setSelectedGroupedNote] = useState(null);
+  const [groupedNoteDialogOpen, setGroupedNoteDialogOpen] = useState(false);
 
 
   useEffect(() => {
@@ -375,10 +414,22 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     setDetailDialogOpen(true);
   };
 
+  // Handle grouped note click
+  const handleGroupedNoteClick = (groupedNote) => {
+    setSelectedGroupedNote(groupedNote);
+    setGroupedNoteDialogOpen(true);
+  };
+
   // Handle close dialog
   const handleCloseDialog = () => {
     setDetailDialogOpen(false);
     setSelectedNote(null);
+  };
+
+  // Handle close grouped note dialog
+  const handleCloseGroupedDialog = () => {
+    setGroupedNoteDialogOpen(false);
+    setSelectedGroupedNote(null);
   };
 
   // Get notes to display (with pagination)
@@ -428,47 +479,126 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
     toggleFilters
   } = useObservationFilters(filteredNotes);
 
-  // Sorted filtered observations (desc by observedAt/timestamp)
-  const sortedFilteredObservations = useMemo(() => {
-    const toDate = (ts) => {
-      if (!ts) return new Date(0);
-      if (ts.toDate) return ts.toDate();
-      if (ts.seconds) return new Date(ts.seconds * 1000);
-      return new Date(ts);
-    };
-    return [...(filteredObservations || [])].sort((a, b) => {
+  // Helper function to convert timestamp to Date
+  const toDate = (ts) => {
+    if (!ts) return new Date(0);
+    if (ts.toDate) return ts.toDate();
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return new Date(ts);
+  };
+
+  // Group notes by groupId, then sort
+  const groupedAndSortedObservations = useMemo(() => {
+    if (!filteredObservations || filteredObservations.length === 0) {
+      return { grouped: [], ungrouped: [] };
+    }
+
+    // Group notes by groupId
+    const groupMap = new Map();
+    const ungrouped = [];
+
+    filteredObservations.forEach((note) => {
+      if (note.groupId) {
+        if (!groupMap.has(note.groupId)) {
+          groupMap.set(note.groupId, []);
+        }
+        groupMap.get(note.groupId).push(note);
+      } else {
+        ungrouped.push(note);
+      }
+    });
+
+    // Convert groups to array format, using first note as representative
+    const grouped = Array.from(groupMap.entries()).map(([groupId, notes]) => {
+      // Sort notes within group by observedAt (newest first)
+      notes.sort((a, b) => {
+        const da = toDate(a.observedAt || a.timestamp);
+        const db = toDate(b.observedAt || b.timestamp);
+        return db - da;
+      });
+      
+      // Use earliest observedAt for time categorization
+      const earliestDate = notes.reduce((earliest, note) => {
+        const noteDate = toDate(note.observedAt || note.timestamp);
+        return noteDate < earliest ? noteDate : earliest;
+      }, toDate(notes[0].observedAt || notes[0].timestamp));
+
+      return {
+        groupId,
+        notes,
+        representativeNote: notes[0], // Use first note for display
+        earliestObservedAt: earliestDate,
+        studentIds: notes.map(n => n.studentId),
+        studentCount: notes.length
+      };
+    });
+
+    // Sort grouped notes by earliest observedAt (newest first)
+    grouped.sort((a, b) => b.earliestObservedAt - a.earliestObservedAt);
+
+    // Sort ungrouped notes
+    ungrouped.sort((a, b) => {
       const da = toDate(a.observedAt || a.timestamp);
       const db = toDate(b.observedAt || b.timestamp);
-      return db - da; // newest first
+      return db - da;
     });
+
+    return { grouped, ungrouped };
   }, [filteredObservations]);
 
+  // Sorted filtered observations (for backward compatibility, combining grouped and ungrouped)
+  const sortedFilteredObservations = useMemo(() => {
+    const { grouped, ungrouped } = groupedAndSortedObservations;
+    // Flatten grouped notes (using representative) and combine with ungrouped
+    const groupedRepresentatives = grouped.map(g => g.representativeNote);
+    return [...groupedRepresentatives, ...ungrouped].sort((a, b) => {
+      const da = toDate(a.observedAt || a.timestamp);
+      const db = toDate(b.observedAt || b.timestamp);
+      return db - da;
+    });
+  }, [groupedAndSortedObservations]);
+
   // Paginated (first N) notes and grouped for divider rendering
+  // Now handles both grouped and ungrouped notes
   const groupedLimitedNotes = useMemo(() => {
-    const limited = sortedFilteredObservations.slice(0, displayedNotesCount);
+    const { grouped, ungrouped } = groupedAndSortedObservations;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
     const groups = { today: [], last7Days: [], beyond: [] };
-    limited.forEach((note) => {
+    let count = 0;
+    const maxCount = displayedNotesCount;
+
+    // Process grouped notes first
+    for (const group of grouped) {
+      if (count >= maxCount) break;
+      const noteDate = group.earliestObservedAt;
+      const groupItem = { ...group, isGrouped: true };
+      if (noteDate >= today) groups.today.push(groupItem);
+      else if (noteDate >= lastWeek) groups.last7Days.push(groupItem);
+      else groups.beyond.push(groupItem);
+      count++;
+    }
+
+    // Process ungrouped notes
+    for (const note of ungrouped) {
+      if (count >= maxCount) break;
       try {
-        let noteDate;
-        if (note.observedAt?.toDate) noteDate = note.observedAt.toDate();
-        else if (note.observedAt?.seconds) noteDate = new Date(note.observedAt.seconds * 1000);
-        else if (note.observedAt) noteDate = new Date(note.observedAt);
-        else if (note.timestamp?.toDate) noteDate = note.timestamp.toDate();
-        else if (note.timestamp?.seconds) noteDate = new Date(note.timestamp.seconds * 1000);
-        else if (note.timestamp) noteDate = new Date(note.timestamp);
-        else noteDate = new Date(0);
-        if (noteDate >= today) groups.today.push(note);
-        else if (noteDate >= lastWeek) groups.last7Days.push(note);
-        else groups.beyond.push(note);
+        const noteDate = toDate(note.observedAt || note.timestamp);
+        const noteItem = { ...note, isGrouped: false };
+        if (noteDate >= today) groups.today.push(noteItem);
+        else if (noteDate >= lastWeek) groups.last7Days.push(noteItem);
+        else groups.beyond.push(noteItem);
+        count++;
       } catch (e) {
-        groups.beyond.push(note);
+        groups.beyond.push({ ...note, isGrouped: false });
+        count++;
       }
-    });
+    }
+    
     return groups;
-  }, [sortedFilteredObservations, displayedNotesCount]);
+  }, [groupedAndSortedObservations, displayedNotesCount]);
 
 
   if (loading) {
@@ -645,18 +775,32 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.today.map((note) => (
-                    <ClassroomNoteCard
-                      key={note.id}
-                      note={note}
-                      studentName={getStudentName(note)}
-                      onStudentClick={() => {
-                        const student = classroomStudents.find(s => s.id === note.studentId);
-                        if (student) onNavigateToStudent(student);
-                      }}
-                      onNoteClick={() => handleNoteClick(note)}
-                    />
-                  ))}
+                  {groupedLimitedNotes.today.map((item) => {
+                    if (item.isGrouped) {
+                      return (
+                        <GroupedNoteCard
+                          key={item.groupId}
+                          groupedNote={item}
+                          classroomStudents={classroomStudents}
+                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNavigateToStudent={onNavigateToStudent}
+                        />
+                      );
+                    } else {
+                      return (
+                        <ClassroomNoteCard
+                          key={item.id}
+                          note={item}
+                          studentName={getStudentName(item)}
+                          onStudentClick={() => {
+                            const student = classroomStudents.find(s => s.id === item.studentId);
+                            if (student) onNavigateToStudent(student);
+                          }}
+                          onNoteClick={() => handleNoteClick(item)}
+                        />
+                      );
+                    }
+                  })}
                 </>
               )}
 
@@ -669,18 +813,32 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.last7Days.map((note) => (
-                    <ClassroomNoteCard
-                      key={note.id}
-                      note={note}
-                      studentName={getStudentName(note)}
-                      onStudentClick={() => {
-                        const student = classroomStudents.find(s => s.id === note.studentId);
-                        if (student) onNavigateToStudent(student);
-                      }}
-                      onNoteClick={() => handleNoteClick(note)}
-                    />
-                  ))}
+                  {groupedLimitedNotes.last7Days.map((item) => {
+                    if (item.isGrouped) {
+                      return (
+                        <GroupedNoteCard
+                          key={item.groupId}
+                          groupedNote={item}
+                          classroomStudents={classroomStudents}
+                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNavigateToStudent={onNavigateToStudent}
+                        />
+                      );
+                    } else {
+                      return (
+                        <ClassroomNoteCard
+                          key={item.id}
+                          note={item}
+                          studentName={getStudentName(item)}
+                          onStudentClick={() => {
+                            const student = classroomStudents.find(s => s.id === item.studentId);
+                            if (student) onNavigateToStudent(student);
+                          }}
+                          onNoteClick={() => handleNoteClick(item)}
+                        />
+                      );
+                    }
+                  })}
                 </>
               )}
 
@@ -693,18 +851,32 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.beyond.map((note) => (
-                    <ClassroomNoteCard
-                      key={note.id}
-                      note={note}
-                      studentName={getStudentName(note)}
-                      onStudentClick={() => {
-                        const student = classroomStudents.find(s => s.id === note.studentId);
-                        if (student) onNavigateToStudent(student);
-                      }}
-                      onNoteClick={() => handleNoteClick(note)}
-                    />
-                  ))}
+                  {groupedLimitedNotes.beyond.map((item) => {
+                    if (item.isGrouped) {
+                      return (
+                        <GroupedNoteCard
+                          key={item.groupId}
+                          groupedNote={item}
+                          classroomStudents={classroomStudents}
+                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNavigateToStudent={onNavigateToStudent}
+                        />
+                      );
+                    } else {
+                      return (
+                        <ClassroomNoteCard
+                          key={item.id}
+                          note={item}
+                          studentName={getStudentName(item)}
+                          onStudentClick={() => {
+                            const student = classroomStudents.find(s => s.id === item.studentId);
+                            if (student) onNavigateToStudent(student);
+                          }}
+                          onNoteClick={() => handleNoteClick(item)}
+                        />
+                      );
+                    }
+                  })}
                 </>
               )}
 
@@ -775,7 +947,740 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
         onNavigateToStudent={onNavigateToStudent}
         isClassroomContext={true}
       />
+
+      {/* Grouped Note Dialog */}
+      {selectedGroupedNote && (
+        <GroupedNoteDialog
+          open={groupedNoteDialogOpen}
+          onClose={handleCloseGroupedDialog}
+          groupedNote={selectedGroupedNote}
+          classroomStudents={classroomStudents}
+          currentUser={currentUser}
+          userRole={userRole}
+          onNavigateToStudent={onNavigateToStudent}
+        />
+      )}
     </Box>
+  );
+}
+
+// GroupedNoteCard component for displaying multi-student notes
+function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNavigateToStudent }) {
+  const note = groupedNote.representativeNote;
+  const noteTypeInfo = {
+    type: getObservationTypeText(note.type),
+    icon: getObservationTypeIcon(note.type)
+  };
+  const isLesson = note.type === 'lesson';
+
+  // Get student objects for the group
+  const studentsInGroup = groupedNote.studentIds
+    .map(studentId => classroomStudents.find(s => s.id === studentId))
+    .filter(Boolean);
+
+  const getStudentDisplayName = (student) => {
+    if (!student) return 'Unknown Student';
+    return student.displayName || student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
+  };
+
+  // Format student names: "Student A, Student B + X more" with clickable names
+  const renderStudentNames = () => {
+    if (studentsInGroup.length === 0) {
+      return <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>Multiple students</Typography>;
+    }
+    
+    if (studentsInGroup.length === 1) {
+      const student = studentsInGroup[0];
+      return (
+        <Typography 
+          variant="subtitle2" 
+          sx={{ 
+            fontWeight: 600, 
+            color: 'primary.main',
+            cursor: 'pointer',
+            '&:hover': { textDecoration: 'underline' }
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onNavigateToStudent && student) {
+              onNavigateToStudent(student);
+            }
+          }}
+        >
+          {getStudentDisplayName(student)}
+        </Typography>
+      );
+    }
+
+    if (studentsInGroup.length === 2) {
+      const [student1, student2] = studentsInGroup;
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+          <Typography 
+            variant="subtitle2" 
+            component="span"
+            sx={{ 
+              fontWeight: 600, 
+              color: 'primary.main',
+              cursor: 'pointer',
+              '&:hover': { textDecoration: 'underline' }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onNavigateToStudent && student1) {
+                onNavigateToStudent(student1);
+              }
+            }}
+          >
+            {getStudentDisplayName(student1)}
+          </Typography>
+          <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>,</Typography>
+          <Typography 
+            variant="subtitle2" 
+            component="span"
+            sx={{ 
+              fontWeight: 600, 
+              color: 'primary.main',
+              cursor: 'pointer',
+              '&:hover': { textDecoration: 'underline' }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onNavigateToStudent && student2) {
+                onNavigateToStudent(student2);
+              }
+            }}
+          >
+            {getStudentDisplayName(student2)}
+          </Typography>
+        </Box>
+      );
+    }
+
+    // More than 2 students: "Student A, Student B + X more"
+    const [student1, student2] = studentsInGroup;
+    const remainingCount = studentsInGroup.length - 2;
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+        <Typography 
+          variant="subtitle2" 
+          component="span"
+          sx={{ 
+            fontWeight: 600, 
+            color: 'primary.main',
+            cursor: 'pointer',
+            '&:hover': { textDecoration: 'underline' }
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onNavigateToStudent && student1) {
+              onNavigateToStudent(student1);
+            }
+          }}
+        >
+          {getStudentDisplayName(student1)}
+        </Typography>
+        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>,</Typography>
+        <Typography 
+          variant="subtitle2" 
+          component="span"
+          sx={{ 
+            fontWeight: 600, 
+            color: 'primary.main',
+            cursor: 'pointer',
+            '&:hover': { textDecoration: 'underline' }
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onNavigateToStudent && student2) {
+              onNavigateToStudent(student2);
+            }
+          }}
+        >
+          {getStudentDisplayName(student2)}
+        </Typography>
+        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>
+          {' '}+ {remainingCount} more
+        </Typography>
+      </Box>
+    );
+  };
+
+  return (
+    <Card
+      sx={{
+        cursor: 'pointer',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          transform: 'translateY(-1px)',
+        },
+        transition: 'all 0.2s ease-in-out',
+        position: 'relative',
+        border: '2px solid #c7d2fe',
+        backgroundColor: '#f0f4ff',
+        borderRadius: 2,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '4px',
+          height: '100%',
+          backgroundColor: '#4f46e5',
+          borderRadius: '2px 0 0 2px'
+        }
+      }}
+      aria-label={`View details for observation from ${formatTimestamp(note.observedAt || note.timestamp)}`}
+      onClick={onNoteClick}
+    >
+      {/* Note Type Indicator - Top Right */}
+      <Box sx={{
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 1,
+        px: 1,
+        py: 0.5,
+        border: '1px solid #e2e8f0'
+      }}>
+        {noteTypeInfo.icon}
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+          {noteTypeInfo.type}
+        </Typography>
+      </Box>
+
+      {/* Copy button overlay */}
+      {note.type !== 'lesson' && note.text && (
+        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
+          <CopyToClipboardButton
+            text={note.text}
+            size="small"
+            ariaLabel="Copy note text"
+          />
+        </Box>
+      )}
+
+      <CardContent sx={{ p: 2, pl: 3 }}>
+        {/* Student Names - Prominent, condensed, clickable */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Group sx={{ fontSize: 16, color: 'primary.main' }} />
+          {renderStudentNames()}
+        </Box>
+
+        {/* Teacher Information */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+          <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+            👩‍🏫
+          </span>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+            {note.createdByName || note.createdBy || 'Unknown Teacher'}
+          </Typography>
+        </Box>
+        
+        {isLesson ? (
+          renderLessonSummary(note, !!note.groupDefaults)
+        ) : (
+          <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {note.text || '(transcribing…)'}
+          </Typography>
+        )}
+        
+        {/* Timestamp */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <Typography variant="caption" color="text.secondary">
+            {formatTimestamp(note.observedAt || note.timestamp)}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// GroupedNoteDialog component for displaying multi-student note details
+function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, currentUser, userRole, onNavigateToStudent }) {
+  const notify = useNotify();
+  const note = groupedNote.representativeNote;
+  const isLesson = note.type === 'lesson';
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // Get student objects for all students in the group
+  const studentsInGroup = groupedNote.studentIds
+    .map(studentId => classroomStudents.find(s => s.id === studentId))
+    .filter(Boolean);
+
+  const getStudentDisplayName = (student) => {
+    if (!student) return 'Unknown Student';
+    return student.displayName || student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
+  };
+
+  // Handle student selection toggle
+  const handleToggleStudent = (studentId) => {
+    setSelectedStudentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedStudentIds.size === studentsInGroup.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(groupedNote.studentIds));
+    }
+  };
+
+  // Handle delete mode toggle
+  const handleDeleteModeToggle = () => {
+    if (deleteMode) {
+      // Cancel delete mode
+      setDeleteMode(false);
+      setSelectedStudentIds(new Set());
+    } else {
+      // Enter delete mode
+      setDeleteMode(true);
+    }
+  };
+
+  // Handle delete confirm click
+  const handleDeleteConfirmClick = () => {
+    if (selectedStudentIds.size === 0) {
+      notify.warning('Please select at least one student to delete the note for.', { duration: 3000 });
+      return;
+    }
+    setDeleteConfirmOpen(true);
+  };
+
+  // Handle delete confirm
+  const handleDeleteConfirm = async () => {
+    if (!groupedNote || selectedStudentIds.size === 0) return;
+    
+    setDeleting(true);
+    setDeleteConfirmOpen(false);
+    
+    const studentIdsToDelete = Array.from(selectedStudentIds);
+    const noteId = note.id;
+    
+    // Create notification for deletion
+    const notifId = `delete-grouped-${noteId}`;
+    const deleteCount = studentIdsToDelete.length;
+    const isAll = deleteCount === studentsInGroup.length;
+    
+    notify.info(`Deleting note for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}…`, {
+      id: notifId,
+      actionLabel: 'Undo',
+      onFinalize: async () => {
+        try {
+          // Delete notes for selected students
+          const deletePromises = studentIdsToDelete.map(async (studentId) => {
+            // Find the note for this student in the group
+            const studentNote = groupedNote.notes.find(n => n.studentId === studentId);
+            if (studentNote) {
+              const parentId = studentNote.parentStudentId || studentId;
+              const noteIdToDelete = studentNote.id || noteId;
+              await deleteDoc(doc(db, 'students', parentId, 'observations', noteIdToDelete));
+            }
+          });
+          
+          await Promise.all(deletePromises);
+          
+          notify.success(
+            `Note deleted successfully for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}`,
+            { id: notifId, duration: 2500 }
+          );
+          
+          // Close dialog if all notes are deleted
+          if (isAll) {
+            onClose();
+          } else {
+            // Reset selection and exit delete mode
+            setSelectedStudentIds(new Set());
+            setDeleteMode(false);
+          }
+        } catch (error) {
+          console.error('Error deleting observations:', error);
+          notify.error('Error deleting note(s). Please try again.', { id: notifId, duration: 3500 });
+        }
+      },
+      onUndo: () => {
+        notify.success('Undo Note Deletion Successful', { id: `${notifId}-undo`, duration: 2000 });
+      },
+      duration: 6000,
+      variant: 'warning',
+    });
+    
+    setDeleting(false);
+  };
+
+  // Handle delete cancel
+  const handleDeleteCancel = () => {
+    setDeleteConfirmOpen(false);
+  };
+
+  // Reset selection and delete mode when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedStudentIds(new Set());
+      setDeleteConfirmOpen(false);
+      setDeleteMode(false);
+    }
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          maxWidth: 500,
+          width: 'calc(100% - 32px)',
+          mx: 'auto'
+        }
+      }}
+    >
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Typography variant="h6" component="div">
+          Note Details
+        </Typography>
+        <IconButton
+          onClick={onClose}
+          size="small"
+          aria-label="Close dialog"
+        >
+          <Close />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 3 }}>
+        {/* Note Content */}
+        <Box sx={{ mb: 3 }}>
+          {isLesson ? (
+            renderLessonSummary(note, !!note.groupDefaults)
+          ) : (
+            <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {note.text || '(transcribing…)'}
+            </Typography>
+          )}
+          
+          {/* Teacher and Timestamp */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                👩‍🏫
+              </span>
+              <Typography variant="body2" color="text.secondary">
+                {note.createdByName || note.createdBy || 'Unknown Teacher'}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography variant="caption" color="text.secondary">
+                {formatTimestamp(note.observedAt || note.timestamp)}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Students List */}
+        <Box>
+          {deleteMode ? (
+            <>
+              {/* Delete Mode: Show checkboxes */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Select students to delete note for:
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={handleSelectAll}
+                  sx={{ textTransform: 'none', minWidth: 'auto', px: 1 }}
+                >
+                  {selectedStudentIds.size === studentsInGroup.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              </Box>
+              <List sx={{ p: 0, maxHeight: 300, overflow: 'auto' }}>
+                {studentsInGroup.map((student) => {
+                  const isSelected = selectedStudentIds.has(student.id);
+                  return (
+                    <ListItem key={student.id} disablePadding>
+                      <ListItemButton
+                        onClick={() => handleToggleStudent(student.id)}
+                        sx={{
+                          borderRadius: 1,
+                          '&:hover': {
+                            backgroundColor: '#f8fafc'
+                          }
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 40 }}>
+                          <Checkbox
+                            edge="start"
+                            checked={isSelected}
+                            tabIndex={-1}
+                            disableRipple
+                            size="small"
+                          />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={getStudentDisplayName(student)}
+                          primaryTypographyProps={{
+                            fontWeight: 500,
+                            color: isSelected ? 'primary.main' : 'text.primary'
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </>
+          ) : (
+            <>
+              {/* Normal Mode: Show expandable dropdowns with custom ratings */}
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Assigned to {studentsInGroup.length} student{studentsInGroup.length !== 1 ? 's' : ''}:
+              </Typography>
+              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                {studentsInGroup.map((student) => {
+                  // Find the note for this student
+                  const studentNote = groupedNote.notes.find(n => n.studentId === student.id);
+                  const studentRatings = studentNote?.ratings || {};
+                  const studentComment = studentNote?.studentComment;
+                  const dimensionOrder = note.dimensionOrder || Object.keys(studentRatings);
+                  const groupDefaults = note.groupDefaults || {};
+                  
+                  // Check if student has custom ratings (different from defaults)
+                  const hasCustomRatings = dimensionOrder.some(dim => {
+                    const studentRating = studentRatings[dim];
+                    const defaultRating = groupDefaults[dim];
+                    return studentRating && studentRating !== defaultRating;
+                  });
+
+                  return (
+                    <Accordion key={student.id} sx={{ mb: 1, '&:before': { display: 'none' } }}>
+                      <AccordionSummary
+                        expandIcon={<ChevronRight sx={{ transform: 'rotate(0deg)', transition: 'transform 0.2s' }} />}
+                        sx={{
+                          '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+                            transform: 'rotate(90deg)'
+                          },
+                          '&:hover': {
+                            backgroundColor: '#f8fafc'
+                          }
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
+                            {getStudentDisplayName(student)}
+                          </Typography>
+                          {hasCustomRatings && (
+                            <Chip 
+                              label="Custom" 
+                              size="small" 
+                              sx={{ 
+                                height: 20, 
+                                fontSize: '0.65rem',
+                                backgroundColor: '#e0e7ff',
+                                color: '#4f46e5'
+                              }} 
+                            />
+                          )}
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ pt: 2, pb: 2 }}>
+                        {/* Student Ratings */}
+                        {dimensionOrder.length > 0 && (
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
+                              Ratings:
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                              {dimensionOrder.map((dimension) => {
+                                const studentRating = studentRatings[dimension];
+                                const defaultRating = groupDefaults[dimension];
+                                const isCustom = studentRating && studentRating !== defaultRating;
+                                const displayRating = studentRating || defaultRating || 'na';
+                                const color = LESSON_RATING_COLORS[displayRating] || '#475569';
+                                
+                                return (
+                                  <Chip
+                                    key={`${student.id}-${dimension}`}
+                                    size="small"
+                                    label={`${dimension}: ${LESSON_RATING_LABELS[displayRating] || 'N/A'}`}
+                                    sx={{ 
+                                      backgroundColor: `${color}22`, 
+                                      color,
+                                      ...(isCustom && {
+                                        border: '2px solid',
+                                        borderColor: color,
+                                        fontWeight: 600
+                                      })
+                                    }}
+                                  />
+                                );
+                              })}
+                            </Box>
+                            {!hasCustomRatings && Object.keys(groupDefaults).length > 0 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                                Uses group defaults
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
+                        
+                        {/* Student Comment */}
+                        {studentComment && (
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                              Comment:
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              💬 {studentComment}
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {/* View Dashboard Button */}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<Visibility />}
+                          onClick={() => {
+                            onNavigateToStudent(student);
+                            onClose();
+                          }}
+                          fullWidth
+                          sx={{ mt: 1 }}
+                        >
+                          View Dashboard
+                        </Button>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </Box>
+            </>
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+        {deleteMode ? (
+          <>
+            <Button onClick={handleDeleteModeToggle} variant="outlined" sx={{ flex: 1 }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirmClick}
+              variant="contained"
+              color="error"
+              startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
+              disabled={deleting || selectedStudentIds.size === 0}
+              sx={{ flex: 1 }}
+            >
+              {deleting 
+                ? 'Deleting...' 
+                : selectedStudentIds.size === 0
+                ? 'Select to Delete'
+                : selectedStudentIds.size === studentsInGroup.length
+                ? 'Delete for All'
+                : `Delete for ${selectedStudentIds.size}`
+              }
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={onClose} variant="outlined" sx={{ flex: 1 }}>
+              Close
+            </Button>
+            <Button
+              onClick={handleDeleteModeToggle}
+              variant="contained"
+              color="error"
+              startIcon={<Delete />}
+              sx={{ flex: 1 }}
+            >
+              Delete Note
+            </Button>
+          </>
+        )}
+      </DialogActions>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={handleDeleteCancel}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxWidth: 343,
+            width: 'calc(100% - 32px)',
+            mx: 'auto'
+          }
+        }}
+      >
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6" color="error">
+            Delete Note
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {selectedStudentIds.size === studentsInGroup.length
+              ? 'Are you sure you want to delete this note for all students?'
+              : `Are you sure you want to delete this note for ${selectedStudentIds.size} selected student${selectedStudentIds.size > 1 ? 's' : ''}?`
+            }
+          </Typography>
+          {selectedStudentIds.size < studentsInGroup.length && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              The note will remain for the other {studentsInGroup.length - selectedStudentIds.size} student{studentsInGroup.length - selectedStudentIds.size > 1 ? 's' : ''}.
+            </Typography>
+          )}
+          <Typography variant="body2" color="error" sx={{ fontWeight: 'medium' }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+          <Button 
+            onClick={handleDeleteCancel} 
+            variant="outlined" 
+            sx={{ flex: 1 }}
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            variant="contained" 
+            color="error"
+            sx={{ flex: 1 }}
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Dialog>
   );
 }
 
@@ -864,7 +1769,7 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
         </Box>
         
         {isLesson ? (
-          renderLessonSummary(note)
+          renderLessonSummary(note, !!note.groupDefaults)
         ) : (
           <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {note.text || '(transcribing…)'}

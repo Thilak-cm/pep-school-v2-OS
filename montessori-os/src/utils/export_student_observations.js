@@ -30,18 +30,21 @@ const generateStudentInfo = (student) => ({
  * @param {Object} student
  * @param {Array} observations
  * @param {string} format
+ * @param {string} noteType - 'lesson' | 'textVoice' | null
  * @returns {string}
  */
-const buildStudentTimelineFilename = (student, observations, format = 'json') => {
+const buildStudentTimelineFilename = (student, observations, format = 'json', noteType = null) => {
   const studentName = student?.name || student?.displayName ||
     [student?.firstName, student?.lastName].filter(Boolean).join(' ') ||
     'Unknown_Student';
+
+  const segment = noteType === 'lesson' ? 'Lesson_Notes' : noteType === 'textVoice' ? 'Observations' : 'Timeline';
 
   return generateFilename({
     subjectName: studentName,
     observationCount: observations?.length || 0,
     format,
-    segments: ['Timeline']
+    segments: [segment]
   });
 };
 
@@ -49,10 +52,13 @@ const buildStudentTimelineFilename = (student, observations, format = 'json') =>
  * Build text export content with the legacy student-specific header.
  * @param {Object} student
  * @param {Array} observations
+ * @param {string} noteType - 'lesson' | 'textVoice' | null
  * @returns {string}
  */
-const buildStudentTextContent = (student, observations) => {
-  const header = `${student?.displayName || student?.name || 'Student'} - Observation Timeline`;
+const buildStudentTextContent = (student, observations, noteType = null) => {
+  const studentName = student?.displayName || student?.name || 'Student';
+  const typeLabel = noteType === 'lesson' ? 'Lesson Notes' : noteType === 'textVoice' ? 'Observations' : 'Observation Timeline';
+  const header = `${studentName} - ${typeLabel}`;
   const cleanedObservations = observations.map(cleanObservationData);
   return generateTextContent({ subjectTitle: header, observations: cleanedObservations });
 };
@@ -65,6 +71,7 @@ const buildStudentTextContent = (student, observations) => {
  * @param {string} format - 'json' or 'txt'
  * @param {boolean} respectFilters - Whether to use filtered observations
  * @param {Array|null} filteredObservations - Filtered observations when respectFilters is true
+ * @param {string} noteType - 'lesson' | 'textVoice' | null
  * @returns {Object}
  */
 export const exportStudentTimeline = (
@@ -73,7 +80,8 @@ export const exportStudentTimeline = (
   currentUser,
   format = 'json',
   respectFilters = false,
-  filteredObservations = null
+  filteredObservations = null,
+  noteType = null
 ) => {
   try {
     const observationsToExport = respectFilters && filteredObservations
@@ -90,8 +98,8 @@ export const exportStudentTimeline = (
     };
 
     if (format === 'txt') {
-      const filename = buildStudentTimelineFilename(student, observationsToExport, 'txt');
-      const textContent = buildStudentTextContent(student, observationsToExport);
+      const filename = buildStudentTimelineFilename(student, observationsToExport, 'txt', noteType);
+      const textContent = buildStudentTextContent(student, observationsToExport, noteType);
       downloadText(textContent, filename);
       return {
         success: true,
@@ -109,7 +117,7 @@ export const exportStudentTimeline = (
       summary: generateSummary(cleaned)
     };
 
-    const filename = buildStudentTimelineFilename(student, cleaned, format);
+    const filename = buildStudentTimelineFilename(student, cleaned, format, noteType);
     downloadJSON(exportData, filename);
 
     return {
@@ -130,8 +138,8 @@ export const exportStudentTimeline = (
 /**
  * Export filtered observations only.
  */
-export const exportFilteredTimeline = (student, filteredObservations, currentUser, format = 'json') => {
-  return exportStudentTimeline(student, filteredObservations, currentUser, format, true, filteredObservations);
+export const exportFilteredTimeline = (student, filteredObservations, currentUser, format = 'json', noteType = null) => {
+  return exportStudentTimeline(student, filteredObservations, currentUser, format, true, filteredObservations, noteType);
 };
 
 /**
@@ -142,16 +150,17 @@ export const exportStudentTimelineAsText = (
   observations,
   currentUser,
   respectFilters = false,
-  filteredObservations = null
+  filteredObservations = null,
+  noteType = null
 ) => {
-  return exportStudentTimeline(student, observations, currentUser, 'txt', respectFilters, filteredObservations);
+  return exportStudentTimeline(student, observations, currentUser, 'txt', respectFilters, filteredObservations, noteType);
 };
 
 /**
  * Export filtered observations as text (for teachers).
  */
-export const exportFilteredTimelineAsText = (student, filteredObservations, currentUser) => {
-  return exportStudentTimeline(student, filteredObservations, currentUser, 'txt', true, filteredObservations);
+export const exportFilteredTimelineAsText = (student, filteredObservations, currentUser, noteType = null) => {
+  return exportStudentTimeline(student, filteredObservations, currentUser, 'txt', true, filteredObservations, noteType);
 };
 
 export default exportStudentTimeline;
