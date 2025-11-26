@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
+import AppFooter from "./AppFooter";
 import LandingPage from "./components/LandingPage";
 import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
@@ -40,12 +41,13 @@ import UpdateNotification from './components/UpdateNotification';
 import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
 import { isAdminRole, isProgramAdmin, isSuperAdmin } from './utils/roleUtils';
+import SettingsPage from './components/SettingsPage.jsx';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -305,6 +307,7 @@ function App() {
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
   else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
+  else if (screen === 'settings') pageTitle = 'Settings';
   else if (screen === 'studentStats') {
     const studentName = selectedStudent?.displayName || selectedStudent?.name || 
                        `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
@@ -348,6 +351,8 @@ function App() {
         return () => setScreen('aiHome');
       case 'studentAliases':
         return () => setScreen('landingPage');
+      case 'settings':
+        return () => setScreen('landingPage');
       case 'lessonNotes':
         return () => setScreen(lessonNotesReturnScreen || 'landingPage');
       case 'addUser':
@@ -366,6 +371,30 @@ function App() {
 
   const backNavigation = getBackNavigation();
   const showBackButton = screen !== 'landingPage';
+  const handleNavigation = (path) => {
+    if (path === 'settings') {
+      setScreen('settings');
+      return;
+    }
+
+    if (path === '/profile') {
+      setScreen('profile');
+    } else if (path === '/stats') {
+      setScreen('stats');
+    } else if (path === '/feedback') {
+      setScreen('feedback');
+    } else if (path === '/addUser') {
+      setScreen('addUser');
+    } else if (path === '/aliases') {
+      setScreen('studentAliases');
+    } else if (path === '/aiPrompts') {
+      if (isSuperAdminUser) setScreen('aiHome');
+    }
+  };
+
+  const handleHome = () => {
+    setScreen('landingPage');
+  };
 
   // Mobile-first responsive container
   return (
@@ -511,28 +540,9 @@ function App() {
               {/* Sticky Header (outside scrollable content) */}
               {screen !== 'accessDenied' && (
                 <AppHeader 
-                  user={user} 
-                  onSignOut={handleSignOut} 
                   title={pageTitle}
-                  onNavigate={(path) => {
-                    if (path === '/profile') {
-                      setScreen('profile');
-                    } else if (path === '/stats') {
-                      setScreen('stats');
-                    } else if (path === '/feedback') {
-                      setScreen('feedback');
-                    } else if (path === '/addUser') {
-                      setScreen('addUser');
-                    } else if (path === '/aliases') {
-                      setScreen('studentAliases');
-                    } else if (path === '/aiPrompts') {
-                      if (isSuperAdminUser) setScreen('aiHome');
-                    }
-                  }}
-                  onHome={() => setScreen('landingPage')}
                   onBack={backNavigation}
                   showBackButton={showBackButton}
-                  showHomeButton={screen !== 'landingPage'}
                 />
               )}
 
@@ -551,6 +561,7 @@ function App() {
                     display: 'flex',
                     flexDirection: 'column',
                     minHeight: 'fit-content',
+                    pb: { xs: 12, sm: 12 },
                   }}
                 >
                                     {screen === 'landingPage' && (
@@ -725,6 +736,14 @@ function App() {
                     />
                   )}
 
+                  {screen === 'settings' && (
+                    <SettingsPage
+                      currentUser={user}
+                      onNavigate={handleNavigation}
+                      onSignOut={handleSignOut}
+                    />
+                  )}
+
                   {screen === 'aiHome' && (
                     <AIHomePage
                       userRole={role}
@@ -759,8 +778,19 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && (
-                <AddNoteFab showLabel onClick={() => setAddNoteOpen(true)} />
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && screen !== 'settings' && (
+                <AddNoteFab 
+                  showLabel 
+                  onClick={() => setAddNoteOpen(true)} 
+                  sx={{ 
+                    bottom: { xs: 96, sm: 96 },
+                    '@media (max-width: 599px)': {
+                      '@supports (padding: env(safe-area-inset-bottom))': {
+                        bottom: 'calc(96px + env(safe-area-inset-bottom))'
+                      }
+                    }
+                  }}
+                />
               )}
               <AddNoteModal
                 open={addNoteOpen}
@@ -774,6 +804,13 @@ function App() {
                 }}
               />
               <UpdateNotification />
+              {screen !== 'accessDenied' && (
+                <AppFooter
+                  onHome={handleHome}
+                  onNavigate={handleNavigation}
+                  active={screen === 'settings' ? 'settings' : 'home'}
+                />
+              )}
             </>
           )}
           </NotificationProvider>
