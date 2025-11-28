@@ -39,6 +39,9 @@ jspm_packages/
 # dotenv environment variables file
 .env
 
+# Firebase Hosting cache
+.firebase/hosting.*.cache
+
 # IDE files
 .vscode/
 .idea/
@@ -56,6 +59,10 @@ Thumbs.db
 
 commit_message.txt
 node_modules
+
+# Build outputs
+montessori-os/dist/
+montessori-os/public/sw.js
 
 # admin scripts
 admin/
