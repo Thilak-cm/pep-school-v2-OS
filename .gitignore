@@ -62,7 +62,6 @@ node_modules
 
 # Build outputs
 montessori-os/dist/
-montessori-os/public/sw.js
 
 # admin scripts
 admin/
