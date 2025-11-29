@@ -48,6 +48,9 @@ const getFullName = (user) => {
   return [user.firstName, user.lastName].filter(Boolean).join(' ') || formatDisplayName(user);
 };
 
+// Mirror server-side email sanitization for pending doc IDs
+const sanitizeEmailForDocId = (email) => String(email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -723,16 +726,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageablePrograms = [
           setSuccess(true);
           try {
             if (role === 'teacher') await fetchTeachers();
+            if (role === 'teacher') await fetchClassrooms();
             if (role === 'admin') await fetchAdmins();
           } catch {}
         }
       );
     } else if (data.ok) {
       notify.success('User created');
+      if (role === 'teacher' && selectedClassrooms.length > 0) {
+        const pendingId = data.pendingId || `pending_${sanitizeEmailForDocId(userForm.email)}`;
+        setClassrooms(updateClassroomsState(selectedClassrooms, [], pendingId));
+      }
       resetUserForm();
       setSuccess(true);
       try {
         if (role === 'teacher') await fetchTeachers();
+        if (role === 'teacher') await fetchClassrooms();
         if (role === 'admin') await fetchAdmins();
       } catch {}
     } else {
