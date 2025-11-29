@@ -649,7 +649,7 @@ function AddNoteModal({
       return;
     }
     if (selectedStudents.length !== 1) {
-      notify.info('Tagging works for one student at a time.');
+      notify.info('Tagging works only when one student is selected.');
       return;
     }
     handleOpenTagDialog();
@@ -1246,9 +1246,19 @@ function AddNoteModal({
         maxWidth="sm"
       >
         <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="h6">
-            {`Tag lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            <Typography variant="h6">
+              {`Tag lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
+            </Typography>
+            <IconButton
+              size="small"
+              aria-label="Close tag lesson notes dialog"
+              onClick={() => setTagDialogOpen(false)}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Box>
           <TextField
             fullWidth
             placeholder="Search lesson titles"
