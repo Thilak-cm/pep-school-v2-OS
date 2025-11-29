@@ -189,7 +189,8 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).changedKeys().hasOnly([
             'updatedAt',
             'lastEditedBy',
-            'lastEditedAt'
+            'lastEditedAt',
+            'linkedObservations' // allow authors to tag/untag their own lesson notes
           ])
         );
 

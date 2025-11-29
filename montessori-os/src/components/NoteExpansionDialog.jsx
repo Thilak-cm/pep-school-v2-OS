@@ -26,7 +26,8 @@ import {
   Close, 
   Mic,
   Visibility,
-  School
+  School,
+  MenuBook
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -262,6 +263,16 @@ function NoteExpansionDialog({
       setEditText(observation.text || '');
       setEditing(true);
     }
+  };
+
+  const handleOpenLinkedLesson = (lessonObservationId) => {
+    if (!lessonObservationId || !student) return;
+    try {
+      window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+        detail: { studentId: student.id, noteTypeFilter: 'lesson', noteId: lessonObservationId }
+      }));
+      onClose?.();
+    } catch (_) { /* no-op */ }
   };
 
   const handleEditSave = async () => {
@@ -520,6 +531,32 @@ function NoteExpansionDialog({
                 <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Duration: ${observation.duration || 0} seconds`}
+                </Typography>
+              </Box>
+            )}
+
+            {!isLessonObservation && observation.linkedLessonObservationId && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <MenuBook sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Linked to lesson note
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => handleOpenLinkedLesson(observation.linkedLessonObservationId)}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Open lesson note
+                </Button>
+              </Box>
+            )}
+
+            {isLessonObservation && Array.isArray(observation.linkedObservations) && observation.linkedObservations.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <MenuBook sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  {`Tagged observations: ${observation.linkedObservations.length}`}
                 </Typography>
               </Box>
             )}

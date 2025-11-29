@@ -8,7 +8,9 @@ import {
   Button,
   TextField,
   Snackbar,
-  Alert
+  Alert,
+  Chip,
+  Checkbox
 } from '@mui/material';
 import {
   Close,
@@ -23,7 +25,7 @@ import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import NewFeaturePill from './NewFeaturePill';
-import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc, query, where, limit, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { httpsCallable } from 'firebase/functions';
@@ -31,7 +33,7 @@ import { cloudFunctions } from '../firebase';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import { isSuperAdmin } from '../utils/roleUtils';
+import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
 
 // TextInput Component
 function TextInput({ onSave, onNext, onDirtyChange }) {
@@ -237,6 +239,19 @@ function AddNoteModal({
   // Analyzing overlay (replaces snackbar for this flow)
   const [analyzingOpen, setAnalyzingOpen] = useState(false);
   const [analyzingMessage, setAnalyzingMessage] = useState('');
+
+  // Lesson tag state (single-student only)
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [lessonNotes, setLessonNotes] = useState([]);
+  const [lessonNotesLoading, setLessonNotesLoading] = useState(false);
+  const [lessonNotesError, setLessonNotesError] = useState('');
+  const [lessonSearch, setLessonSearch] = useState('');
+  const [selectedLessonTag, setSelectedLessonTag] = useState(null); // { id, lessonTitle, createdBy }
+  const [tagStudentName, setTagStudentName] = useState('');
+
+  // Multi-student guard when a tag exists
+  const [multiStudentWarningOpen, setMultiStudentWarningOpen] = useState(false);
+  const [pendingStudents, setPendingStudents] = useState(null);
 
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
@@ -502,6 +517,18 @@ function AddNoteModal({
     setSelectedStudents(initialStudents);
   }, [initialStudents]);
 
+  // Clear lesson tag if student selection changes
+  useEffect(() => {
+    if (!selectedLessonTag) return;
+    if (selectedStudents.length !== 1) {
+      setSelectedLessonTag(null);
+      return;
+    }
+    if (selectedLessonTag.studentId && selectedStudents[0] !== selectedLessonTag.studentId) {
+      setSelectedLessonTag(null);
+    }
+  }, [selectedStudents, selectedLessonTag]);
+
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
     // Reset all state when closing
@@ -511,6 +538,13 @@ function AddNoteModal({
     setSaving(false);
     setSnackbarOpen(false);
     setSnackbarMessage('');
+    setSelectedLessonTag(null);
+    setLessonNotes([]);
+    setLessonSearch('');
+    setLessonNotesError('');
+    setTagDialogOpen(false);
+    setPendingStudents(null);
+    setMultiStudentWarningOpen(false);
     onClose();
   };
 
@@ -556,6 +590,86 @@ function AddNoteModal({
     } catch (_) { /* no-op */ }
   };
 
+  const toDate = (ts) => {
+    if (!ts) return null;
+    if (ts.toDate) return ts.toDate();
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return null;
+  };
+
+  const loadLessonNotesForStudent = async (studentId) => {
+    if (!studentId) return;
+    try {
+      setLessonNotesLoading(true);
+      setLessonNotesError('');
+      // Load student name for dialog heading
+      try {
+        const stuSnap = await getDoc(doc(db, 'students', studentId));
+        const sdata = stuSnap.data() || {};
+        const name = sdata.displayName || sdata.name || [sdata.firstName, sdata.lastName].filter(Boolean).join(' ');
+        setTagStudentName(name || '');
+      } catch (_) {
+        setTagStudentName('');
+      }
+      // Fetch recent lesson notes for the student (client-side sort to avoid index churn)
+      const q = query(
+        collection(db, 'students', studentId, 'observations'),
+        where('type', '==', 'lesson'),
+        limit(25)
+      );
+      const snap = await getDocs(q);
+      const notes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      notes.sort((a, b) => {
+        const da = toDate(a.observedAt || a.createdAt) || new Date(0);
+        const dbd = toDate(b.observedAt || b.createdAt) || new Date(0);
+        return dbd - da;
+      });
+      setLessonNotes(notes);
+    } catch (err) {
+      console.error('Error loading lesson notes for tagging', err);
+      setLessonNotesError('Unable to load lesson notes. Try again.');
+    } finally {
+      setLessonNotesLoading(false);
+    }
+  };
+
+  const handleOpenTagDialog = async () => {
+    if (selectedStudents.length !== 1) {
+      notify.info('Tagging is available only when one student is selected.');
+      return;
+    }
+    const stuId = selectedStudents[0];
+    setTagDialogOpen(true);
+    await loadLessonNotesForStudent(stuId);
+  };
+
+  const handleTagButtonClick = () => {
+    if (!selectedStudents || selectedStudents.length === 0) {
+      notify.info('Select a student first to tag a lesson note.');
+      return;
+    }
+    if (selectedStudents.length !== 1) {
+      notify.info('Tagging works for one student at a time.');
+      return;
+    }
+    handleOpenTagDialog();
+  };
+
+  const handleSelectLessonTag = (note) => {
+    if (!note) return;
+    setSelectedLessonTag({
+      id: note.id,
+      lessonTitle: note.lessonTitle || 'Lesson Note',
+      createdBy: note.createdBy || note.createdByEmail || null,
+      studentId: selectedStudents?.[0] || null,
+    });
+    setTagDialogOpen(false);
+  };
+
+  const handleClearLessonTag = () => {
+    setSelectedLessonTag(null);
+  };
+
   // Centralized close request handler (backdrop, ESC, X, back buttons)
   const requestClose = (reason) => {
     if (saving) return; // disable closing while saving
@@ -594,6 +708,29 @@ function AddNoteModal({
   const handleKeepEditing = () => {
     setConfirmOpen(false);
     // Intentionally do not auto-resume recording; user can press Resume
+  };
+
+  const handleStudentsChange = (nextStudents) => {
+    if (selectedLessonTag && (nextStudents?.length || 0) > 1) {
+      setPendingStudents(nextStudents);
+      setMultiStudentWarningOpen(true);
+      return;
+    }
+    setSelectedStudents(nextStudents);
+  };
+
+  const handleConfirmDropTag = () => {
+    setSelectedLessonTag(null);
+    if (pendingStudents) {
+      setSelectedStudents(pendingStudents);
+    }
+    setPendingStudents(null);
+    setMultiStudentWarningOpen(false);
+  };
+
+  const handleCancelDropTag = () => {
+    setPendingStudents(null);
+    setMultiStudentWarningOpen(false);
   };
 
   const handleSelectVoice = () => {
@@ -646,6 +783,14 @@ function AddNoteModal({
       }
     }
 
+    const canTagLesson = (
+      selectedStudents.length === 1 &&
+      selectedLessonTag &&
+      selectedLessonTag.studentId === selectedStudents[0] &&
+      (isAdminRole(userRole) || selectedLessonTag.createdBy === currentUser?.uid)
+    );
+    const taggedLessonId = canTagLesson ? selectedLessonTag.id : null;
+
     try {
       setSaving(true);
       // Generate groupId for multi-student notes (matching lesson notes pattern)
@@ -653,6 +798,8 @@ function AddNoteModal({
         ? `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
         : undefined;
       
+      const newObservationIds = [];
+
       const promises = selectedStudents.map(async (stuId) => {
         // Get student data to find classroomId
         const studentDocRef = doc(db, 'students', stuId);
@@ -683,6 +830,7 @@ function AddNoteModal({
           
           // Group ID for multi-student notes
           ...(groupId ? { groupId } : {}),
+          ...(taggedLessonId ? { linkedLessonObservationId: taggedLessonId } : {}),
         };
 
         // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
@@ -722,9 +870,24 @@ function AddNoteModal({
         console.debug('[save] observation payload', cleanedObservationData);
 
         // Write to per-student subcollection
-        await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
+        const docRef = await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
+        newObservationIds.push({ studentId: stuId, observationId: docRef.id });
       });
       await Promise.all(promises);
+
+      // Backlink: add this observation to the lesson note's linkedObservations (single student only)
+      if (taggedLessonId && newObservationIds.length === 1) {
+        try {
+          const lessonRef = doc(db, 'students', selectedStudents[0], 'observations', taggedLessonId);
+          await updateDoc(lessonRef, {
+            linkedObservations: arrayUnion(newObservationIds[0].observationId)
+          });
+        } catch (err) {
+          console.error('Error adding backlink to lesson note', err);
+          notify.warning('Note saved, but could not update the linked lesson note.');
+        }
+      }
+
       // Success notification with quick navigation to the student's Notes page
       const firstStudentId = selectedStudents && selectedStudents.length > 0 ? selectedStudents[0] : null;
       notify.success('Note created successfully!', {
@@ -1018,7 +1181,7 @@ function AddNoteModal({
             <Box sx={{ flex: 1, minHeight: 300 }}>
               <ClassroomStudentPicker
                 selectedStudents={selectedStudents}
-                onStudentsChange={setSelectedStudents}
+                onStudentsChange={handleStudentsChange}
                 currentUser={currentUser}
                 userRole={userRole}
                 textData={textData}
@@ -1029,7 +1192,10 @@ function AddNoteModal({
             <Box
               sx={{
                 display: 'flex',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 1,
                 pt: 2,
                 borderTop: '1px solid #e2e8f0',
                 backgroundColor: 'white',
@@ -1037,19 +1203,151 @@ function AddNoteModal({
                 bottom: 0,
               }}
             >
-              <Button
-                variant="contained"
-                disabled={saving || selectedStudents.length === 0}
-                onClick={handleRecipientsNext}
-                sx={{ minWidth: 120 }}
-              >
-                {saving ? <CircularProgress size={24} /> : 'Save Note'}
-              </Button>
+              {selectedLessonTag && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>
+                    Tagged Lesson Note:
+                  </Typography>
+                  <Chip
+                    label={selectedLessonTag.lessonTitle}
+                    onDelete={handleClearLessonTag}
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleTagButtonClick}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Tag Lesson Note
+                </Button>
+                <Button
+                  variant="contained"
+                  disabled={saving || selectedStudents.length === 0}
+                  onClick={handleRecipientsNext}
+                  sx={{ minWidth: 120 }}
+                >
+                  {saving ? <CircularProgress size={24} /> : 'Save Note'}
+                </Button>
+              </Box>
             </Box>
           </Box>
         )}
 
       </Box>
+      {/* Tag lesson note dialog */}
+      <Dialog
+        open={tagDialogOpen}
+        onClose={() => setTagDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="h6">
+            {`Tag lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
+          </Typography>
+          <TextField
+            fullWidth
+            placeholder="Search lesson titles"
+            value={lessonSearch}
+            onChange={(e) => setLessonSearch(e.target.value)}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {lessonNotesLoading
+              ? 'Loading lesson notes...'
+              : `${lessonNotes.length} lesson note${lessonNotes.length === 1 ? '' : 's'} available`}
+          </Typography>
+          {lessonNotesError && (
+            <Alert severity="error" onClose={() => setLessonNotesError('')}>
+              {lessonNotesError}
+            </Alert>
+          )}
+          {lessonNotesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 280, overflowY: 'auto' }}>
+              {(() => {
+                const searchLower = lessonSearch.trim().toLowerCase();
+                const filtered = lessonNotes.filter((n) => {
+                  if (!searchLower) return true;
+                  const title = (n.lessonTitle || '').toLowerCase();
+                  return title.includes(searchLower);
+                });
+                const limited = filtered.slice(0, 3);
+                if (limited.length === 0) {
+                  return (
+                    <Typography variant="body2" color="text.secondary">
+                      No lesson notes found.
+                    </Typography>
+                  );
+                }
+                return limited.map((note) => {
+                  const canTag = isAdminRole(userRole) || (note.createdBy && currentUser?.uid === note.createdBy);
+                  const disabled = !canTag;
+                  const checked = selectedLessonTag?.id === note.id;
+                  return (
+                    <Box
+                      key={note.id}
+                      sx={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 2,
+                        p: 1.25,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        opacity: disabled ? 0.6 : 1,
+                        backgroundColor: disabled ? '#f8fafc' : 'white',
+                        cursor: disabled ? 'not-allowed' : 'pointer'
+                      }}
+                      onClick={() => {
+                        if (disabled) return;
+                        handleSelectLessonTag(note);
+                      }}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => {
+                          if (disabled) return;
+                          handleSelectLessonTag(note);
+                        }}
+                      />
+                      <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                        {note.lessonTitle || 'Lesson Note'}
+                      </Typography>
+                    </Box>
+                  );
+                });
+              })()}
+            </Box>
+          )}
+        </Box>
+      </Dialog>
+      {/* Multi-student warning when a tag exists */}
+      <Dialog
+        open={multiStudentWarningOpen}
+        onClose={handleCancelDropTag}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="h6">Remove lesson tag?</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Tagging is for a single student. Selecting another student will drop the tagged lesson note.
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button onClick={handleCancelDropTag}>Cancel</Button>
+            <Button variant="contained" color="primary" onClick={handleConfirmDropTag}>
+              Proceed
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
       {/* Exit confirmation dialog */}
       <Dialog
         open={confirmOpen}
