@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
-import { cleanUpText } from './textCleanup';
 import { db } from './firebase';
-import { trackEvent, lengthBucket } from './utils/analytics';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   Box,
@@ -19,8 +17,7 @@ import {
   Divider,
   Dialog,
   LinearProgress,
-  TextField,
-  Tooltip
+  TextField
 } from '@mui/material';
 import {
   Mic,
@@ -37,8 +34,7 @@ import {
   Delete,
   Edit,
   ArrowForward,
-  ArrowBack,
-  AutoFixHigh
+  ArrowBack
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
@@ -63,11 +59,6 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
   const [originalTranscription, setOriginalTranscription] = useState('');
-  
-  // AI polish state
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanedOnce, setCleanedOnce] = useState(false);
-  const [prevTranscription, setPrevTranscription] = useState('');
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -924,116 +915,33 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
                     startIcon={<Refresh />}
                     size="small"
                     sx={{
-                      borderColor: '#64748b',
-                      color: '#64748b',
+                      borderColor: '#cbd5e1',
+                      color: '#475569',
+                      backgroundColor: 'white',
                       textTransform: 'none',
                       '&:hover': {
-                        borderColor: '#475569',
-                        color: '#475569',
+                        borderColor: '#94a3b8',
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
                       }
                     }}
                   >
                     Record Again
                   </Button>
-                  <Tooltip title={cleanedOnce ? 'Already polished' : 'Polish with AI: grammar and structure — no length changes'}>
-                    <span>
-                      <Button
-                        variant="contained"
-                        onClick={async () => {
-                          if (!transcription || cleaning || cleanedOnce) return;
-                          try {
-                            // Count click attempt
-                            trackEvent('polish_click', {
-                              source: 'voice',
-                              component: 'VoiceRecorder',
-                              length_bucket: lengthBucket(transcription.length),
-                            });
-                            const t0 = performance.now();
-                            setCleaning(true);
-                            setPrevTranscription(transcription);
-                            const refined = await cleanUpText(transcription).catch(() => null);
-                            if (refined) {
-                              const out = String(refined).trim();
-                              setTranscription(out);
-                              setCleanedOnce(true);
-                            } else {
-                              // Keep original transcription unchanged
-                              setCleanedOnce(false);
-                            }
-                            const dt = Math.round(performance.now() - t0);
-                            trackEvent('polish_success', {
-                              source: 'voice',
-                              component: 'VoiceRecorder',
-                              length_bucket: lengthBucket(transcription.length),
-                              latency_ms: dt,
-                            });
-                          } catch (e) {
-                            console.error('Cleanup error:', e);
-                            trackEvent('polish_error', {
-                              source: 'voice',
-                              component: 'VoiceRecorder',
-                              length_bucket: lengthBucket(transcription.length),
-                              error: 'cleanup_failed',
-                            });
-                          } finally {
-                            setCleaning(false);
-                          }
-                        }}
-                        startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                        size="small"
-                        disabled={!transcription || cleaning || cleanedOnce}
-                        sx={{
-                          backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
-                          color: 'white',
-                          textTransform: 'none',
-                          boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
-                          '&:hover': {
-                            backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
-                            boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
-                          },
-                          '&.Mui-disabled': {
-                            backgroundImage: 'none',
-                            backgroundColor: '#e2e8f0',
-                            color: '#64748b',
-                            boxShadow: 'none'
-                          }
-                        }}
-                      >
-                        {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  {cleanedOnce && prevTranscription && (
-                    <Button
-                      variant="text"
-                      size="small"
-                      onClick={() => {
-                        setTranscription(prevTranscription);
-                        setPrevTranscription('');
-                        setCleanedOnce(false);
-                        trackEvent('polish_undo', {
-                          source: 'voice',
-                          component: 'VoiceRecorder',
-                          length_bucket: lengthBucket(prevTranscription.length),
-                        });
-                      }}
-                      sx={{ color: '#64748b' }}
-                    >
-                      Undo
-                    </Button>
-                  )}
-                  
                   <Button
-                    variant="contained"
+                    variant="outlined"
                     onClick={startEditing}
                     startIcon={<Edit />}
                     size="small"
                     sx={{
-                      backgroundColor: '#4f46e5',
-                      color: 'white',
+                      borderColor: '#cbd5e1',
+                      color: '#475569',
+                      backgroundColor: 'white',
                       textTransform: 'none',
                       '&:hover': {
-                        backgroundColor: '#4338ca',
+                        borderColor: '#94a3b8',
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
                       }
                     }}
                   >

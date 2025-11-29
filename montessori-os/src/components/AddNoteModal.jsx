@@ -34,7 +34,7 @@ import CoachNudge from '../coach/coach_nudge';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 // TextInput Component
-function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
+function TextInput({ onSave, onNext, onDirtyChange }) {
   const [text, setText] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
@@ -155,13 +155,6 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
       )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button 
-          variant="text" 
-          onClick={onBack}
-          sx={{ color: '#64748b' }}
-        >
-          Back
-        </Button>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Button
             variant="contained"
@@ -192,20 +185,20 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
               Undo
             </Button>
           )}
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={!text.trim()}
-            sx={{
-              backgroundColor: text.trim() ? '#4f46e5' : '#cbd5e1',
-              '&:hover': { 
-                backgroundColor: text.trim() ? '#4338ca' : '#cbd5e1'
-              }
-            }}
-          >
-            Next
-          </Button>
         </Box>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={!text.trim()}
+          sx={{
+            backgroundColor: text.trim() ? '#4f46e5' : '#cbd5e1',
+            '&:hover': { 
+              backgroundColor: text.trim() ? '#4338ca' : '#cbd5e1'
+            }
+          }}
+        >
+          Next
+        </Button>
       </Box>
     </Box>
   );
@@ -1006,10 +999,6 @@ function AddNoteModal({
             <TextInput 
               onSave={handleTextSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
-              onBack={() => {
-                // Back button always goes to previous step without confirmation
-                setStep(STEP_NOTE_TYPE);
-              }}
               onDirtyChange={setTextDirty}
             />
           </Box>
@@ -1037,24 +1026,17 @@ function AddNoteModal({
               />
             </Box>
             {/* Fixed bottom action bar */}
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              pt: 2,
-              borderTop: '1px solid #e2e8f0',
-              backgroundColor: 'white',
-              position: 'sticky',
-              bottom: 0,
-            }}>
-              <Button 
-                variant="text" 
-                onClick={() => {
-                  // Back from recipients: always confirm (final stage)
-                  return requestClose('backFromRecipients');
-                }}
-              >
-                Back
-              </Button>
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                pt: 2,
+                borderTop: '1px solid #e2e8f0',
+                backgroundColor: 'white',
+                position: 'sticky',
+                bottom: 0,
+              }}
+            >
               <Button
                 variant="contained"
                 disabled={saving || selectedStudents.length === 0}
