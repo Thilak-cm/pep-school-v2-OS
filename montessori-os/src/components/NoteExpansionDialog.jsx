@@ -27,7 +27,8 @@ import {
   Mic,
   Visibility,
   School,
-  MenuBook
+  MenuBook,
+  Link
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -535,20 +536,26 @@ function NoteExpansionDialog({
               </Box>
             )}
 
-            {!isLessonObservation && observation.linkedLessonObservationId && (
+            {!isLessonObservation && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <MenuBook sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Link sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
-                  Linked to lesson note
+                  Tagged Lesson Notes:
                 </Typography>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => handleOpenLinkedLesson(observation.linkedLessonObservationId)}
-                  sx={{ textTransform: 'none' }}
-                >
-                  Open lesson note
-                </Button>
+                {observation.linkedLessonObservationId ? (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => handleOpenLinkedLesson(observation.linkedLessonObservationId)}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    {observation.linkedLessonTitle || observation.lessonTitle || 'Lesson note'}
+                  </Button>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    None
+                  </Typography>
+                )}
               </Box>
             )}
 

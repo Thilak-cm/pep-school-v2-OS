@@ -770,22 +770,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                   <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                     {obs.text || '(transcribing…)'}
                                   </Typography>
-                                  {obs.linkedLessonObservationId && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1 }}>
-                                      <Chip label="Linked lesson" size="small" color="primary" variant="outlined" />
-                                      <Button
-                                        size="small"
-                                        variant="text"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openLinkedLesson(obs.linkedLessonObservationId);
-                                        }}
-                                        sx={{ textTransform: 'none' }}
-                                      >
-                                        Open lesson note
-                                      </Button>
-                                    </Box>
-                                  )}
                                 </>
                               )}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
