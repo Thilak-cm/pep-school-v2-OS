@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { Home, Settings } from '@mui/icons-material';
+import { Home, Settings, Notifications } from '@mui/icons-material';
 
 const FOOTER_HEIGHT = 64;
 
-function AppFooter({ onHome, onNavigate, active = 'home' }) {
-  const [value, setValue] = useState(active || 'home');
+function AppFooter({ onHome, onNavigate, active = null }) {
+  const [value, setValue] = useState(active || 'none');
 
   useEffect(() => {
-    if (active) setValue(active);
+    setValue(active || 'none');
   }, [active]);
 
   const handleAction = (target) => {
@@ -16,12 +16,16 @@ function AppFooter({ onHome, onNavigate, active = 'home' }) {
       onHome();
     } else if (target === 'settings' && onNavigate) {
       onNavigate('settings');
+    } else if (target === 'notifications' && onNavigate) {
+      onNavigate('notifications');
     }
   };
 
   const handleChange = (_, newValue) => {
     setValue(newValue);
-    handleAction(newValue);
+    if (newValue !== 'none') {
+      handleAction(newValue);
+    }
   };
 
   const handleClickSelected = (target) => {
@@ -85,16 +89,22 @@ function AppFooter({ onHome, onNavigate, active = 'home' }) {
           }}
         >
           <BottomNavigationAction
-            label="Home"
-            value="home"
-            icon={<Home />}
-            onClick={() => handleClickSelected('home')}
-          />
-          <BottomNavigationAction
             label="Settings"
             value="settings"
             icon={<Settings />}
             onClick={() => handleClickSelected('settings')}
+          />
+          <BottomNavigationAction
+            label="Notifications"
+            value="notifications"
+            icon={<Notifications />}
+            onClick={() => handleClickSelected('notifications')}
+          />
+          <BottomNavigationAction
+            label="Home"
+            value="home"
+            icon={<Home />}
+            onClick={() => handleClickSelected('home')}
           />
         </BottomNavigation>
       </Box>

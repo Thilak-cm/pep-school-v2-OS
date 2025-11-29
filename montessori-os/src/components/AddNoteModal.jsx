@@ -229,6 +229,7 @@ function AddNoteModal({
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const isAdminUser = isAdminRole(userRole);
 
   // Coach UI state (Duration-only MVP)
   const [coachOpen, setCoachOpen] = useState(false);
@@ -644,6 +645,7 @@ function AddNoteModal({
   };
 
   const handleTagButtonClick = () => {
+    if (!isAdminUser) return;
     if (!selectedStudents || selectedStudents.length === 0) {
       notify.info('Select a student first to tag a lesson note.');
       return;
@@ -787,7 +789,7 @@ function AddNoteModal({
       selectedStudents.length === 1 &&
       selectedLessonTag &&
       selectedLessonTag.studentId === selectedStudents[0] &&
-      (isAdminRole(userRole) || selectedLessonTag.createdBy === currentUser?.uid)
+      (isAdminUser || selectedLessonTag.createdBy === currentUser?.uid)
     );
     const taggedLessonId = canTagLesson ? selectedLessonTag.id : null;
 
@@ -1217,13 +1219,15 @@ function AddNoteModal({
                 </Box>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  onClick={handleTagButtonClick}
-                  sx={{ textTransform: 'none' }}
-                >
-                  Tag Lesson Note
-                </Button>
+                {isAdminUser && (
+                  <Button
+                    variant="outlined"
+                    onClick={handleTagButtonClick}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Tag Lesson Note
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   disabled={saving || selectedStudents.length === 0}

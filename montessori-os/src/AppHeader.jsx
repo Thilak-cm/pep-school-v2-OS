@@ -6,8 +6,7 @@ import {
   Container
 } from "@mui/material";
 import { 
-  ArrowBack,
-  Notifications
+  ArrowBack
 } from "@mui/icons-material";
 
 function AppHeader({ title = '', onBack, showBackButton = false }) {
@@ -38,7 +37,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
         <Container maxWidth={false} sx={{ maxWidth: '100%' }}>
           <Box sx={{ 
             display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
+            gridTemplateColumns: 'auto 1fr auto',
             alignItems: 'center',
             minHeight: 64, // Standard toolbar height
             px: 2,
@@ -55,22 +54,11 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
                     }
                   }}
                   aria-label="Go back"
-                >
-                  <ArrowBack />
-                </IconButton>
-              )}
-              <IconButton
-                sx={{
-                  color: '#64748b',
-                  '&:hover': {
-                    backgroundColor: 'rgba(100, 116, 139, 0.08)'
-                  }
-                }}
-                aria-label="Notifications"
               >
-                <Notifications />
+                <ArrowBack />
               </IconButton>
-            </Box>
+            )}
+          </Box>
 
             <Typography
               variant="h6"
