@@ -112,24 +112,10 @@ function TextInput({ onSave, onNext, onBack, onDirtyChange }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Header row: back button on the left, title centered */}
-      <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-        <IconButton
-          aria-label="Go back"
-          onClick={onBack}
-          sx={{
-            position: 'absolute',
-            left: -8,
-            color: '#64748b',
-            '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
-          }}
-        >
-          <ArrowBack />
-        </IconButton>
-        <Typography variant="h6" sx={{ textAlign: 'center' }}>
-          Write your observation
-        </Typography>
-      </Box>
+      {/* Title centered */}
+      <Typography variant="h6" sx={{ textAlign: 'center', mb: 1 }}>
+        Write your observation
+      </Typography>
       
       <Box sx={{ position: 'relative' }}>
         <TextField
@@ -813,36 +799,76 @@ function AddNoteModal({
         }
       }}
       >
-        {/* Top actions */}
+        {/* Header with back button and close button */}
         <Box
           sx={{
-            flex: 1,
-          overflow: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative'
-        }}
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            px: 1,
+            py: 0.5,
+            minHeight: 40,
+            position: 'relative',
+            flexShrink: 0
+          }}
         >
+          {step !== STEP_NOTE_TYPE && (
+            <IconButton
+              aria-label="Go back"
+              onClick={() => {
+                if (step === STEP_TEXT_INPUT) {
+                  setStep(STEP_NOTE_TYPE);
+                } else if (step === STEP_RECORD) {
+                  setStep(STEP_NOTE_TYPE);
+                } else if (step === STEP_RECIPIENTS) {
+                  // Go back to previous step based on how we got here
+                  if (textData) {
+                    setStep(STEP_TEXT_INPUT);
+                  } else if (transcriptionData) {
+                    setStep(STEP_RECORD);
+                  } else {
+                    setStep(STEP_NOTE_TYPE);
+                  }
+                }
+              }}
+              sx={{
+                color: '#64748b',
+                '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
+              }}
+              size="small"
+            >
+              <ArrowBack />
+            </IconButton>
+          )}
+          {step === STEP_NOTE_TYPE && <Box />}
           <IconButton
             aria-label="Close"
             onClick={() => requestClose('closeButton')}
             sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
               color: '#1e293b',
-              '&:hover': { backgroundColor: '#f1f5f9' },
-              zIndex: 2
+              '&:hover': { backgroundColor: '#f1f5f9' }
             }}
+            size="small"
           >
-            <Close sx={{ fontSize: 28 }} />
+            <Close />
           </IconButton>
+        </Box>
+        {/* Content area */}
+        <Box
+          sx={{
+            flex: 1,
+            overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative'
+          }}
+        >
         {step === STEP_NOTE_TYPE && (
           <Box
             sx={{
               position: 'relative',
               p: 3,
-              pt: 2,
+              pt: 1,
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
@@ -964,29 +990,24 @@ function AddNoteModal({
         )}
 
         {step === STEP_RECORD && (
-          <Box sx={{ p: 3, flex: 1 }}>
+          <Box sx={{ p: 3, pt: 1, flex: 1 }}>
             <VoiceRecorder 
               onSave={handleVoiceSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
-              onBack={() => {
-                // Back from voice: confirm if any recording progress exists
-                if (voiceDirty) return requestClose('backFromVoice');
-                setStep(STEP_NOTE_TYPE);
-              }}
               onDirtyChange={setVoiceDirty}
               exposeControls={(controls) => { voiceControlsRef.current = controls; }}
+              variant="cardless"
             />
           </Box>
         )}
 
         {step === STEP_TEXT_INPUT && (
-          <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ p: 3, pt: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
             <TextInput 
               onSave={handleTextSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
               onBack={() => {
-                // Back from text: confirm if any input exists (even whitespace)
-                if (textDirty) return requestClose('backFromText');
+                // Back button always goes to previous step without confirmation
                 setStep(STEP_NOTE_TYPE);
               }}
               onDirtyChange={setTextDirty}
@@ -997,6 +1018,7 @@ function AddNoteModal({
         {step === STEP_RECIPIENTS && (
           <Box sx={{ 
             p: 3, 
+            pt: 1,
             flex: 1, 
             display: 'flex', 
             flexDirection: 'column', 

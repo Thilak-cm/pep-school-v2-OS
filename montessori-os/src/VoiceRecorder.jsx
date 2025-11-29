@@ -44,7 +44,7 @@ import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 // MenuItem no longer needed (language selection removed)
 
-const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }) => {
+const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, variant = 'card' }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -414,11 +414,12 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls }
       sx={{
         maxWidth: '100%',
         width: '100%',
-        borderRadius: '16px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e2e8f0',
+        borderRadius: variant === 'card' ? '16px' : 0,
+        boxShadow: variant === 'card' ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',
+        border: variant === 'card' ? '1px solid #e2e8f0' : 'none',
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
+        backgroundColor: 'transparent',
       }}
     >
       {/* Top-left back button within the recorder card */}
