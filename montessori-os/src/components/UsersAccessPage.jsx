@@ -80,7 +80,7 @@ const PROGRAM_OPTIONS = [
 // COMPONENT
 // ============================================================================
 
-const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, onViewChange, onNavigateGraduate }) => {
+const UsersAccessPage = ({ onBack, currentUser, userRole, manageablePrograms = [], view: externalView, onViewChange, onNavigateGraduate }) => {
   const notify = useNotify();
 
   // Page IA: cards home, add users, manage users
@@ -155,9 +155,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       setUserLoading(false);
       return;
     }
+    if (isProgramAdminUser && manageablePrograms.length === 0) {
+      setError('Program access is missing. Please ask a super admin to add manageable programs to your account.');
+      setUserLoading(false);
+      return;
+    }
     setUserLoading(false);
     fetchClassrooms();
-  }, [hasUserManagementAccess]);
+  }, [hasUserManagementAccess, isProgramAdminUser, manageablePrograms]);
 
   useEffect(() => {
     if (!canManageAdmins && (manageTab === 'admins' || manageTab === 'superadmins')) {
@@ -195,7 +200,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const fetchClassrooms = async () => {
     try {
       setLoading(true);
-      const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+      const constraints = [where('status', '==', 'active')];
+      if (isProgramAdminUser) {
+        constraints.push(where('programId', 'in', manageablePrograms));
+      }
+      const snap = await getDocs(query(collection(db, 'classrooms'), ...constraints));
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
       list.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
       setClassrooms(list.map(c => ({ 

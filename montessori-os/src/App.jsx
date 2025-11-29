@@ -48,6 +48,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
+  const [manageablePrograms, setManageablePrograms] = useState([]); // programIds scoped for program admins
   const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
@@ -231,7 +232,18 @@ function App() {
           setScreen('accessDenied');
           return;
         }
+        const userManageablePrograms = Array.isArray(userDoc.manageablePrograms) ? userDoc.manageablePrograms.filter(Boolean) : [];
+        // Program admins must have manageablePrograms; surface hard failure if missing to avoid silent permission errors
+        if (userDoc.role === 'admin' && userManageablePrograms.length === 0) {
+          console.error('Program admin missing manageablePrograms');
+          await logUnauthorized('missing_manageablePrograms');
+          alert('Your program access is not configured. Please ask a super admin to add manageable programs to your account.');
+          setUnauthorized(true);
+          setScreen('accessDenied');
+          return;
+        }
         setRole(userDoc.role);
+        setManageablePrograms(userManageablePrograms);
         // Persist role as a user property for analytics breakdowns
         setUserProperty('role', userDoc.role);
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
@@ -251,6 +263,8 @@ function App() {
     try {
       // Clear analytics user_id to avoid linking anonymous sessions
       setAnalyticsUserId(null);
+      setRole(null);
+      setManageablePrograms([]);
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -596,33 +610,35 @@ function App() {
 
                   {screen === 'classroomList' && (
                     <>
-                      <ClassroomList
-                        onSelectClassroom={(cls) => {
-                          setSelectedClassroom(cls);
-                          setScreen('classroomTimeline');
-                        }}
-                        currentUser={user}
-                        userRole={role}
-                        onNavigateToStudent={(student) => {
-                          setSelectedStudent(student);
-                          setStudentDashboardReturnScreen('classroomList');
-                          setScreen('studentDashboard');
-                        }}
-                      />
+                  <ClassroomList
+                    onSelectClassroom={(cls) => {
+                      setSelectedClassroom(cls);
+                      setScreen('classroomTimeline');
+                    }}
+                    currentUser={user}
+                    userRole={role}
+                    manageablePrograms={manageablePrograms}
+                    onNavigateToStudent={(student) => {
+                      setSelectedStudent(student);
+                      setStudentDashboardReturnScreen('classroomList');
+                      setScreen('studentDashboard');
+                    }}
+                  />
                     </>
                   )}
 
                   {screen === 'classroomTimeline' && (
-                    <ClassroomTimeline
-                      classroom={selectedClassroom}
-                      currentUser={user}
-                      userRole={role}
-                      onNavigateToStudent={(student) => {
-                        setSelectedStudent(student);
-                        setStudentDashboardReturnScreen('classroomTimeline');
-                        setScreen('studentDashboard');
-                      }}
-                    />
+                  <ClassroomTimeline
+                    classroom={selectedClassroom}
+                    currentUser={user}
+                    userRole={role}
+                    manageablePrograms={manageablePrograms}
+                    onNavigateToStudent={(student) => {
+                      setSelectedStudent(student);
+                      setStudentDashboardReturnScreen('classroomTimeline');
+                      setScreen('studentDashboard');
+                    }}
+                  />
                   )}
 
                   {screen === 'studentList' && (
@@ -707,10 +723,11 @@ function App() {
                   )}
 
                   {screen === 'stats' && (
-                    <StatsPage
-                      user={user}
-                      role={role}
-                    />
+                  <StatsPage
+                    user={user}
+                    role={role}
+                    manageablePrograms={manageablePrograms}
+                  />
                   )}
 
                   {screen === 'graduateStudents' && (
@@ -733,13 +750,14 @@ function App() {
                   )}
 
                   {screen === 'addUser' && (
-                    <UsersAccessPage
-                      currentUser={user}
-                      userRole={role}
-                      view={usersAccessView}
-                      onViewChange={setUsersAccessView}
-                      onNavigateGraduate={() => setScreen('graduateStudents')}
-                    />
+                  <UsersAccessPage
+                    currentUser={user}
+                    userRole={role}
+                    manageablePrograms={manageablePrograms}
+                    view={usersAccessView}
+                    onViewChange={setUsersAccessView}
+                    onNavigateGraduate={() => setScreen('graduateStudents')}
+                  />
                   )}
 
                   {screen === 'classroomNotesReview' && (

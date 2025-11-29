@@ -87,7 +87,15 @@ service cloud.firestore {
       // Allow reading individual classroom documents
       allow read: if isPrivilegedAdmin() || isTeacher();
       // Only admins can modify
-      allow create, update, delete: if isSuperAdmin();
+      allow create, delete: if isSuperAdmin();
+      allow update: if
+        isSuperAdmin() || (
+          isProgramAdmin() &&
+          managesProgram(classroomProgramId(classroomId)) &&
+          request.resource.data.programId == resource.data.programId &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['teacherIds', 'updatedAt']) &&
+          (request.resource.data.teacherIds is list)
+        );
     }
 
     // Classrooms collection queries allowed via read above (no extra collection-level match needed)
@@ -210,8 +218,14 @@ service cloud.firestore {
       // Allow reading observations for both admins and teachers
       function adminCanQueryObservation() {
         return isSuperAdmin() || (
-          ('classroomId' in resource.data) &&
-          managesProgram(classroomProgramId(resource.data.classroomId))
+          (
+            ('classroomId' in resource.data) &&
+            managesProgram(classroomProgramId(resource.data.classroomId))
+          ) ||
+          (
+            ('studentId' in resource.data) &&
+            managesProgram(studentProgramId(resource.data.studentId))
+          )
         );
       }
 
