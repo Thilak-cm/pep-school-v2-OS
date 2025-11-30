@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.6.1 — 2025-12-06
+
+### Added
+- Text note mentions: type `@` to search students (scoped by role) and drop their full name inline, then auto-select those students on the recipients step with deduping.
+- Inline mention UX keeps cursor after the inserted name and preserves existing text, making multi-student tagging a quick shortcut.
+
 ## 5.5.0 — 2025-12-02
 
 ### Changed
