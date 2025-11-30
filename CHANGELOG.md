@@ -1,6 +1,29 @@
 # Changelog
 
-# Changelog
+## 5.5.0 — 2025-12-02
+
+### Changed
+- Scoped program admins to their `manageablePrograms` across ClassroomList, ClassroomTimeline, Users & Access, and Stats; surfaced hard errors when scopes are missing.
+- Updated Firestore rules to let program admins manage `teacherIds` on classrooms they own and to authorize observation reads by `studentId` or `classroomId`.
+- Stats now batches observation reads by student for program admins and filters classrooms/teachers/students to allowed programs.
+- Recharts containers now guard on mount and enforce minimum sizing to eliminate zero-dimension warnings.
+- Notification stack now renders in a portal with fixed positioning below the app header and a raised z-index, ensuring toasts stay visible above dialogs/popups and while scrolled.
+
+### Fixed
+- Program admins hitting `permission-denied` on observations and stats due to missing `studentId` authorization in collection-group rules.
+- Runtime crash from uninitialized program scope in ClassroomTimeline.
+- MUI Grid v2 warnings by replacing deprecated Grid usage in StatsPage.
+
+### Added
+- Lesson note tagging for text/voice notes with single-student guard, dialog search, and linked lesson metadata in timelines and detail views.
+
+### Improved
+- Tagging UX: checkbox selection, tagged lesson chip with label, search results capped and scrollable, and inline counts of available lesson notes.
+- Notifications now remind users to select a student before tagging; tag button stays enabled to surface guidance instead of greying out.
+- Observation detail dialog shows linked lesson title as a clickable link with a link icon.
+
+### Technical
+- Added forward/backlink persistence between observations and lesson notes plus Firestore rule allowance for updating `linkedObservations`.
 
 ## 5.4.1 — 2025-11-22
 

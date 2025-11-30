@@ -26,7 +26,9 @@ import {
   Close, 
   Mic,
   Visibility,
-  School
+  School,
+  MenuBook,
+  Link
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -78,6 +80,8 @@ function NoteExpansionDialog({
   const [reassigning, setReassigning] = useState(false);
   const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
   const [reassignToStudentName, setReassignToStudentName] = useState('');
+  const [linkedLessonTitle, setLinkedLessonTitle] = useState(null);
+  const [linkedLessonLoading, setLinkedLessonLoading] = useState(false);
   
   // Previous classroom info (when note was logged from a different classroom)
   const [previousClassroomName, setPreviousClassroomName] = useState(null);
@@ -213,6 +217,43 @@ function NoteExpansionDialog({
     checkPreviousClassroom();
   }, [observation, student, open]);
 
+  // Fetch the title of the linked lesson note if it's not already present on the observation
+  React.useEffect(() => {
+    let isActive = true;
+    const loadLinkedLessonTitle = async () => {
+      if (!open || !observation?.linkedLessonObservationId) {
+        setLinkedLessonTitle(null);
+        setLinkedLessonLoading(false);
+        return;
+      }
+      const parentId = observation.parentStudentId || observation.studentId;
+      if (!parentId) {
+        setLinkedLessonTitle(null);
+        setLinkedLessonLoading(false);
+        return;
+      }
+      setLinkedLessonLoading(true);
+      try {
+        const linkedRef = doc(db, 'students', parentId, 'observations', observation.linkedLessonObservationId);
+        const snap = await getDoc(linkedRef);
+        if (!isActive) return;
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          const title = data.lessonTitle || data.title || data.lessonName || data.text || data.name;
+          setLinkedLessonTitle(title || 'Untitled lesson');
+        } else {
+          setLinkedLessonTitle('Untitled lesson');
+        }
+      } catch (error) {
+        console.error('Error loading linked lesson title:', error);
+        if (isActive) setLinkedLessonTitle('Untitled lesson');
+      }
+      if (isActive) setLinkedLessonLoading(false);
+    };
+    loadLinkedLessonTitle();
+    return () => { isActive = false; };
+  }, [observation?.linkedLessonObservationId, observation?.studentId, observation?.parentStudentId, open]);
+
   const handleCloseDialog = () => {
     onClose();
     setEditing(false);
@@ -262,6 +303,16 @@ function NoteExpansionDialog({
       setEditText(observation.text || '');
       setEditing(true);
     }
+  };
+
+  const handleOpenLinkedLesson = (lessonObservationId) => {
+    if (!lessonObservationId || !student) return;
+    try {
+      window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+        detail: { studentId: student.id, noteTypeFilter: 'lesson', noteId: lessonObservationId }
+      }));
+      onClose?.();
+    } catch (_) { /* no-op */ }
   };
 
   const handleEditSave = async () => {
@@ -520,6 +571,43 @@ function NoteExpansionDialog({
                 <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Duration: ${observation.duration || 0} seconds`}
+                </Typography>
+              </Box>
+            )}
+
+            {!isLessonObservation && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Link sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Tagged Lesson Notes:
+                </Typography>
+                {observation.linkedLessonObservationId ? (
+                  // Show the tagged lesson's title; avoid generic fallback text
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => handleOpenLinkedLesson(observation.linkedLessonObservationId)}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    {linkedLessonLoading ? (
+                      <CircularProgress size={12} thickness={5} />
+                    ) : (
+                      linkedLessonTitle ?? observation.linkedLessonTitle ?? 'Untitled lesson'
+                    )}
+                  </Button>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    None
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {isLessonObservation && Array.isArray(observation.linkedObservations) && observation.linkedObservations.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <MenuBook sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  {`Tagged observations: ${observation.linkedObservations.length}`}
                 </Typography>
               </Box>
             )}

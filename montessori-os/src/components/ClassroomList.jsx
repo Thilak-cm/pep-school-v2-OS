@@ -24,8 +24,12 @@ import { fuzzySearchClassrooms, fuzzySearchStudents } from '../utils/fuzzySearch
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const buildCacheKey = (uid, role) =>
-  `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}`;
+const buildCacheKey = (uid, role, manageablePrograms = []) => {
+  const programKey = Array.isArray(manageablePrograms) && manageablePrograms.length
+    ? manageablePrograms.slice().sort().join('|')
+    : 'all-programs';
+  return `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}:${programKey}`;
+};
 
 const readCachedClassrooms = (key) => {
   if (typeof window === 'undefined' || !window?.localStorage) return null;
@@ -59,7 +63,7 @@ const writeCachedClassrooms = (key, payload) => {
   }
 };
 
-function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToStudent }) {
+function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePrograms = [], onNavigateToStudent }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
@@ -70,10 +74,12 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
   const [displayedStudentsCount, setDisplayedStudentsCount] = useState(10); // Show first 10, then 10 more on each expansion
+  const isProgramAdmin = userRole === 'admin';
+  const isSuperAdmin = userRole === 'superadmin';
 
   useEffect(() => {
     let isMounted = true;
-    const cacheKey = buildCacheKey(currentUser?.uid, userRole);
+    const cacheKey = buildCacheKey(currentUser?.uid, userRole, manageablePrograms);
     const cached = readCachedClassrooms(cacheKey);
 
     if (cached) {
@@ -126,10 +132,18 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
             return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
           });
         } else {
-          // For admins: get all classrooms
-          const q = query(collection(db, 'classrooms'), where('status', '==', 'active'));
-          const qSnap = await getDocs(q);
-          classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          // For admins: scope by manageablePrograms for program admins
+          if (isProgramAdmin && manageablePrograms.length === 0) {
+            classroomsToShow = [];
+          } else {
+            const constraints = [where('status', '==', 'active')];
+            if (isProgramAdmin) {
+              constraints.push(where('programId', 'in', manageablePrograms));
+            }
+            const q = query(collection(db, 'classrooms'), ...constraints);
+            const qSnap = await getDocs(q);
+            classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          }
         }
 
         // Exclude any classrooms labeled as "Adolescent" by name (case-insensitive)
@@ -170,7 +184,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.uid, userRole]);
+  }, [currentUser?.uid, userRole, manageablePrograms]);
 
   // Fetch all students when Students tab is active
   useEffect(() => {
@@ -224,13 +238,31 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
             });
           }
         } else {
-          // For admins: get all students
-          const studentsQuery = query(collection(db, 'students'));
-          const studentsSnap = await getDocs(studentsQuery);
-          studentsSnap.docs.forEach(doc => {
-            studentsToShow.push({ id: doc.id, ...doc.data() });
-            if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
-          });
+          if (isProgramAdmin) {
+            const allowedClassroomIds = classrooms.map(c => c.id);
+            if (allowedClassroomIds.length === 0) {
+              studentsToShow = [];
+            } else {
+              const batchSize = 10;
+              for (let i = 0; i < allowedClassroomIds.length; i += batchSize) {
+                const batch = allowedClassroomIds.slice(i, i + batchSize);
+                const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
+                const studentsSnap = await getDocs(studentsQuery);
+                studentsSnap.docs.forEach(doc => {
+                  studentsToShow.push({ id: doc.id, ...doc.data() });
+                  if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
+                });
+              }
+            }
+          } else {
+            // For super admins: get all students
+            const studentsQuery = query(collection(db, 'students'));
+            const studentsSnap = await getDocs(studentsQuery);
+            studentsSnap.docs.forEach(doc => {
+              studentsToShow.push({ id: doc.id, ...doc.data() });
+              if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
+            });
+          }
         }
 
         // Fetch classroom names for display
@@ -268,7 +300,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, onNavigateToS
     return () => {
       isMounted = false;
     };
-  }, [activeTab, classrooms, userRole]);
+  }, [activeTab, classrooms, userRole, manageablePrograms]);
 
   // Use fuzzy search for better matching
   const visibleClassrooms = fuzzySearchClassrooms(classrooms, activeTab === 0 ? searchQuery : '');

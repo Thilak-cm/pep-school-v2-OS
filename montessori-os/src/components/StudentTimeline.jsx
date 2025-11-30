@@ -189,6 +189,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   const combinedFiltersActive = hasActiveFilters || !!noteTypeFilter;
 
+  const openLinkedLesson = (lessonObservationId) => {
+    if (!lessonObservationId || !student) return;
+    try {
+      window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+        detail: { studentId: student.id, noteTypeFilter: 'lesson', noteId: lessonObservationId }
+      }));
+    } catch (_) { /* no-op */ }
+  };
+
   useEffect(() => {
     if (!student) return;
     
@@ -757,9 +766,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               {isLesson ? (
                                 renderLessonContent(obs)
                               ) : (
-                                <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                  {obs.text || '(transcribing…)'}
-                                </Typography>
+                                <>
+                                  <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    {obs.text || '(transcribing…)'}
+                                  </Typography>
+                                </>
                               )}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                                 <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />

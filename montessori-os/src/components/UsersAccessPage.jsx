@@ -48,6 +48,9 @@ const getFullName = (user) => {
   return [user.firstName, user.lastName].filter(Boolean).join(' ') || formatDisplayName(user);
 };
 
+// Mirror server-side email sanitization for pending doc IDs
+const sanitizeEmailForDocId = (email) => String(email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -80,7 +83,7 @@ const PROGRAM_OPTIONS = [
 // COMPONENT
 // ============================================================================
 
-const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, onViewChange, onNavigateGraduate }) => {
+const UsersAccessPage = ({ onBack, currentUser, userRole, manageablePrograms = [], view: externalView, onViewChange, onNavigateGraduate }) => {
   const notify = useNotify();
 
   // Page IA: cards home, add users, manage users
@@ -155,9 +158,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
       setUserLoading(false);
       return;
     }
+    if (isProgramAdminUser && manageablePrograms.length === 0) {
+      setError('Program access is missing. Please ask a super admin to add manageable programs to your account.');
+      setUserLoading(false);
+      return;
+    }
     setUserLoading(false);
     fetchClassrooms();
-  }, [hasUserManagementAccess]);
+  }, [hasUserManagementAccess, isProgramAdminUser, manageablePrograms]);
 
   useEffect(() => {
     if (!canManageAdmins && (manageTab === 'admins' || manageTab === 'superadmins')) {
@@ -195,7 +203,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
   const fetchClassrooms = async () => {
     try {
       setLoading(true);
-      const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+      const constraints = [where('status', '==', 'active')];
+      if (isProgramAdminUser) {
+        constraints.push(where('programId', 'in', manageablePrograms));
+      }
+      const snap = await getDocs(query(collection(db, 'classrooms'), ...constraints));
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
       list.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
       setClassrooms(list.map(c => ({ 
@@ -714,16 +726,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, view: externalView, on
           setSuccess(true);
           try {
             if (role === 'teacher') await fetchTeachers();
+            if (role === 'teacher') await fetchClassrooms();
             if (role === 'admin') await fetchAdmins();
           } catch {}
         }
       );
     } else if (data.ok) {
       notify.success('User created');
+      if (role === 'teacher' && selectedClassrooms.length > 0) {
+        const pendingId = data.pendingId || `pending_${sanitizeEmailForDocId(userForm.email)}`;
+        setClassrooms(updateClassroomsState(selectedClassrooms, [], pendingId));
+      }
       resetUserForm();
       setSuccess(true);
       try {
         if (role === 'teacher') await fetchTeachers();
+        if (role === 'teacher') await fetchClassrooms();
         if (role === 'admin') await fetchAdmins();
       } catch {}
     } else {

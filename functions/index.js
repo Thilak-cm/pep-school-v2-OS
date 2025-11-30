@@ -155,6 +155,9 @@ export const createAuthUserAndProfile = functions
       status = "active",
       manageablePrograms = [],
     } = data || {};
+    const uniqueSelectedClassrooms = Array.isArray(selectedClassrooms)
+      ? Array.from(new Set(selectedClassrooms.filter(Boolean)))
+      : [];
 
     if (!email || !firstName) {
       throw new functions.https.HttpsError("invalid-argument", "email and firstName are required");
@@ -229,12 +232,31 @@ export const createAuthUserAndProfile = functions
           }
           updateData.manageablePrograms = normalizedManageablePrograms;
         }
+        if (!isMigrated && existingData.role === "teacher" && uniqueSelectedClassrooms.length > 0) {
+          updateData.selectedClassrooms = uniqueSelectedClassrooms;
+        }
         
         await db.collection("users").doc(existingDocId).set(updateData, { merge: true });
 
         // Assign teacher to classrooms (non-destructive) - only if migrated user
-        if (isMigrated && existingData.role === "teacher" && Array.isArray(selectedClassrooms) && selectedClassrooms.length > 0) {
-          for (const classroomId of selectedClassrooms) {
+        if (isMigrated && existingData.role === "teacher" && uniqueSelectedClassrooms.length > 0) {
+          for (const classroomId of uniqueSelectedClassrooms) {
+            const cRef = db.collection("classrooms").doc(classroomId);
+            await db.runTransaction(async (tx) => {
+              const cSnap = await tx.get(cRef);
+              if (!cSnap.exists) return;
+              const teacherIds = Array.isArray(cSnap.data().teacherIds) ? cSnap.data().teacherIds : [];
+              if (!teacherIds.includes(existingDocId)) {
+                tx.update(cRef, {
+                  teacherIds: [...teacherIds, existingDocId],
+                  updatedAt: new Date(),
+                });
+              }
+            });
+          }
+        } else if (!isMigrated && existingData.role === "teacher" && uniqueSelectedClassrooms.length > 0) {
+          // Keep pending teachers reflected on classroom docs so assignments show up pre-migration
+          for (const classroomId of uniqueSelectedClassrooms) {
             const cRef = db.collection("classrooms").doc(classroomId);
             await db.runTransaction(async (tx) => {
               const cSnap = await tx.get(cRef);
@@ -268,11 +290,36 @@ export const createAuthUserAndProfile = functions
       if (normalizedRole === "admin") {
         newUserData.manageablePrograms = normalizedManageablePrograms;
       }
-      if (normalizedRole === "teacher" && Array.isArray(selectedClassrooms) && selectedClassrooms.length > 0) {
-        newUserData.selectedClassrooms = selectedClassrooms; // Store for migration
+      if (normalizedRole === "teacher" && uniqueSelectedClassrooms.length > 0) {
+        newUserData.selectedClassrooms = uniqueSelectedClassrooms; // Store for migration
       }
       
       await db.collection("users").doc(pendingDocId).set(newUserData, { merge: true });
+
+      // Assign the pending teacher to classrooms immediately so UI reflects the selection
+      if (normalizedRole === "teacher" && uniqueSelectedClassrooms.length > 0) {
+        for (const classroomId of uniqueSelectedClassrooms) {
+          try {
+            const classroomRef = db.collection("classrooms").doc(classroomId);
+            await db.runTransaction(async (tx) => {
+              const classroomSnap = await tx.get(classroomRef);
+              if (!classroomSnap.exists) return;
+
+              const classroomData = classroomSnap.data();
+              const teacherIds = Array.isArray(classroomData.teacherIds) ? classroomData.teacherIds : [];
+
+              if (!teacherIds.includes(pendingDocId)) {
+                tx.update(classroomRef, {
+                  teacherIds: [...teacherIds, pendingDocId],
+                  updatedAt: new Date(),
+                });
+              }
+            });
+          } catch (classroomErr) {
+            console.error(`[createAuthUserAndProfile] Failed to assign classroom ${classroomId} for pending user:`, classroomErr);
+          }
+        }
+      }
 
       return { ok: true, pendingId: pendingDocId, created: true, role: newUserData.role };
     } catch (err) {
@@ -483,7 +530,6 @@ export const migratePendingUser = functions
       const oldDoc = emailQuery.docs[0];
       const oldDocData = oldDoc.data();
       const oldDocId = oldDoc.id;
-      const isPending = oldDocData.isPending === true || oldDocId.startsWith("pending_");
       
       // Skip if the doc is already at the correct UID (shouldn't happen, but be safe)
       if (oldDocId === userUid) {
@@ -504,33 +550,52 @@ export const migratePendingUser = functions
 
       // Handle classroom assignments for teachers (if stored in selectedClassrooms)
       const selectedClassrooms = Array.isArray(migratedData.selectedClassrooms) 
-        ? migratedData.selectedClassrooms 
+        ? Array.from(new Set(migratedData.selectedClassrooms.filter(Boolean)))
         : [];
       
-      if (migratedData.role === "teacher" && selectedClassrooms.length > 0) {
+      if (migratedData.role === "teacher") {
         delete migratedData.selectedClassrooms; // Remove temp field
 
-        // Assign teacher to classrooms using transaction
-        for (const classroomId of selectedClassrooms) {
-          try {
-            const classroomRef = db.collection("classrooms").doc(classroomId);
-            await db.runTransaction(async (tx) => {
-              const classroomSnap = await tx.get(classroomRef);
-              if (!classroomSnap.exists) return;
+        const swapTeacherIds = async (classroomId) => {
+          const classroomRef = db.collection("classrooms").doc(classroomId);
+          await db.runTransaction(async (tx) => {
+            const classroomSnap = await tx.get(classroomRef);
+            if (!classroomSnap.exists) return;
 
-              const classroomData = classroomSnap.data();
-              const teacherIds = Array.isArray(classroomData.teacherIds) ? classroomData.teacherIds : [];
+            const classroomData = classroomSnap.data();
+            const teacherIds = Array.isArray(classroomData.teacherIds) ? classroomData.teacherIds : [];
+            const nextTeacherIds = teacherIds.filter((id) => id !== oldDocId);
+            if (!nextTeacherIds.includes(userUid)) {
+              nextTeacherIds.push(userUid);
+            }
 
-              if (!teacherIds.includes(userUid)) {
-                tx.update(classroomRef, {
-                  teacherIds: [...teacherIds, userUid],
-                  updatedAt: new Date(),
-                });
-              }
+            tx.update(classroomRef, {
+              teacherIds: nextTeacherIds,
+              updatedAt: new Date(),
             });
-          } catch (classroomErr) {
-            console.error(`[migratePendingUser] Failed to assign classroom ${classroomId}:`, classroomErr);
+          });
+        };
+
+        try {
+          // Replace the pending ID with the real UID everywhere it appears
+          const pendingQuery = await db.collection("classrooms")
+            .where("teacherIds", "array-contains", oldDocId)
+            .get();
+
+          const touched = new Set();
+          for (const docSnap of pendingQuery.docs) {
+            const classroomId = docSnap.id;
+            touched.add(classroomId);
+            await swapTeacherIds(classroomId);
           }
+
+          // Ensure the selectedClassrooms list is also applied (covers legacy cases)
+          for (const classroomId of selectedClassrooms) {
+            if (touched.has(classroomId)) continue;
+            await swapTeacherIds(classroomId);
+          }
+        } catch (classroomErr) {
+          console.error("[migratePendingUser] Failed to migrate classroom assignments:", classroomErr);
         }
       }
 

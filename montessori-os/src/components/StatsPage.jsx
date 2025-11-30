@@ -4,7 +4,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   LinearProgress,
   Chip,
   Tabs,
@@ -75,13 +74,16 @@ const getFilterKeySegment = (items = []) => {
   return ids.length ? ids.join('|') : 'all';
 };
 
-const buildCacheKey = (userId, role, classrooms, teachers, students) => {
+const buildCacheKey = (userId, role, classrooms, teachers, students, manageablePrograms = []) => {
   const userKey = userId || 'anonymous';
   const roleKey = role || 'unknown';
   const classroomKey = getFilterKeySegment(classrooms);
   const teacherKey = getFilterKeySegment(teachers);
   const studentKey = getFilterKeySegment(students);
-  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}`;
+  const programKey = Array.isArray(manageablePrograms) && manageablePrograms.length
+    ? manageablePrograms.slice().sort().join('|')
+    : 'all-programs';
+  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}:${programKey}`;
 };
 
 const getCachedStatsPayload = (key) => {
@@ -112,7 +114,7 @@ const setCachedStatsPayload = (key, payload) => {
   }
 };
 
-const StatsPage = ({ user, role, onBack }) => {
+const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [stats, setStats] = useState({
@@ -155,20 +157,42 @@ const StatsPage = ({ user, role, onBack }) => {
   const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
   const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
   const [teachersToShow, setTeachersToShow] = useState(5); // Pagination: show 5 initially
+  const [mounted, setMounted] = useState(false);
   
   // Branch filter state (admin only)
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const [scopeError, setScopeError] = useState('');
   const isAdmin = isAdminRole(role);
+  const isProgramAdmin = role === 'admin';
+  const scopedPrograms = isProgramAdmin ? (Array.isArray(manageablePrograms) ? manageablePrograms.filter(Boolean) : []) : [];
   const cacheKey = useMemo(() => buildCacheKey(
     user?.uid,
     role,
     selectedClassrooms,
     selectedTeachers,
-    selectedStudents
-  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents]);
+    selectedStudents,
+    manageablePrograms
+  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents, manageablePrograms]);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // Guard: program admins must have scoped programs; otherwise stop and show error
+    if (isProgramAdmin && scopedPrograms.length === 0) {
+      setScopeError('Your program access is missing. Please contact a super admin to add manageable programs.');
+      setClassrooms([]);
+      setTeachers([]);
+      setStudents([]);
+      setStats(prev => ({ ...prev, loading: false }));
+      setFilterLoading(false);
+      return;
+    } else {
+      setScopeError('');
+    }
+
     const cachedPayload = getCachedStatsPayload(cacheKey);
     if (cachedPayload) {
       if (cachedPayload.stats) {
@@ -234,7 +258,11 @@ const StatsPage = ({ user, role, onBack }) => {
         
         // Fetch classrooms
         try {
-          const classroomsQuery = query(collection(db, 'classrooms'), where('status', '==', 'active'));
+          const classroomConstraints = [where('status', '==', 'active')];
+          if (isProgramAdmin) {
+            classroomConstraints.push(where('programId', 'in', scopedPrograms));
+          }
+          const classroomsQuery = query(collection(db, 'classrooms'), ...classroomConstraints);
           const classroomsSnap = await getDocs(classroomsQuery);
           classroomsData = classroomsSnap.docs.map(doc => ({
             id: doc.id,
@@ -265,34 +293,65 @@ const StatsPage = ({ user, role, onBack }) => {
         
         // Fetch students
         try {
-          const studentsQuery = query(collection(db, 'students'));
-          const studentsSnap = await getDocs(studentsQuery);
-          studentsData = studentsSnap.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
+          if (isProgramAdmin) {
+            const allowedClassroomIds = classroomsData.map(c => c.id);
+            studentsData = [];
+            const batchSize = 10;
+            for (let i = 0; i < allowedClassroomIds.length; i += batchSize) {
+              const batch = allowedClassroomIds.slice(i, i + batchSize);
+              const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
+              const studentsSnap = await getDocs(studentsQuery);
+              studentsSnap.docs.forEach(doc => {
+                studentsData.push({ id: doc.id, ...doc.data() });
+              });
+            }
+          } else {
+            const studentsQuery = query(collection(db, 'students'));
+            const studentsSnap = await getDocs(studentsQuery);
+            studentsData = studentsSnap.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+          }
         } catch (error) {
           console.error('Students query failed:', error);
           studentsData = [];
         }
         
         // Fetch observations using collection group query
-        let observationsSnap;
+        let allObservations = [];
         try {
-          let observationsQuery = query(collectionGroup(db, 'observations'));
-          observationsSnap = await getDocs(observationsQuery);
+          if (isProgramAdmin) {
+            const allowedStudentIds = studentsData.map(s => s.id);
+            const batchSize = 10;
+            for (let i = 0; i < allowedStudentIds.length; i += batchSize) {
+              const batch = allowedStudentIds.slice(i, i + batchSize);
+              if (batch.length === 0) continue;
+              const observationsQuery = query(collectionGroup(db, 'observations'), where('studentId', 'in', batch));
+              const observationsSnap = await getDocs(observationsQuery);
+              observationsSnap.docs.forEach(doc => {
+                const data = doc.data();
+                allObservations.push({
+                  id: doc.id,
+                  ...data
+                });
+              });
+            }
+          } else {
+            const observationsQuery = query(collectionGroup(db, 'observations'));
+            const observationsSnap = await getDocs(observationsQuery);
+            allObservations = observationsSnap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                ...data
+              };
+            });
+          }
         } catch (error) {
           console.error('Collection group query failed:', error);
-          observationsSnap = { docs: [], size: 0 };
+          allObservations = [];
         }
-        
-        let allObservations = observationsSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data
-          };
-        });
         
         // Sort by observedAt client-side
         allObservations.sort((a, b) => {
@@ -310,6 +369,24 @@ const StatsPage = ({ user, role, onBack }) => {
         let filteredClassroomsData = classroomsData;
         let filteredTeachersData = teachersData;
         let filteredStudentsData = studentsData;
+        
+        // Program admins: hard-scope to their classrooms/programs (defensive even though queries are scoped)
+        if (isProgramAdmin) {
+          const allowedClassroomIds = new Set(classroomsData.map(c => c.id));
+          const allowedStudentIds = new Set(studentsData.map(s => s.id));
+          filteredClassroomsData = classroomsData.filter(c => allowedClassroomIds.has(c.id));
+          filteredStudentsData = studentsData.filter(student => allowedClassroomIds.has(student.classroomId));
+          filteredObservations = filteredObservations.filter(obs => {
+            const classroomOk = obs.classroomId ? allowedClassroomIds.has(obs.classroomId) : false;
+            const studentOk = obs.studentId ? allowedStudentIds.has(obs.studentId) : false;
+            return classroomOk || studentOk;
+          });
+          const allowedTeacherIds = new Set();
+          classroomsData.forEach(c => {
+            (c.teacherIds || []).forEach(tid => allowedTeacherIds.add(tid));
+          });
+          filteredTeachersData = teachersData.filter(t => allowedTeacherIds.has(t.id));
+        }
         
         // Role-based filtering: teachers only see their assigned classrooms
         if (role === 'teacher') {
@@ -579,7 +656,7 @@ const StatsPage = ({ user, role, onBack }) => {
     };
 
     fetchData();
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey]);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey, isProgramAdmin, scopedPrograms.join('|')]);
 
   const handleTabChange = (event, newValue) => {
     // Teachers can't access certain tabs
@@ -748,6 +825,20 @@ const StatsPage = ({ user, role, onBack }) => {
   const hasActiveFilters = () => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
   };
+
+  // Hard-stop UI if program scoping is missing
+  if (scopeError) {
+    return (
+      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {onBack && (
+          <Button startIcon={<ArrowBack />} onClick={onBack} sx={{ alignSelf: 'flex-start' }}>
+            Back
+          </Button>
+        )}
+        <Alert severity="error">{scopeError}</Alert>
+      </Box>
+    );
+  }
 
 
 
@@ -1042,6 +1133,23 @@ const StatsPage = ({ user, role, onBack }) => {
       return stats.classroomStats;
     }, [stats.classroomStats, selectedBranchId, role, branches]);
 
+    if (!mounted) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: 200,
+          backgroundColor: 'grey.50',
+          borderRadius: 2
+        }}>
+          <Typography variant="body2" color="text.secondary">
+            Loading chart…
+          </Typography>
+        </Box>
+      );
+    }
+
     if (filteredClassroomStats.length === 0) {
       return (
         <Box sx={{ 
@@ -1067,7 +1175,7 @@ const StatsPage = ({ user, role, onBack }) => {
     }));
 
     return (
-      <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
+      <Box sx={{ height: 300, width: '100%', minWidth: 260, minHeight: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           <RechartsBarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1277,6 +1385,23 @@ const StatsPage = ({ user, role, onBack }) => {
   const ActivityTrendChart = () => {
     const activityData = generateActivityData(stats.allObservations, timePeriod);
     
+    if (!mounted) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: 200,
+          backgroundColor: 'grey.50',
+          borderRadius: 2
+        }}>
+          <Typography variant="body2" color="text.secondary">
+            Loading chart…
+          </Typography>
+        </Box>
+      );
+    }
+    
     if (activityData.length === 0) {
       return (
         <Box sx={{ 
@@ -1295,7 +1420,7 @@ const StatsPage = ({ user, role, onBack }) => {
     }
 
     return (
-      <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
+      <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1545,83 +1670,98 @@ const StatsPage = ({ user, role, onBack }) => {
 
               {/* Note Distribution Card */}
               
-              <Box sx={{ 
-                backgroundColor: 'white',
-                borderRadius: 2,
-                p: 3,
-                border: '1px solid #e2e8f0',
-                mb: 3
-              }}>
-                {/* Header */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                    All Time Note Distribution
-                  </Typography>
-                </Box>
-                
-                {/* Pie Chart */}
-                <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={0}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        dataKey="value"
-                        label={renderNoteDistributionLabel}
-                        labelLine={false}
-                        isAnimationActive={false}
-                      >
-                        {pieChartData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${entry.name}-${entry.value}`}
-                            fill={entry.color}
-                            stroke="#ffffff"
-                            strokeWidth={2}
+                <Box sx={{ 
+                  backgroundColor: 'white',
+                  borderRadius: 2,
+                  p: 3,
+                  border: '1px solid #e2e8f0',
+                  mb: 3
+                }}>
+                  {/* Header */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      All Time Note Distribution
+                    </Typography>
+                  </Box>
+                  
+                  {/* Pie Chart */}
+                  {mounted ? (
+                    <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={0}
+                            outerRadius={90}
+                            paddingAngle={3}
+                            dataKey="value"
+                            label={renderNoteDistributionLabel}
+                            labelLine={false}
+                            isAnimationActive={false}
+                          >
+                            {pieChartData.map((entry) => (
+                              <Cell 
+                                key={`cell-${entry.name}-${entry.value}`}
+                                fill={entry.color}
+                                stroke="#ffffff"
+                                strokeWidth={2}
+                              />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: 8,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}
+                            formatter={(value, name) => [value, name]}
+                            labelFormatter={(label) => `${label}`}
                           />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'white',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                        }}
-                        formatter={(value, name) => [value, name]}
-                        labelFormatter={(label) => `${label}`}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Box>
-                
-                {/* Simple Legend */}
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                  {pieChartData.map((item, index) => (
-                    <Box key={index} sx={{ textAlign: 'center' }}>
-                      <Box sx={{ 
-                        width: 16, 
-                        height: 16, 
-                        bgcolor: item.color, 
-                        borderRadius: '50%',
-                        mx: 'auto',
-                        mb: 1,
-                        border: '2px solid white',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: item.color, mb: 0.5 }}>
-                        {item.value}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {item.name}
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  ) : (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center', 
+                      height: 200,
+                      backgroundColor: 'grey.50',
+                      borderRadius: 2
+                    }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Loading chart…
                       </Typography>
                     </Box>
-                  ))}
+                  )}
+                  
+                  {/* Simple Legend */}
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 4 }}>
+                    {pieChartData.map((item, index) => (
+                      <Box key={index} sx={{ textAlign: 'center' }}>
+                        <Box sx={{ 
+                          width: 16, 
+                          height: 16, 
+                          bgcolor: item.color, 
+                          borderRadius: '50%',
+                          mx: 'auto',
+                          mb: 1,
+                          border: '2px solid white',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: item.color, mb: 0.5 }}>
+                          {item.value}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {item.name}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
                 </Box>
-              </Box>
 
               {/* Voice Note Language Distribution removed */}
             </Box>
@@ -2147,28 +2287,24 @@ const StatsPage = ({ user, role, onBack }) => {
                       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'primary.main' }}>
                         {selectedStudent.name} - Detailed Stats
                       </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                              {selectedStudent.thisWeekCount}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Notes This Week
-                            </Typography>
-                          </Box>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                              {selectedStudent.count}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Total Notes
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      </Grid>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                            {selectedStudent.thisWeekCount}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Notes This Week
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                            {selectedStudent.count}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Total Notes
+                          </Typography>
+                        </Box>
+                      </Box>
                       <Box sx={{ mt: 2, textAlign: 'center' }}>
                         <Button 
                           size="small" 

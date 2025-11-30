@@ -28,7 +28,8 @@ import {
   ListItemIcon,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Alert
 } from '@mui/material';
 import { 
   Group,
@@ -131,7 +132,7 @@ const renderLessonSummary = (note, showGroupDefaults = false) => {
 };
 
 
-function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageablePrograms = [], onNavigateToStudent }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
@@ -157,10 +158,21 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedGroupedNote, setSelectedGroupedNote] = useState(null);
   const [groupedNoteDialogOpen, setGroupedNoteDialogOpen] = useState(false);
+  const isProgramAdmin = userRole === 'admin';
+  const scopedPrograms = isProgramAdmin ? (Array.isArray(manageablePrograms) ? manageablePrograms : []) : [];
+  const scopedProgramsKey = scopedPrograms.join('|');
+  const hasClassroomAccess = classroom && (!isProgramAdmin || scopedPrograms.includes(classroom.programId));
 
 
   useEffect(() => {
-    if (!classroom) return;
+    if (!classroom || !hasClassroomAccess) {
+      setClassroomNotes([]);
+      setClassroomStudents([]);
+      setClassroomTeachers([]);
+      setStudentCount(0);
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     
@@ -330,7 +342,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
         unsubscribeRef.current = null;
       }
     };
-  }, [classroom]);
+  }, [classroom, hasClassroomAccess, scopedProgramsKey]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -339,6 +351,22 @@ function ClassroomTimeline({ classroom, currentUser, userRole, onNavigateToStude
   const handleStudentClick = (student) => {
     onNavigateToStudent(student);
   };
+
+  if (!classroom) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="info">Select a classroom to view its timeline.</Alert>
+      </Box>
+    );
+  }
+
+  if (!hasClassroomAccess) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="warning">You do not have access to this classroom. Please choose a classroom within your programs.</Alert>
+      </Box>
+    );
+  }
 
   // Group notes by time periods
   const groupedNotes = useMemo(() => {
