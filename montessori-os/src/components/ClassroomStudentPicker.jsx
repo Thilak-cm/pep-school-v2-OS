@@ -342,6 +342,11 @@ function ClassroomStudentPicker({
     onStudentsChange(newSelected);
   };
 
+  const handleRemoveStudent = (studentId) => {
+    if (isDisabled(studentId)) return;
+    onStudentsChange(selectedStudents.filter((id) => id !== studentId));
+  };
+
   // Handle alias/group selection
   const toggleAliasSelection = (alias) => {
     const members = alias.members || [];
@@ -619,18 +624,28 @@ function ClassroomStudentPicker({
 
       {/* Removed instructional divider for compactness on mobile */}
 
-      {/* Selected Students Summary (text-only) — shown above quick search */}
+      {/* Selected Students Summary — shown above quick search */}
       {selectedStudents.length > 0 && (
         <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
           <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {(() => {
-              const names = selectedStudents
-                .map((id) => allStudents.find((s) => (s.id || s.uid) === id))
-                .filter(Boolean)
-                .map((s) => getStudentName(s));
-              return `Selected Students (${selectedStudents.length}): ${names.join(', ')}`;
-            })()}
+            {`Selected Students (${selectedStudents.length}):`}
           </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+            {selectedStudents.map((id) => {
+              const student = studentsById[id] || allStudents.find((s) => (s.id || s.uid) === id);
+              const label = student ? getStudentName(student) : 'Unknown Student';
+              return (
+                <Chip
+                  key={id}
+                  label={label}
+                  onDelete={() => handleRemoveStudent(id)}
+                  deleteIcon={<Close fontSize="small" />}
+                  color="primary"
+                  variant="outlined"
+                />
+              );
+            })}
+          </Box>
         </Box>
       )}
 
