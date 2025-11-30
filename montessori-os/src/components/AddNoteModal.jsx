@@ -34,17 +34,38 @@ import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
 import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
+import MentionTextArea from './MentionTextArea';
+import useMentionableStudents from '../hooks/useMentionableStudents';
 
 // TextInput Component
-function TextInput({ onSave, onNext, onDirtyChange }) {
-  const [text, setText] = useState('');
+function TextInput({
+  onSave,
+  onNext,
+  onDirtyChange,
+  initialText = '',
+  initialTags = [],
+  mentionableStudents = [],
+  onTagsChange = () => {}
+}) {
+  const [text, setText] = useState(initialText);
   const [wordCount, setWordCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(false);
   const [prevText, setPrevText] = useState('');
+  const [tags, setTags] = useState(initialTags);
+
+  useEffect(() => {
+    setText(initialText || '');
+    setTags(initialTags || []);
+    setWordCount(initialText?.trim() ? initialText.trim().split(/\s+/).length : 0);
+    setCleanedOnce(false);
+    setPrevText('');
+  }, [initialText]);
 
   const handleTextChange = (event) => {
-    const newText = event.target.value;
+    const newText = typeof event === 'string'
+      ? event
+      : event?.target?.value ?? '';
     setText(newText);
     setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
     // Dirty if user has typed at least one character (even whitespace)
@@ -55,7 +76,7 @@ function TextInput({ onSave, onNext, onDirtyChange }) {
     if (!text.trim()) {
       return;
     }
-    onSave({ text: text.trim(), cleaned: cleanedOnce });
+    onSave({ text: text.trim(), cleaned: cleanedOnce, mentionedStudents: tags });
   };
 
   const handleCleanUp = async () => {
@@ -120,18 +141,15 @@ function TextInput({ onSave, onNext, onDirtyChange }) {
       </Typography>
       
       <Box sx={{ position: 'relative' }}>
-        <TextField
-          multiline
-          rows={6}
-          fullWidth
+        <MentionTextArea
           value={text}
           onChange={handleTextChange}
-          placeholder="Enter your observation here..."
-          variant="outlined"
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
-            }
+          placeholder="Quick select students using @"
+          students={mentionableStudents}
+          tags={tags}
+          onTagsChange={(nextTags) => {
+            setTags(nextTags);
+            onTagsChange(nextTags);
           }}
         />
         <Typography
@@ -225,6 +243,7 @@ function AddNoteModal({
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [textData, setTextData] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
+  const [mentionedStudents, setMentionedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -257,6 +276,8 @@ function AddNoteModal({
   // ----- Coach helpers (moved to AddNoteModal scope) -----
   const coachActionRef = useRef(null);
   const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
+
+  const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
 
   // Normalize cloud function reason codes to schema values
   const normalizeCoachReason = (reason) => {
@@ -536,6 +557,7 @@ function AddNoteModal({
     setTranscriptionData(null);
     setTextData(null);
     setSelectedStudents(initialStudents);
+    setMentionedStudents([]);
     setSaving(false);
     setSnackbarOpen(false);
     setSnackbarMessage('');
@@ -754,8 +776,14 @@ function AddNoteModal({
     setStep(STEP_RECIPIENTS);
   };
 
-  const handleTextSave = (textData) => {
-    setTextData(textData);
+  const handleTextSave = (nextTextData) => {
+    const tagged = nextTextData?.mentionedStudents || [];
+    setMentionedStudents(tagged);
+    setSelectedStudents((prev) => {
+      const merged = new Set([...(prev || []), ...tagged.map((t) => t.id)]);
+      return Array.from(merged);
+    });
+    setTextData(nextTextData);
     setStep(STEP_RECIPIENTS);
   };
 
@@ -1165,6 +1193,10 @@ function AddNoteModal({
               onSave={handleTextSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
               onDirtyChange={setTextDirty}
+              initialText={textData?.text || ''}
+              initialTags={mentionedStudents}
+              mentionableStudents={mentionableStudents}
+              onTagsChange={setMentionedStudents}
             />
           </Box>
         )}
