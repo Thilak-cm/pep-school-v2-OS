@@ -122,7 +122,6 @@ function MentionTextArea({
           }
         }}
       />
-j
       <Popper
         open={!!activeMention && filteredOptions.length > 0}
         anchorEl={inputRef.current}

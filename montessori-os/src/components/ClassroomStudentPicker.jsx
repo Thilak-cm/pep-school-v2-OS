@@ -28,7 +28,8 @@ import {
   Edit,
   Close,
   CheckCircle,
-  AutoFixHigh
+  AutoFixHigh,
+  Refresh
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -47,6 +48,10 @@ function ClassroomStudentPicker({
   userRole,
   textData,
   onTextDataChange,
+  voiceData,
+  onVoiceDataChange,
+  onVoiceRecordAgain,
+  voiceLoading = false,
   disabledStudentIds = [], // IDs to grey out and disable selection
 }) {
   const [classrooms, setClassrooms] = useState([]);
@@ -64,6 +69,9 @@ function ClassroomStudentPicker({
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
   const [originalText, setOriginalText] = useState('');
+  const [voiceEditing, setVoiceEditing] = useState(false);
+  const [editableVoiceText, setEditableVoiceText] = useState('');
+  const [originalVoiceText, setOriginalVoiceText] = useState('');
 
   // Fetch all classrooms and students once
   useEffect(() => {
@@ -219,6 +227,12 @@ function ClassroomStudentPicker({
 
     fetchData();
   }, [currentUser, userRole]);
+
+  useEffect(() => {
+    setVoiceEditing(false);
+    setEditableVoiceText(voiceData?.text || '');
+    setOriginalVoiceText(voiceData?.text || '');
+  }, [voiceData]);
 
   const getStudentName = (s) => s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
 
@@ -429,6 +443,37 @@ function ClassroomStudentPicker({
     }
   };
 
+  const startVoiceEditing = () => {
+    setOriginalVoiceText(voiceData?.text || '');
+    setEditableVoiceText(voiceData?.text || '');
+    setVoiceEditing(true);
+  };
+
+  const cancelVoiceEditing = () => {
+    setVoiceEditing(false);
+    setEditableVoiceText(originalVoiceText);
+  };
+
+  const saveVoiceEditing = () => {
+    if (!editableVoiceText.trim()) return;
+    if (onVoiceDataChange) {
+      onVoiceDataChange({
+        ...(voiceData || {}),
+        text: editableVoiceText.trim(),
+      });
+    }
+    setVoiceEditing(false);
+    setOriginalVoiceText(editableVoiceText.trim());
+  };
+
+  const handleRecordAgain = () => {
+    setVoiceEditing(false);
+    setEditableVoiceText('');
+    setOriginalVoiceText('');
+    if (onVoiceDataChange) onVoiceDataChange(null);
+    if (onVoiceRecordAgain) onVoiceRecordAgain();
+  };
+
 
 
   if (loading) {
@@ -441,6 +486,189 @@ function ClassroomStudentPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {(voiceLoading || voiceData?.text) && (
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f0f9ff',
+            borderTop: '1px solid #e2e8f0',
+            borderRadius: 2
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 2
+            }}
+          >
+            <Typography
+              variant="h6"
+              component="h4"
+              sx={{
+                margin: 0,
+                color: '#1e293b',
+                fontSize: '1rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <CheckCircle sx={{ fontSize: 16 }} />
+              Transcription
+            </Typography>
+          </Box>
+
+          <Paper
+            sx={{
+              padding: 2,
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: 2
+            }}
+          >
+            {voiceLoading ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
+                <CircularProgress size={24} sx={{ color: '#059669' }} />
+                <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600, textAlign: 'center' }}>
+                  Converting speech to text...
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  This may take a few seconds
+                </Typography>
+              </Box>
+            ) : voiceEditing ? (
+              <TextField
+                multiline
+                rows={4}
+                fullWidth
+                value={editableVoiceText}
+                onChange={(e) => setEditableVoiceText(e.target.value)}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 1,
+                  }
+                }}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  color: '#1e293b',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.6',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {voiceData?.text}
+              </Typography>
+            )}
+          </Paper>
+
+          {!voiceLoading && (
+            voiceEditing ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={cancelVoiceEditing}
+                  startIcon={<Close />}
+                  size="small"
+                  sx={{
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: '#b91c1c',
+                    }
+                  }}
+                >
+                  Cancel Edit
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={saveVoiceEditing}
+                  startIcon={<CheckCircle />}
+                  size="small"
+                  disabled={!editableVoiceText.trim()}
+                  sx={{
+                    backgroundColor: editableVoiceText.trim() ? '#059669' : '#cbd5e1',
+                    color: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: editableVoiceText.trim() ? '#047857' : '#cbd5e1',
+                    }
+                  }}
+                >
+                  Save Edit
+                </Button>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  onClick={handleRecordAgain}
+                  startIcon={<Refresh />}
+                  size="small"
+                  sx={{
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    backgroundColor: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#94a3b8',
+                      backgroundColor: '#f8fafc',
+                      color: '#334155',
+                    }
+                  }}
+                >
+                  Record Again
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={startVoiceEditing}
+                  startIcon={<Edit />}
+                  size="small"
+                  sx={{
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    backgroundColor: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#94a3b8',
+                      backgroundColor: '#f8fafc',
+                      color: '#334155',
+                    }
+                  }}
+                >
+                  Edit Text
+                </Button>
+              </Box>
+            )
+          )}
+        </Box>
+      )}
+
       {/* Text Display Section - Same style as VoiceRecorder */}
       {textData?.text && (
         <Box

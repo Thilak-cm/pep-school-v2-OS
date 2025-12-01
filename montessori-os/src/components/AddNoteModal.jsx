@@ -168,11 +168,6 @@ function TextInput({
       <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
         Rough notes are okay — AI will polish for you.
       </Typography>
-      {!text.trim() && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
-          Please enter some text to continue
-        </Typography>
-      )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -242,6 +237,7 @@ function AddNoteModal({
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [textData, setTextData] = useState(null);
+  const [voiceTranscribing, setVoiceTranscribing] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [mentionedStudents, setMentionedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -556,6 +552,8 @@ function AddNoteModal({
     // Reset all state when closing
     setTranscriptionData(null);
     setTextData(null);
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
     setSelectedStudents(initialStudents);
     setMentionedStudents([]);
     setSaving(false);
@@ -758,10 +756,15 @@ function AddNoteModal({
   };
 
   const handleSelectVoice = () => {
+    setVoiceTranscribing(false);
+    setTextData(null);
     setStep(STEP_RECORD);
   };
 
   const handleSelectText = () => {
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
+    setTranscriptionData(null);
     setStep(STEP_TEXT_INPUT);
   };
 
@@ -772,7 +775,10 @@ function AddNoteModal({
   };
 
   const handleVoiceSave = (transcriptionData) => {
+    setVoiceTranscribing(false);
+    setTextData(null);
     setTranscriptionData(transcriptionData);
+    setVoiceDirty(false);
     setStep(STEP_RECIPIENTS);
   };
 
@@ -783,8 +789,28 @@ function AddNoteModal({
       const merged = new Set([...(prev || []), ...tagged.map((t) => t.id)]);
       return Array.from(merged);
     });
+    setTranscriptionData(null);
     setTextData(nextTextData);
     setStep(STEP_RECIPIENTS);
+  };
+
+  const handleVoiceRecordAgain = () => {
+    setTranscriptionData(null);
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
+    setStep(STEP_RECORD);
+  };
+
+  const handleTranscriptionStart = () => {
+    setVoiceTranscribing(true);
+    // Show combined view while transcription runs
+    setStep(STEP_RECIPIENTS);
+  };
+
+  const handleTranscriptionError = () => {
+    setVoiceTranscribing(false);
+    // Return to recorder so user can retry
+    setStep(STEP_RECORD);
   };
 
   const handleRecipientsNext = async () => {
@@ -1175,14 +1201,24 @@ function AddNoteModal({
           </Box>
         )}
 
-        {step === STEP_RECORD && (
-          <Box sx={{ p: 3, pt: 1, flex: 1 }}>
+        {(step === STEP_RECORD || voiceTranscribing) && (
+          <Box
+            sx={{
+              p: step === STEP_RECORD ? 3 : 0,
+              pt: step === STEP_RECORD ? 1 : 0,
+              flex: 1,
+              display: step === STEP_RECORD ? 'block' : 'none'
+            }}
+          >
             <VoiceRecorder 
               onSave={handleVoiceSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
               onDirtyChange={setVoiceDirty}
               exposeControls={(controls) => { voiceControlsRef.current = controls; }}
               variant="cardless"
+              autoAdvanceOnSave
+              onTranscriptionStart={handleTranscriptionStart}
+              onTranscriptionError={handleTranscriptionError}
             />
           </Box>
         )}
@@ -1220,6 +1256,10 @@ function AddNoteModal({
                 userRole={userRole}
                 textData={textData}
                 onTextDataChange={setTextData}
+                voiceData={transcriptionData}
+                onVoiceDataChange={setTranscriptionData}
+                onVoiceRecordAgain={handleVoiceRecordAgain}
+                voiceLoading={voiceTranscribing}
               />
             </Box>
             {/* Fixed bottom action bar */}
