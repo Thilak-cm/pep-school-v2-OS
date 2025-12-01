@@ -52,6 +52,7 @@ function ClassroomStudentPicker({
   onVoiceDataChange,
   onVoiceRecordAgain,
   voiceLoading = false,
+  suggestedStudents = [],
   disabledStudentIds = [], // IDs to grey out and disable selection
 }) {
   const [classrooms, setClassrooms] = useState([]);
@@ -64,6 +65,7 @@ function ClassroomStudentPicker({
   const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
   const [aliases, setAliases] = useState([]);
   const [expandedAliases, setExpandedAliases] = useState({});
+  const [showBrowseSection, setShowBrowseSection] = useState(false);
   
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
@@ -852,6 +854,42 @@ function ClassroomStudentPicker({
 
       {/* Removed instructional divider for compactness on mobile */}
 
+      {/* Suggested students from transcript (voice) */}
+      {suggestedStudents.length > 0 && (
+        <Box
+          sx={{
+            mt: 1,
+            mb: 2,
+            p: 2,
+            border: '1px solid #e2e8f0',
+            borderRadius: 2,
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
+            Suggested assignee(s):
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {suggestedStudents.map((stu) => {
+              const label = stu.fullName || getStudentName(studentsById[stu.id] || stu);
+              const selected = selectedStudents.includes(stu.id);
+              return (
+                <Chip
+                  key={stu.id}
+                  label={label}
+                  color={selected ? 'primary' : 'default'}
+                  variant={selected ? 'filled' : 'outlined'}
+                  onClick={() => handleStudentToggle(stu.id)}
+                />
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
       {/* Selected Students Summary — shown above quick search */}
       {selectedStudents.length > 0 && (
         <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
@@ -1046,124 +1084,140 @@ function ClassroomStudentPicker({
         </Divider>
       )}
 
-      {/* Browse by Classroom Section */}
+      {/* Browse by Classroom Section (collapsible) */}
       <Box>
-        <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Group sx={{ fontSize: 20 }} />
+        <Button
+          variant="outlined"
+          startIcon={<Group />}
+          endIcon={showBrowseSection ? <ExpandLess /> : <ExpandMore />}
+          onClick={() => setShowBrowseSection((s) => !s)}
+          sx={{
+            mb: 1.5,
+            textTransform: 'none',
+            justifyContent: 'space-between',
+            borderColor: '#cbd5e1',
+            color: '#0f172a',
+            backgroundColor: 'white',
+            '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+            width: '100%',
+          }}
+        >
           Browse by Classroom
-        </Typography>
+        </Button>
 
-        <List>
-          {/* Helper function to render a classroom group */}
-          {(() => {
-            const renderClassroomGroup = (group) => {
-              const isExpanded = expandedClassrooms.includes(group.classroom.id);
-              
-              return (
-                <Box key={group.classroom.id} sx={{ mb: 1 }}>
-                  {/* Classroom Header */}
-                  <ListItem disablePadding>
-                    <ListItemButton 
-                      dense
-                      onClick={() => toggleClassroomExpansion(group.classroom.id)}
-                      sx={{ 
-                        backgroundColor: '#f8fafc',
-                        borderRadius: 1,
-                        mb: isExpanded ? 1 : 0
-                      }}
-                    >
-                      <ListItemText
-                        primary={group.classroom.name}
-                        secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
-                      />
-                      <IconButton size="small">
-                        {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                      </IconButton>
-                    </ListItemButton>
-                  </ListItem>
+        <Collapse in={showBrowseSection} timeout="auto" unmountOnExit>
+          <List>
+            {/* Helper function to render a classroom group */}
+            {(() => {
+              const renderClassroomGroup = (group) => {
+                const isExpanded = expandedClassrooms.includes(group.classroom.id);
+                
+                return (
+                  <Box key={group.classroom.id} sx={{ mb: 1 }}>
+                    {/* Classroom Header */}
+                    <ListItem disablePadding>
+                      <ListItemButton 
+                        dense
+                        onClick={() => toggleClassroomExpansion(group.classroom.id)}
+                        sx={{ 
+                          backgroundColor: '#f8fafc',
+                          borderRadius: 1,
+                          mb: isExpanded ? 1 : 0
+                        }}
+                      >
+                        <ListItemText
+                          primary={group.classroom.name}
+                          secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
+                        />
+                        <IconButton size="small">
+                          {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                        </IconButton>
+                      </ListItemButton>
+                    </ListItem>
 
-                  {/* Students in Classroom */}
-                  <Collapse in={isExpanded}>
-                    <List dense sx={{ pl: 4 }}>
-                      {group.students.map((student) => {
-                        const disabled = isDisabled(student.id);
-                        return (
-                          <ListItem key={student.id} disablePadding>
-                            <ListItemButton
-                              dense
-                              onClick={() => handleStudentToggle(student.id)}
-                              disabled={disabled}
-                              sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                            >
-                              <ListItemIcon>
-                                <Checkbox
-                                  checked={selectedStudents.includes(student.id)}
-                                  edge="start"
-                                  tabIndex={-1}
-                                  disableRipple
-                                  disabled={disabled}
+                    {/* Students in Classroom */}
+                    <Collapse in={isExpanded}>
+                      <List dense sx={{ pl: 4 }}>
+                        {group.students.map((student) => {
+                          const disabled = isDisabled(student.id);
+                          return (
+                            <ListItem key={student.id} disablePadding>
+                              <ListItemButton
+                                dense
+                                onClick={() => handleStudentToggle(student.id)}
+                                disabled={disabled}
+                                sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                              >
+                                <ListItemIcon>
+                                  <Checkbox
+                                    checked={selectedStudents.includes(student.id)}
+                                    edge="start"
+                                    tabIndex={-1}
+                                    disableRipple
+                                    disabled={disabled}
+                                  />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={disabled
+                                    ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                    : getStudentName(student)}
                                 />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={disabled
-                                  ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
-                                  : getStudentName(student)}
-                              />
-                            </ListItemButton>
-                          </ListItem>
-                        );
-                      })}
-                    </List>
-                  </Collapse>
-                </Box>
-              );
-            };
+                              </ListItemButton>
+                            </ListItem>
+                          );
+                        })}
+                      </List>
+                    </Collapse>
+                  </Box>
+                );
+              };
 
-            return (
-              <>
-                {sortedProgramIds.map((pid) => {
-                  const items = groupedByProgram.groups[pid] || [];
-                  if (!items.length) return null;
-                  const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
-                  return (
-                    <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+              return (
+                <>
+                  {sortedProgramIds.map((pid) => {
+                    const items = groupedByProgram.groups[pid] || [];
+                    if (!items.length) return null;
+                    const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+                    return (
+                      <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                        <Divider
+                          textAlign="left"
+                          sx={{
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            color: '#64748b',
+                            '&::before, &::after': {
+                              borderColor: '#e2e8f0',
+                            },
+                          }}
+                        >
+                          {label}
+                        </Divider>
+                        {items.map(renderClassroomGroup)}
+                      </Box>
+                    );
+                  })}
+                  {groupedByProgram.unassigned.length > 0 && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
                       <Divider
                         textAlign="left"
                         sx={{
                           fontWeight: 600,
                           fontSize: '0.85rem',
                           color: '#64748b',
-                          '&::before, &::after': {
-                            borderColor: '#e2e8f0',
-                          },
+                          '&::before, &::after': { borderColor: '#e2e8f0' },
                         }}
                       >
-                        {label}
+                        Unassigned
                       </Divider>
-                      {items.map(renderClassroomGroup)}
+                      {groupedByProgram.unassigned.map(renderClassroomGroup)}
                     </Box>
-                  );
-                })}
-                {groupedByProgram.unassigned.length > 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-                    <Divider
-                      textAlign="left"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        color: '#64748b',
-                        '&::before, &::after': { borderColor: '#e2e8f0' },
-                      }}
-                    >
-                      Unassigned
-                    </Divider>
-                    {groupedByProgram.unassigned.map(renderClassroomGroup)}
-                  </Box>
-                )}
-              </>
-            );
-          })()}
-        </List>
+                  )}
+                </>
+              );
+            })()}
+          </List>
+        </Collapse>
       </Box>
 
       {/* Bottom summary removed to avoid redundancy */}

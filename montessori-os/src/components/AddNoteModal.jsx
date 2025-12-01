@@ -36,6 +36,7 @@ import CoachNudge from '../coach/coach_nudge';
 import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
 import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
+import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 
 // TextInput Component
 function TextInput({
@@ -274,6 +275,10 @@ function AddNoteModal({
   const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
 
   const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
+  const transcriptSuggestions = useTranscriptStudentSuggestions(
+    transcriptionData?.text || '',
+    mentionableStudents
+  );
 
   // Normalize cloud function reason codes to schema values
   const normalizeCoachReason = (reason) => {
@@ -533,6 +538,7 @@ function AddNoteModal({
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {
     setSelectedStudents(initialStudents);
+    setMentionedStudents([]);
   }, [initialStudents]);
 
   // Clear lesson tag if student selection changes
@@ -1260,6 +1266,7 @@ function AddNoteModal({
                 onVoiceDataChange={setTranscriptionData}
                 onVoiceRecordAgain={handleVoiceRecordAgain}
                 voiceLoading={voiceTranscribing}
+                suggestedStudents={transcriptSuggestions}
               />
             </Box>
             {/* Fixed bottom action bar */}
