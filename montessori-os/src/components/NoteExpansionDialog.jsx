@@ -68,7 +68,8 @@ function NoteExpansionDialog({
   currentUser, 
   userRole,
   onNavigateToStudent, // For classroom timeline navigation
-  isClassroomContext = false // To show "View Student Timeline" button
+  isClassroomContext = false, // To show "View Student Timeline" button
+  onNotesChanged,
 }) {
   const notify = useNotify();
   const [editing, setEditing] = useState(false);
@@ -405,6 +406,9 @@ function NoteExpansionDialog({
         try {
           const parentId = obs.parentStudentId || obs.studentId;
           await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
+          if (typeof onNotesChanged === 'function') {
+            onNotesChanged();
+          }
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
           console.error('Error deleting observation:', error);

@@ -1,5 +1,5 @@
 // ClassroomTimeline.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -44,7 +44,7 @@ import {
   ChevronRight,
   Visibility
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import CopyToClipboardButton from './CopyToClipboardButton';
@@ -145,6 +145,11 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  const [notesReloadToken, setNotesReloadToken] = useState(0);
+
+  const refreshNotes = useCallback(() => {
+    setNotesReloadToken((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
     if (showSearch && searchInputRef.current) {
@@ -342,7 +347,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
         unsubscribeRef.current = null;
       }
     };
-  }, [classroom, hasClassroomAccess, scopedProgramsKey]);
+  }, [classroom, hasClassroomAccess, scopedProgramsKey, notesReloadToken]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -561,8 +566,18 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
       };
     });
 
+    // Move any singleton "groups" back into ungrouped so they display as regular notes
+    const filteredGrouped = [];
+    grouped.forEach((group) => {
+      if (group.notes.length <= 1) {
+        ungrouped.push(group.notes[0]);
+      } else {
+        filteredGrouped.push(group);
+      }
+    });
+
     // Sort grouped notes by earliest observedAt (newest first)
-    grouped.sort((a, b) => b.earliestObservedAt - a.earliestObservedAt);
+    filteredGrouped.sort((a, b) => b.earliestObservedAt - a.earliestObservedAt);
 
     // Sort ungrouped notes
     ungrouped.sort((a, b) => {
@@ -571,7 +586,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
       return db - da;
     });
 
-    return { grouped, ungrouped };
+    return { grouped: filteredGrouped, ungrouped };
   }, [filteredObservations]);
 
   // Sorted filtered observations (for backward compatibility, combining grouped and ungrouped)
@@ -974,6 +989,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
         userRole={userRole}
         onNavigateToStudent={onNavigateToStudent}
         isClassroomContext={true}
+        onNotesChanged={refreshNotes}
       />
 
       {/* Grouped Note Dialog */}
@@ -986,6 +1002,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
           currentUser={currentUser}
           userRole={userRole}
           onNavigateToStudent={onNavigateToStudent}
+          onNotesChanged={refreshNotes}
         />
       )}
     </Box>
@@ -1230,7 +1247,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
 }
 
 // GroupedNoteDialog component for displaying multi-student note details
-function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, currentUser, userRole, onNavigateToStudent }) {
+function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, currentUser, userRole, onNavigateToStudent, onNotesChanged }) {
   const notify = useNotify();
   const note = groupedNote.representativeNote;
   const isLesson = note.type === 'lesson';
@@ -1301,6 +1318,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
     
     const studentIdsToDelete = Array.from(selectedStudentIds);
     const noteId = note.id;
+    const { groupId } = groupedNote;
     
     // Create notification for deletion
     const notifId = `delete-grouped-${noteId}`;
@@ -1324,6 +1342,25 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
           });
           
           await Promise.all(deletePromises);
+
+          // If group shrinks to a single remaining note, drop groupId so it renders as an individual note
+          if (!isAll && groupId) {
+            try {
+              const remainingSnap = await getDocs(
+                query(collectionGroup(db, 'observations'), where('groupId', '==', groupId))
+              );
+              if (remainingSnap.size === 1) {
+                const remainingDoc = remainingSnap.docs[0];
+                await updateDoc(remainingDoc.ref, { groupId: deleteField() });
+              }
+            } catch (err) {
+              console.error('Error cleaning up singleton groupId:', err);
+            }
+          }
+
+          if (typeof onNotesChanged === 'function') {
+            onNotesChanged();
+          }
           
           notify.success(
             `Note deleted successfully for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}`,
