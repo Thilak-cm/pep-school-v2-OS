@@ -387,18 +387,29 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     return { groups, unassigned };
   }, [sortedClassrooms, classroomToProgram, sortedProgramIds]);
 
-  const PROGRAM_TITLES = {
-    adolescent: 'Adolescent',
-    elementary: 'Elementary',
-    primary: 'Primary',
-    toddler: 'Toddler',
-  };
+const PROGRAM_TITLES = {
+  adolescent: 'Adolescent',
+  elementary: 'Elementary',
+  primary: 'Primary',
+  toddler: 'Toddler',
+};
 
-  const handleStudentClick = (student) => {
-    setExpandedClassroomId(null);
-    if (onNavigateToStudent) {
-      onNavigateToStudent(student);
-    }
+const estimateStudentListHeight = (count) => {
+  const cardHeight = 88;            // approximate card height
+  const verticalGap = 12;           // gap between cards (theme spacing 1.5)
+  const minHeight = 180;
+  const maxHeight = 520;            // cap so very large classes still scroll
+  const naturalHeight = count > 0
+    ? (count * (cardHeight + verticalGap)) - verticalGap
+    : minHeight;
+  return Math.min(Math.max(naturalHeight, minHeight), maxHeight);
+};
+
+const handleStudentClick = (student) => {
+  setExpandedClassroomId(null);
+  if (onNavigateToStudent) {
+    onNavigateToStudent(student);
+  }
   };
 
   const handleToggleStudents = (event, classroomId) => {
@@ -435,6 +446,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
           });
     const isExpanded = expandedClassroomId === classroom.id;
     const studentTotal = studentCounts[classroom.id] ?? classroomStudents.length ?? 0;
+    const studentListHeight = estimateStudentListHeight(classroomStudents.length);
 
     return (
       <Card
@@ -515,7 +527,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
             </Box>
             <Box
               sx={{
-                height: 360,
+                maxHeight: studentListHeight,
                 overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
@@ -716,6 +728,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
         backgroundColor: '#f8fafc',
         border: '1px solid #e2e8f0',
         width: '100%',
+        minHeight: compact ? 68 : 88,
         '&:hover': {
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           transform: 'translateY(-1px)',
@@ -725,7 +738,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
       onClick={onClick}
       aria-label={`View timeline for ${studentName}`}
     >
-      <CardContent sx={{ p: compact ? 1.5 : 2 }}>
+      <CardContent sx={{ p: compact ? 1.75 : 2.5 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Person sx={{ fontSize: compact ? 14 : 16, color: 'primary.main' }} />
