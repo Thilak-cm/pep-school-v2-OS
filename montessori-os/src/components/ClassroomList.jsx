@@ -21,6 +21,21 @@ import { genericFuzzySearch } from '../utils/fuzzySearch';
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+const DEFAULT_PROGRAM_ORDER = ['toddler', 'primary', 'elementary', 'adolescent'];
+const PROGRAM_LABELS = {
+  toddler: 'Toddler',
+  primary: 'Primary',
+  elementary: 'Elementary',
+  adolescent: 'Adolescent',
+  unassigned: 'Unassigned',
+};
+const SECTION_DIVIDER_SX = {
+  fontWeight: 600,
+  fontSize: '0.85rem',
+  color: '#64748b',
+  '&::before, &::after': { borderColor: '#e2e8f0' },
+};
+
 const buildCacheKey = (uid, role, manageableClassrooms = []) => {
   const classroomKey = Array.isArray(manageableClassrooms) && manageableClassrooms.length
     ? manageableClassrooms.slice().sort().join('|')
@@ -85,6 +100,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
   const [expandedClassroomId, setExpandedClassroomId] = useState(null);
+  const [programLookup, setProgramLookup] = useState({}); // classroomId -> programId
+  const [programOrder, setProgramOrder] = useState(DEFAULT_PROGRAM_ORDER);
   const isClassroomAdmin = userRole === 'classroomadmin';
 
   useEffect(() => {
@@ -186,6 +203,49 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
       isMounted = false;
     };
   }, [currentUser?.uid, userRole, manageableClassrooms]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPrograms = async () => {
+      try {
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        if (!isMounted) return;
+
+        const classroomProgramMap = {};
+        const programIds = [];
+
+        programsSnap.forEach((programDoc) => {
+          const data = programDoc.data() || {};
+          const programId = programDoc.id;
+          programIds.push(programId);
+          const classroomPaths = Array.isArray(data.classrooms) ? data.classrooms : [];
+          classroomPaths.forEach((path) => {
+            const normalizedId = normalizeClassroomId(path);
+            if (normalizedId) {
+              classroomProgramMap[normalizedId] = programId;
+            }
+          });
+        });
+
+        const orderedPrograms = [
+          ...DEFAULT_PROGRAM_ORDER.filter((pid) => programIds.includes(pid)),
+          ...programIds.filter((pid) => !DEFAULT_PROGRAM_ORDER.includes(pid)),
+        ];
+
+        setProgramLookup(classroomProgramMap);
+        setProgramOrder(orderedPrograms.length ? orderedPrograms : DEFAULT_PROGRAM_ORDER);
+      } catch (err) {
+        console.error('Error fetching program metadata', err);
+      }
+    };
+
+    fetchPrograms();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Fetch all students once classrooms are known
   useEffect(() => {
@@ -310,6 +370,52 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
     ]);
   }, [sortedClassrooms, trimmedSearchQuery]);
 
+  const classroomProgramLookup = useMemo(() => {
+    const mapping = { ...programLookup };
+    sortedClassrooms.forEach((cls) => {
+      const cid = normalizeClassroomId(cls.id);
+      if (!cid) return;
+      const programId = cls.programId || mapping[cid];
+      if (programId) {
+        mapping[cid] = programId;
+      } else if (!mapping[cid]) {
+        mapping[cid] = 'unassigned';
+      }
+    });
+    return mapping;
+  }, [sortedClassrooms, programLookup]);
+
+  const groupedClassrooms = useMemo(() => {
+    const groups = {};
+    const seenPrograms = new Set();
+
+    sortedClassrooms.forEach((cls) => {
+      const cid = normalizeClassroomId(cls.id);
+      const programId = classroomProgramLookup[cid] || 'unassigned';
+      if (!groups[programId]) groups[programId] = [];
+      groups[programId].push(cls);
+      seenPrograms.add(programId);
+    });
+
+    const preferredOrder = programOrder?.length ? programOrder : DEFAULT_PROGRAM_ORDER;
+    const orderedPrograms = [];
+
+    preferredOrder.forEach((pid) => {
+      if (seenPrograms.has(pid) && !orderedPrograms.includes(pid)) orderedPrograms.push(pid);
+    });
+
+    Array.from(seenPrograms)
+      .filter((pid) => !orderedPrograms.includes(pid) && pid !== 'unassigned')
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .forEach((pid) => orderedPrograms.push(pid));
+
+    if (seenPrograms.has('unassigned') && !orderedPrograms.includes('unassigned')) {
+      orderedPrograms.push('unassigned');
+    }
+
+    return { groups, order: orderedPrograms };
+  }, [sortedClassrooms, classroomProgramLookup, programOrder]);
+
   const studentsByClassroom = useMemo(() => {
     const map = {};
     allStudents.forEach((student) => {
@@ -377,6 +483,12 @@ const handleStudentClick = (student) => {
       normalizedId ||
       'Unassigned'
     );
+  };
+
+  const getProgramLabel = (programId) => {
+    const key = String(programId || '').trim();
+    if (!key) return PROGRAM_LABELS.unassigned;
+    return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
   };
 
   const renderCard = (classroom) => {
@@ -536,12 +648,7 @@ const handleStudentClick = (student) => {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Divider
                   textAlign="left"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    color: '#64748b',
-                    '&::before, &::after': { borderColor: '#e2e8f0' },
-                  }}
+                  sx={SECTION_DIVIDER_SX}
                 >
                   Classrooms
                 </Divider>
@@ -560,12 +667,7 @@ const handleStudentClick = (student) => {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Divider
                   textAlign="left"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    color: '#64748b',
-                    '&::before, &::after': { borderColor: '#e2e8f0' },
-                  }}
+                  sx={SECTION_DIVIDER_SX}
                 >
                   Students
                 </Divider>
@@ -623,7 +725,14 @@ const handleStudentClick = (student) => {
             </Card>
           ) : (
             <>
-              {classroomResults.map(renderCard)}
+              {groupedClassrooms.order.map((programId) => (
+                <Box key={programId} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Divider textAlign="left" sx={SECTION_DIVIDER_SX}>
+                    {getProgramLabel(programId)}
+                  </Divider>
+                  {(groupedClassrooms.groups[programId] || []).map(renderCard)}
+                </Box>
+              ))}
             </>
           )}
         </Box>

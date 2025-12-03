@@ -50,7 +50,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
             fontSize: '1.1rem'
           }}
         >
-          v5.7.2
+          v5.8.0
         </Typography>
       </Box>
     );
@@ -90,7 +90,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           fontSize: 'inherit'
         }}
       >
-        v5.7.2
+        v5.8.0
       </Typography>
     </Box>
   );

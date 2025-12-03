@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.8.0 — 2025-12-07
+
+### Changed
+- Replaced program-scoped admins with classroom-scoped `classroomadmin` role using `manageableClassrooms`; removed program-based gating across rules, backend, and UI (lists, timelines, stats, users & access).
+- Dropped reliance on `programs` collection for admin scoping and updated role labels/guardrails to block empty classroom scopes.
+
+### Added
+- Admin utility script `scripts/admin/convert-user-to-classroom-admin.js` to promote a user and set `manageableClassrooms`.
+
 ## 5.7.2 — 2025-12-07
 
 ### Fixed
