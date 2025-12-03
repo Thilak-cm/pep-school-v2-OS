@@ -132,7 +132,7 @@ const renderLessonSummary = (note, showGroupDefaults = false) => {
 };
 
 
-function ClassroomTimeline({ classroom, currentUser, userRole, manageablePrograms = [], onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
@@ -163,10 +163,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedGroupedNote, setSelectedGroupedNote] = useState(null);
   const [groupedNoteDialogOpen, setGroupedNoteDialogOpen] = useState(false);
-  const isProgramAdmin = userRole === 'admin';
-  const scopedPrograms = isProgramAdmin ? (Array.isArray(manageablePrograms) ? manageablePrograms : []) : [];
-  const scopedProgramsKey = scopedPrograms.join('|');
-  const hasClassroomAccess = classroom && (!isProgramAdmin || scopedPrograms.includes(classroom.programId));
+  const isClassroomAdmin = userRole === 'classroomadmin';
+  const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms : []) : [];
+  const scopedClassroomsKey = scopedClassrooms.join('|');
+  const hasClassroomAccess = classroom && (!isClassroomAdmin || scopedClassrooms.includes(classroom.id));
 
 
   useEffect(() => {
@@ -347,7 +347,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
         unsubscribeRef.current = null;
       }
     };
-  }, [classroom, hasClassroomAccess, scopedProgramsKey, notesReloadToken]);
+  }, [classroom, hasClassroomAccess, scopedClassroomsKey, notesReloadToken]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -368,7 +368,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableProgram
   if (!hasClassroomAccess) {
     return (
       <Box sx={{ p: 2 }}>
-        <Alert severity="warning">You do not have access to this classroom. Please choose a classroom within your programs.</Alert>
+        <Alert severity="warning">You do not have access to this classroom. Please choose one within your allowed classrooms.</Alert>
       </Box>
     );
   }

@@ -40,15 +40,15 @@ import AddNoteModal from './components/AddNoteModal';
 import UpdateNotification from './components/UpdateNotification';
 import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
-import { isAdminRole, isProgramAdmin, isSuperAdmin } from './utils/roleUtils';
+import { isSuperAdmin } from './utils/roleUtils';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage from './components/NotificationsPage.jsx';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState(null); // 'superadmin' | 'admin' | 'teacher'
-  const [manageablePrograms, setManageablePrograms] = useState([]); // programIds scoped for program admins
+  const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
+  const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
   const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
@@ -232,18 +232,18 @@ function App() {
           setScreen('accessDenied');
           return;
         }
-        const userManageablePrograms = Array.isArray(userDoc.manageablePrograms) ? userDoc.manageablePrograms.filter(Boolean) : [];
-        // Program admins must have manageablePrograms; surface hard failure if missing to avoid silent permission errors
-        if (userDoc.role === 'admin' && userManageablePrograms.length === 0) {
-          console.error('Program admin missing manageablePrograms');
-          await logUnauthorized('missing_manageablePrograms');
-          alert('Your program access is not configured. Please ask a super admin to add manageable programs to your account.');
+        const userManageableClassrooms = Array.isArray(userDoc.manageableClassrooms) ? userDoc.manageableClassrooms.filter(Boolean) : [];
+        // Classroom admins must have manageableClassrooms; surface hard failure if missing to avoid silent permission errors
+        if (userDoc.role === 'classroomadmin' && userManageableClassrooms.length === 0) {
+          console.error('Classroom admin missing manageableClassrooms');
+          await logUnauthorized('missing_manageableClassrooms');
+          alert('Your classroom access is not configured. Please ask a super admin to add manageable classrooms to your account.');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
         setRole(userDoc.role);
-        setManageablePrograms(userManageablePrograms);
+        setManageableClassrooms(userManageableClassrooms);
         // Persist role as a user property for analytics breakdowns
         setUserProperty('role', userDoc.role);
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
@@ -264,7 +264,7 @@ function App() {
       // Clear analytics user_id to avoid linking anonymous sessions
       setAnalyticsUserId(null);
       setRole(null);
-      setManageablePrograms([]);
+      setManageableClassrooms([]);
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -295,7 +295,7 @@ function App() {
 
   // Determine page title
   let pageTitle = '';
-  if (screen === 'landingPage') pageTitle = isTeacher ? 'Teacher Panel' : (isSuperAdminUser ? 'Super Admin Panel' : 'Program Admin Panel');
+  if (screen === 'landingPage') pageTitle = isTeacher ? 'Teacher Panel' : (isSuperAdminUser ? 'Super Admin Panel' : 'Classroom Admin Panel');
   else if (screen === 'classroomList') pageTitle = isTeacher ? 'My Classrooms' : 'Classrooms & Students';
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
@@ -617,7 +617,7 @@ function App() {
                     }}
                     currentUser={user}
                     userRole={role}
-                    manageablePrograms={manageablePrograms}
+                    manageableClassrooms={manageableClassrooms}
                     onNavigateToStudent={(student) => {
                       setSelectedStudent(student);
                       setStudentDashboardReturnScreen('classroomList');
@@ -632,7 +632,7 @@ function App() {
                     classroom={selectedClassroom}
                     currentUser={user}
                     userRole={role}
-                    manageablePrograms={manageablePrograms}
+                    manageableClassrooms={manageableClassrooms}
                     onNavigateToStudent={(student) => {
                       setSelectedStudent(student);
                       setStudentDashboardReturnScreen('classroomTimeline');
@@ -726,7 +726,7 @@ function App() {
                   <StatsPage
                     user={user}
                     role={role}
-                    manageablePrograms={manageablePrograms}
+                    manageableClassrooms={manageableClassrooms}
                   />
                   )}
 
@@ -753,7 +753,7 @@ function App() {
                   <UsersAccessPage
                     currentUser={user}
                     userRole={role}
-                    manageablePrograms={manageablePrograms}
+                    manageableClassrooms={manageableClassrooms}
                     view={usersAccessView}
                     onViewChange={setUsersAccessView}
                     onNavigateGraduate={() => setScreen('graduateStudents')}

@@ -42,9 +42,9 @@
 ## 5.5.0 — 2025-12-02
 
 ### Changed
-- Scoped program admins to their `manageablePrograms` across ClassroomList, ClassroomTimeline, Users & Access, and Stats; surfaced hard errors when scopes are missing.
-- Updated Firestore rules to let program admins manage `teacherIds` on classrooms they own and to authorize observation reads by `studentId` or `classroomId`.
-- Stats now batches observation reads by student for program admins and filters classrooms/teachers/students to allowed programs.
+- Scoped classroom admins to their `manageableClassrooms` across ClassroomList, ClassroomTimeline, Users & Access, and Stats; surfaced hard errors when scopes are missing.
+- Updated Firestore rules to let classroom admins manage `teacherIds` on classrooms they own and to authorize observation reads by `studentId` or `classroomId`.
+- Stats now batches observation reads by student for classroom admins and filters classrooms/teachers/students to allowed programs.
 - Recharts containers now guard on mount and enforce minimum sizing to eliminate zero-dimension warnings.
 - Notification stack now renders in a portal with fixed positioning below the app header and a raised z-index, ensuring toasts stay visible above dialogs/popups and while scrolled.
 

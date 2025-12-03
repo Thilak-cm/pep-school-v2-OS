@@ -5,12 +5,12 @@ import {
   Avatar
 } from '@mui/material';
 import VersionBadge from './VersionBadge';
-import { getRoleLabel, isProgramAdmin, isSuperAdmin } from '../utils/roleUtils';
+import { getRoleLabel, isClassroomAdmin, isSuperAdmin } from '../utils/roleUtils';
 
 const ProfilePage = ({ user, role }) => {
 
   const roleLabel = getRoleLabel(role);
-  const roleColor = isSuperAdmin(role) ? '#dc2626' : (isProgramAdmin(role) ? '#ea580c' : '#4f46e5');
+  const roleColor = isSuperAdmin(role) ? '#dc2626' : (isClassroomAdmin(role) ? '#ea580c' : '#4f46e5');
 
   return (
     <Box sx={{ 

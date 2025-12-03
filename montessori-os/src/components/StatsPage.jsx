@@ -46,7 +46,7 @@ import {
   VisibilityOff,
   Clear
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
@@ -74,16 +74,16 @@ const getFilterKeySegment = (items = []) => {
   return ids.length ? ids.join('|') : 'all';
 };
 
-const buildCacheKey = (userId, role, classrooms, teachers, students, manageablePrograms = []) => {
+const buildCacheKey = (userId, role, classrooms, teachers, students, manageableClassrooms = []) => {
   const userKey = userId || 'anonymous';
   const roleKey = role || 'unknown';
   const classroomKey = getFilterKeySegment(classrooms);
   const teacherKey = getFilterKeySegment(teachers);
   const studentKey = getFilterKeySegment(students);
-  const programKey = Array.isArray(manageablePrograms) && manageablePrograms.length
-    ? manageablePrograms.slice().sort().join('|')
-    : 'all-programs';
-  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}:${programKey}`;
+  const classroomScopeKey = Array.isArray(manageableClassrooms) && manageableClassrooms.length
+    ? manageableClassrooms.slice().sort().join('|')
+    : 'all-classrooms';
+  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}:${classroomScopeKey}`;
 };
 
 const getCachedStatsPayload = (key) => {
@@ -114,7 +114,7 @@ const setCachedStatsPayload = (key, payload) => {
   }
 };
 
-const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
+const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [stats, setStats] = useState({
@@ -164,25 +164,25 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [scopeError, setScopeError] = useState('');
   const isAdmin = isAdminRole(role);
-  const isProgramAdmin = role === 'admin';
-  const scopedPrograms = isProgramAdmin ? (Array.isArray(manageablePrograms) ? manageablePrograms.filter(Boolean) : []) : [];
+  const isClassroomAdmin = role === 'classroomadmin';
+  const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms.filter(Boolean) : []) : [];
   const cacheKey = useMemo(() => buildCacheKey(
     user?.uid,
     role,
     selectedClassrooms,
     selectedTeachers,
     selectedStudents,
-    manageablePrograms
-  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents, manageablePrograms]);
+    manageableClassrooms
+  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents, manageableClassrooms]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    // Guard: program admins must have scoped programs; otherwise stop and show error
-    if (isProgramAdmin && scopedPrograms.length === 0) {
-      setScopeError('Your program access is missing. Please contact a super admin to add manageable programs.');
+    // Guard: classroom admins must have scoped classrooms; otherwise stop and show error
+    if (isClassroomAdmin && scopedClassrooms.length === 0) {
+      setScopeError('Your classroom access is missing. Please contact a super admin to add manageable classrooms.');
       setClassrooms([]);
       setTeachers([]);
       setStudents([]);
@@ -258,16 +258,30 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
         
         // Fetch classrooms
         try {
-          const classroomConstraints = [where('status', '==', 'active')];
-          if (isProgramAdmin) {
-            classroomConstraints.push(where('programId', 'in', scopedPrograms));
+          if (isClassroomAdmin) {
+            const ids = scopedClassrooms;
+            const batchSize = 10;
+            for (let i = 0; i < ids.length; i += batchSize) {
+              const batch = ids.slice(i, i + batchSize);
+              const classroomsQuery = query(
+                collection(db, 'classrooms'),
+                where(documentId(), 'in', batch),
+                where('status', '==', 'active')
+              );
+              const classroomsSnap = await getDocs(classroomsQuery);
+              classroomsSnap.docs.forEach(doc => {
+                classroomsData.push({ id: doc.id, ...doc.data() });
+              });
+            }
+          } else {
+            const classroomConstraints = [where('status', '==', 'active')];
+            const classroomsQuery = query(collection(db, 'classrooms'), ...classroomConstraints);
+            const classroomsSnap = await getDocs(classroomsQuery);
+            classroomsData = classroomsSnap.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
           }
-          const classroomsQuery = query(collection(db, 'classrooms'), ...classroomConstraints);
-          const classroomsSnap = await getDocs(classroomsQuery);
-          classroomsData = classroomsSnap.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
         } catch (error) {
           console.error('Classrooms query failed:', error);
           classroomsData = [];
@@ -293,7 +307,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
         
         // Fetch students
         try {
-          if (isProgramAdmin) {
+          if (isClassroomAdmin) {
             const allowedClassroomIds = classroomsData.map(c => c.id);
             studentsData = [];
             const batchSize = 10;
@@ -321,7 +335,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
         // Fetch observations using collection group query
         let allObservations = [];
         try {
-          if (isProgramAdmin) {
+          if (isClassroomAdmin) {
             const allowedStudentIds = studentsData.map(s => s.id);
             const batchSize = 10;
             for (let i = 0; i < allowedStudentIds.length; i += batchSize) {
@@ -370,8 +384,8 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
         let filteredTeachersData = teachersData;
         let filteredStudentsData = studentsData;
         
-        // Program admins: hard-scope to their classrooms/programs (defensive even though queries are scoped)
-        if (isProgramAdmin) {
+        // Classroom admins: hard-scope to their classrooms (defensive even though queries are scoped)
+        if (isClassroomAdmin) {
           const allowedClassroomIds = new Set(classroomsData.map(c => c.id));
           const allowedStudentIds = new Set(studentsData.map(s => s.id));
           filteredClassroomsData = classroomsData.filter(c => allowedClassroomIds.has(c.id));
@@ -656,7 +670,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
     };
 
     fetchData();
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey, isProgramAdmin, scopedPrograms.join('|')]);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
 
   const handleTabChange = (event, newValue) => {
     // Teachers can't access certain tabs
@@ -826,7 +840,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
     return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
   };
 
-  // Hard-stop UI if program scoping is missing
+  // Hard-stop UI if classroom scoping is missing
   if (scopeError) {
     return (
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>

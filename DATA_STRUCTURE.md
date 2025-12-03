@@ -8,8 +8,8 @@
 ---
 
 ## 👥 Roles & access tiers
-- **Super admins** – current global admins. Full CRUD everywhere (users/programs/branches/AI prompts/classrooms/students/placements/observations/feedback). They can promote/demote other admins, edit `manageablePrograms`, and use any cross-program tooling.
-- **Program admins** – program-scoped operators. They read `classrooms`, `programs`, `branches`, and `feedback`, but only write student-facing data within the programs in their `manageablePrograms` list: CRUD students, placements, observations, and teacher/student user docs. They cannot touch AI prompts nor promote other admins.
+- **Super admins** – current global admins. Full CRUD everywhere (users/programs/branches/AI prompts/classrooms/students/placements/observations/feedback). They can promote/demote other admins, edit `manageableClassrooms`, and use any cross-program tooling.
+- **Classroom admins** – classroom-scoped operators. They read `classrooms`, `branches`, and `feedback`, and can write student-facing data only within the classrooms in their `manageableClassrooms` list: CRUD students, placements, observations, and teacher/student user docs. They cannot touch AI prompts nor promote other admins.
 - **Teachers** – unchanged. Classroom-scoped contributors who create observations for assigned classrooms and manage their own profiles.
 
 ---
@@ -84,7 +84,7 @@ interface User {
 
   // Access
   role: 'superadmin' | 'admin' | 'teacher'; // superadmin is global, admin is program-scoped
-  manageablePrograms?: ProgramId[];         // required (non-empty) when role == 'admin'
+  manageableClassrooms?: ProgramId[];         // required (non-empty) when role == 'admin'
   
   // Branch scope
   branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
@@ -103,9 +103,9 @@ interface User {
 Guidance
 - Use document ID as the Auth UID; do not duplicate as a field.
 - Roles live here and are read by rules; no custom claims required.
-- Super admins ignore `manageablePrograms`/`branchIds` for access control but can edit any admin’s `manageablePrograms` list.
-- Program admins MUST have `manageablePrograms` populated with at least one `ProgramId`; UI should block save otherwise. These admins can act on students/placements/observations within those programs and invite teachers/students across branches.
-- Program admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'admin' | 'superadmin'` are rejected unless performed by a super admin.
+- Super admins ignore `manageableClassrooms`/`branchIds` for access control but can edit any admin’s `manageableClassrooms` list.
+- Classroom admins MUST have `manageableClassrooms` populated with at least one `ProgramId`; UI should block save otherwise. These admins can act on students/placements/observations within those programs and invite teachers/students across branches.
+- Classroom admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'admin' | 'superadmin'` are rejected unless performed by a super admin.
 - Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
 - `studentAliases` is optional and only loaded for teachers that create personal student groups for faster lesson-note selection (see below).
 
@@ -209,7 +209,7 @@ ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
   - Include a branch code in the ID (e.g., `YYYY-BBB-XXX-NNN` where `BBB` is the branch slug), or
   - Ensure classroom IDs are globally unique across branches and keep the current `YYYY-XXX-NNN` format.
-- Access: program admins can only create/update/delete students whose `classroomId` resolves to a `programId` contained in their `manageablePrograms`. Super admins bypass this check.
+- Access: classroom admins can only create/update/delete students whose `classroomId` resolves to a `programId` contained in their `manageableClassrooms`. Super admins bypass this check.
 
 ---
 
@@ -262,7 +262,7 @@ Invariants (client-enforced)
 Query notes
 - Current classroom: read from `students/{id}.classroomId`.
 - History UI: list `/students/{id}/placements` ordered by `startDate` descending.
-- Access: program admins may edit placements only when the underlying student’s classroom belongs to one of their `manageablePrograms`. Super admins can edit any placement.
+- Access: classroom admins may edit placements only when the underlying student’s classroom belongs to one of their `manageableClassrooms`. Super admins can edit any placement.
 
 Indexes (optional, future)
 - Collection group `placements`: composite on `classroomId ASC, startDate DESC` for classroom history.
@@ -365,7 +365,7 @@ Group notes (groupId)
 
 Branch transfer behavior
 - Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
-- Access: program admins can create/update/delete observations for students when `classroom.programId ∈ manageablePrograms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
+- Access: classroom admins can create/update/delete observations for students when `classroom.programId ∈ manageableClassrooms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
 
 ---
 
@@ -397,7 +397,7 @@ interface Feedback {
 }
 ```
 Guidance
-- All users can create feedback; super admins manage status + notes, while program admins have read-only access to all feedback.
+- All users can create feedback; super admins manage status + notes, while classroom admins have read-only access to all feedback.
 - `userId` must match `request.auth.uid` for security
 - Status workflow: new → reviewed → implemented/declined
 - Admin notes are private and only visible to admins (read) and super admins (write)
@@ -422,7 +422,7 @@ Notes
 - `classrooms` stores document-path strings (not DocumentReference) for portability with admin scripts and simple reads.
 - Populated by `scripts/admin/seed-programs.js`, which scans `classrooms` by `programId` and writes `programs/{programId}`.
 - Client UI reads this collection to group classrooms by program on the Classrooms list.
-- Program admin `manageablePrograms` values must match these document IDs.
+- Classroom admin `manageableClassrooms` values must match these document IDs.
 
 ---
 
@@ -591,7 +591,7 @@ Helper checks (pseudocode names):
 - `isProgramAdmin(uid)`: `get(/users/uid).role == 'admin'`
 - `isPrivilegedAdmin(uid)`: `isSuperAdmin(uid) || isProgramAdmin(uid)`
 - `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
-- `managesProgram(uid, programId)`: `isSuperAdmin(uid)` OR (`isProgramAdmin(uid)` AND `programId` in `get(/users/uid).manageablePrograms`)
+- `managesProgram(uid, programId)`: `isSuperAdmin(uid)` OR (`isProgramAdmin(uid)` AND `programId` in `get(/users/uid).manageableClassrooms`)
 - `classroomProgramId(classroomId)`: `get(/classrooms/classroomId).programId`
 - `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
 - `studentProgramId(studentId)`: `classroomProgramId(studentClassroomId(studentId))`
@@ -606,37 +606,37 @@ Branch invariants
 
 Reads
 - `users`: self-read always; privileged admins can read/query all user docs to manage staffing.
-- `classrooms`: super admins and program admins can read all classrooms; teachers can read classrooms where `classroomHasTeacher` + `userInBranch`.
-- `students`: super admins can read all; program admins can read when `managesProgram(classroomProgramId(student.classroomId))`; teachers may read active students when assigned to the classroom + branch.
+- `classrooms`: super admins and classroom admins can read all classrooms; teachers can read classrooms where `classroomHasTeacher` + `userInBranch`.
+- `students`: super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(student.classroomId))`; teachers may read active students when assigned to the classroom + branch.
 - `students/{studentId}/placements`: same gating as `students`.
-- `observations` (collection group): super admins can read all; program admins can read when `managesProgram(classroomProgramId(observation.classroomId))`; teachers follow existing classroom/branch scoping.
+- `observations` (collection group): super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(observation.classroomId))`; teachers follow existing classroom/branch scoping.
 - `ai_prompts`: any authenticated user (client fetch).
 - `branches`: any authenticated user can read (UI picker); writes restricted to super admins.
 - `programs`: signed-in read for grouping; super admins write.
 - `feedback`: user reads own; both admin tiers read all for triage.
 
 Writes – users
-- Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageablePrograms`.
-- Program admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'admin' | 'superadmin'`.
+- Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageableClassrooms`.
+- Classroom admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'admin' | 'superadmin'`.
 
 Writes – classrooms/programs/branches/ai_prompts
 - Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `ai_prompts` documents.
 
 Writes – students
 - Super admins can CRUD any student.
-- Program admins can CRUD students when `managesProgram(classroomProgramId(request.resource.data.classroomId))` (and matching existing docs on update/delete).
+- Classroom admins can CRUD students when `managesProgram(classroomProgramId(request.resource.data.classroomId))` (and matching existing docs on update/delete).
 - Teachers do not write students.
 
 Writes – placements
-- Same gating as students: super admins always; program admins when `managesProgram(studentProgramId(studentId))`.
+- Same gating as students: super admins always; classroom admins when `managesProgram(studentProgramId(studentId))`.
 
 Creates – observations
 - Teachers: allowed when (existing constraints) `createdBy == request.auth.uid`, path `studentId` matches payload, `classroomId` equals the student’s classroom, `branchId` matches the student, and timestamps follow the contract.
-- Privileged admins: super admins bypass program checks; program admins must satisfy `managesProgram(studentProgramId(studentId))` for the student being written.
+- Privileged admins: super admins bypass program checks; classroom admins must satisfy `managesProgram(studentProgramId(studentId))` for the student being written.
 
 Updates/Deletes – observations
 - Super admins: unrestricted.
-- Program admins: allowed when `managesProgram(studentProgramId(studentId))`.
+- Classroom admins: allowed when `managesProgram(studentProgramId(studentId))`.
 - Teachers: may update limited metadata (as in rules) or delete their own notes when `createdBy == request.auth.uid` (or legacy `teacherId`).
 
 Field immutability (on update)

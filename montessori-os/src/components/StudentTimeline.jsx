@@ -471,7 +471,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setExportType(type);
     
     // Teachers go straight to confirmation (text only)
-    if (userRole !== 'admin') {
+    if (!isAdmin) {
       setExportFormat('txt');
       setExportConfirmOpen(true);
     } else {

@@ -12,7 +12,6 @@ initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
 // const auth = getAuth(); // Unused - commented out to fix lint error
-const PROGRAM_IDS = ["toddler", "primary", "elementary", "adolescent"];
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config
@@ -32,7 +31,21 @@ export const createUserWithEmailCheck = functions.region("asia-south1").https.on
     throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
   }
 
-  const { email, firstName, lastName, role = "teacher", adminLevel, permissions, selectedClassrooms = [] } = data;
+  const { email, firstName, lastName, role = "teacher", adminLevel, permissions, selectedClassrooms = [], manageableClassrooms = [] } = data;
+  const normalizedRole = role === "classroomadmin" || role === "admin"
+    ? "classroomadmin"
+    : (role === "superadmin" ? "superadmin" : "teacher");
+
+  const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+  const requesterRole = requesterSnap.data()?.role;
+  const requesterIsSuperAdmin = requesterRole === "superadmin";
+  const requesterIsClassroomAdmin = requesterRole === "classroomadmin";
+  if (!requesterSnap.exists || (!requesterIsSuperAdmin && !requesterIsClassroomAdmin)) {
+    throw new functions.https.HttpsError("permission-denied", "Only admins can create users");
+  }
+  if ((normalizedRole === "classroomadmin" || normalizedRole === "superadmin") && !requesterIsSuperAdmin) {
+    throw new functions.https.HttpsError("permission-denied", "Only super admins can create admin accounts");
+  }
   
   if (!email || !firstName || !lastName) {
     throw new functions.https.HttpsError("invalid-argument", "Email, firstName, and lastName are required");
@@ -59,7 +72,7 @@ export const createUserWithEmailCheck = functions.region("asia-south1").https.on
         displayName: firstName + " " + lastName,
         firstName: firstName,
         lastName: lastName,
-        role: role,
+        role: normalizedRole,
         status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -67,16 +80,25 @@ export const createUserWithEmailCheck = functions.region("asia-south1").https.on
       };
 
       // Add role-specific fields
-      if (role === "admin") {
+      if (normalizedRole === "classroomadmin") {
+        const normalizedManageableClassrooms = Array.from(new Set(
+          (Array.isArray(manageableClassrooms) ? manageableClassrooms : [])
+            .map((c) => String(c || "").trim())
+            .filter(Boolean)
+        ));
+        if (normalizedManageableClassrooms.length === 0) {
+          throw new functions.https.HttpsError("invalid-argument", "Classroom admins must have at least one manageable classroom");
+        }
         userData.adminLevel = adminLevel || "regular";
         userData.permissions = permissions || [];
+        userData.manageableClassrooms = normalizedManageableClassrooms;
       }
 
       const userRef = db.collection("users").doc();
       transaction.set(userRef, userData);
 
       // Assign teacher to classrooms if applicable
-      if (role === "teacher" && selectedClassrooms.length > 0) {
+      if (normalizedRole === "teacher" && selectedClassrooms.length > 0) {
         for (const classroomId of selectedClassrooms) {
           try {
             const classroomRef = db.collection("classrooms").doc(classroomId);
@@ -140,8 +162,8 @@ export const createAuthUserAndProfile = functions
     const requesterSnap = await db.collection("users").doc(requesterUid).get();
     const requesterRole = requesterSnap.data()?.role;
     const isSuperAdmin = requesterRole === "superadmin";
-    const isProgramAdmin = requesterRole === "admin";
-    if (!requesterSnap.exists || (!isSuperAdmin && !isProgramAdmin)) {
+    const isClassroomAdmin = requesterRole === "classroomadmin";
+    if (!requesterSnap.exists || (!isSuperAdmin && !isClassroomAdmin)) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can create users");
     }
 
@@ -149,11 +171,11 @@ export const createAuthUserAndProfile = functions
       email,
       firstName,
       lastName,
-      role = "teacher", // 'superadmin' | 'admin' | 'teacher'
+      role = "teacher", // 'superadmin' | 'classroomadmin' | 'teacher'
       selectedClassrooms = [], // array of classroom IDs for teachers
       updateIfExists = false,
       status = "active",
-      manageablePrograms = [],
+      manageableClassrooms = [],
     } = data || {};
     const uniqueSelectedClassrooms = Array.isArray(selectedClassrooms)
       ? Array.from(new Set(selectedClassrooms.filter(Boolean)))
@@ -170,20 +192,20 @@ export const createAuthUserAndProfile = functions
     }
 
     const displayName = `${firstName} ${lastName || ""}`.trim();
-    const normalizedRole = role === "admin"
-      ? "admin"
+    const normalizedRole = role === "classroomadmin"
+      ? "classroomadmin"
       : (role === "superadmin" ? "superadmin" : "teacher");
-    const hasManageableProgramsInput = Array.isArray(manageablePrograms);
-    const normalizedManageablePrograms = hasManageableProgramsInput
-      ? Array.from(new Set(manageablePrograms.filter((p) => PROGRAM_IDS.includes(p))))
+    const hasManageableClassroomsInput = Array.isArray(manageableClassrooms);
+    const normalizedManageableClassrooms = hasManageableClassroomsInput
+      ? Array.from(new Set(manageableClassrooms.map((c) => String(c || "").trim()).filter(Boolean)))
       : [];
 
-    if (normalizedRole === "admin") {
+    if (normalizedRole === "classroomadmin") {
       if (!isSuperAdmin) {
-        throw new functions.https.HttpsError("permission-denied", "Only super admins can create program admins");
+        throw new functions.https.HttpsError("permission-denied", "Only super admins can create classroom admins");
       }
-      if (normalizedManageablePrograms.length === 0) {
-        throw new functions.https.HttpsError("invalid-argument", "Program admins must have at least one manageable program");
+      if (normalizedManageableClassrooms.length === 0) {
+        throw new functions.https.HttpsError("invalid-argument", "Classroom admins must have at least one manageable classroom");
       }
     }
 
@@ -223,14 +245,14 @@ export const createAuthUserAndProfile = functions
           status: status || existingData.status || "active",
           updatedAt: new Date(),
         };
-        if (existingData.role === "admin" && hasManageableProgramsInput) {
+        if (existingData.role === "classroomadmin" && hasManageableClassroomsInput) {
           if (!isSuperAdmin) {
-            throw new functions.https.HttpsError("permission-denied", "Only super admins can edit program admins");
+            throw new functions.https.HttpsError("permission-denied", "Only super admins can edit classroom admins");
           }
-          if (normalizedManageablePrograms.length === 0) {
-            throw new functions.https.HttpsError("invalid-argument", "Program admins must manage at least one program");
+          if (normalizedManageableClassrooms.length === 0) {
+            throw new functions.https.HttpsError("invalid-argument", "Classroom admins must manage at least one classroom");
           }
-          updateData.manageablePrograms = normalizedManageablePrograms;
+          updateData.manageableClassrooms = normalizedManageableClassrooms;
         }
         if (!isMigrated && existingData.role === "teacher" && uniqueSelectedClassrooms.length > 0) {
           updateData.selectedClassrooms = uniqueSelectedClassrooms;
@@ -287,8 +309,8 @@ export const createAuthUserAndProfile = functions
         createdBy: requesterUid,
         isPending: true, // Flag to identify pending users
       };
-      if (normalizedRole === "admin") {
-        newUserData.manageablePrograms = normalizedManageablePrograms;
+      if (normalizedRole === "classroomadmin") {
+        newUserData.manageableClassrooms = normalizedManageableClassrooms;
       }
       if (normalizedRole === "teacher" && uniqueSelectedClassrooms.length > 0) {
         newUserData.selectedClassrooms = uniqueSelectedClassrooms; // Store for migration

@@ -14,18 +14,18 @@ import {
   Collapse,
 } from '@mui/material';
 import { School, Group, ArrowForward, Search, Person, ExpandMore, ExpandLess } from '@mui/icons-material';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
 
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const buildCacheKey = (uid, role, manageablePrograms = []) => {
-  const programKey = Array.isArray(manageablePrograms) && manageablePrograms.length
-    ? manageablePrograms.slice().sort().join('|')
-    : 'all-programs';
-  return `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}:${programKey}`;
+const buildCacheKey = (uid, role, manageableClassrooms = []) => {
+  const classroomKey = Array.isArray(manageableClassrooms) && manageableClassrooms.length
+    ? manageableClassrooms.slice().sort().join('|')
+    : 'all-classrooms';
+  return `${CACHE_KEY_PREFIX}:${role || 'unknown'}:${uid || 'anonymous'}:${classroomKey}`;
 };
 
 const readCachedClassrooms = (key) => {
@@ -76,25 +76,23 @@ const getStudentName = (student) => (
   [student?.firstName, student?.lastName].filter(Boolean).join(' ')
 ).trim() || 'Unknown Student';
 
-function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePrograms = [], onNavigateToStudent }) {
+function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
   const [expandedClassroomId, setExpandedClassroomId] = useState(null);
-  const isProgramAdmin = userRole === 'admin';
+  const isClassroomAdmin = userRole === 'classroomadmin';
 
   useEffect(() => {
     let isMounted = true;
-    const cacheKey = buildCacheKey(currentUser?.uid, userRole, manageablePrograms);
+    const cacheKey = buildCacheKey(currentUser?.uid, userRole, manageableClassrooms);
     const cached = readCachedClassrooms(cacheKey);
 
     if (cached) {
-      setProgramMap(cached.programMap || {});
       setClassrooms(cached.classrooms || []);
       setStudentCounts(cached.studentCounts || {});
       setLoading(false);
@@ -106,55 +104,48 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
       try {
         let classroomsToShow = [];
 
-        // Fetch programs -> classroom mapping
-        const programsSnap = await getDocs(collection(db, 'programs'));
-        const pMap = {};
-        programsSnap.forEach((doc) => {
-          const data = doc.data() || {};
-          const list = Array.isArray(data.classrooms) ? data.classrooms : [];
-          const ids = list
-            .map((p) => String(p))
-            .map((p) => {
-              const parts = p.split('/');
-              return parts[parts.length - 1];
-            });
-          pMap[doc.id] = ids;
-        });
-        if (!isMounted) return;
-
-        setProgramMap(pMap);
-
         if (userRole === 'teacher') {
-          // Get all classrooms first (should work with list permission)
-          const allClassroomsQuery = query(collection(db, 'classrooms'));
-          const allClassroomsSnap = await getDocs(allClassroomsQuery);
-          
-          // Filter client-side to show only classrooms where teacher is assigned
+          const allClassroomsSnap = await getDocs(query(collection(db, 'classrooms')));
           const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data() 
           }));
           
-          // Filter to only show classrooms where this teacher is assigned
           classroomsToShow = allClassrooms
-            // exclude archived classrooms
             .filter(classroom => (classroom.status || 'active') !== 'archived')
             .filter(classroom => {
-            return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
-          });
-        } else {
-          // For admins: scope by manageablePrograms for program admins
-          if (isProgramAdmin && manageablePrograms.length === 0) {
+              return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
+            });
+        } else if (isClassroomAdmin) {
+          if (manageableClassrooms.length === 0) {
             classroomsToShow = [];
           } else {
-            const constraints = [where('status', '==', 'active')];
-            if (isProgramAdmin) {
-              constraints.push(where('programId', 'in', manageablePrograms));
+            const ids = manageableClassrooms.filter(Boolean);
+            const batchSize = 10;
+            const batches = [];
+            for (let i = 0; i < ids.length; i += batchSize) {
+              batches.push(ids.slice(i, i + batchSize));
             }
-            const q = query(collection(db, 'classrooms'), ...constraints);
-            const qSnap = await getDocs(q);
-            classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            const results = [];
+            for (const batch of batches) {
+              const q = query(
+                collection(db, 'classrooms'),
+                where(documentId(), 'in', batch),
+                where('status', '==', 'active')
+              );
+              const snap = await getDocs(q);
+              results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+            }
+            const deduped = {};
+            results.forEach((c) => {
+              if (c?.id) deduped[c.id] = c;
+            });
+            classroomsToShow = Object.values(deduped);
           }
+        } else {
+          const q = query(collection(db, 'classrooms'), where('status', '==', 'active'));
+          const qSnap = await getDocs(q);
+          classroomsToShow = qSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         }
 
         // Exclude any classrooms labeled as "Adolescent" by name (case-insensitive)
@@ -179,7 +170,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
         writeCachedClassrooms(cacheKey, {
           classrooms: classroomsToShow,
           studentCounts: counts,
-          programMap: pMap,
         });
       } catch (err) {
         console.error('Error fetching classrooms', err);
@@ -195,7 +185,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.uid, userRole, manageablePrograms]);
+  }, [currentUser?.uid, userRole, manageableClassrooms]);
 
   // Fetch all students once classrooms are known
   useEffect(() => {
@@ -237,7 +227,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
             const batchSnapshot = await getDocs(batchQuery);
             batchSnapshot.docs.forEach(addStudent);
           }
-        } else if (isProgramAdmin) {
+        } else if (isClassroomAdmin) {
           const allowedClassroomIds = classrooms.map((c) => c.id);
           if (allowedClassroomIds.length) {
             const batchSize = 10;
@@ -303,7 +293,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     return () => {
       isMounted = false;
     };
-  }, [classrooms, userRole, isProgramAdmin, loading]);
+  }, [classrooms, userRole, isClassroomAdmin, loading]);
 
   const trimmedSearchQuery = searchQuery.trim();
 
@@ -348,51 +338,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
       getStudentName(a).localeCompare(getStudentName(b), undefined, { sensitivity: 'base' })
     );
   }, [allStudents, trimmedSearchQuery]);
-
-  // Build reverse index: classroomId -> programId
-  const classroomToProgram = useMemo(() => {
-    const map = {};
-    Object.entries(programMap).forEach(([pid, ids]) => {
-      (ids || []).forEach((cid) => {
-        if (!map[cid]) map[cid] = pid;
-      });
-    });
-    return map;
-  }, [programMap]);
-
-  // Sort available programs alphabetically
-  const sortedProgramIds = useMemo(() => {
-    const present = new Set();
-    for (const c of sortedClassrooms) {
-      const pid = classroomToProgram[c.id];
-      if (pid) present.add(pid);
-    }
-    return Array.from(present).sort((a, b) => a.localeCompare(b));
-  }, [sortedClassrooms, classroomToProgram]);
-
-  // Group classrooms by program using programs collection; anything unmapped goes to 'unassigned'
-  const groupedByProgram = useMemo(() => {
-    const groups = {};
-    for (const pid of sortedProgramIds) groups[pid] = [];
-    const unassigned = [];
-    for (const c of sortedClassrooms) {
-      const pid = classroomToProgram[c.id];
-      if (pid) {
-        if (!groups[pid]) groups[pid] = [];
-        groups[pid].push(c);
-      } else {
-        unassigned.push(c);
-      }
-    }
-    return { groups, unassigned };
-  }, [sortedClassrooms, classroomToProgram, sortedProgramIds]);
-
-const PROGRAM_TITLES = {
-  adolescent: 'Adolescent',
-  elementary: 'Elementary',
-  primary: 'Primary',
-  toddler: 'Toddler',
-};
 
 const estimateStudentListHeight = (count) => {
   const cardHeight = 88;            // approximate card height
@@ -678,45 +623,7 @@ const handleStudentClick = (student) => {
             </Card>
           ) : (
             <>
-              {sortedProgramIds.map((pid) => {
-                const items = groupedByProgram.groups[pid] || [];
-                if (!items.length) return null;
-                const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
-                return (
-                  <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Divider
-                      textAlign="left"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        color: '#64748b',        // slate-500
-                        '&::before, &::after': {
-                          borderColor: '#e2e8f0', // slate-200
-                        },
-                      }}
-                    >
-                      {label}
-                    </Divider>
-                    {items.map(renderCard)}
-                  </Box>
-                );
-              })}
-              {groupedByProgram.unassigned.length > 0 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Divider
-                    textAlign="left"
-                    sx={{
-                      fontWeight: 600,
-                      fontSize: '0.85rem',
-                      color: '#64748b',
-                      '&::before, &::after': { borderColor: '#e2e8f0' },
-                    }}
-                  >
-                    Unassigned
-                  </Divider>
-                  {groupedByProgram.unassigned.map(renderCard)}
-                </Box>
-              )}
+              {classroomResults.map(renderCard)}
             </>
           )}
         </Box>
