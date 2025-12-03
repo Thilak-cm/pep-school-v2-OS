@@ -7,11 +7,11 @@ export default function useTranscriptStudentSuggestions(transcript, students) {
     if (!transcript || !Array.isArray(students) || students.length === 0) return [];
 
     // Bias toward tighter matches; 0.25 keeps obvious misspellings while avoiding loose noise.
-    const THRESHOLD = 0.25;
+    const THRESHOLD = 0.2;
     const fuse = new Fuse(students, {
       includeScore: true,
       threshold: THRESHOLD,
-      distance: 40,
+      distance: 30,
       // Only match against first names to reduce false positives from partial last names.
       keys: [{ name: 'firstName', weight: 1 }],
       useExtendedSearch: false,

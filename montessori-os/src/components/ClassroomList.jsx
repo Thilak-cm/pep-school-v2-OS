@@ -3,23 +3,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   CircularProgress,
   Card,
   CardContent,
-  CardActionArea,
   Avatar,
   TextField,
   InputAdornment,
   Divider,
-  Tabs,
-  Tab,
   Button,
+  Collapse,
 } from '@mui/material';
-import { School, Group, ArrowForward, Search, Person, ExpandMore } from '@mui/icons-material';
+import { School, Group, ArrowForward, Search, Person, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { fuzzySearchClassrooms, fuzzySearchStudents } from '../utils/fuzzySearch';
+import { genericFuzzySearch } from '../utils/fuzzySearch';
 
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -63,19 +60,33 @@ const writeCachedClassrooms = (key, payload) => {
   }
 };
 
+const normalizeClassroomId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object' && value.id) return value.id;
+  if (typeof value === 'string') {
+    const parts = value.split('/');
+    return parts[parts.length - 1] || value;
+  }
+  return value;
+};
+
+const getStudentName = (student) => (
+  student?.displayName ||
+  student?.name ||
+  [student?.firstName, student?.lastName].filter(Boolean).join(' ')
+).trim() || 'Unknown Student';
+
 function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePrograms = [], onNavigateToStudent }) {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
-  const [activeTab, setActiveTab] = useState(0); // 0 = Classrooms, 1 = Students
   const [allStudents, setAllStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
-  const [displayedStudentsCount, setDisplayedStudentsCount] = useState(10); // Show first 10, then 10 more on each expansion
+  const [expandedClassroomId, setExpandedClassroomId] = useState(null);
   const isProgramAdmin = userRole === 'admin';
-  const isSuperAdmin = userRole === 'superadmin';
 
   useEffect(() => {
     let isMounted = true;
@@ -186,9 +197,9 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     };
   }, [currentUser?.uid, userRole, manageablePrograms]);
 
-  // Fetch all students when Students tab is active
+  // Fetch all students once classrooms are known
   useEffect(() => {
-    if (activeTab !== 1) return; // Only fetch when Students tab is active
+    if (loading) return;
 
     let isMounted = true;
     setStudentsLoading(true);
@@ -196,78 +207,62 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     const fetchAllStudents = async () => {
       try {
         let studentsToShow = [];
-        let classroomIdsToFetch = new Set();
+        const classroomIdsToFetch = new Set();
+
+        const addStudent = (doc) => {
+          const data = doc.data() || {};
+          const normalizedClassroomId = normalizeClassroomId(data.classroomId);
+          studentsToShow.push({
+            id: doc.id,
+            ...data,
+            normalizedClassroomId,
+          });
+          if (normalizedClassroomId) classroomIdsToFetch.add(normalizedClassroomId);
+        };
 
         if (userRole === 'teacher') {
           // For teachers: get students from their assigned classrooms only
           if (classrooms.length === 0) {
-            setAllStudents([]);
-            setStudentsLoading(false);
+            if (isMounted) {
+              setAllStudents([]);
+            }
             return;
           }
 
-          const assignedClassroomIds = classrooms.map(c => c.id);
-          
-          // Handle batching if more than 10 classrooms (Firestore 'in' limit is 10)
-          if (assignedClassroomIds.length > 10) {
-            const allStudentPromises = [];
-            for (let i = 0; i < assignedClassroomIds.length; i += 10) {
-              const batch = assignedClassroomIds.slice(i, i + 10);
-              const batchQuery = query(
-                collection(db, 'students'),
-                where('classroomId', 'in', batch)
-              );
-              allStudentPromises.push(getDocs(batchQuery));
+          const assignedClassroomIds = classrooms.map((c) => c.id);
+          const batchSize = 10;
+          for (let i = 0; i < assignedClassroomIds.length; i += batchSize) {
+            const batch = assignedClassroomIds.slice(i, i + batchSize);
+            const batchQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
+            const batchSnapshot = await getDocs(batchQuery);
+            batchSnapshot.docs.forEach(addStudent);
+          }
+        } else if (isProgramAdmin) {
+          const allowedClassroomIds = classrooms.map((c) => c.id);
+          if (allowedClassroomIds.length) {
+            const batchSize = 10;
+            for (let i = 0; i < allowedClassroomIds.length; i += batchSize) {
+              const batch = allowedClassroomIds.slice(i, i + batchSize);
+              const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
+              const studentsSnap = await getDocs(studentsQuery);
+              studentsSnap.docs.forEach(addStudent);
             }
-            const allSnapshots = await Promise.all(allStudentPromises);
-            allSnapshots.forEach(snapshot => {
-              snapshot.docs.forEach(doc => {
-                studentsToShow.push({ id: doc.id, ...doc.data() });
-                if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
-              });
-            });
-          } else {
-            const studentsQuery = query(
-              collection(db, 'students'),
-              where('classroomId', 'in', assignedClassroomIds)
-            );
-            const studentsSnap = await getDocs(studentsQuery);
-            studentsSnap.docs.forEach(doc => {
-              studentsToShow.push({ id: doc.id, ...doc.data() });
-              if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
-            });
           }
         } else {
-          if (isProgramAdmin) {
-            const allowedClassroomIds = classrooms.map(c => c.id);
-            if (allowedClassroomIds.length === 0) {
-              studentsToShow = [];
-            } else {
-              const batchSize = 10;
-              for (let i = 0; i < allowedClassroomIds.length; i += batchSize) {
-                const batch = allowedClassroomIds.slice(i, i + batchSize);
-                const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
-                const studentsSnap = await getDocs(studentsQuery);
-                studentsSnap.docs.forEach(doc => {
-                  studentsToShow.push({ id: doc.id, ...doc.data() });
-                  if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
-                });
-              }
-            }
-          } else {
-            // For super admins: get all students
-            const studentsQuery = query(collection(db, 'students'));
-            const studentsSnap = await getDocs(studentsQuery);
-            studentsSnap.docs.forEach(doc => {
-              studentsToShow.push({ id: doc.id, ...doc.data() });
-              if (doc.data().classroomId) classroomIdsToFetch.add(doc.data().classroomId);
-            });
-          }
+          // For super admins: get all students
+          const studentsQuery = query(collection(db, 'students'));
+          const studentsSnap = await getDocs(studentsQuery);
+          studentsSnap.docs.forEach(addStudent);
         }
 
         // Fetch classroom names for display
         const classroomNameMap = {};
-        const classroomPromises = Array.from(classroomIdsToFetch).map(async (classroomId) => {
+        classrooms.forEach((c) => {
+          if (c?.id) classroomNameMap[c.id] = c.name || c.id;
+        });
+
+        const missingClassroomIds = Array.from(classroomIdsToFetch).filter((id) => !classroomNameMap[id]);
+        const classroomPromises = missingClassroomIds.map(async (classroomId) => {
           try {
             const classroomDoc = await getDoc(doc(db, 'classrooms', classroomId));
             if (classroomDoc.exists()) {
@@ -282,7 +277,15 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
         if (!isMounted) return;
 
         setClassroomMap(classroomNameMap);
-        setAllStudents(studentsToShow);
+        const studentsWithNames = studentsToShow.map((student) => {
+          const normalizedClassroomId = student.normalizedClassroomId || normalizeClassroomId(student.classroomId);
+          return {
+            ...student,
+            normalizedClassroomId,
+            classroomName: classroomNameMap[normalizedClassroomId] || normalizedClassroomId || 'Unassigned',
+          };
+        });
+        setAllStudents(studentsWithNames);
       } catch (err) {
         console.error('Error fetching all students:', err);
         if (isMounted) {
@@ -300,24 +303,51 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     return () => {
       isMounted = false;
     };
-  }, [activeTab, classrooms, userRole, manageablePrograms]);
+  }, [classrooms, userRole, isProgramAdmin, loading]);
 
-  // Use fuzzy search for better matching
-  const visibleClassrooms = fuzzySearchClassrooms(classrooms, activeTab === 0 ? searchQuery : '');
-  
-  // Filter students based on search query
-  const filteredStudents = useMemo(() => {
-    if (activeTab !== 1) return [];
-    return fuzzySearchStudents(allStudents, searchQuery);
-  }, [allStudents, searchQuery, activeTab]);
+  const trimmedSearchQuery = searchQuery.trim();
 
-  // Sort students alphabetically
-  const sortedFilteredStudents = useMemo(() => {
-    const getName = (s) => (
-      s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || ''
-    ).trim();
-    return [...filteredStudents].sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
-  }, [filteredStudents]);
+  const sortedClassrooms = useMemo(() => {
+    return [...classrooms].sort((a, b) =>
+      (a?.name || '').localeCompare(b?.name || '', undefined, { sensitivity: 'base' })
+    );
+  }, [classrooms]);
+
+  const classroomResults = useMemo(() => {
+    if (!trimmedSearchQuery) return sortedClassrooms;
+    return genericFuzzySearch(sortedClassrooms, trimmedSearchQuery, [
+      { name: 'name', weight: 1 },
+    ]);
+  }, [sortedClassrooms, trimmedSearchQuery]);
+
+  const studentsByClassroom = useMemo(() => {
+    const map = {};
+    allStudents.forEach((student) => {
+      const cid = student.normalizedClassroomId || normalizeClassroomId(student.classroomId);
+      if (!cid) return;
+      if (!map[cid]) map[cid] = [];
+      map[cid].push(student);
+    });
+    Object.values(map).forEach((list) => {
+      list.sort((a, b) =>
+        getStudentName(a).localeCompare(getStudentName(b), undefined, { sensitivity: 'base' })
+      );
+    });
+    return map;
+  }, [allStudents]);
+
+  const studentResults = useMemo(() => {
+    const keys = [
+      { name: 'displayName', weight: 1 },
+      { name: 'name', weight: 1 },
+      { name: 'firstName', weight: 0.9 },
+      { name: 'lastName', weight: 0.9 },
+    ];
+    const results = genericFuzzySearch(allStudents, trimmedSearchQuery, keys);
+    return [...results].sort((a, b) =>
+      getStudentName(a).localeCompare(getStudentName(b), undefined, { sensitivity: 'base' })
+    );
+  }, [allStudents, trimmedSearchQuery]);
 
   // Build reverse index: classroomId -> programId
   const classroomToProgram = useMemo(() => {
@@ -333,19 +363,19 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
   // Sort available programs alphabetically
   const sortedProgramIds = useMemo(() => {
     const present = new Set();
-    for (const c of visibleClassrooms) {
+    for (const c of sortedClassrooms) {
       const pid = classroomToProgram[c.id];
       if (pid) present.add(pid);
     }
     return Array.from(present).sort((a, b) => a.localeCompare(b));
-  }, [visibleClassrooms, classroomToProgram]);
+  }, [sortedClassrooms, classroomToProgram]);
 
   // Group classrooms by program using programs collection; anything unmapped goes to 'unassigned'
   const groupedByProgram = useMemo(() => {
     const groups = {};
     for (const pid of sortedProgramIds) groups[pid] = [];
     const unassigned = [];
-    for (const c of visibleClassrooms) {
+    for (const c of sortedClassrooms) {
       const pid = classroomToProgram[c.id];
       if (pid) {
         if (!groups[pid]) groups[pid] = [];
@@ -355,7 +385,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
       }
     }
     return { groups, unassigned };
-  }, [visibleClassrooms, classroomToProgram, sortedProgramIds]);
+  }, [sortedClassrooms, classroomToProgram, sortedProgramIds]);
 
   const PROGRAM_TITLES = {
     adolescent: 'Adolescent',
@@ -364,156 +394,240 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
     toddler: 'Toddler',
   };
 
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-    // Clear search when switching tabs
-    setSearchQuery('');
-  };
-
   const handleStudentClick = (student) => {
+    setExpandedClassroomId(null);
     if (onNavigateToStudent) {
       onNavigateToStudent(student);
     }
   };
 
-  const handleShowMoreStudents = () => {
-    setDisplayedStudentsCount(prev => prev + 10);
+  const handleToggleStudents = (event, classroomId) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setExpandedClassroomId((prev) => (prev === classroomId ? null : classroomId));
   };
 
-  // Reset displayed count when switching tabs, changing search, or when students list changes
   useEffect(() => {
-    if (activeTab === 1) {
-      setDisplayedStudentsCount(10);
-    }
-  }, [activeTab, searchQuery, allStudents.length]);
+    setExpandedClassroomId(null);
+  }, [searchQuery]);
 
-  // Get students to display (paginated)
-  const studentsToDisplay = useMemo(() => {
-    return sortedFilteredStudents.slice(0, displayedStudentsCount);
-  }, [sortedFilteredStudents, displayedStudentsCount]);
+  const getStudentClassroomLabel = (student, fallbackClassroomId = '') => {
+    const normalizedId =
+      student?.normalizedClassroomId || normalizeClassroomId(student?.classroomId) || fallbackClassroomId;
+    return (
+      student?.classroomName ||
+      classroomMap[normalizedId] ||
+      classroomMap[fallbackClassroomId] ||
+      normalizedId ||
+      'Unassigned'
+    );
+  };
 
-  const renderCard = (classroom) => (
-    <Card
-      key={classroom.id}
-      sx={{
-        borderRadius: 2,
-        '&:hover': {
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          transform: 'translateY(-2px)',
-        },
-        transition: 'all 0.2s ease-in-out',
-      }}
-    >
-      <CardActionArea onClick={() => onSelectClassroom(classroom)} sx={{ p: 0 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
-                <School />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                  {classroom.name}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                  <Group sx={{ fontSize: 16, color: '#64748b' }} />
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
-                    {studentCounts[classroom.id] || 0} students
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-            <ArrowForward sx={{ color: '#94a3b8' }} />
-          </Box>
-        </CardContent>
-      </CardActionArea>
-    </Card>
-  );
+  const renderCard = (classroom) => {
+    const normalizedId = normalizeClassroomId(classroom.id);
+    // Prefer pre-grouped students; fall back to on-the-fly filter if the map is empty.
+    const classroomStudents =
+      studentsByClassroom[normalizedId] && studentsByClassroom[normalizedId].length
+        ? studentsByClassroom[normalizedId]
+        : allStudents.filter((s) => {
+            const cid = s.normalizedClassroomId || normalizeClassroomId(s.classroomId);
+            return cid === normalizedId;
+          });
+    const isExpanded = expandedClassroomId === classroom.id;
+    const studentTotal = studentCounts[classroom.id] ?? classroomStudents.length ?? 0;
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Header - different for teachers vs admins */}
-      {userRole === 'teacher' ? (
-        // Teacher header - removed welcome message
-        null
-      ) : (
-        // Admin header with search
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <TextField
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={activeTab === 0 ? "Search classrooms…" : "Search students…"}
-            aria-label={activeTab === 0 ? "Search classrooms" : "Search students"}
-            variant="outlined"
-            size="small"
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Box>
-      )}
-
-      {/* Optional search for teachers */}
-      {userRole === 'teacher' && (
-        <TextField
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={activeTab === 0 ? "Search classrooms…" : "Search students…"}
-          aria-label={activeTab === 0 ? "Search classrooms" : "Search students"}
-          variant="outlined"
-          size="small"
-          fullWidth
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search fontSize="small" />
-              </InputAdornment>
-            ),
+    return (
+      <Card
+        key={classroom.id}
+        sx={{
+          borderRadius: 2,
+          '&:hover': {
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            transform: 'translateY(-2px)',
+          },
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
+        <Box
+          onClick={() => {
+            setExpandedClassroomId(null);
+            onSelectClassroom(classroom);
           }}
-        />
-      )}
-
-      {/* Tabs */}
-      <Box sx={{ 
-        backgroundColor: 'white',
-        borderRadius: 1,
-        overflow: 'hidden',
-        borderBottom: '1px solid #e2e8f0'
-      }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
-          variant="fullWidth"
-          sx={{
-            '& .MuiTab-root': {
-              minHeight: 48,
-              textTransform: 'none',
-              fontWeight: 500
+          sx={{ p: 0, cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setExpandedClassroomId(null);
+              onSelectClassroom(classroom);
             }
           }}
         >
-          <Tab 
-            icon={<School />} 
-            label="Classrooms" 
-            iconPosition="start"
-            aria-label="View classrooms"
-          />
-          <Tab 
-            icon={<Person />} 
-            label="Students" 
-            iconPosition="start"
-            aria-label="View all students"
-          />
-        </Tabs>
-      </Box>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
+                  <School />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                    {classroom.name || 'Untitled classroom'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Group sx={{ fontSize: 16, color: '#64748b' }} />
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      {studentTotal} students
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+              <ArrowForward sx={{ color: '#94a3b8' }} />
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              endIcon={isExpanded ? <ExpandLess /> : <ExpandMore />}
+              onClick={(event) => handleToggleStudents(event, classroom.id)}
+              sx={{ textTransform: 'none', mt: 1 }}
+            >
+              View students
+            </Button>
+          </CardContent>
+        </Box>
 
-      {/* Tab Content */}
-      {activeTab === 0 && (
+        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+          <Box
+            sx={{
+              px: 3,
+              pb: 3,
+              pt: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.5,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Students ({classroomStudents.length})
+              </Typography>
+              {studentsLoading && <CircularProgress size={16} />}
+            </Box>
+            <Box
+              sx={{
+                height: 360,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+                pr: 1,
+                minHeight: 0,
+              }}
+            >
+              {studentsLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={20} />
+                </Box>
+              ) : classroomStudents.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No students in this classroom.
+                </Typography>
+              ) : (
+                classroomStudents.map((student) => (
+                  <StudentCard
+                    key={student.id}
+                    student={student}
+                    classroomName={getStudentClassroomLabel(student, normalizedId)}
+                    onClick={() => handleStudentClick(student)}
+                  />
+                ))
+              )}
+            </Box>
+          </Box>
+        </Collapse>
+      </Card>
+    );
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <TextField
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search classrooms or students…"
+        aria-label="Search classrooms or students"
+        variant="outlined"
+        size="small"
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <Search fontSize="small" />
+            </InputAdornment>
+          ),
+        }}
+      />
+
+      {trimmedSearchQuery ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {classroomResults.length === 0 && studentResults.length === 0 && !loading && !studentsLoading ? (
+            <Typography variant="body2" color="text.secondary">
+              No classrooms or students match "{trimmedSearchQuery}".
+            </Typography>
+          ) : (
+            <>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Divider
+                  textAlign="left"
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    color: '#64748b',
+                    '&::before, &::after': { borderColor: '#e2e8f0' },
+                  }}
+                >
+                  Classrooms
+                </Divider>
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                    <CircularProgress size={32} />
+                  </Box>
+                ) : (
+                  classroomResults.map(renderCard)
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Divider
+                  textAlign="left"
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    color: '#64748b',
+                    '&::before, &::after': { borderColor: '#e2e8f0' },
+                  }}
+                >
+                  Students
+                </Divider>
+                {studentsLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                    <CircularProgress size={32} />
+                  </Box>
+                ) : (
+                  studentResults.map((student) => (
+                    <StudentCard
+                      key={student.id}
+                      student={student}
+                      classroomName={getStudentClassroomLabel(student)}
+                      onClick={() => handleStudentClick(student)}
+                    />
+                  ))
+                )}
+              </Box>
+            </>
+          )}
+        </Box>
+      ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {loading ? (
             <Box sx={{ 
@@ -524,7 +638,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
             }}>
               <CircularProgress size={32} />
             </Box>
-          ) : visibleClassrooms.length === 0 ? (
+          ) : sortedClassrooms.length === 0 ? (
             <Card sx={{ 
               p: 4, 
               textAlign: 'center',
@@ -587,81 +701,21 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageablePro
           )}
         </Box>
       )}
-
-      {activeTab === 1 && (
-        <Box sx={{ 
-          backgroundColor: 'white',
-          borderRadius: 1,
-          p: 2,
-          minHeight: '200px'
-        }}>
-          {/* Students Count */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              {searchQuery 
-                ? `${sortedFilteredStudents.length} student${sortedFilteredStudents.length !== 1 ? 's' : ''} found`
-                : `Showing ${studentsToDisplay.length} of ${sortedFilteredStudents.length} student${sortedFilteredStudents.length !== 1 ? 's' : ''}`
-              }
-            </Typography>
-          </Box>
-
-          {/* Students List */}
-          {studentsLoading ? (
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              minHeight: '200px'
-            }}>
-              <CircularProgress size={32} />
-            </Box>
-          ) : sortedFilteredStudents.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Person sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
-              <Typography variant="body2" color="text.secondary">
-                {searchQuery ? `No students found matching "${searchQuery}"` : 'No students found'}
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {studentsToDisplay.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  student={student}
-                  classroomName={classroomMap[student.classroomId] || student.classroomId || 'Unassigned'}
-                  onClick={() => handleStudentClick(student)}
-                />
-              ))}
-              
-              {/* Show More Button */}
-              {sortedFilteredStudents.length > displayedStudentsCount && (
-                <Box sx={{ textAlign: 'center', pt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    onClick={handleShowMoreStudents}
-                    startIcon={<ExpandMore />}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    Show 10 More
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          )}
-        </Box>
-      )}
     </Box>
   );
 }
 
-// StudentCard component for displaying individual students in the Students tab
-function StudentCard({ student, classroomName, onClick }) {
-  const studentName = student.displayName || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
+// StudentCard component for displaying individual students
+function StudentCard({ student, classroomName, onClick, compact = false }) {
+  const studentName = getStudentName(student);
 
   return (
     <Card
       sx={{
         cursor: 'pointer',
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        width: '100%',
         '&:hover': {
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           transform: 'translateY(-1px)',
@@ -671,15 +725,16 @@ function StudentCard({ student, classroomName, onClick }) {
       onClick={onClick}
       aria-label={`View timeline for ${studentName}`}
     >
-      <CardContent sx={{ p: 2 }}>
+      <CardContent sx={{ p: compact ? 1.5 : 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Person sx={{ fontSize: compact ? 14 : 16, color: 'primary.main' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
               fontWeight: 600, 
-              color: 'primary.main'
+              color: 'primary.main',
+              fontSize: compact ? '0.9rem' : undefined,
             }}
           >
             {studentName}

@@ -139,6 +139,9 @@ function MentionTextArea({
               >
                 <ListItemText
                   primary={student.fullName}
+                  primaryTypographyProps={{
+                    fontWeight: idx === highlightIndex ? 700 : 500,
+                  }}
                   secondary={student.classroom_name || student.classroomName || ''}
                 />
               </ListItemButton>

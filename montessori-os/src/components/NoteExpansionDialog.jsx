@@ -31,7 +31,22 @@ import {
   Link
 } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
-import { doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import LessonNoteTagDialog from './LessonNoteTagDialog';
+import { 
+  doc, 
+  deleteDoc, 
+  updateDoc, 
+  serverTimestamp, 
+  getDoc, 
+  setDoc,
+  collection,
+  query,
+  where,
+  limit,
+  getDocs,
+  arrayUnion,
+  arrayRemove
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
@@ -80,11 +95,30 @@ function NoteExpansionDialog({
   const [reassigning, setReassigning] = useState(false);
   const [reassignSelectedStudents, setReassignSelectedStudents] = useState([]);
   const [reassignToStudentName, setReassignToStudentName] = useState('');
-  const [linkedLessonTitle, setLinkedLessonTitle] = useState(null);
+  const [linkedLessonTitles, setLinkedLessonTitles] = useState({});
   const [linkedLessonLoading, setLinkedLessonLoading] = useState(false);
+  const normalizeLinkedIds = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.filter(Boolean);
+    }
+    return [value];
+  };
+  const [linkedLessonObservationIds, setLinkedLessonObservationIds] = useState(
+    normalizeLinkedIds(observation?.linkedLessonObservationId)
+  );
   
   // Previous classroom info (when note was logged from a different classroom)
   const [previousClassroomName, setPreviousClassroomName] = useState(null);
+
+  // Lesson tag edit state (for existing text/voice notes)
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [lessonNotes, setLessonNotes] = useState([]);
+  const [lessonNotesLoading, setLessonNotesLoading] = useState(false);
+  const [lessonNotesError, setLessonNotesError] = useState('');
+  const [lessonSearch, setLessonSearch] = useState('');
+  const [tagStudentName, setTagStudentName] = useState('');
+  const [linkSaving, setLinkSaving] = useState(false);
 
   const isLessonObservation = observation?.type === 'lesson';
 
@@ -217,42 +251,129 @@ function NoteExpansionDialog({
     checkPreviousClassroom();
   }, [observation, student, open]);
 
-  // Fetch the title of the linked lesson note if it's not already present on the observation
+  // Keep local linkedLessonObservationIds in sync with the observation prop
+  React.useEffect(() => {
+    setLinkedLessonObservationIds(normalizeLinkedIds(observation?.linkedLessonObservationId));
+  }, [observation?.linkedLessonObservationId]);
+
+  // Fetch the titles of linked lesson notes if they're not already present on the observation
   React.useEffect(() => {
     let isActive = true;
-    const loadLinkedLessonTitle = async () => {
-      if (!open || !observation?.linkedLessonObservationId) {
-        setLinkedLessonTitle(null);
-        setLinkedLessonLoading(false);
+    const loadLinkedLessonTitles = async () => {
+      const ids = linkedLessonObservationIds || [];
+      if (!open || ids.length === 0) {
+        if (isActive) {
+          setLinkedLessonTitles({});
+          setLinkedLessonLoading(false);
+        }
         return;
       }
-      const parentId = observation.parentStudentId || observation.studentId;
+      const parentId = observation?.parentStudentId || observation?.studentId;
       if (!parentId) {
-        setLinkedLessonTitle(null);
-        setLinkedLessonLoading(false);
+        if (isActive) {
+          setLinkedLessonTitles({});
+          setLinkedLessonLoading(false);
+        }
         return;
       }
       setLinkedLessonLoading(true);
       try {
-        const linkedRef = doc(db, 'students', parentId, 'observations', observation.linkedLessonObservationId);
-        const snap = await getDoc(linkedRef);
+        const snaps = await Promise.all(
+          ids.map((id) => getDoc(doc(db, 'students', parentId, 'observations', id)))
+        );
         if (!isActive) return;
-        if (snap.exists()) {
-          const data = snap.data() || {};
-          const title = data.lessonTitle || data.title || data.lessonName || data.text || data.name;
-          setLinkedLessonTitle(title || 'Untitled lesson');
-        } else {
-          setLinkedLessonTitle('Untitled lesson');
-        }
+        const nextTitles = {};
+        snaps.forEach((snap, idx) => {
+          const id = ids[idx];
+          if (snap.exists()) {
+            const data = snap.data() || {};
+            const title = data.lessonTitle || data.title || data.lessonName || data.text || data.name;
+            nextTitles[id] = title || 'Untitled lesson';
+          } else {
+            nextTitles[id] = 'Untitled lesson';
+          }
+        });
+        setLinkedLessonTitles(nextTitles);
       } catch (error) {
-        console.error('Error loading linked lesson title:', error);
-        if (isActive) setLinkedLessonTitle('Untitled lesson');
+        console.error('Error loading linked lesson titles:', error);
+        if (isActive) {
+          const fallback = {};
+          (linkedLessonObservationIds || []).forEach((id) => {
+            fallback[id] = 'Untitled lesson';
+          });
+          setLinkedLessonTitles(fallback);
+        }
       }
       if (isActive) setLinkedLessonLoading(false);
     };
-    loadLinkedLessonTitle();
+    loadLinkedLessonTitles();
     return () => { isActive = false; };
-  }, [observation?.linkedLessonObservationId, observation?.studentId, observation?.parentStudentId, open]);
+  }, [linkedLessonObservationIds, observation?.studentId, observation?.parentStudentId, open]);
+
+  const toDate = (ts) => {
+    if (!ts) return null;
+    if (ts.toDate) return ts.toDate();
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return null;
+  };
+
+  const loadLessonNotesForStudent = async (studentId) => {
+    if (!studentId) return;
+    try {
+      setLessonNotesLoading(true);
+      setLessonNotesError('');
+
+      // Try to derive student name from props first, then fall back to Firestore
+      let name =
+        student?.name ||
+        student?.displayName ||
+        [student?.firstName, student?.lastName].filter(Boolean).join(' ');
+      if (!name) {
+        try {
+          const stuSnap = await getDoc(doc(db, 'students', studentId));
+          const sdata = stuSnap.data() || {};
+          name =
+            sdata.displayName ||
+            sdata.name ||
+            [sdata.firstName, sdata.lastName].filter(Boolean).join(' ');
+        } catch (_) {
+          /* noop */
+        }
+      }
+      setTagStudentName(name || '');
+
+      const q = query(
+        collection(db, 'students', studentId, 'observations'),
+        where('type', '==', 'lesson'),
+        limit(25)
+      );
+      const snap = await getDocs(q);
+      const notes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      notes.sort((a, b) => {
+        const da = toDate(a.observedAt || a.createdAt) || new Date(0);
+        const db = toDate(b.observedAt || b.createdAt) || new Date(0);
+        return db - da;
+      });
+      setLessonNotes(notes);
+    } catch (err) {
+      console.error('Error loading lesson notes for tagging', err);
+      setLessonNotesError('Unable to load lesson notes. Try again.');
+    } finally {
+      setLessonNotesLoading(false);
+    }
+  };
+
+  const handleOpenTagDialogFromView = async () => {
+    if (!observation || isLessonObservation) return;
+    const studentId = observation.parentStudentId || observation.studentId;
+    if (!studentId) {
+      notify.info('Unable to edit tagged lesson: missing student.');
+      return;
+    }
+    setLessonSearch('');
+    setTagDialogOpen(true);
+    await loadLessonNotesForStudent(studentId);
+  };
 
   const handleCloseDialog = () => {
     onClose();
@@ -313,6 +434,78 @@ function NoteExpansionDialog({
       }));
       onClose?.();
     } catch (_) { /* no-op */ }
+  };
+
+  const handleSelectLessonTagFromView = async (nextIds) => {
+    if (!observation) return;
+    const studentId = observation.parentStudentId || observation.studentId;
+    if (!studentId) return;
+
+    const currentIds = normalizeLinkedIds(linkedLessonObservationIds);
+    const desiredIds = normalizeLinkedIds(nextIds);
+
+    // If nothing changed, just close the dialog.
+    const unchanged =
+      currentIds.length === desiredIds.length &&
+      currentIds.every((id) => desiredIds.includes(id));
+    if (unchanged) {
+      setTagDialogOpen(false);
+      return;
+    }
+
+    const added = desiredIds.filter((id) => !currentIds.includes(id));
+    const removed = currentIds.filter((id) => !desiredIds.includes(id));
+
+    try {
+      setLinkSaving(true);
+      const obsRef = doc(db, 'students', studentId, 'observations', observation.id);
+      const updatePayload = {
+        updatedAt: serverTimestamp(),
+        lastEditedBy: currentUser.uid,
+        lastEditedAt: serverTimestamp(),
+      };
+      updatePayload.linkedLessonObservationId = desiredIds;
+      await updateDoc(obsRef, updatePayload);
+
+      // Add backlinks on newly added lesson notes
+      await Promise.all(
+        added.map(async (lessonId) => {
+          try {
+            const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
+            await updateDoc(lessonRef, {
+              linkedObservations: arrayUnion(observation.id),
+            });
+          } catch (err) {
+            console.error('Error adding backlink to lesson note', err);
+          }
+        })
+      );
+
+      // Remove backlinks from lessons that are no longer linked
+      await Promise.all(
+        removed.map(async (lessonId) => {
+          try {
+            const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
+            await updateDoc(lessonRef, {
+              linkedObservations: arrayRemove(observation.id),
+            });
+          } catch (err) {
+            console.error('Error removing backlink from previous lesson note', err);
+          }
+        })
+      );
+
+      setLinkedLessonObservationIds(desiredIds);
+      notify.success(
+        desiredIds.length > 0 ? 'Tagged lesson notes updated' : 'Tagged lesson notes cleared'
+      );
+      setTagDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating tagged lesson note', error);
+      notify.error('Error updating tagged lesson note. Please try again.');
+    } finally {
+      setLinkSaving(false);
+    }
   };
 
   const handleEditSave = async () => {
@@ -492,6 +685,20 @@ function NoteExpansionDialog({
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {isAdminRole(userRole) && !isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
+                <IconButton
+                  aria-label="Edit note"
+                  onClick={handleEditClick}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                    }
+                  }}
+                >
+                  <Edit fontSize="small" />
+                </IconButton>
+              )}
               {/* Copy button - unobtrusive, near the title controls */}
               {!!observation.text && !isLessonObservation && (
                 <CopyToClipboardButton 
@@ -575,30 +782,49 @@ function NoteExpansionDialog({
               </Box>
             )}
 
-            {!isLessonObservation && (
+            {!isLessonObservation && (observation.type === 'text' || observation.type === 'voice') && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Link sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">
                   Tagged Lesson Notes:
                 </Typography>
-                {observation.linkedLessonObservationId ? (
-                  // Show the tagged lesson's title; avoid generic fallback text
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => handleOpenLinkedLesson(observation.linkedLessonObservationId)}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    {linkedLessonLoading ? (
-                      <CircularProgress size={12} thickness={5} />
-                    ) : (
-                      linkedLessonTitle ?? observation.linkedLessonTitle ?? 'Untitled lesson'
-                    )}
-                  </Button>
+                {linkedLessonObservationIds && linkedLessonObservationIds.length > 0 ? (
+                  linkedLessonObservationIds.map((id) => (
+                    <Button
+                      key={id}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleOpenLinkedLesson(id)}
+                      sx={{ 
+                        textTransform: 'none', 
+                        fontWeight: 700,
+                        borderRadius: 999,
+                        px: 1.5,
+                        py: 0.25
+                      }}
+                    >
+                      {linkedLessonLoading && !linkedLessonTitles[id] ? (
+                        <CircularProgress size={12} thickness={5} />
+                      ) : (
+                        linkedLessonTitles[id] ?? 'Untitled lesson'
+                      )}
+                    </Button>
+                  ))
                 ) : (
                   <Typography variant="body2" color="text.secondary">
                     None
                   </Typography>
+                )}
+                {isAdminRole(userRole) && canEditObservation(observation, currentUser, userRole) && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Link sx={{ fontSize: 16 }} />}
+                    onClick={handleOpenTagDialogFromView}
+                    sx={{ textTransform: 'none', borderRadius: 999, px: 1.5, py: 0.25 }}
+                    disabled={linkSaving}
+                  >
+                    Edit
+                  </Button>
                 )}
               </Box>
             )}
@@ -613,24 +839,11 @@ function NoteExpansionDialog({
             )}
             
             {isAdminRole(userRole) && !isLessonObservation && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2" color="text.secondary">
-                    Edit count: {observation.editCount || 0}
-                  </Typography>
-                </Box>
-                {canEditObservation(observation, currentUser, userRole) && (
-                  <Button 
-                    onClick={handleEditClick} 
-                    size="small"
-                    variant="outlined" 
-                    color="primary"
-                    startIcon={<Edit />}
-                  >
-                    Edit
-                  </Button>
-                )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Edit count: {observation.editCount || 0}
+                </Typography>
               </Box>
             )}
             
@@ -753,6 +966,26 @@ function NoteExpansionDialog({
           </DialogActions>
         )}
       </Dialog>
+
+      {/* Tag lesson notes dialog for existing text/voice notes */}
+      <LessonNoteTagDialog
+        open={tagDialogOpen}
+        onClose={() => setTagDialogOpen(false)}
+        title={`Edit tagged lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
+        lessonNotes={lessonNotes}
+        lessonNotesLoading={lessonNotesLoading}
+        lessonNotesError={lessonNotesError}
+        onLessonNotesErrorClear={() => setLessonNotesError('')}
+        lessonSearch={lessonSearch}
+        onLessonSearchChange={setLessonSearch}
+        currentUser={currentUser}
+        userRole={userRole}
+        selectedLessonIds={linkedLessonObservationIds}
+        onSelectionChange={setLinkedLessonObservationIds}
+        saving={linkSaving}
+        deferApply
+        onApply={handleSelectLessonTagFromView}
+      />
 
       {/* Student Selection Dialog for Reassignment */}
       <Dialog
