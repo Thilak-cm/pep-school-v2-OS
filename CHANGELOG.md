@@ -1,5 +1,27 @@
 # Changelog
 
+## 5.7.0 — 2025-12-07
+
+### Changed
+- Coach Pepper now lives as a dedicated final step after recipients instead of a popup/overlay, inheriting the same header/back/close behavior.
+- Coach loading buffer is inline on the final step with progressive “analyzing” messaging instead of a separate overlay.
+- Coach nudge UI spacing tightened: compact padding, slimmer chips/inputs, and bottom actions aligned side-by-side.
+- Observation detail dialog now uses a pen icon in the title bar for editing and moves the copy-to-clipboard and close controls into a compact top-right cluster.
+- Tagged lesson notes display as bordered pill buttons, with a dedicated `Edit` control that opens a shared lesson-tag dialog used across Add Note and the note expansion view.
+
+### Added
+- Coach requests cache per note/recipients combo so returning without edits reuses nudges; edits invalidate and rerun automatically.
+- Mention picker dropdown highlights the active option in bold for easier keyboard selection.
+- Inline mentions in the observation textbox now render in bold to visually confirm tagged students.
+- Added a NewFeaturePill callout above the “Write your observation” text input highlighting the new `@` mention shortcut.
+- Lesson note tagging now supports linking a single text/voice observation to multiple lesson notes via a reusable `LessonNoteTagDialog` component.
+- Tag edit dialog offers ClassroomStudentPicker-style selection cards for lesson notes plus an explicit Save action that applies all changes atomically.
+- Backlinks between observations and lesson notes are maintained for all linked lessons, updating `linkedObservations` on add and remove.
+
+### Technical
+- `linkedLessonObservationId` is now treated as an array of lesson note IDs (while retaining the same field name), with normalization to support existing single-string documents.
+- Centralized tag-selection UI into `LessonNoteTagDialog` so future UX tweaks apply to both Add Note flows and the expansion dialog.
+
 ## 5.6.1 — 2025-12-06
 
 ### Added
