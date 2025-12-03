@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.7.2 — 2025-12-07
+
+### Fixed
+- Grouped classroom notes now drop `groupId` when only one student remains and render as individual notes; single-note and grouped deletions trigger a timeline refresh for up-to-date data.
+- Mention dropdown now anchors under the `@` caret, stays compact/touch-scrollable, and caret scrolling keeps the active line within the 25–75% viewport band so the keyboard doesn’t hide it.
+
 ## 5.7.1 — 2025-12-07
 
 ### Changed

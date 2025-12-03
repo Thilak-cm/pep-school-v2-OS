@@ -60,7 +60,7 @@ function updateVersion(type) {
   console.log(`✅ Updated version from ${oldVersion} to ${newVersion}`);
   console.log(`📄 Wrote ${newVersion} to VERSION`);
   console.log(`📝 Don't forget to update CHANGELOG.md with your changes!`);
-  console.log(`🚀 Commit with: git commit -m "chore: bump version to v${newVersion}"`);
+  console.log(`🚀 Commit with: git commit -am "chore: bump version to v${newVersion}"`);
 }
 
 const versionType = process.argv[2];
