@@ -1144,7 +1144,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
           borderRadius: 2
         }}>
           <Typography variant="body2" color="text.secondary">
-            Loading chart…
+            Coach Pepper is sketching this chart…
           </Typography>
         </Box>
       );
@@ -1396,7 +1396,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
           borderRadius: 2
         }}>
           <Typography variant="body2" color="text.secondary">
-            Loading chart…
+            Coach Pepper is crunching the numbers…
           </Typography>
         </Box>
       );
@@ -1484,9 +1484,14 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
         display: 'flex', 
         justifyContent: 'center', 
         alignItems: 'center', 
-        py: 8 
+        py: 8,
+        gap: 2,
+        flexDirection: 'column'
       }}>
         <CircularProgress />
+        <Typography variant="body2" color="text.secondary">
+          Coach Pepper is tallying the stats...
+        </Typography>
       </Box>
     );
   }
@@ -1733,7 +1738,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
                       borderRadius: 2
                     }}>
                       <Typography variant="body2" color="text.secondary">
-                        Loading chart…
+                        Coach Pepper is painting the breakdown…
                       </Typography>
                     </Box>
                   )}
@@ -1846,7 +1851,7 @@ const StatsPage = ({ user, role, manageablePrograms = [], onBack }) => {
                       </FormControl>
                     ) : (
                       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                        Loading branches...
+                        Coach Pepper is sorting through branches...
                       </Typography>
                     )}
                   </Box>

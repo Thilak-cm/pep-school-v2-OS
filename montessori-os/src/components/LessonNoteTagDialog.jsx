@@ -113,7 +113,7 @@ function LessonNoteTagDialog({
         />
         <Typography variant="body2" color="text.secondary">
           {lessonNotesLoading
-            ? 'Loading lesson notes...'
+            ? 'Coach Pepper is gathering lesson notes...'
             : `${lessonNotes.length} lesson note${lessonNotes.length === 1 ? '' : 's'} available`}
         </Typography>
         {lessonNotesError && (

@@ -477,17 +477,29 @@ function ClassroomStudentPicker({
   };
 
 
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const studentsLoading = loading;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {studentsLoading && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0'
+          }}
+        >
+          <CircularProgress size={18} />
+          <Typography variant="body2" color="text.secondary">
+            Coach Pepper is lining up classrooms and students…
+          </Typography>
+        </Box>
+      )}
+
       {(voiceLoading || voiceData?.text) && (
         <Box
           sx={{
@@ -922,6 +934,7 @@ function ClassroomStudentPicker({
             fullWidth
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={studentsLoading}
           />
           {(!searchQuery || searchQuery.length === 0) && (
             <Typography
@@ -940,6 +953,15 @@ function ClassroomStudentPicker({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Search Results:
             </Typography>
+
+            {studentsLoading && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  Coach Pepper is checking the roster…
+                </Typography>
+              </Box>
+            )}
             
             {/* Groups/Aliases */}
             {aliasMatches.length > 0 && (
@@ -1106,117 +1128,126 @@ function ClassroomStudentPicker({
         </Button>
 
         <Collapse in={showBrowseSection} timeout="auto" unmountOnExit>
-          <List>
-            {/* Helper function to render a classroom group */}
-            {(() => {
-              const renderClassroomGroup = (group) => {
-                const isExpanded = expandedClassrooms.includes(group.classroom.id);
-                
-                return (
-                  <Box key={group.classroom.id} sx={{ mb: 1 }}>
-                    {/* Classroom Header */}
-                    <ListItem disablePadding>
-                      <ListItemButton 
-                        dense
-                        onClick={() => toggleClassroomExpansion(group.classroom.id)}
-                        sx={{ 
-                          backgroundColor: '#f8fafc',
-                          borderRadius: 1,
-                          mb: isExpanded ? 1 : 0
-                        }}
-                      >
-                        <ListItemText
-                          primary={group.classroom.name}
-                          secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
-                        />
-                        <IconButton size="small">
-                          {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                        </IconButton>
-                      </ListItemButton>
-                    </ListItem>
+          {studentsLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
+              <CircularProgress size={18} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is opening classrooms…
+              </Typography>
+            </Box>
+          ) : (
+            <List>
+              {/* Helper function to render a classroom group */}
+              {(() => {
+                const renderClassroomGroup = (group) => {
+                  const isExpanded = expandedClassrooms.includes(group.classroom.id);
+                  
+                  return (
+                    <Box key={group.classroom.id} sx={{ mb: 1 }}>
+                      {/* Classroom Header */}
+                      <ListItem disablePadding>
+                        <ListItemButton 
+                          dense
+                          onClick={() => toggleClassroomExpansion(group.classroom.id)}
+                          sx={{ 
+                            backgroundColor: '#f8fafc',
+                            borderRadius: 1,
+                            mb: isExpanded ? 1 : 0
+                          }}
+                        >
+                          <ListItemText
+                            primary={group.classroom.name}
+                            secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
+                          />
+                          <IconButton size="small">
+                            {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                          </IconButton>
+                        </ListItemButton>
+                      </ListItem>
 
-                    {/* Students in Classroom */}
-                    <Collapse in={isExpanded}>
-                      <List dense sx={{ pl: 4 }}>
-                        {group.students.map((student) => {
-                          const disabled = isDisabled(student.id);
-                          return (
-                            <ListItem key={student.id} disablePadding>
-                              <ListItemButton
-                                dense
-                                onClick={() => handleStudentToggle(student.id)}
-                                disabled={disabled}
-                                sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                              >
-                                <ListItemIcon>
-                                  <Checkbox
-                                    checked={selectedStudents.includes(student.id)}
-                                    edge="start"
-                                    tabIndex={-1}
-                                    disableRipple
-                                    disabled={disabled}
+                      {/* Students in Classroom */}
+                      <Collapse in={isExpanded}>
+                        <List dense sx={{ pl: 4 }}>
+                          {group.students.map((student) => {
+                            const disabled = isDisabled(student.id);
+                            return (
+                              <ListItem key={student.id} disablePadding>
+                                <ListItemButton
+                                  dense
+                                  onClick={() => handleStudentToggle(student.id)}
+                                  disabled={disabled}
+                                  sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                                >
+                                  <ListItemIcon>
+                                    <Checkbox
+                                      checked={selectedStudents.includes(student.id)}
+                                      edge="start"
+                                      tabIndex={-1}
+                                      disableRipple
+                                      disabled={disabled}
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={disabled
+                                      ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                      : getStudentName(student)}
                                   />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={disabled
-                                    ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
-                                    : getStudentName(student)}
-                                />
-                              </ListItemButton>
-                            </ListItem>
-                          );
-                        })}
-                      </List>
-                    </Collapse>
-                  </Box>
-                );
-              };
+                                </ListItemButton>
+                              </ListItem>
+                            );
+                          })}
+                        </List>
+                      </Collapse>
+                    </Box>
+                  );
+                };
 
-              return (
-                <>
-                  {sortedProgramIds.map((pid) => {
-                    const items = groupedByProgram.groups[pid] || [];
-                    if (!items.length) return null;
-                    const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
-                    return (
-                      <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                return (
+                  <>
+                    {sortedProgramIds.map((pid) => {
+                      const items = groupedByProgram.groups[pid] || [];
+                      if (!items.length) return null;
+                      const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+                      return (
+                        <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                          <Divider
+                            textAlign="left"
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: '0.85rem',
+                              color: '#64748b',
+                              '&::before, &::after': {
+                                borderColor: '#e2e8f0',
+                              },
+                            }}
+                          >
+                            {label}
+                          </Divider>
+                          {items.map(renderClassroomGroup)}
+                        </Box>
+                      );
+                    })}
+                    {groupedByProgram.unassigned.length > 0 && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
                         <Divider
                           textAlign="left"
                           sx={{
                             fontWeight: 600,
                             fontSize: '0.85rem',
                             color: '#64748b',
-                            '&::before, &::after': {
-                              borderColor: '#e2e8f0',
-                            },
+                            '&::before, &::after': { borderColor: '#e2e8f0' },
                           }}
                         >
-                          {label}
+                          Unassigned
                         </Divider>
-                        {items.map(renderClassroomGroup)}
+                        {groupedByProgram.unassigned.map(renderClassroomGroup)}
                       </Box>
-                    );
-                  })}
-                  {groupedByProgram.unassigned.length > 0 && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-                      <Divider
-                        textAlign="left"
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: '0.85rem',
-                          color: '#64748b',
-                          '&::before, &::after': { borderColor: '#e2e8f0' },
-                        }}
-                      >
-                        Unassigned
-                      </Divider>
-                      {groupedByProgram.unassigned.map(renderClassroomGroup)}
-                    </Box>
-                  )}
-                </>
-              );
-            })()}
-          </List>
+                    )}
+                  </>
+                );
+              })()}
+            </List>
+          )}
         </Collapse>
       </Box>
 

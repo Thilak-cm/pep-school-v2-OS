@@ -210,7 +210,12 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <SectionCard title="Text Cleanup (Observation Notes)" subtitle="Edit system/user prompts used for cleaning up free-form notes.">
         {loading ? (
-          <CircularProgress size={24} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <CircularProgress size={24} />
+            <Typography variant="body2" color="text.secondary">
+              Coach Pepper is loading the text cleanup prompts...
+            </Typography>
+          </Box>
         ) : (
           <>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

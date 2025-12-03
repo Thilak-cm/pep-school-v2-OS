@@ -160,8 +160,11 @@ function StudentList({ classroom, onSelectStudent }) {
       </Box>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4, gap: 2, flexDirection: 'column' }}>
           <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">
+            Coach Pepper is gathering students...
+          </Typography>
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

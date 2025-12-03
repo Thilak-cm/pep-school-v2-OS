@@ -601,8 +601,11 @@ const handleStudentClick = (student) => {
                   Classrooms
                 </Divider>
                 {loading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3, gap: 2, flexDirection: 'column' }}>
                     <CircularProgress size={32} />
+                    <Typography variant="body2" color="text.secondary">
+                      Coach Pepper is fetching classrooms...
+                    </Typography>
                   </Box>
                 ) : (
                   classroomResults.map(renderCard)
@@ -646,9 +649,14 @@ const handleStudentClick = (student) => {
               display: 'flex', 
               justifyContent: 'center', 
               alignItems: 'center',
-              minHeight: '200px'
+              minHeight: '200px',
+              gap: 2,
+              flexDirection: 'column'
             }}>
               <CircularProgress size={32} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is fetching classrooms...
+              </Typography>
             </Box>
           ) : sortedClassrooms.length === 0 ? (
             <Card sx={{ 

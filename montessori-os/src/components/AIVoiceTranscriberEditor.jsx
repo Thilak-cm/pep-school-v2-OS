@@ -176,7 +176,12 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <SectionCard title="Voice Transcriber Context" subtitle="Edit the context prompt provided to the STT engine (Whisper).">
         {loading ? (
-          <CircularProgress size={24} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <CircularProgress size={24} />
+            <Typography variant="body2" color="text.secondary">
+              Coach Pepper is fetching the voice prompt...
+            </Typography>
+          </Box>
         ) : (
           <>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

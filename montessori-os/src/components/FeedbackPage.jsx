@@ -237,8 +237,11 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
           </Typography>
           
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3, gap: 2, flexDirection: 'column' }}>
               <CircularProgress size={32} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is pulling up your feedback...
+              </Typography>
             </Box>
           ) : userFeedback.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>

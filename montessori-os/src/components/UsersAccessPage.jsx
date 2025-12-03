@@ -1030,9 +1030,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageablePrograms = [
     );
   };
 
-  const LoadingSpinner = ({ size = 24 }) => (
-    <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+  const LoadingSpinner = ({ size = 24, message = 'Coach Pepper is loading access data...' }) => (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, gap: 1.5, flexDirection: 'column' }}>
       <CircularProgress size={size} />
+      <Typography variant="body2" color="text.secondary">
+        {message}
+      </Typography>
     </Box>
   );
 
@@ -1044,7 +1047,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageablePrograms = [
     return (
       <Box sx={MOBILE_CONTAINER_SX}>
         <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-          <CircularProgress size={48} />
+          <LoadingSpinner size={48} message="Coach Pepper is checking your admin access..." />
         </Box>
       </Box>
     );
