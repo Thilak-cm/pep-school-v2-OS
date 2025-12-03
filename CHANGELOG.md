@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.7.1 — 2025-12-07
+
+### Changed
+- All loading/buffer states now speak in Coach Pepper’s voice across the app (classrooms, timelines, stats, feedback, lesson notes, aliases, admin tools, etc.) including the main Stats page spinner.
+
 ## 5.7.0 — 2025-12-07
 
 ### Changed
