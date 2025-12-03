@@ -232,8 +232,11 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
           </Typography>
 
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, gap: 2, flexDirection: 'column' }}>
               <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is loading classrooms and students...
+              </Typography>
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

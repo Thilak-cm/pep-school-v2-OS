@@ -40,7 +40,17 @@ import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 // MenuItem no longer needed (language selection removed)
 
-const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, variant = 'card' }) => {
+const VoiceRecorder = ({
+  onSave,
+  onNext,
+  onBack,
+  onDirtyChange,
+  exposeControls,
+  variant = 'card',
+  autoAdvanceOnSave = false,
+  onTranscriptionStart,
+  onTranscriptionError,
+}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -71,6 +81,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
   const discardRef = useRef(false); // when true, discard audio on stop
 
   const MAX_RECORDING_TIME = 300; // 5 minutes (300 seconds)
+  const autoAdvanceRef = useRef(false);
 
   useEffect(() => {
     // Cleanup function
@@ -159,6 +170,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
 
   const startRecording = async () => {
     try {
+      autoAdvanceRef.current = false;
       // Request microphone access with specific constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -290,6 +302,7 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
   };
 
   const resetRecording = () => {
+    autoAdvanceRef.current = false;
     setAudioBlob(null);
     setAudioUrl(null);
     setRecordingTime(0);
@@ -363,15 +376,27 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
     }
   };
 
+  useEffect(() => {
+    if (!autoAdvanceOnSave) return;
+    if (autoAdvanceRef.current) return;
+    if (isTranscribing || transcriptionError) return;
+    if (!transcription || !transcriptionData) return;
+    autoAdvanceRef.current = true;
+    handleSave();
+    if (onNext) onNext();
+  }, [autoAdvanceOnSave, isTranscribing, transcription, transcriptionData, transcriptionError, onNext]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleTranscription = async (audioBlob) => {
     if (!validateAudioForTranscription(audioBlob)) {
       setTranscriptionError('Audio file is not suitable for transcription.');
+      if (onTranscriptionError) onTranscriptionError(new Error('invalid_audio'));
       return;
     }
 
     setIsTranscribing(true);
     setTranscriptionError('');
           setTranscriptionProgress({ current: 0, total: 1, message: 'Starting OpenAI Whisper transcription...' });
+    if (onTranscriptionStart) onTranscriptionStart();
 
     try {
       // Use OpenAI Whisper translation-to-English (auto language detection)
@@ -382,12 +407,14 @@ const VoiceRecorder = ({ onSave, onNext, onBack, onDirtyChange, exposeControls, 
       
       if (!transcriptionResult.text) {
         setTranscriptionError('No speech detected in the recording.');
+        if (onTranscriptionError) onTranscriptionError(new Error('no_transcript'));
       }
       
     } catch (error) {
       console.error('Transcription failed:', error);
       setTranscriptionError(`Transcription failed: ${error.message}`);
       notify.error('Transcription failed. Please try again.', { id: 'stt-failed', duration: 4000 });
+      if (onTranscriptionError) onTranscriptionError(error);
     } finally {
       setIsTranscribing(false);
       setTranscriptionProgress({ current: 0, total: 0, message: '' });

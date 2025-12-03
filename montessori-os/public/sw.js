@@ -1,7 +1,6 @@
-// Service Worker for Montessori OS
-// Version-aware caching with automatic cache invalidation
-
-const APP_VERSION = '5.4.1';
+// PWA Service Worker for Montessori OS
+// Dynamic cache naming based on app version
+const APP_VERSION = '5.6.1'; // This will be updated with each build
 const CACHE_NAME = `montessori-os-v${APP_VERSION}`;
 
 // Files to cache on install

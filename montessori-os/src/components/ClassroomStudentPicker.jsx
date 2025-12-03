@@ -28,7 +28,8 @@ import {
   Edit,
   Close,
   CheckCircle,
-  AutoFixHigh
+  AutoFixHigh,
+  Refresh
 } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -47,6 +48,11 @@ function ClassroomStudentPicker({
   userRole,
   textData,
   onTextDataChange,
+  voiceData,
+  onVoiceDataChange,
+  onVoiceRecordAgain,
+  voiceLoading = false,
+  suggestedStudents = [],
   disabledStudentIds = [], // IDs to grey out and disable selection
 }) {
   const [classrooms, setClassrooms] = useState([]);
@@ -59,11 +65,15 @@ function ClassroomStudentPicker({
   const [programMap, setProgramMap] = useState({}); // programId -> [classroomId]
   const [aliases, setAliases] = useState([]);
   const [expandedAliases, setExpandedAliases] = useState({});
+  const [showBrowseSection, setShowBrowseSection] = useState(false);
   
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
   const [originalText, setOriginalText] = useState('');
+  const [voiceEditing, setVoiceEditing] = useState(false);
+  const [editableVoiceText, setEditableVoiceText] = useState('');
+  const [originalVoiceText, setOriginalVoiceText] = useState('');
 
   // Fetch all classrooms and students once
   useEffect(() => {
@@ -220,6 +230,12 @@ function ClassroomStudentPicker({
     fetchData();
   }, [currentUser, userRole]);
 
+  useEffect(() => {
+    setVoiceEditing(false);
+    setEditableVoiceText(voiceData?.text || '');
+    setOriginalVoiceText(voiceData?.text || '');
+  }, [voiceData]);
+
   const getStudentName = (s) => s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
 
   // Use fuzzy search for better student matching
@@ -342,6 +358,11 @@ function ClassroomStudentPicker({
     onStudentsChange(newSelected);
   };
 
+  const handleRemoveStudent = (studentId) => {
+    if (isDisabled(studentId)) return;
+    onStudentsChange(selectedStudents.filter((id) => id !== studentId));
+  };
+
   // Handle alias/group selection
   const toggleAliasSelection = (alias) => {
     const members = alias.members || [];
@@ -424,18 +445,244 @@ function ClassroomStudentPicker({
     }
   };
 
+  const startVoiceEditing = () => {
+    setOriginalVoiceText(voiceData?.text || '');
+    setEditableVoiceText(voiceData?.text || '');
+    setVoiceEditing(true);
+  };
+
+  const cancelVoiceEditing = () => {
+    setVoiceEditing(false);
+    setEditableVoiceText(originalVoiceText);
+  };
+
+  const saveVoiceEditing = () => {
+    if (!editableVoiceText.trim()) return;
+    if (onVoiceDataChange) {
+      onVoiceDataChange({
+        ...(voiceData || {}),
+        text: editableVoiceText.trim(),
+      });
+    }
+    setVoiceEditing(false);
+    setOriginalVoiceText(editableVoiceText.trim());
+  };
+
+  const handleRecordAgain = () => {
+    setVoiceEditing(false);
+    setEditableVoiceText('');
+    setOriginalVoiceText('');
+    if (onVoiceDataChange) onVoiceDataChange(null);
+    if (onVoiceRecordAgain) onVoiceRecordAgain();
+  };
 
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const studentsLoading = loading;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {studentsLoading && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0'
+          }}
+        >
+          <CircularProgress size={18} />
+          <Typography variant="body2" color="text.secondary">
+            Coach Pepper is lining up classrooms and students…
+          </Typography>
+        </Box>
+      )}
+
+      {(voiceLoading || voiceData?.text) && (
+        <Box
+          sx={{
+            padding: 3,
+            backgroundColor: '#f0f9ff',
+            borderTop: '1px solid #e2e8f0',
+            borderRadius: 2
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 2
+            }}
+          >
+            <Typography
+              variant="h6"
+              component="h4"
+              sx={{
+                margin: 0,
+                color: '#1e293b',
+                fontSize: '1rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <CheckCircle sx={{ fontSize: 16 }} />
+              Transcription
+            </Typography>
+          </Box>
+
+          <Paper
+            sx={{
+              padding: 2,
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginBottom: 2
+            }}
+          >
+            {voiceLoading ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
+                <CircularProgress size={24} sx={{ color: '#059669' }} />
+                <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600, textAlign: 'center' }}>
+                  Converting speech to text...
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  This may take a few seconds
+                </Typography>
+              </Box>
+            ) : voiceEditing ? (
+              <TextField
+                multiline
+                rows={4}
+                fullWidth
+                value={editableVoiceText}
+                onChange={(e) => setEditableVoiceText(e.target.value)}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 1,
+                  }
+                }}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  color: '#1e293b',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.6',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {voiceData?.text}
+              </Typography>
+            )}
+          </Paper>
+
+          {!voiceLoading && (
+            voiceEditing ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={cancelVoiceEditing}
+                  startIcon={<Close />}
+                  size="small"
+                  sx={{
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: '#b91c1c',
+                    }
+                  }}
+                >
+                  Cancel Edit
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={saveVoiceEditing}
+                  startIcon={<CheckCircle />}
+                  size="small"
+                  disabled={!editableVoiceText.trim()}
+                  sx={{
+                    backgroundColor: editableVoiceText.trim() ? '#059669' : '#cbd5e1',
+                    color: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      backgroundColor: editableVoiceText.trim() ? '#047857' : '#cbd5e1',
+                    }
+                  }}
+                >
+                  Save Edit
+                </Button>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  onClick={handleRecordAgain}
+                  startIcon={<Refresh />}
+                  size="small"
+                  sx={{
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    backgroundColor: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#94a3b8',
+                      backgroundColor: '#f8fafc',
+                      color: '#334155',
+                    }
+                  }}
+                >
+                  Record Again
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={startVoiceEditing}
+                  startIcon={<Edit />}
+                  size="small"
+                  sx={{
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    backgroundColor: 'white',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#94a3b8',
+                      backgroundColor: '#f8fafc',
+                      color: '#334155',
+                    }
+                  }}
+                >
+                  Edit Text
+                </Button>
+              </Box>
+            )
+          )}
+        </Box>
+      )}
+
       {/* Text Display Section - Same style as VoiceRecorder */}
       {textData?.text && (
         <Box
@@ -619,18 +866,64 @@ function ClassroomStudentPicker({
 
       {/* Removed instructional divider for compactness on mobile */}
 
-      {/* Selected Students Summary (text-only) — shown above quick search */}
+      {/* Suggested students from transcript (voice) */}
+      {suggestedStudents.length > 0 && (
+        <Box
+          sx={{
+            mt: 1,
+            mb: 2,
+            p: 2,
+            border: '1px solid #e2e8f0',
+            borderRadius: 2,
+            backgroundColor: '#f8fafc',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
+            Suggested assignee(s):
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {suggestedStudents.map((stu) => {
+              const label = stu.fullName || getStudentName(studentsById[stu.id] || stu);
+              const selected = selectedStudents.includes(stu.id);
+              return (
+                <Chip
+                  key={stu.id}
+                  label={label}
+                  color={selected ? 'primary' : 'default'}
+                  variant={selected ? 'filled' : 'outlined'}
+                  onClick={() => handleStudentToggle(stu.id)}
+                />
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
+      {/* Selected Students Summary — shown above quick search */}
       {selectedStudents.length > 0 && (
         <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
           <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {(() => {
-              const names = selectedStudents
-                .map((id) => allStudents.find((s) => (s.id || s.uid) === id))
-                .filter(Boolean)
-                .map((s) => getStudentName(s));
-              return `Selected Students (${selectedStudents.length}): ${names.join(', ')}`;
-            })()}
+            {`Selected Students (${selectedStudents.length}):`}
           </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+            {selectedStudents.map((id) => {
+              const student = studentsById[id] || allStudents.find((s) => (s.id || s.uid) === id);
+              const label = student ? getStudentName(student) : 'Unknown Student';
+              return (
+                <Chip
+                  key={id}
+                  label={label}
+                  onDelete={() => handleRemoveStudent(id)}
+                  deleteIcon={<Close fontSize="small" />}
+                  color="primary"
+                  variant="outlined"
+                />
+              );
+            })}
+          </Box>
         </Box>
       )}
 
@@ -641,6 +934,7 @@ function ClassroomStudentPicker({
             fullWidth
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            disabled={studentsLoading}
           />
           {(!searchQuery || searchQuery.length === 0) && (
             <Typography
@@ -659,6 +953,15 @@ function ClassroomStudentPicker({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Search Results:
             </Typography>
+
+            {studentsLoading && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  Coach Pepper is checking the roster…
+                </Typography>
+              </Box>
+            )}
             
             {/* Groups/Aliases */}
             {aliasMatches.length > 0 && (
@@ -803,124 +1106,149 @@ function ClassroomStudentPicker({
         </Divider>
       )}
 
-      {/* Browse by Classroom Section */}
+      {/* Browse by Classroom Section (collapsible) */}
       <Box>
-        <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Group sx={{ fontSize: 20 }} />
+        <Button
+          variant="outlined"
+          startIcon={<Group />}
+          endIcon={showBrowseSection ? <ExpandLess /> : <ExpandMore />}
+          onClick={() => setShowBrowseSection((s) => !s)}
+          sx={{
+            mb: 1.5,
+            textTransform: 'none',
+            justifyContent: 'space-between',
+            borderColor: '#cbd5e1',
+            color: '#0f172a',
+            backgroundColor: 'white',
+            '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+            width: '100%',
+          }}
+        >
           Browse by Classroom
-        </Typography>
+        </Button>
 
-        <List>
-          {/* Helper function to render a classroom group */}
-          {(() => {
-            const renderClassroomGroup = (group) => {
-              const isExpanded = expandedClassrooms.includes(group.classroom.id);
-              
-              return (
-                <Box key={group.classroom.id} sx={{ mb: 1 }}>
-                  {/* Classroom Header */}
-                  <ListItem disablePadding>
-                    <ListItemButton 
-                      dense
-                      onClick={() => toggleClassroomExpansion(group.classroom.id)}
-                      sx={{ 
-                        backgroundColor: '#f8fafc',
-                        borderRadius: 1,
-                        mb: isExpanded ? 1 : 0
-                      }}
-                    >
-                      <ListItemText
-                        primary={group.classroom.name}
-                        secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
-                      />
-                      <IconButton size="small">
-                        {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                      </IconButton>
-                    </ListItemButton>
-                  </ListItem>
-
-                  {/* Students in Classroom */}
-                  <Collapse in={isExpanded}>
-                    <List dense sx={{ pl: 4 }}>
-                      {group.students.map((student) => {
-                        const disabled = isDisabled(student.id);
-                        return (
-                          <ListItem key={student.id} disablePadding>
-                            <ListItemButton
-                              dense
-                              onClick={() => handleStudentToggle(student.id)}
-                              disabled={disabled}
-                              sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                            >
-                              <ListItemIcon>
-                                <Checkbox
-                                  checked={selectedStudents.includes(student.id)}
-                                  edge="start"
-                                  tabIndex={-1}
-                                  disableRipple
-                                  disabled={disabled}
-                                />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={disabled
-                                  ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
-                                  : getStudentName(student)}
-                              />
-                            </ListItemButton>
-                          </ListItem>
-                        );
-                      })}
-                    </List>
-                  </Collapse>
-                </Box>
-              );
-            };
-
-            return (
-              <>
-                {sortedProgramIds.map((pid) => {
-                  const items = groupedByProgram.groups[pid] || [];
-                  if (!items.length) return null;
-                  const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+        <Collapse in={showBrowseSection} timeout="auto" unmountOnExit>
+          {studentsLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
+              <CircularProgress size={18} />
+              <Typography variant="body2" color="text.secondary">
+                Coach Pepper is opening classrooms…
+              </Typography>
+            </Box>
+          ) : (
+            <List>
+              {/* Helper function to render a classroom group */}
+              {(() => {
+                const renderClassroomGroup = (group) => {
+                  const isExpanded = expandedClassrooms.includes(group.classroom.id);
+                  
                   return (
-                    <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-                      <Divider
-                        textAlign="left"
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: '0.85rem',
-                          color: '#64748b',
-                          '&::before, &::after': {
-                            borderColor: '#e2e8f0',
-                          },
-                        }}
-                      >
-                        {label}
-                      </Divider>
-                      {items.map(renderClassroomGroup)}
+                    <Box key={group.classroom.id} sx={{ mb: 1 }}>
+                      {/* Classroom Header */}
+                      <ListItem disablePadding>
+                        <ListItemButton 
+                          dense
+                          onClick={() => toggleClassroomExpansion(group.classroom.id)}
+                          sx={{ 
+                            backgroundColor: '#f8fafc',
+                            borderRadius: 1,
+                            mb: isExpanded ? 1 : 0
+                          }}
+                        >
+                          <ListItemText
+                            primary={group.classroom.name}
+                            secondary={`${group.students.filter(s => selectedStudents.includes(s.id)).length}/${group.students.length} selected`}
+                          />
+                          <IconButton size="small">
+                            {isExpanded ? <ExpandLess /> : <ExpandMore />}
+                          </IconButton>
+                        </ListItemButton>
+                      </ListItem>
+
+                      {/* Students in Classroom */}
+                      <Collapse in={isExpanded}>
+                        <List dense sx={{ pl: 4 }}>
+                          {group.students.map((student) => {
+                            const disabled = isDisabled(student.id);
+                            return (
+                              <ListItem key={student.id} disablePadding>
+                                <ListItemButton
+                                  dense
+                                  onClick={() => handleStudentToggle(student.id)}
+                                  disabled={disabled}
+                                  sx={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                                >
+                                  <ListItemIcon>
+                                    <Checkbox
+                                      checked={selectedStudents.includes(student.id)}
+                                      edge="start"
+                                      tabIndex={-1}
+                                      disableRipple
+                                      disabled={disabled}
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={disabled
+                                      ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                      : getStudentName(student)}
+                                  />
+                                </ListItemButton>
+                              </ListItem>
+                            );
+                          })}
+                        </List>
+                      </Collapse>
                     </Box>
                   );
-                })}
-                {groupedByProgram.unassigned.length > 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-                    <Divider
-                      textAlign="left"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        color: '#64748b',
-                        '&::before, &::after': { borderColor: '#e2e8f0' },
-                      }}
-                    >
-                      Unassigned
-                    </Divider>
-                    {groupedByProgram.unassigned.map(renderClassroomGroup)}
-                  </Box>
-                )}
-              </>
-            );
-          })()}
-        </List>
+                };
+
+                return (
+                  <>
+                    {sortedProgramIds.map((pid) => {
+                      const items = groupedByProgram.groups[pid] || [];
+                      if (!items.length) return null;
+                      const label = PROGRAM_TITLES[pid] || (pid.charAt(0).toUpperCase() + pid.slice(1));
+                      return (
+                        <Box key={pid} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                          <Divider
+                            textAlign="left"
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: '0.85rem',
+                              color: '#64748b',
+                              '&::before, &::after': {
+                                borderColor: '#e2e8f0',
+                              },
+                            }}
+                          >
+                            {label}
+                          </Divider>
+                          {items.map(renderClassroomGroup)}
+                        </Box>
+                      );
+                    })}
+                    {groupedByProgram.unassigned.length > 0 && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                        <Divider
+                          textAlign="left"
+                          sx={{
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            color: '#64748b',
+                            '&::before, &::after': { borderColor: '#e2e8f0' },
+                          }}
+                        >
+                          Unassigned
+                        </Divider>
+                        {groupedByProgram.unassigned.map(renderClassroomGroup)}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+            </List>
+          )}
+        </Collapse>
       </Box>
 
       {/* Bottom summary removed to avoid redundancy */}

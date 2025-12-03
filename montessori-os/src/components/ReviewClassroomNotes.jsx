@@ -276,7 +276,7 @@ function ReviewClassroomNotes({ currentUser }) {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <CircularProgress size={20} />
               <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Loading classrooms…
+                Coach Pepper is gathering classrooms…
               </Typography>
             </Box>
           ) : (

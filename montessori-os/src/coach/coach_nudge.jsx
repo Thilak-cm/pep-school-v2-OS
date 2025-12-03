@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Typography, Button, TextField } from '@mui/material';
 import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS } from './constants';
 
@@ -27,7 +27,7 @@ function buildPreviewParts(noteText, appendedText) {
   return { originalPreview, appended: appendedText };
 }
 
-export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, maxNudges }) {
+export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, maxNudges, initialSelections = {}, onSelectionsChange }) {
   // Allowed IDs universe
   const ALL_IDS = [
     NUDGE_IDS.DURATION,
@@ -54,14 +54,35 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
   // Track if save attempt has been made (only after save attempt)
   const [saveAttempted, setSaveAttempted] = useState(false);
 
-  // Selections per nudge (no defaults)
-  const [selections, setSelections] = useState({
-    [NUDGE_IDS.DURATION]: { range: undefined },
-    [NUDGE_IDS.MODALITY]: { modality: undefined },
-    [NUDGE_IDS.INDEPENDENCE]: { independence: undefined },
-    [NUDGE_IDS.EVIDENCE]: { attempts: undefined, correct: undefined, quote: '' },
-    [NUDGE_IDS.SUBJECTIVE]: { objective_line: '' },
-  });
+  const mergedInitialSelections = useMemo(() => {
+    const incoming = initialSelections || {};
+    return {
+      [NUDGE_IDS.DURATION]: { range: incoming[NUDGE_IDS.DURATION]?.range },
+      [NUDGE_IDS.MODALITY]: { modality: incoming[NUDGE_IDS.MODALITY]?.modality },
+      [NUDGE_IDS.INDEPENDENCE]: { independence: incoming[NUDGE_IDS.INDEPENDENCE]?.independence },
+      [NUDGE_IDS.EVIDENCE]: {
+        attempts: incoming[NUDGE_IDS.EVIDENCE]?.attempts,
+        correct: incoming[NUDGE_IDS.EVIDENCE]?.correct,
+        quote: incoming[NUDGE_IDS.EVIDENCE]?.quote ?? '',
+      },
+      [NUDGE_IDS.SUBJECTIVE]: { objective_line: incoming[NUDGE_IDS.SUBJECTIVE]?.objective_line ?? '' },
+    };
+  }, [initialSelections]);
+
+  const [selections, setSelections] = useState(mergedInitialSelections);
+
+  useEffect(() => {
+    setSelections(mergedInitialSelections);
+    setSaveAttempted(false);
+  }, [mergedInitialSelections]);
+
+  const updateSelections = (updater) => {
+    setSelections((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (onSelectionsChange) onSelectionsChange(next);
+      return next;
+    });
+  };
 
   // Compose appended lines from current selections
   const appendedLines = useMemo(() => {
@@ -157,23 +178,18 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
   }, [selections, sampledIds]);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>
+    <Box sx={{ p: { xs: 0.25, sm: 0.75 } }}>
+      <Typography variant="h6" sx={{ mb: 0.5 }}>
         Coach Pepper thinks this note can be improved!
       </Typography>
-      {sampledIds.length > 0 && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {`Here ${sampledIds.length === 1 ? 'is' : 'are'} ${sampledIds.length} way${sampledIds.length === 1 ? '' : 's'} I think this note can be enhanced.`}
-        </Typography>
-      )}
 
       {/* Render controls per selected nudge (PRD priority order) */}
       {sampledIds.map((id) => {
         const copy = MICROCOPY_KEYS[id] || '';
         return (
-          <Box key={id} sx={{ mb: 2 }}>
+          <Box key={id} sx={{ mb: 2.25 }}>
             {copy && (
-              <Typography variant="subtitle2" sx={{ mb: 1, color: '#1e293b', fontWeight: 600 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.75, color: '#1e293b', fontWeight: 600 }}>
                 {copy}
               </Typography>
             )}
@@ -184,7 +200,8 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     key={c}
                     size="small"
                     variant={selections[NUDGE_IDS.DURATION]?.range === c ? 'contained' : 'outlined'}
-                    onClick={() => setSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: c } }))}
+                    sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
+                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.DURATION]: { range: c } }))}
                   >
                     {c}
                   </Button>
@@ -198,7 +215,8 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     key={c}
                     size="small"
                     variant={selections[NUDGE_IDS.MODALITY]?.modality === c ? 'contained' : 'outlined'}
-                    onClick={() => setSelections((s) => ({ ...s, [NUDGE_IDS.MODALITY]: { modality: c } }))}
+                    sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
+                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.MODALITY]: { modality: c } }))}
                   >
                     {c}
                   </Button>
@@ -212,7 +230,8 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     key={c}
                     size="small"
                     variant={selections[NUDGE_IDS.INDEPENDENCE]?.independence === c ? 'contained' : 'outlined'}
-                    onClick={() => setSelections((s) => ({ ...s, [NUDGE_IDS.INDEPENDENCE]: { independence: c } }))}
+                    sx={{ px: 1.75, py: 0.4, borderRadius: 1.5 }}
+                    onClick={() => updateSelections((s) => ({ ...s, [NUDGE_IDS.INDEPENDENCE]: { independence: c } }))}
                   >
                     {c}
                   </Button>
@@ -238,18 +257,19 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                       size="small"
                       type="number"
                       inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
-                      sx={{ 
-                        width: '80px',
+                      sx={{
+                        width: '76px',
                         '& .MuiOutlinedInput-root': {
                           '& fieldset': {
                             borderColor: invalid ? '#d32f2f' : '#d0d7de',
                           },
+                          borderRadius: 1.25,
                         },
                       }}
                       value={selections[NUDGE_IDS.EVIDENCE]?.correct ?? ''}
                       onChange={(e) => {
                         const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
-                        setSelections((s) => {
+                        updateSelections((s) => {
                           const updated = { 
                             ...s, 
                             [NUDGE_IDS.EVIDENCE]: { 
@@ -278,18 +298,19 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                       size="small"
                       type="number"
                       inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
-                      sx={{ 
-                        width: '80px',
+                      sx={{
+                        width: '76px',
                         '& .MuiOutlinedInput-root': {
                           '& fieldset': {
                             borderColor: invalid ? '#d32f2f' : '#d0d7de',
                           },
+                          borderRadius: 1.25,
                         },
                       }}
                       value={selections[NUDGE_IDS.EVIDENCE]?.attempts ?? ''}
                       onChange={(e) => {
                         const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
-                        setSelections((s) => {
+                        updateSelections((s) => {
                           const updated = { 
                             ...s, 
                             [NUDGE_IDS.EVIDENCE]: { 
@@ -325,7 +346,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     fullWidth
                     sx={{ mt: 1 }}
                     value={selections[NUDGE_IDS.EVIDENCE]?.quote ?? ''}
-                    onChange={(e) => setSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), quote: e.target.value } }))}
+                    onChange={(e) => updateSelections((s) => ({ ...s, [NUDGE_IDS.EVIDENCE]: { ...(s[NUDGE_IDS.EVIDENCE]||{}), quote: e.target.value } }))}
                   />
                 </Box>
               );
@@ -336,21 +357,21 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                 size="small"
                 fullWidth
                 value={selections[NUDGE_IDS.SUBJECTIVE]?.objective_line ?? ''}
-                onChange={(e) => setSelections((s) => ({ ...s, [NUDGE_IDS.SUBJECTIVE]: { objective_line: e.target.value } }))}
+                onChange={(e) => updateSelections((s) => ({ ...s, [NUDGE_IDS.SUBJECTIVE]: { objective_line: e.target.value } }))}
               />
             )}
           </Box>
         );
       })}
 
-      <Typography variant="subtitle2" sx={{ mb: 1, color: '#1e293b', fontWeight: 700 }}>
+      <Typography variant="subtitle2" sx={{ mb: 0.75, color: '#1e293b', fontWeight: 700 }}>
         Final note
       </Typography>
       <Box aria-label="Updated note preview" sx={{
         mb: 2,
         border: '1px solid #e2e8f0',
         borderRadius: 2,
-        p: 1.5,
+        p: 1.25,
         backgroundColor: '#fff'
       }}>
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#0f172a' }}>
@@ -367,61 +388,87 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-        <Button variant="text" onClick={onSkip}>Save without</Button>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          gap: 1,
+          mt: 1.5,
+          flexWrap: 'nowrap',
+          width: '100%'
+        }}
+      >
+        <Button
+          variant="outlined"
+          onClick={onSkip}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            height: 42,
+            fontWeight: 600,
+            fontSize: '0.88rem',
+            whiteSpace: 'nowrap',
+            borderRadius: 1.5,
+            borderColor: '#cbd5e1',
+            color: '#4f46e5'
+          }}
+        >
+          Save without nudge
+        </Button>
         <Button
           variant="contained"
-          onClick={() => {
-            if (!onApply) return;
-            
-            // Check if evidence validation is needed
-            if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
-              const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
-              const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
-              const aInt = Number.isInteger(a);
-              const cInt = Number.isInteger(c);
-              const oneFilled = (aInt && !cInt) || (!aInt && cInt);
-              const tooMany = aInt && cInt && c > a;
+            onClick={() => {
+              if (!onApply) return;
               
-              // Show validation errors if there are issues
-              if (oneFilled || tooMany) {
-                setSaveAttempted(true);
-                return; // Don't save if validation fails
+              // Check if evidence validation is needed
+              if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
+                const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
+                const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
+                const aInt = Number.isInteger(a);
+                const cInt = Number.isInteger(c);
+                const oneFilled = (aInt && !cInt) || (!aInt && cInt);
+                const tooMany = aInt && cInt && c > a;
+                
+                // Show validation errors if there are issues
+                if (oneFilled || tooMany) {
+                  setSaveAttempted(true);
+                  return; // Don't save if validation fails
+                }
               }
-            }
-            
-            // Flatten structured selections for saving
-            const out = {};
-            if (sampledIds.includes(NUDGE_IDS.DURATION)) {
-              const r = selections[NUDGE_IDS.DURATION]?.range;
-              if (r && CHIPS[NUDGE_IDS.DURATION].includes(r)) out.duration_range = r;
-            }
-            if (sampledIds.includes(NUDGE_IDS.MODALITY)) {
-              const m = selections[NUDGE_IDS.MODALITY]?.modality;
-              if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) out.modality = m;
-            }
-            if (sampledIds.includes(NUDGE_IDS.INDEPENDENCE)) {
-              const g = selections[NUDGE_IDS.INDEPENDENCE]?.independence;
-              if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) out.independence = g;
-            }
-            if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
-              const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
-              const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
-              const q = selections[NUDGE_IDS.EVIDENCE]?.quote;
-              if (Number.isInteger(a) && Number.isInteger(c)) {
-                out.evidence_attempts = a;
-                out.evidence_correct = c;
+              
+              // Flatten structured selections for saving
+              const out = {};
+              if (sampledIds.includes(NUDGE_IDS.DURATION)) {
+                const r = selections[NUDGE_IDS.DURATION]?.range;
+                if (r && CHIPS[NUDGE_IDS.DURATION].includes(r)) out.duration_range = r;
               }
-              if (q && String(q).trim()) {
-                out.evidence_quote = String(q).trim();
+              if (sampledIds.includes(NUDGE_IDS.MODALITY)) {
+                const m = selections[NUDGE_IDS.MODALITY]?.modality;
+                if (m && CHIPS[NUDGE_IDS.MODALITY].includes(m)) out.modality = m;
               }
-            }
-            if (sampledIds.includes(NUDGE_IDS.SUBJECTIVE)) {
-              const l = selections[NUDGE_IDS.SUBJECTIVE]?.objective_line;
-              if (l && String(l).trim()) out.objective_line = String(l).trim();
-            }
-            onApply({ updated_text: fullUpdatedText, selections: out });
-          }}
+              if (sampledIds.includes(NUDGE_IDS.INDEPENDENCE)) {
+                const g = selections[NUDGE_IDS.INDEPENDENCE]?.independence;
+                if (g && CHIPS[NUDGE_IDS.INDEPENDENCE].includes(g)) out.independence = g;
+              }
+              if (sampledIds.includes(NUDGE_IDS.EVIDENCE)) {
+                const a = selections[NUDGE_IDS.EVIDENCE]?.attempts;
+                const c = selections[NUDGE_IDS.EVIDENCE]?.correct;
+                const q = selections[NUDGE_IDS.EVIDENCE]?.quote;
+                if (Number.isInteger(a) && Number.isInteger(c)) {
+                  out.evidence_attempts = a;
+                  out.evidence_correct = c;
+                }
+                if (q && String(q).trim()) {
+                  out.evidence_quote = String(q).trim();
+                }
+              }
+              if (sampledIds.includes(NUDGE_IDS.SUBJECTIVE)) {
+                const l = selections[NUDGE_IDS.SUBJECTIVE]?.objective_line;
+                if (l && String(l).trim()) out.objective_line = String(l).trim();
+              }
+              onApply({ updated_text: fullUpdatedText, selections: out });
+            }}
           disabled={(() => {
             // Disable if nothing is selected
             if (!hasAnySelection) return true;
@@ -437,6 +484,16 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
             }
             return false;
           })()}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            height: 42,
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            borderRadius: 1.5,
+            boxShadow: 'none',
+            whiteSpace: 'nowrap'
+          }}
         >
           Apply and Save
         </Button>

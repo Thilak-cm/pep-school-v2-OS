@@ -9,8 +9,7 @@ import {
   TextField,
   Snackbar,
   Alert,
-  Chip,
-  Checkbox
+  Chip
 } from '@mui/material';
 import {
   Close,
@@ -34,17 +33,40 @@ import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
 import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
+import MentionTextArea from './MentionTextArea';
+import useMentionableStudents from '../hooks/useMentionableStudents';
+import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
+import LessonNoteTagDialog from './LessonNoteTagDialog';
 
 // TextInput Component
-function TextInput({ onSave, onNext, onDirtyChange }) {
-  const [text, setText] = useState('');
+function TextInput({
+  onSave,
+  onNext,
+  onDirtyChange,
+  initialText = '',
+  initialTags = [],
+  mentionableStudents = [],
+  onTagsChange = () => {}
+}) {
+  const [text, setText] = useState(initialText);
   const [wordCount, setWordCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(false);
   const [prevText, setPrevText] = useState('');
+  const [tags, setTags] = useState(initialTags);
+
+  useEffect(() => {
+    setText(initialText || '');
+    setTags(initialTags || []);
+    setWordCount(initialText?.trim() ? initialText.trim().split(/\s+/).length : 0);
+    setCleanedOnce(false);
+    setPrevText('');
+  }, [initialText]);
 
   const handleTextChange = (event) => {
-    const newText = event.target.value;
+    const newText = typeof event === 'string'
+      ? event
+      : event?.target?.value ?? '';
     setText(newText);
     setWordCount(newText.trim() ? newText.trim().split(/\s+/).length : 0);
     // Dirty if user has typed at least one character (even whitespace)
@@ -55,7 +77,7 @@ function TextInput({ onSave, onNext, onDirtyChange }) {
     if (!text.trim()) {
       return;
     }
-    onSave({ text: text.trim(), cleaned: cleanedOnce });
+    onSave({ text: text.trim(), cleaned: cleanedOnce, mentionedStudents: tags });
   };
 
   const handleCleanUp = async () => {
@@ -114,24 +136,29 @@ function TextInput({ onSave, onNext, onDirtyChange }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Feature hint */}
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <NewFeaturePill
+          label="New Feature: Quick select students using new @ feature"
+          size="sm"
+          showIcon={false}
+        />
+      </Box>
       {/* Title centered */}
       <Typography variant="h6" sx={{ textAlign: 'center', mb: 1 }}>
         Write your observation
       </Typography>
       
       <Box sx={{ position: 'relative' }}>
-        <TextField
-          multiline
-          rows={6}
-          fullWidth
+        <MentionTextArea
           value={text}
           onChange={handleTextChange}
-          placeholder="Enter your observation here..."
-          variant="outlined"
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
-            }
+          placeholder="Quick select students using @"
+          students={mentionableStudents}
+          tags={tags}
+          onTagsChange={(nextTags) => {
+            setTags(nextTags);
+            onTagsChange(nextTags);
           }}
         />
         <Typography
@@ -150,11 +177,6 @@ function TextInput({ onSave, onNext, onDirtyChange }) {
       <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
         Rough notes are okay — AI will polish for you.
       </Typography>
-      {!text.trim() && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
-          Please enter some text to continue
-        </Typography>
-      )}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -210,6 +232,7 @@ const STEP_NOTE_TYPE = 'noteType';
 const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
+const STEP_COACH = 'coach';
 
 function AddNoteModal({
   open,
@@ -224,7 +247,9 @@ function AddNoteModal({
   const [step, setStep] = useState(STEP_NOTE_TYPE);
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [textData, setTextData] = useState(null);
+  const [voiceTranscribing, setVoiceTranscribing] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
+  const [mentionedStudents, setMentionedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -232,22 +257,19 @@ function AddNoteModal({
   const isAdminUser = isAdminRole(userRole);
 
   // Coach UI state (Duration-only MVP)
-  const [coachOpen, setCoachOpen] = useState(false);
   const [coachNudges, setCoachNudges] = useState([]);
   const [coachSelections, setCoachSelections] = useState({});
-  const [coachReviewing, setCoachReviewing] = useState(false); // not used in new flow
   const [coachData, setCoachData] = useState(null); // stores AI response data (status, reason, nudgesShown)
-  // Analyzing overlay (replaces snackbar for this flow)
-  const [analyzingOpen, setAnalyzingOpen] = useState(false);
-  const [analyzingMessage, setAnalyzingMessage] = useState('');
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachLoadingMessage, setCoachLoadingMessage] = useState('');
 
-  // Lesson tag state (single-student only)
+  // Lesson tag state (single-student only; supports multiple lesson links)
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [lessonNotes, setLessonNotes] = useState([]);
   const [lessonNotesLoading, setLessonNotesLoading] = useState(false);
   const [lessonNotesError, setLessonNotesError] = useState('');
   const [lessonSearch, setLessonSearch] = useState('');
-  const [selectedLessonTag, setSelectedLessonTag] = useState(null); // { id, lessonTitle, createdBy }
+  const [selectedLessonIds, setSelectedLessonIds] = useState([]); // array of lesson observation IDs
   const [tagStudentName, setTagStudentName] = useState('');
 
   // Multi-student guard when a tag exists
@@ -255,8 +277,16 @@ function AddNoteModal({
   const [pendingStudents, setPendingStudents] = useState(null);
 
   // ----- Coach helpers (moved to AddNoteModal scope) -----
-  const coachActionRef = useRef(null);
   const coachProgramContextRef = useRef(null); // holds { programId } when gating allows coach
+  const coachRequestIdRef = useRef(0);
+  const coachTimerRef = useRef({ t5: null, t10: null });
+  const lastCoachSignatureRef = useRef(null);
+
+  const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
+  const transcriptSuggestions = useTranscriptStudentSuggestions(
+    transcriptionData?.text || '',
+    mentionableStudents
+  );
 
   // Normalize cloud function reason codes to schema values
   const normalizeCoachReason = (reason) => {
@@ -269,12 +299,30 @@ function AddNoteModal({
     return reasonMap[reason] || 'none';
   };
 
+  const buildCoachSignature = (noteData, studentIds, noteType = 'text') => {
+    const sorted = Array.from(new Set(studentIds || [])).sort();
+    return JSON.stringify({
+      text: noteData?.text || '',
+      students: sorted,
+      noteType,
+    });
+  };
+
+  const clearCoachTimers = () => {
+    const { t5, t10 } = coachTimerRef.current || {};
+    if (t5) clearTimeout(t5);
+    if (t10) clearTimeout(t10);
+    coachTimerRef.current = { t5: null, t10: null };
+  };
+
   const resetCoach = () => {
-    setCoachOpen(false);
+    clearCoachTimers();
     setCoachNudges([]);
     setCoachSelections({});
-    setCoachReviewing(false);
     setCoachData(null);
+    setCoachLoading(false);
+    setCoachLoadingMessage('');
+    lastCoachSignatureRef.current = null;
   };
 
   // Resolve selected students' programIds via their classrooms; dedupe classroom reads
@@ -320,36 +368,46 @@ function AddNoteModal({
     }
   }
 
-  const runCoachReview = async (noteText) => {
+  const runCoachReview = async (noteText, signature) => {
     // This function assumes gating is already done by caller.
     resetCoach();
-    // Show analyzing overlay with progressive copy (0s / 5s / 10s)
+    const reqId = ++coachRequestIdRef.current;
+    clearCoachTimers();
     let timedOut = false;
-    setAnalyzingMessage('Coach Pepper is analyzing your note!');
-    setAnalyzingOpen(true);
-    const t5 = setTimeout(() => {
-      if (!timedOut) setAnalyzingMessage('Oh no, Coach Pepper is taking longer than usual. Hang on tight!');
+    setCoachLoading(true);
+    setCoachLoadingMessage('Coach Pepper is analyzing your note!');
+    coachTimerRef.current.t5 = setTimeout(() => {
+      if (coachRequestIdRef.current === reqId && !timedOut) {
+        setCoachLoadingMessage('Oh no, Coach Pepper is taking longer than usual. Hang on tight!');
+      }
     }, 5000);
-    const t10 = setTimeout(() => {
-      timedOut = true;
-      setAnalyzingMessage('Coach Pepper is running into issues :( saving note as is for now.');
+    coachTimerRef.current.t10 = setTimeout(() => {
+      if (coachRequestIdRef.current === reqId) {
+        timedOut = true;
+        setCoachLoadingMessage('Coach Pepper is running into issues :( saving note as is for now.');
+      }
     }, 10000);
 
     try {
       const payload = makeCoachRequest(noteText, coachProgramContextRef.current || {});
       const call = httpsCallable(cloudFunctions, 'aiCoachReview');
       const res = await call(payload).catch(() => ({ data: { nudges: [] } }));
-      if (timedOut) { 
-        clearTimeout(t5); 
-        clearTimeout(t10); 
-        setAnalyzingOpen(false); 
-        return { skipped: true, timeout: true, coachData: { status: 'timeout', reason: 'net_timeout', nudgesShown: [] } }; 
+
+      if (coachRequestIdRef.current !== reqId) {
+        clearCoachTimers();
+        return null; // cancelled or superseded
       }
+
       const aiResponse = res?.data || { nudges: [] };
       const parsed = parseCoachResponse(aiResponse);
-      clearTimeout(t5); clearTimeout(t10);
-      // Hide analyzing overlay now that we have a result
-      setAnalyzingOpen(false);
+
+      if (timedOut) {
+        clearCoachTimers();
+        setCoachLoading(false);
+        return { skipped: true, timeout: true, coachData: { status: 'timeout', reason: 'net_timeout', nudgesShown: [] } };
+      }
+
+      clearCoachTimers();
       let nudges = parsed.nudges || [];
       // UI hard-cap using backend-provided maxReturnNudges (defensive double-cap)
       const uiMax = Number.isInteger(aiResponse?.maxReturnNudges) && aiResponse.maxReturnNudges > 0
@@ -366,43 +424,49 @@ function AddNoteModal({
       const nudgesShown = nudges.map(n => ({ id: n.id, confidence: n.confidence }));
       
       if (!nudges.length) {
+        setCoachLoading(false);
+        setCoachLoadingMessage('');
         return { skipped: true, coachData: { status: coachStatus, reason: coachReason, nudgesShown: [] } };
       }
-      // Open dialog with available nudges and wait for user interaction
-      setCoachNudges(nudges);
-      setCoachSelections((s) => ({ ...s, _noteText: String(noteText || '') }));
-      
-      // Store the coach data for later saving
-      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown, maxNudges: uiMax });
-      
-      setCoachOpen(true);
 
-      return await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (coachActionRef.current != null) {
-            const v = coachActionRef.current;
-            coachActionRef.current = null;
-            clearInterval(interval);
-            resolve(v);
-          }
-        }, 50);
-      });
+      setCoachNudges(nudges);
+      setCoachData({ status: coachStatus, reason: coachReason, nudgesShown, maxNudges: uiMax });
+      setCoachLoading(false);
+      setCoachLoadingMessage('');
+      lastCoachSignatureRef.current = signature;
+      return { ready: true };
     } catch (_) {
-      clearTimeout(t5); clearTimeout(t10);
-      // Hide analyzing overlay and skip without blocking save
-      setAnalyzingOpen(false);
+      if (coachRequestIdRef.current !== reqId) {
+        clearCoachTimers();
+        return null;
+      }
+      clearCoachTimers();
+      setCoachLoading(false);
+      setCoachLoadingMessage('');
       return { skipped: true, coachData: { status: 'error', reason: 'server_error', nudgesShown: [] } };
     }
   };
 
   const handleCoachSkip = () => {
-    coachActionRef.current = { skipped: true, coachData }; // proceed to save without changes
-    resetCoach();
+    if (saving) return;
+    const result = {
+      skipped: true,
+      coachData: coachData || { status: 'ok', reason: 'none', nudgesShown: [] }
+    };
+    saveNote(result);
+  };
+
+  const handleCoachBack = () => {
+    coachRequestIdRef.current += 1; // cancel any in-flight request
+    clearCoachTimers();
+    setCoachLoading(false);
+    setCoachLoadingMessage('');
+    setStep(STEP_RECIPIENTS);
   };
 
   const handleCoachApply = ({ updated_text, selections }) => {
-    coachActionRef.current = { updated_text, selections, coachData };
-    setCoachOpen(false);
+    if (saving) return;
+    saveNote({ updated_text, selections, coachData });
   };
 
   function humanizeDuration(chip) {
@@ -516,30 +580,46 @@ function AddNoteModal({
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {
     setSelectedStudents(initialStudents);
+    setMentionedStudents([]);
   }, [initialStudents]);
 
-  // Clear lesson tag if student selection changes
+  // Clear lesson tags if student selection changes
   useEffect(() => {
-    if (!selectedLessonTag) return;
+    if (!selectedLessonIds || selectedLessonIds.length === 0) return;
     if (selectedStudents.length !== 1) {
-      setSelectedLessonTag(null);
+      setSelectedLessonIds([]);
       return;
     }
-    if (selectedLessonTag.studentId && selectedStudents[0] !== selectedLessonTag.studentId) {
-      setSelectedLessonTag(null);
+    // We only ever load lesson notes for the currently selected student,
+    // so if the selected student changes, drop any existing tags.
+  }, [selectedStudents, selectedLessonIds]);
+
+  // Invalidate cached coach nudges if the note or recipients change
+  useEffect(() => {
+    if (!lastCoachSignatureRef.current) return;
+    const currentNoteData = transcriptionData || textData;
+    const noteType = currentNoteData === transcriptionData ? 'voice' : 'text';
+    const sig = buildCoachSignature(currentNoteData, selectedStudents, noteType);
+    if (sig !== lastCoachSignatureRef.current) {
+      resetCoach();
     }
-  }, [selectedStudents, selectedLessonTag]);
+  }, [textData, transcriptionData, selectedStudents]);
 
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
+    coachRequestIdRef.current += 1;
+    resetCoach();
     // Reset all state when closing
     setTranscriptionData(null);
     setTextData(null);
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
     setSelectedStudents(initialStudents);
+    setMentionedStudents([]);
     setSaving(false);
     setSnackbarOpen(false);
     setSnackbarMessage('');
-    setSelectedLessonTag(null);
+    setSelectedLessonIds([]);
     setLessonNotes([]);
     setLessonSearch('');
     setLessonNotesError('');
@@ -561,6 +641,13 @@ function AddNoteModal({
         textDirty || voiceDirty
       );
     }
+    if (step === STEP_COACH) {
+      return (
+        selectedStudents.length > 0 ||
+        !!textData || !!transcriptionData ||
+        textDirty || voiceDirty
+      );
+    }
     return false;
   };
 
@@ -576,6 +663,10 @@ function AddNoteModal({
       return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }
   }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, saving]);
+
+  useEffect(() => {
+    return () => clearCoachTimers();
+  }, []);
 
   const pauseVoiceIfRecording = () => {
     try {
@@ -657,19 +748,8 @@ function AddNoteModal({
     handleOpenTagDialog();
   };
 
-  const handleSelectLessonTag = (note) => {
-    if (!note) return;
-    setSelectedLessonTag({
-      id: note.id,
-      lessonTitle: note.lessonTitle || 'Lesson Note',
-      createdBy: note.createdBy || note.createdByEmail || null,
-      studentId: selectedStudents?.[0] || null,
-    });
-    setTagDialogOpen(false);
-  };
-
   const handleClearLessonTag = () => {
-    setSelectedLessonTag(null);
+    setSelectedLessonIds([]);
   };
 
   // Centralized close request handler (backdrop, ESC, X, back buttons)
@@ -713,7 +793,7 @@ function AddNoteModal({
   };
 
   const handleStudentsChange = (nextStudents) => {
-    if (selectedLessonTag && (nextStudents?.length || 0) > 1) {
+    if ((selectedLessonIds?.length || 0) > 0 && (nextStudents?.length || 0) > 1) {
       setPendingStudents(nextStudents);
       setMultiStudentWarningOpen(true);
       return;
@@ -722,7 +802,7 @@ function AddNoteModal({
   };
 
   const handleConfirmDropTag = () => {
-    setSelectedLessonTag(null);
+    setSelectedLessonIds([]);
     if (pendingStudents) {
       setSelectedStudents(pendingStudents);
     }
@@ -736,10 +816,15 @@ function AddNoteModal({
   };
 
   const handleSelectVoice = () => {
+    setVoiceTranscribing(false);
+    setTextData(null);
     setStep(STEP_RECORD);
   };
 
   const handleSelectText = () => {
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
+    setTranscriptionData(null);
     setStep(STEP_TEXT_INPUT);
   };
 
@@ -750,48 +835,67 @@ function AddNoteModal({
   };
 
   const handleVoiceSave = (transcriptionData) => {
+    setVoiceTranscribing(false);
+    setTextData(null);
     setTranscriptionData(transcriptionData);
+    setVoiceDirty(false);
     setStep(STEP_RECIPIENTS);
   };
 
-  const handleTextSave = (textData) => {
-    setTextData(textData);
+  const handleTextSave = (nextTextData) => {
+    const tagged = nextTextData?.mentionedStudents || [];
+    setMentionedStudents(tagged);
+    setSelectedStudents((prev) => {
+      const merged = new Set([...(prev || []), ...tagged.map((t) => t.id)]);
+      return Array.from(merged);
+    });
+    setTranscriptionData(null);
+    setTextData(nextTextData);
     setStep(STEP_RECIPIENTS);
   };
 
-  const handleRecipientsNext = async () => {
+  const handleVoiceRecordAgain = () => {
+    setTranscriptionData(null);
+    setVoiceTranscribing(false);
+    setVoiceDirty(false);
+    setStep(STEP_RECORD);
+  };
+
+  const handleTranscriptionStart = () => {
+    setVoiceTranscribing(true);
+    // Show combined view while transcription runs
+    setStep(STEP_RECIPIENTS);
+  };
+
+  const handleTranscriptionError = () => {
+    setVoiceTranscribing(false);
+    // Return to recorder so user can retry
+    setStep(STEP_RECORD);
+  };
+
+  const saveNote = async (coachResult = null) => {
     const noteData = transcriptionData || textData;
     if (!noteData) {
       notify.warning('No note data available. Please try again.');
       return;
     }
-
-    // If note has text, evaluate Coach gating by program and run if enabled
-    let coachResult = null;
-    if (noteData && noteData.text) {
-      // Determine selected programs
-      const programIds = await getSelectedProgramIds(selectedStudents);
-      if (programIds.length === 1) {
-        const programId = programIds[0];
-        const enabled = await isCoachEnabledForProgram(programId);
-        if (enabled) {
-          coachProgramContextRef.current = { programId };
-          coachResult = await runCoachReview(noteData.text).catch(() => ({ skipped: true }));
-          if (!coachResult) return; // safety
-        }
-        // if not enabled → skip coach silently
-      } else {
-        // multiple or zero programs → skip coach silently per policy
-      }
+    if (!noteData.text) {
+      await saveNote(null);
+      return;
     }
+
+    const normalizedSelectedLessonIds = Array.from(new Set(selectedLessonIds || []));
+    const selectedLessonObjects = lessonNotes.filter((n) =>
+      normalizedSelectedLessonIds.includes(n.id)
+    );
 
     const canTagLesson = (
       selectedStudents.length === 1 &&
-      selectedLessonTag &&
-      selectedLessonTag.studentId === selectedStudents[0] &&
-      (isAdminUser || selectedLessonTag.createdBy === currentUser?.uid)
+      normalizedSelectedLessonIds.length > 0 &&
+      selectedLessonObjects.length === normalizedSelectedLessonIds.length &&
+      (isAdminUser || selectedLessonObjects.every((n) => n.createdBy && n.createdBy === currentUser?.uid))
     );
-    const taggedLessonId = canTagLesson ? selectedLessonTag.id : null;
+    const taggedLessonIds = canTagLesson ? normalizedSelectedLessonIds : [];
 
     try {
       setSaving(true);
@@ -832,7 +936,7 @@ function AddNoteModal({
           
           // Group ID for multi-student notes
           ...(groupId ? { groupId } : {}),
-          ...(taggedLessonId ? { linkedLessonObservationId: taggedLessonId } : {}),
+          ...(canTagLesson ? { linkedLessonObservationId: taggedLessonIds } : {}),
         };
 
         // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
@@ -877,16 +981,21 @@ function AddNoteModal({
       });
       await Promise.all(promises);
 
-      // Backlink: add this observation to the lesson note's linkedObservations (single student only)
-      if (taggedLessonId && newObservationIds.length === 1) {
+      // Backlink: add this observation to each lesson note's linkedObservations (single student only)
+      if (canTagLesson && taggedLessonIds.length > 0 && newObservationIds.length === 1) {
+        const { studentId: backlinkStudentId, observationId } = newObservationIds[0];
         try {
-          const lessonRef = doc(db, 'students', selectedStudents[0], 'observations', taggedLessonId);
-          await updateDoc(lessonRef, {
-            linkedObservations: arrayUnion(newObservationIds[0].observationId)
-          });
+          await Promise.all(
+            taggedLessonIds.map(async (lessonId) => {
+              const lessonRef = doc(db, 'students', backlinkStudentId, 'observations', lessonId);
+              await updateDoc(lessonRef, {
+                linkedObservations: arrayUnion(observationId)
+              });
+            })
+          );
         } catch (err) {
           console.error('Error adding backlink to lesson note', err);
-          notify.warning('Note saved, but could not update the linked lesson note.');
+          notify.warning('Note saved, but could not update one or more linked lesson notes.');
         }
       }
 
@@ -914,6 +1023,47 @@ function AddNoteModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRecipientsNext = async () => {
+    const noteData = transcriptionData || textData;
+    if (!noteData) {
+      notify.warning('No note data available. Please try again.');
+      return;
+    }
+
+    const programIds = await getSelectedProgramIds(selectedStudents);
+    if (programIds.length !== 1) {
+      await saveNote(null);
+      return;
+    }
+    const programId = programIds[0];
+    const enabled = await isCoachEnabledForProgram(programId);
+    if (!enabled) {
+      await saveNote(null);
+      return;
+    }
+
+    coachProgramContextRef.current = { programId };
+    const noteType = noteData === transcriptionData ? 'voice' : 'text';
+    const signature = buildCoachSignature(noteData, selectedStudents, noteType);
+
+    // If nothing changed and nudges already exist, reuse without rerun
+    if (lastCoachSignatureRef.current === signature && coachNudges.length > 0) {
+      setCoachLoading(false);
+      setCoachLoadingMessage('');
+      setStep(STEP_COACH);
+      return;
+    }
+
+    setStep(STEP_COACH);
+    const coachResult = await runCoachReview(noteData.text, signature).catch(() => ({ skipped: true }));
+    if (!coachResult) return; // cancelled or superseded
+    if (coachResult.skipped) {
+      await saveNote(coachResult);
+      return;
+    }
+    // Otherwise stay on Coach step for user action
   };
 
   const handleSnackbarClose = (event, reason) => {
@@ -978,6 +1128,8 @@ function AddNoteModal({
                   setStep(STEP_NOTE_TYPE);
                 } else if (step === STEP_RECORD) {
                   setStep(STEP_NOTE_TYPE);
+                } else if (step === STEP_COACH) {
+                  handleCoachBack();
                 } else if (step === STEP_RECIPIENTS) {
                   // Go back to previous step based on how we got here
                   if (textData) {
@@ -1147,14 +1299,24 @@ function AddNoteModal({
           </Box>
         )}
 
-        {step === STEP_RECORD && (
-          <Box sx={{ p: 3, pt: 1, flex: 1 }}>
+        {(step === STEP_RECORD || voiceTranscribing) && (
+          <Box
+            sx={{
+              p: step === STEP_RECORD ? 3 : 0,
+              pt: step === STEP_RECORD ? 1 : 0,
+              flex: 1,
+              display: step === STEP_RECORD ? 'block' : 'none'
+            }}
+          >
             <VoiceRecorder 
               onSave={handleVoiceSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
               onDirtyChange={setVoiceDirty}
               exposeControls={(controls) => { voiceControlsRef.current = controls; }}
               variant="cardless"
+              autoAdvanceOnSave
+              onTranscriptionStart={handleTranscriptionStart}
+              onTranscriptionError={handleTranscriptionError}
             />
           </Box>
         )}
@@ -1165,6 +1327,10 @@ function AddNoteModal({
               onSave={handleTextSave} 
               onNext={() => setStep(STEP_RECIPIENTS)}
               onDirtyChange={setTextDirty}
+              initialText={textData?.text || ''}
+              initialTags={mentionedStudents}
+              mentionableStudents={mentionableStudents}
+              onTagsChange={setMentionedStudents}
             />
           </Box>
         )}
@@ -1188,6 +1354,11 @@ function AddNoteModal({
                 userRole={userRole}
                 textData={textData}
                 onTextDataChange={setTextData}
+                voiceData={transcriptionData}
+                onVoiceDataChange={setTranscriptionData}
+                onVoiceRecordAgain={handleVoiceRecordAgain}
+                voiceLoading={voiceTranscribing}
+                suggestedStudents={transcriptSuggestions}
               />
             </Box>
             {/* Fixed bottom action bar */}
@@ -1205,17 +1376,34 @@ function AddNoteModal({
                 bottom: 0,
               }}
             >
-              {selectedLessonTag && (
+              {selectedLessonIds && selectedLessonIds.length > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>
-                    Tagged Lesson Note:
+                    Tagged Lesson Notes:
                   </Typography>
-                  <Chip
-                    label={selectedLessonTag.lessonTitle}
-                    onDelete={handleClearLessonTag}
-                    color="primary"
-                    variant="outlined"
-                  />
+                  {selectedLessonIds.map((id) => {
+                    const note = lessonNotes.find((n) => n.id === id);
+                    const label = note?.lessonTitle || 'Lesson Note';
+                    return (
+                      <Chip
+                        key={id}
+                        label={label}
+                        onDelete={() => {
+                          setSelectedLessonIds((prev) => prev.filter((x) => x !== id));
+                        }}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    );
+                  })}
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={handleClearLessonTag}
+                    sx={{ textTransform: 'none', ml: 0.5 }}
+                  >
+                    Clear all
+                  </Button>
                 </Box>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1241,107 +1429,68 @@ function AddNoteModal({
           </Box>
         )}
 
+        {step === STEP_COACH && (
+          <Box
+            sx={{
+              p: 3,
+              pt: 1,
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 'fit-content'
+            }}
+          >
+            {coachLoading ? (
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 320,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2
+                }}
+              >
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  {coachLoadingMessage || 'Coach Pepper is analyzing your note!'}
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ position: 'relative' }}>
+                <CoachNudge
+                  noteText={(transcriptionData || textData)?.text || ''}
+                  onSkip={handleCoachSkip}
+                  onApply={handleCoachApply}
+                  forcedNudges={coachNudges.map(n => n.id)}
+                  maxNudges={coachData?.maxNudges}
+                  initialSelections={coachSelections}
+                  onSelectionsChange={setCoachSelections}
+                />
+              </Box>
+            )}
+          </Box>
+        )}
+
       </Box>
       {/* Tag lesson note dialog */}
-      <Dialog
+      <LessonNoteTagDialog
         open={tagDialogOpen}
         onClose={() => setTagDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-            <Typography variant="h6">
-              {`Tag lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
-            </Typography>
-            <IconButton
-              size="small"
-              aria-label="Close tag lesson notes dialog"
-              onClick={() => setTagDialogOpen(false)}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              <Close fontSize="small" />
-            </IconButton>
-          </Box>
-          <TextField
-            fullWidth
-            placeholder="Search lesson titles"
-            value={lessonSearch}
-            onChange={(e) => setLessonSearch(e.target.value)}
-          />
-          <Typography variant="body2" color="text.secondary">
-            {lessonNotesLoading
-              ? 'Loading lesson notes...'
-              : `${lessonNotes.length} lesson note${lessonNotes.length === 1 ? '' : 's'} available`}
-          </Typography>
-          {lessonNotesError && (
-            <Alert severity="error" onClose={() => setLessonNotesError('')}>
-              {lessonNotesError}
-            </Alert>
-          )}
-          {lessonNotesLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 280, overflowY: 'auto' }}>
-              {(() => {
-                const searchLower = lessonSearch.trim().toLowerCase();
-                const filtered = lessonNotes.filter((n) => {
-                  if (!searchLower) return true;
-                  const title = (n.lessonTitle || '').toLowerCase();
-                  return title.includes(searchLower);
-                });
-                const limited = filtered.slice(0, 3);
-                if (limited.length === 0) {
-                  return (
-                    <Typography variant="body2" color="text.secondary">
-                      No lesson notes found.
-                    </Typography>
-                  );
-                }
-                return limited.map((note) => {
-                  const canTag = isAdminRole(userRole) || (note.createdBy && currentUser?.uid === note.createdBy);
-                  const disabled = !canTag;
-                  const checked = selectedLessonTag?.id === note.id;
-                  return (
-                    <Box
-                      key={note.id}
-                      sx={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 2,
-                        p: 1.25,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        opacity: disabled ? 0.6 : 1,
-                        backgroundColor: disabled ? '#f8fafc' : 'white',
-                        cursor: disabled ? 'not-allowed' : 'pointer'
-                      }}
-                      onClick={() => {
-                        if (disabled) return;
-                        handleSelectLessonTag(note);
-                      }}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() => {
-                          if (disabled) return;
-                          handleSelectLessonTag(note);
-                        }}
-                      />
-                      <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                        {note.lessonTitle || 'Lesson Note'}
-                      </Typography>
-                    </Box>
-                  );
-                });
-              })()}
-            </Box>
-          )}
-        </Box>
-      </Dialog>
+        title={`Tag lesson notes${tagStudentName ? ` for ${tagStudentName}` : ''}`}
+        lessonNotes={lessonNotes}
+        lessonNotesLoading={lessonNotesLoading}
+        lessonNotesError={lessonNotesError}
+        onLessonNotesErrorClear={() => setLessonNotesError('')}
+        lessonSearch={lessonSearch}
+        onLessonSearchChange={setLessonSearch}
+        currentUser={currentUser}
+        userRole={userRole}
+        selectedLessonIds={selectedLessonIds}
+        onSelectionChange={setSelectedLessonIds}
+        saving={lessonNotesLoading}
+      />
       {/* Multi-student warning when a tag exists */}
       <Dialog
         open={multiStudentWarningOpen}
@@ -1395,49 +1544,6 @@ function AddNoteModal({
           {snackbarMessage}
         </Alert>
       </Snackbar>
-
-      {/* Analyzing overlay dialog */}
-      <Dialog open={analyzingOpen} onClose={() => {}} fullWidth maxWidth="xs">
-        <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <CircularProgress size={22} />
-          <Typography variant="body2" color="text.secondary">{analyzingMessage}</Typography>
-        </Box>
-      </Dialog>
-
-      {/* Coach nudge popup — duration-only MVP */}
-      <Dialog open={coachOpen} onClose={handleCoachSkip} fullWidth maxWidth="sm">
-        <Box sx={{ position: 'relative' }}>
-          <CoachNudge
-            noteText={coachSelections?._noteText || ''}
-            onSkip={handleCoachSkip}
-            onApply={handleCoachApply}
-            forcedNudges={coachNudges.map(n => n.id)}
-            maxNudges={coachData?.maxNudges}
-          />
-          {coachReviewing && (
-            <Box
-              aria-label="Coach reviewing"
-              sx={{
-                position: 'absolute',
-                top: 8,
-                right: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                backgroundColor: 'rgba(15, 23, 42, 0.06)'
-              }}
-            >
-              <CircularProgress size={16} />
-              <Typography variant="caption" color="text.secondary">
-                Reviewing…
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </Dialog>
     </Dialog>
   );
 }

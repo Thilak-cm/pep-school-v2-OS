@@ -482,7 +482,7 @@ function App() {
                   }}
                 />
                 <Typography variant="body1" sx={{ color: '#64748b' }}>
-                  Loading...
+                  Coach Pepper is getting things ready...
                 </Typography>
               </Box>
             </Box>

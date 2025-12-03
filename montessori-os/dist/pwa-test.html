@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Test - Montessori OS</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .test-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4f46e5;
+        }
+        .success { border-left-color: #059669; }
+        .warning { border-left-color: #f59e0b; }
+        .error { border-left-color: #dc2626; }
+        .icon-preview {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .icon-preview img {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 PWA Test Page - Montessori OS</h1>
+    
+    <div class="test-item success">
+        <h3>✅ Manifest Check</h3>
+        <p>Your manifest.json should be loading correctly now with proper icon references.</p>
+    </div>
+    
+    <div class="test-item">
+        <h3>🎨 Icon Files</h3>
+        <p>Check if these icons are loading:</p>
+        <div class="icon-preview">
+            <div>
+                <img src="/icon.svg" alt="SVG Icon" width="64" height="64">
+                <p>SVG Icon</p>
+            </div>
+            <div>
+                <img src="/icon-192.png" alt="192x192 Icon" width="64" height="64">
+                <p>192x192 Icon</p>
+            </div>
+            <div>
+                <img src="/icon-512.png" alt="512x512 Icon" width="64" height="64">
+                <p>512x512 Icon</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-item">
+        <h3>🔧 Service Worker</h3>
+        <p>Check DevTools → Application → Service Workers to see if it's registered and running.</p>
+        <p>Console should show: "PWA Service Worker registered successfully"</p>
+    </div>
+    
+    <div class="test-item">
+        <h3>📱 PWA Installation</h3>
+        <p>Look for the install prompt in your browser's address bar (Chrome/Edge) or share menu (Safari).</p>
+    </div>
+    
+    <div class="test-item warning">
+        <h3>⚠️ Next Steps</h3>
+        <p>You still need to convert the SVG icon to PNG files at 192x192 and 512x512 resolutions.</p>
+        <p>Use online tools like:</p>
+        <ul>
+            <li><a href="https://convertio.co/svg-png/" target="_blank">Convertio</a></li>
+            <li><a href="https://cloudconvert.com/svg-to-png" target="_blank">CloudConvert</a></li>
+        </ul>
+    </div>
+    
+    <div class="test-item">
+        <h3>🧪 Testing Commands</h3>
+        <p>In DevTools Console, run these commands:</p>
+        <code>
+            // Check if service worker is registered<br>
+            navigator.serviceWorker.getRegistrations()<br><br>
+            
+            // Check manifest<br>
+            navigator.standalone<br><br>
+            
+            // Check PWA support<br>
+            'serviceWorker' in navigator
+        </code>
+    </div>
+    
+    <script>
+        // Check PWA support
+        if ('serviceWorker' in navigator) {
+            console.log('✅ Service Worker supported');
+        } else {
+            console.log('❌ Service Worker not supported');
+        }
+        
+        // Check if running as PWA
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('✅ Running as PWA');
+        } else {
+            console.log('ℹ️ Running in browser');
+        }
+    </script>
+</body>
+</html>

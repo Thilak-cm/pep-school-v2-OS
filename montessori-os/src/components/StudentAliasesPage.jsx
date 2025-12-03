@@ -295,8 +295,11 @@ function StudentAliasesPage({ currentUser, userRole }) {
 
   if (loading) {
     return (
-      <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ py: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, flexDirection: 'column' }}>
         <CircularProgress />
+        <Typography variant="body2" color="text.secondary">
+          Coach Pepper is loading aliases...
+        </Typography>
       </Box>
     );
   }

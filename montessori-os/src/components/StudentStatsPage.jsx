@@ -275,8 +275,11 @@ const StudentStatsPage = ({ student }) => {
       pb: 4 
     }}>
       {stats.loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8, gap: 2, flexDirection: 'column' }}>
           <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Coach Pepper is crunching this student&apos;s stats...
+          </Typography>
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -501,4 +504,3 @@ const StudentStatsPage = ({ student }) => {
 };
 
 export default StudentStatsPage;
-

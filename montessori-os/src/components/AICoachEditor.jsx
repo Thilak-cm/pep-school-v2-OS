@@ -265,8 +265,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', gap: 2, flexDirection: 'column' }}>
         <CircularProgress />
+        <Typography variant="body2" color="text.secondary">
+          Coach Pepper is loading coach settings...
+        </Typography>
       </Box>
     );
   }
