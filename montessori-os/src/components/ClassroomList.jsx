@@ -21,7 +21,6 @@ import { genericFuzzySearch } from '../utils/fuzzySearch';
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-const DEFAULT_PROGRAM_ORDER = ['toddler', 'primary', 'elementary', 'adolescent'];
 const PROGRAM_LABELS = {
   toddler: 'Toddler',
   primary: 'Primary',
@@ -34,6 +33,12 @@ const SECTION_DIVIDER_SX = {
   fontSize: '0.85rem',
   color: '#64748b',
   '&::before, &::after': { borderColor: '#e2e8f0' },
+};
+
+const getProgramLabel = (programId) => {
+  const key = String(programId || '').trim();
+  if (!key) return PROGRAM_LABELS.unassigned;
+  return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
 
 const buildCacheKey = (uid, role, manageableClassrooms = []) => {
@@ -101,7 +106,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
   const [classroomMap, setClassroomMap] = useState({}); // classroomId -> classroom name
   const [expandedClassroomId, setExpandedClassroomId] = useState(null);
   const [programLookup, setProgramLookup] = useState({}); // classroomId -> programId
-  const [programOrder, setProgramOrder] = useState(DEFAULT_PROGRAM_ORDER);
   const isClassroomAdmin = userRole === 'classroomadmin';
 
   useEffect(() => {
@@ -213,12 +217,10 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         if (!isMounted) return;
 
         const classroomProgramMap = {};
-        const programIds = [];
 
         programsSnap.forEach((programDoc) => {
           const data = programDoc.data() || {};
           const programId = programDoc.id;
-          programIds.push(programId);
           const classroomPaths = Array.isArray(data.classrooms) ? data.classrooms : [];
           classroomPaths.forEach((path) => {
             const normalizedId = normalizeClassroomId(path);
@@ -228,13 +230,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
           });
         });
 
-        const orderedPrograms = [
-          ...DEFAULT_PROGRAM_ORDER.filter((pid) => programIds.includes(pid)),
-          ...programIds.filter((pid) => !DEFAULT_PROGRAM_ORDER.includes(pid)),
-        ];
-
         setProgramLookup(classroomProgramMap);
-        setProgramOrder(orderedPrograms.length ? orderedPrograms : DEFAULT_PROGRAM_ORDER);
       } catch (err) {
         console.error('Error fetching program metadata', err);
       }
@@ -397,24 +393,12 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
       seenPrograms.add(programId);
     });
 
-    const preferredOrder = programOrder?.length ? programOrder : DEFAULT_PROGRAM_ORDER;
-    const orderedPrograms = [];
-
-    preferredOrder.forEach((pid) => {
-      if (seenPrograms.has(pid) && !orderedPrograms.includes(pid)) orderedPrograms.push(pid);
-    });
-
-    Array.from(seenPrograms)
-      .filter((pid) => !orderedPrograms.includes(pid) && pid !== 'unassigned')
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-      .forEach((pid) => orderedPrograms.push(pid));
-
-    if (seenPrograms.has('unassigned') && !orderedPrograms.includes('unassigned')) {
-      orderedPrograms.push('unassigned');
-    }
+    const orderedPrograms = Array.from(seenPrograms).sort((a, b) =>
+      getProgramLabel(a).localeCompare(getProgramLabel(b), undefined, { sensitivity: 'base' })
+    );
 
     return { groups, order: orderedPrograms };
-  }, [sortedClassrooms, classroomProgramLookup, programOrder]);
+  }, [sortedClassrooms, classroomProgramLookup]);
 
   const studentsByClassroom = useMemo(() => {
     const map = {};
@@ -483,12 +467,6 @@ const handleStudentClick = (student) => {
       normalizedId ||
       'Unassigned'
     );
-  };
-
-  const getProgramLabel = (programId) => {
-    const key = String(programId || '').trim();
-    if (!key) return PROGRAM_LABELS.unassigned;
-    return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
   };
 
   const renderCard = (classroom) => {
