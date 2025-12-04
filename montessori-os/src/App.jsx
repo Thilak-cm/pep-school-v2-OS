@@ -338,7 +338,10 @@ function App() {
       case 'classroomList':
         return () => setScreen('landingPage');
       case 'graduateStudents':
-        return () => setScreen('landingPage');
+        return () => {
+          setScreen('addUser');
+          setUsersAccessView('home');
+        };
       case 'classroomTimeline':
         return () => setScreen('classroomList');
       case 'studentList':
@@ -807,8 +810,8 @@ function App() {
                 </Box>
               </Box>
 
-              {/* Global Add Note FAB - hidden on profile, stats, feedback, feedbackTimeline, and accessDenied pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && screen !== 'settings' && (
+              {/* Global Add Note FAB - hidden on non-observation utility pages */}
+              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && screen !== 'settings' && screen !== 'addUser' && screen !== 'aiHome' && (
                 <AddNoteFab 
                   showLabel 
                   onClick={() => setAddNoteOpen(true)} 

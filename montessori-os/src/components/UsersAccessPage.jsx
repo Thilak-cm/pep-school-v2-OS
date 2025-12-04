@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
-  List, ListItemButton, ListItemAvatar, ListItemText, IconButton
+  List, ListItemButton, ListItemAvatar, ListItemText, IconButton, Checkbox, ListItemIcon, ListItem
 } from '@mui/material';
 import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight, Delete } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
@@ -58,13 +58,8 @@ const sanitizeEmailForDocId = (email) => String(email || '').toLowerCase().repla
 
 const MOBILE_CONTAINER_SX = {
   width: '100%',
-  maxWidth: '375px',
-  minHeight: '100vh',
-  margin: '0 auto',
-  backgroundColor: '#f8fafc',
   display: 'flex',
   flexDirection: 'column',
-  overflow: 'hidden'
 };
 
 const TAB_SX = {
@@ -1078,7 +1073,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   return (
     <Box sx={MOBILE_CONTAINER_SX}>
-      <Box sx={{ flex: 1, overflow: 'auto', p: 3, backgroundColor: '#f8fafc' }}>
+      <Box sx={{ flex: 1, p:1, pb: 6, backgroundColor: '#f8fafc' }}>
         {error && view !== 'home' && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>
         )}
@@ -1103,7 +1098,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             </Grid>
             <Grid item xs={12}>
               <Card sx={{ borderRadius: 2 }}>
-                <CardActionArea onClick={() => setView('manage')} sx={{ p: 0 }}>
+                <CardActionArea
+                  onClick={() => {
+                    setView('manage');
+                    onViewChange && onViewChange('manage');
+                  }}
+                  sx={{ p: 0 }}
+                >
                   <CardContent sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Avatar sx={{ bgcolor: '#059669', width: 56, height: 56 }}><ManageAccounts /></Avatar>
@@ -1398,8 +1399,25 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
         {/* Add view */}
         {view === 'add' && (
-          <form onSubmit={handleSubmit}>
-            <Grid container spacing={2}>
+          <Box>
+            <Card
+              sx={{
+                borderRadius: 3,
+                boxShadow: '0 18px 45px rgba(15,23,42,0.16)',
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                    Add Users
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                    Create teachers, classroom admins, or students and assign them to classrooms.
+                  </Typography>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <form onSubmit={handleSubmit}>
+                  <Grid container spacing={2}>
               <Grid item xs={12}>
                 <RoleTabs value={role} onChange={setRole} canManageAdmins={canManageAdmins} />
               </Grid>
@@ -1445,18 +1463,39 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     <Grid item xs={12}>
                       <Divider sx={{ my: 2 }} />
                       <Typography variant="subtitle1" sx={{ mb: 1 }}>Assign Classrooms</Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, backgroundColor: 'white', p: 2, borderRadius: 1, border: '1px solid #e2e8f0' }}>
-                        {classrooms.map((cls) => (
-                          <Chip
-                            key={cls.id}
-                            label={cls.name}
-                            onClick={() => handleAdminClassroomToggle(cls.id)}
-                            color={selectedAdminClassrooms.includes(cls.id) ? 'primary' : 'default'}
-                            variant={selectedAdminClassrooms.includes(cls.id) ? 'filled' : 'outlined'}
-                            clickable
-                            size="small"
-                          />
-                        ))}
+                      <Box
+                        sx={{
+                          backgroundColor: 'white',
+                          p: 0.75,
+                          borderRadius: 1.5,
+                          border: '1px solid #e2e8f0',
+                          maxHeight: 184,
+                          overflowY: 'auto'
+                        }}
+                      >
+                        <List dense disablePadding>
+                          {classrooms.map((cls) => (
+                            <ListItem key={cls.id} disablePadding>
+                              <ListItemButton
+                                dense
+                                onClick={() => handleAdminClassroomToggle(cls.id)}
+                              >
+                                <ListItemIcon sx={{ minWidth: 32 }}>
+                                  <Checkbox
+                                    edge="start"
+                                    tabIndex={-1}
+                                    disableRipple
+                                    checked={selectedAdminClassrooms.includes(cls.id)}
+                                  />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={cls.name}
+                                  primaryTypographyProps={{ variant: 'body2' }}
+                                />
+                              </ListItemButton>
+                            </ListItem>
+                          ))}
+                        </List>
                       </Box>
                       {validationErrors.classrooms && (
                         <Typography variant="caption" color="error">{validationErrors.classrooms}</Typography>
@@ -1472,18 +1511,39 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                         <LoadingSpinner />
                       ) : (
                         <>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, backgroundColor: 'white', p: 2, borderRadius: 1, border: '1px solid #e2e8f0' }}>
-                            {classrooms.map(c => (
-                              <Chip
-                                key={c.id}
-                                label={`${c.name} (${c.studentCount} students)`}
-                                onClick={() => handleClassroomToggle(c.id)}
-                                color={selectedClassrooms.includes(c.id) ? 'primary' : 'default'}
-                                variant={selectedClassrooms.includes(c.id) ? 'filled' : 'outlined'}
-                                clickable
-                                size="small"
-                              />
-                            ))}
+                          <Box
+                            sx={{
+                              backgroundColor: 'white',
+                              p: 0.75,
+                              borderRadius: 1.5,
+                              border: '1px solid #e2e8f0',
+                              maxHeight: 184,
+                              overflowY: 'auto'
+                            }}
+                          >
+                            <List dense disablePadding>
+                              {classrooms.map((c) => (
+                                <ListItem key={c.id} disablePadding>
+                                  <ListItemButton
+                                    dense
+                                    onClick={() => handleClassroomToggle(c.id)}
+                                  >
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      <Checkbox
+                                        edge="start"
+                                        tabIndex={-1}
+                                        disableRipple
+                                        checked={selectedClassrooms.includes(c.id)}
+                                      />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={`${c.name} (${c.studentCount} students)`}
+                                      primaryTypographyProps={{ variant: 'body2' }}
+                                    />
+                                  </ListItemButton>
+                                </ListItem>
+                              ))}
+                            </List>
                           </Box>
                           {validationErrors.classrooms && (
                             <Typography variant="caption" color="error">{validationErrors.classrooms}</Typography>
@@ -1520,18 +1580,39 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   </Grid>
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>Classroom</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {classrooms.map(c => (
-                        <Chip
-                          key={c.id}
-                          label={`${c.name} (${c.studentCount} students)`}
-                          onClick={() => setStudentForm(p => ({ ...p, classroomId: c.id }))}
-                          color={studentForm.classroomId === c.id ? 'primary' : 'default'}
-                          variant={studentForm.classroomId === c.id ? 'filled' : 'outlined'}
-                          clickable
-                          size="small"
-                        />
-                      ))}
+                    <Box
+                      sx={{
+                        backgroundColor: 'white',
+                        p: 0.75,
+                        borderRadius: 1.5,
+                        border: '1px solid #e2e8f0',
+                        maxHeight: 184,
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <List dense disablePadding>
+                        {classrooms.map((c) => (
+                          <ListItem key={c.id} disablePadding>
+                            <ListItemButton
+                              dense
+                              onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id }))}
+                            >
+                              <ListItemIcon sx={{ minWidth: 32 }}>
+                                <Checkbox
+                                  edge="start"
+                                  tabIndex={-1}
+                                  disableRipple
+                                  checked={studentForm.classroomId === c.id}
+                                />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={`${c.name} (${c.studentCount} students)`}
+                                primaryTypographyProps={{ variant: 'body2' }}
+                              />
+                            </ListItemButton>
+                          </ListItem>
+                        ))}
+                      </List>
                     </Box>
                     {validationErrors.classroomId && (
                       <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
@@ -1596,7 +1677,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 </Button>
               </Grid>
             </Grid>
-          </form>
+                </form>
+              </CardContent>
+            </Card>
+          </Box>
         )}
       </Box>
 
