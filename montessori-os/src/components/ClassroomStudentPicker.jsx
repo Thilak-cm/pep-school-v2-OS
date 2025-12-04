@@ -272,6 +272,14 @@ function ClassroomStudentPicker({
       .filter((alias) => alias.hasMatch);
   }, [aliases, searchQuery, studentsById]);
 
+  // Hide suggested students once any overlap with current selection exists
+  const showSuggestedStudents = useMemo(() => {
+    if (!suggestedStudents || suggestedStudents.length === 0) return false;
+    if (!selectedStudents || selectedStudents.length === 0) return true;
+    const selectedSet = new Set(selectedStudents);
+    return !suggestedStudents.some((s) => selectedSet.has(s.id));
+  }, [suggestedStudents, selectedStudents]);
+
   // Group students by classroom
   const studentsByClassroom = useMemo(() => {
     const grouped = {};
@@ -867,7 +875,7 @@ function ClassroomStudentPicker({
       {/* Removed instructional divider for compactness on mobile */}
 
       {/* Suggested students from transcript (voice) */}
-      {suggestedStudents.length > 0 && (
+      {showSuggestedStudents && (
         <Box
           sx={{
             mt: 1,
@@ -882,7 +890,7 @@ function ClassroomStudentPicker({
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
-            Suggested assignee(s):
+            Suggested students:
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {suggestedStudents.map((stu) => {

@@ -825,7 +825,18 @@ function App() {
               <AddNoteModal
                 open={addNoteOpen}
                 onClose={() => setAddNoteOpen(false)}
-                initialStudents={screen === 'timeline' && selectedStudent ? [selectedStudent.id] : []}
+                initialStudents={
+                  selectedStudent &&
+                  (
+                    screen === 'timeline' ||
+                    screen === 'studentDashboard' ||
+                    screen === 'studentObservations' ||
+                    screen === 'studentLessonNotes' ||
+                    screen === 'studentStats'
+                  )
+                    ? [selectedStudent.id]
+                    : []
+                }
                 currentUser={user}
                 userRole={role}
                 onOpenLessonNotePage={() => {
