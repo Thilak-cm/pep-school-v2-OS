@@ -110,6 +110,18 @@ const setCachedStatsPayload = (key, payload) => {
     const value = JSON.stringify({ timestamp: Date.now(), payload });
     window.localStorage.setItem(key, value);
   } catch (error) {
+    // In some environments (incognito, low quota) writes can fail; skip caching quietly.
+    if (error && (error.name === 'QuotaExceededError' || error.code === 22)) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (_) {
+        // Ignore secondary failures
+      }
+      // eslint-disable-next-line no-console
+      console.warn('Stats cache disabled: storage quota exceeded');
+      return;
+    }
+    // eslint-disable-next-line no-console
     console.error('Failed to write stats cache', error);
   }
 };
