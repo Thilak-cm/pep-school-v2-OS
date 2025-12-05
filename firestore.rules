@@ -104,7 +104,7 @@ service cloud.firestore {
       allow read: if isPrivilegedAdmin() || isTeacher();
 
       allow create: if isSuperAdmin() ||
-        (isClassroomAdmin() && managesClassroom(requestClassroomForStudent()));
+        (isClassroomAdmin() && managesClassroom(requestClassroomForStudent())); 
 
       allow update: if isSuperAdmin() || (
         isClassroomAdmin() &&
