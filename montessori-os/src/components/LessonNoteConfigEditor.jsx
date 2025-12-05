@@ -68,7 +68,7 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
     adolescent: [],
   }));
   const [dimensionsByProgram, setDimensionsByProgram] = useState(() => ({
-    toddler: [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
+    toddler: [...(LESSON_PROGRAM_DIMENSIONS.toddler || LESSON_PROGRAM_DIMENSIONS.primary || [])],
     primary: [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
     elementary: [...(LESSON_PROGRAM_DIMENSIONS.elementary || [])],
     adolescent: [...(LESSON_PROGRAM_DIMENSIONS.adolescent || [])],
@@ -118,7 +118,7 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
           const nextDims = {
             toddler: Array.isArray(data.lesson_toddler_dimensions)
               ? [...data.lesson_toddler_dimensions]
-              : [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
+              : [...(LESSON_PROGRAM_DIMENSIONS.toddler || LESSON_PROGRAM_DIMENSIONS.primary || [])],
             primary: Array.isArray(data.lesson_primary_dimensions)
               ? [...data.lesson_primary_dimensions]
               : [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
@@ -138,7 +138,7 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
           // No config doc yet – keep defaults and let admin save or run seed script
           notify.info('Lesson note config not found. You can run the seed script or create it here.');
           const nextDims = {
-            toddler: [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
+            toddler: [...(LESSON_PROGRAM_DIMENSIONS.toddler || LESSON_PROGRAM_DIMENSIONS.primary || [])],
             primary: [...(LESSON_PROGRAM_DIMENSIONS.primary || [])],
             elementary: [...(LESSON_PROGRAM_DIMENSIONS.elementary || [])],
             adolescent: [...(LESSON_PROGRAM_DIMENSIONS.adolescent || [])],

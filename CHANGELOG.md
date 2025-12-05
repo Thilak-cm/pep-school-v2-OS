@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.9.0 — 2025-12-08
+
+### Added
+- Firestore-backed lesson note configuration at `config/lessonNote` with per-program lesson titles and dimensions, and a seed script `scripts/admin/seed-lesson-note-config.js` that populates Montessori material titles and default dimension sets.
+- Superadmin-only Config area with `ConfigHomePage` and `LessonNoteConfigEditor`, including tabbed program selector, collapsible Dimensions/Titles panels, per-item delete confirmation dialog, and Coach Pepper–style loading and toasts via `useNotify`.
+
+### Changed
+- Lesson Notes now load dimensions and toddler/primary lesson title suggestions from `config/lessonNote`, using a Fuse.js-backed MUI Autocomplete for suggestions and a “Custom title” chip when teachers use freeform titles.
+- Toddler program dimensions are initialized and validated against the dedicated toddler defaults instead of piggybacking on primary, ensuring correct dimension rows for toddler observations.
+- Global Add Note FAB is hidden on all Config screens so configuration flows stay focused and free from note-creation affordances.
+
 ## 5.8.0 — 2025-12-07
 
 ### Changed
