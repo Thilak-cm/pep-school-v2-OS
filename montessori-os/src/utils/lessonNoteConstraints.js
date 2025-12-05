@@ -1,4 +1,9 @@
 export const LESSON_PROGRAM_DIMENSIONS = {
+  toddler: [
+    'Focused during lesson',
+    'Focused when repeating',
+    'Grasped work'
+  ],
   primary: [
     'Focused during lesson',
     'Focused when repeating',
@@ -53,6 +58,7 @@ export const LESSON_ATTENDANCE_COLORS = {
 export const deriveDimensionKeyFromProgram = (programId = 'primary') => {
   if (!programId) return 'primary';
   const normalized = String(programId).toLowerCase();
+  if (normalized.includes('toddler')) return 'toddler';
   if (normalized.includes('elementary')) return 'elementary';
   if (normalized.includes('adolescent')) return 'adolescent';
   return 'primary';

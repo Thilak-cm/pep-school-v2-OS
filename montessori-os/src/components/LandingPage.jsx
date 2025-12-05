@@ -17,7 +17,8 @@ import {
   BarChart,
   PersonAdd,
   Download,
-  Psychology
+  Psychology,
+  Tune
 } from '@mui/icons-material';
 import { isSuperAdmin } from '../utils/roleUtils';
 
@@ -84,7 +85,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       }}>
                         {isTeacher 
                           ? 'Access your assigned classrooms and students'
-                          : 'Browse all classrooms and students in the school'
+                          : 'Browse classrooms and students'
                         }
                       </Typography>
                     </Box>
@@ -193,7 +194,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       }}>
                         {isTeacher 
                           ? 'View your classroom performance and student progress'
-                          : 'Monitor school-wide metrics, teacher performance, and student engagement'
+                          : 'Monitor school-wide metrics'
                         }
                       </Typography>
                     </Box>
@@ -248,7 +249,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                           color: '#64748b',
                           mt: 0.5
                         }}>
-                          Manage teacher access and student onboarding{isSuperAdminUser ? '; create admins and assign programs' : ''}
+                          Manage teacher access and student onboarding
                         </Typography>
                       </Box>
                     </Box>
@@ -259,7 +260,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
             </Grid>
 
 
-            {/* AI Home */}
+            {/* Configurations */}
             {isSuperAdminUser && (
               <Grid size={12}>
                 <Card
@@ -272,19 +273,19 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     transition: 'all 0.2s ease-in-out',
                   }}
                 >
-                  <CardActionArea onClick={() => onNavigate('/aiPrompts')} sx={{ p: 0 }}>
+                  <CardActionArea onClick={() => onNavigate('/config')} sx={{ p: 0 }}>
                     <CardContent sx={{ p: 3 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar sx={{ bgcolor: '#7c3aed', width: 56, height: 56 }}>
-                            <Psychology />
+                            <Tune />
                           </Avatar>
                           <Box>
                             <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                              AI Home
+                              Configurations
                             </Typography>
                             <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                              Manage AI tools: Text Cleanup and Voice Transcriber
+                              Manage configuration settings
                             </Typography>
                           </Box>
                         </Box>
@@ -337,7 +338,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                             color: '#64748b',
                             mt: 0.5
                           }}>
-                            Export all student notes from selected classrooms for manual analysis
+                            Export notes at classroom level
                           </Typography>
                         </Box>
                       </Box>

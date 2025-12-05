@@ -23,6 +23,7 @@
 - `students/{studentId}/observations/{observationId}`  // collection group: `observations`
 - `feedback/{feedbackId}`
 - `ai_prompts/{docId}`
+ - `config/{docId}`
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -512,6 +513,39 @@ Client usage
 Security
 - Reads: any authenticated user (rules allow read on `ai_prompts/*`).
 - Writes: super admins only.
+
+---
+
+## ⚙️ Config (`/config/{docId}`)
+Central config documents for app-wide settings edited by super admins.
+
+Current documents
+- `lessonNote` — config for lesson notes UI.
+
+`config/lessonNote`
+```typescript
+interface LessonNoteConfig {
+  // Lesson title suggestions per program
+  lesson_toddler_titles: string[];
+  lesson_primary_titles: string[];
+  lesson_elementary_titles: string[];
+  lesson_adolescent_titles: string[];
+
+  // Program-specific lesson dimensions
+  lesson_toddler_dimensions: string[];    // non-empty
+  lesson_primary_dimensions: string[];    // non-empty
+  lesson_elementary_dimensions: string[]; // non-empty
+  lesson_adolescent_dimensions: string[]; // non-empty
+}
+```
+
+Notes
+- Titles: used as suggestion lists for new lesson notes. Currently only `toddler` and `primary` use suggestions; elementary/adolescent titles are reserved for future use.
+- Dimensions: define the rating rows shown when creating new lesson notes; existing observations keep their original `dimensionOrder` and `ratings`.
+
+Security
+- Reads: any authenticated user (`isSignedIn()`).
+- Writes: super admins only (`isSuperAdmin()`), with rules enforcing non-empty dimension arrays when present on `config/lessonNote`.
 
 ai_prompts/coach_{program}
 ```typescript

@@ -43,13 +43,15 @@ import NotificationStack from './notifications/NotificationStack.jsx';
 import { isSuperAdmin } from './utils/roleUtils';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage from './components/NotificationsPage.jsx';
+import ConfigHomePage from './components/ConfigHomePage.jsx';
+import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'aiHome' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -315,7 +317,9 @@ function App() {
     else pageTitle = 'Users & Access';
   }
   else if (screen === 'classroomNotesReview') pageTitle = 'Review Classroom Notes';
-  else if (screen === 'aiHome') pageTitle = 'AI Home';
+  else if (screen === 'config') pageTitle = 'Configurations';
+  else if (screen === 'configLessonNotes') pageTitle = 'Lesson Notes Config';
+  else if (screen === 'configAiTools') pageTitle = 'AI Tools';
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
@@ -360,14 +364,17 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-      case 'aiHome':
+      case 'config':
         return () => setScreen('landingPage');
+      case 'configLessonNotes':
+      case 'configAiTools':
+        return () => setScreen('config');
       case 'aiTextEditor':
-        return () => setScreen('aiHome');
+        return () => setScreen('configAiTools');
       case 'aiVoiceEditor':
-        return () => setScreen('aiHome');
+        return () => setScreen('configAiTools');
       case 'aiCoachEditor':
-        return () => setScreen('aiHome');
+        return () => setScreen('configAiTools');
       case 'studentAliases':
         return () => setScreen('landingPage');
       case 'settings':
@@ -412,8 +419,8 @@ function App() {
       setScreen('addUser');
     } else if (path === '/aliases') {
       setScreen('studentAliases');
-    } else if (path === '/aiPrompts') {
-      if (isSuperAdminUser) setScreen('aiHome');
+    } else if (path === '/config') {
+      if (isSuperAdminUser) setScreen('config');
     }
   };
 
@@ -604,8 +611,8 @@ function App() {
                           setScreen('addUser');
                         } else if (path === '/aliases') {
                           setScreen('studentAliases');
-                        } else if (path === '/aiPrompts') {
-                          if (isSuperAdminUser) setScreen('aiHome');
+                        } else if (path === '/config') {
+                          if (isSuperAdminUser) setScreen('config');
                         }
                       }}
                     />
@@ -777,7 +784,22 @@ function App() {
                     />
                   )}
 
-                  {screen === 'aiHome' && (
+                  {screen === 'config' && (
+                    <ConfigHomePage
+                      userRole={role}
+                      onOpenLessonNoteConfig={() => setScreen('configLessonNotes')}
+                      onOpenAiTools={() => setScreen('configAiTools')}
+                    />
+                  )}
+
+                  {screen === 'configLessonNotes' && (
+                    <LessonNoteConfigEditor
+                      currentUser={user}
+                      userRole={role}
+                    />
+                  )}
+
+                  {screen === 'configAiTools' && (
                     <AIHomePage
                       userRole={role}
                       onOpenTextEditor={() => setScreen('aiTextEditor')}
@@ -811,7 +833,20 @@ function App() {
               </Box>
 
               {/* Global Add Note FAB - hidden on non-observation utility pages */}
-              {screen !== 'profile' && screen !== 'stats' && screen !== 'feedback' && screen !== 'feedbackTimeline' && screen !== 'accessDenied' && screen !== 'classroomNotesReview' && screen !== 'graduateStudents' && screen !== 'lessonNotes' && screen !== 'studentAliases' && screen !== 'settings' && screen !== 'addUser' && screen !== 'aiHome' && (
+              {screen !== 'profile' &&
+                screen !== 'stats' &&
+                screen !== 'feedback' &&
+                screen !== 'feedbackTimeline' &&
+                screen !== 'accessDenied' &&
+                screen !== 'classroomNotesReview' &&
+                screen !== 'graduateStudents' &&
+                screen !== 'lessonNotes' &&
+                screen !== 'studentAliases' &&
+                screen !== 'settings' &&
+                screen !== 'addUser' &&
+                screen !== 'config' &&
+                screen !== 'configLessonNotes' &&
+                screen !== 'configAiTools' && (
                 <AddNoteFab 
                   showLabel 
                   onClick={() => setAddNoteOpen(true)} 

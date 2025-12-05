@@ -53,6 +53,19 @@ service cloud.firestore {
       return data.role != 'classroomadmin' || requiresManageableClassrooms(data);
     }
 
+    function validLessonNoteConfig(data) {
+      // Ensure any dimension arrays present are non-empty lists
+      return
+        (!('lesson_toddler_dimensions' in data) ||
+          ((data.lesson_toddler_dimensions is list) && data.lesson_toddler_dimensions.size() > 0)) &&
+        (!('lesson_primary_dimensions' in data) ||
+          ((data.lesson_primary_dimensions is list) && data.lesson_primary_dimensions.size() > 0)) &&
+        (!('lesson_elementary_dimensions' in data) ||
+          ((data.lesson_elementary_dimensions is list) && data.lesson_elementary_dimensions.size() > 0)) &&
+        (!('lesson_adolescent_dimensions' in data) ||
+          ((data.lesson_adolescent_dimensions is list) && data.lesson_adolescent_dimensions.size() > 0));
+    }
+
     // Users: user can read own profile; admins can read/query all, write any
     match /users/{uid} {
       function isSelf() {
@@ -261,6 +274,20 @@ service cloud.firestore {
     match /branches/{branchId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isSuperAdmin();
+    }
+
+    // Config collection
+    // - Any signed-in user can read
+    // - Only super admins can write
+    // - For lessonNote config, enforce non-empty dimension arrays when present
+    match /config/{docId} {
+      allow read: if isSignedIn();
+
+      allow create, update, delete: if isSuperAdmin() &&
+        (
+          docId != 'lessonNote' ||
+          validLessonNoteConfig(request.resource.data)
+        );
     }
 
     // Temporarily removed default deny to test if it's blocking teacher access

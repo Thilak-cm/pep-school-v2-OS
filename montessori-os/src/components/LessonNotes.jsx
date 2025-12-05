@@ -18,7 +18,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Stack
+  Stack,
+  Autocomplete
 } from '@mui/material';
 import {
   ExpandMore,
@@ -39,6 +40,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
+import { genericFuzzySearch } from '../utils/fuzzySearch';
 import {
   LESSON_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
@@ -116,6 +118,8 @@ function LessonNoteWizard({
   const [expandedAliases, setExpandedAliases] = useState({});
   const [autoScrolled, setAutoScrolled] = useState({ defaults: false, overrides: false });
   const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
+  const [lessonConfig, setLessonConfig] = useState(null);
+  const [lessonConfigLoading, setLessonConfigLoading] = useState(true);
 
   const setupRef = useRef(null);
   const defaultsRef = useRef(null);
@@ -132,6 +136,29 @@ function LessonNoteWizard({
       onDirtyChange(isDirty);
     }
   }, [isDirty, onDirtyChange]);
+
+  // Load lesson note config (titles + dimensions) from Firestore
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        setLessonConfigLoading(true);
+        const ref = doc(db, 'config', 'lessonNote');
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          setLessonConfig(snap.data() || {});
+        } else {
+          setLessonConfig(null);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to load lesson note config; falling back to defaults.', e);
+        setLessonConfig(null);
+      } finally {
+        setLessonConfigLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -217,7 +244,23 @@ function LessonNoteWizard({
     [classrooms, context.classroomId]
   );
   const dimensionKey = deriveDimensionKeyFromProgram(selectedClassroom?.programId);
-  const dimensionList = LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
+
+  const getConfiguredDimensions = (programId) => {
+    if (!lessonConfig || !programId) return null;
+    const key = `lesson_${programId}_dimensions`;
+    const list = lessonConfig[key];
+    if (Array.isArray(list) && list.length > 0) {
+      return list.map((d) => String(d || '')).filter(Boolean);
+    }
+    return null;
+  };
+
+  const dimensionList = useMemo(() => {
+    const programId = selectedClassroom?.programId;
+    const configured = getConfiguredDimensions(programId);
+    if (configured && configured.length > 0) return configured;
+    return LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
+  }, [selectedClassroom?.programId, lessonConfig, dimensionKey]);
 
   useEffect(() => {
     setDimensionDefaults({});
@@ -425,6 +468,39 @@ function LessonNoteWizard({
     return effectiveDefaults[dimension] || 'na';
   };
 
+  // Lesson title suggestions – only for toddler & primary
+  const selectedProgramId = selectedClassroom?.programId || null;
+
+  const getTitlesForProgram = (programId) => {
+    if (!lessonConfig || !programId) return [];
+    const key = `lesson_${programId}_titles`;
+    const list = lessonConfig[key];
+    if (!Array.isArray(list)) return [];
+    return list.map((t) => String(t || '')).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  };
+
+  const titleOptions = useMemo(() => {
+    if (!selectedProgramId) return [];
+    if (selectedProgramId !== 'toddler' && selectedProgramId !== 'primary') return [];
+    return getTitlesForProgram(selectedProgramId);
+  }, [selectedProgramId, lessonConfig]);
+
+  const normalizedTitleSet = useMemo(() => {
+    const set = new Set();
+    titleOptions.forEach((t) => {
+      set.add(String(t).trim().toLowerCase());
+    });
+    return set;
+  }, [titleOptions]);
+
+  const isCustomTitle = useMemo(() => {
+    if (!context.lessonTitle || !selectedProgramId) return false;
+    if (selectedProgramId !== 'toddler' && selectedProgramId !== 'primary') return false;
+    const normalized = String(context.lessonTitle).trim().toLowerCase();
+    if (!normalized) return false;
+    return !normalizedTitleSet.has(normalized);
+  }, [context.lessonTitle, selectedProgramId, normalizedTitleSet]);
+
   const handleSave = async () => {
     if (saving) return;
     if (!setupComplete) {
@@ -579,13 +655,58 @@ function LessonNoteWizard({
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            fullWidth
-            label="Lesson Title"
-            required
-            value={context.lessonTitle}
-            onChange={(e) => setContextField('lessonTitle', e.target.value)}
-          />
+          {(selectedProgramId === 'toddler' || selectedProgramId === 'primary') && titleOptions.length > 0 ? (
+            <Autocomplete
+              freeSolo
+              options={titleOptions}
+              value={context.lessonTitle}
+              onChange={(_, newValue) => {
+                if (typeof newValue === 'string') {
+                  setContextField('lessonTitle', newValue);
+                } else if (newValue == null) {
+                  setContextField('lessonTitle', '');
+                }
+              }}
+              onInputChange={(_, newInputValue) => {
+                setContextField('lessonTitle', newInputValue || '');
+              }}
+              filterOptions={(options, state) => {
+                const input = (state.inputValue || '').trim();
+                if (!input) {
+                  return options.slice(0, 5);
+                }
+                const data = options.map((title) => ({ title }));
+                const results = genericFuzzySearch(data, input, [{ name: 'title', weight: 1.0 }]);
+                return results.map((r) => r.title).slice(0, 5);
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  fullWidth
+                  label="Lesson Title"
+                  required
+                />
+              )}
+            />
+          ) : (
+            <TextField
+              fullWidth
+              label="Lesson Title"
+              required
+              value={context.lessonTitle}
+              onChange={(e) => setContextField('lessonTitle', e.target.value)}
+            />
+          )}
+          {isCustomTitle && (
+            <Box sx={{ mt: 0.5 }}>
+              <Chip
+                label="Custom title"
+                size="small"
+                variant="outlined"
+                sx={{ fontSize: '0.75rem', color: '#64748b', borderColor: '#cbd5e1' }}
+              />
+            </Box>
+          )}
           <TextField
             fullWidth
             label="Short Description"
