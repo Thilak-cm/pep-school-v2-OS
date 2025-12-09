@@ -631,7 +631,12 @@ function NoteExpansionDialog({
         actionLabel: 'View Note',
         onUndo: () => {
           try {
-            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+              detail: {
+                studentId: newStudentId,
+                noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice'
+              }
+            }));
           } catch (_) { /* noop */ }
         },
       });
@@ -651,7 +656,13 @@ function NoteExpansionDialog({
   const handleViewStudentTimeline = () => {
     if (student?.id) {
       try {
-        window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: student.id, student } }));
+        window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+          detail: {
+            studentId: student.id,
+            student,
+            noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice'
+          }
+        }));
       } catch (_) { /* noop */ }
       handleCloseDialog();
     } else if (onNavigateToStudent && student) {

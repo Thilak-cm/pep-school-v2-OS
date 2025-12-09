@@ -560,7 +560,9 @@ function LessonNoteWizard({
         actionLabel: firstStudentId ? 'View Note' : undefined,
         onUndo: firstStudentId
           ? () => {
-              window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: firstStudentId } }));
+              window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                detail: { studentId: firstStudentId, noteTypeFilter: 'lesson' }
+              }));
             }
           : undefined
       });

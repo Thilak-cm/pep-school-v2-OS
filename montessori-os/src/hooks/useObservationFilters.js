@@ -43,9 +43,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     return new Date(year, month - 1, day); // month is 0-indexed in Date constructor
   };
 
-  // Apply filters to observations
-  const filteredObservations = useMemo(() => {
-    let filtered = [...observations];
+  const applyFilters = (inputObservations = [], overrideNoteTypeFilter = noteTypeFilter) => {
+    let filtered = [...inputObservations];
 
     // Date filters
     if (filters.dateFrom) {
@@ -80,12 +79,12 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     }
 
     // Types filter (multi)
-    if ((filters.types && filters.types.length > 0) || noteTypeFilter) {
+    if ((filters.types && filters.types.length > 0) || overrideNoteTypeFilter) {
       const selectedTypes = new Set(filters.types || []);
-      if (noteTypeFilter === 'lesson') {
+      if (overrideNoteTypeFilter === 'lesson') {
         selectedTypes.add('lesson');
       }
-      if (noteTypeFilter === 'textVoice') {
+      if (overrideNoteTypeFilter === 'textVoice') {
         selectedTypes.add('voice');
         selectedTypes.add('text');
       }
@@ -93,9 +92,11 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     }
 
     // Language filter removed
-
     return filtered;
-  }, [observations, filters, noteTypeFilter]);
+  };
+
+  // Apply filters to observations
+  const filteredObservations = useMemo(() => applyFilters(observations, noteTypeFilter), [observations, filters, noteTypeFilter]);
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
@@ -103,8 +104,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       filters.dateFrom ||
       filters.dateTo ||
       (filters.creators && filters.creators.length > 0) ||
-      (filters.types && filters.types.length > 0) ||
-      !!noteTypeFilter
+      (filters.types && filters.types.length > 0)
     );
   }, [filters, noteTypeFilter]);
 
@@ -141,7 +141,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     handleFilterChange,
     handleClearFilters,
     toggleFilters,
-    setShowFilters
+    setShowFilters,
+    applyFilters
   };
 };
 

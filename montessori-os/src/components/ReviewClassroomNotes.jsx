@@ -23,7 +23,7 @@ import {
 import { Download, Refresh } from '@mui/icons-material';
 import { collection, collectionGroup, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import exportObservations from '../utils/export_observations';
+import exportObservations from '../utils/export';
 import useNotify from '../notifications/useNotify';
 
 const MENU_PROPS = {

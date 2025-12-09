@@ -51,7 +51,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'studentObservations' | 'studentLessonNotes' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -60,6 +60,7 @@ function App() {
   const [timelineFilter, setTimelineFilter] = useState(null);
   const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
   const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
+  const [studentDashboardNoteType, setStudentDashboardNoteType] = useState('textVoice');
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
@@ -70,14 +71,6 @@ function App() {
   const openTimeline = (filter = null) => {
     setTimelineFilter(filter);
     setScreen('timeline');
-  };
-
-  const openStudentObservations = () => {
-    setScreen('studentObservations');
-  };
-
-  const openStudentLessonNotes = () => {
-    setScreen('studentLessonNotes');
   };
 
   const openLessonNotesScreen = () => {
@@ -95,11 +88,14 @@ function App() {
         setSelectedStudent(studentLike);
         const noteTypeFilter = detail.noteTypeFilter ?? null;
         if (noteTypeFilter === 'lesson') {
-          openStudentLessonNotes();
+          setStudentDashboardNoteType('lesson');
+          setScreen('studentDashboard');
         } else if (noteTypeFilter === 'textVoice') {
-          openStudentObservations();
+          setStudentDashboardNoteType('textVoice');
+          setScreen('studentDashboard');
         } else {
-          openTimeline(noteTypeFilter);
+          setStudentDashboardNoteType('textVoice');
+          setScreen('studentDashboard');
         }
         if (detail.titleAsDashboard) setTimelineTitleAsDashboard(true);
 
@@ -302,11 +298,9 @@ function App() {
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
   else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'studentDashboard') pageTitle = `${getStudentDisplayName(selectedStudent)}'s Dashboard`;
-  else if (screen === 'studentObservations') pageTitle = `${getStudentDisplayName(selectedStudent)}'s observations`;
-  else if (screen === 'studentLessonNotes') pageTitle = `${getStudentDisplayName(selectedStudent)}'s lesson notes`;
   else if (screen === 'timeline') pageTitle = timelineTitleAsDashboard
     ? `${getStudentDisplayName(selectedStudent)}'s Dashboard`
-    : `${getStudentDisplayName(selectedStudent)} Timeline`;
+    : `${getStudentDisplayName(selectedStudent)}'s Timeline`;
   else if (screen === 'profile') pageTitle = 'Profile';
   else if (screen === 'stats') pageTitle = 'Statistics';
   else if (screen === 'feedback') pageTitle = 'Feedback & Suggestions';
@@ -353,10 +347,6 @@ function App() {
       case 'studentDashboard':
         return () => setScreen(studentDashboardReturnScreen || 'classroomTimeline');
       case 'studentStats':
-        return () => setScreen('studentDashboard');
-      case 'studentObservations':
-        return () => setScreen('studentDashboard');
-      case 'studentLessonNotes':
         return () => setScreen('studentDashboard');
       case 'timeline':
         return () => setScreen('studentDashboard');
@@ -631,6 +621,7 @@ function App() {
                     onNavigateToStudent={(student) => {
                       setSelectedStudent(student);
                       setStudentDashboardReturnScreen('classroomList');
+                      setStudentDashboardNoteType('textVoice');
                       setScreen('studentDashboard');
                     }}
                   />
@@ -646,6 +637,7 @@ function App() {
                     onNavigateToStudent={(student) => {
                       setSelectedStudent(student);
                       setStudentDashboardReturnScreen('classroomTimeline');
+                      setStudentDashboardNoteType('textVoice');
                       setScreen('studentDashboard');
                     }}
                   />
@@ -654,19 +646,23 @@ function App() {
                   {screen === 'studentList' && (
                     <StudentList
                       classroom={selectedClassroom}
-                      onSelectStudent={(stu) => {
-                        setSelectedStudent(stu);
-                        setStudentDashboardReturnScreen('studentList');
-                        setScreen('studentDashboard');
-                      }}
-                    />
+                    onSelectStudent={(stu) => {
+                      setSelectedStudent(stu);
+                      setStudentDashboardReturnScreen('studentList');
+                      setStudentDashboardNoteType('textVoice');
+                      setScreen('studentDashboard');
+                    }}
+                  />
                   )}
 
                   {screen === 'studentDashboard' && (
                     <StudentDashboard
                       student={selectedStudent}
-                      onOpenTextNotes={openStudentObservations}
-                      onOpenLessonNotes={openStudentLessonNotes}
+                      initialNoteType={studentDashboardNoteType}
+                      onOpenTimeline={(noteType) => {
+                        setTimelineFilter(noteType || null);
+                        setScreen('timeline');
+                      }}
                       onOpenStats={() => setScreen('studentStats')}
                     />
                   )}
@@ -679,24 +675,6 @@ function App() {
 
                   {screen === 'notifications' && (
                     <NotificationsPage />
-                  )}
-
-                  {screen === 'studentObservations' && (
-                    <StudentTimeline
-                      student={selectedStudent}
-                      currentUser={user}
-                      userRole={role}
-                      noteTypeFilter="textVoice"
-                    />
-                  )}
-
-                  {screen === 'studentLessonNotes' && (
-                    <StudentTimeline
-                      student={selectedStudent}
-                      currentUser={user}
-                      userRole={role}
-                      noteTypeFilter="lesson"
-                    />
                   )}
 
                   {screen === 'timeline' && (
@@ -868,8 +846,6 @@ function App() {
                   (
                     screen === 'timeline' ||
                     screen === 'studentDashboard' ||
-                    screen === 'studentObservations' ||
-                    screen === 'studentLessonNotes' ||
                     screen === 'studentStats'
                   )
                     ? [selectedStudent.id]

@@ -1,5 +1,5 @@
 // StudentTimeline.jsx (refactored)
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -15,9 +15,9 @@ import {
   Chip,
   Divider,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
+  Tabs,
+  Tab,
+  Menu,
   MenuItem
 } from '@mui/material';
 import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download, EditNote, Notes } from '@mui/icons-material';
@@ -33,12 +33,12 @@ import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
-import { 
-  exportStudentTimeline, 
-  exportFilteredTimeline, 
-  exportStudentTimelineAsText, 
-  exportFilteredTimelineAsText 
-} from '../utils/export_student_observations';
+import {
+  exportStudentTimeline,
+  exportFilteredTimeline,
+  exportStudentTimelineAsText,
+  exportFilteredTimelineAsText
+} from '../utils/export';
 import { isAdminRole } from '../utils/roleUtils';
 import { 
   getLessonDimensions, 
@@ -69,9 +69,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [showFormatDropdown, setShowFormatDropdown] = useState(false);
   const [exportDateFrom, setExportDateFrom] = useState('');
   const [exportDateTo, setExportDateTo] = useState('');
+  const initialNoteType = noteTypeFilter || 'textVoice';
+  const [activeNoteType, setActiveNoteType] = useState(initialNoteType);
+  const [exportScope, setExportScope] = useState('all');
+  const [exportScopeAnchor, setExportScopeAnchor] = useState(null);
   
-  // Refs
-  const exportButtonRef = useRef(null);
+  useEffect(() => {
+    const nextType = noteTypeFilter || 'textVoice';
+    setActiveNoteType(nextType);
+  }, [noteTypeFilter]);
 
   const renderLessonContent = (obs) => {
     const dimensions = getLessonDimensions(obs);
@@ -173,21 +179,29 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     hasActiveFilters,
     handleFilterChange,
     handleClearFilters,
-    toggleFilters
-  } = useObservationFilters(observations, noteTypeFilter);
+    toggleFilters,
+    setShowFilters,
+    applyFilters
+  } = useObservationFilters(observations, activeNoteType);
 
   const visibleObservations = useMemo(() => {
     const source = filteredObservations || [];
-    if (noteTypeFilter === 'lesson') {
+    if (activeNoteType === 'lesson') {
       return source.filter((obs) => obs.type === 'lesson');
     }
-    if (noteTypeFilter === 'textVoice') {
+    if (activeNoteType === 'textVoice') {
       return source.filter((obs) => obs.type !== 'lesson');
     }
     return source;
-  }, [filteredObservations, noteTypeFilter]);
+  }, [filteredObservations, activeNoteType]);
 
-  const combinedFiltersActive = hasActiveFilters || !!noteTypeFilter;
+  const nonTypeFiltersActive = !!(
+    filters?.dateFrom ||
+    filters?.dateTo ||
+    (filters?.creators && filters.creators.length > 0) ||
+    (filters?.types && filters.types.length > 0)
+  );
+  const combinedFiltersActive = hasActiveFilters;
 
   const openLinkedLesson = (lessonObservationId) => {
     if (!lessonObservationId || !student) return;
@@ -439,7 +453,12 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         actionLabel: 'View Note',
         onUndo: () => {
           try {
-            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', { detail: { studentId: newStudentId } }));
+            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+              detail: {
+                studentId: newStudentId,
+                noteTypeFilter: selectedObservation?.type === 'lesson' ? 'lesson' : 'textVoice'
+              }
+            }));
           } catch (_) { /* noop */ }
         },
       });
@@ -456,19 +475,36 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setReassignSelectedStudents([]);
   };
 
+  const applyExportScope = (list = [], scopeOverride = exportScope) => {
+    if (scopeOverride === 'lesson') return list.filter((obs) => obs.type === 'lesson');
+    if (scopeOverride === 'textVoice') return list.filter((obs) => obs.type !== 'lesson');
+    return list;
+  };
+
+  const buildExportBaseList = (type) => {
+    // For "filtered", apply current filters but ignore active note type so scope can be chosen separately
+    if (type === 'filtered') return applyFilters(observations, null);
+    return observations || [];
+  };
+
+  const buildExportList = (type, scopeOverride = exportScope) => {
+    const baseList = buildExportBaseList(type);
+    const scoped = applyExportScope(baseList, scopeOverride);
+    return (exportDateFrom || exportDateTo) ? scoped.filter(isWithinExportRange) : scoped;
+  };
+
   // Export handlers
-  const handleExportClick = (type) => {
-    if (type === 'all' && (!observations || observations.length === 0)) {
-      notify.warning('No observations to export.', { id: `export-${student?.id || 'unknown'}-all`, duration: 3000 });
-      return;
-    }
-    
-    if (type === 'filtered' && (!visibleObservations || visibleObservations.length === 0)) {
-      notify.warning('No filtered observations to export.', { id: `export-${student?.id || 'unknown'}-filtered`, duration: 3000 });
+  const handleExportClick = (type, scopeOverride = null) => {
+    setShowFormatDropdown(false);
+    const scopeToUse = scopeOverride || exportScope;
+    const preview = buildExportList(type, scopeToUse);
+    if (!preview || preview.length === 0) {
+      notify.warning('No notes to export for the selected filters.', { id: `export-${student?.id || 'unknown'}-${type}`, duration: 3000 });
       return;
     }
     
     setExportType(type);
+    setExportScope(scopeToUse);
     
     // Teachers go straight to confirmation (text only)
     if (!isAdmin) {
@@ -513,10 +549,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       setExporting(true);
       setExportConfirmOpen(false);
       
-      // Base list depending on export type
-    const baseList = exportType === 'all' ? observations : visibleObservations;
-      // Apply export date range if provided
-      const finalList = (exportDateFrom || exportDateTo) ? baseList.filter(isWithinExportRange) : baseList;
+      const finalList = buildExportList(exportType);
 
       let result;
       // Route to exporter with the final filtered list
@@ -527,7 +560,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         isAdmin ? exportFormat : 'txt',
         true,
         finalList,
-        noteTypeFilter
+        exportScope === 'all' ? null : exportScope
       );
       
       if (result.success) {
@@ -561,11 +594,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setExportDateTo('');
   };
 
+  const primaryExportType = nonTypeFiltersActive ? 'filtered' : 'all';
+  const exportableCount = buildExportList(primaryExportType).length;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {combinedFiltersActive && (
             <Chip 
               label={`Showing ${visibleObservations.length} of ${observations.length} notes`}
@@ -585,19 +621,51 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             Filters
           </Button>
           {/* Export Button - Show for both admins and teachers */}
-          <Box sx={{ position: 'relative' }} ref={exportButtonRef}>
+          <Box sx={{ position: 'relative' }}>
             <Button
               startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-              onClick={() => handleExportClick(combinedFiltersActive ? 'filtered' : 'all')}
+              onClick={(e) => setExportScopeAnchor(e.currentTarget)}
               variant="outlined"
               color="secondary"
               size="small"
-              disabled={exporting || (combinedFiltersActive ? visibleObservations.length === 0 : observations.length === 0)}
-              aria-label={combinedFiltersActive ? 'Export filtered observations' : 'Export all observations'}
-              title={combinedFiltersActive ? `Export ${visibleObservations.length} filtered observations` : `Export ${observations.length} observations`}
+              disabled={exporting || exportableCount === 0}
+              aria-label={primaryExportType === 'filtered' ? 'Export filtered notes' : 'Export all notes'}
+              title={`Export ${exportableCount} ${primaryExportType === 'filtered' ? 'filtered ' : ''}notes`}
             >
               {exporting ? 'Exporting...' : 'Export'}
             </Button>
+            <Menu
+              anchorEl={exportScopeAnchor}
+              open={Boolean(exportScopeAnchor)}
+              onClose={() => setExportScopeAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setExportScopeAnchor(null);
+                  handleExportClick(primaryExportType, 'textVoice');
+                }}
+              >
+                Export Observations
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setExportScopeAnchor(null);
+                  handleExportClick(primaryExportType, 'lesson');
+                }}
+              >
+                Export Lesson Notes
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setExportScopeAnchor(null);
+                  handleExportClick(primaryExportType, 'all');
+                }}
+              >
+                Export Both
+              </MenuItem>
+            </Menu>
             
             {/* Format Dropdown - Only for admins */}
             {isAdmin && showFormatDropdown && (
@@ -646,20 +714,29 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           </Box>
         </Box>
       </Box>
-
-      {/* Filter Panel */}
-      <FilterPanel
-        showFilters={showFilters}
-        filters={filters}
-        uniqueCreators={uniqueCreators}
-        classroomTeachers={classroomTeachers}
-        hasActiveFilters={hasActiveFilters}
-        filteredCount={visibleObservations.length}
-        noteTypeFilter={noteTypeFilter}
-        onFilterChange={handleFilterChange}
-        onClearFilters={handleClearFilters}
-        onToggleFilters={toggleFilters}
-      />
+      {/* Tabs */}
+      <Tabs
+        value={activeNoteType}
+        onChange={(_, val) => {
+          if (!val) return;
+          setActiveNoteType(val);
+          setShowFilters(false);
+        }}
+        textColor="primary"
+        indicatorColor="primary"
+        sx={{
+          mt: 1,
+          '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, minHeight: 44 },
+          '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' },
+          '& .MuiTab-root': {
+            color: '#475569',
+            '&.Mui-selected': { color: '#4f46e5' }
+          }
+        }}
+      >
+        <Tab value="textVoice" label="Observations" />
+        <Tab value="lesson" label="Lesson Notes" />
+      </Tabs>
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4, gap: 2, flexDirection: 'column' }}>
@@ -670,10 +747,25 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Notes summary */}
+          {/* Filter Panel */}
+          <FilterPanel
+            showFilters={showFilters}
+            filters={filters}
+            uniqueCreators={uniqueCreators}
+            classroomTeachers={classroomTeachers}
+            hasActiveFilters={hasActiveFilters}
+            filteredCount={visibleObservations.length}
+            noteTypeFilter={activeNoteType}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+            onToggleFilters={toggleFilters}
+          />
+
+          {/* Summary */}
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
           </Typography>
+
           {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
           {(() => {
             const groups = { today: [], last7Days: [], beyond: [] };
@@ -909,15 +1001,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </DialogTitle>
         <DialogContent sx={{ p: 3 }}>
           {(() => {
-            const baseListForPreview = exportType === 'all' ? (observations || []) : (visibleObservations || []);
-            const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
+            const exportPreviewList = buildExportList(exportType);
             const previewCount = exportPreviewList.length;
             const studentLabel = student?.name || student?.displayName || 'this student';
             return (
               <Typography variant="body1" sx={{ mb: 2 }}>
                 {exportType === 'all' 
-                  ? `Export ${previewCount} observations for ${studentLabel}?`
-                  : `Export ${previewCount} filtered observations for ${studentLabel}?`}
+                  ? `Export ${previewCount} notes for ${studentLabel}?`
+                  : `Export ${previewCount} filtered notes for ${studentLabel}?`}
               </Typography>
             );
           })()}
