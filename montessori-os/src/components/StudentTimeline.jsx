@@ -3,7 +3,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   CircularProgress,
   Card,
   CardContent,
@@ -14,13 +13,10 @@ import {
   Button,
   Chip,
   Divider,
-  TextField,
   Tabs,
-  Tab,
-  Menu,
-  MenuItem
+  Tab
 } from '@mui/material';
-import { Star, Edit, AccessTime, Delete, Save, Cancel, Person, SwapHoriz, Close, FilterList, Mic, Download, EditNote, Notes } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download } from '@mui/icons-material';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -28,28 +24,25 @@ import useNotify from '../notifications/useNotify.js';
 
 // Import new modular components
 import FilterPanel from './FilterPanel';
-import ClassroomStudentPicker from './ClassroomStudentPicker';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
-import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
 import {
-  exportStudentTimeline,
-  exportFilteredTimeline,
-  exportStudentTimelineAsText,
-  exportFilteredTimelineAsText
+  executeExportJob,
+  NOTE_KIND
 } from '../utils/export';
-import { isAdminRole } from '../utils/roleUtils';
+import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
 import { 
   getLessonDimensions, 
   LESSON_RATING_LABELS, 
-  LESSON_RATING_COLORS,
-  LESSON_ATTENDANCE_LABELS
+  LESSON_RATING_COLORS
 } from '../utils/lessonNoteConstraints';
+import ExportWizard from './ExportWizard';
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
   const isAdmin = isAdminRole(userRole);
+  const isSuperAdminUser = isSuperAdmin(userRole);
   const [observations, setObservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
@@ -63,16 +56,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   
   // Export states
   const [exporting, setExporting] = useState(false);
-  const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
-  const [exportType, setExportType] = useState('all'); // 'all' or 'filtered'
-  const [exportFormat, setExportFormat] = useState('txt'); // 'txt' or 'json'
-  const [showFormatDropdown, setShowFormatDropdown] = useState(false);
-  const [exportDateFrom, setExportDateFrom] = useState('');
-  const [exportDateTo, setExportDateTo] = useState('');
   const initialNoteType = noteTypeFilter || 'textVoice';
   const [activeNoteType, setActiveNoteType] = useState(initialNoteType);
-  const [exportScope, setExportScope] = useState('all');
-  const [exportScopeAnchor, setExportScopeAnchor] = useState(null);
+  const [exportWizardOpen, setExportWizardOpen] = useState(false);
   
   useEffect(() => {
     const nextType = noteTypeFilter || 'textVoice';
@@ -195,12 +181,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return source;
   }, [filteredObservations, activeNoteType]);
 
-  const nonTypeFiltersActive = !!(
-    filters?.dateFrom ||
-    filters?.dateTo ||
-    (filters?.creators && filters.creators.length > 0) ||
-    (filters?.types && filters.types.length > 0)
-  );
   const combinedFiltersActive = hasActiveFilters;
 
   const openLinkedLesson = (lessonObservationId) => {
@@ -295,23 +275,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     const teachers = Array.from(teacherMap.values());
     setClassroomTeachers(teachers);
   }, [observations]);
-
-  // Handle click outside format dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (exportButtonRef.current && !exportButtonRef.current.contains(event.target)) {
-        setShowFormatDropdown(false);
-      }
-    };
-
-    if (showFormatDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showFormatDropdown]);
 
   // Sync selectedObservation with updated observations data
   useEffect(() => {
@@ -475,127 +438,68 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setReassignSelectedStudents([]);
   };
 
-  const applyExportScope = (list = [], scopeOverride = exportScope) => {
-    if (scopeOverride === 'lesson') return list.filter((obs) => obs.type === 'lesson');
-    if (scopeOverride === 'textVoice') return list.filter((obs) => obs.type !== 'lesson');
-    return list;
-  };
+  const exportableObservations = useMemo(
+    () => applyFilters(observations, null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [observations, filters]
+  );
+  const exportableCount = exportableObservations.length;
+  const defaultNoteKind = activeNoteType === 'lesson' ? NOTE_KIND.LESSON : NOTE_KIND.OBSERVATION;
+  const studentLabel = student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Student';
 
-  const buildExportBaseList = (type) => {
-    // For "filtered", apply current filters but ignore active note type so scope can be chosen separately
-    if (type === 'filtered') return applyFilters(observations, null);
-    return observations || [];
-  };
-
-  const buildExportList = (type, scopeOverride = exportScope) => {
-    const baseList = buildExportBaseList(type);
-    const scoped = applyExportScope(baseList, scopeOverride);
-    return (exportDateFrom || exportDateTo) ? scoped.filter(isWithinExportRange) : scoped;
-  };
-
-  // Export handlers
-  const handleExportClick = (type, scopeOverride = null) => {
-    setShowFormatDropdown(false);
-    const scopeToUse = scopeOverride || exportScope;
-    const preview = buildExportList(type, scopeToUse);
-    if (!preview || preview.length === 0) {
-      notify.warning('No notes to export for the selected filters.', { id: `export-${student?.id || 'unknown'}-${type}`, duration: 3000 });
+  const handleOpenExportWizard = () => {
+    if (!exportableCount) {
+      notify.warning('No notes to export for the current selection.', {
+        id: `export-${student?.id || 'unknown'}-empty`,
+        duration: 3000
+      });
       return;
     }
-    
-    setExportType(type);
-    setExportScope(scopeToUse);
-    
-    // Teachers go straight to confirmation (text only)
-    if (!isAdmin) {
-      setExportFormat('txt');
-      setExportConfirmOpen(true);
-    } else {
-      // Admins see format dropdown first
-      setShowFormatDropdown(true);
-    }
+    setExportWizardOpen(true);
   };
 
-  const handleFormatSelect = (format) => {
-    setExportFormat(format);
-    setShowFormatDropdown(false);
-    setExportConfirmOpen(true);
-  };
-
-  // Helper: check if an observation falls within the selected export date range
-  const isWithinExportRange = (obs) => {
-    const ts = obs?.observedAt || obs?.timestamp;
-    let d = null;
-    if (ts?.toDate) d = ts.toDate();
-    else if (ts?.seconds) d = new Date(ts.seconds * 1000);
-    else if (ts instanceof Date) d = ts;
-    else if (typeof ts === 'string') d = new Date(ts);
-    if (!d) return false;
-
-    let ok = true;
-    if (exportDateFrom) {
-      const from = new Date(exportDateFrom + 'T00:00:00');
-      ok = ok && d >= from;
-    }
-    if (exportDateTo) {
-      const to = new Date(exportDateTo + 'T23:59:59');
-      ok = ok && d <= to;
-    }
-    return ok;
-  };
-
-  const handleExportConfirm = async () => {
+  const handleRunExport = async ({ noteKinds, format, dateRange }) => {
     try {
       setExporting(true);
-      setExportConfirmOpen(false);
-      
-      const finalList = buildExportList(exportType);
+      const result = executeExportJob({
+        actor: currentUser,
+        subject: {
+          type: 'student',
+          id: student?.id,
+          name: studentLabel,
+          displayName: studentLabel,
+          classroomId: student?.classroomId
+        },
+        data: { observations: exportableObservations },
+        noteKinds,
+        format,
+        dateRange,
+        exportType: 'student_timeline_export',
+        textHeader: `${studentLabel} - Notes`
+      });
 
-      let result;
-      // Route to exporter with the final filtered list
-      result = exportStudentTimeline(
-        student,
-        finalList,
-        currentUser,
-        isAdmin ? exportFormat : 'txt',
-        true,
-        finalList,
-        exportScope === 'all' ? null : exportScope
-      );
-      
-      if (result.success) {
-        notify.success(`Exported ${result.observationCount} notes to ${result.filename || exportFormat}`, {
-          id: `export-${student?.id || 'unknown'}-${exportType}`,
-          duration: 3000,
+      if (result?.success) {
+        notify.success(`Exported ${result.observationCount} notes to ${result.filename}`, {
+          id: `export-${student?.id || 'unknown'}-success`,
+          duration: 3500
         });
+        setExportWizardOpen(false);
       } else {
-        notify.error(`Export failed: ${result.error}`, {
-          id: `export-${student?.id || 'unknown'}-${exportType}`,
-          duration: 4000,
+        notify.error(`Export failed: ${result?.error || 'Unknown error'}`, {
+          id: `export-${student?.id || 'unknown'}-error`,
+          duration: 4000
         });
       }
     } catch (error) {
       console.error('Export error:', error);
       notify.error('Export failed. Please try again.', {
-        id: `export-${student?.id || 'unknown'}-${exportType}`,
-        duration: 4000,
+        id: `export-${student?.id || 'unknown'}-exception`,
+        duration: 4000
       });
     } finally {
       setExporting(false);
     }
   };
-
-  const handleExportCancel = () => {
-    setExportConfirmOpen(false);
-    setExportType('all');
-    setExportFormat('txt');
-    setShowFormatDropdown(false);
-    setExportDateFrom('');
-    setExportDateTo('');
-  };
-
-  const primaryExportType = nonTypeFiltersActive ? 'filtered' : 'all';
-  const exportableCount = buildExportList(primaryExportType).length;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
@@ -620,98 +524,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           >
             Filters
           </Button>
-          {/* Export Button - Show for both admins and teachers */}
-          <Box sx={{ position: 'relative' }}>
-            <Button
-              startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-              onClick={(e) => setExportScopeAnchor(e.currentTarget)}
-              variant="outlined"
-              color="secondary"
-              size="small"
-              disabled={exporting || exportableCount === 0}
-              aria-label={primaryExportType === 'filtered' ? 'Export filtered notes' : 'Export all notes'}
-              title={`Export ${exportableCount} ${primaryExportType === 'filtered' ? 'filtered ' : ''}notes`}
-            >
-              {exporting ? 'Exporting...' : 'Export'}
-            </Button>
-            <Menu
-              anchorEl={exportScopeAnchor}
-              open={Boolean(exportScopeAnchor)}
-              onClose={() => setExportScopeAnchor(null)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            >
-              <MenuItem
-                onClick={() => {
-                  setExportScopeAnchor(null);
-                  handleExportClick(primaryExportType, 'textVoice');
-                }}
-              >
-                Export Observations
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  setExportScopeAnchor(null);
-                  handleExportClick(primaryExportType, 'lesson');
-                }}
-              >
-                Export Lesson Notes
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  setExportScopeAnchor(null);
-                  handleExportClick(primaryExportType, 'all');
-                }}
-              >
-                Export Both
-              </MenuItem>
-            </Menu>
-            
-            {/* Format Dropdown - Only for admins */}
-            {isAdmin && showFormatDropdown && (
-              <Box sx={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                mt: 1,
-                backgroundColor: 'white',
-                borderRadius: 2,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                border: '1px solid #e2e8f0',
-                zIndex: 1000,
-                minWidth: 120
-              }}>
-                <Button
-                  onClick={() => handleFormatSelect('txt')}
-                  variant="text"
-                  size="small"
-                  fullWidth
-                  sx={{ 
-                    justifyContent: 'flex-start', 
-                    px: 2, 
-                    py: 1.5,
-                    '&:hover': { backgroundColor: '#f8fafc' }
-                  }}
-                >
-                  Text (.txt)
-                </Button>
-                <Button
-                  onClick={() => handleFormatSelect('json')}
-                  variant="text"
-                  size="small"
-                  fullWidth
-                  sx={{ 
-                    justifyContent: 'flex-start', 
-                    px: 2, 
-                    py: 1.5,
-                    '&:hover': { backgroundColor: '#f8fafc' }
-                  }}
-                >
-                  JSON (.json)
-                </Button>
-              </Box>
-            )}
-          </Box>
+          <Button
+            startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+            onClick={handleOpenExportWizard}
+            variant="outlined"
+            color="secondary"
+            size="small"
+            disabled={exporting || exportableCount === 0}
+            aria-label="Export notes"
+            title={`Export ${exportableCount} notes`}
+          >
+            {exporting ? 'Exporting...' : 'Export'}
+          </Button>
         </Box>
       </Box>
       {/* Tabs */}
@@ -974,130 +798,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </DialogActions>
       </Dialog>
 
-
-
-      {/* Export Confirmation Dialog */}
-      <Dialog
-        open={exportConfirmOpen}
-        onClose={handleExportCancel}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 400,
-            width: 'calc(100% - 32px)',
-            mx: 'auto'
-          }
-        }}
-      >
-        <DialogTitle component="div" sx={{ pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Download color="secondary" />
-            <Typography component="h2" variant="h6">
-              Confirm Export
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          {(() => {
-            const exportPreviewList = buildExportList(exportType);
-            const previewCount = exportPreviewList.length;
-            const studentLabel = student?.name || student?.displayName || 'this student';
-            return (
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                {exportType === 'all' 
-                  ? `Export ${previewCount} notes for ${studentLabel}?`
-                  : `Export ${previewCount} filtered notes for ${studentLabel}?`}
-              </Typography>
-            );
-          })()}
-
-          {/* Date range selection for export */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
-              Date Range (optional)
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="From Date"
-                type="date"
-                size="small"
-                value={exportDateFrom}
-                onChange={(e) => setExportDateFrom(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                size="small"
-                value={exportDateTo}
-                onChange={(e) => setExportDateTo(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1 }}
-              />
-            </Box>
-          </Box>
-          
-          <Box sx={{
-            p: 2,
-            backgroundColor: '#f8fafc',
-            borderRadius: 2,
-            border: '1px solid #e2e8f0',
-            mb: 2
-          }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Student:</strong> {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Export Type:</strong> {exportType === 'all' ? 'All Observations' : 'Filtered Observations'}
-            </Typography>
-            {(() => {
-              const baseListForPreview = exportType === 'all' ? (observations || []) : (visibleObservations || []);
-              const exportPreviewList = (exportDateFrom || exportDateTo) ? baseListForPreview.filter(isWithinExportRange) : baseListForPreview;
-              const previewCount = exportPreviewList.length;
-              const baseTotal = baseListForPreview.length;
-              const overallTotal = observations?.length || 0;
-              return (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Count:</strong> {previewCount} out of {overallTotal} notes
-                </Typography>
-              );
-            })()}
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Date Range:</strong> {exportDateFrom || 'Any'} to {exportDateTo || 'Any'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              <strong>Format:</strong> {isAdmin ? `${exportFormat.toUpperCase()} file (.${exportFormat})` : 'Text file (.txt)'}
-            </Typography>
-          </Box>
-          
-          <Typography variant="body2" color="info.main" sx={{ fontWeight: 'medium' }}>
-            The file will be downloaded automatically with a descriptive filename.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button 
-            onClick={handleExportCancel} 
-            variant="outlined" 
-            sx={{ flex: 1 }}
-            disabled={exporting}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleExportConfirm} 
-            variant="contained" 
-            color="primary"
-            sx={{ flex: 1 }}
-            disabled={exporting}
-            startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
-          >
-            {exporting ? 'Exporting...' : `Export as ${exportFormat.toUpperCase()}`}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ExportWizard
+        open={exportWizardOpen}
+        onClose={() => setExportWizardOpen(false)}
+        onConfirm={handleRunExport}
+        observations={exportableObservations}
+        defaultNoteKind={defaultNoteKind}
+        isSuperAdmin={isSuperAdminUser}
+        defaultFormat="txt"
+        loading={exporting}
+        title="Export Notes"
+        subjectLabel={studentLabel}
+      />
 
       {/* Note creation handled by global FAB */}
     </Box>

@@ -1,36 +1,16 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Stack,
-  Step,
-  StepLabel,
-  Stepper,
-  TextField,
-  Typography
-} from '@mui/material';
-import {
-  ArticleOutlined as ArticleOutlinedIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon,
-  DataObject as DataObjectIcon,
-  DescriptionOutlined as DescriptionOutlinedIcon,
-  Download as DownloadIcon,
-  Timeline as TimelineIcon
-} from '@mui/icons-material';
-import useNotify from '../notifications/useNotify';
-import { isSuperAdmin } from './roleUtils';
 import { LESSON_RATING_LABELS, LESSON_ATTENDANCE_LABELS, getLessonDimensions } from './lessonNoteConstraints';
 
 /**
  * Unified Export Utilities
  * Consolidates generic observation exports and student timeline exports.
  */
+
+// Shared constants for downstream consumers (UI + agents)
+export const NOTE_KIND = {
+  OBSERVATION: 'observation', // text + voice
+  LESSON: 'lesson', // lesson notes
+  BOTH: 'both'
+};
 
 // Core metadata + summary helpers
 export const generateExportMetadata = (currentUser, exportType = 'observations_export', version = '1.0') => ({
@@ -169,6 +149,75 @@ const normalizeToDate = (timestamp) => {
 const cleanNoteText = (text) => {
   if (text === null || text === undefined) return '';
   return String(text);
+};
+
+const parseDateInput = (value, endOfDay = false) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const date = new Date(value);
+    date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+    return date;
+  }
+  if (typeof value === 'string') {
+    const parts = value.split('-').map((p) => Number(p));
+    if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+      const [y, m, d] = parts;
+      return new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+    }
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      parsed.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const normalizeNoteKinds = (noteKinds = []) => {
+  const kinds = Array.isArray(noteKinds) ? noteKinds : [noteKinds];
+  const set = new Set();
+  kinds.forEach((kind) => {
+    const normalized = String(kind || '').toLowerCase();
+    if (normalized === NOTE_KIND.LESSON) set.add(NOTE_KIND.LESSON);
+    if (normalized === NOTE_KIND.OBSERVATION) set.add(NOTE_KIND.OBSERVATION);
+    if (normalized === NOTE_KIND.BOTH) {
+      set.add(NOTE_KIND.LESSON);
+      set.add(NOTE_KIND.OBSERVATION);
+    }
+  });
+  if (set.size === 0) {
+    set.add(NOTE_KIND.LESSON);
+    set.add(NOTE_KIND.OBSERVATION);
+  }
+  return set;
+};
+
+const matchesNoteKind = (obsType, allowedKinds) => {
+  if (!allowedKinds || allowedKinds.size === 0) return true;
+  if (allowedKinds.has(NOTE_KIND.LESSON) && obsType === 'lesson') return true;
+  if (allowedKinds.has(NOTE_KIND.OBSERVATION) && obsType !== 'lesson') return true;
+  return false;
+};
+
+export const filterObservationsForExport = ({
+  observations = [],
+  noteKinds = [NOTE_KIND.BOTH],
+  dateRange = {}
+} = {}) => {
+  const allowedKinds = normalizeNoteKinds(noteKinds);
+  const fromDate = parseDateInput(dateRange.from || dateRange.start || dateRange.startDate, false);
+  const toDate = parseDateInput(dateRange.to || dateRange.end || dateRange.endDate, true);
+
+  return (observations || []).filter((obs) => {
+    if (!matchesNoteKind(obs?.type, allowedKinds)) return false;
+    if (!fromDate && !toDate) return true;
+    const ts = obs?.observedAt || obs?.timestamp;
+    const asDate = normalizeToDate(ts);
+    if (!asDate) return false;
+    if (fromDate && asDate < fromDate) return false;
+    if (toDate && asDate > toDate) return false;
+    return true;
+  });
 };
 
 const titleCase = (value = '') => {
@@ -467,6 +516,63 @@ export const exportObservations = ({
     observationCount: cleanedObservations.length,
     format
   };
+};
+
+// Microservice-style entry point for UI + agent workflows
+export const executeExportJob = ({
+  actor = {},
+  subject = {},
+  data = {},
+  noteKinds = [NOTE_KIND.BOTH],
+  format = 'txt',
+  dateRange = {},
+  exportType = 'observations_export',
+  delivery = 'download', // 'download' | 'payload'
+  textHeader,
+  filenameBuilder,
+  groupedObservations = null
+} = {}) => {
+  const baseObservations = Array.isArray(data?.observations) ? data.observations : [];
+  const filtered = filterObservationsForExport({ observations: baseObservations, noteKinds, dateRange });
+
+  if (!filtered.length) {
+    return { success: false, error: 'No observations to export' };
+  }
+
+  const finalFormat = format === 'json' ? 'json' : 'txt';
+  const subjectName = subject?.displayName || subject?.name || subject?.title || subject?.id || 'Observations';
+
+  if (delivery === 'payload') {
+    const cleaned = filtered.map(cleanObservationData);
+    const payload = {
+      exportMetadata: generateExportMetadata(actor, exportType),
+      subject,
+      observations: cleaned,
+      summary: generateSummary(cleaned)
+    };
+    const filename = filenameBuilder
+      ? filenameBuilder({ subject, observations: cleaned, format: finalFormat })
+      : generateFilename({ subjectName, observationCount: cleaned.length, format: finalFormat });
+
+    return {
+      success: true,
+      filename,
+      observationCount: cleaned.length,
+      format: finalFormat,
+      payload
+    };
+  }
+
+  return exportObservations({
+    observations: filtered,
+    currentUser: actor,
+    format: finalFormat,
+    exportType,
+    subject,
+    filenameBuilder,
+    textHeader: textHeader || subjectName,
+    groupedObservations
+  });
 };
 
 // Student-specific exports
