@@ -1,5 +1,16 @@
 # Changelog
 
+# 5.10.0 — 2025-12-09
+
+### Changed
+- Student dashboard now uses two actionable cards (Timeline, Statistics) with arrow affordances; timeline card opens the unified student timeline and the app header reads `<StudentName>'s Timeline`.
+- Student timeline UX updated to mirror UsersAccess tabs: filter/export controls on the top row, tabs for Observations vs Lesson Notes, and cleaned summary layout.
+- Exports simplified with a scope menu (observations / lesson notes / both), preserving filters and admin format selection; timeline export counts now respect the chosen scope.
+- Consolidated export utilities into `utils/export.js`, carrying lesson-aware text formatting and preserving note newlines; removed legacy export modules.
+
+### Fixed
+- Resolved timeline crash from missing Card import and removed duplicate dividers in the student timeline summary area.
+
 ## 5.9.0 — 2025-12-08
 
 ### Added

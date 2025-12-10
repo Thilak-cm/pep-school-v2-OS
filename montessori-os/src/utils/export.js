@@ -1,3 +1,30 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  Typography
+} from '@mui/material';
+import {
+  ArticleOutlined as ArticleOutlinedIcon,
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  DataObject as DataObjectIcon,
+  DescriptionOutlined as DescriptionOutlinedIcon,
+  Download as DownloadIcon,
+  Timeline as TimelineIcon
+} from '@mui/icons-material';
+import useNotify from '../notifications/useNotify';
+import { isSuperAdmin } from './roleUtils';
 import { LESSON_RATING_LABELS, LESSON_ATTENDANCE_LABELS, getLessonDimensions } from './lessonNoteConstraints';
 
 /**
@@ -226,9 +253,9 @@ export const generateTextContent = ({
   const formatLessonObservation = (obs, index, date) => {
     const lines = [];
     lines.push(`${index + 1}. ${date}`);
-    lines.push(`Lesson: ${obs.lessonTitle || 'Lesson Note'}`);
     const author = obs.createdByName || obs.createdByEmail || obs.createdBy || 'Unknown Teacher';
     lines.push(`Author: ${author}`);
+    lines.push(`Lesson: ${obs.lessonTitle || 'Lesson Note'}`);
 
     const ratingsLine = formatLessonRatings(obs);
     if (ratingsLine) lines.push(`Ratings: ${ratingsLine}`);

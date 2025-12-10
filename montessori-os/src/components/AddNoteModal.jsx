@@ -32,7 +32,7 @@ import { cloudFunctions } from '../firebase';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
+import { isAdminRole } from '../utils/roleUtils';
 import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
@@ -139,7 +139,7 @@ function TextInput({
       {/* Feature hint */}
       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
         <NewFeaturePill
-          label="New Feature: Quick select students using new @ feature"
+          label="New Feature: Try typing @ in text box below!"
           size="sm"
           showIcon={false}
         />
@@ -829,7 +829,6 @@ function AddNoteModal({
   };
 
   const handleSelectLesson = () => {
-    if (!isSuperAdmin(userRole)) return; // Disabled for non-superadmins
     handleClose();
     if (onOpenLessonNotePage) onOpenLessonNotePage();
   };
@@ -1269,28 +1268,25 @@ function AddNoteModal({
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: isSuperAdmin(userRole) ? 'pointer' : 'not-allowed',
-                  backgroundColor: isSuperAdmin(userRole) ? 'white' : '#f8fafc',
-                  opacity: isSuperAdmin(userRole) ? 1 : 0.5,
-                  '&:hover': isSuperAdmin(userRole) ? { 
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
                     backgroundColor: '#f8fafc',
                     border: '1px solid #4f46e5'
-                  } : {}
+                  }
                 }}
                 onClick={handleSelectLesson}
                 aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: isSuperAdmin(userRole) ? '#4f46e5' : '#94a3b8' }} />
+                <MenuBook sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: isSuperAdmin(userRole) ? '#1e293b' : '#94a3b8' }}>
+                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Lesson Note
                     </Typography>
-                    {isSuperAdmin(userRole) && (
-                      <Box sx={{ opacity: 1 }}>
-                        <NewFeaturePill label="New" size="sm" />
-                      </Box>
-                    )}
+                    <Box sx={{ opacity: 1 }}>
+                      <NewFeaturePill label="New" size="sm" />
+                    </Box>
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Structured lesson observation
