@@ -1,5 +1,14 @@
 # Changelog
 
+# 5.10.1 — 2025-12-09
+
+### Changed
+- Grouped classroom note dialog now shows student “View Dashboard” buttons inline on each student card (no accordion dropdown) and keeps delete controls restricted to admin roles.
+- Lesson title dropdown and lesson note student lists share a prominent always-visible scrollbar (black thumb, thicker track) with a five-item viewport for easier scrolling.
+
+### Fixed
+- Lesson note student checkboxes now toggle when clicking anywhere on the student row, including directly on the checkbox.
+
 # 5.10.0 — 2025-12-09
 
 ### Changed
