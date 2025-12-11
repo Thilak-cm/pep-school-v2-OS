@@ -765,18 +765,20 @@ function LessonNoteWizard({
           )}
           <TextField
             fullWidth
-            label="Short Description"
+            label="Short Description (optional)"
             multiline
             minRows={2}
+            placeholder="Add a short description (optional)"
             value={context.lessonDescription}
             onChange={(e) => setContextField('lessonDescription', e.target.value)}
           />
           {lessonMode === 'group' && (
             <TextField
               fullWidth
-              label="Group Comment"
+              label="Group Comment (optional)"
               multiline
               minRows={2}
+              placeholder="Add a note that appears for every student (optional)"
               helperText="Optional note that appears for every student"
               value={context.groupComment}
               onChange={(e) => setContextField('groupComment', e.target.value)}
@@ -1043,6 +1045,7 @@ function LessonNoteWizard({
                       label="Student comment (optional)"
                       multiline
                       minRows={1}
+                      placeholder="Add a student-specific comment (optional)"
                       value={studentOverrides[student.id]?.comment || ''}
                       onChange={(e) => setStudentComment(student.id, e.target.value)}
                       sx={{ mt: 1 }}
