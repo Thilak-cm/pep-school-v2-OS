@@ -576,6 +576,27 @@ function LessonNoteWizard({
     }
   };
 
+  // Shared scrollbar styling for dropdowns/lists
+  const scrollListSx = {
+    maxHeight: 220,
+    overflowY: 'scroll',
+    scrollbarWidth: 'auto',
+    scrollbarGutter: 'stable both-edges',
+    '&::-webkit-scrollbar': {
+      width: 12
+    },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: '#e5e7eb',
+      borderRadius: 999
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: '#111827',
+      borderRadius: 999,
+      border: '3px solid #e5e7eb',
+      boxShadow: 'inset 0 0 2px rgba(0,0,0,0.2)'
+    }
+  };
+
   const renderStudentRow = (student, { dense = false, disabled = false } = {}) => {
     const checked = selectedStudents.includes(student.id);
     return (
@@ -596,7 +617,10 @@ function LessonNoteWizard({
           tabIndex={-1}
           disableRipple
           checked={checked}
-          onChange={() => toggleStudent(student.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleStudent(student.id);
+          }}
           disabled={disabled}
         />
         <ListItemText
@@ -675,11 +699,41 @@ function LessonNoteWizard({
               filterOptions={(options, state) => {
                 const input = (state.inputValue || '').trim();
                 if (!input) {
-                  return options.slice(0, 5);
+                  return options;
                 }
                 const data = options.map((title) => ({ title }));
                 const results = genericFuzzySearch(data, input, [{ name: 'title', weight: 1.0 }]);
-                return results.map((r) => r.title).slice(0, 5);
+                return results.map((r) => r.title);
+              }}
+              ListboxProps={{
+                sx: {
+                  maxHeight: 240, // show roughly 5 items at once
+                  overflowY: 'scroll',
+                  scrollbarWidth: 'auto',
+                  scrollbarGutter: 'stable both-edges',
+                  '&::-webkit-scrollbar': {
+                    width: 12
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: '#e5e7eb',
+                    borderRadius: 999
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#6366f1',
+                    borderRadius: 999,
+                    border: '3px solid #e5e7eb',
+                    boxShadow: 'inset 0 0 2px rgba(0,0,0,0.2)'
+                  }
+                }
+              }}
+              componentsProps={{
+                paper: {
+                  sx: {
+                    maxHeight: 240,
+                    overflowY: 'visible',
+                    scrollbarGutter: 'stable both-edges'
+                  }
+                }
               }}
               renderInput={(params) => (
                 <TextField
@@ -746,7 +800,7 @@ function LessonNoteWizard({
                 <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
                   Students
                 </Typography>
-                <Paper variant="outlined" sx={{ maxHeight: 220, overflowY: 'auto', borderRadius: 2 }}>
+                <Paper variant="outlined" sx={{ ...scrollListSx, borderRadius: 2 }}>
                   {matchingStudents.length > 0 ? (
                     <List dense disablePadding>
                       {matchingStudents.map((student) => renderStudentRow(student))}
@@ -805,7 +859,7 @@ function LessonNoteWizard({
                           </Box>
                           <Collapse in={expandedAliases[alias.id]} timeout="auto" unmountOnExit>
                             <Divider />
-                            <List dense disablePadding>
+                            <List dense disablePadding sx={scrollListSx}>
                               {inClassMembers.map((student) => renderStudentRow(student, { dense: true }))}
                               {outOfClassMembers.map((student) => (
                                 <ListItem key={student.id} dense sx={{ px: 1.5, py: 1, opacity: 0.5 }}>

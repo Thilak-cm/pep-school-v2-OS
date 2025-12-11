@@ -26,9 +26,6 @@ import {
   ListItemText,
   Checkbox,
   ListItemIcon,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Alert
 } from '@mui/material';
 import { 
@@ -41,7 +38,6 @@ import {
   Search,
   Close,
   Delete,
-  ChevronRight,
   Visibility
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
@@ -53,6 +49,7 @@ import NoteExpansionDialog from './NoteExpansionDialog';
 import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
+import { isAdminRole } from '../utils/roleUtils';
 import {
   getLessonDimensions,
   LESSON_RATING_LABELS,
@@ -1255,6 +1252,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const canDeleteGroupedNote = isAdminRole(userRole);
 
   // Get student objects for all students in the group
   const studentsInGroup = groupedNote.studentIds
@@ -1290,6 +1288,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
 
   // Handle delete mode toggle
   const handleDeleteModeToggle = () => {
+    if (!canDeleteGroupedNote) return;
     if (deleteMode) {
       // Cancel delete mode
       setDeleteMode(false);
@@ -1302,6 +1301,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
 
   // Handle delete confirm click
   const handleDeleteConfirmClick = () => {
+    if (!canDeleteGroupedNote) return;
     if (selectedStudentIds.size === 0) {
       notify.warning('Please select at least one student to delete the note for.', { duration: 3000 });
       return;
@@ -1311,6 +1311,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
 
   // Handle delete confirm
   const handleDeleteConfirm = async () => {
+    if (!canDeleteGroupedNote) return;
     if (!groupedNote || selectedStudentIds.size === 0) return;
     
     setDeleting(true);
@@ -1518,7 +1519,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
             </>
           ) : (
             <>
-              {/* Normal Mode: Show expandable dropdowns with custom ratings */}
+              {/* Normal Mode: Show student cards with inline dashboard access */}
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 Assigned to {studentsInGroup.length} student{studentsInGroup.length !== 1 ? 's' : ''}:
               </Typography>
@@ -1539,19 +1540,18 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                   });
 
                   return (
-                    <Accordion key={student.id} sx={{ mb: 1, '&:before': { display: 'none' } }}>
-                      <AccordionSummary
-                        expandIcon={<ChevronRight sx={{ transform: 'rotate(0deg)', transition: 'transform 0.2s' }} />}
-                        sx={{
-                          '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
-                            transform: 'rotate(90deg)'
-                          },
-                          '&:hover': {
-                            backgroundColor: '#f8fafc'
-                          }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                    <Box
+                      key={student.id}
+                      sx={{
+                        mb: 1.5,
+                        p: 2,
+                        borderRadius: 2,
+                        border: '1px solid #e2e8f0',
+                        backgroundColor: '#f8fafc'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Person sx={{ fontSize: 16, color: 'primary.main' }} />
                           <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
                             {getStudentDisplayName(student)}
@@ -1569,61 +1569,6 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                             />
                           )}
                         </Box>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ pt: 2, pb: 2 }}>
-                        {/* Student Ratings */}
-                        {dimensionOrder.length > 0 && (
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
-                              Ratings:
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                              {dimensionOrder.map((dimension) => {
-                                const studentRating = studentRatings[dimension];
-                                const defaultRating = groupDefaults[dimension];
-                                const isCustom = studentRating && studentRating !== defaultRating;
-                                const displayRating = studentRating || defaultRating || 'na';
-                                const color = LESSON_RATING_COLORS[displayRating] || '#475569';
-                                
-                                return (
-                                  <Chip
-                                    key={`${student.id}-${dimension}`}
-                                    size="small"
-                                    label={`${dimension}: ${LESSON_RATING_LABELS[displayRating] || 'N/A'}`}
-                                    sx={{ 
-                                      backgroundColor: `${color}22`, 
-                                      color,
-                                      ...(isCustom && {
-                                        border: '2px solid',
-                                        borderColor: color,
-                                        fontWeight: 600
-                                      })
-                                    }}
-                                  />
-                                );
-                              })}
-                            </Box>
-                            {!hasCustomRatings && Object.keys(groupDefaults).length > 0 && (
-                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
-                                Uses group defaults
-                              </Typography>
-                            )}
-                          </Box>
-                        )}
-                        
-                        {/* Student Comment */}
-                        {studentComment && (
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
-                              Comment:
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              💬 {studentComment}
-                            </Typography>
-                          </Box>
-                        )}
-                        
-                        {/* View Dashboard Button */}
                         <Button
                           variant="outlined"
                           size="small"
@@ -1632,13 +1577,64 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                             onNavigateToStudent(student);
                             onClose();
                           }}
-                          fullWidth
-                          sx={{ mt: 1 }}
+                          sx={{ textTransform: 'none' }}
                         >
                           View Dashboard
                         </Button>
-                      </AccordionDetails>
-                    </Accordion>
+                      </Box>
+
+                      {/* Student Ratings */}
+                      {dimensionOrder.length > 0 && (
+                        <Box sx={{ mt: 1.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
+                            Ratings:
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {dimensionOrder.map((dimension) => {
+                              const studentRating = studentRatings[dimension];
+                              const defaultRating = groupDefaults[dimension];
+                              const isCustom = studentRating && studentRating !== defaultRating;
+                              const displayRating = studentRating || defaultRating || 'na';
+                              const color = LESSON_RATING_COLORS[displayRating] || '#475569';
+                              
+                              return (
+                                <Chip
+                                  key={`${student.id}-${dimension}`}
+                                  size="small"
+                                  label={`${dimension}: ${LESSON_RATING_LABELS[displayRating] || 'N/A'}`}
+                                  sx={{ 
+                                    backgroundColor: `${color}22`, 
+                                    color,
+                                    ...(isCustom && {
+                                      border: '2px solid',
+                                      borderColor: color,
+                                      fontWeight: 600
+                                    })
+                                  }}
+                                />
+                              );
+                            })}
+                          </Box>
+                          {!hasCustomRatings && Object.keys(groupDefaults).length > 0 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                              Uses group defaults
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                      
+                      {/* Student Comment */}
+                      {studentComment && (
+                        <Box sx={{ mt: 1.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                            Comment:
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            💬 {studentComment}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   );
                 })}
               </Box>
@@ -1647,7 +1643,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-        {deleteMode ? (
+        {deleteMode && canDeleteGroupedNote ? (
           <>
             <Button onClick={handleDeleteModeToggle} variant="outlined" sx={{ flex: 1 }}>
               Cancel
@@ -1675,15 +1671,17 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
             <Button onClick={onClose} variant="outlined" sx={{ flex: 1 }}>
               Close
             </Button>
-            <Button
-              onClick={handleDeleteModeToggle}
-              variant="contained"
-              color="error"
-              startIcon={<Delete />}
-              sx={{ flex: 1 }}
-            >
-              Delete Note
-            </Button>
+            {canDeleteGroupedNote && (
+              <Button
+                onClick={handleDeleteModeToggle}
+                variant="contained"
+                color="error"
+                startIcon={<Delete />}
+                sx={{ flex: 1 }}
+              >
+                Delete Note
+              </Button>
+            )}
           </>
         )}
       </DialogActions>
