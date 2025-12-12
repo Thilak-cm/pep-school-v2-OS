@@ -1,5 +1,15 @@
 # Changelog
 
+# 6.0.0 — 2025-12-12
+
+### Added
+- Nightly “Baseball Card” AI summary for each active student (6-week window by default) using Firestore observations + OpenAI, writing to `students/{id}/ai_summaries/baseball_card`.
+- Superadmin Baseball Card config under AI Tools with prompt editor, model info strip, editable window size, and seed script `scripts/admin/seed-baseball-card.js`.
+- Student Dashboard card for Coach Pepper’s summary with empty/no-notes/error states and feedback deep link; Firestore rules and data docs updated for `ai_summaries`.
+
+### Changed
+- Baseball Card config UI aligned with other AI tool editors (read-only model/temperature/max tokens, edit toggle, removed version/reset controls) and navigation/back handling from AI Tools.
+
 # 5.10.1 — 2025-12-09
 
 ### Changed
