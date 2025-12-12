@@ -550,12 +550,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         indicatorColor="primary"
         sx={{
           mt: 1,
-          '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, minHeight: 44 },
-          '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' },
           '& .MuiTab-root': {
+            textTransform: 'none',
+            fontWeight: 600,
+            minHeight: 44,
             color: '#475569',
             '&.Mui-selected': { color: '#4f46e5' }
-          }
+          },
+          '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' },
         }}
       >
         <Tab value="textVoice" label="Observations" />
