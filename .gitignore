@@ -38,6 +38,7 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+.env.backup
 
 # Firebase Hosting cache
 .firebase/hosting.*.cache
