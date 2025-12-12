@@ -10,7 +10,7 @@ import { cloudFunctions } from './firebase';
  * @param {('concise'|'standard'|'detailed')} [options.tone='standard'] Output density preference
  * @returns {Promise<string>} Cleaned up note
  */
-export const CLEANUP_MODEL_INFO = { model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 600 };
+export const CLEANUP_MODEL_INFO = { model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 1000 };
 
 export async function cleanUpText(text, options = {}) {
   const tone = options.tone || 'standard';

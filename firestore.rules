@@ -177,6 +177,12 @@ service cloud.firestore {
         allow delete: if canManagePlacement();
       }
 
+      // AI summaries (e.g., baseball card) stored per student
+      match /ai_summaries/{summaryId} {
+        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow create, update, delete: if isSuperAdmin();
+      }
+
       // Observations subcollection - simplified access
       match /observations/{observationId} {
         function adminCanAccessObservation() {

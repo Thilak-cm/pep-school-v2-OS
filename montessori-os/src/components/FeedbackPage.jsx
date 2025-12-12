@@ -41,8 +41,8 @@ const FEEDBACK_CATEGORIES = [
   { value: 'general', label: 'General', icon: <Chat /> }
 ];
 
-function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
-  const [feedback, setFeedback] = useState('');
+function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefilledMessage = '' }) {
+  const [feedback, setFeedback] = useState(prefilledMessage || '');
   const [category, setCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showCategory, setShowCategory] = useState(false);
@@ -51,6 +51,10 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard }) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
   const isAdmin = isAdminRole(userRole);
+
+  useEffect(() => {
+    setFeedback(prefilledMessage || '');
+  }, [prefilledMessage]);
 
   // Load user's feedback history
   useEffect(() => {

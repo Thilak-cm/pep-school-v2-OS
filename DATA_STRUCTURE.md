@@ -202,9 +202,14 @@ Guidance
  - When a student transfers across branches, update `branchId` to the new classroom's branch; historical observations remain under their original `branchId` for analytics integrity.
  - Student IDs follow `YYYY-XXX-NNN` where:
    - `YYYY` is the current year at creation time (e.g., 2026)
-   - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
-   - `NNN` is a zero-padded index per classroom and year starting from 001
-   - The index resets each new year per classroom. On create, clients compute the next index by scanning existing IDs for the same classroom and year, then attempt to write `students/{studentId}`. If a collision occurs, recompute and retry once.
+  - `XXX` is a three-letter classroom code derived from the classroom document ID (slug), uppercased and padded
+  - `NNN` is a zero-padded index per classroom and year starting from 001
+  - The index resets each new year per classroom. On create, clients compute the next index by scanning existing IDs for the same classroom and year, then attempt to write `students/{studentId}`. If a collision occurs, recompute and retry once.
+
+Subcollections
+- `placements/{placementId}` – classroom history per student (see above).
+- `observations/{observationId}` – per-student notes (text/voice/lesson).
+- `ai_summaries/baseball_card` – latest “Coach Pepper’s summary” (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
 
 ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:

@@ -6,19 +6,29 @@ import {
   CardContent,
   Typography,
   Avatar,
-  CardActionArea
+  CardActionArea,
+  Button,
+  Skeleton,
+  Stack
 } from '@mui/material';
 import {
   Notes as NotesIcon,
   BarChart as BarChartIcon,
   WarningAmber as WarningIcon,
-  ArrowForward
+  ArrowForward,
+  AutoAwesome,
+  ErrorOutline
 } from '@mui/icons-material';
-import { collectionGroup, query, getDocs, where, orderBy } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { trackEvent } from '../utils/analytics';
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, initialNoteType = 'textVoice' }) {
+import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
+  const [cardLoading, setCardLoading] = useState(true);
+  const [cardError, setCardError] = useState('');
+  const [cardData, setCardData] = useState(null);
+  const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -26,6 +36,67 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, initialNoteTyp
   };
 
   const studentId = student?.id || student?.uid || null;
+
+  // Load baseball card config (windowDays, model, etc.)
+  useEffect(() => {
+    let active = true;
+    const loadConfig = async () => {
+      try {
+        const ref = doc(db, 'config', 'baseball_card');
+        const snap = await getDoc(ref);
+        if (!active) return;
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          setCardConfig({
+            model: data.model || BASEBALL_CARD_DEFAULTS.model,
+            temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+            windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
+            timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
+            max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens
+          });
+        } else {
+          setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to load baseball card config', err);
+        setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
+      }
+    };
+    loadConfig();
+    return () => { active = false; };
+  }, []);
+
+  // Load baseball card data for the student
+  useEffect(() => {
+    let active = true;
+    if (!studentId) {
+      setCardData(null);
+      setCardError('');
+      setCardLoading(false);
+      return () => { active = false; };
+    }
+
+    setCardLoading(true);
+    setCardError('');
+
+    const fetchCard = async () => {
+      try {
+        const ref = doc(db, 'students', studentId, 'ai_summaries', 'baseball_card');
+        const snap = await getDoc(ref);
+        if (!active) return;
+        setCardData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      } catch (err) {
+        console.error('Error loading baseball card', err);
+        if (active) setCardError('Failed to load the baseball card.');
+      } finally {
+        if (active) setCardLoading(false);
+      }
+    };
+
+    fetchCard();
+    return () => { active = false; };
+  }, [studentId]);
 
   // Fetch notes count for past 7 days
   useEffect(() => {
@@ -73,8 +144,114 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, initialNoteTyp
     fetchNotesCount();
   }, [studentId]);
 
+  const cardWindowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+  const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
+  const cardNoteCount = cardData?.noteCount;
+  const cardStatus = cardData?.status || null;
+  const isNoNotes = cardStatus === 'no_notes' || cardNoteCount === 0;
+  const studentLabel = getStudentName(student);
+  const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
+
+  const renderBaseballCardBody = () => {
+    if (cardLoading) {
+      return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+          <Skeleton variant="text" width="70%" />
+          <Skeleton variant="text" width="90%" />
+          <Skeleton variant="text" width="80%" />
+        </Box>
+      );
+    }
+
+    if (cardError) {
+      return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ErrorOutline fontSize="small" color="error" />
+            <Typography variant="body2" color="error">
+              {cardError}
+            </Typography>
+          </Stack>
+          <Button variant="outlined" size="small" onClick={() => onOpenFeedback?.(feedbackMessage)}>
+            Send feedback
+          </Button>
+        </Box>
+      );
+    }
+
+    if (!cardData) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No summary available yet. The nightly job will generate it automatically.
+        </Typography>
+      );
+    }
+
+    if (isNoNotes) {
+      return (
+        <Typography variant="body2" color="error">
+          Oh no, no notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
+        </Typography>
+      );
+    }
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+          What’s been happening
+        </Typography>
+        {Array.isArray(cardData.bullets) && cardData.bullets.length > 0 ? (
+          <Box component="ul" sx={{ pl: 2, m: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            {cardData.bullets.map((b, idx) => (
+              <li key={`bb-bullet-${idx}`} style={{ color: '#0f172a', lineHeight: 1.5 }}>
+                <Typography variant="body2">{b}</Typography>
+              </li>
+            ))}
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No bullets returned.
+          </Typography>
+        )}
+        {cardData.lessonSummary && (
+          <Typography variant="body2" sx={{ color: '#334155' }}>
+            {cardData.lessonSummary}
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Card
+        sx={{
+          borderRadius: 2,
+          border: '1px solid #e2e8f0',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)'
+        }}
+      >
+        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
+                <AutoAwesome />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                  Coach Pepper’s summary
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b' }}>
+                  Snapshot of the last {cardWindowWeeks} weeks
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {renderBaseballCardBody()}
+        </CardContent>
+      </Card>
+
       <Card
         sx={{
           borderRadius: 2,

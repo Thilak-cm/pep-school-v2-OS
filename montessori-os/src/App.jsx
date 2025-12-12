@@ -24,6 +24,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
+import BaseballCardConfigEditor from "./components/BaseballCardConfigEditor.jsx";
 import app, { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
@@ -51,7 +52,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -64,6 +65,7 @@ function App() {
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
+  const [prefilledFeedback, setPrefilledFeedback] = useState('');
 
   const isTeacher = role === 'teacher';
   const isSuperAdminUser = isSuperAdmin(role);
@@ -76,6 +78,11 @@ function App() {
   const openLessonNotesScreen = () => {
     setLessonNotesReturnScreen(screen);
     setScreen('lessonNotes');
+  };
+
+  const openFeedbackWithMessage = (message = '') => {
+    setPrefilledFeedback(message || '');
+    setScreen('feedback');
   };
 
   useEffect(() => {
@@ -257,6 +264,12 @@ function App() {
     validateAccess();
   }, [user]);
 
+  useEffect(() => {
+    if (screen !== 'feedback') {
+      setPrefilledFeedback('');
+    }
+  }, [screen]);
+
   const handleSignOut = async () => {
     try {
       // Clear analytics user_id to avoid linking anonymous sessions
@@ -314,6 +327,7 @@ function App() {
   else if (screen === 'config') pageTitle = 'Configurations';
   else if (screen === 'configLessonNotes') pageTitle = 'Lesson Notes Config';
   else if (screen === 'configAiTools') pageTitle = 'AI Tools';
+  else if (screen === 'baseballCardConfig') pageTitle = 'Baseball Card Config';
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
@@ -359,6 +373,8 @@ function App() {
       case 'configLessonNotes':
       case 'configAiTools':
         return () => setScreen('config');
+      case 'baseballCardConfig':
+        return () => setScreen('configAiTools');
       case 'aiTextEditor':
         return () => setScreen('configAiTools');
       case 'aiVoiceEditor':
@@ -664,6 +680,7 @@ function App() {
                         setScreen('timeline');
                       }}
                       onOpenStats={() => setScreen('studentStats')}
+                      onOpenFeedback={openFeedbackWithMessage}
                     />
                   )}
 
@@ -726,6 +743,7 @@ function App() {
                     <FeedbackPage
                       currentUser={user}
                       userRole={role}
+                      prefilledMessage={prefilledFeedback}
                       onNavigateToAdminDashboard={() => setScreen('feedbackTimeline')}
                     />
                   )}
@@ -783,7 +801,12 @@ function App() {
                       onOpenTextEditor={() => setScreen('aiTextEditor')}
                       onOpenVoiceEditor={() => setScreen('aiVoiceEditor')}
                       onOpenCoachEditor={() => setScreen('aiCoachEditor')}
+                      onOpenBaseballCardConfig={() => setScreen('baseballCardConfig')}
                     />
+                  )}
+
+                  {screen === 'baseballCardConfig' && (
+                    <BaseballCardConfigEditor currentUser={user} userRole={role} />
                   )}
 
                   {screen === 'aiTextEditor' && (
@@ -824,7 +847,8 @@ function App() {
                 screen !== 'addUser' &&
                 screen !== 'config' &&
                 screen !== 'configLessonNotes' &&
-                screen !== 'configAiTools' && (
+                screen !== 'configAiTools' &&
+                screen !== 'baseballCardConfig' && (
                 <AddNoteFab 
                   showLabel 
                   onClick={() => setAddNoteOpen(true)} 

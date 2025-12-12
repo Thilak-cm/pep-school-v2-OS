@@ -7,6 +7,7 @@ import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
+import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -901,7 +902,7 @@ export const aiWhisperTranscribe = functions
     return { text, languageCode };
   });
 
-  export const aiWhisperTranslate = functions
+export const aiWhisperTranslate = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 300, memory: "512MB" })
   .https.onCall(async (data, context) => {
@@ -1175,4 +1176,296 @@ export const aiCoachReview = functions
         "Failed to run coach review: " + (error?.message || "Unknown error")
       );
     }
+  });
+
+// -----------------------------------------------
+// AI: Baseball Card (Last 6 Weeks summary)
+// -----------------------------------------------
+
+const BASEBALL_PROMPT_DOC = "baseball_card";
+const BASEBALL_CONFIG_DOC = "baseball_card";
+const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+let baseballPromptCache = { data: null, ts: 0 };
+let baseballConfigCache = { data: null, ts: 0 };
+
+const BASEBALL_SYSTEM_PROMPT_FALLBACK = `You are Coach Pepper, summarizing the last <WINDOW_DAYS> days of notes for ONE student.
+You receive an array of notes with various fields in them. Understand them so you can generate a structured summary output.
+
+Rules:
+- Output concise JSON only. No markdown. Return exactly one JSON object matching the schema; no extra keys.
+- Summaries must be grounded ONLY in provided notes. Never invent details, diagnoses, or events.
+- Keep wording clear, teacher-friendly, and brief; prefer active voice.
+- Bullets: 3–7 items (depends on content size). Each bullet must include a concrete evidence clause with a date (e.g., “On Nov 18 …”).
+- Lesson summary: 1–2 sentence conclusion weaving the recent lessons/overall takeaway (no heading).
+
+Output schema:
+{
+  "bullets": ["...", "..."],
+  "lessonSummary": "..."
+}`;
+
+function isFreshCache(cacheEntry) {
+  return cacheEntry?.data && (Date.now() - cacheEntry.ts < BASEBALL_CACHE_TTL_MS);
+}
+
+async function getBaseballCardPrompt({ forceRefresh = false } = {}) {
+  if (!forceRefresh && isFreshCache(baseballPromptCache)) return baseballPromptCache.data;
+
+  try {
+    const snap = await db.collection("ai_prompts").doc(BASEBALL_PROMPT_DOC).get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      title: String(data.title || ""),
+      description: String(data.description || ""),
+      systemPrompt: String(data.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK),
+      version: Number.isFinite(data.version) ? data.version : 1,
+    };
+    baseballPromptCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[baseballCard] prompt fetch failed, using fallback:", err);
+    const out = {
+      title: "Baseball Card Summary",
+      description: "Coach Pepper’s last 6 weeks summary",
+      systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
+      version: 1,
+    };
+    baseballPromptCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function getBaseballCardConfigServer({ forceRefresh = false } = {}) {
+  if (!forceRefresh && isFreshCache(baseballConfigCache)) return baseballConfigCache.data;
+  try {
+    const snap = await db.collection("config").doc(BASEBALL_CONFIG_DOC).get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      model: data.model || BASEBALL_CARD_DEFAULTS.model,
+      temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+      windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
+      timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
+      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+    };
+    baseballConfigCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[baseballCard] config fetch failed, using defaults:", err);
+    const out = { ...BASEBALL_CARD_DEFAULTS };
+    baseballConfigCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+const normalizeTimestampValue = (ts) => {
+  if (!ts) return null;
+  if (typeof ts.toDate === "function") return ts.toDate();
+  if (ts.seconds) return new Date(ts.seconds * 1000);
+  if (ts instanceof Date) return ts;
+  return null;
+};
+
+const chooseObservationTimestamp = (obs) => {
+  return normalizeTimestampValue(obs?.observedAt) ||
+    normalizeTimestampValue(obs?.timestamp) ||
+    normalizeTimestampValue(obs?.createdAt) ||
+    null;
+};
+
+function formatObservationForPrompt(obs) {
+  const ts = chooseObservationTimestamp(obs);
+  return {
+    id: obs.id || "",
+    type: obs.type || "",
+    text: obs.text || "",
+    lessonTitle: obs.lessonTitle || obs.title || "",
+    lessonDescription: obs.lessonDescription || obs.description || "",
+    groupComment: obs.groupComment || "",
+    studentComment: obs.studentComment || "",
+    createdByName: obs.createdByName || obs.teacherName || "",
+    observedAt: ts ? ts.toISOString() : null,
+    ratings: obs.ratings || obs.dimensionRatings || {},
+    dimensionOrder: obs.dimensionOrder || [],
+    attendanceStatus: obs.attendanceStatus || "",
+  };
+}
+
+async function fetchStudentNotesForWindow(studentId, windowDays) {
+  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const notesMap = new Map();
+  const studentObsRef = db.collection("students").doc(studentId).collection("observations");
+
+  const collect = async (field) => {
+    try {
+      const snap = await studentObsRef.where(field, ">=", cutoff).get();
+      snap.docs.forEach((doc) => {
+        notesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn(`[baseballCard] query failed for field ${field} student ${studentId}:`, err);
+    }
+  };
+
+  await collect("observedAt");
+  await collect("createdAt");
+  await collect("timestamp");
+
+  const notes = Array.from(notesMap.values()).filter((n) => {
+    const ts = chooseObservationTimestamp(n);
+    return ts && ts >= cutoff;
+  });
+
+  notes.sort((a, b) => {
+    const ta = chooseObservationTimestamp(a);
+    const tb = chooseObservationTimestamp(b);
+    return (tb?.getTime() || 0) - (ta?.getTime() || 0);
+  });
+
+  return notes;
+}
+
+async function callBaseballCard(notes, config, prompt, windowDays) {
+  const renderedSystem = (prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK).replace("<WINDOW_DAYS>", String(windowDays));
+  const userPrompt = `Generate the last ${windowDays}-day summary.\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
+
+  const body = {
+    model: config.model || BASEBALL_CARD_DEFAULTS.model,
+    messages: [
+      { role: "system", content: renderedSystem },
+      { role: "user", content: userPrompt }
+    ],
+    temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[baseballCard] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[baseballCard] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch (err) {
+    console.error("[baseballCard] JSON parse error", err, rawContent);
+    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+  }
+
+  const bullets = Array.isArray(parsed.bullets) ? parsed.bullets : [];
+  const lessonSummary = typeof parsed.lessonSummary === "string" ? parsed.lessonSummary : "";
+
+  return { bullets, lessonSummary, rawContent };
+}
+
+async function writeBaseballCardDoc(studentId, payload) {
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("baseball_card");
+  await ref.set(payload);
+}
+
+async function runWithConcurrency(items, worker, limit = 10) {
+  const queue = [...items];
+  const workers = new Array(Math.min(limit, queue.length)).fill(null).map(async () => {
+    while (queue.length) {
+      const next = queue.shift();
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await worker(next);
+      } catch (err) {
+        console.error("[baseballCard] worker error", err);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
+export const generateBaseballCards = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB" })
+  .pubsub.schedule("0 0 * * *")
+  .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
+  .onRun(async () => {
+    if (!OPENAI_API_KEY) {
+      console.error("[baseballCard] OpenAI key not configured");
+      return null;
+    }
+
+    const config = await getBaseballCardConfigServer();
+    const prompt = await getBaseballCardPrompt();
+
+    const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
+    const students = studentsSnap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
+    console.log(`[baseballCard] generating for ${students.length} active students`);
+
+    await runWithConcurrency(students, async (student) => {
+      const notes = await fetchStudentNotesForWindow(student.id, config.windowDays);
+
+      if (!notes.length) {
+        const payload = {
+          bullets: [],
+          lessonSummary: "",
+          noteCount: 0,
+          windowDays: config.windowDays,
+          timezone: config.timezone,
+          model: config.model,
+          temperature: config.temperature,
+          promptVersion: prompt.version || null,
+          generatedAt: new Date(),
+          status: "no_notes",
+        };
+        await writeBaseballCardDoc(student.id, payload);
+        return;
+      }
+
+      const formatted = notes.map(formatObservationForPrompt);
+      let aiResult;
+      try {
+        aiResult = await callBaseballCard(formatted, config, prompt, config.windowDays);
+      } catch (err) {
+        console.error(`[baseballCard] student ${student.id} AI error`, err);
+        return;
+      }
+
+      const payload = {
+        bullets: aiResult.bullets,
+        lessonSummary: aiResult.lessonSummary,
+        noteCount: formatted.length,
+        windowDays: config.windowDays,
+        timezone: config.timezone,
+        model: config.model,
+        temperature: config.temperature,
+        promptVersion: prompt.version || null,
+        generatedAt: new Date(),
+        status: "ok",
+        sourceNoteIds: formatted.map((n) => n.id).filter(Boolean),
+      };
+
+      await writeBaseballCardDoc(student.id, payload);
+    }, 12);
+
+    console.log("[baseballCard] generation run complete");
+    return null;
   });
