@@ -3,7 +3,6 @@
 ## What it is
 - A fixed “Coach Pepper’s summary” baseball card on `montessori-os/src/components/StudentDashboard.jsx` above existing cards, visible to all roles, no expand/collapse.
 - Shows a per-student summary for the last 6 weeks (rolling window), based on both observation and lesson notes. Full note text can be used for AI context.
-- Coverage strip is deferred (to be defined later).
 
 ## Generation cadence
 - Regenerate for **every student daily at midnight Asia/Kolkata**. No reuse/skip logic; no gating on new notes.

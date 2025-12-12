@@ -26,8 +26,7 @@ export const generateSummary = (observations) => {
       totalObservations: 0,
       voiceNotes: 0,
       textNotes: 0,
-      starredNotes: 0,
-      privateNotes: 0,
+      starredNotes: 0, // derived from starScore
       dateRange: {
         earliest: null,
         latest: null
@@ -37,8 +36,7 @@ export const generateSummary = (observations) => {
 
   const voiceNotes = observations.filter((obs) => obs.type === 'voice').length;
   const textNotes = observations.filter((obs) => obs.type === 'text').length;
-  const starredNotes = observations.filter((obs) => obs.isStarred).length;
-  const privateNotes = observations.filter((obs) => obs.isPrivate).length;
+  const starredNotes = observations.filter((obs) => Number.isFinite(obs.starScore)).length;
 
   const timestamps = observations
     .map((obs) => obs.observedAt || obs.timestamp)
@@ -70,7 +68,6 @@ export const generateSummary = (observations) => {
     voiceNotes,
     textNotes,
     starredNotes,
-    privateNotes,
     dateRange: {
       earliest,
       latest
@@ -83,24 +80,22 @@ export const cleanObservationData = (observation = {}) => ({
   id: observation.id || '',
   text: observation.text || '',
   type: observation.type || '',
-  duration: observation.duration || null,
+  durationSec: observation.durationSec || observation.duration || null,
+  sttConfidence: observation.sttConfidence || null,
   observedAt: observation.observedAt || null,
   timestamp: observation.timestamp || null,
+  createdAt: observation.createdAt || null,
+  updatedAt: observation.updatedAt || null,
   createdBy: observation.createdBy || '',
   createdByName: observation.createdByName || '',
   createdByEmail: observation.createdByEmail || '',
-  teacherId: observation.teacherId || '',
-  teacherName: observation.teacherName || '',
-  teacherEmail: observation.teacherEmail || '',
   studentId: observation.studentId || '',
   classroomId: observation.classroomId || '',
-  isStarred: observation.isStarred || false,
-  isPrivate: observation.isPrivate || false,
-  isDraft: observation.isDraft || false,
-  editCount: observation.editCount || 0,
+  branchId: observation.branchId || '',
+  groupId: observation.groupId || null,
+  starScore: observation.starScore || null,
   lessonTitle: observation.lessonTitle || observation.title || '',
   lessonDescription: observation.lessonDescription || observation.description || '',
-  lessonMode: observation.lessonMode || observation.mode || '',
   programId: observation.programId || '',
   dimensionOrder: observation.dimensionOrder || null,
   ratings: observation.ratings || observation.dimensionRatings || {},
@@ -108,8 +103,7 @@ export const cleanObservationData = (observation = {}) => ({
   groupComment: observation.groupComment || '',
   studentComment: observation.studentComment || '',
   attendanceStatus: observation.attendanceStatus || '',
-  groupId: observation.groupId || null,
-  linkedObservations: observation.linkedObservations || observation.linkedLessonObservationIds || []
+  coach: observation.coach || null
 });
 
 // Timestamp formatting for text exports
@@ -324,8 +318,9 @@ export const generateTextContent = ({
     lines.push(`${index + 1}. ${date}`);
     const author = obs.createdByName || obs.createdByEmail || obs.createdBy || 'Unknown Teacher';
     lines.push(`Author: ${author}`);
-    if (obs.type === 'voice' && obs.duration) {
-      lines.push(`[Voice note - ${obs.duration}s]`);
+    if (obs.type === 'voice' && (obs.durationSec || obs.duration)) {
+      const dur = obs.durationSec || obs.duration;
+      lines.push(`[Voice note - ${dur}s]`);
     }
     const noteText = cleanNoteText(obs.text);
     if (noteText) {
