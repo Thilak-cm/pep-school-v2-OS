@@ -1,5 +1,16 @@
 # Changelog
 
+# 6.0.1 — 2025-12-14
+
+### Changed
+- Classroom admins can now increment classroom `studentCount` during student adds (Firestore rules update), unblocking roster creation without superadmin help.
+- Observation badges unified to a single “Observation” tag and clipboard buttons removed across timelines and dialogs; grouped/lesson cards now use neutral styling.
+- Lesson Notes auto-prefill classroom/student when launched from context (classroom timeline, student dashboard/timeline) and force individual mode when a student is known; reassign/delete actions align with consistent sizing.
+- Timelines display tagged lesson notes inline with their actual titles for text/voice observations.
+
+### Fixed
+- Resolved missing icon import crash on student timeline and alignment jitter for stacked action buttons in Note expansion.
+
 # 6.0.0 — 2025-12-12
 
 ### Added
