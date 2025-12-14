@@ -171,6 +171,9 @@ function NoteExpansionDialog({
     if (open && observation) {
       setEditText(observation.type === 'lesson' ? '' : (observation.text || ''));
       setEditing(false);
+      setLinkedLessonObservationIds(normalizeLinkedIds(observation?.linkedLessonObservationId));
+      setLinkedLessonTitles({});
+      setLinkedLessonLoading(false);
     }
   }, [open, observation]);
 
@@ -783,48 +786,41 @@ function NoteExpansionDialog({
             )}
 
             {!isLessonObservation && (observation.type === 'text' || observation.type === 'voice') && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Tagged Lesson Notes:
-                </Typography>
-                {linkedLessonObservationIds && linkedLessonObservationIds.length > 0 ? (
-                  linkedLessonObservationIds.map((id) => (
-                    <Button
-                      key={id}
-                      size="small"
-                      variant="outlined"
-                      onClick={() => handleOpenLinkedLesson(id)}
-                      sx={{ 
-                        textTransform: 'none', 
-                        fontWeight: 700,
-                        borderRadius: 999,
-                        px: 1.5,
-                        py: 0.25
-                      }}
-                    >
-                      {linkedLessonLoading && !linkedLessonTitles[id] ? (
-                        <CircularProgress size={12} thickness={5} />
-                      ) : (
-                        linkedLessonTitles[id] ?? 'Untitled lesson'
-                      )}
-                    </Button>
-                  ))
-                ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Typography variant="body2" color="text.secondary">
-                    None
+                    Tagged Lesson Notes:
                   </Typography>
-                )}
+                  {linkedLessonObservationIds && linkedLessonObservationIds.length > 0 ? (
+                    linkedLessonObservationIds.map((id) => (
+                      <Button
+                        key={id}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => handleOpenLinkedLesson(id)}
+                        sx={{ 
+                          textTransform: 'none', 
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          px: 1.5,
+                          py: 0.25
+                        }}
+                      >
+                        {linkedLessonLoading && !linkedLessonTitles[id] ? (
+                          <CircularProgress size={12} thickness={5} />
+                        ) : (
+                          linkedLessonTitles[id] ?? 'Untitled lesson'
+                        )}
+                      </Button>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      None
+                    </Typography>
+                  )}
+                </Box>
                 {isAdminRole(userRole) && canEditObservation(observation, currentUser, userRole) && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<Link sx={{ fontSize: 16 }} />}
-                    onClick={handleOpenTagDialogFromView}
-                    sx={{ textTransform: 'none', borderRadius: 999, px: 1.5, py: 0.25 }}
-                    disabled={linkSaving}
-                  >
-                    Edit
-                  </Button>
+                  <></>
                 )}
               </Box>
             )}
@@ -941,6 +937,19 @@ function NoteExpansionDialog({
               </>
             ) : (
               <>
+                {!isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
+                  <Button
+                    onClick={handleOpenTagDialogFromView}
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<Link />}
+                    fullWidth
+                    sx={{ borderRadius: 2, justifyContent: 'center' }}
+                    disabled={linkSaving}
+                  >
+                    Edit tagged lesson notes
+                  </Button>
+                )}
                 {canReassignObservation(observation, currentUser, userRole) && (
                   <Button 
                     onClick={handleReassignClick} 
