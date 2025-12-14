@@ -63,6 +63,7 @@ function App() {
   const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
   const [studentDashboardNoteType, setStudentDashboardNoteType] = useState('textVoice');
   const [lessonNoteInitialSelection, setLessonNoteInitialSelection] = useState({ classroomId: null, studentId: null });
+  const [lessonNoteEditObservation, setLessonNoteEditObservation] = useState(null);
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
@@ -78,10 +79,20 @@ function App() {
 
   const openLessonNotesScreen = () => {
     setLessonNotesReturnScreen(screen);
+    setLessonNoteEditObservation(null);
     const targetStudentId = selectedStudent?.id || null;
     const targetClassroomId = selectedStudent?.classroomId || selectedClassroom?.id || null;
     setLessonNoteInitialSelection({ classroomId: targetClassroomId, studentId: targetStudentId });
     setScreen('lessonNotes');
+  };
+
+  const handleLessonNotesSaved = (info) => {
+    setLessonNoteEditObservation(null);
+    const targetScreen = lessonNotesReturnScreen || 'timeline';
+    setScreen(targetScreen);
+    if (info?.studentId) {
+      setSelectedStudent((prev) => prev?.id === info.studentId ? prev : { ...(prev || {}), id: info.studentId });
+    }
   };
 
   const openFeedbackWithMessage = (message = '') => {
@@ -95,6 +106,17 @@ function App() {
         const detail = e?.detail || {};
         const studentId = detail.studentId || detail?.student?.id;
         if (!studentId) return;
+        if (detail.lessonEditObservation) {
+          setLessonNotesReturnScreen(screen);
+          setLessonNoteEditObservation(detail.lessonEditObservation);
+          setLessonNoteInitialSelection({
+            classroomId: detail.lessonEditObservation.classroomId || null,
+            studentId,
+          });
+          setSelectedStudent(detail.student || { id: studentId });
+          setScreen('lessonNotes');
+          return;
+        }
         const studentLike = detail.student || { id: studentId };
         setSelectedStudent(studentLike);
         const noteTypeFilter = detail.noteTypeFilter ?? null;
@@ -713,7 +735,12 @@ function App() {
                       userRole={role}
                       initialClassroomId={lessonNoteInitialSelection.classroomId}
                       initialStudentId={lessonNoteInitialSelection.studentId}
-                      onClose={() => setScreen(lessonNotesReturnScreen || 'timeline')}
+                      editObservation={lessonNoteEditObservation}
+                      onClose={() => {
+                        setLessonNoteEditObservation(null);
+                        setScreen(lessonNotesReturnScreen || 'timeline');
+                      }}
+                      onSaved={handleLessonNotesSaved}
                     />
                   )}
 

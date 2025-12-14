@@ -67,7 +67,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   const renderLessonContent = (obs) => {
     const dimensions = getLessonDimensions(obs);
-    const groupDefaults = obs.groupDefaults || {};
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -82,32 +81,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           <Typography variant="body2" color="text.secondary">
             {obs.groupComment}
           </Typography>
-        )}
-        {/* Show group defaults if available */}
-        {Object.keys(groupDefaults).length > 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-              Group Defaults:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {Object.entries(groupDefaults).map(([dimension, rating]) => {
-                const color = LESSON_RATING_COLORS[rating] || '#475569';
-                return (
-                  <Chip
-                    key={`group-default-${dimension}`}
-                    size="small"
-                    label={`${dimension}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
-                    sx={{ 
-                      backgroundColor: `${color}22`, 
-                      color,
-                      border: '1px dashed',
-                      borderColor: color
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
         )}
         {/* Individual ratings */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>

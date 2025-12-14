@@ -36,7 +36,8 @@ import {
   where,
   writeBatch,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
@@ -97,7 +98,8 @@ function LessonNoteWizard({
   onSaved,
   onDirtyChange,
   initialClassroomId = null,
-  initialStudentId = null
+  initialStudentId = null,
+  editObservation = null
 }) {
   const notify = useNotify();
   const [context, setContext] = useState({
@@ -123,6 +125,7 @@ function LessonNoteWizard({
   const [lessonConfig, setLessonConfig] = useState(null);
   const [lessonConfigLoading, setLessonConfigLoading] = useState(true);
   const initialPrefillDoneRef = useRef(false);
+  const editPrefillDoneRef = useRef(false);
 
   const setupRef = useRef(null);
   const defaultsRef = useRef(null);
@@ -234,12 +237,13 @@ function LessonNoteWizard({
 
   // Reset selections when classroom or dimension set changes
   useEffect(() => {
+    if (editObservation) return;
     setSelectedStudents([]);
     setStudentOverrides({});
     setSearchQuery('');
     setAutoScrolled({ defaults: false, overrides: false });
     setStudentsLocked(lessonMode === 'individual');
-  }, [context.classroomId]);
+  }, [context.classroomId, editObservation]);
 
   // Reset defaults when program changes
   const selectedClassroom = useMemo(
@@ -266,17 +270,20 @@ function LessonNoteWizard({
   }, [selectedClassroom?.programId, lessonConfig, dimensionKey]);
 
   useEffect(() => {
+    if (editObservation) return;
     setDimensionDefaults({});
     setStudentOverrides({});
-  }, [dimensionKey]);
+  }, [dimensionKey, editObservation]);
 
   useEffect(() => {
     // Reset lock and scroll anchors when mode changes
+    if (editObservation) return;
     setStudentsLocked(lessonMode === 'individual');
     setAutoScrolled({ defaults: false, overrides: false });
-  }, [lessonMode]);
+  }, [lessonMode, editObservation]);
 
   useEffect(() => {
+    if (editObservation) return;
     // Unlock selection when students change in group mode
     const prev = lastSelectionRef.current.join('|');
     const now = [...selectedStudents].sort().join('|');
@@ -285,10 +292,11 @@ function LessonNoteWizard({
       setAutoScrolled({ defaults: false, overrides: false });
     }
     lastSelectionRef.current = [...selectedStudents].sort();
-  }, [selectedStudents, lessonMode]);
+  }, [selectedStudents, lessonMode, editObservation]);
 
   // Prefill classroom/student when context is known (e.g., student timeline/dashboard/classroom timeline)
   useEffect(() => {
+    if (editObservation) return;
     if (initialPrefillDoneRef.current) return;
 
     const targetStudentId = initialStudentId || null;
@@ -328,7 +336,8 @@ function LessonNoteWizard({
     context.classroomId,
     students,
     selectedStudents,
-    lessonMode
+    lessonMode,
+    editObservation
   ]);
 
   const studentsById = useMemo(
@@ -353,6 +362,41 @@ function LessonNoteWizard({
     if (!context.classroomId) return [];
     return studentsByClassroom[context.classroomId] || [];
   }, [context.classroomId, studentsByClassroom]);
+
+  // Prefill values for editing an existing lesson note
+  useEffect(() => {
+    if (!editObservation || editPrefillDoneRef.current) return;
+    const targetStudentId = editObservation.studentId || editObservation.parentStudentId;
+    if (!targetStudentId) return;
+    const targetStudent = students.find((s) => s.id === targetStudentId);
+    if (!targetStudent) return; // wait for roster
+
+    const targetClassroomId = normalizeClassroomId(editObservation.classroomId) || targetStudent.classroomId || '';
+    setContext((prev) => ({
+      ...prev,
+      classroomId: targetClassroomId || prev.classroomId || '',
+      lessonTitle: editObservation.lessonTitle || '',
+      lessonDescription: editObservation.lessonDescription || '',
+      groupComment: editObservation.groupComment || '',
+    }));
+    setLessonMode('individual');
+    modeLockedRef.current = true;
+    setStudentsLocked(true);
+    setSelectedStudents([targetStudentId]);
+
+    const ratings = editObservation.ratings || {};
+    const defaults = editObservation.groupDefaults || {};
+    setDimensionDefaults(defaults);
+    setStudentOverrides({
+      [targetStudentId]: {
+        dimensions: ratings,
+        comment: editObservation.studentComment || '',
+      }
+    });
+
+    initialPrefillDoneRef.current = true;
+    editPrefillDoneRef.current = true;
+  }, [editObservation, students]);
 
   const searchDisabled = !context.classroomId;
   const searchActive = searchQuery.trim().length > 0 && !searchDisabled;
@@ -393,6 +437,7 @@ function LessonNoteWizard({
       .sort((a, b) => getStudentDisplayName(a).localeCompare(getStudentDisplayName(b)));
   }, [selectedStudents, studentsInClass]);
 
+  const isEditMode = !!editObservation;
   const showDefaults = lessonMode === 'group';
   const effectiveDefaults = showDefaults ? dimensionDefaults : {};
 
@@ -426,6 +471,7 @@ function LessonNoteWizard({
   }, [showOverridesSection, autoScrolled.overrides]);
 
   const toggleLessonMode = (_, next) => {
+    if (isEditMode) return;
     if (!next) return;
     setLessonMode(next);
     modeLockedRef.current = true;
@@ -438,10 +484,12 @@ function LessonNoteWizard({
   };
 
   const handleConfirmStudents = () => {
+    if (isEditMode) return;
     setStudentsLocked(true);
   };
 
   const toggleStudent = (studentId) => {
+    if (isEditMode) return;
     if (lessonMode === 'individual') {
       setSelectedStudents((prev) => (prev.includes(studentId) ? [] : [studentId]));
       return;
@@ -457,6 +505,7 @@ function LessonNoteWizard({
   };
 
   const toggleAliasSelection = (alias) => {
+    if (isEditMode) return;
     if (lessonMode === 'individual') return;
     const members = alias.inClassMembers || [];
     if (members.length === 0) return;
@@ -550,6 +599,10 @@ function LessonNoteWizard({
 
   const handleSave = async () => {
     if (saving) return;
+    if (isEditMode && selectedStudents.length === 0) {
+      notify.warning('Select the student for this lesson note.');
+      return;
+    }
     if (!setupComplete) {
       notify.warning('Add a lesson title, select a classroom, and pick at least one student.');
       return;
@@ -561,60 +614,93 @@ function LessonNoteWizard({
 
     try {
       setSaving(true);
-      const batch = writeBatch(db);
-      const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
-      selectedStudents.forEach((studentId) => {
-        const ratings = {};
-        dimensionList.forEach((dimension) => {
-          const overrideValue = studentOverrides[studentId]?.dimensions?.[dimension];
-          const baseValue = effectiveDefaults[dimension] || 'na';
-          ratings[dimension] = overrideValue || baseValue;
-        });
+      const ratingsForStudent = {};
+      dimensionList.forEach((dimension) => {
+        const overrideValue = studentOverrides[selectedStudents[0]]?.dimensions?.[dimension];
+        const baseValue = effectiveDefaults[dimension] || 'na';
+        ratingsForStudent[dimension] = overrideValue || baseValue;
+      });
 
+      if (isEditMode) {
+        const studentId = selectedStudents[0];
+        const obsId = editObservation?.id;
+        if (!studentId || !obsId) throw new Error('Missing lesson note to edit.');
+        const ref = doc(db, 'students', studentId, 'observations', obsId);
         const payload = {
-          studentId,
           classroomId: context.classroomId,
-          type: 'lesson',
           lessonTitle: context.lessonTitle.trim(),
           lessonDescription: context.lessonDescription.trim() || null,
           groupComment: context.groupComment.trim() || null,
           programId: selectedClassroom?.programId || null,
           dimensionOrder: dimensionList,
-          ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
-          ratings,
+          groupDefaults: effectiveDefaults,
+          ratings: ratingsForStudent,
           studentComment: studentOverrides[studentId]?.comment?.trim() || null,
-          attendanceStatus: 'present',
-          lessonMode,
-          ...(groupId ? { groupId } : {}),
-          createdBy: currentUser?.uid || 'unknown',
-          createdByName: currentUser?.displayName || 'Unknown Teacher',
-          createdByEmail: currentUser?.email || 'unknown@email.com',
-          observedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          lessonMode: 'individual',
+          updatedAt: serverTimestamp(),
+          lastEditedBy: currentUser?.uid || null,
+          lastEditedAt: serverTimestamp(),
         };
+        await updateDoc(ref, payload);
+        notify.success('Lesson note updated.');
+        setIsDirty(false);
+        onSaved?.({ observationId: obsId, studentId });
+      } else {
+        const batch = writeBatch(db);
+        const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
+        selectedStudents.forEach((studentId) => {
+          const ratings = {};
+          dimensionList.forEach((dimension) => {
+            const overrideValue = studentOverrides[studentId]?.dimensions?.[dimension];
+            const baseValue = effectiveDefaults[dimension] || 'na';
+            ratings[dimension] = overrideValue || baseValue;
+          });
 
-        const cleaned = Object.fromEntries(
-          Object.entries(payload).filter(([, value]) => value !== undefined && value !== null)
-        );
+          const payload = {
+            studentId,
+            classroomId: context.classroomId,
+            type: 'lesson',
+            lessonTitle: context.lessonTitle.trim(),
+            lessonDescription: context.lessonDescription.trim() || null,
+            groupComment: context.groupComment.trim() || null,
+            programId: selectedClassroom?.programId || null,
+            dimensionOrder: dimensionList,
+            ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
+            ratings,
+            studentComment: studentOverrides[studentId]?.comment?.trim() || null,
+            attendanceStatus: 'present',
+            lessonMode,
+            ...(groupId ? { groupId } : {}),
+            createdBy: currentUser?.uid || 'unknown',
+            createdByName: currentUser?.displayName || 'Unknown Teacher',
+            createdByEmail: currentUser?.email || 'unknown@email.com',
+            observedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
 
-        const docRef = doc(collection(db, 'students', studentId, 'observations'));
-        batch.set(docRef, cleaned);
-      });
-      await batch.commit();
-      const firstStudentId = selectedStudents[0];
-      notify.success(`Lesson note saved for ${selectedStudents.length} students.`, {
-        actionLabel: firstStudentId ? 'View Note' : undefined,
-        onUndo: firstStudentId
-          ? () => {
-              window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                detail: { studentId: firstStudentId, noteTypeFilter: 'lesson' }
-              }));
-            }
-          : undefined
-      });
-      setIsDirty(false);
-      onSaved?.();
+          const cleaned = Object.fromEntries(
+            Object.entries(payload).filter(([, value]) => value !== undefined && value !== null)
+          );
+
+          const docRef = doc(collection(db, 'students', studentId, 'observations'));
+          batch.set(docRef, cleaned);
+        });
+        await batch.commit();
+        const firstStudentId = selectedStudents[0];
+        notify.success(`Lesson note saved for ${selectedStudents.length} students.`, {
+          actionLabel: firstStudentId ? 'View Note' : undefined,
+          onUndo: firstStudentId
+            ? () => {
+                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                  detail: { studentId: firstStudentId, noteTypeFilter: 'lesson' }
+                }));
+              }
+            : undefined
+        });
+        setIsDirty(false);
+        onSaved?.();
+      }
     } catch (error) {
       console.error('Error saving lesson note', error);
       notify.error('Unable to save lesson note. Please try again.');
@@ -646,16 +732,18 @@ function LessonNoteWizard({
 
   const renderStudentRow = (student, { dense = false, disabled = false } = {}) => {
     const checked = selectedStudents.includes(student.id);
+    const isDisabled = disabled || isEditMode;
     return (
       <ListItem
         key={student.id}
         button
-        disabled={disabled}
-        onClick={() => !disabled && toggleStudent(student.id)}
+        disabled={isDisabled}
+        onClick={() => !isDisabled && toggleStudent(student.id)}
         sx={{
           px: dense ? 1 : 1.5,
           py: dense ? 0.5 : 1,
           borderRadius: 1,
+          opacity: isDisabled ? 0.6 : 1,
           '&:hover': { backgroundColor: '#f8fafc' }
         }}
       >
@@ -692,6 +780,14 @@ function LessonNoteWizard({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {isEditMode && (
+        <Chip
+          label="Editing existing lesson note"
+          color="warning"
+          size="small"
+          sx={{ alignSelf: 'flex-start' }}
+        />
+      )}
       <Paper id={SECTION_IDS.setup} ref={setupRef} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box>
@@ -707,6 +803,7 @@ function LessonNoteWizard({
             exclusive
             onChange={toggleLessonMode}
             size="small"
+            disabled={isEditMode}
           >
             <ToggleButton value="individual">Individual</ToggleButton>
             <ToggleButton value="group">Group</ToggleButton>
@@ -1112,7 +1209,7 @@ function LessonNoteWizard({
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={saving || !showOverridesSection}
+          disabled={saving || !showOverridesSection || !isDirty}
         >
           {saving ? 'Saving…' : 'Save Lesson Note'}
         </Button>

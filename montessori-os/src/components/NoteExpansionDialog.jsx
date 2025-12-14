@@ -125,7 +125,6 @@ function NoteExpansionDialog({
   const renderLessonDetail = () => {
     if (!observation) return null;
     const dimensions = getLessonDimensions(observation);
-    const groupDefaults = observation.groupDefaults || {};
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -140,32 +139,6 @@ function NoteExpansionDialog({
           <Typography variant="body2" color="text.secondary">
             {observation.groupComment}
           </Typography>
-        )}
-        {/* Show group defaults if available */}
-        {Object.keys(groupDefaults).length > 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-              Group Defaults:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {Object.entries(groupDefaults).map(([dimension, rating]) => {
-                const color = LESSON_RATING_COLORS[rating] || '#475569';
-                return (
-                  <Chip
-                    key={`group-default-${dimension}`}
-                    size="small"
-                    label={`${dimension}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
-                    sx={{ 
-                      backgroundColor: `${color}22`, 
-                      color,
-                      border: '1px dashed',
-                      borderColor: color
-                    }}
-                  />
-                );
-              })}
-            </Box>
-          </Box>
         )}
         {/* Individual ratings */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -427,6 +400,27 @@ function NoteExpansionDialog({
       setEditText(observation.text || '');
       setEditing(true);
     }
+  };
+
+  const handleEditLessonNavigate = () => {
+    if (!observation || observation.type !== 'lesson') return;
+    if (!canEditObservation(observation, currentUser, userRole)) {
+      notify.error('You can only edit lesson notes you created.');
+      return;
+    }
+    const targetStudentId = observation.parentStudentId || observation.studentId || student?.id;
+    const targetClassroomId = observation.classroomId || student?.classroomId || null;
+    try {
+      window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+        detail: {
+          studentId: targetStudentId,
+          noteTypeFilter: 'lesson',
+          lessonEditObservation: { ...observation, studentId: targetStudentId, classroomId: targetClassroomId },
+          returnScreen: isClassroomContext ? 'classroomTimeline' : 'timeline',
+        }
+      }));
+    } catch (_) { /* noop */ }
+    handleCloseDialog();
   };
 
   const handleOpenLinkedLesson = (lessonObservationId) => {
@@ -957,6 +951,18 @@ function NoteExpansionDialog({
                     sx={{ borderRadius: 2, justifyContent: 'center' }}
                   >
                     Reassign
+                  </Button>
+                )}
+                {isLessonObservation && canEditObservation(observation, currentUser, userRole) && observation.createdBy === currentUser?.uid && (
+                  <Button
+                    onClick={handleEditLessonNavigate}
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<Edit />}
+                    fullWidth
+                    sx={{ borderRadius: 2, justifyContent: 'center' }}
+                  >
+                    Edit
                   </Button>
                 )}
                 {canDeleteObservation(observation, currentUser, userRole) && (

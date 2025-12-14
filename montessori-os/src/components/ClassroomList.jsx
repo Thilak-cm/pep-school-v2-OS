@@ -16,7 +16,6 @@ import {
 import { School, Group, ArrowForward, Search, Person, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
-import { genericFuzzySearch } from '../utils/fuzzySearch';
 
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -361,9 +360,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
   const classroomResults = useMemo(() => {
     if (!trimmedSearchQuery) return sortedClassrooms;
-    return genericFuzzySearch(sortedClassrooms, trimmedSearchQuery, [
-      { name: 'name', weight: 1 },
-    ]);
+    const q = trimmedSearchQuery.toLowerCase();
+    return sortedClassrooms.filter((cls) => (cls?.name || '').toLowerCase().includes(q));
   }, [sortedClassrooms, trimmedSearchQuery]);
 
   const classroomProgramLookup = useMemo(() => {
@@ -417,14 +415,13 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
   }, [allStudents]);
 
   const studentResults = useMemo(() => {
-    const keys = [
-      { name: 'displayName', weight: 1 },
-      { name: 'name', weight: 1 },
-      { name: 'firstName', weight: 0.9 },
-      { name: 'lastName', weight: 0.9 },
-    ];
-    const results = genericFuzzySearch(allStudents, trimmedSearchQuery, keys);
-    return [...results].sort((a, b) =>
+    if (!trimmedSearchQuery) return allStudents;
+    const q = trimmedSearchQuery.toLowerCase();
+    const filtered = allStudents.filter((stu) => {
+      const name = getStudentName(stu).toLowerCase();
+      return name.includes(q);
+    });
+    return filtered.sort((a, b) =>
       getStudentName(a).localeCompare(getStudentName(b), undefined, { sensitivity: 'base' })
     );
   }, [allStudents, trimmedSearchQuery]);

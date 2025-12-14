@@ -2,7 +2,7 @@ import React from 'react';
 import { Box } from '@mui/material';
 import LessonNotes from './LessonNotes';
 
-function LessonNotesPage({ currentUser, userRole, onClose, initialClassroomId = null, initialStudentId = null }) {
+function LessonNotesPage({ currentUser, userRole, onClose, onSaved, initialClassroomId = null, initialStudentId = null, editObservation = null }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 4 } }}>
@@ -11,8 +11,9 @@ function LessonNotesPage({ currentUser, userRole, onClose, initialClassroomId = 
           userRole={userRole}
           initialClassroomId={initialClassroomId}
           initialStudentId={initialStudentId}
+          editObservation={editObservation}
           onCancel={onClose}
-          onSaved={onClose}
+          onSaved={onSaved || onClose}
         />
       </Box>
     </Box>
