@@ -95,14 +95,16 @@ function LessonNoteWizard({
   userRole,
   onCancel,
   onSaved,
-  onDirtyChange
+  onDirtyChange,
+  initialClassroomId = null,
+  initialStudentId = null
 }) {
   const notify = useNotify();
   const [context, setContext] = useState({
     lessonTitle: '',
     lessonDescription: '',
     groupComment: '',
-    classroomId: ''
+    classroomId: initialClassroomId || ''
   });
   const [lessonMode, setLessonMode] = useState('individual'); // 'individual' | 'group'
   const [classrooms, setClassrooms] = useState([]);
@@ -120,6 +122,7 @@ function LessonNoteWizard({
   const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
   const [lessonConfig, setLessonConfig] = useState(null);
   const [lessonConfigLoading, setLessonConfigLoading] = useState(true);
+  const initialPrefillDoneRef = useRef(false);
 
   const setupRef = useRef(null);
   const defaultsRef = useRef(null);
@@ -283,6 +286,50 @@ function LessonNoteWizard({
     }
     lastSelectionRef.current = [...selectedStudents].sort();
   }, [selectedStudents, lessonMode]);
+
+  // Prefill classroom/student when context is known (e.g., student timeline/dashboard/classroom timeline)
+  useEffect(() => {
+    if (initialPrefillDoneRef.current) return;
+
+    const targetStudentId = initialStudentId || null;
+    const targetStudent = targetStudentId
+      ? students.find((s) => s.id === targetStudentId)
+      : null;
+    if (targetStudentId && !targetStudent) return; // wait for roster to load
+
+    const targetClassroomId = targetStudent
+      ? normalizeClassroomId(targetStudent.classroomId) || initialClassroomId || null
+      : initialClassroomId || null;
+
+    // Ensure classroom is applied first so dependent UI unlocks
+    if (targetClassroomId && context.classroomId !== targetClassroomId) {
+      setContext((prev) => ({ ...prev, classroomId: targetClassroomId }));
+      return;
+    }
+
+    // When a specific student is provided, default to individual mode
+    if (targetStudentId && lessonMode !== 'individual') {
+      setLessonMode('individual');
+      setStudentsLocked(true);
+    }
+
+    // Apply student selection once classroom is aligned (if provided)
+    if (targetStudent && !selectedStudents.includes(targetStudent.id)) {
+      setSelectedStudents([targetStudent.id]);
+      setStudentsLocked(lessonMode === 'individual');
+    }
+
+    if (targetClassroomId || targetStudentId) {
+      initialPrefillDoneRef.current = true;
+    }
+  }, [
+    initialClassroomId,
+    initialStudentId,
+    context.classroomId,
+    students,
+    selectedStudents,
+    lessonMode
+  ]);
 
   const studentsById = useMemo(
     () => Object.fromEntries(students.map((stu) => [stu.id, stu])),

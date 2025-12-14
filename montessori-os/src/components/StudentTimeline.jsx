@@ -17,7 +17,6 @@ import {
   Tab
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download } from '@mui/icons-material';
-import CopyToClipboardButton from './CopyToClipboardButton';
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -32,11 +31,12 @@ import {
   NOTE_KIND
 } from '../utils/export';
 import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
-import { 
+import {
   getLessonDimensions, 
   LESSON_RATING_LABELS, 
   LESSON_RATING_COLORS
 } from '../utils/lessonNoteConstraints';
+import { MenuBook } from '@mui/icons-material';
 import ExportWizard from './ExportWizard';
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
@@ -154,6 +154,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return d && d >= sevenDaysAgo;
     }).length;
     return { totalNotes: total, notesLast7Days: recent };
+  }, [observations]);
+
+  const lessonTitleById = useMemo(() => {
+    const map = {};
+    (observations || []).forEach((obs) => {
+      if (obs?.type === 'lesson') {
+        map[obs.id] = obs.lessonTitle || 'Lesson note';
+      }
+    });
+    return map;
   }, [observations]);
 
   // Use the filter hook instead of local state
@@ -635,8 +645,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       }}
                       aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
                     >
-                      {/* Note Type Indicator - Top Right */}
-                      {(() => {
+                      {/* Note Type Indicator - only needed when mixing note kinds (lesson tab) */}
+                      {activeNoteType === 'lesson' && (() => {
                         const icon = getObservationTypeIcon(obs.type);
                         const label = getObservationTypeText(obs.type);
                         return (
@@ -660,16 +670,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           </Box>
                         );
                       })()}
-                      {/* Copy button overlay - subtle, does not interfere with card click */}
-                      {obs.type !== 'lesson' && obs.text && (
-                        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
-                          <CopyToClipboardButton
-                            text={obs.text}
-                            size="small"
-                            ariaLabel="Copy note text"
-                          />
-                        </Box>
-                      )}
                       <CardContent sx={{ p: 2 }}>
                         {(() => {
                           const isLesson = obs.type === 'lesson';
@@ -691,6 +691,22 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                   <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                     {obs.text || '(transcribing…)'}
                                   </Typography>
+                                  {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                        Tagged Lesson Notes:
+                                      </Typography>
+                                      {(obs.linkedLessonObservationId || []).map((id) => (
+                                        <Chip
+                                          key={id}
+                                          size="small"
+                                          variant="outlined"
+                                          label={lessonTitleById[id] || 'Lesson note'}
+                                          sx={{ borderRadius: 999 }}
+                                        />
+                                      ))}
+                                    </Box>
+                                  )}
                                 </>
                               )}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>

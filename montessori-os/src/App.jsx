@@ -62,6 +62,7 @@ function App() {
   const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
   const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
   const [studentDashboardNoteType, setStudentDashboardNoteType] = useState('textVoice');
+  const [lessonNoteInitialSelection, setLessonNoteInitialSelection] = useState({ classroomId: null, studentId: null });
 
   // Global navigation: allow notifications to navigate to a student's Notes page
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
@@ -77,6 +78,9 @@ function App() {
 
   const openLessonNotesScreen = () => {
     setLessonNotesReturnScreen(screen);
+    const targetStudentId = selectedStudent?.id || null;
+    const targetClassroomId = selectedStudent?.classroomId || selectedClassroom?.id || null;
+    setLessonNoteInitialSelection({ classroomId: targetClassroomId, studentId: targetStudentId });
     setScreen('lessonNotes');
   };
 
@@ -707,6 +711,8 @@ function App() {
                     <LessonNotesPage
                       currentUser={user}
                       userRole={role}
+                      initialClassroomId={lessonNoteInitialSelection.classroomId}
+                      initialStudentId={lessonNoteInitialSelection.studentId}
                       onClose={() => setScreen(lessonNotesReturnScreen || 'timeline')}
                     />
                   )}

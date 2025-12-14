@@ -43,7 +43,6 @@ import {
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
-import CopyToClipboardButton from './CopyToClipboardButton';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import FilterPanel from './FilterPanel';
@@ -640,6 +639,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return groups;
   }, [groupedAndSortedObservations, displayedNotesCount]);
 
+  const lessonTitleById = useMemo(() => {
+    const map = {};
+    (classroomNotes || []).forEach((note) => {
+      if (note?.type === 'lesson') {
+        map[note.id] = note.lessonTitle || 'Lesson note';
+      }
+    });
+    return map;
+  }, [classroomNotes]);
+
 
   if (loading) {
     return (
@@ -1158,19 +1167,9 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         },
         transition: 'all 0.2s ease-in-out',
         position: 'relative',
-        border: '2px solid #c7d2fe',
-        backgroundColor: '#f0f4ff',
-        borderRadius: 2,
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '4px',
-          height: '100%',
-          backgroundColor: '#4f46e5',
-          borderRadius: '2px 0 0 2px'
-        }
+        border: '1px solid #e2e8f0',
+        backgroundColor: 'white',
+        borderRadius: 2
       }}
       aria-label={`View details for observation from ${formatTimestamp(note.observedAt || note.timestamp)}`}
       onClick={onNoteClick}
@@ -1195,17 +1194,6 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         </Typography>
       </Box>
 
-      {/* Copy button overlay */}
-      {note.type !== 'lesson' && note.text && (
-        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
-          <CopyToClipboardButton
-            text={note.text}
-            size="small"
-            ariaLabel="Copy note text"
-          />
-        </Box>
-      )}
-
       <CardContent sx={{ p: 2, pl: 3 }}>
         {/* Student Names - Prominent, condensed, clickable */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -1229,6 +1217,22 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
           <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {note.text || '(transcribing…)'}
           </Typography>
+        )}
+        {!isLesson && Array.isArray(note.linkedLessonObservationId) && note.linkedLessonObservationId.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              Tagged Lesson Notes:
+            </Typography>
+            {(note.linkedLessonObservationId || []).map((id) => (
+              <Chip
+                key={id}
+                size="small"
+                variant="outlined"
+                label={lessonTitleById[id] || 'Lesson note'}
+                sx={{ borderRadius: 999 }}
+              />
+            ))}
+          </Box>
         )}
         
         {/* Timestamp */}
@@ -1788,17 +1792,6 @@ function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
           {noteTypeInfo.type}
         </Typography>
       </Box>
-
-      {/* Copy button overlay - subtle utility near type badge */}
-      {note.type !== 'lesson' && note.text && (
-        <Box sx={{ position: 'absolute', top: 40, right: 8 }}>
-          <CopyToClipboardButton
-            text={note.text}
-            size="small"
-            ariaLabel="Copy note text"
-          />
-        </Box>
-      )}
 
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}

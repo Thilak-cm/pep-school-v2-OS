@@ -30,7 +30,6 @@ import {
   MenuBook,
   Link
 } from '@mui/icons-material';
-import CopyToClipboardButton from './CopyToClipboardButton';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { 
   doc, 
@@ -714,14 +713,6 @@ function NoteExpansionDialog({
                   <Edit fontSize="small" />
                 </IconButton>
               )}
-              {/* Copy button - unobtrusive, near the title controls */}
-              {!!observation.text && !isLessonObservation && (
-                <CopyToClipboardButton 
-                  text={observation.text}
-                  ariaLabel="Copy note text"
-                  size="small"
-                />
-              )}
               <IconButton
                 aria-label="Close dialog"
                 onClick={handleCloseDialog}
@@ -869,17 +860,6 @@ function NoteExpansionDialog({
                   Assigned To: {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                 </Typography>
               </Box>
-              {canReassignObservation(observation, currentUser, userRole) && (
-                <Button 
-                  onClick={handleReassignClick} 
-                  size="small"
-                  variant="outlined" 
-                  color="secondary"
-                  startIcon={<SwapHoriz />}
-                >
-                  Reassign
-                </Button>
-              )}
             </Box>
 
             {/* Show previous classroom info if note was logged from a different classroom */}
@@ -942,8 +922,8 @@ function NoteExpansionDialog({
             </Box>
           </Box>
         </DialogContent>
-        {(editing || canDeleteObservation(observation, currentUser, userRole)) && (
-          <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+        {(editing || canDeleteObservation(observation, currentUser, userRole) || canReassignObservation(observation, currentUser, userRole)) && (
+          <DialogActions sx={{ px: 3, pb: 3, gap: 2, flexDirection: 'column', alignItems: 'stretch' }}>
             {editing ? (
               <>
                 <Button 
@@ -966,17 +946,32 @@ function NoteExpansionDialog({
                 </Button>
               </>
             ) : (
-              canDeleteObservation(observation, currentUser, userRole) && (
-                <Button 
-                  onClick={handleDeleteClick} 
-                  variant="outlined" 
-                  color="error"
-                  startIcon={<Delete />}
-                  fullWidth
-                >
-                  Delete
-                </Button>
-              )
+              <>
+                {canReassignObservation(observation, currentUser, userRole) && (
+                  <Button 
+                    onClick={handleReassignClick} 
+                    variant="outlined" 
+                    color="secondary"
+                    startIcon={<SwapHoriz />}
+                    fullWidth
+                    sx={{ borderRadius: 2, justifyContent: 'center' }}
+                  >
+                    Reassign
+                  </Button>
+                )}
+                {canDeleteObservation(observation, currentUser, userRole) && (
+                  <Button 
+                    onClick={handleDeleteClick} 
+                    variant="outlined" 
+                    color="error"
+                    startIcon={<Delete />}
+                    fullWidth
+                    sx={{ borderRadius: 2, justifyContent: 'center' }}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </>
             )}
           </DialogActions>
         )}
