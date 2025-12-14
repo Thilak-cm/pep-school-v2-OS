@@ -1386,6 +1386,11 @@ async function writeBaseballCardDoc(studentId, payload) {
   await ref.set(payload);
 }
 
+async function fetchActiveStudentIds() {
+  const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
+  return studentsSnap.docs.map((doc) => doc.id);
+}
+
 async function runWithConcurrency(items, worker, limit = 10) {
   const queue = [...items];
   const workers = new Array(Math.min(limit, queue.length)).fill(null).map(async () => {
@@ -1402,10 +1407,164 @@ async function runWithConcurrency(items, worker, limit = 10) {
   await Promise.all(workers);
 }
 
+async function runBaseballCards({
+  studentIds,
+  config,
+  prompt,
+  windowDays,
+  dryRun = false,
+  collectResults = false,
+  concurrency = 12,
+}) {
+  const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
+  if (!dryRun) {
+    console.log(`[baseballCard] running for ${ids.length} student(s)`);
+  }
+  const results = [];
+  const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : config.windowDays;
+
+  await runWithConcurrency(ids, async (studentId) => {
+    try {
+      const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
+
+      if (!notes.length) {
+        const payload = {
+          bullets: [],
+          lessonSummary: "",
+          noteCount: 0,
+          windowDays: effectiveWindowDays,
+          timezone: config.timezone,
+          model: config.model,
+          temperature: config.temperature,
+          promptVersion: prompt.version || null,
+          generatedAt: new Date(),
+          status: "no_notes",
+        };
+        if (dryRun && collectResults) {
+          results.push({ studentId, status: "no_notes", payload });
+        } else if (!dryRun) {
+          await writeBaseballCardDoc(studentId, payload);
+        }
+        return;
+      }
+
+      const formatted = notes.map(formatObservationForPrompt);
+      const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays);
+
+      const payload = {
+        bullets: aiResult.bullets,
+        lessonSummary: aiResult.lessonSummary,
+        noteCount: formatted.length,
+        windowDays: effectiveWindowDays,
+        timezone: config.timezone,
+        model: config.model,
+        temperature: config.temperature,
+        promptVersion: prompt.version || null,
+        generatedAt: new Date(),
+        status: "ok",
+        sourceNoteIds: formatted.map((n) => n.id).filter(Boolean),
+        rawContent: aiResult.rawContent,
+      };
+
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "ok", payload });
+      } else if (!dryRun) {
+        await writeBaseballCardDoc(studentId, payload);
+      }
+    } catch (err) {
+      console.error(`[baseballCard] run failed for student ${studentId}`, err);
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+    }
+  }, concurrency);
+
+  return results;
+}
+
+export const previewBaseballCard = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can preview baseball cards");
+    }
+
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getBaseballCardConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getBaseballCardPrompt({ forceRefresh: !!data?.forceRefresh });
+
+    const windowDaysInput = Number(data?.windowDays);
+    const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
+      ? windowDaysInput
+      : baseConfig.windowDays;
+
+    const mergedConfig = {
+      model: data?.config?.model || baseConfig.model,
+      temperature: Number.isFinite(Number(data?.config?.temperature))
+        ? Number(data?.config?.temperature)
+        : baseConfig.temperature,
+      max_tokens: Number.isFinite(Number(data?.config?.max_tokens))
+        ? Number(data?.config?.max_tokens)
+        : baseConfig.max_tokens,
+      timezone: data?.config?.timezone || baseConfig.timezone,
+    };
+
+    const systemPrompt = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
+      ? data.systemPrompt
+      : (basePrompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK);
+    const promptPayload = { ...basePrompt, systemPrompt };
+
+    const results = await runBaseballCards({
+      studentIds: [studentId],
+      config: mergedConfig,
+      prompt: promptPayload,
+      windowDays,
+      dryRun: true,
+      collectResults: true,
+      concurrency: 1,
+    });
+
+    const result = results?.[0];
+    if (!result) {
+      throw new functions.https.HttpsError("internal", "No result returned");
+    }
+
+    if (result.status === "error") {
+      throw new functions.https.HttpsError("internal", result.error || "Failed to generate baseball card preview");
+    }
+
+    return {
+      status: result.status,
+      noteCount: result.payload?.noteCount ?? 0,
+      windowDays: result.payload?.windowDays ?? windowDays,
+      usedConfig: mergedConfig,
+      usedPrompt: promptPayload,
+      bullets: result.payload?.bullets,
+      lessonSummary: result.payload?.lessonSummary,
+      rawContent: result.payload?.rawContent,
+      generatedAt: result.payload?.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
 export const generateBaseballCards = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 540, memory: "1GB" })
-  .pubsub.schedule("0 0 * * *")
+  .pubsub.schedule("0 0 * * 0")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
     if (!OPENAI_API_KEY) {
@@ -1416,55 +1575,16 @@ export const generateBaseballCards = functions
     const config = await getBaseballCardConfigServer();
     const prompt = await getBaseballCardPrompt();
 
-    const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
-    const students = studentsSnap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
-    console.log(`[baseballCard] generating for ${students.length} active students`);
+    console.log("[baseballCard] generating for active students");
 
-    await runWithConcurrency(students, async (student) => {
-      const notes = await fetchStudentNotesForWindow(student.id, config.windowDays);
-
-      if (!notes.length) {
-        const payload = {
-          bullets: [],
-          lessonSummary: "",
-          noteCount: 0,
-          windowDays: config.windowDays,
-          timezone: config.timezone,
-          model: config.model,
-          temperature: config.temperature,
-          promptVersion: prompt.version || null,
-          generatedAt: new Date(),
-          status: "no_notes",
-        };
-        await writeBaseballCardDoc(student.id, payload);
-        return;
-      }
-
-      const formatted = notes.map(formatObservationForPrompt);
-      let aiResult;
-      try {
-        aiResult = await callBaseballCard(formatted, config, prompt, config.windowDays);
-      } catch (err) {
-        console.error(`[baseballCard] student ${student.id} AI error`, err);
-        return;
-      }
-
-      const payload = {
-        bullets: aiResult.bullets,
-        lessonSummary: aiResult.lessonSummary,
-        noteCount: formatted.length,
-        windowDays: config.windowDays,
-        timezone: config.timezone,
-        model: config.model,
-        temperature: config.temperature,
-        promptVersion: prompt.version || null,
-        generatedAt: new Date(),
-        status: "ok",
-        sourceNoteIds: formatted.map((n) => n.id).filter(Boolean),
-      };
-
-      await writeBaseballCardDoc(student.id, payload);
-    }, 12);
+    await runBaseballCards({
+      config,
+      prompt,
+      windowDays: config.windowDays,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 12,
+    });
 
     console.log("[baseballCard] generation run complete");
     return null;
