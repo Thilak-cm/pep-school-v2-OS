@@ -1,5 +1,16 @@
 # Changelog
 
+# 6.0.3 — 2025-12-15
+
+### Added
+- Lesson notes can now be edited via Note Expansion, rerouting to the Lesson Notes page with prefilled data, locked student selection, and an edit-mode chip; authors-only edit control.
+
+### Changed
+- Student views (timeline and note expansion) no longer show group defaults for lesson notes.
+- ClassroomList search now uses simple substring matching instead of fuzzy search.
+- Dashboard/prompt tweaks: bottom-placed Save button for Baseball Card config, updated subtitles, and disabled save until changes exist.
+- Playground output favors raw LLM content with wrapping; stats card click now navigates reliably.
+
 # 6.0.2 — 2025-12-14
 
 ### Changed
