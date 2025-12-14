@@ -276,63 +276,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
 
       <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Baseball Card Config
-          </Typography>
-          <Box
-            sx={{
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 2,
-              p: 2
-            }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                Model Configuration
-              </Typography>
-            </Stack>
-            <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 500 }}>
-              Model: {config.model} • Temperature: {config.temperature} • Max tokens: {Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens}
-            </Typography>
-          </Box>
-
-          <Stack spacing={2}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              alignItems={{ xs: 'flex-start', sm: 'flex-start' }}
-            >
-              <TextField
-                label="Window (days)"
-                type="number"
-                inputProps={{ min: 1 }}
-                value={config.windowDays}
-                onChange={(e) => setConfig((prev) => ({ ...prev, windowDays: Number(e.target.value) }))}
-                InputProps={{
-                  readOnly: !editingConfig,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Button
-                        size="small"
-                        variant={editingConfig ? 'outlined' : 'text'}
-                        onClick={() => setEditingConfig((prev) => !prev)}
-                        sx={{ textTransform: 'none', minWidth: 72 }}
-                      >
-                        {editingConfig ? 'Done' : 'Edit'}
-                      </Button>
-                    </InputAdornment>
-                  )
-                }}
-                fullWidth
-              />
-            </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               System Prompt
@@ -402,22 +345,16 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
           </Box>
 
           <Divider sx={{ my: 1 }} />
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
-            <Button variant="contained" onClick={handleSave} disabled={saving} startIcon={saving ? <CircularProgress size={18} /> : null}>
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </Stack>
         </CardContent>
       </Card>
 
       <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Baseball Card Sandbox
+            Baseball Card Playground
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Test the baseball card with the in-progress prompt/config above. Runs are sandboxed and do not save.
+            Test the baseball card with the in-progress prompt/config. Runs are sandboxed and do not save. Edits are permanent only when saved.
           </Typography>
 
           <Stack spacing={2}>
@@ -491,18 +428,18 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
               />
             </Stack>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-              <Button
-                variant="contained"
-                onClick={handleRunPlayground}
-                disabled={playgroundRunning || !selectedStudent}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+            <Button
+              variant="contained"
+              onClick={handleRunPlayground}
+              disabled={playgroundRunning || !selectedStudent}
                 startIcon={playgroundRunning ? <CircularProgress size={18} /> : null}
                 sx={{ minWidth: 160 }}
               >
                 {playgroundRunning ? 'Running…' : 'Run preview'}
               </Button>
               <Typography variant="body2" color="text.secondary">
-                Uses the current prompt above (including any unsaved edits).
+                Raw LLM response:
               </Typography>
             </Stack>
 
@@ -519,16 +456,26 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
                   border: '1px solid #e2e8f0',
                   borderRadius: 2,
                   backgroundColor: '#f8fafc',
-                  fontFamily: 'ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                  fontFamily: 'ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word'
                 }}
                 component="pre"
               >
-                {JSON.stringify(playgroundResult, null, 2)}
+                {typeof playgroundResult.rawContent === 'string' && playgroundResult.rawContent.trim().length > 0
+                  ? playgroundResult.rawContent
+                  : JSON.stringify(playgroundResult, null, 2)}
               </Box>
             )}
           </Stack>
         </CardContent>
       </Card>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end" sx={{ mt: -1 }}>
+        <Button variant="contained" onClick={handleSave} disabled={saving} startIcon={saving ? <CircularProgress size={18} /> : null}>
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+      </Stack>
     </Box>
   );
 }
