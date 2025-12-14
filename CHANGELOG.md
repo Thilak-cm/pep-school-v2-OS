@@ -1,5 +1,13 @@
 # Changelog
 
+# 6.0.2 — 2025-12-14
+
+### Changed
+- Baseball Card config UI simplified: removed the top model/config summary card, moved the Save action to the page footer, and the prompt card stands alone.
+- Playground UX: student selection is now a dropdown, model is read-only, timezone is hidden, and the run summary callout shows the exact student/window days used.
+- Playground output shows raw LLM response with wrapping to avoid horizontal scroll; structured JSON remains as a fallback only.
+- Backend baseball-card generation now uses a shared `runBaseballCards` helper for both the weekly scheduled job and the single-student preview callable.
+
 # 6.0.1 — 2025-12-14
 
 ### Changed
