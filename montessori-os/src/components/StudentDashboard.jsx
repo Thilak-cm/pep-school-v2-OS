@@ -227,9 +227,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-          What’s been happening
-        </Typography>
+        {cardData.lessonSummary && (
+          <Typography variant="body2" sx={{ color: '#334155' }}>
+            {cardData.lessonSummary}
+          </Typography>
+        )}
         {Array.isArray(cardData.bullets) && cardData.bullets.length > 0 ? (
           <Box component="ul" sx={{ pl: 2, m: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
             {cardData.bullets.map((b, idx) => (
@@ -243,11 +245,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             No bullets returned.
           </Typography>
         )}
-        {cardData.lessonSummary && (
-          <Typography variant="body2" sx={{ color: '#334155' }}>
-            {cardData.lessonSummary}
-          </Typography>
-        )}
       </Box>
     );
   };
@@ -258,10 +255,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         sx={{
           borderRadius: 2,
           border: '1px solid #e2e8f0',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)'
+          background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)',
+          maxHeight: '60vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}
       >
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
@@ -278,7 +279,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             </Box>
           </Box>
 
-          {renderBaseballCardBody()}
+          <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
+            {renderBaseballCardBody()}
+          </Box>
         </CardContent>
       </Card>
 
