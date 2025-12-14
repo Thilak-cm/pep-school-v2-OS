@@ -9,7 +9,8 @@ import {
   CardActionArea,
   Button,
   Skeleton,
-  Stack
+  Stack,
+  Alert
 } from '@mui/material';
 import {
   Notes as NotesIcon,
@@ -20,15 +21,17 @@ import {
   ErrorOutline
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import NewFeaturePill from './NewFeaturePill';
 function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
+  const [currentRole, setCurrentRole] = useState(null);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -36,6 +39,25 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   };
 
   const studentId = student?.id || student?.uid || null;
+  const isSuperAdmin = currentRole === 'superadmin';
+
+  useEffect(() => {
+    let active = true;
+    const loadRole = async () => {
+      try {
+        const uid = auth?.currentUser?.uid;
+        if (!uid) return;
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!active) return;
+        setCurrentRole(snap.exists() ? (snap.data()?.role || null) : null);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to load user role', err);
+      }
+    };
+    loadRole();
+    return () => { active = false; };
+  }, []);
 
   // Load baseball card config (windowDays, model, etc.)
   useEffect(() => {
@@ -153,6 +175,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
 
   const renderBaseballCardBody = () => {
+    if (!isSuperAdmin) {
+      return (
+        <Box sx={{ mt: 1 }}>
+          <NewFeaturePill label="Feature coming soon!" />
+        </Box>
+      );
+    }
+
     if (cardLoading) {
       return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
@@ -190,7 +220,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     if (isNoNotes) {
       return (
         <Typography variant="body2" color="error">
-          Oh no, no notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
+          No notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
         </Typography>
       );
     }
@@ -242,7 +272,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                   Coach Pepper’s summary
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
-                  Snapshot of the last {cardWindowWeeks} weeks
+                  {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardConfig?.windowDays || BASEBALL_CARD_DEFAULTS.windowDays} days
                 </Typography>
               </Box>
             </Box>
@@ -265,11 +295,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             onOpenTimeline?.(initialNoteType);
           }}
           sx={{ p: 0 }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-                <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+              <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
                   <NotesIcon />
                 </Avatar>
                 <Box>
@@ -283,19 +313,26 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
               </Box>
               <ArrowForward sx={{ color: '#94a3b8' }} />
             </Box>
-          </CardContent>
-        </CardActionArea>
-      </Card>
+        </CardContent>
+      </CardActionArea>
+    </Card>
 
-      <Card
-        sx={{
-          borderRadius: 2,
-          '&:hover': {
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            transform: 'translateY(-2px)',
-          },
-          transition: 'all 0.2s ease-in-out',
+    <Card
+      sx={{
+        borderRadius: 2,
+        '&:hover': {
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          transform: 'translateY(-2px)',
+        },
+        transition: 'all 0.2s ease-in-out',
+      }}
+    >
+      <CardActionArea
+        onClick={() => {
+          trackEvent('student_dashboard_card_click', { card: 'stats', studentId }).catch(() => {});
+          onOpenStats?.();
         }}
+        sx={{ p: 0 }}
       >
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -312,31 +349,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                     {notesLast7Days === 0 && (
                       <WarningIcon sx={{ fontSize: 16, color: '#dc2626' }} />
                     )}
-                    <Box
+                    <Typography
+                      variant="body2"
                       sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        px: 1.5,
-                        py: 0.5,
-                        borderRadius: 2,
-                        backgroundColor: notesLast7Days === 0 ? '#fee2e2' : '#f1f5f9',
-                        border: `1px solid ${notesLast7Days === 0 ? '#fecaca' : '#e2e8f0'}`,
+                        color: '#64748b',
+                        fontWeight: 500,
+                        fontSize: '0.875rem'
                       }}
                     >
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: notesLast7Days === 0 ? '#dc2626' : '#64748b',
-                          fontWeight: notesLast7Days === 0 ? 600 : 500,
-                          fontSize: '0.875rem'
-                        }}
-                      >
-                        {notesLast7Days === 0 
-                          ? `No notes for ${getStudentName(student)} in the past 7 days!`
-                          : `${notesLast7Days} note${notesLast7Days === 1 ? '' : 's'} in the past 7 days`
-                        }
-                      </Typography>
-                    </Box>
+                      Monitor notes activity for {getStudentName(student)}
+                    </Typography>
                   </Box>
                 )}
               </Box>
@@ -344,8 +366,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             <ArrowForward sx={{ color: '#94a3b8' }} />
           </Box>
         </CardContent>
-      </Card>
-    </Box>
+      </CardActionArea>
+    </Card>
+  </Box>
   );
 }
 
