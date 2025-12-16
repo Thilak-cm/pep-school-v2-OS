@@ -11,6 +11,7 @@ import {
   Alert,
   Chip
 } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import {
   Close,
   KeyboardVoice,
@@ -37,6 +38,72 @@ import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
+
+// Confetti Animation Component
+const confettiFall = keyframes`
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(400px) rotate(360deg);
+    opacity: 0;
+  }
+`;
+
+const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+
+function ConfettiAnimation() {
+  const particles = React.useMemo(() => 
+    Array.from({ length: 50 }, (_, i) => {
+      const isWide = Math.random() > 0.5; // Mix of wide and tall rectangles
+      const width = isWide ? 12 + Math.random() * 8 : 6 + Math.random() * 4;
+      const height = isWide ? 6 + Math.random() * 4 : 12 + Math.random() * 8;
+      return {
+        id: i,
+        left: `${Math.random() * 100}%`,
+        delay: Math.random() * 2.5, // Spread over the full 2.5 seconds
+        duration: 2.5 + Math.random() * 0.5, // 2.5-3 seconds for smooth fall
+        color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+        width,
+        height,
+        rotation: Math.random() * 360, // Random starting rotation
+      };
+    }), []
+  );
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 1,
+      }}
+    >
+      {particles.map((particle) => (
+        <Box
+          key={particle.id}
+          sx={{
+            position: 'absolute',
+            left: particle.left,
+            top: '-10px',
+            width: particle.width,
+            height: particle.height,
+            backgroundColor: particle.color,
+            borderRadius: '2px', // Slight rounding for softer look
+            transform: `rotate(${particle.rotation}deg)`,
+            animation: `${confettiFall} ${particle.duration}s ease-out ${particle.delay}s forwards`,
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
 
 // TextInput Component
 function TextInput({
@@ -262,6 +329,7 @@ function AddNoteModal({
   const [coachData, setCoachData] = useState(null); // stores AI response data (status, reason, nudgesShown)
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachLoadingMessage, setCoachLoadingMessage] = useState('');
+  const [coachPerfectNote, setCoachPerfectNote] = useState(false); // shows success message when no nudges
 
   // Lesson tag state (single-student only; supports multiple lesson links)
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -322,6 +390,7 @@ function AddNoteModal({
     setCoachData(null);
     setCoachLoading(false);
     setCoachLoadingMessage('');
+    setCoachPerfectNote(false);
     lastCoachSignatureRef.current = null;
   };
 
@@ -425,8 +494,9 @@ function AddNoteModal({
       
       if (!nudges.length) {
         setCoachLoading(false);
-        setCoachLoadingMessage('');
-        return { skipped: true, coachData: { status: coachStatus, reason: coachReason, nudgesShown: [] } };
+        setCoachLoadingMessage('Coach Pepper thinks this is a perfect note!');
+        setCoachPerfectNote(true);
+        return { skipped: true, perfectNote: true, coachData: { status: coachStatus, reason: coachReason, nudgesShown: [] } };
       }
 
       setCoachNudges(nudges);
@@ -1061,6 +1131,15 @@ function AddNoteModal({
     const coachResult = await runCoachReview(noteData.text, signature).catch(() => ({ skipped: true }));
     if (!coachResult) return; // cancelled or superseded
     if (coachResult.skipped) {
+      // If perfect note (no nudges), show success message then auto-save after delay
+      if (coachResult.perfectNote) {
+        // Wait 2.5 seconds to show the success message, then save and close
+        setTimeout(async () => {
+          await saveNote(coachResult);
+        }, 2500);
+        return;
+      }
+      // Otherwise (timeout/error), save immediately
       await saveNote(coachResult);
       return;
     }
@@ -1453,6 +1532,45 @@ function AddNoteModal({
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
                   {coachLoadingMessage || 'Coach Pepper is analyzing your note!'}
+                </Typography>
+              </Box>
+            ) : coachPerfectNote ? (
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 320,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <ConfettiAnimation />
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    textAlign: 'center', 
+                    color: '#059669',
+                    fontWeight: 600,
+                    position: 'relative',
+                    zIndex: 2
+                  }}
+                >
+                  {coachLoadingMessage || 'Coach Pepper thinks this is a perfect note!'}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  sx={{ 
+                    textAlign: 'center',
+                    position: 'relative',
+                    zIndex: 2
+                  }}
+                >
+                  Saving your note...
                 </Typography>
               </Box>
             ) : (
