@@ -972,64 +972,103 @@ const VoiceRecorder = ({
                 gap: 2
               }}
             >
-              {isEditing ? (
+              {/* Polish with AI button row */}
+              {!isEditing && (
                 <Box
                   sx={{
                     display: 'flex',
                     gap: 1,
                     justifyContent: 'center',
+                    alignItems: 'center',
                     flexWrap: 'wrap'
                   }}
                 >
                   <Button
                     variant="contained"
-                    color="error"
-                    onClick={cancelEditing}
-                    startIcon={<Close />}
-                    size="small"
+                    onClick={handleCleanUp}
+                    disabled={!transcription.trim() || cleaning || cleanedOnce}
+                    startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
                     sx={{
-                      backgroundColor: '#dc2626',
-                      color: 'white',
                       textTransform: 'none',
+                      backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                      color: 'white',
+                      boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
                       '&:hover': {
-                        backgroundColor: '#b91c1c',
+                        backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                        boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                      },
+                      '&.Mui-disabled': {
+                        backgroundImage: 'none',
+                        backgroundColor: '#e2e8f0',
+                        color: '#64748b',
+                        boxShadow: 'none'
                       }
                     }}
                   >
-                    Cancel Edit
+                    {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
                   </Button>
-                  
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={saveEditing}
-                    startIcon={<CheckCircle />}
-                    size="small"
-                    disabled={!editableText.trim()}
-                    sx={{
-                      backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
-                      color: 'white',
-                      textTransform: 'none',
-                      '&:hover': {
-                        backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
-                      }
-                    }}
-                  >
-                    Save Edit
-                  </Button>
+                  {cleanedOnce && prevText && (
+                    <Button 
+                      variant="text" 
+                      onClick={handleUndoClean} 
+                      sx={{ color: '#64748b', textTransform: 'none' }}
+                    >
+                      Undo
+                    </Button>
+                  )}
                 </Box>
-              ) : (
-                <>
-                  {/* Row 1: Record Again (left) | Polish with AI (right) */}
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      gap: 1,
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap'
-                    }}
-                  >
+              )}
+              
+              {/* Other action buttons */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                {isEditing ? (
+                  <>
+                    <Button
+                      variant="contained"
+                      color="error"
+                      onClick={cancelEditing}
+                      startIcon={<Close />}
+                      size="small"
+                      sx={{
+                        backgroundColor: '#dc2626',
+                        color: 'white',
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: '#b91c1c',
+                        }
+                      }}
+                    >
+                      Cancel Edit
+                    </Button>
+                    
+                    <Button
+                      variant="contained"
+                      color="success"
+                      onClick={saveEditing}
+                      startIcon={<CheckCircle />}
+                      size="small"
+                      disabled={!editableText.trim()}
+                      sx={{
+                        backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
+                        color: 'white',
+                        textTransform: 'none',
+                        '&:hover': {
+                          backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
+                        }
+                      }}
+                    >
+                      Save Edit
+                    </Button>
+                  </>
+                ) : (
+                  <>
                     <Button
                       variant="outlined"
                       onClick={resetRecording}
@@ -1040,8 +1079,6 @@ const VoiceRecorder = ({
                         color: '#475569',
                         backgroundColor: 'white',
                         textTransform: 'none',
-                        flex: 1,
-                        minWidth: 'fit-content',
                         '&:hover': {
                           borderColor: '#94a3b8',
                           backgroundColor: '#f8fafc',
@@ -1051,50 +1088,6 @@ const VoiceRecorder = ({
                     >
                       Record Again
                     </Button>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
-                      <Button
-                        variant="contained"
-                        onClick={handleCleanUp}
-                        disabled={!transcription.trim() || cleaning || cleanedOnce}
-                        startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                        sx={{
-                          textTransform: 'none',
-                          backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
-                          color: 'white',
-                          boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
-                          '&:hover': {
-                            backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
-                            boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
-                          },
-                          '&.Mui-disabled': {
-                            backgroundImage: 'none',
-                            backgroundColor: '#e2e8f0',
-                            color: '#64748b',
-                            boxShadow: 'none'
-                          }
-                        }}
-                      >
-                        {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
-                      </Button>
-                      {cleanedOnce && prevText && (
-                        <Button 
-                          variant="text" 
-                          onClick={handleUndoClean} 
-                          sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
-                        >
-                          Undo
-                        </Button>
-                      )}
-                    </Box>
-                  </Box>
-                  
-                  {/* Row 2: Edit Text */}
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'center'
-                    }}
-                  >
                     <Button
                       variant="outlined"
                       onClick={startEditing}
@@ -1105,7 +1098,6 @@ const VoiceRecorder = ({
                         color: '#475569',
                         backgroundColor: 'white',
                         textTransform: 'none',
-                        width: '100%',
                         '&:hover': {
                           borderColor: '#94a3b8',
                           backgroundColor: '#f8fafc',
@@ -1115,9 +1107,9 @@ const VoiceRecorder = ({
                     >
                       Edit Text
                     </Button>
-                  </Box>
-                </>
-              )}
+                  </>
+                )}
+              </Box>
             </Box>
           )}
 
