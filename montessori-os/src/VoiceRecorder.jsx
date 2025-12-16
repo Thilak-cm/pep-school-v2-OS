@@ -3,6 +3,7 @@ import useNotify from './notifications/useNotify.js';
 import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { db } from './firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { cleanUpText } from './textCleanup';
 import {
   Box,
   Card,
@@ -34,7 +35,8 @@ import {
   Delete,
   Edit,
   ArrowForward,
-  ArrowBack
+  ArrowBack,
+  AutoFixHigh
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
@@ -69,6 +71,11 @@ const VoiceRecorder = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
   const [originalTranscription, setOriginalTranscription] = useState('');
+  
+  // Polish with AI state
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanedOnce, setCleanedOnce] = useState(false);
+  const [prevText, setPrevText] = useState('');
   
   // Confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -318,6 +325,11 @@ const VoiceRecorder = ({
     setIsEditing(false);
     setEditableText('');
     setOriginalTranscription('');
+    
+    // Reset polish state
+    setCleaning(false);
+    setCleanedOnce(false);
+    setPrevText('');
   };
 
   const retryTranscription = () => {
@@ -334,6 +346,9 @@ const VoiceRecorder = ({
     setOriginalTranscription(transcription);
     setEditableText(transcription);
     setIsEditing(true);
+    // Reset polish state when entering edit mode
+    setCleanedOnce(false);
+    setPrevText('');
   };
 
   const cancelEditing = () => {
@@ -355,10 +370,73 @@ const VoiceRecorder = ({
     if (!editableText.trim()) {
       return; // Don't save empty text
     }
-    setTranscription(editableText.trim());
+    const trimmedText = editableText.trim();
+    setTranscription(trimmedText);
+    // Update transcriptionData to keep it in sync
+    if (transcriptionData) {
+      setTranscriptionData({
+        ...transcriptionData,
+        text: trimmedText
+      });
+    }
     setIsEditing(false);
     setEditableText('');
     setOriginalTranscription('');
+    // Reset polish state when editing manually
+    setCleanedOnce(false);
+    setPrevText('');
+  };
+
+  const handleCleanUp = async () => {
+    const textToClean = isEditing ? editableText : transcription;
+    if (!textToClean.trim() || cleaning || cleanedOnce) return;
+    try {
+      setCleaning(true);
+      setPrevText(textToClean);
+      const refined = await cleanUpText(textToClean).catch(() => null);
+      if (refined) {
+        const cleanedText = String(refined).trim();
+        if (isEditing) {
+          setEditableText(cleanedText);
+        } else {
+          setTranscription(cleanedText);
+          // Update transcriptionData to keep it in sync
+          if (transcriptionData) {
+            setTranscriptionData({
+              ...transcriptionData,
+              text: cleanedText
+            });
+          }
+        }
+        setCleanedOnce(true);
+      } else {
+        setCleanedOnce(false);
+      }
+    } catch (e) {
+      console.error('Cleanup error:', e);
+      setCleanedOnce(false);
+      notify.error('Failed to polish text. Please try again.');
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const handleUndoClean = () => {
+    if (!prevText) return;
+    if (isEditing) {
+      setEditableText(prevText);
+    } else {
+      setTranscription(prevText);
+      // Update transcriptionData to keep it in sync
+      if (transcriptionData) {
+        setTranscriptionData({
+          ...transcriptionData,
+          text: prevText
+        });
+      }
+    }
+    setPrevText('');
+    setCleanedOnce(false);
   };
 
   // Language selection/labels removed
@@ -890,13 +968,19 @@ const VoiceRecorder = ({
             <Box
               sx={{
                 display: 'flex',
-                gap: 1,
-                justifyContent: 'center',
-                flexWrap: 'wrap'
+                flexDirection: 'column',
+                gap: 2
               }}
             >
               {isEditing ? (
-                <>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 1,
+                    justifyContent: 'center',
+                    flexWrap: 'wrap'
+                  }}
+                >
                   <Button
                     variant="contained"
                     color="error"
@@ -933,47 +1017,105 @@ const VoiceRecorder = ({
                   >
                     Save Edit
                   </Button>
-                </>
+                </Box>
               ) : (
                 <>
-                  <Button
-                    variant="outlined"
-                    onClick={resetRecording}
-                    startIcon={<Refresh />}
-                    size="small"
+                  {/* Row 1: Record Again (left) | Polish with AI (right) */}
+                  <Box
                     sx={{
-                      borderColor: '#cbd5e1',
-                      color: '#475569',
-                      backgroundColor: 'white',
-                      textTransform: 'none',
-                      '&:hover': {
-                        borderColor: '#94a3b8',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
-                      }
+                      display: 'flex',
+                      gap: 1,
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap'
                     }}
                   >
-                    Record Again
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={startEditing}
-                    startIcon={<Edit />}
-                    size="small"
+                    <Button
+                      variant="outlined"
+                      onClick={resetRecording}
+                      startIcon={<Refresh />}
+                      size="small"
+                      sx={{
+                        borderColor: '#cbd5e1',
+                        color: '#475569',
+                        backgroundColor: 'white',
+                        textTransform: 'none',
+                        flex: 1,
+                        minWidth: 'fit-content',
+                        '&:hover': {
+                          borderColor: '#94a3b8',
+                          backgroundColor: '#f8fafc',
+                          color: '#334155',
+                        }
+                      }}
+                    >
+                      Record Again
+                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleCleanUp}
+                        disabled={!transcription.trim() || cleaning || cleanedOnce}
+                        startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                        sx={{
+                          textTransform: 'none',
+                          backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                          color: 'white',
+                          boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+                          '&:hover': {
+                            backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                            boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                          },
+                          '&.Mui-disabled': {
+                            backgroundImage: 'none',
+                            backgroundColor: '#e2e8f0',
+                            color: '#64748b',
+                            boxShadow: 'none'
+                          }
+                        }}
+                      >
+                        {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
+                      </Button>
+                      {cleanedOnce && prevText && (
+                        <Button 
+                          variant="text" 
+                          onClick={handleUndoClean} 
+                          sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
+                        >
+                          Undo
+                        </Button>
+                      )}
+                    </Box>
+                  </Box>
+                  
+                  {/* Row 2: Edit Text */}
+                  <Box
                     sx={{
-                      borderColor: '#cbd5e1',
-                      color: '#475569',
-                      backgroundColor: 'white',
-                      textTransform: 'none',
-                      '&:hover': {
-                        borderColor: '#94a3b8',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
-                      }
+                      display: 'flex',
+                      justifyContent: 'center'
                     }}
                   >
-                    Edit Text
-                  </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={startEditing}
+                      startIcon={<Edit />}
+                      size="small"
+                      sx={{
+                        borderColor: '#cbd5e1',
+                        color: '#475569',
+                        backgroundColor: 'white',
+                        textTransform: 'none',
+                        width: '100%',
+                        '&:hover': {
+                          borderColor: '#94a3b8',
+                          backgroundColor: '#f8fafc',
+                          color: '#334155',
+                        }
+                      }}
+                    >
+                      Edit Text
+                    </Button>
+                  </Box>
                 </>
               )}
             </Box>

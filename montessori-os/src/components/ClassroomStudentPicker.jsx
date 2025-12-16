@@ -74,6 +74,9 @@ function ClassroomStudentPicker({
   const [voiceEditing, setVoiceEditing] = useState(false);
   const [editableVoiceText, setEditableVoiceText] = useState('');
   const [originalVoiceText, setOriginalVoiceText] = useState('');
+  const [voiceCleaning, setVoiceCleaning] = useState(false);
+  const [voiceCleanedOnce, setVoiceCleanedOnce] = useState(false);
+  const [voicePrevText, setVoicePrevText] = useState('');
 
   // Fetch all classrooms and students once
   useEffect(() => {
@@ -457,6 +460,9 @@ function ClassroomStudentPicker({
     setOriginalVoiceText(voiceData?.text || '');
     setEditableVoiceText(voiceData?.text || '');
     setVoiceEditing(true);
+    // Reset polish state when entering edit mode
+    setVoiceCleanedOnce(false);
+    setVoicePrevText('');
   };
 
   const cancelVoiceEditing = () => {
@@ -474,14 +480,60 @@ function ClassroomStudentPicker({
     }
     setVoiceEditing(false);
     setOriginalVoiceText(editableVoiceText.trim());
+    // Reset polish state when editing manually
+    setVoiceCleanedOnce(false);
+    setVoicePrevText('');
   };
 
   const handleRecordAgain = () => {
     setVoiceEditing(false);
     setEditableVoiceText('');
     setOriginalVoiceText('');
+    // Reset polish state
+    setVoiceCleaning(false);
+    setVoiceCleanedOnce(false);
+    setVoicePrevText('');
     if (onVoiceDataChange) onVoiceDataChange(null);
     if (onVoiceRecordAgain) onVoiceRecordAgain();
+  };
+
+  const handleVoiceCleanUp = async () => {
+    const textToClean = voiceData?.text || '';
+    if (!textToClean.trim() || voiceCleaning || voiceCleanedOnce) return;
+    try {
+      setVoiceCleaning(true);
+      setVoicePrevText(textToClean);
+      const refined = await cleanUpText(textToClean).catch(() => null);
+      if (refined) {
+        const cleanedText = String(refined).trim();
+        if (onVoiceDataChange) {
+          onVoiceDataChange({
+            ...(voiceData || {}),
+            text: cleanedText,
+          });
+        }
+        setVoiceCleanedOnce(true);
+      } else {
+        setVoiceCleanedOnce(false);
+      }
+    } catch (e) {
+      console.error('Voice cleanup error:', e);
+      setVoiceCleanedOnce(false);
+    } finally {
+      setVoiceCleaning(false);
+    }
+  };
+
+  const handleVoiceUndoClean = () => {
+    if (!voicePrevText) return;
+    if (onVoiceDataChange) {
+      onVoiceDataChange({
+        ...(voiceData || {}),
+        text: voicePrevText,
+      });
+    }
+    setVoicePrevText('');
+    setVoiceCleanedOnce(false);
   };
 
 
@@ -642,49 +694,106 @@ function ClassroomStudentPicker({
               <Box
                 sx={{
                   display: 'flex',
-                  gap: 1,
-                  justifyContent: 'center',
-                  flexWrap: 'wrap'
+                  flexDirection: 'column',
+                  gap: 2
                 }}
               >
-                <Button
-                  variant="outlined"
-                  onClick={handleRecordAgain}
-                  startIcon={<Refresh />}
-                  size="small"
+                {/* Row 1: Record Again (left) | Polish with AI (right) */}
+                <Box
                   sx={{
-                    borderColor: '#cbd5e1',
-                    color: '#475569',
-                    backgroundColor: 'white',
-                    textTransform: 'none',
-                    '&:hover': {
-                      borderColor: '#94a3b8',
-                      backgroundColor: '#f8fafc',
-                      color: '#334155',
-                    }
+                    display: 'flex',
+                    gap: 1,
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap'
                   }}
                 >
-                  Record Again
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={startVoiceEditing}
-                  startIcon={<Edit />}
-                  size="small"
+                  <Button
+                    variant="outlined"
+                    onClick={handleRecordAgain}
+                    startIcon={<Refresh />}
+                    size="small"
+                    sx={{
+                      borderColor: '#cbd5e1',
+                      color: '#475569',
+                      backgroundColor: 'white',
+                      textTransform: 'none',
+                      flex: 1,
+                      minWidth: 'fit-content',
+                      '&:hover': {
+                        borderColor: '#94a3b8',
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
+                      }
+                    }}
+                  >
+                    Record Again
+                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+                    <Button
+                      variant="contained"
+                      onClick={handleVoiceCleanUp}
+                      disabled={!voiceData?.text?.trim() || voiceCleaning || voiceCleanedOnce}
+                      startIcon={voiceCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                      sx={{
+                        textTransform: 'none',
+                        backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                        color: 'white',
+                        boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+                        '&:hover': {
+                          backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                          boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+                        },
+                        '&.Mui-disabled': {
+                          backgroundImage: 'none',
+                          backgroundColor: '#e2e8f0',
+                          color: '#64748b',
+                          boxShadow: 'none'
+                        }
+                      }}
+                    >
+                      {voiceCleanedOnce ? 'Polished' : (voiceCleaning ? 'Polishing…' : 'Polish with AI')}
+                    </Button>
+                    {voiceCleanedOnce && voicePrevText && (
+                      <Button 
+                        variant="text" 
+                        onClick={handleVoiceUndoClean} 
+                        sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
+                      >
+                        Undo
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+                
+                {/* Row 2: Edit Text */}
+                <Box
                   sx={{
-                    borderColor: '#cbd5e1',
-                    color: '#475569',
-                    backgroundColor: 'white',
-                    textTransform: 'none',
-                    '&:hover': {
-                      borderColor: '#94a3b8',
-                      backgroundColor: '#f8fafc',
-                      color: '#334155',
-                    }
+                    display: 'flex',
+                    justifyContent: 'center'
                   }}
                 >
-                  Edit Text
-                </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={startVoiceEditing}
+                    startIcon={<Edit />}
+                    size="small"
+                    sx={{
+                      borderColor: '#cbd5e1',
+                      color: '#475569',
+                      backgroundColor: 'white',
+                      textTransform: 'none',
+                      width: '100%',
+                      '&:hover': {
+                        borderColor: '#94a3b8',
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
+                      }
+                    }}
+                  >
+                    Edit Text
+                  </Button>
+                </Box>
               </Box>
             )
           )}
