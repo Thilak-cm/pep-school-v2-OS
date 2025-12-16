@@ -1,5 +1,14 @@
 # Changelog
 
+# 6.0.4 — 2025-12-16
+
+### Added
+- Confetti animation celebration when Coach Pepper identifies a note as perfect (no nudges needed).
+- Success message display ("Coach Pepper thinks this is a perfect note!") with graceful auto-save after 2.5 seconds.
+
+### Fixed
+- Resolved UX issue where the Coach review page would flash briefly and disappear when no nudges were returned, causing confusion. Now shows a positive success state with confetti animation before gracefully closing.
+
 # 6.0.3 — 2025-12-15
 
 ### Added
