@@ -8,7 +8,7 @@ import {
   ToggleButtonGroup,
   ToggleButton
 } from '@mui/material';
-import { collectionGroup, query, getDocs, where, orderBy } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -34,11 +34,12 @@ const StudentStatsPage = ({ student }) => {
           return;
         }
 
-        // Query observations for this specific student
+        // Query observations for this specific student (limit to last 200 for stats page)
         const observationsQuery = query(
           collectionGroup(db, 'observations'),
           where('studentId', '==', studentId),
-          orderBy('observedAt', 'desc')
+          orderBy('observedAt', 'desc'),
+          limit(200) // Limit to prevent excessive reads - stats page doesn't need all historical data
         );
 
         const observationsSnap = await getDocs(observationsQuery);
