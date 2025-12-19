@@ -12,7 +12,6 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel,
   IconButton,
 } from '@mui/material';
 import {
@@ -22,10 +21,129 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
+  Close as CloseIcon,
+  Check as CheckIcon,
 } from '@mui/icons-material';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
+
+/**
+ * Parse markdown and convert to React elements
+ * Supports: **bold**, line breaks, numbered lists
+ */
+function parseMarkdown(text) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements = [];
+  let key = 0;
+  let listItems = [];
+  let inList = false;
+
+  lines.forEach((line) => {
+    const trimmedLine = line.trim();
+
+    // Check for numbered list items (e.g., "1. **text**" or "1. text")
+    const listMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+    
+    if (listMatch) {
+      // Start or continue a list
+      if (!inList) {
+        inList = true;
+      }
+      listItems.push(listMatch[2]);
+    } else {
+      // If we were building a list, render it now
+      if (inList && listItems.length > 0) {
+        elements.push(
+          <Box key={key++} component="ul" sx={{ pl: 3, my: 1, mb: 0.5 }}>
+            {listItems.map((item, idx) => (
+              <Box key={idx} component="li" sx={{ mb: 0.5 }}>
+                {parseBoldInText(item)}
+              </Box>
+            ))}
+          </Box>
+        );
+        listItems = [];
+        inList = false;
+      }
+
+      // Handle empty lines or regular text
+      if (trimmedLine === '') {
+        elements.push(<br key={key++} />);
+      } else {
+        elements.push(
+          <Box key={key++} component="div" sx={{ mb: 0.5 }}>
+            {parseBoldInText(trimmedLine)}
+          </Box>
+        );
+      }
+    }
+  });
+
+  // Close any remaining list
+  if (inList && listItems.length > 0) {
+    elements.push(
+      <Box key={key++} component="ul" sx={{ pl: 3, my: 1, mb: 0.5 }}>
+        {listItems.map((item, idx) => (
+          <Box key={idx} component="li" sx={{ mb: 0.5 }}>
+            {parseBoldInText(item)}
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  return elements.length > 0 ? elements : parseBoldInText(text);
+}
+
+/**
+ * Parse bold text within a string and return React elements
+ */
+function parseBoldInText(text) {
+  if (!text) return null;
+
+  const parts = [];
+  let lastIndex = 0;
+  let key = 0;
+
+  const boldPattern = /\*\*(.+?)\*\*/g;
+  let match;
+
+  while ((match = boldPattern.exec(text)) !== null) {
+    // Add text before the bold
+    if (match.index > lastIndex) {
+      const beforeText = text.substring(lastIndex, match.index);
+      if (beforeText) {
+        parts.push(<span key={key++}>{beforeText}</span>);
+      }
+    }
+
+    // Add bold text
+    parts.push(
+      <Typography
+        key={key++}
+        component="span"
+        sx={{ fontWeight: 600, color: 'inherit' }}
+      >
+        {match[1]}
+      </Typography>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    if (remainingText) {
+      parts.push(<span key={key++}>{remainingText}</span>);
+    }
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 function ChildChat({ student }) {
   const [messages, setMessages] = useState([]);
@@ -33,6 +151,7 @@ function ChildChat({ student }) {
   const [currentChatId, setCurrentChatId] = useState(null);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLoadingChats, setIsLoadingChats] = useState(true);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [error, setError] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
@@ -50,10 +169,12 @@ function ChildChat({ student }) {
     if (!studentId) {
       setChats([]);
       setCurrentChatId(null);
+      setIsLoadingChats(false);
       return;
     }
 
     const loadChats = async () => {
+      setIsLoadingChats(true);
       try {
         const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
         const result = await listChatsFn({ studentId });
@@ -62,38 +183,25 @@ function ChildChat({ student }) {
           const chatList = result.data.chats;
           setChats(chatList);
           
-          // Auto-select most recent chat or create one if none exist
+          // Auto-select most recent chat if chats exist
+          // Don't auto-create - wait for user to send a message
           if (chatList.length > 0) {
             setCurrentChatId(chatList[0].id);
           } else {
-            // Auto-create first chat
-            setIsCreatingChat(true);
-            try {
-              const createChatFn = httpsCallable(cloudFunctions, 'createChatFunction');
-              const createResult = await createChatFn({ studentId });
-              if (createResult.data?.success && createResult.data?.chatId) {
-                const newChat = {
-                  id: createResult.data.chatId,
-                  name: 'New Chat',
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  lastMessagePreview: '',
-                  messageCount: 0,
-                };
-                setChats([newChat]);
-                setCurrentChatId(newChat.id);
-              }
-            } catch (err) {
-              console.error('Error creating chat:', err);
-              setError('Failed to create chat.');
-            } finally {
-              setIsCreatingChat(false);
-            }
+            // No chats exist - don't create one yet, wait for user to send message
+            setCurrentChatId(null);
           }
+        } else {
+          // No chats found
+          setChats([]);
+          setCurrentChatId(null);
         }
       } catch (err) {
-        console.error('Error loading chats:', err);
         setError('Failed to load chats.');
+        setChats([]);
+        setCurrentChatId(null);
+      } finally {
+        setIsLoadingChats(false);
       }
     };
 
@@ -124,7 +232,6 @@ function ChildChat({ student }) {
         }, 100);
       },
       (err) => {
-        console.error('Error loading chat messages:', err);
         setError('Failed to load chat messages.');
       }
     );
@@ -148,7 +255,41 @@ function ChildChat({ student }) {
       return;
     }
 
-    if (!currentChatId) {
+    // If no chat exists and chats subcollection is empty, create one before sending
+    let chatIdToUse = currentChatId;
+    if (!chatIdToUse && chats.length === 0) {
+      // Create new chat only when user sends first message
+      setIsCreatingChat(true);
+      try {
+        const createChatFn = httpsCallable(cloudFunctions, 'createChatFunction');
+        const createResult = await createChatFn({ studentId });
+        if (createResult.data?.success && createResult.data?.chatId) {
+          chatIdToUse = createResult.data.chatId;
+          const newChat = {
+            id: chatIdToUse,
+            name: 'New Chat',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastMessagePreview: '',
+            messageCount: 0,
+          };
+          setChats([newChat]);
+          setCurrentChatId(chatIdToUse);
+        } else {
+          setError('Failed to create chat.');
+          setIsCreatingChat(false);
+          return;
+        }
+      } catch (err) {
+        setError('Failed to create chat.');
+        setIsCreatingChat(false);
+        return;
+      } finally {
+        setIsCreatingChat(false);
+      }
+    }
+
+    if (!chatIdToUse) {
       setError('No chat selected.');
       return;
     }
@@ -161,28 +302,24 @@ function ChildChat({ student }) {
       const childChatFn = httpsCallable(cloudFunctions, 'childChat');
       const result = await childChatFn({
         studentId,
-        chatId: currentChatId,
+        chatId: chatIdToUse,
         message: trimmedMessage,
       });
 
       // Message is already saved by the backend, so the real-time listener will update the UI
       if (result.data?.success) {
-        // Update chat name if it was generated
-        if (result.data?.chatId && chats.length > 0) {
-          const chatIndex = chats.findIndex(c => c.id === result.data.chatId);
-          if (chatIndex >= 0) {
-            // Reload chats to get updated name
-            const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
-            const chatResult = await listChatsFn({ studentId });
-            if (chatResult.data?.success && chatResult.data?.chats) {
-              setChats(chatResult.data.chats);
-            }
+        // Reload chats to get updated name and metadata
+        const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
+        const chatResult = await listChatsFn({ studentId });
+        if (chatResult.data?.success && chatResult.data?.chats) {
+          setChats(chatResult.data.chats);
+          // Ensure we're still on the correct chat
+          if (result.data?.chatId) {
+            setCurrentChatId(result.data.chatId);
           }
         }
       }
     } catch (err) {
-      console.error('Error sending message:', err);
-      
       // Parse Firebase error
       let errorMessage = 'Failed to send message. Please try again.';
       if (err?.code === 'functions/invalid-argument') {
@@ -228,7 +365,6 @@ function ChildChat({ student }) {
         setCurrentChatId(newChat.id);
       }
     } catch (err) {
-      console.error('Error creating chat:', err);
       setError('Failed to create new chat.');
     } finally {
       setIsCreatingChat(false);
@@ -256,7 +392,6 @@ function ChildChat({ student }) {
         setCurrentChatId(updatedChats[0].id);
       }
     } catch (err) {
-      console.error('Error deleting chat:', err);
       setError('Failed to delete chat.');
     }
   };
@@ -280,7 +415,6 @@ function ChildChat({ student }) {
       setEditingChatId(null);
       setEditingChatName('');
     } catch (err) {
-      console.error('Error updating chat name:', err);
       setError('Failed to update chat name.');
     }
   };
@@ -330,72 +464,195 @@ function ChildChat({ student }) {
         flexDirection: 'column',
         height: '100%',
         position: 'relative',
+        pt: 10, // Space for fixed header bubble
         pb: 12, // Space for floating input bubble above footer
       }}
     >
-      {/* Chat Selector */}
-      <Box sx={{ p: 2, pb: 1, borderBottom: '1px solid #e2e8f0' }}>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <FormControl fullWidth size="small">
-            <InputLabel id="chat-selector-label">Chat</InputLabel>
-            <Select
-              labelId="chat-selector-label"
-              value={currentChatId || ''}
-              onChange={(e) => {
-                if (e.target.value !== '__new__') {
-                  setCurrentChatId(e.target.value);
-                }
-              }}
-              label="Chat"
-              disabled={isCreatingChat}
-              sx={{
-                '& .MuiSelect-select': {
-                  py: 1,
-                },
-              }}
-            >
-              {chats.map((chat) => (
-                <MenuItem key={chat.id} value={chat.id}>
-                  <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                    {chat.name}
-                  </Typography>
-                </MenuItem>
-              ))}
-              <MenuItem value="__new__" onClick={handleCreateNewChat} disabled={isCreatingChat}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AddIcon fontSize="small" />
-                  <Typography variant="body2">New Chat</Typography>
-                </Box>
-              </MenuItem>
-            </Select>
-          </FormControl>
-          {currentChatId && chats.find(c => c.id === currentChatId) && (
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
-              {editingChatId === currentChatId ? (
-                <>
-                  <TextField
-                    value={editingChatName}
-                    onChange={(e) => setEditingChatName(e.target.value.substring(0, 100))}
-                    onBlur={() => handleSaveChatName(currentChatId)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveChatName(currentChatId);
-                      } else if (e.key === 'Escape') {
-                        handleCancelEditChatName();
-                      }
-                    }}
-                    autoFocus
-                    size="small"
-                    sx={{ width: 150 }}
-                    inputProps={{ maxLength: 100 }}
-                  />
-                </>
-              ) : (
+      {/* Fixed Chat Selector Header - Floating Bubble Style */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 60, // Below app header
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: { xs: 'calc(100vw - 32px)', sm: '388px' },
+          zIndex: 1000,
+        }}
+      >
+        <Paper
+          elevation={3}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1,
+            borderRadius: 4,
+            backgroundColor: '#fff',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          {editingChatId === currentChatId ? (
+            // Edit mode - inline editing
+            <>
+              <TextField
+                fullWidth
+                value={editingChatName}
+                onChange={(e) => setEditingChatName(e.target.value.substring(0, 100))}
+                onBlur={() => handleSaveChatName(currentChatId)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveChatName(currentChatId);
+                  } else if (e.key === 'Escape') {
+                    handleCancelEditChatName();
+                  }
+                }}
+                autoFocus
+                variant="standard"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: {
+                    fontSize: '0.95rem',
+                    fontWeight: 500,
+                    px: 1.5,
+                    py: 1,
+                  },
+                }}
+                sx={{
+                  flex: 1,
+                  '& .MuiInputBase-root': {
+                    minHeight: '44px',
+                  },
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => handleSaveChatName(currentChatId)}
+                sx={{
+                  minWidth: '40px',
+                  width: '40px',
+                  height: '40px',
+                  color: '#fff',
+                  backgroundColor: '#4f46e5',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                  },
+                }}
+              >
+                <CheckIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={handleCancelEditChatName}
+                sx={{
+                  minWidth: '40px',
+                  width: '40px',
+                  height: '40px',
+                  color: '#64748b',
+                  '&:hover': {
+                    color: '#1e293b',
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                  },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </>
+          ) : (
+            // View mode - dropdown selector
+            <>
+              <FormControl fullWidth sx={{ flex: 1 }}>
+                <Select
+                  value={currentChatId || ''}
+                  onChange={(e) => {
+                    if (e.target.value !== '__new__') {
+                      setCurrentChatId(e.target.value);
+                    }
+                  }}
+                  disabled={isCreatingChat}
+                  displayEmpty
+                  renderValue={(selected) => {
+                    if (!selected) {
+                      return (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          {chats.length === 0 ? 'No chats yet' : 'Select a chat'}
+                        </Typography>
+                      );
+                    }
+                    const selectedChat = chats.find(c => c.id === selected);
+                    return (
+                      <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {selectedChat ? selectedChat.name : 'New Chat'}
+                      </Typography>
+                    );
+                  }}
+                  sx={{
+                    '& .MuiSelect-select': {
+                      py: 1,
+                      px: 1.5,
+                      minHeight: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                    },
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        borderRadius: 2,
+                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                        mt: 0.5,
+                      },
+                    },
+                  }}
+                >
+                  {chats.length === 0 ? (
+                    <MenuItem disabled>
+                      <Typography variant="body2" color="text.secondary">
+                        No chats yet. Send a message to start!
+                      </Typography>
+                    </MenuItem>
+                  ) : (
+                    chats.map((chat) => (
+                      <MenuItem key={chat.id} value={chat.id}>
+                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                          {chat.name || 'New Chat'}
+                        </Typography>
+                      </MenuItem>
+                    ))
+                  )}
+                  <MenuItem value="__new__" onClick={handleCreateNewChat} disabled={isCreatingChat}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <AddIcon fontSize="small" />
+                      <Typography variant="body2">New Chat</Typography>
+                    </Box>
+                  </MenuItem>
+                </Select>
+              </FormControl>
+              {currentChatId && chats.find(c => c.id === currentChatId) && (
                 <>
                   <IconButton
                     size="small"
                     onClick={() => handleStartEditChatName(chats.find(c => c.id === currentChatId))}
-                    sx={{ p: 0.5 }}
+                    sx={{
+                      minWidth: '40px',
+                      width: '40px',
+                      height: '40px',
+                      color: '#64748b',
+                      '&:hover': {
+                        color: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                      },
+                    }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -403,16 +660,25 @@ function ChildChat({ student }) {
                     <IconButton
                       size="small"
                       onClick={() => handleDeleteChat(currentChatId)}
-                      sx={{ p: 0.5 }}
+                      sx={{
+                        minWidth: '40px',
+                        width: '40px',
+                        height: '40px',
+                        color: '#64748b',
+                        '&:hover': {
+                          color: '#dc2626',
+                          backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                        },
+                      }}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   )}
                 </>
               )}
-            </Box>
+            </>
           )}
-        </Box>
+        </Paper>
       </Box>
 
       {/* Error Display */}
@@ -434,22 +700,56 @@ function ChildChat({ student }) {
           flex: 1,
           overflowY: 'auto',
           px: 2,
-          py: 3,
+          pt: 2,
+          pb: 3,
           display: 'flex',
           flexDirection: 'column',
           gap: 3,
         }}
       >
-        {messages.length === 0 && !loading && currentChatId && (
+        {/* Loading chats - Coach Pepper themed */}
+        {isLoadingChats && (
+          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%', px: { xs: 1, sm: 2 }, mb: 2, gap: 1, pt: 4 }}>
+            <Avatar sx={{ bgcolor: '#6366f1', width: 28, height: 28, flexShrink: 0 }}>
+              <AssistantIcon fontSize="small" />
+            </Avatar>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <CircularProgress 
+                size={18} 
+                sx={{ 
+                  color: '#6366f1',
+                  '& .MuiCircularProgress-circle': {
+                    strokeLinecap: 'round',
+                  }
+                }} 
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', color: '#64748b' }}>
+                Coach Pepper is loading your chats...
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
+        {/* Empty state - only show after loading completes */}
+        {!isLoadingChats && messages.length === 0 && !loading && currentChatId && (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="body2" color="text.secondary">
               Start a conversation about {getStudentName(student)}!
             </Typography>
           </Box>
         )}
-        {!currentChatId && !isCreatingChat && (
+        {!isLoadingChats && !currentChatId && !isCreatingChat && chats.length === 0 && (
           <Box sx={{ textAlign: 'center', py: 8 }}>
-            <CircularProgress size={24} />
+            <Typography variant="body2" color="text.secondary">
+              No chats yet. Send a message to start a conversation about {getStudentName(student)}!
+            </Typography>
+          </Box>
+        )}
+        {!isLoadingChats && !currentChatId && !isCreatingChat && chats.length > 0 && (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <Typography variant="body2" color="text.secondary">
+              Please select a chat from the dropdown above.
+            </Typography>
           </Box>
         )}
 
@@ -508,6 +808,7 @@ function ChildChat({ student }) {
                 >
                   <Typography 
                     variant="body1" 
+                    component="div"
                     sx={{ 
                       whiteSpace: 'pre-wrap', 
                       wordBreak: 'break-word',
@@ -515,14 +816,13 @@ function ChildChat({ student }) {
                       fontSize: '0.95rem',
                     }}
                   >
-                    {msg.content}
+                    {parseMarkdown(msg.content) || msg.content}
                   </Typography>
                 </Paper>
               ) : (
                 // AI message: Plain text, full width
                 <Box sx={{ width: '100%', maxWidth: '95%' }}>
-                  <Typography 
-                    variant="body1" 
+                  <Box
                     sx={{ 
                       whiteSpace: 'pre-wrap', 
                       wordBreak: 'break-word',
@@ -531,8 +831,8 @@ function ChildChat({ student }) {
                       color: '#1e293b',
                     }}
                   >
-                    {msg.content}
-                  </Typography>
+                    {parseMarkdown(msg.content) || msg.content}
+                  </Box>
                   <Typography
                     variant="caption"
                     sx={{
@@ -553,15 +853,13 @@ function ChildChat({ student }) {
 
         {/* Coach Pepper themed loading state - Plain text style */}
         {loading && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', px: { xs: 1, sm: 2 }, mb: 2 }}>
-            {/* Avatar above loading message */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 0.5 }}>
-              <Avatar sx={{ bgcolor: '#6366f1', width: 28, height: 28, flexShrink: 0 }}>
-                <AssistantIcon fontSize="small" />
-              </Avatar>
-            </Box>
-            {/* Loading message - full width */}
-            <Box sx={{ width: '100%', maxWidth: '95%', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%', px: { xs: 1, sm: 2 }, mb: 2, gap: 1 }}>
+            {/* Avatar */}
+            <Avatar sx={{ bgcolor: '#6366f1', width: 28, height: 28, flexShrink: 0 }}>
+              <AssistantIcon fontSize="small" />
+            </Avatar>
+            {/* Loading message */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <CircularProgress 
                 size={18} 
                 sx={{ 
