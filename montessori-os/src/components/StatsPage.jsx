@@ -454,8 +454,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               if (batch.length === 0) continue;
               const observationsQuery = query(
                 collectionGroup(db, 'observations'), 
-                where('studentId', 'in', batch),
-                limit(100) // Limit per batch to prevent excessive reads
+                where('studentId', 'in', batch)
               );
               const observationsSnap = await getDocs(observationsQuery);
               observationsSnap.docs.forEach(doc => {
@@ -467,14 +466,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               });
             }
             } else {
-              // For super admins: Only fetch observations from last 30 days to prevent excessive reads
-              // Stats page doesn't need all historical data - limit to recent activity
-              const thirtyDaysAgo = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+              // For super admins: Fetch all observations for complete stats
               const observationsQuery = query(
                 collectionGroup(db, 'observations'),
-                where('observedAt', '>=', thirtyDaysAgo),
-                orderBy('observedAt', 'desc'),
-                limit(5000) // Cap at 5000 observations max (should be plenty for 30 days)
+                orderBy('observedAt', 'desc')
               );
               const observationsSnap = await getDocs(observationsQuery);
               allObservations = observationsSnap.docs.map(doc => {
