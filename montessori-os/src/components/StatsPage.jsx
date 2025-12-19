@@ -1366,7 +1366,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     }
 
     return (
-      <Box sx={{ height: 300, width: '100%', minWidth: 260, minHeight: 300, position: 'relative' }}>
+      <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
           <RechartsBarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1629,7 +1629,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     }
 
     return (
-      <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250, position: 'relative' }}>
+      <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1710,7 +1710,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       display: 'flex', 
       flexDirection: 'column', 
       gap: 3,
-      pb: 4 
+      pb: 4,
+      width: '100%',
+      minWidth: 0
     }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -1750,10 +1752,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       <Card sx={{ 
         borderRadius: 3,
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        width: '100%',
+        minWidth: 0
       }}>
         {/* Replace tabs with grid navigation */}
-        <CardContent sx={{ p: 3 }}>
+        <CardContent sx={{ p: 3, width: '100%', minWidth: 0 }}>
           {/* Compact Tabs Header */}
           <Box sx={{ 
             backgroundColor: 'white',
@@ -1803,7 +1807,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           
           {/* Overview Tab */}
           {activeTab === 0 && (
-            <Box>
+            <Box sx={{ width: '100%', minWidth: 0 }}>
               {/* Activity Trend Chart */}
               <Box sx={{ 
                 display: 'flex', 
@@ -1877,7 +1881,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 borderRadius: 2,
                 p: 2,
                 border: '1px solid #e2e8f0',
-                mb: 3
+                mb: 3,
+                width: '100%',
+                minWidth: 0
               }}>
                 <ActivityTrendChart />
               </Box>
@@ -1889,7 +1895,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                   borderRadius: 2,
                   p: 3,
                   border: '1px solid #e2e8f0',
-                  mb: 3
+                  mb: 3,
+                  width: '100%',
+                  minWidth: 0
                 }}>
                   {/* Header */}
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
@@ -1900,7 +1908,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                   
                   {/* Pie Chart */}
                   {mounted ? (
-                    <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250 }}>
+                    <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
@@ -2076,9 +2084,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               </Box>
               
               {stats.classroomStats.length > 0 ? (
-                <Box>
+                <Box sx={{ width: '100%', minWidth: 0 }}>
                   {/* Classroom Comparison Chart */}
-                  <Box sx={{ mb: 3 }}>
+                  <Box sx={{ mb: 3, width: '100%', minWidth: 0 }}>
                     <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
                       {role === 'teacher' ? 'My Classrooms This Week' : 'Notes This Week'}
                     </Typography>
