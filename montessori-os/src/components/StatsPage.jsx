@@ -228,8 +228,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
   // Helper function to fetch data for a specific tab
   const fetchTabData = async (tabIndex) => {
-    console.log(`[StatsPage] fetchTabData called for tab ${tabIndex}`);
-    
     // Guard: classroom admins must have scoped classrooms; otherwise stop and show error
     if (isClassroomAdmin && scopedClassrooms.length === 0) {
       setScopeError('Your classroom access is missing. Please contact a super admin to add manageable classrooms.');
@@ -257,15 +255,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     const cachedTeachers = needsTeachers ? getCachedData(baseCacheKey, 'teachers') : null;
     const cachedStudents = needsStudents ? getCachedData(baseCacheKey, 'students') : null;
     const cachedBranches = needsBranches ? getCachedData(baseCacheKey, 'branches') : null;
-    
-    console.log(`[StatsPage] Cache check for tab ${tabIndex}:`, {
-      cachedObservations: cachedObservations?.length || 0,
-      cachedStats: !!cachedStats,
-      cachedClassrooms: cachedClassrooms?.length || 0,
-      cachedTeachers: cachedTeachers?.length || 0,
-      cachedStudents: cachedStudents?.length || 0,
-      cachedBranches: cachedBranches?.length || 0
-    });
 
     // If we have all cached data needed for this tab, use it
     const hasAllCachedData = 
@@ -306,19 +295,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       
       // If we have all cached data including stats, we're done
       if (cachedStats) {
-        console.log(`[StatsPage] Using fully cached data for tab ${tabIndex}`, {
-          totalObservations: cachedStats.totalObservations,
-          thisWeek: cachedStats.thisWeek,
-          observationsCount: cachedObservations?.length || 0
-        });
         setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
         setFilterLoading(false);
         return;
       }
       // Otherwise, continue to fetchData to recalculate stats from cached observations
-      console.log(`[StatsPage] Partial cache found, fetching missing data for tab ${tabIndex}`);
-    } else {
-      console.log(`[StatsPage] No cache found, fetching all data for tab ${tabIndex}`);
     }
 
     const fetchData = async () => {
@@ -806,19 +787,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         
         setStats(statsPayload);
         
-        console.log(`[StatsPage] Fetched data for tab ${tabIndex}:`, {
-          observations: filteredObservations.length,
-          stats: statsPayload.totalObservations,
-          classrooms: filteredClassroomsData.length,
-          teachers: filteredTeachersData.length,
-          students: filteredStudentsData.length
-        });
-        
         // Cache each data type separately (only cache what we fetched, not what was already cached)
         if (needsObservations && !cachedObservations) {
           setCachedData(observationsCacheKey, 'observations', filteredObservations);
           setCachedData(observationsCacheKey, 'stats', statsPayload);
-          console.log(`[StatsPage] Cached observations and stats for key: ${observationsCacheKey}`);
         }
         if (needsClassrooms && !cachedClassrooms && filteredClassroomsData.length > 0) {
           setCachedData(baseCacheKey, 'classrooms', filteredClassroomsData);
