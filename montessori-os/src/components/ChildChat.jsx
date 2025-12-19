@@ -160,7 +160,7 @@ function ChildChat({ student }) {
         flexDirection: 'column',
         height: '100%',
         position: 'relative',
-        pb: 10, // Space for input area above footer
+        pb: 12, // Space for floating input bubble above footer
       }}
     >
       {/* Error Display */}
@@ -182,10 +182,10 @@ function ChildChat({ student }) {
           flex: 1,
           overflowY: 'auto',
           px: 2,
-          py: 2,
+          py: 3,
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
+          gap: 3,
         }}
       >
         {messages.length === 0 && !loading && (
@@ -203,83 +203,110 @@ function ChildChat({ student }) {
               key={msg.id}
               sx={{
                 display: 'flex',
-                justifyContent: isUser ? 'flex-end' : 'flex-start',
-                alignItems: 'flex-start',
-                gap: 1.5,
+                flexDirection: 'column',
+                alignItems: isUser ? 'flex-end' : 'flex-start',
                 width: '100%',
+                px: { xs: 1, sm: 2 },
+                mb: 2,
               }}
             >
-              {!isUser && (
-                <Avatar sx={{ bgcolor: '#6366f1', width: 40, height: 40, flexShrink: 0 }}>
-                  <AssistantIcon />
-                </Avatar>
-              )}
-              <Paper
+              {/* Avatar above message */}
+              <Box
                 sx={{
-                  p: 2.5,
-                  maxWidth: isUser ? '85%' : '85%',
-                  minWidth: '60%',
-                  backgroundColor: isUser ? '#4f46e5' : '#f1f5f9',
-                  color: isUser ? '#fff' : '#1e293b',
-                  borderRadius: 3,
-                  boxShadow: isUser 
-                    ? '0 2px 8px rgba(79, 70, 229, 0.2)' 
-                    : '0 2px 8px rgba(0, 0, 0, 0.08)',
+                  display: 'flex',
+                  justifyContent: isUser ? 'flex-end' : 'flex-start',
+                  mb: 0.5,
                 }}
               >
-                <Typography 
-                  variant="body1" 
+                <Avatar 
                   sx={{ 
-                    whiteSpace: 'pre-wrap', 
-                    wordBreak: 'break-word',
-                    lineHeight: 1.6,
-                    fontSize: '0.95rem',
+                    bgcolor: isUser ? '#64748b' : '#6366f1', 
+                    width: 28, 
+                    height: 28, 
+                    flexShrink: 0 
                   }}
                 >
-                  {msg.content}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: 'block',
-                    mt: 1.5,
-                    opacity: 0.7,
-                    fontSize: '0.7rem',
-                  }}
-                >
-                  {formatTimestamp(msg.timestamp)}
-                </Typography>
-              </Paper>
-              {isUser && (
-                <Avatar sx={{ bgcolor: '#64748b', width: 40, height: 40, flexShrink: 0 }}>
-                  <UserIcon />
+                  {isUser ? (
+                    <UserIcon fontSize="small" />
+                  ) : (
+                    <AssistantIcon fontSize="small" />
+                  )}
                 </Avatar>
+              </Box>
+
+              {/* Message content - full width */}
+              {isUser ? (
+                // User message: Bubble
+                <Paper
+                  sx={{
+                    p: 2,
+                    backgroundColor: '#4f46e5',
+                    color: '#fff',
+                    borderRadius: 3,
+                    boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
+                    maxWidth: '95%',
+                    width: 'fit-content',
+                    alignSelf: 'flex-end',
+                  }}
+                >
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      whiteSpace: 'pre-wrap', 
+                      wordBreak: 'break-word',
+                      lineHeight: 1.6,
+                      fontSize: '0.95rem',
+                    }}
+                  >
+                    {msg.content}
+                  </Typography>
+                </Paper>
+              ) : (
+                // AI message: Plain text, full width
+                <Box sx={{ width: '100%', maxWidth: '95%' }}>
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      whiteSpace: 'pre-wrap', 
+                      wordBreak: 'break-word',
+                      lineHeight: 1.7,
+                      fontSize: '0.95rem',
+                      color: '#1e293b',
+                    }}
+                  >
+                    {msg.content}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      mt: 1,
+                      opacity: 0.6,
+                      fontSize: '0.7rem',
+                      color: '#64748b',
+                    }}
+                  >
+                    {formatTimestamp(msg.timestamp)}
+                  </Typography>
+                </Box>
               )}
             </Box>
           );
         })}
 
-        {/* Coach Pepper themed loading state */}
+        {/* Coach Pepper themed loading state - Plain text style */}
         {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 1.5, width: '100%' }}>
-            <Avatar sx={{ bgcolor: '#6366f1', width: 40, height: 40, flexShrink: 0 }}>
-              <AssistantIcon />
-            </Avatar>
-            <Paper
-              sx={{
-                p: 2.5,
-                maxWidth: '85%',
-                minWidth: '60%',
-                backgroundColor: '#f1f5f9',
-                borderRadius: 3,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-              }}
-            >
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', px: { xs: 1, sm: 2 }, mb: 2 }}>
+            {/* Avatar above loading message */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 0.5 }}>
+              <Avatar sx={{ bgcolor: '#6366f1', width: 28, height: 28, flexShrink: 0 }}>
+                <AssistantIcon fontSize="small" />
+              </Avatar>
+            </Box>
+            {/* Loading message - full width */}
+            <Box sx={{ width: '100%', maxWidth: '95%', display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <CircularProgress 
-                size={20} 
+                size={18} 
                 sx={{ 
                   color: '#6366f1',
                   '& .MuiCircularProgress-circle': {
@@ -287,52 +314,71 @@ function ChildChat({ student }) {
                   }
                 }} 
               />
-              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', color: '#64748b' }}>
                 Coach Pepper is thinking...
               </Typography>
-            </Paper>
+            </Box>
           </Box>
         )}
 
         <div ref={messagesEndRef} />
       </Box>
 
-      {/* Input Area - Rooted to bottom, above footer */}
+      {/* Floating Input Bubble - ChatGPT style */}
       <Box
         sx={{
           position: 'fixed',
-          bottom: 64, // Above app footer (64px footer height)
+          bottom: 80, // Above app footer with some spacing
           left: '50%',
           transform: 'translateX(-50%)',
-          width: '100%',
-          maxWidth: { xs: '100vw', sm: '420px' },
-          backgroundColor: '#fff',
-          borderTop: '1px solid #e2e8f0',
-          p: 2,
+          width: 'calc(100% - 32px)',
+          maxWidth: { xs: 'calc(100vw - 32px)', sm: '388px' }, // 420px - 32px padding
           zIndex: 1000,
-          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.05)',
           '@media (max-width: 599px)': {
             '@supports (padding: env(safe-area-inset-bottom))': {
-              paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
+              bottom: 'calc(80px + env(safe-area-inset-bottom))',
             },
           },
         }}
       >
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+        <Paper
+          elevation={3}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1,
+            borderRadius: 4,
+            backgroundColor: '#fff',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+            border: '1px solid #e2e8f0',
+          }}
+        >
           <TextField
             fullWidth
             multiline
-            maxRows={3}
+            maxRows={4}
             placeholder="Ask a question about this student..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={loading}
-            size="small"
+            variant="standard"
+            InputProps={{
+              disableUnderline: true,
+              sx: {
+                fontSize: '0.95rem',
+                px: 1.5,
+                py: 1,
+                '&::placeholder': {
+                  opacity: 0.6,
+                },
+              },
+            }}
             sx={{
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: '#f8fafc',
-                borderRadius: 2,
+              flex: 1,
+              '& .MuiInputBase-root': {
+                minHeight: '44px',
               },
             }}
           />
@@ -341,17 +387,19 @@ function ChildChat({ student }) {
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || loading}
             sx={{
-              minWidth: '48px',
-              width: '48px',
+              minWidth: '40px',
+              width: '40px',
               height: '40px',
-              backgroundColor: '#4f46e5',
-              borderRadius: 2,
+              backgroundColor: inputValue.trim() ? '#4f46e5' : '#cbd5e1',
+              borderRadius: '50%',
               '&:hover': {
-                backgroundColor: '#4338ca',
+                backgroundColor: inputValue.trim() ? '#4338ca' : '#cbd5e1',
               },
               '&:disabled': {
                 backgroundColor: '#cbd5e1',
               },
+              boxShadow: inputValue.trim() ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
+              transition: 'all 0.2s ease',
             }}
           >
             {loading ? (
@@ -360,19 +408,7 @@ function ChildChat({ student }) {
               <SendIcon fontSize="small" />
             )}
           </Button>
-        </Box>
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            display: 'block', 
-            mt: 0.5, 
-            color: '#64748b',
-            fontSize: '0.7rem',
-            textAlign: 'center',
-          }}
-        >
-          Ask questions about {getStudentName(student)}'s development
-        </Typography>
+        </Paper>
       </Box>
     </Box>
   );
