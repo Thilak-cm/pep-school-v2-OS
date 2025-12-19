@@ -20,7 +20,7 @@ import {
   AutoAwesome,
   ErrorOutline
 } from '@mui/icons-material';
-import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
@@ -129,37 +129,52 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     const fetchNotesCount = async () => {
       try {
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
         
-        // Query observations for this student from past 7 days
+        // Query observations for this student from past 7 days only (server-side filter)
+        // Limit to 1000 max - if student has more than 1000 notes in 7 days, count will be approximate
         const observationsQuery = query(
           collectionGroup(db, 'observations'),
           where('studentId', '==', studentId),
-          orderBy('observedAt', 'desc')
+          where('observedAt', '>=', sevenDaysAgo),
+          orderBy('observedAt', 'desc'),
+          limit(1000) // Cap at 1000 - should be plenty for 7 days, prevents excessive reads
         );
 
         const observationsSnap = await getDocs(observationsQuery);
-        const allObservations = observationsSnap.docs.map(doc => doc.data());
-
-        // Helper to get observation date
-        const getObservationDate = (obs) => {
-          if (obs.observedAt?.toDate) return obs.observedAt.toDate();
-          if (obs.createdAt?.toDate) return obs.createdAt.toDate();
-          if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
-          if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
-          return null;
-        };
-
-        // Count notes in past 7 days
-        const count = allObservations.filter(obs => {
-          const obsDate = getObservationDate(obs);
-          return obsDate && obsDate >= sevenDaysAgo;
-        }).length;
+        // Count is just the number of documents returned (already filtered by Firestore)
+        const count = observationsSnap.docs.length;
 
         setNotesLast7Days(count);
       } catch (error) {
         console.error('Error fetching notes count:', error);
-        setNotesLast7Days(null); // Set to null on error to avoid showing false alert
+        // If index error, try fallback query without date filter (less efficient but works)
+        if (error.code === 'failed-precondition' && error.message?.includes('index')) {
+          try {
+            const fallbackQuery = query(
+              collectionGroup(db, 'observations'),
+              where('studentId', '==', studentId),
+              orderBy('observedAt', 'desc'),
+              limit(100) // Only check last 100 observations as fallback
+            );
+            const fallbackSnap = await getDocs(fallbackQuery);
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const count = fallbackSnap.docs.filter(doc => {
+              const obs = doc.data();
+              const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : 
+                           obs.createdAt?.toDate ? obs.createdAt.toDate() :
+                           obs.observedAt?.seconds ? new Date(obs.observedAt.seconds * 1000) :
+                           obs.createdAt?.seconds ? new Date(obs.createdAt.seconds * 1000) : null;
+              return obsDate && obsDate >= sevenDaysAgo;
+            }).length;
+            setNotesLast7Days(count);
+          } catch (fallbackError) {
+            console.error('Fallback query also failed:', fallbackError);
+            setNotesLast7Days(null);
+          }
+        } else {
+          setNotesLast7Days(null); // Set to null on error to avoid showing false alert
+        }
       }
     };
 
