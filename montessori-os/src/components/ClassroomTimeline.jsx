@@ -40,7 +40,7 @@ import {
   Delete,
   Visibility
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
@@ -240,7 +240,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             query(
               collectionGroup(db, 'observations'),
               where('studentId', 'in', batch),
-              orderBy('observedAt', 'desc')
+              orderBy('observedAt', 'desc'),
+              limit(50) // Limit to 50 most recent observations per student batch to prevent excessive reads
             )
           );
         }
@@ -286,7 +287,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               query(
                 collectionGroup(db, 'observations'),
                 where('studentId', 'in', batch),
-                orderBy('observedAt', 'desc')
+                orderBy('observedAt', 'desc'),
+                limit(50) // Limit to 50 most recent observations per student batch
               )
             );
           }

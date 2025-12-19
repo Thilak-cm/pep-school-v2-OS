@@ -46,7 +46,7 @@ import {
   VisibilityOff,
   Clear
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit, documentId } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit, documentId, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
@@ -61,7 +61,7 @@ import {
   isLowPerformer
 } from '../config/performanceTargets';
 
-// Local cache so subsequent visits avoid re-fetching every collection.
+// Granular cache system - each data type cached separately
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -74,55 +74,75 @@ const getFilterKeySegment = (items = []) => {
   return ids.length ? ids.join('|') : 'all';
 };
 
-const buildCacheKey = (userId, role, classrooms, teachers, students, manageableClassrooms = []) => {
+// Build base cache key for user/role context
+const buildBaseCacheKey = (userId, role, manageableClassrooms = []) => {
   const userKey = userId || 'anonymous';
   const roleKey = role || 'unknown';
-  const classroomKey = getFilterKeySegment(classrooms);
-  const teacherKey = getFilterKeySegment(teachers);
-  const studentKey = getFilterKeySegment(students);
   const classroomScopeKey = Array.isArray(manageableClassrooms) && manageableClassrooms.length
     ? manageableClassrooms.slice().sort().join('|')
     : 'all-classrooms';
-  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomKey}:${teacherKey}:${studentKey}:${classroomScopeKey}`;
+  return `${CACHE_KEY_PREFIX}:${userKey}:${roleKey}:${classroomScopeKey}`;
 };
 
-const getCachedStatsPayload = (key) => {
+// Build cache key for specific data type
+const buildDataTypeCacheKey = (baseKey, dataType) => {
+  return `${baseKey}:${dataType}`;
+};
+
+// Cache data types: 'observations', 'classrooms', 'teachers', 'students', 'branches', 'stats'
+const getCachedData = (key, dataType) => {
   if (typeof window === 'undefined' || !key) return null;
   try {
-    const raw = window.localStorage.getItem(key);
+    const cacheKey = buildDataTypeCacheKey(key, dataType);
+    const raw = window.localStorage.getItem(cacheKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed?.timestamp || !parsed?.payload) return null;
+    if (!parsed?.timestamp || parsed.payload === undefined) return null;
     if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
-      window.localStorage.removeItem(key);
+      window.localStorage.removeItem(cacheKey);
       return null;
     }
-    return parsed.payload;
+    
+    // For arrays, check if it's actually empty (not just cached empty state)
+    // For objects, check if it has meaningful data
+    const payload = parsed.payload;
+    if (Array.isArray(payload) && payload.length === 0) {
+      // Empty array might be valid (no data), but if it's observations and we have 0, 
+      // it might be stale. However, we'll trust it for now since 0 observations is valid.
+      return payload;
+    }
+    
+    return payload;
   } catch (error) {
-    console.error('Failed to read stats cache', error);
+    console.error(`Failed to read ${dataType} cache`, error);
     return null;
   }
 };
 
-const setCachedStatsPayload = (key, payload) => {
+const setCachedData = (key, dataType, payload) => {
   if (typeof window === 'undefined' || !key) return;
   try {
+    const cacheKey = buildDataTypeCacheKey(key, dataType);
     const value = JSON.stringify({ timestamp: Date.now(), payload });
-    window.localStorage.setItem(key, value);
+    window.localStorage.setItem(cacheKey, value);
   } catch (error) {
     // In some environments (incognito, low quota) writes can fail; skip caching quietly.
     if (error && (error.name === 'QuotaExceededError' || error.code === 22)) {
       try {
-        window.localStorage.removeItem(key);
+        // Try to clear old cache entries to make room
+        const baseKey = key.split(':').slice(0, 3).join(':');
+        Object.keys(window.localStorage).forEach(k => {
+          if (k.startsWith(baseKey)) {
+            window.localStorage.removeItem(k);
+          }
+        });
       } catch (_) {
         // Ignore secondary failures
       }
-      // eslint-disable-next-line no-console
       console.warn('Stats cache disabled: storage quota exceeded');
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('Failed to write stats cache', error);
+    console.error(`Failed to write ${dataType} cache`, error);
   }
 };
 
@@ -175,23 +195,41 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [scopeError, setScopeError] = useState('');
+  
+  // Track which tabs have loaded their data (lazy loading)
+  const [loadedTabs, setLoadedTabs] = useState(new Set([0])); // Overview tab (0) loads immediately
+  const [tabLoadingStates, setTabLoadingStates] = useState({
+    0: false, // Overview
+    1: false, // Classrooms
+    2: false, // Teachers
+    3: false  // Students
+  });
+  
   const isAdmin = isAdminRole(role);
   const isClassroomAdmin = role === 'classroomadmin';
   const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms.filter(Boolean) : []) : [];
-  const cacheKey = useMemo(() => buildCacheKey(
+  
+  // Base cache key (user/role context) - doesn't change with filters
+  const baseCacheKey = useMemo(() => buildBaseCacheKey(
     user?.uid,
     role,
-    selectedClassrooms,
-    selectedTeachers,
-    selectedStudents,
     manageableClassrooms
-  ), [user?.uid, role, selectedClassrooms, selectedTeachers, selectedStudents, manageableClassrooms]);
+  ), [user?.uid, role, manageableClassrooms]);
+  
+  // Filter-based cache key for observations (changes with filters)
+  const observationsCacheKey = useMemo(() => {
+    const filterKey = `${getFilterKeySegment(selectedClassrooms)}:${getFilterKeySegment(selectedTeachers)}:${getFilterKeySegment(selectedStudents)}`;
+    return `${baseCacheKey}:obs:${filterKey}`;
+  }, [baseCacheKey, selectedClassrooms, selectedTeachers, selectedStudents]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
+  // Helper function to fetch data for a specific tab
+  const fetchTabData = async (tabIndex) => {
+    console.log(`[StatsPage] fetchTabData called for tab ${tabIndex}`);
+    
     // Guard: classroom admins must have scoped classrooms; otherwise stop and show error
     if (isClassroomAdmin && scopedClassrooms.length === 0) {
       setScopeError('Your classroom access is missing. Please contact a super admin to add manageable classrooms.');
@@ -205,38 +243,112 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       setScopeError('');
     }
 
-    const cachedPayload = getCachedStatsPayload(cacheKey);
-    if (cachedPayload) {
-      if (cachedPayload.stats) {
-        setStats({ ...cachedPayload.stats, loading: false });
+    // Determine what data this tab needs
+    const needsObservations = tabIndex === 0 || tabIndex === 1 || tabIndex === 2 || tabIndex === 3; // All tabs need observations
+    const needsClassrooms = tabIndex === 0 || tabIndex === 1; // Overview and Classrooms tabs
+    const needsTeachers = tabIndex === 0 || tabIndex === 2; // Overview and Teachers tabs
+    const needsStudents = tabIndex === 0 || tabIndex === 1 || tabIndex === 3; // Overview, Classrooms, Students tabs
+    const needsBranches = isAdmin; // Only admins need branches
+
+    // Check cache for each data type independently
+    const cachedObservations = needsObservations ? getCachedData(observationsCacheKey, 'observations') : null;
+    const cachedStats = needsObservations ? getCachedData(observationsCacheKey, 'stats') : null;
+    const cachedClassrooms = needsClassrooms ? getCachedData(baseCacheKey, 'classrooms') : null;
+    const cachedTeachers = needsTeachers ? getCachedData(baseCacheKey, 'teachers') : null;
+    const cachedStudents = needsStudents ? getCachedData(baseCacheKey, 'students') : null;
+    const cachedBranches = needsBranches ? getCachedData(baseCacheKey, 'branches') : null;
+    
+    console.log(`[StatsPage] Cache check for tab ${tabIndex}:`, {
+      cachedObservations: cachedObservations?.length || 0,
+      cachedStats: !!cachedStats,
+      cachedClassrooms: cachedClassrooms?.length || 0,
+      cachedTeachers: cachedTeachers?.length || 0,
+      cachedStudents: cachedStudents?.length || 0,
+      cachedBranches: cachedBranches?.length || 0
+    });
+
+    // If we have all cached data needed for this tab, use it
+    const hasAllCachedData = 
+      (!needsObservations || (cachedObservations && cachedStats)) &&
+      (!needsClassrooms || cachedClassrooms) &&
+      (!needsTeachers || cachedTeachers) &&
+      (!needsStudents || cachedStudents) &&
+      (!needsBranches || cachedBranches);
+
+    if (hasAllCachedData) {
+      // Use cached data - set state immediately
+      if (cachedStats) {
+        setStats({ ...cachedStats, loading: false });
+      } else if (cachedObservations) {
+        // If we have observations but no stats, we need to recalculate stats
+        // This shouldn't happen normally, but handle it gracefully
+        // Fall through to fetchData to recalculate
       } else {
-        setStats(prev => ({ ...prev, loading: false }));
+        // No cached data at all, proceed to fetch
       }
-      setClassrooms(cachedPayload.classrooms || []);
-      setTeachers(cachedPayload.teachers || []);
-      setStudents(cachedPayload.students || []);
-      setBranches(cachedPayload.branches || []);
-      if (isAdmin && selectedBranchId === null && cachedPayload.branches && cachedPayload.branches.length > 0) {
-        setSelectedBranchId(cachedPayload.branches[0].id);
+      
+      // Set other cached data
+      if (cachedClassrooms) {
+        setClassrooms(cachedClassrooms);
       }
-      setFilterLoading(false);
-      return;
+      if (cachedTeachers) {
+        setTeachers(cachedTeachers);
+      }
+      if (cachedStudents) {
+        setStudents(cachedStudents);
+      }
+      if (cachedBranches) {
+        setBranches(cachedBranches);
+        if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+          setSelectedBranchId(cachedBranches[0].id);
+        }
+      }
+      
+      // If we have all cached data including stats, we're done
+      if (cachedStats) {
+        console.log(`[StatsPage] Using fully cached data for tab ${tabIndex}`, {
+          totalObservations: cachedStats.totalObservations,
+          thisWeek: cachedStats.thisWeek,
+          observationsCount: cachedObservations?.length || 0
+        });
+        setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
+        setFilterLoading(false);
+        return;
+      }
+      // Otherwise, continue to fetchData to recalculate stats from cached observations
+      console.log(`[StatsPage] Partial cache found, fetching missing data for tab ${tabIndex}`);
+    } else {
+      console.log(`[StatsPage] No cache found, fetching all data for tab ${tabIndex}`);
     }
 
     const fetchData = async () => {
       try {
         setFilterLoading(true);
-        setStats(prev => ({ ...prev, loading: true }));
+        setTabLoadingStates(prev => ({ ...prev, [tabIndex]: true }));
+        if (tabIndex === 0) {
+          setStats(prev => ({ ...prev, loading: true }));
+        }
         
+        // Initialize data variables - use cached data if available, otherwise fetch
+        let classroomsData = cachedClassrooms || [];
+        let teachersData = cachedTeachers || [];
+        let studentsData = cachedStudents || [];
+        let branchesData = cachedBranches || [];
+        let allObservations = cachedObservations ? [...cachedObservations] : []; // Copy cached array
         
-        // Initialize data variables
-        let classroomsData = [];
-        let teachersData = [];
-        let studentsData = [];
-        let branchesData = [];
+        // Set cached data to state immediately if available (for UI responsiveness)
+        if (cachedClassrooms) setClassrooms(cachedClassrooms);
+        if (cachedTeachers) setTeachers(cachedTeachers);
+        if (cachedStudents) setStudents(cachedStudents);
+        if (cachedBranches) {
+          setBranches(cachedBranches);
+          if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+            setSelectedBranchId(cachedBranches[0].id);
+          }
+        }
         
-        // Fetch branches (for admin branch filter)
-        if (isAdmin) {
+        // Fetch branches (for admin branch filter) - only if not cached
+        if (isAdmin && !cachedBranches) {
           try {
             const branchesQuery = query(collection(db, 'branches'));
             const branchesSnap = await getDocs(branchesQuery);
@@ -268,8 +380,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           }
         }
         
-        // Fetch classrooms
-        try {
+        // Fetch classrooms - only if needed for this tab and not cached
+        if (needsClassrooms && !cachedClassrooms) {
+          try {
           if (isClassroomAdmin) {
             const ids = scopedClassrooms;
             const batchSize = 10;
@@ -294,13 +407,15 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               ...doc.data()
             }));
           }
-        } catch (error) {
-          console.error('Classrooms query failed:', error);
-          classroomsData = [];
+          } catch (error) {
+            console.error('Classrooms query failed:', error);
+            classroomsData = [];
+          }
         }
         
-        // Fetch teachers (users with teacher role)
-        try {
+        // Fetch teachers (users with teacher role) - only if needed for this tab and not cached
+        if (needsTeachers && !cachedTeachers) {
+          try {
           // First try to get all users to see if the collection is accessible
           const allUsersQuery = query(collection(db, 'users'));
           const allUsersSnap = await getDocs(allUsersQuery);
@@ -312,13 +427,15 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
             id: doc.id,
             ...doc.data()
           }));
-        } catch (error) {
-          console.error('Teachers query failed:', error);
-          teachersData = [];
+          } catch (error) {
+            console.error('Teachers query failed:', error);
+            teachersData = [];
+          }
         }
         
-        // Fetch students
-        try {
+        // Fetch students - only if needed for this tab and not cached
+        if (needsStudents && !cachedStudents) {
+          try {
           if (isClassroomAdmin) {
             const allowedClassroomIds = classroomsData.map(c => c.id);
             studentsData = [];
@@ -339,21 +456,26 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               ...doc.data()
             }));
           }
-        } catch (error) {
-          console.error('Students query failed:', error);
-          studentsData = [];
+          } catch (error) {
+            console.error('Students query failed:', error);
+            studentsData = [];
+          }
         }
         
-        // Fetch observations using collection group query
-        let allObservations = [];
-        try {
-          if (isClassroomAdmin) {
+        // Fetch observations using collection group query - only if needed for this tab and not cached
+        if (needsObservations && !cachedObservations) {
+          try {
+            if (isClassroomAdmin) {
             const allowedStudentIds = studentsData.map(s => s.id);
             const batchSize = 10;
             for (let i = 0; i < allowedStudentIds.length; i += batchSize) {
               const batch = allowedStudentIds.slice(i, i + batchSize);
               if (batch.length === 0) continue;
-              const observationsQuery = query(collectionGroup(db, 'observations'), where('studentId', 'in', batch));
+              const observationsQuery = query(
+                collectionGroup(db, 'observations'), 
+                where('studentId', 'in', batch),
+                limit(100) // Limit per batch to prevent excessive reads
+              );
               const observationsSnap = await getDocs(observationsQuery);
               observationsSnap.docs.forEach(doc => {
                 const data = doc.data();
@@ -363,32 +485,50 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 });
               });
             }
-          } else {
-            const observationsQuery = query(collectionGroup(db, 'observations'));
-            const observationsSnap = await getDocs(observationsQuery);
-            allObservations = observationsSnap.docs.map(doc => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                ...data
-              };
-            });
+            } else {
+              // For super admins: Only fetch observations from last 30 days to prevent excessive reads
+              // Stats page doesn't need all historical data - limit to recent activity
+              const thirtyDaysAgo = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+              const observationsQuery = query(
+                collectionGroup(db, 'observations'),
+                where('observedAt', '>=', thirtyDaysAgo),
+                orderBy('observedAt', 'desc'),
+                limit(5000) // Cap at 5000 observations max (should be plenty for 30 days)
+              );
+              const observationsSnap = await getDocs(observationsQuery);
+              allObservations = observationsSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  ...data
+                };
+              });
+            }
+          } catch (error) {
+            console.error('Collection group query failed:', error);
+            // If it's an index error, show helpful message but don't break the page
+            if (error.code === 'failed-precondition' && error.message?.includes('index')) {
+              console.warn('Firestore index required. Please deploy indexes: firebase deploy --only firestore:indexes');
+              // Set empty array so page still loads with other data
+              allObservations = [];
+            } else {
+              allObservations = [];
+            }
           }
-        } catch (error) {
-          console.error('Collection group query failed:', error);
-          allObservations = [];
         }
         
-        // Sort by observedAt client-side
-        allObservations.sort((a, b) => {
-          const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : 
-                       a.createdAt?.toDate ? a.createdAt.toDate() : 
-                       new Date(a.observedAt?.seconds * 1000) || new Date(a.createdAt?.seconds * 1000) || new Date(0);
-          const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : 
-                       b.createdAt?.toDate ? b.createdAt.toDate() : 
-                       new Date(b.observedAt?.seconds * 1000) || new Date(b.createdAt?.seconds * 1000) || new Date(0);
-          return bDate - aDate;
-        });
+        // Sort by observedAt client-side (only if we just fetched, cache is already sorted)
+        if (allObservations.length > 0 && !cachedObservations) {
+          allObservations.sort((a, b) => {
+            const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : 
+                     a.createdAt?.toDate ? a.createdAt.toDate() : 
+                     new Date(a.observedAt?.seconds * 1000) || new Date(a.createdAt?.seconds * 1000) || new Date(0);
+            const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : 
+                     b.createdAt?.toDate ? b.createdAt.toDate() : 
+                     new Date(b.observedAt?.seconds * 1000) || new Date(b.createdAt?.seconds * 1000) || new Date(0);
+            return bDate - aDate;
+          });
+        }
 
         // Apply filters
         let filteredObservations = allObservations;
@@ -665,26 +805,54 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         };
         
         setStats(statsPayload);
-        setCachedStatsPayload(cacheKey, {
-          stats: statsPayload,
-          classrooms: filteredClassroomsData,
-          teachers: filteredTeachersData,
-          students: filteredStudentsData,
-          branches: branchesData
+        
+        console.log(`[StatsPage] Fetched data for tab ${tabIndex}:`, {
+          observations: filteredObservations.length,
+          stats: statsPayload.totalObservations,
+          classrooms: filteredClassroomsData.length,
+          teachers: filteredTeachersData.length,
+          students: filteredStudentsData.length
         });
+        
+        // Cache each data type separately (only cache what we fetched, not what was already cached)
+        if (needsObservations && !cachedObservations) {
+          setCachedData(observationsCacheKey, 'observations', filteredObservations);
+          setCachedData(observationsCacheKey, 'stats', statsPayload);
+          console.log(`[StatsPage] Cached observations and stats for key: ${observationsCacheKey}`);
+        }
+        if (needsClassrooms && !cachedClassrooms && filteredClassroomsData.length > 0) {
+          setCachedData(baseCacheKey, 'classrooms', filteredClassroomsData);
+        }
+        if (needsTeachers && !cachedTeachers && filteredTeachersData.length > 0) {
+          setCachedData(baseCacheKey, 'teachers', filteredTeachersData);
+        }
+        if (needsStudents && !cachedStudents && filteredStudentsData.length > 0) {
+          setCachedData(baseCacheKey, 'students', filteredStudentsData);
+        }
+        if (needsBranches && !cachedBranches && branchesData.length > 0) {
+          setCachedData(baseCacheKey, 'branches', branchesData);
+        }
 
       } catch (error) {
         console.error('Error fetching stats:', error);
-        setStats(prev => ({ ...prev, loading: false }));
+        if (tabIndex === 0) {
+          setStats(prev => ({ ...prev, loading: false }));
+        }
       } finally {
         setFilterLoading(false);
+        setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
       }
     };
 
     fetchData();
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, cacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
+  };
 
-  const handleTabChange = (event, newValue) => {
+  // Load Overview tab data immediately (default tab) - this loads observations for charts
+  useEffect(() => {
+    fetchTabData(0);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, baseCacheKey, observationsCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
+
+  const handleTabChange = async (event, newValue) => {
     // Teachers can't access certain tabs
     if (role === 'teacher') {
       if (newValue === 2 || newValue === 3) { // Hide Teachers and Students tabs for teachers
@@ -692,6 +860,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       }
     }
     setActiveTab(newValue);
+    
+    // Lazy load: If this tab hasn't been loaded yet, fetch its data
+    if (!loadedTabs.has(newValue)) {
+      setLoadedTabs(prev => new Set([...prev, newValue]));
+      setTabLoadingStates(prev => ({ ...prev, [newValue]: true }));
+      await fetchTabData(newValue);
+    }
   };
 
   // Memoize pie chart data to prevent re-renders when time period changes
@@ -1200,8 +1375,26 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       target: classroom.studentCount * classroom.target
     }));
 
+    // Don't render chart until mounted AND has data
+    if (!mounted || data.length === 0) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: 300,
+          backgroundColor: 'grey.50',
+          borderRadius: 2
+        }}>
+          <Typography variant="body2" color="text.secondary">
+            {!mounted ? 'Loading chart...' : 'No classroom data available'}
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
-      <Box sx={{ height: 300, width: '100%', minWidth: 260, minHeight: 300 }}>
+      <Box sx={{ height: 300, width: '100%', minWidth: 260, minHeight: 300, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
           <RechartsBarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1255,7 +1448,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 return null;
               }}
             />
-            <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]}             />
           </RechartsBarChart>
         </ResponsiveContainer>
       </Box>
@@ -1445,10 +1638,28 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       );
     }
 
+    // Don't render chart until mounted AND container has dimensions
+    if (!mounted || activityData.length === 0) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: 250,
+          backgroundColor: 'grey.50',
+          borderRadius: 2
+        }}>
+          <Typography variant="body2" color="text.secondary">
+            {!mounted ? 'Loading chart...' : 'No trend data available for ' + timePeriod}
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
-      <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250 }}>
+      <Box sx={{ height: 250, width: '100%', minWidth: 260, minHeight: 250, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+            <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="period" 
@@ -1800,6 +2011,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
           {/* Classrooms Tab */}
           {activeTab === 1 && (
+            tabLoadingStates[1] ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+                  Loading classrooms data...
+                </Typography>
+              </Box>
+            ) : (
             <Box>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -1900,10 +2119,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 </Alert>
               )}
             </Box>
+            )
           )}
 
           {/* Teachers Tab */}
           {activeTab === 2 && (
+            tabLoadingStates[2] ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+                  Loading teachers data...
+                </Typography>
+              </Box>
+            ) : (
             <Box>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Teacher Performance
@@ -2061,10 +2289,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 </Alert>
               )}
             </Box>
+            )
           )}
 
           {/* Students Tab */}
           {activeTab === 3 && (
+            tabLoadingStates[3] ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                <CircularProgress />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+                  Loading students data...
+                </Typography>
+              </Box>
+            ) : (
             <Box>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Student Performance
@@ -2354,6 +2591,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 </Alert>
               )}
             </Box>
+            )
           )}
         </CardContent>
       </Card>

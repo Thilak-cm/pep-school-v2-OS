@@ -17,7 +17,7 @@ import {
   Tab
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -188,32 +188,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     
     const studentIdToQuery = student.id;
     
+    // Query with limit to prevent excessive reads (showing last 100 observations)
+    // Users can load more if needed via pagination in the future
     const q = query(
       collectionGroup(db, 'observations'),
       where('studentId', '==', studentIdToQuery),
-      orderBy('observedAt', 'desc')
+      orderBy('observedAt', 'desc'),
+      limit(100) // Limit to prevent fetching all observations at once
     );
 
-    // Temporary: run a one-time read to bypass Listen transport and isolate rules/index issues
-    getDocs(q)
-      .then((snap) => {
-        const list = snap.docs.map((d) => ({
-          id: d.id,
-          parentStudentId: d.ref.parent?.parent?.id,
-          docPath: d.ref.path,
-          ...d.data(),
-        }));
-        setObservations(list);
-        setLoading(false);
-        clearTimeout(timeoutId);
-      })
-      .catch((err) => {
-        console.error('[debug] getDocs error:', err);
-        setLoading(false);
-        clearTimeout(timeoutId);
-      });
-
-    // Keep listener for normal live updates once stable (can re-enable later)
+    // Use onSnapshot for real-time updates (single fetch, not double)
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map((d) => ({
         id: d.id,
@@ -222,8 +206,12 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         ...d.data(),
       }));
       setObservations(list);
+      setLoading(false);
+      clearTimeout(timeoutId);
     }, (error) => {
       console.error('Error loading observations:', error);
+      setLoading(false);
+      clearTimeout(timeoutId);
     });
     
     return () => {

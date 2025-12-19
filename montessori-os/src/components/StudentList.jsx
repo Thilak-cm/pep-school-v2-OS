@@ -11,7 +11,7 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { Search, Notes, Person } from '@mui/icons-material';
-import { collection, collectionGroup, getDocs, query, where } from 'firebase/firestore';
+import { collection, collectionGroup, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
@@ -106,7 +106,8 @@ function StudentList({ classroom, onSelectStudent }) {
           observationQueries.push(
             query(
               collectionGroup(db, 'observations'),
-              where('studentId', 'in', batch)
+              where('studentId', 'in', batch),
+              limit(50) // Limit to prevent excessive reads - only need recent observations for list view
             )
           );
         }
