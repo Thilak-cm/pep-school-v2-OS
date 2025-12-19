@@ -15,7 +15,7 @@ import {
   SmartToy as AssistantIcon,
   Person as UserIcon,
 } from '@mui/icons-material';
-import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 
@@ -64,10 +64,10 @@ function ChildChat({ student }) {
     return () => unsubscribe();
   }, [studentId]);
 
-  // Scroll to bottom on mount
+  // Scroll to bottom on mount and when loading changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
   const handleSendMessage = async () => {
     const trimmedMessage = inputValue.trim();
@@ -92,7 +92,6 @@ function ChildChat({ student }) {
       });
 
       // Message is already saved by the backend, so the real-time listener will update the UI
-      // No need to manually add it here
       if (result.data?.success) {
         // Success - message will appear via real-time listener
       }
@@ -160,47 +159,39 @@ function ChildChat({ student }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        maxHeight: 'calc(100vh - 120px)',
+        position: 'relative',
+        pb: 10, // Space for input area above footer
       }}
     >
-      {/* Header */}
-      <Box sx={{ p: 2, borderBottom: '1px solid #e2e8f0' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
-          AI Chat: {getStudentName(student)}
-        </Typography>
-        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-          Ask questions about this student's development and observations
-        </Typography>
-      </Box>
-
       {/* Error Display */}
       {error && (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 2, pb: 1 }}>
           <Alert 
             severity="error" 
             onClose={() => setError('')}
-            sx={{ mb: 2 }}
+            sx={{ mb: 0 }}
           >
             {error}
           </Alert>
         </Box>
       )}
 
-      {/* Messages List */}
+      {/* Messages List - Full width, scrollable */}
       <Box
         sx={{
           flex: 1,
           overflowY: 'auto',
-          p: 2,
+          px: 2,
+          py: 2,
           display: 'flex',
           flexDirection: 'column',
           gap: 2,
         }}
       >
         {messages.length === 0 && !loading && (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="body2" color="text.secondary">
-              No messages yet. Start a conversation about {getStudentName(student)}!
+              Start a conversation about {getStudentName(student)}!
             </Typography>
           </Box>
         )}
@@ -213,31 +204,45 @@ function ChildChat({ student }) {
               sx={{
                 display: 'flex',
                 justifyContent: isUser ? 'flex-end' : 'flex-start',
-                gap: 1,
+                alignItems: 'flex-start',
+                gap: 1.5,
+                width: '100%',
               }}
             >
               {!isUser && (
-                <Avatar sx={{ bgcolor: '#6366f1', width: 32, height: 32 }}>
-                  <AssistantIcon fontSize="small" />
+                <Avatar sx={{ bgcolor: '#6366f1', width: 40, height: 40, flexShrink: 0 }}>
+                  <AssistantIcon />
                 </Avatar>
               )}
               <Paper
                 sx={{
-                  p: 2,
-                  maxWidth: '75%',
+                  p: 2.5,
+                  maxWidth: isUser ? '85%' : '85%',
+                  minWidth: '60%',
                   backgroundColor: isUser ? '#4f46e5' : '#f1f5f9',
                   color: isUser ? '#fff' : '#1e293b',
-                  borderRadius: 2,
+                  borderRadius: 3,
+                  boxShadow: isUser 
+                    ? '0 2px 8px rgba(79, 70, 229, 0.2)' 
+                    : '0 2px 8px rgba(0, 0, 0, 0.08)',
                 }}
               >
-                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    whiteSpace: 'pre-wrap', 
+                    wordBreak: 'break-word',
+                    lineHeight: 1.6,
+                    fontSize: '0.95rem',
+                  }}
+                >
                   {msg.content}
                 </Typography>
                 <Typography
                   variant="caption"
                   sx={{
                     display: 'block',
-                    mt: 1,
+                    mt: 1.5,
                     opacity: 0.7,
                     fontSize: '0.7rem',
                   }}
@@ -246,32 +251,44 @@ function ChildChat({ student }) {
                 </Typography>
               </Paper>
               {isUser && (
-                <Avatar sx={{ bgcolor: '#64748b', width: 32, height: 32 }}>
-                  <UserIcon fontSize="small" />
+                <Avatar sx={{ bgcolor: '#64748b', width: 40, height: 40, flexShrink: 0 }}>
+                  <UserIcon />
                 </Avatar>
               )}
             </Box>
           );
         })}
 
+        {/* Coach Pepper themed loading state */}
         {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1 }}>
-            <Avatar sx={{ bgcolor: '#6366f1', width: 32, height: 32 }}>
-              <AssistantIcon fontSize="small" />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 1.5, width: '100%' }}>
+            <Avatar sx={{ bgcolor: '#6366f1', width: 40, height: 40, flexShrink: 0 }}>
+              <AssistantIcon />
             </Avatar>
             <Paper
               sx={{
-                p: 2,
+                p: 2.5,
+                maxWidth: '85%',
+                minWidth: '60%',
                 backgroundColor: '#f1f5f9',
-                borderRadius: 2,
+                borderRadius: 3,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
+                gap: 1.5,
               }}
             >
-              <CircularProgress size={16} />
-              <Typography variant="body2" color="text.secondary">
-                AI is thinking...
+              <CircularProgress 
+                size={20} 
+                sx={{ 
+                  color: '#6366f1',
+                  '& .MuiCircularProgress-circle': {
+                    strokeLinecap: 'round',
+                  }
+                }} 
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                Coach Pepper is thinking...
               </Typography>
             </Paper>
           </Box>
@@ -280,19 +297,32 @@ function ChildChat({ student }) {
         <div ref={messagesEndRef} />
       </Box>
 
-      {/* Input Area */}
+      {/* Input Area - Rooted to bottom, above footer */}
       <Box
         sx={{
-          p: 2,
-          borderTop: '1px solid #e2e8f0',
+          position: 'fixed',
+          bottom: 64, // Above app footer (64px footer height)
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: { xs: '100vw', sm: '420px' },
           backgroundColor: '#fff',
+          borderTop: '1px solid #e2e8f0',
+          p: 2,
+          zIndex: 1000,
+          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.05)',
+          '@media (max-width: 599px)': {
+            '@supports (padding: env(safe-area-inset-bottom))': {
+              paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
+            },
+          },
         }}
       >
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
           <TextField
             fullWidth
             multiline
-            maxRows={4}
+            maxRows={3}
             placeholder="Ask a question about this student..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -302,6 +332,7 @@ function ChildChat({ student }) {
             sx={{
               '& .MuiOutlinedInput-root': {
                 backgroundColor: '#f8fafc',
+                borderRadius: 2,
               },
             }}
           />
@@ -310,21 +341,38 @@ function ChildChat({ student }) {
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || loading}
             sx={{
-              minWidth: '56px',
+              minWidth: '48px',
+              width: '48px',
               height: '40px',
               backgroundColor: '#4f46e5',
+              borderRadius: 2,
               '&:hover': {
                 backgroundColor: '#4338ca',
+              },
+              '&:disabled': {
+                backgroundColor: '#cbd5e1',
               },
             }}
           >
             {loading ? (
-              <CircularProgress size={20} sx={{ color: '#fff' }} />
+              <CircularProgress size={18} sx={{ color: '#fff' }} />
             ) : (
-              <SendIcon />
+              <SendIcon fontSize="small" />
             )}
           </Button>
         </Box>
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            display: 'block', 
+            mt: 0.5, 
+            color: '#64748b',
+            fontSize: '0.7rem',
+            textAlign: 'center',
+          }}
+        >
+          Ask questions about {getStudentName(student)}'s development
+        </Typography>
       </Box>
     </Box>
   );

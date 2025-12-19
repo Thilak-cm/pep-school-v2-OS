@@ -9,6 +9,7 @@ import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
 import AIVoiceTranscriberEditor from "./components/AIVoiceTranscriberEditor.jsx";
 import AICoachEditor from "./components/AICoachEditor.jsx";
+import ChatCommandCentreEditor from "./components/ChatCommandCentreEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
 import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
@@ -53,7 +54,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -358,6 +359,7 @@ function App() {
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
+  else if (screen === 'chatCommandCentre') pageTitle = 'Chat Command Centre';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
   else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
@@ -369,9 +371,7 @@ function App() {
     pageTitle = `${studentName}'s Stats`;
   }
   else if (screen === 'childChat') {
-    const studentName = selectedStudent?.displayName || selectedStudent?.name ||
-                       `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
-    pageTitle = `AI Chat: ${studentName}`;
+    pageTitle = 'Chat with Coach Pepper';
   }
 
   // Determine back navigation for header
@@ -414,6 +414,8 @@ function App() {
       case 'aiVoiceEditor':
         return () => setScreen('configAiTools');
       case 'aiCoachEditor':
+        return () => setScreen('configAiTools');
+      case 'chatCommandCentre':
         return () => setScreen('configAiTools');
       case 'studentAliases':
         return () => setScreen('landingPage');
@@ -871,6 +873,10 @@ function App() {
                     <AICoachEditor currentUser={user} userRole={role} />
                   )}
 
+                  {screen === 'chatCommandCentre' && (
+                    <ChatCommandCentreEditor currentUser={user} userRole={role} />
+                  )}
+
                   {screen === 'accessDenied' && (
                     <AccessDenied userEmail={user?.email} onSignOut={handleSignOut} />
                   )}
@@ -895,6 +901,7 @@ function App() {
                 screen !== 'studentAliases' &&
                 screen !== 'settings' &&
                 screen !== 'addUser' &&
+                screen !== 'childChat' &&
                 screen !== 'config' &&
                 screen !== 'configLessonNotes' &&
                 screen !== 'configAiTools' &&

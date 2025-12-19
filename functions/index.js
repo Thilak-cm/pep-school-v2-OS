@@ -1595,9 +1595,55 @@ export const generateBaseballCards = functions
 // -----------------------------------------------
 
 /**
+ * Get chat configuration from Firestore (with fallback to constants)
+ * @param {string} branchId - Branch ID (e.g., 'hsr', 'whitefield')
+ * @returns {Promise<Object>} Chat configuration object
+ */
+async function getChatConfigServer(branchId) {
+  // Default fallback values
+  const defaults = {
+    model: CHAT_MODEL_INFO.model,
+    temperature: CHAT_MODEL_INFO.temperature,
+    max_tokens: CHAT_MODEL_INFO.max_tokens,
+    chatMessageLimit: DEFAULT_CHAT_MESSAGE_LIMIT,
+    observationLimit: DEFAULT_OBSERVATION_LIMIT,
+    systemPrompt: CHAT_SYSTEM_PROMPT,
+  };
+
+  if (!branchId || typeof branchId !== "string") {
+    console.warn("[childChat] Invalid branchId, using defaults");
+    return defaults;
+  }
+
+  try {
+    const docId = `chat_${branchId}`;
+    const snap = await db.collection("ai_prompts").doc(docId).get();
+    
+    if (!snap.exists) {
+      console.warn(`[childChat] Chat config not found for ${docId}, using defaults`);
+      return defaults;
+    }
+
+    const data = snap.data() || {};
+    
+    return {
+      model: typeof data.model === "string" ? data.model : defaults.model,
+      temperature: Number.isFinite(data.temperature) ? data.temperature : defaults.temperature,
+      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : defaults.max_tokens,
+      chatMessageLimit: Number.isFinite(data.chatMessageLimit) ? data.chatMessageLimit : defaults.chatMessageLimit,
+      observationLimit: data.observationLimit === "all" ? "all" : (Number.isFinite(data.observationLimit) ? data.observationLimit : defaults.observationLimit),
+      systemPrompt: typeof data.systemPrompt === "string" ? data.systemPrompt : defaults.systemPrompt,
+    };
+  } catch (err) {
+    console.error("[childChat] Error fetching chat config:", err);
+    return defaults;
+  }
+}
+
+/**
  * Fetch recent observations for a student (for chat context)
  * @param {string} studentId - Student document ID
- * @param {number} limit - Maximum number of observations to fetch (default: 20)
+ * @param {number|string} limit - Maximum number of observations to fetch, or 'all' for all observations
  * @returns {Promise<Array>} Array of observation documents with all fields
  */
 async function fetchRecentObservationsForChat(studentId, limit = DEFAULT_OBSERVATION_LIMIT) {
@@ -1608,10 +1654,17 @@ async function fetchRecentObservationsForChat(studentId, limit = DEFAULT_OBSERVA
   try {
     // Use collectionGroup to query observations across all students
     const observationsRef = db.collectionGroup("observations");
-    const query = observationsRef
+    let query = observationsRef
       .where("studentId", "==", studentId)
-      .orderBy("observedAt", "desc")
-      .limit(limit);
+      .orderBy("observedAt", "desc");
+
+    // Apply limit only if not 'all'
+    if (limit !== "all" && Number.isFinite(limit)) {
+      query = query.limit(limit);
+    } else {
+      // For 'all', use a reasonable max limit to prevent excessive reads
+      query = query.limit(1000);
+    }
 
     const snapshot = await query.get();
     const observations = [];
@@ -1676,9 +1729,10 @@ async function fetchRecentChatMessages(studentId, limit = DEFAULT_CHAT_MESSAGE_L
  * @param {Array} recentObservations - Array of observation documents
  * @param {Array} recentMessages - Array of chat message documents
  * @param {string} newUserMessage - New message from teacher
+ * @param {string} systemPrompt - System prompt from config
  * @returns {Object} Context pack with systemPrompt, observationsBlock, conversationBlock, userMessage
  */
-function packChatContext(studentId, recentObservations, recentMessages, newUserMessage) {
+function packChatContext(studentId, recentObservations, recentMessages, newUserMessage, systemPrompt) {
   // Format observations block
   const observationsBlock = recentObservations.length > 0
     ? `Recent Observations (${recentObservations.length} notes):\n${JSON.stringify(recentObservations, null, 2)}`
@@ -1692,7 +1746,7 @@ function packChatContext(studentId, recentObservations, recentMessages, newUserM
     : "No previous conversation.";
 
   return {
-    systemPrompt: CHAT_SYSTEM_PROMPT,
+    systemPrompt: systemPrompt || CHAT_SYSTEM_PROMPT,
     observationsBlock,
     conversationBlock,
     userMessage: newUserMessage,
@@ -1705,9 +1759,10 @@ function packChatContext(studentId, recentObservations, recentMessages, newUserM
  * @param {string} studentId - Student document ID
  * @param {string} role - Message role ('user' or 'assistant')
  * @param {string} content - Message content
+ * @param {string} model - Model used for assistant messages (optional)
  * @returns {Promise<string>} Message document ID
  */
-async function saveChatMessage(studentId, role, content) {
+async function saveChatMessage(studentId, role, content, model = null) {
   if (!studentId || typeof studentId !== "string") {
     throw new Error("Invalid studentId");
   }
@@ -1729,6 +1784,11 @@ async function saveChatMessage(studentId, role, content) {
     timestamp: Timestamp.now(),
   };
 
+  // Add model field for assistant messages
+  if (role === "assistant" && model) {
+    messageData.model = model;
+  }
+
   const docRef = await messagesRef.add(messageData);
   return docRef.id;
 }
@@ -1737,10 +1797,12 @@ async function saveChatMessage(studentId, role, content) {
  * Run child chat inference with OpenAI (streaming internally, returns full content)
  * This function is isolated so it can be replaced with LangChain later
  * @param {Object} contextPack - Context pack from packChatContext()
- * @param {string} model - OpenAI model to use (default: 'gpt-4o')
+ * @param {string} model - OpenAI model to use
+ * @param {number} temperature - Temperature setting
+ * @param {number} max_tokens - Max tokens setting
  * @returns {Promise<string>} Full assistant response content
  */
-async function runChildChat(contextPack, model = CHAT_MODEL_INFO.model) {
+async function runChildChat(contextPack, model, temperature, max_tokens) {
   if (!OPENAI_API_KEY) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
   }
@@ -1775,10 +1837,10 @@ async function runChildChat(contextPack, model = CHAT_MODEL_INFO.model) {
   messages.push({ role: "user", content: contextPack.userMessage });
 
   const body = {
-    model,
+    model: model || CHAT_MODEL_INFO.model,
     messages,
-    temperature: CHAT_MODEL_INFO.temperature,
-    max_tokens: CHAT_MODEL_INFO.max_tokens,
+    temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
+    max_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
     stream: true, // Enable streaming
   };
 
@@ -1903,27 +1965,44 @@ export const childChat = functions
     }
 
     try {
+      // Get student's branchId to fetch branch-specific config
+      const studentDoc = await db.collection("students").doc(studentId).get();
+      if (!studentDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Student not found");
+      }
+
+      const studentData = studentDoc.data();
+      const branchId = studentData?.branchId || "hsr"; // Default to hsr if missing
+
+      // Fetch chat configuration from Firestore
+      const chatConfig = await getChatConfigServer(branchId);
+
       // Fetch context
       const [recentObservations, recentMessages] = await Promise.all([
-        fetchRecentObservationsForChat(studentId, DEFAULT_OBSERVATION_LIMIT),
-        fetchRecentChatMessages(studentId, DEFAULT_CHAT_MESSAGE_LIMIT),
+        fetchRecentObservationsForChat(studentId, chatConfig.observationLimit),
+        fetchRecentChatMessages(studentId, chatConfig.chatMessageLimit),
       ]);
 
-      // Pack context
-      const contextPack = packChatContext(studentId, recentObservations, recentMessages, message);
+      // Pack context with config's system prompt
+      const contextPack = packChatContext(studentId, recentObservations, recentMessages, message, chatConfig.systemPrompt);
 
       // Save user message first
       await saveChatMessage(studentId, "user", message);
 
       // Run LLM inference (streams internally, returns full content)
-      const fullContent = await runChildChat(contextPack, CHAT_MODEL_INFO.model);
+      const fullContent = await runChildChat(
+        contextPack,
+        chatConfig.model,
+        chatConfig.temperature,
+        chatConfig.max_tokens
+      );
 
       if (!fullContent || !fullContent.trim()) {
         throw new functions.https.HttpsError("internal", "AI returned no content");
       }
 
-      // Save assistant response
-      const messageId = await saveChatMessage(studentId, "assistant", fullContent);
+      // Save assistant response with model info
+      const messageId = await saveChatMessage(studentId, "assistant", fullContent, chatConfig.model);
 
       return {
         messageId,

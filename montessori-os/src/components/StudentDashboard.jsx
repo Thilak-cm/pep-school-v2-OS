@@ -415,7 +415,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                 </Avatar>
                 <Box>
                   <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                    AI Chat
+                    Chat with Coach Pepper
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#64748b' }}>
                     Ask questions about {getStudentName(student)}'s development
