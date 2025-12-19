@@ -63,7 +63,7 @@ import {
 
 // Granular cache system - each data type cached separately
 const CACHE_KEY_PREFIX = 'statsPageCache';
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
 
 const getFilterKeySegment = (items = []) => {
   if (!Array.isArray(items) || items.length === 0) return 'all';
