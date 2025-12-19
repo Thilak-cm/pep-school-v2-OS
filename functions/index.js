@@ -1596,10 +1596,10 @@ export const generateBaseballCards = functions
 
 /**
  * Get chat configuration from Firestore (with fallback to constants)
- * @param {string} branchId - Branch ID (e.g., 'hsr', 'whitefield')
+ * @param {string} programId - Program ID (e.g., 'toddler', 'primary', 'elementary', 'adolescent')
  * @returns {Promise<Object>} Chat configuration object
  */
-async function getChatConfigServer(branchId) {
+async function getChatConfigServer(programId) {
   // Default fallback values
   const defaults = {
     model: CHAT_MODEL_INFO.model,
@@ -1610,13 +1610,13 @@ async function getChatConfigServer(branchId) {
     systemPrompt: CHAT_SYSTEM_PROMPT,
   };
 
-  if (!branchId || typeof branchId !== "string") {
-    console.warn("[childChat] Invalid branchId, using defaults");
+  if (!programId || typeof programId !== "string") {
+    console.warn("[childChat] Invalid programId, using defaults");
     return defaults;
   }
 
   try {
-    const docId = `chat_${branchId}`;
+    const docId = `chat_${programId}`;
     const snap = await db.collection("ai_prompts").doc(docId).get();
     
     if (!snap.exists) {
@@ -1965,17 +1965,30 @@ export const childChat = functions
     }
 
     try {
-      // Get student's branchId to fetch branch-specific config
+      // Get student's programId via classroom to fetch program-specific config
       const studentDoc = await db.collection("students").doc(studentId).get();
       if (!studentDoc.exists) {
         throw new functions.https.HttpsError("not-found", "Student not found");
       }
 
       const studentData = studentDoc.data();
-      const branchId = studentData?.branchId || "hsr"; // Default to hsr if missing
+      const classroomId = studentData?.classroomId;
+      
+      if (!classroomId) {
+        throw new functions.https.HttpsError("failed-precondition", "Student has no classroom assigned");
+      }
+
+      // Get classroom to find programId
+      const classroomDoc = await db.collection("classrooms").doc(classroomId).get();
+      if (!classroomDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Student's classroom not found");
+      }
+
+      const classroomData = classroomDoc.data();
+      const programId = classroomData?.programId || "primary"; // Default to primary if missing
 
       // Fetch chat configuration from Firestore
-      const chatConfig = await getChatConfigServer(branchId);
+      const chatConfig = await getChatConfigServer(programId);
 
       // Fetch context
       const [recentObservations, recentMessages] = await Promise.all([

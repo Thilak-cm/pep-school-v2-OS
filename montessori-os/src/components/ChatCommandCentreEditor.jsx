@@ -3,34 +3,21 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, TextField, Divider,
   Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
-  ListItemButton, Collapse
+  ListItemButton, Collapse, Chip
 } from '@mui/material';
-import { Settings, ExpandMore, ExpandLess, Save } from '@mui/icons-material';
+import { Settings, ExpandMore, ExpandLess, Save, Chat, Cancel } from '@mui/icons-material';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
 
-const SectionCard = ({ title, subtitle, children }) => (
-  <Card sx={{ borderRadius: 2, mb: 2 }}>
-    <CardContent>
-      <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
-      {subtitle && (
-        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>{subtitle}</Typography>
-      )}
-      <Divider sx={{ my: 2 }} />
-      {children}
-    </CardContent>
-  </Card>
-);
-
-// Branch IDs
-const BRANCHES = [
-  { id: 'hsr', label: 'HSR' },
-  { id: 'whitefield', label: 'Whitefield' },
-  { id: 'varthur', label: 'Varthur' },
-  { id: 'hyderabad', label: 'Hyderabad' },
+// Program IDs
+const PROGRAMS = [
+  { id: 'toddler', label: 'Toddler' },
+  { id: 'primary', label: 'Primary' },
+  { id: 'elementary', label: 'Elementary' },
+  { id: 'adolescent', label: 'Adolescent' },
 ];
 
 export default function ChatCommandCentreEditor({ currentUser, userRole }) {
@@ -49,7 +36,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [docState, setDocState] = useState(null);
-  const [branchId, setBranchId] = useState('hsr');
+  const [programId, setProgramId] = useState('toddler');
   const [saving, setSaving] = useState(false);
 
   // Chat configuration state
@@ -67,7 +54,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [configExpanded, setConfigExpanded] = useState(true);
   const [promptExpanded, setPromptExpanded] = useState(false);
 
-  const chatRef = useMemo(() => doc(db, 'ai_prompts', `chat_${branchId}`), [branchId]);
+  const chatRef = useMemo(() => doc(db, 'ai_prompts', `chat_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {
@@ -123,7 +110,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         setLoading(false);
       }
     })();
-  }, [branchId, chatRef, isAdmin]);
+  }, [programId, chatRef, isAdmin]);
 
   const hasChanges = useMemo(() => {
     if (!originalState) return false;
@@ -150,7 +137,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
       const updateData = {
         title: 'Chat Command Centre',
         description: 'Configure AI chat settings for per-student conversations',
-        branchId: branchId,
+        programId: programId,
         model: model.trim(),
         temperature: Number(temperature),
         max_tokens: Number(maxTokens),
@@ -167,14 +154,21 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
 
       await updateDoc(chatRef, updateData);
       
-      setOriginalState({
-        model,
-        temperature,
-        max_tokens: maxTokens,
-        chatMessageLimit,
-        observationLimit,
-        systemPrompt,
-      });
+      // Reload to get updated document
+      const snap = await getDoc(chatRef);
+      if (snap.exists()) {
+        const updatedData = snap.data();
+        setDocState({ id: snap.id, ...updatedData });
+        // Update original values to mark as saved
+        setOriginalState({
+          model,
+          temperature,
+          max_tokens: maxTokens,
+          chatMessageLimit,
+          observationLimit,
+          systemPrompt,
+        });
+      }
 
       notify('Chat configuration saved successfully!', 'success');
     } catch (err) {
@@ -186,12 +180,23 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
     }
   };
 
+  // Handle cancel - reset to original values
+  const handleCancel = () => {
+    if (!originalState) return;
+    setModel(originalState.model);
+    setTemperature(originalState.temperature);
+    setMaxTokens(originalState.max_tokens);
+    setChatMessageLimit(originalState.chatMessageLimit);
+    setObservationLimit(originalState.observationLimit);
+    setSystemPrompt(originalState.systemPrompt);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', gap: 2, flexDirection: 'column' }}>
         <CircularProgress />
         <Typography variant="body2" color="text.secondary">
-          Loading chat configuration...
+          Coach Pepper is loading chat settings...
         </Typography>
       </Box>
     );
@@ -199,172 +204,189 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-        <Settings sx={{ fontSize: 32, color: '#6366f1' }} />
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-            Chat Command Centre
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b' }}>
-            Configure AI chat settings for per-student conversations
-          </Typography>
-        </Box>
-      </Box>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {error && (
-        <Alert severity="error" onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Branch Selector */}
-      <Card sx={{ borderRadius: 2 }}>
-        <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-            Branch Selection
-          </Typography>
-          <FormControl fullWidth size="small">
-            <InputLabel id="branch-select-label">Branch</InputLabel>
-            <Select
-              labelId="branch-select-label"
-              id="branch-select"
-              value={branchId}
-              label="Branch"
-              onChange={(e) => setBranchId(e.target.value)}
-              disabled={saving}
-            >
-              {BRANCHES.map((branch) => (
-                <MenuItem key={branch.id} value={branch.id}>
-                  {branch.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </CardContent>
-      </Card>
-
-      {/* Configuration Section */}
-      <SectionCard
-        title="Model Configuration"
-        subtitle="Configure the AI model and parameters"
-      >
+      {/* Chat Configuration Section - Collapsible */}
+      <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setConfigExpanded(!configExpanded)}
-          sx={{ px: 0, py: 1 }}
+          sx={{ borderRadius: 2 }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Model Settings
-            </Typography>
-            {configExpanded ? <ExpandLess /> : <ExpandMore />}
-          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Chat Configuration</Typography>
+          {hasChanges && (
+            <Chip 
+              label="Unsaved changes" 
+              size="small" 
+              color="warning" 
+              variant="outlined"
+              sx={{ mr: 1 }}
+            />
+          )}
+          {configExpanded ? <ExpandLess /> : <ExpandMore />}
         </ListItemButton>
         <Collapse in={configExpanded}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <TextField
-              fullWidth
-              label="Model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={saving}
-              size="small"
-              helperText="OpenAI model to use (e.g., gpt-4o, gpt-4o-mini)"
-            />
-            <TextField
-              fullWidth
-              type="number"
-              label="Temperature"
-              value={temperature}
-              onChange={(e) => setTemperature(Number(e.target.value))}
-              disabled={saving}
-              size="small"
-              inputProps={{ min: 0, max: 2, step: 0.1 }}
-              helperText="Controls randomness (0 = deterministic, 2 = very creative)"
-            />
-            <TextField
-              fullWidth
-              type="number"
-              label="Max Tokens"
-              value={maxTokens}
-              onChange={(e) => setMaxTokens(Number(e.target.value))}
-              disabled={saving}
-              size="small"
-              inputProps={{ min: 1, max: 4000 }}
-              helperText="Maximum tokens in the response"
-            />
-            <TextField
-              fullWidth
-              type="number"
-              label="Chat Message Limit"
-              value={chatMessageLimit}
-              onChange={(e) => setChatMessageLimit(Number(e.target.value))}
-              disabled={saving}
-              size="small"
-              inputProps={{ min: 1, max: 50 }}
-              helperText="Number of recent chat messages to include in context"
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel id="observation-limit-label">Observation Limit</InputLabel>
-              <Select
-                labelId="observation-limit-label"
-                id="observation-limit-select"
-                value={observationLimit}
-                label="Observation Limit"
-                onChange={(e) => setObservationLimit(e.target.value)}
-                disabled={saving}
-              >
-                <MenuItem value="all">All observations</MenuItem>
-                <MenuItem value={10}>10 observations</MenuItem>
-                <MenuItem value={20}>20 observations</MenuItem>
-                <MenuItem value={30}>30 observations</MenuItem>
-                <MenuItem value={50}>50 observations</MenuItem>
-                <MenuItem value={100}>100 observations</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Collapse>
-      </SectionCard>
+          <CardContent>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+              Configure branch settings, model parameters, and context limits
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Program Selector */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Program Settings</Typography>
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel id="program-select-label">Program</InputLabel>
+                  <Select
+                    labelId="program-select-label"
+                    id="program-select"
+                    value={programId}
+                    label="Program"
+                    onChange={(e) => setProgramId(e.target.value)}
+                    disabled={saving}
+                  >
+                    {PROGRAMS.map((program) => (
+                      <MenuItem key={program.id} value={program.id}>
+                        {program.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
 
-      {/* System Prompt Section */}
-      <SectionCard
-        title="System Prompt"
-        subtitle="The system prompt that defines the AI assistant's behavior"
-      >
+              <Divider />
+
+              {/* Model Configuration */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Model Configuration</Typography>
+                  <Chip label={`Model: ${model}`} size="small" color="default" variant="outlined" />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    label="Model"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    disabled={true}
+                    size="small"
+                    helperText="OpenAI model to use (e.g., gpt-4o, gpt-4o-mini)"
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Temperature"
+                    value={temperature}
+                    onChange={(e) => setTemperature(Number(e.target.value))}
+                    disabled={saving}
+                    size="small"
+                    inputProps={{ min: 0, max: 2, step: 0.1 }}
+                    helperText="Controls randomness (0 = deterministic, 2 = very creative)"
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Max Tokens"
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(Number(e.target.value))}
+                    disabled={saving}
+                    size="small"
+                    inputProps={{ min: 1, max: 4000 }}
+                    helperText="Maximum tokens in the response"
+                  />
+                </Box>
+              </Box>
+
+              <Divider />
+
+              {/* Context Limits */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Context Limits</Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+                  Configure how many messages and observations to include in chat context
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Chat Message Limit"
+                    value={chatMessageLimit}
+                    onChange={(e) => setChatMessageLimit(Number(e.target.value))}
+                    disabled={saving}
+                    size="small"
+                    inputProps={{ min: 1, max: 50 }}
+                    helperText="Number of recent chat messages to include in context"
+                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="observation-limit-label">Observation Limit</InputLabel>
+                    <Select
+                      labelId="observation-limit-label"
+                      id="observation-limit-select"
+                      value={observationLimit}
+                      label="Observation Limit"
+                      onChange={(e) => setObservationLimit(e.target.value)}
+                      disabled={saving}
+                    >
+                      <MenuItem value="all">All observations</MenuItem>
+                      <MenuItem value={10}>10 observations</MenuItem>
+                      <MenuItem value={20}>20 observations</MenuItem>
+                      <MenuItem value={30}>30 observations</MenuItem>
+                      <MenuItem value={50}>50 observations</MenuItem>
+                      <MenuItem value={100}>100 observations</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
+            </Box>
+          </CardContent>
+        </Collapse>
+      </Card>
+
+      {/* System Prompt Section - Collapsible */}
+      <Card sx={{ borderRadius: 2, mb: 2 }}>
         <ListItemButton
           onClick={() => setPromptExpanded(!promptExpanded)}
-          sx={{ px: 0, py: 1 }}
+          sx={{ borderRadius: 2 }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              System Prompt Editor
-            </Typography>
-            {promptExpanded ? <ExpandLess /> : <ExpandMore />}
-          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>System Prompt</Typography>
+          {promptExpanded ? <ExpandLess /> : <ExpandMore />}
         </ListItemButton>
         <Collapse in={promptExpanded}>
-          <TextField
-            fullWidth
-            multiline
-            rows={12}
-            value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
-            disabled={saving}
-            sx={{ mt: 2 }}
-            helperText="This prompt defines how the AI assistant behaves in conversations"
-          />
+          <CardContent>
+            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+              The system prompt that defines Coach Pepper's behavior in conversations
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={12}
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              disabled={saving}
+              helperText="This prompt defines how Coach Pepper behaves in conversations"
+            />
+          </CardContent>
         </Collapse>
-      </SectionCard>
+      </Card>
 
-      {/* Save Button */}
+      {/* Save/Cancel Buttons */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
         <Button
+          variant="outlined"
+          startIcon={<Cancel />}
+          onClick={handleCancel}
+          disabled={!hasChanges || saving}
+          color="error"
+          sx={{ textTransform: 'none', minWidth: '100px' }}
+        >
+          Cancel
+        </Button>
+        <Button
           variant="contained"
+          startIcon={saving ? <CircularProgress size={16} /> : <Save />}
           onClick={handleSave}
           disabled={!hasChanges || saving}
-          startIcon={saving ? <CircularProgress size={16} /> : <Save />}
-          sx={{ backgroundColor: '#4f46e5', '&:hover': { backgroundColor: '#4338ca' } }}
+          sx={{ textTransform: 'none', minWidth: '100px', backgroundColor: '#4f46e5', '&:hover': { backgroundColor: '#4338ca' } }}
         >
-          {saving ? 'Saving...' : 'Save Configuration'}
+          {saving ? 'Saving...' : 'Save'}
         </Button>
       </Box>
     </Box>

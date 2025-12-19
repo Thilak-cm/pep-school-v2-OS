@@ -358,7 +358,7 @@ function ChildChat({ student }) {
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Ask a question about this student..."
+            placeholder="Ask anything about this student..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}

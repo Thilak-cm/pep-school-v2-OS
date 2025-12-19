@@ -854,6 +854,7 @@ function App() {
                       onOpenVoiceEditor={() => setScreen('aiVoiceEditor')}
                       onOpenCoachEditor={() => setScreen('aiCoachEditor')}
                       onOpenBaseballCardConfig={() => setScreen('baseballCardConfig')}
+                      onOpenChatCommandCentre={() => setScreen('chatCommandCentre')}
                     />
                   )}
 
@@ -905,6 +906,7 @@ function App() {
                 screen !== 'config' &&
                 screen !== 'configLessonNotes' &&
                 screen !== 'configAiTools' &&
+                screen !== 'chatCommandCentre' &&
                 screen !== 'baseballCardConfig' && (
                 <AddNoteFab 
                   showLabel 
