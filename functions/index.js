@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 // import { getAuth } from "firebase-admin/auth"; // Unused - commented out to fix lint error
 // import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
@@ -8,6 +8,7 @@ import * as functions from "firebase-functions/v1";
 import nodemailer from "nodemailer";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
+import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -1397,7 +1398,6 @@ async function runWithConcurrency(items, worker, limit = 10) {
     while (queue.length) {
       const next = queue.shift();
       try {
-        // eslint-disable-next-line no-await-in-loop
         await worker(next);
       } catch (err) {
         console.error("[baseballCard] worker error", err);
@@ -1588,4 +1588,358 @@ export const generateBaseballCards = functions
 
     console.log("[baseballCard] generation run complete");
     return null;
+  });
+
+// -----------------------------------------------
+// AI: Per-Child Chat (server-side OpenAI invocation with streaming)
+// -----------------------------------------------
+
+/**
+ * Fetch recent observations for a student (for chat context)
+ * @param {string} studentId - Student document ID
+ * @param {number} limit - Maximum number of observations to fetch (default: 20)
+ * @returns {Promise<Array>} Array of observation documents with all fields
+ */
+async function fetchRecentObservationsForChat(studentId, limit = DEFAULT_OBSERVATION_LIMIT) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+
+  try {
+    // Use collectionGroup to query observations across all students
+    const observationsRef = db.collectionGroup("observations");
+    const query = observationsRef
+      .where("studentId", "==", studentId)
+      .orderBy("observedAt", "desc")
+      .limit(limit);
+
+    const snapshot = await query.get();
+    const observations = [];
+    snapshot.docs.forEach((doc) => {
+      observations.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    return observations;
+  } catch (err) {
+    console.error("[childChat] Error fetching observations:", err);
+    // Return empty array on error to allow chat to continue
+    return [];
+  }
+}
+
+/**
+ * Fetch recent chat messages for a student
+ * @param {string} studentId - Student document ID
+ * @param {number} limit - Maximum number of messages to fetch (default: 6)
+ * @returns {Promise<Array>} Array of message documents { role, content, timestamp }
+ */
+async function fetchRecentChatMessages(studentId, limit = DEFAULT_CHAT_MESSAGE_LIMIT) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+
+  try {
+    const messagesRef = db
+      .collection("students")
+      .doc(studentId)
+      .collection("chat_messages");
+    const query = messagesRef.orderBy("timestamp", "desc").limit(limit);
+
+    const snapshot = await query.get();
+    const messages = [];
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      messages.push({
+        id: doc.id,
+        role: data.role || "user",
+        content: data.content || "",
+        timestamp: data.timestamp || null,
+      });
+    });
+
+    // Reverse to get chronological order (oldest first)
+    return messages.reverse();
+  } catch (err) {
+    console.error("[childChat] Error fetching chat messages:", err);
+    // Return empty array on error to allow chat to continue
+    return [];
+  }
+}
+
+/**
+ * Pack chat context from observations, messages, and new user message
+ * Returns structured object that can be passed to LLM or LangChain later
+ * @param {string} studentId - Student document ID
+ * @param {Array} recentObservations - Array of observation documents
+ * @param {Array} recentMessages - Array of chat message documents
+ * @param {string} newUserMessage - New message from teacher
+ * @returns {Object} Context pack with systemPrompt, observationsBlock, conversationBlock, userMessage
+ */
+function packChatContext(studentId, recentObservations, recentMessages, newUserMessage) {
+  // Format observations block
+  const observationsBlock = recentObservations.length > 0
+    ? `Recent Observations (${recentObservations.length} notes):\n${JSON.stringify(recentObservations, null, 2)}`
+    : "No recent observations available.";
+
+  // Format conversation block (exclude the new message being sent)
+  const conversationBlock = recentMessages.length > 0
+    ? recentMessages
+        .map((msg) => `${msg.role === "user" ? "Teacher" : "Assistant"}: ${msg.content}`)
+        .join("\n\n")
+    : "No previous conversation.";
+
+  return {
+    systemPrompt: CHAT_SYSTEM_PROMPT,
+    observationsBlock,
+    conversationBlock,
+    userMessage: newUserMessage,
+    studentId,
+  };
+}
+
+/**
+ * Save a chat message to Firestore
+ * @param {string} studentId - Student document ID
+ * @param {string} role - Message role ('user' or 'assistant')
+ * @param {string} content - Message content
+ * @returns {Promise<string>} Message document ID
+ */
+async function saveChatMessage(studentId, role, content) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+  if (!role || (role !== "user" && role !== "assistant")) {
+    throw new Error("Invalid role, must be 'user' or 'assistant'");
+  }
+  if (!content || typeof content !== "string") {
+    throw new Error("Invalid content");
+  }
+
+  const messagesRef = db
+    .collection("students")
+    .doc(studentId)
+    .collection("chat_messages");
+
+  const messageData = {
+    role,
+    content: content.trim(),
+    timestamp: Timestamp.now(),
+  };
+
+  const docRef = await messagesRef.add(messageData);
+  return docRef.id;
+}
+
+/**
+ * Run child chat inference with OpenAI (streaming internally, returns full content)
+ * This function is isolated so it can be replaced with LangChain later
+ * @param {Object} contextPack - Context pack from packChatContext()
+ * @param {string} model - OpenAI model to use (default: 'gpt-4o')
+ * @returns {Promise<string>} Full assistant response content
+ */
+async function runChildChat(contextPack, model = CHAT_MODEL_INFO.model) {
+  if (!OPENAI_API_KEY) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  // Build messages array for OpenAI API
+  const messages = [
+    { role: "system", content: contextPack.systemPrompt },
+  ];
+
+  // Add conversation history (if any)
+  if (contextPack.conversationBlock && contextPack.conversationBlock !== "No previous conversation.") {
+    // Parse conversation block back into messages
+    const conversationLines = contextPack.conversationBlock.split("\n\n");
+    for (const line of conversationLines) {
+      if (line.startsWith("Teacher: ")) {
+        messages.push({ role: "user", content: line.replace("Teacher: ", "") });
+      } else if (line.startsWith("Assistant: ")) {
+        messages.push({ role: "assistant", content: line.replace("Assistant: ", "") });
+      }
+    }
+  }
+
+  // Add observations context as a user message
+  if (contextPack.observationsBlock) {
+    messages.push({
+      role: "user",
+      content: `Here are recent observations for this student:\n\n${contextPack.observationsBlock}\n\n---\n\nNow, please answer the teacher's question about this student.`,
+    });
+  }
+
+  // Add the new user message
+  messages.push({ role: "user", content: contextPack.userMessage });
+
+  const body = {
+    model,
+    messages,
+    temperature: CHAT_MODEL_INFO.temperature,
+    max_tokens: CHAT_MODEL_INFO.max_tokens,
+    stream: true, // Enable streaming
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[childChat] network error", e);
+    throw new functions.https.HttpsError("unavailable", "Unable to connect to AI service. Please check your connection.");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[childChat] OpenAI API error", response.status, errText?.slice?.(0, 500));
+
+    // Parse error for user-friendly message
+    let errorMessage = "AI service error occurred.";
+    try {
+      const errorJson = JSON.parse(errText);
+      const apiError = errorJson?.error?.message || errorMessage;
+      
+      // Handle rate limits
+      if (response.status === 429 || apiError.includes("rate limit")) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+      } else {
+        errorMessage = apiError;
+      }
+    } catch {
+      // Not JSON, use generic message
+      if (response.status === 429) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+      }
+    }
+
+    throw new functions.https.HttpsError("internal", errorMessage);
+  }
+
+  // Stream and accumulate full content
+  let fullContent = "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          if (data === "[DONE]") {
+            return fullContent;
+          }
+
+            try {
+              const json = JSON.parse(data);
+              const delta = json.choices?.[0]?.delta?.content;
+              if (delta) {
+                fullContent += delta;
+              }
+            } catch {
+              // Skip invalid JSON lines
+            }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return fullContent;
+}
+
+/**
+ * Callable Cloud Function: Child Chat
+ * Handles per-student AI chat with context from observations and chat history
+ */
+export const childChat = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    // Authentication check
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Admin-only check
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    const userRole = userDoc.data()?.role;
+    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    // Validate parameters
+    const studentId = String(data?.studentId || "").trim();
+    const message = String(data?.message || "").trim();
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    if (!message) {
+      throw new functions.https.HttpsError("invalid-argument", "Please enter a message before sending.");
+    }
+
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    try {
+      // Fetch context
+      const [recentObservations, recentMessages] = await Promise.all([
+        fetchRecentObservationsForChat(studentId, DEFAULT_OBSERVATION_LIMIT),
+        fetchRecentChatMessages(studentId, DEFAULT_CHAT_MESSAGE_LIMIT),
+      ]);
+
+      // Pack context
+      const contextPack = packChatContext(studentId, recentObservations, recentMessages, message);
+
+      // Save user message first
+      await saveChatMessage(studentId, "user", message);
+
+      // Run LLM inference (streams internally, returns full content)
+      const fullContent = await runChildChat(contextPack, CHAT_MODEL_INFO.model);
+
+      if (!fullContent || !fullContent.trim()) {
+        throw new functions.https.HttpsError("internal", "AI returned no content");
+      }
+
+      // Save assistant response
+      const messageId = await saveChatMessage(studentId, "assistant", fullContent);
+
+      return {
+        messageId,
+        content: fullContent,
+        success: true,
+      };
+    } catch (err) {
+      console.error("[childChat] error", err);
+
+      // Re-throw Firebase errors as-is
+      if (err instanceof functions.https.HttpsError) {
+        throw err;
+      }
+
+      // Handle other errors
+      const errorMessage = err?.message || "An unexpected error occurred.";
+      throw new functions.https.HttpsError("internal", errorMessage);
+    }
   });

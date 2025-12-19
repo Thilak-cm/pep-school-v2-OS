@@ -14,6 +14,7 @@ import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentStatsPage from "./components/StudentStatsPage";
+import ChildChat from "./components/ChildChat";
 import LessonNotesPage from "./components/LessonNotesPage";
 import StudentAliasesPage from "./components/StudentAliasesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
@@ -52,7 +53,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -363,9 +364,14 @@ function App() {
   else if (screen === 'settings') pageTitle = 'Settings';
   else if (screen === 'notifications') pageTitle = 'Notifications';
   else if (screen === 'studentStats') {
-    const studentName = selectedStudent?.displayName || selectedStudent?.name || 
+    const studentName = selectedStudent?.displayName || selectedStudent?.name ||
                        `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
     pageTitle = `${studentName}'s Stats`;
+  }
+  else if (screen === 'childChat') {
+    const studentName = selectedStudent?.displayName || selectedStudent?.name ||
+                       `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
+    pageTitle = `AI Chat: ${studentName}`;
   }
 
   // Determine back navigation for header
@@ -389,6 +395,8 @@ function App() {
       case 'studentStats':
         return () => setScreen('studentDashboard');
       case 'timeline':
+        return () => setScreen('studentDashboard');
+      case 'childChat':
         return () => setScreen('studentDashboard');
       case 'profile':
       case 'stats':
@@ -707,11 +715,20 @@ function App() {
                       }}
                       onOpenStats={() => setScreen('studentStats')}
                       onOpenFeedback={openFeedbackWithMessage}
+                      onOpenChat={() => {
+                        setScreen('childChat');
+                      }}
                     />
                   )}
 
                   {screen === 'studentStats' && (
                     <StudentStatsPage
+                      student={selectedStudent}
+                    />
+                  )}
+
+                  {screen === 'childChat' && (
+                    <ChildChat
                       student={selectedStudent}
                     />
                   )}

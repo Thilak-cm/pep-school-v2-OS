@@ -18,14 +18,15 @@ import {
   WarningAmber as WarningIcon,
   ArrowForward,
   AutoAwesome,
-  ErrorOutline
+  ErrorOutline,
+  Chat as ChatIcon
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import NewFeaturePill from './NewFeaturePill';
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, initialNoteType = 'textVoice' }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
@@ -386,6 +387,47 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </CardContent>
       </CardActionArea>
     </Card>
+
+    {/* AI Chat Card - Admin Only */}
+    {isSuperAdmin && (
+      <Card
+        sx={{
+          borderRadius: 2,
+          '&:hover': {
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            transform: 'translateY(-2px)',
+          },
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
+        <CardActionArea
+          onClick={() => {
+            trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {});
+            onOpenChat?.();
+          }}
+          sx={{ p: 0 }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
+                  <ChatIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                    AI Chat
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b' }}>
+                    Ask questions about {getStudentName(student)}'s development
+                  </Typography>
+                </Box>
+              </Box>
+              <ArrowForward sx={{ color: '#94a3b8' }} />
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    )}
   </Box>
   );
 }

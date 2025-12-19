@@ -184,6 +184,12 @@ service cloud.firestore {
         allow create, update, delete: if isSuperAdmin();
       }
 
+      // Chat messages subcollection - admin only for now
+      match /chat_messages/{messageId} {
+        allow read: if isPrivilegedAdmin();
+        allow create, update, delete: if isPrivilegedAdmin();
+      }
+
       // Observations subcollection - simplified access
       match /observations/{observationId} {
         function adminCanAccessObservation() {
