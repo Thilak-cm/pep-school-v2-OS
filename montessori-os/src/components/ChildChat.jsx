@@ -9,11 +9,19 @@ import {
   Alert,
   Paper,
   Avatar,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  IconButton,
 } from '@mui/material';
 import {
   Send as SendIcon,
   SmartToy as AssistantIcon,
   Person as UserIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -21,9 +29,14 @@ import { db, cloudFunctions } from '../firebase';
 
 function ChildChat({ student }) {
   const [messages, setMessages] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [error, setError] = useState('');
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editingChatName, setEditingChatName] = useState('');
   const messagesEndRef = useRef(null);
   const studentId = student?.id || student?.uid || null;
 
@@ -32,14 +45,69 @@ function ChildChat({ student }) {
     return s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Student';
   };
 
-  // Set up real-time listener for chat messages
+  // Load chats for student
   useEffect(() => {
     if (!studentId) {
+      setChats([]);
+      setCurrentChatId(null);
+      return;
+    }
+
+    const loadChats = async () => {
+      try {
+        const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
+        const result = await listChatsFn({ studentId });
+        
+        if (result.data?.success && result.data?.chats) {
+          const chatList = result.data.chats;
+          setChats(chatList);
+          
+          // Auto-select most recent chat or create one if none exist
+          if (chatList.length > 0) {
+            setCurrentChatId(chatList[0].id);
+          } else {
+            // Auto-create first chat
+            setIsCreatingChat(true);
+            try {
+              const createChatFn = httpsCallable(cloudFunctions, 'createChatFunction');
+              const createResult = await createChatFn({ studentId });
+              if (createResult.data?.success && createResult.data?.chatId) {
+                const newChat = {
+                  id: createResult.data.chatId,
+                  name: 'New Chat',
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  lastMessagePreview: '',
+                  messageCount: 0,
+                };
+                setChats([newChat]);
+                setCurrentChatId(newChat.id);
+              }
+            } catch (err) {
+              console.error('Error creating chat:', err);
+              setError('Failed to create chat.');
+            } finally {
+              setIsCreatingChat(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading chats:', err);
+        setError('Failed to load chats.');
+      }
+    };
+
+    loadChats();
+  }, [studentId]);
+
+  // Set up real-time listener for chat messages
+  useEffect(() => {
+    if (!studentId || !currentChatId) {
       setMessages([]);
       return;
     }
 
-    const messagesRef = collection(db, 'students', studentId, 'chat_messages');
+    const messagesRef = collection(db, 'students', studentId, 'chats', currentChatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
 
     const unsubscribe = onSnapshot(
@@ -62,7 +130,7 @@ function ChildChat({ student }) {
     );
 
     return () => unsubscribe();
-  }, [studentId]);
+  }, [studentId, currentChatId]);
 
   // Scroll to bottom on mount and when loading changes
   useEffect(() => {
@@ -80,6 +148,11 @@ function ChildChat({ student }) {
       return;
     }
 
+    if (!currentChatId) {
+      setError('No chat selected.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setInputValue('');
@@ -88,12 +161,24 @@ function ChildChat({ student }) {
       const childChatFn = httpsCallable(cloudFunctions, 'childChat');
       const result = await childChatFn({
         studentId,
+        chatId: currentChatId,
         message: trimmedMessage,
       });
 
       // Message is already saved by the backend, so the real-time listener will update the UI
       if (result.data?.success) {
-        // Success - message will appear via real-time listener
+        // Update chat name if it was generated
+        if (result.data?.chatId && chats.length > 0) {
+          const chatIndex = chats.findIndex(c => c.id === result.data.chatId);
+          if (chatIndex >= 0) {
+            // Reload chats to get updated name
+            const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
+            const chatResult = await listChatsFn({ studentId });
+            if (chatResult.data?.success && chatResult.data?.chats) {
+              setChats(chatResult.data.chats);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('Error sending message:', err);
@@ -118,6 +203,91 @@ function ChildChat({ student }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateNewChat = async () => {
+    if (!studentId || isCreatingChat) return;
+
+    setIsCreatingChat(true);
+    setError('');
+
+    try {
+      const createChatFn = httpsCallable(cloudFunctions, 'createChatFunction');
+      const result = await createChatFn({ studentId });
+      
+      if (result.data?.success && result.data?.chatId) {
+        const newChat = {
+          id: result.data.chatId,
+          name: 'New Chat',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastMessagePreview: '',
+          messageCount: 0,
+        };
+        setChats([newChat, ...chats]);
+        setCurrentChatId(newChat.id);
+      }
+    } catch (err) {
+      console.error('Error creating chat:', err);
+      setError('Failed to create new chat.');
+    } finally {
+      setIsCreatingChat(false);
+    }
+  };
+
+  const handleDeleteChat = async (chatIdToDelete) => {
+    if (!studentId || !chatIdToDelete) return;
+
+    if (chats.length <= 1) {
+      setError('Cannot delete the last chat.');
+      return;
+    }
+
+    try {
+      const deleteChatFn = httpsCallable(cloudFunctions, 'deleteChat');
+      await deleteChatFn({ studentId, chatId: chatIdToDelete });
+      
+      // Remove from local state
+      const updatedChats = chats.filter(c => c.id !== chatIdToDelete);
+      setChats(updatedChats);
+      
+      // Switch to most recent chat
+      if (currentChatId === chatIdToDelete && updatedChats.length > 0) {
+        setCurrentChatId(updatedChats[0].id);
+      }
+    } catch (err) {
+      console.error('Error deleting chat:', err);
+      setError('Failed to delete chat.');
+    }
+  };
+
+  const handleStartEditChatName = (chat) => {
+    setEditingChatId(chat.id);
+    setEditingChatName(chat.name);
+  };
+
+  const handleSaveChatName = async (chatId) => {
+    if (!studentId || !chatId || !editingChatName.trim()) return;
+
+    const trimmedName = editingChatName.trim().substring(0, 100);
+
+    try {
+      const updateChatNameFn = httpsCallable(cloudFunctions, 'updateChatName');
+      await updateChatNameFn({ studentId, chatId, name: trimmedName });
+      
+      // Update local state
+      setChats(chats.map(c => c.id === chatId ? { ...c, name: trimmedName } : c));
+      setEditingChatId(null);
+      setEditingChatName('');
+    } catch (err) {
+      console.error('Error updating chat name:', err);
+      setError('Failed to update chat name.');
+    }
+  };
+
+  const handleCancelEditChatName = () => {
+    setEditingChatId(null);
+    setEditingChatName('');
   };
 
   const handleKeyPress = (e) => {
@@ -163,6 +333,88 @@ function ChildChat({ student }) {
         pb: 12, // Space for floating input bubble above footer
       }}
     >
+      {/* Chat Selector */}
+      <Box sx={{ p: 2, pb: 1, borderBottom: '1px solid #e2e8f0' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="chat-selector-label">Chat</InputLabel>
+            <Select
+              labelId="chat-selector-label"
+              value={currentChatId || ''}
+              onChange={(e) => {
+                if (e.target.value !== '__new__') {
+                  setCurrentChatId(e.target.value);
+                }
+              }}
+              label="Chat"
+              disabled={isCreatingChat}
+              sx={{
+                '& .MuiSelect-select': {
+                  py: 1,
+                },
+              }}
+            >
+              {chats.map((chat) => (
+                <MenuItem key={chat.id} value={chat.id}>
+                  <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                    {chat.name}
+                  </Typography>
+                </MenuItem>
+              ))}
+              <MenuItem value="__new__" onClick={handleCreateNewChat} disabled={isCreatingChat}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AddIcon fontSize="small" />
+                  <Typography variant="body2">New Chat</Typography>
+                </Box>
+              </MenuItem>
+            </Select>
+          </FormControl>
+          {currentChatId && chats.find(c => c.id === currentChatId) && (
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {editingChatId === currentChatId ? (
+                <>
+                  <TextField
+                    value={editingChatName}
+                    onChange={(e) => setEditingChatName(e.target.value.substring(0, 100))}
+                    onBlur={() => handleSaveChatName(currentChatId)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveChatName(currentChatId);
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditChatName();
+                      }
+                    }}
+                    autoFocus
+                    size="small"
+                    sx={{ width: 150 }}
+                    inputProps={{ maxLength: 100 }}
+                  />
+                </>
+              ) : (
+                <>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleStartEditChatName(chats.find(c => c.id === currentChatId))}
+                    sx={{ p: 0.5 }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  {chats.length > 1 && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteChat(currentChatId)}
+                      sx={{ p: 0.5 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+        </Box>
+      </Box>
+
       {/* Error Display */}
       {error && (
         <Box sx={{ p: 2, pb: 1 }}>
@@ -188,11 +440,16 @@ function ChildChat({ student }) {
           gap: 3,
         }}
       >
-        {messages.length === 0 && !loading && (
+        {messages.length === 0 && !loading && currentChatId && (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography variant="body2" color="text.secondary">
               Start a conversation about {getStudentName(student)}!
             </Typography>
+          </Box>
+        )}
+        {!currentChatId && !isCreatingChat && (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <CircularProgress size={24} />
           </Box>
         )}
 

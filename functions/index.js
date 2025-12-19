@@ -1684,21 +1684,27 @@ async function fetchRecentObservationsForChat(studentId, limit = DEFAULT_OBSERVA
 }
 
 /**
- * Fetch recent chat messages for a student
+ * Fetch recent chat messages for a specific chat
  * @param {string} studentId - Student document ID
+ * @param {string} chatId - Chat document ID
  * @param {number} limit - Maximum number of messages to fetch (default: 6)
  * @returns {Promise<Array>} Array of message documents { role, content, timestamp }
  */
-async function fetchRecentChatMessages(studentId, limit = DEFAULT_CHAT_MESSAGE_LIMIT) {
+async function fetchRecentChatMessages(studentId, chatId, limit = DEFAULT_CHAT_MESSAGE_LIMIT) {
   if (!studentId || typeof studentId !== "string") {
     throw new Error("Invalid studentId");
+  }
+  if (!chatId || typeof chatId !== "string") {
+    throw new Error("Invalid chatId");
   }
 
   try {
     const messagesRef = db
       .collection("students")
       .doc(studentId)
-      .collection("chat_messages");
+      .collection("chats")
+      .doc(chatId)
+      .collection("messages");
     const query = messagesRef.orderBy("timestamp", "desc").limit(limit);
 
     const snapshot = await query.get();
@@ -1757,14 +1763,18 @@ function packChatContext(studentId, recentObservations, recentMessages, newUserM
 /**
  * Save a chat message to Firestore
  * @param {string} studentId - Student document ID
+ * @param {string} chatId - Chat document ID
  * @param {string} role - Message role ('user' or 'assistant')
  * @param {string} content - Message content
  * @param {string} model - Model used for assistant messages (optional)
  * @returns {Promise<string>} Message document ID
  */
-async function saveChatMessage(studentId, role, content, model = null) {
+async function saveChatMessage(studentId, chatId, role, content, model = null) {
   if (!studentId || typeof studentId !== "string") {
     throw new Error("Invalid studentId");
+  }
+  if (!chatId || typeof chatId !== "string") {
+    throw new Error("Invalid chatId");
   }
   if (!role || (role !== "user" && role !== "assistant")) {
     throw new Error("Invalid role, must be 'user' or 'assistant'");
@@ -1776,7 +1786,9 @@ async function saveChatMessage(studentId, role, content, model = null) {
   const messagesRef = db
     .collection("students")
     .doc(studentId)
-    .collection("chat_messages");
+    .collection("chats")
+    .doc(chatId)
+    .collection("messages");
 
   const messageData = {
     role,
@@ -1925,6 +1937,186 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
 }
 
 /**
+ * Create a new chat document for a student
+ * @param {string} studentId - Student document ID
+ * @returns {Promise<string>} Chat document ID
+ */
+async function createChat(studentId) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+
+  const chatsRef = db
+    .collection("students")
+    .doc(studentId)
+    .collection("chats");
+
+  const chatData = {
+    name: "New Chat",
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+    lastMessagePreview: "",
+    messageCount: 0,
+    deleted: false,
+  };
+
+  const docRef = await chatsRef.add(chatData);
+  return docRef.id;
+}
+
+/**
+ * Update chat metadata
+ * @param {string} studentId - Student document ID
+ * @param {string} chatId - Chat document ID
+ * @param {Object} updates - Object with fields to update (name, lastMessagePreview, messageCount)
+ * @returns {Promise<void>}
+ */
+async function updateChatMetadata(studentId, chatId, updates) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+  if (!chatId || typeof chatId !== "string") {
+    throw new Error("Invalid chatId");
+  }
+
+  const chatRef = db
+    .collection("students")
+    .doc(studentId)
+    .collection("chats")
+    .doc(chatId);
+
+  const updateData = {
+    updatedAt: Timestamp.now(),
+    ...updates,
+  };
+
+  await chatRef.update(updateData);
+}
+
+/**
+ * List all non-deleted chats for a student
+ * @param {string} studentId - Student document ID
+ * @returns {Promise<Array>} Array of chat documents
+ */
+async function listChatsForStudent(studentId) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+
+  try {
+    const chatsRef = db
+      .collection("students")
+      .doc(studentId)
+      .collection("chats");
+    const query = chatsRef
+      .where("deleted", "==", false)
+      .orderBy("createdAt", "desc");
+
+    const snapshot = await query.get();
+    const chats = [];
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      chats.push({
+        id: doc.id,
+        name: data.name || "New Chat",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null,
+        lastMessagePreview: data.lastMessagePreview || "",
+        messageCount: data.messageCount || 0,
+      });
+    });
+
+    return chats;
+  } catch (err) {
+    console.error("[listChatsForStudent] Error fetching chats:", err);
+    return [];
+  }
+}
+
+/**
+ * Soft delete a chat (set deleted flag to true)
+ * @param {string} studentId - Student document ID
+ * @param {string} chatId - Chat document ID
+ * @returns {Promise<void>}
+ */
+async function softDeleteChat(studentId, chatId) {
+  if (!studentId || typeof studentId !== "string") {
+    throw new Error("Invalid studentId");
+  }
+  if (!chatId || typeof chatId !== "string") {
+    throw new Error("Invalid chatId");
+  }
+
+  const chatRef = db
+    .collection("students")
+    .doc(studentId)
+    .collection("chats")
+    .doc(chatId);
+
+  await chatRef.update({
+    deleted: true,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+/**
+ * Generate a chat name from the first user message using AI
+ * @param {string} firstMessage - First user message in the chat
+ * @returns {Promise<string>} Generated chat name or "New Chat" as fallback
+ */
+async function generateChatName(firstMessage) {
+  if (!firstMessage || typeof firstMessage !== "string" || firstMessage.trim().length < 3) {
+    return "New Chat";
+  }
+
+  if (!OPENAI_API_KEY) {
+    console.warn("[generateChatName] OpenAI key not configured, using fallback");
+    return "New Chat";
+  }
+
+  try {
+    const prompt = `Generate a concise, descriptive title (maximum 50 characters) for a chat conversation that starts with this message: "${firstMessage.trim()}". Return only the title, nothing else.`;
+
+    const response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 50,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[generateChatName] OpenAI API error", response.status);
+      return "New Chat";
+    }
+
+    const data = await response.json();
+    const generatedName = data.choices?.[0]?.message?.content?.trim();
+
+    if (!generatedName || generatedName.length > 100) {
+      return "New Chat";
+    }
+
+    // Truncate to 100 chars max (though we aim for 50)
+    return generatedName.substring(0, 100);
+  } catch (err) {
+    console.error("[generateChatName] Error generating name:", err);
+    return "New Chat";
+  }
+}
+
+/**
  * Callable Cloud Function: Child Chat
  * Handles per-student AI chat with context from observations and chat history
  */
@@ -1951,6 +2143,7 @@ export const childChat = functions
     // Validate parameters
     const studentId = String(data?.studentId || "").trim();
     const message = String(data?.message || "").trim();
+    let chatId = data?.chatId ? String(data.chatId).trim() : null;
 
     if (!studentId) {
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
@@ -1987,20 +2180,52 @@ export const childChat = functions
       const classroomData = classroomDoc.data();
       const programId = classroomData?.programId || "primary"; // Default to primary if missing
 
+      // Handle chatId: if not provided, find most recent chat or create new one
+      if (!chatId) {
+        const existingChats = await listChatsForStudent(studentId);
+        if (existingChats.length > 0) {
+          // Use most recently created chat
+          chatId = existingChats[0].id;
+        } else {
+          // Create new chat
+          chatId = await createChat(studentId);
+        }
+      }
+
+      // Verify chat exists
+      const chatDoc = await db
+        .collection("students")
+        .doc(studentId)
+        .collection("chats")
+        .doc(chatId)
+        .get();
+      
+      if (!chatDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Chat not found");
+      }
+
+      const chatData = chatDoc.data();
+      if (chatData?.deleted) {
+        throw new functions.https.HttpsError("failed-precondition", "Chat has been deleted");
+      }
+
       // Fetch chat configuration from Firestore
       const chatConfig = await getChatConfigServer(programId);
 
-      // Fetch context
+      // Fetch context (current chat only)
       const [recentObservations, recentMessages] = await Promise.all([
         fetchRecentObservationsForChat(studentId, chatConfig.observationLimit),
-        fetchRecentChatMessages(studentId, chatConfig.chatMessageLimit),
+        fetchRecentChatMessages(studentId, chatId, chatConfig.chatMessageLimit),
       ]);
 
       // Pack context with config's system prompt
       const contextPack = packChatContext(studentId, recentObservations, recentMessages, message, chatConfig.systemPrompt);
 
-      // Save user message first
-      await saveChatMessage(studentId, "user", message);
+      // Check if this is the first message in the chat
+      const isFirstMessage = (chatData.messageCount || 0) === 0;
+
+      // Save user message
+      await saveChatMessage(studentId, chatId, "user", message);
 
       // Run LLM inference (streams internally, returns full content)
       const fullContent = await runChildChat(
@@ -2015,9 +2240,26 @@ export const childChat = functions
       }
 
       // Save assistant response with model info
-      const messageId = await saveChatMessage(studentId, "assistant", fullContent, chatConfig.model);
+      const messageId = await saveChatMessage(studentId, chatId, "assistant", fullContent, chatConfig.model);
+
+      // Update chat metadata
+      const lastMessagePreview = fullContent.substring(0, 100);
+      const newMessageCount = (chatData.messageCount || 0) + 2; // User message + assistant response
+
+      // If first message, generate chat name
+      let chatName = chatData.name || "New Chat";
+      if (isFirstMessage) {
+        chatName = await generateChatName(message);
+      }
+
+      await updateChatMetadata(studentId, chatId, {
+        name: chatName,
+        lastMessagePreview,
+        messageCount: newMessageCount,
+      });
 
       return {
+        chatId,
         messageId,
         content: fullContent,
         success: true,
@@ -2033,5 +2275,202 @@ export const childChat = functions
       // Handle other errors
       const errorMessage = err?.message || "An unexpected error occurred.";
       throw new functions.https.HttpsError("internal", errorMessage);
+    }
+  });
+
+/**
+ * Callable Cloud Function: Create Chat
+ * Creates a new chat for a student
+ */
+export const createChatFunction = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 30, memory: "256MB" })
+  .https.onCall(async (data, context) => {
+    // Authentication check
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Admin-only check
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    const userRole = userDoc.data()?.role;
+    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    // Validate parameters
+    const studentId = String(data?.studentId || "").trim();
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    try {
+      const chatId = await createChat(studentId);
+      return {
+        chatId,
+        success: true,
+      };
+    } catch (err) {
+      console.error("[createChatFunction] error", err);
+      if (err instanceof functions.https.HttpsError) {
+        throw err;
+      }
+      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
+    }
+  });
+
+/**
+ * Callable Cloud Function: List Chats
+ * Returns list of non-deleted chats for a student
+ */
+export const listChats = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 30, memory: "256MB" })
+  .https.onCall(async (data, context) => {
+    // Authentication check
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Admin-only check
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    const userRole = userDoc.data()?.role;
+    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    // Validate parameters
+    const studentId = String(data?.studentId || "").trim();
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    try {
+      const chats = await listChatsForStudent(studentId);
+      return {
+        chats,
+        success: true,
+      };
+    } catch (err) {
+      console.error("[listChats] error", err);
+      if (err instanceof functions.https.HttpsError) {
+        throw err;
+      }
+      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
+    }
+  });
+
+/**
+ * Callable Cloud Function: Update Chat Name
+ * Updates the name of a chat
+ */
+export const updateChatName = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 30, memory: "256MB" })
+  .https.onCall(async (data, context) => {
+    // Authentication check
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Admin-only check
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    const userRole = userDoc.data()?.role;
+    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    // Validate parameters
+    const studentId = String(data?.studentId || "").trim();
+    const chatId = String(data?.chatId || "").trim();
+    const name = String(data?.name || "").trim();
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+    if (!chatId) {
+      throw new functions.https.HttpsError("invalid-argument", "chatId is required");
+    }
+    if (!name) {
+      throw new functions.https.HttpsError("invalid-argument", "name is required");
+    }
+    if (name.length > 100) {
+      throw new functions.https.HttpsError("invalid-argument", "name must be 100 characters or less");
+    }
+
+    try {
+      await updateChatMetadata(studentId, chatId, { name });
+      return {
+        success: true,
+      };
+    } catch (err) {
+      console.error("[updateChatName] error", err);
+      if (err instanceof functions.https.HttpsError) {
+        throw err;
+      }
+      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
+    }
+  });
+
+/**
+ * Callable Cloud Function: Delete Chat
+ * Soft deletes a chat (sets deleted flag to true)
+ */
+export const deleteChat = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 30, memory: "256MB" })
+  .https.onCall(async (data, context) => {
+    // Authentication check
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Admin-only check
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    const userRole = userDoc.data()?.role;
+    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+    }
+
+    // Validate parameters
+    const studentId = String(data?.studentId || "").trim();
+    const chatId = String(data?.chatId || "").trim();
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+    if (!chatId) {
+      throw new functions.https.HttpsError("invalid-argument", "chatId is required");
+    }
+
+    try {
+      await softDeleteChat(studentId, chatId);
+      return {
+        success: true,
+      };
+    } catch (err) {
+      console.error("[deleteChat] error", err);
+      if (err instanceof functions.https.HttpsError) {
+        throw err;
+      }
+      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
     }
   });
