@@ -15,12 +15,21 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
       <Box
         component="header"
         sx={{ 
-          position: 'sticky',
+          position: 'fixed',
           top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: { xs: '100%', sm: '420px' },
           zIndex: 1100,
           backgroundColor: 'white',
           borderBottom: '1px solid #e2e8f0',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          '@media (max-width: 599px)': {
+            '@supports (padding: env(safe-area-inset-top))': {
+              paddingTop: 'env(safe-area-inset-top)'
+            }
+          },
           // Debug: make it more visible
           '&::before': {
             content: '""',

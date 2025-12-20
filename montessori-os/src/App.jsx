@@ -627,6 +627,10 @@ function App() {
                   overflow: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
+                  paddingTop: { 
+                    xs: 'calc(64px + env(safe-area-inset-top, 0px))', 
+                    sm: '64px' 
+                  }, // Account for fixed header + safe area on mobile
                 }}
               >
                 <Box
