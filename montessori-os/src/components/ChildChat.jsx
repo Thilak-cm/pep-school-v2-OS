@@ -464,7 +464,7 @@ function ChildChat({ student }) {
         flexDirection: 'column',
         height: '100%',
         position: 'relative',
-        pt: 10, // Space for fixed header bubble
+        pt: 12, // Space for fixed header bubble (increased for better spacing)
         pb: 12, // Space for floating input bubble above footer
       }}
     >
@@ -472,7 +472,7 @@ function ChildChat({ student }) {
       <Box
         sx={{
           position: 'fixed',
-          top: 60, // Below app header
+          top: 70,
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'calc(100% - 32px)',
@@ -572,6 +572,12 @@ function ChildChat({ student }) {
                   }}
                   disabled={isCreatingChat}
                   displayEmpty
+                  onClose={(e) => {
+                    // Don't close if clicking on action buttons
+                    if (e?.target?.closest('.chat-action-button')) {
+                      e.preventDefault();
+                    }
+                  }}
                   renderValue={(selected) => {
                     if (!selected) {
                       return (
@@ -581,9 +587,10 @@ function ChildChat({ student }) {
                       );
                     }
                     const selectedChat = chats.find(c => c.id === selected);
+                    const displayName = selectedChat ? (selectedChat.name || 'New Chat').replace(/^["']|["']$/g, '') : 'New Chat';
                     return (
                       <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {selectedChat ? selectedChat.name : 'New Chat'}
+                        {displayName}
                       </Typography>
                     );
                   }}
@@ -622,60 +629,95 @@ function ChildChat({ student }) {
                       </Typography>
                     </MenuItem>
                   ) : (
-                    chats.map((chat) => (
-                      <MenuItem key={chat.id} value={chat.id}>
-                        <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                          {chat.name || 'New Chat'}
-                        </Typography>
-                      </MenuItem>
-                    ))
+                    chats
+                      .filter((chat) => chat.id !== currentChatId) // Don't show current chat in dropdown
+                      .map((chat) => {
+                        const displayName = (chat.name || 'New Chat').replace(/^["']|["']$/g, '');
+                        return (
+                          <MenuItem 
+                            key={chat.id} 
+                            value={chat.id}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1, pr: 0 }}>
+                              <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                                {displayName}
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                <IconButton
+                                  size="small"
+                                  className="chat-action-button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleStartEditChatName(chat);
+                                  }}
+                                  sx={{
+                                    minWidth: '32px',
+                                    width: '32px',
+                                    height: '32px',
+                                    p: 0.5,
+                                    color: '#64748b',
+                                    '&:hover': {
+                                      color: '#4f46e5',
+                                      backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                                    },
+                                  }}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                                {chats.length > 1 && (
+                                  <IconButton
+                                    size="small"
+                                    className="chat-action-button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteChat(chat.id);
+                                    }}
+                                    sx={{
+                                      minWidth: '32px',
+                                      width: '32px',
+                                      height: '32px',
+                                      p: 0.5,
+                                      color: '#64748b',
+                                      '&:hover': {
+                                        color: '#dc2626',
+                                        backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                                      },
+                                    }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </Box>
+                            </Box>
+                          </MenuItem>
+                        );
+                      })
                   )}
-                  <MenuItem value="__new__" onClick={handleCreateNewChat} disabled={isCreatingChat}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <AddIcon fontSize="small" />
-                      <Typography variant="body2">New Chat</Typography>
-                    </Box>
-                  </MenuItem>
                 </Select>
               </FormControl>
-              {currentChatId && chats.find(c => c.id === currentChatId) && (
-                <>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleStartEditChatName(chats.find(c => c.id === currentChatId))}
-                    sx={{
-                      minWidth: '40px',
-                      width: '40px',
-                      height: '40px',
-                      color: '#64748b',
-                      '&:hover': {
-                        color: '#4f46e5',
-                        backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                      },
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  {chats.length > 1 && (
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteChat(currentChatId)}
-                      sx={{
-                        minWidth: '40px',
-                        width: '40px',
-                        height: '40px',
-                        color: '#64748b',
-                        '&:hover': {
-                          color: '#dc2626',
-                          backgroundColor: 'rgba(220, 38, 38, 0.08)',
-                        },
-                      }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </>
-              )}
+              <IconButton
+                size="small"
+                onClick={handleCreateNewChat}
+                disabled={isCreatingChat}
+                sx={{
+                  minWidth: '40px',
+                  width: '40px',
+                  height: '40px',
+                  color: '#fff',
+                  backgroundColor: '#4f46e5',
+                  '&:hover': {
+                    backgroundColor: '#4338ca',
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#cbd5e1',
+                    color: '#94a3b8',
+                  },
+                }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
             </>
           )}
         </Paper>
