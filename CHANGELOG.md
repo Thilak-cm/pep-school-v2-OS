@@ -1,5 +1,10 @@
 # Changelog
 
+# 7.0.1 — 2025-12-19
+
+### Fixed
+- Fixed AppHeader and AppFooter positioning: Both components now remain fixed at the top and bottom of the screen respectively, staying visible while scrolling. Header changed from `sticky` to `fixed` positioning with proper centering to align with the app container. Added safe area inset support for mobile devices.
+
 # 7.0.0 — 2025-12-19
 
 ### Added
