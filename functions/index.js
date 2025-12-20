@@ -2008,14 +2008,29 @@ async function listChatsForStudent(studentId) {
       .collection("students")
       .doc(studentId)
       .collection("chats");
-    const query = chatsRef
-      .where("deleted", "==", false)
-      .orderBy("createdAt", "desc");
+    
+    // Try query with orderBy first (requires composite index)
+    // If index doesn't exist, fall back to fetching all and sorting in memory
+    let snapshot;
+    try {
+      const query = chatsRef
+        .where("deleted", "==", false)
+        .orderBy("createdAt", "desc");
+      snapshot = await query.get();
+    } catch (indexError) {
+      // If query fails (likely missing index), fetch all chats and filter/sort in memory
+      console.warn("[listChatsForStudent] Query with orderBy failed, falling back to in-memory sort:", indexError.message);
+      const allChatsSnapshot = await chatsRef.get();
+      snapshot = allChatsSnapshot;
+    }
 
-    const snapshot = await query.get();
     const chats = [];
     snapshot.docs.forEach((doc) => {
       const data = doc.data();
+      // Filter out deleted chats if we're using fallback method
+      if (data.deleted === true) {
+        return;
+      }
       chats.push({
         id: doc.id,
         name: data.name || "New Chat",
@@ -2026,10 +2041,21 @@ async function listChatsForStudent(studentId) {
       });
     });
 
+    // Sort by createdAt desc if we used fallback method
+    if (chats.length > 0 && chats[0].createdAt) {
+      chats.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+        return bTime - aTime; // Descending order
+      });
+    }
+
+    console.log(`[listChatsForStudent] Found ${chats.length} chats for student ${studentId}`);
     return chats;
   } catch (err) {
     console.error("[listChatsForStudent] Error fetching chats:", err);
-    return [];
+    // Don't silently fail - throw the error so it can be handled upstream
+    throw err;
   }
 }
 
@@ -2355,14 +2381,25 @@ export const listChats = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
+    console.log(`[listChats] Fetching chats for studentId: ${studentId}`);
+
     try {
       const chats = await listChatsForStudent(studentId);
+      console.log(`[listChats] Returning ${chats.length} chats for student ${studentId}`);
+      if (chats.length > 0) {
+        console.log(`[listChats] Chat names:`, chats.map(c => c.name));
+      }
       return {
         chats,
         success: true,
       };
     } catch (err) {
       console.error("[listChats] error", err);
+      console.error("[listChats] Error details:", {
+        message: err.message,
+        code: err.code,
+        stack: err.stack,
+      });
       if (err instanceof functions.https.HttpsError) {
         throw err;
       }

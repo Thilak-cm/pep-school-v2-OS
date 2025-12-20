@@ -1,5 +1,30 @@
 # Changelog
 
+# 7.0.0 — 2025-12-19
+
+### Added
+- Multi-chat support: Students can now have multiple isolated chat conversations with Coach Pepper using the schema `students/{id}/chats/{chatId}/messages/{messageId}`.
+- Chat management UI: Fixed floating bubble-style chat selector header with dropdown, inline editing, and delete functionality.
+- AI-generated chat names: Chat names are automatically generated from the first user message using OpenAI, with fallback to "New Chat".
+- Markdown formatting: Chat messages now support markdown formatting including bold text (`**text**`) and numbered lists.
+- Chat Command Centre: New configuration interface for managing AI chat settings per program, accessible from AI Tools.
+- Chat loading states: Coach Pepper-themed loading indicators when fetching chats and processing messages.
+
+### Changed
+- Chat creation flow: Chats are now only created when the user sends their first message (not automatically on page load).
+- Chat selector UI: Moved edit/delete buttons to individual dropdown rows; replaced with Add button in main bubble.
+- Chat display: Current chat is hidden from dropdown list; quotes are stripped from chat names in display.
+- Chat loading: Improved backend query handling with fallback to in-memory sorting when Firestore composite index is missing.
+- Message input: Enhanced floating bubble styling for consistency with chat selector.
+- Chat selector positioning: Added proper spacing between app header and fixed chat selector bubble.
+
+### Fixed
+- Resolved chat loading issue where existing chats weren't displaying due to missing Firestore composite index.
+- Fixed quote display issue where quotes appeared in untoggled chat selector bubble.
+- Improved chat selector dropdown behavior to prevent closing when clicking edit/delete buttons.
+- Enhanced chat loading UX to show loading indicator while fetching chats instead of immediately showing empty state.
+- Enhanced error handling for chat operations with better user feedback.
+
 # 6.0.4 — 2025-12-16
 
 ### Added
