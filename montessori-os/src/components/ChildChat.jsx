@@ -466,6 +466,10 @@ function ChildChat({ student }) {
         position: 'relative',
         pt: 12, // Space for fixed header bubble (increased for better spacing)
         pb: 12, // Space for floating input bubble above footer
+        width: '100%',
+        maxWidth: '100%',
+        overflowX: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Fixed Chat Selector Header - Floating Bubble Style */}
@@ -475,9 +479,11 @@ function ChildChat({ student }) {
           top: 70,
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'calc(100% - 32px)',
-          maxWidth: { xs: 'calc(100vw - 32px)', sm: '388px' },
+          width: { xs: 'calc(100% - 32px)', sm: '388px' },
+          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
           zIndex: 1000,
+          overflowX: 'hidden',
+          boxSizing: 'border-box',
         }}
       >
         <Paper
@@ -491,6 +497,10 @@ function ChildChat({ student }) {
             backgroundColor: '#fff',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
             border: '1px solid #e2e8f0',
+            width: '100%',
+            maxWidth: '100%',
+            overflowX: 'hidden',
+            boxSizing: 'border-box',
           }}
         >
           {editingChatId === currentChatId ? (
@@ -517,12 +527,16 @@ function ChildChat({ student }) {
                     fontWeight: 500,
                     px: 1.5,
                     py: 1,
+                    overflowX: 'hidden',
                   },
                 }}
                 sx={{
                   flex: 1,
+                  minWidth: 0,
+                  overflowX: 'hidden',
                   '& .MuiInputBase-root': {
                     minHeight: '44px',
+                    overflowX: 'hidden',
                   },
                 }}
               />
@@ -562,7 +576,7 @@ function ChildChat({ student }) {
           ) : (
             // View mode - dropdown selector
             <>
-              <FormControl fullWidth sx={{ flex: 1 }}>
+              <FormControl fullWidth sx={{ flex: 1, minWidth: 0, overflowX: 'hidden' }}>
                 <Select
                   value={currentChatId || ''}
                   onChange={(e) => {
@@ -581,7 +595,7 @@ function ChildChat({ student }) {
                   renderValue={(selected) => {
                     if (!selected) {
                       return (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {chats.length === 0 ? 'No chats yet' : 'Select a chat'}
                         </Typography>
                       );
@@ -589,18 +603,24 @@ function ChildChat({ student }) {
                     const selectedChat = chats.find(c => c.id === selected);
                     const displayName = selectedChat ? (selectedChat.name || 'New Chat').replace(/^["']|["']$/g, '') : 'New Chat';
                     return (
-                      <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {displayName}
                       </Typography>
                     );
                   }}
                   sx={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    overflowX: 'hidden',
                     '& .MuiSelect-select': {
                       py: 1,
                       px: 1.5,
                       minHeight: '44px',
                       display: 'flex',
                       alignItems: 'center',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     },
                     '& .MuiOutlinedInput-notchedOutline': {
                       border: 'none',
@@ -741,12 +761,16 @@ function ChildChat({ student }) {
         sx={{
           flex: 1,
           overflowY: 'auto',
+          overflowX: 'hidden',
           px: 2,
           pt: 2,
           pb: 3,
           display: 'flex',
           flexDirection: 'column',
           gap: 3,
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Loading chats - Coach Pepper themed */}
@@ -805,8 +829,11 @@ function ChildChat({ student }) {
                 flexDirection: 'column',
                 alignItems: isUser ? 'flex-end' : 'flex-start',
                 width: '100%',
+                maxWidth: '100%',
                 px: { xs: 1, sm: 2 },
                 mb: 2,
+                boxSizing: 'border-box',
+                overflowX: 'hidden',
               }}
             >
               {/* Avatar above message */}
@@ -843,9 +870,12 @@ function ChildChat({ student }) {
                     color: '#fff',
                     borderRadius: 3,
                     boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
-                    maxWidth: '95%',
+                    maxWidth: 'min(95%, 100%)',
                     width: 'fit-content',
                     alignSelf: 'flex-end',
+                    boxSizing: 'border-box',
+                    overflowWrap: 'break-word',
+                    wordBreak: 'break-word',
                   }}
                 >
                   <Typography 
@@ -854,8 +884,10 @@ function ChildChat({ student }) {
                     sx={{ 
                       whiteSpace: 'pre-wrap', 
                       wordBreak: 'break-word',
+                      overflowWrap: 'break-word',
                       lineHeight: 1.6,
                       fontSize: '0.95rem',
+                      maxWidth: '100%',
                     }}
                   >
                     {parseMarkdown(msg.content) || msg.content}
@@ -863,14 +895,21 @@ function ChildChat({ student }) {
                 </Paper>
               ) : (
                 // AI message: Plain text, full width
-                <Box sx={{ width: '100%', maxWidth: '95%' }}>
+                <Box sx={{ 
+                  width: '100%', 
+                  maxWidth: '95%',
+                  boxSizing: 'border-box',
+                  overflowX: 'hidden',
+                }}>
                   <Box
                     sx={{ 
                       whiteSpace: 'pre-wrap', 
                       wordBreak: 'break-word',
+                      overflowWrap: 'break-word',
                       lineHeight: 1.7,
                       fontSize: '0.95rem',
                       color: '#1e293b',
+                      maxWidth: '100%',
                     }}
                   >
                     {parseMarkdown(msg.content) || msg.content}
@@ -928,9 +967,11 @@ function ChildChat({ student }) {
           bottom: 80, // Above app footer with some spacing
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'calc(100% - 32px)',
-          maxWidth: { xs: 'calc(100vw - 32px)', sm: '388px' }, // 420px - 32px padding
+          width: { xs: 'calc(100% - 32px)', sm: '388px' },
+          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
           zIndex: 1000,
+          overflowX: 'hidden',
+          boxSizing: 'border-box',
           '@media (max-width: 599px)': {
             '@supports (padding: env(safe-area-inset-bottom))': {
               bottom: 'calc(80px + env(safe-area-inset-bottom))',
@@ -949,6 +990,10 @@ function ChildChat({ student }) {
             backgroundColor: '#fff',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
             border: '1px solid #e2e8f0',
+            width: '100%',
+            maxWidth: '100%',
+            overflowX: 'hidden',
+            boxSizing: 'border-box',
           }}
         >
           <TextField
@@ -967,6 +1012,7 @@ function ChildChat({ student }) {
                 fontSize: '0.95rem',
                 px: 1.5,
                 py: 1,
+                overflowX: 'hidden',
                 '&::placeholder': {
                   opacity: 0.6,
                 },
@@ -974,8 +1020,11 @@ function ChildChat({ student }) {
             }}
             sx={{
               flex: 1,
+              minWidth: 0,
+              overflowX: 'hidden',
               '& .MuiInputBase-root': {
                 minHeight: '44px',
+                overflowX: 'hidden',
               },
             }}
           />
