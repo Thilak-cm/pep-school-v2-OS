@@ -43,6 +43,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
         transform: 'translateX(-50%)',
         width: '100%',
         maxWidth: { xs: '100%', sm: '420px' },
+        overflowX: 'hidden',
         zIndex: 1050,
         px: { xs: 0, sm: 1 },
         '@media (max-width: 599px)': {

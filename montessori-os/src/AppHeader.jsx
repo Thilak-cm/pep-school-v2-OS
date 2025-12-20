@@ -21,6 +21,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
           transform: 'translateX(-50%)',
           width: '100%',
           maxWidth: { xs: '100%', sm: '420px' },
+          overflowX: 'hidden',
           zIndex: 1100,
           backgroundColor: 'white',
           borderBottom: '1px solid #e2e8f0',

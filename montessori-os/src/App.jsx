@@ -477,6 +477,8 @@ function App() {
         sx={{
           minHeight: '100vh',
           width: '100vw',
+          maxWidth: '100vw',
+          overflowX: 'hidden',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -487,12 +489,14 @@ function App() {
           sx={{
             // Mobile: use viewport dimensions but allow scrolling
             width: { xs: '100vw', sm: '420px' },
+            maxWidth: { xs: '100vw', sm: '420px' },
             minHeight: { xs: '100vh', sm: '800px' },
             maxHeight: { xs: 'none', sm: '90vh' },
             backgroundColor: '#f8fafc',
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
+            overflowX: 'hidden',
             // Removed overflow: 'auto' from here - it breaks sticky positioning
             
             // Desktop: add shadow and border radius
@@ -624,7 +628,8 @@ function App() {
               <Box
                 sx={{
                   flex: 1,
-                  overflow: 'auto',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
                   paddingTop: { 
@@ -640,6 +645,10 @@ function App() {
                     flexDirection: 'column',
                     minHeight: 'fit-content',
                     pb: { xs: 12, sm: 12 },
+                    width: '100%',
+                    maxWidth: '100%',
+                    overflowX: 'hidden',
+                    boxSizing: 'border-box',
                   }}
                 >
                                     {screen === 'landingPage' && (
