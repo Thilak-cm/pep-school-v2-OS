@@ -18,6 +18,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -32,7 +34,7 @@ import {
 } from '@mui/icons-material';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
+import { db, cloudFunctions, auth } from '../firebase';
 
 /**
  * Parse markdown and convert to React elements
@@ -164,7 +166,9 @@ function ChildChat({ student }) {
   const [editingChatName, setEditingChatName] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [chatToDelete, setChatToDelete] = useState(null);
+  const [devMode, setDevMode] = useState(false); // Dev toggle to skip observation context
   const messagesEndRef = useRef(null);
+  const optimisticMessagesRef = useRef(new Map()); // Track optimistic messages by content+timestamp
   const studentId = student?.id || student?.uid || null;
 
   const getStudentName = (s) => {
@@ -220,6 +224,7 @@ function ChildChat({ student }) {
   useEffect(() => {
     if (!studentId || !currentChatId) {
       setMessages([]);
+      optimisticMessagesRef.current.clear();
       return;
     }
 
@@ -229,11 +234,48 @@ function ChildChat({ student }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const messageList = snapshot.docs.map((doc) => ({
+        const firestoreMessages = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-        setMessages(messageList);
+
+        // Merge Firestore messages with optimistic messages
+        // Remove optimistic messages that have been confirmed by Firestore
+        const optimisticMap = optimisticMessagesRef.current;
+        const confirmedKeys = new Set();
+        
+        // Check which optimistic messages have been confirmed
+        firestoreMessages.forEach((msg) => {
+          if (msg.role === 'user') {
+            const msgTimestamp = msg.timestamp?.toDate ? msg.timestamp.toDate().getTime() : 
+                               (msg.timestamp?.seconds ? msg.timestamp.seconds * 1000 : null);
+            if (msgTimestamp) {
+              // Check if any optimistic message matches this content and timestamp (within 5 seconds)
+              optimisticMap.forEach((optimisticMsg, key) => {
+                const optimisticTimestamp = optimisticMsg.timestamp?.getTime ? optimisticMsg.timestamp.getTime() : optimisticMsg.timestamp;
+                const timeDiff = Math.abs(msgTimestamp - optimisticTimestamp);
+                if (optimisticMsg.content === msg.content && timeDiff < 5000) {
+                  confirmedKeys.add(key);
+                }
+              });
+            }
+          }
+        });
+
+        // Remove confirmed optimistic messages
+        confirmedKeys.forEach(key => optimisticMap.delete(key));
+
+        // Combine Firestore messages with remaining optimistic messages
+        const optimisticArray = Array.from(optimisticMap.values());
+        const allMessages = [...firestoreMessages, ...optimisticArray].sort((a, b) => {
+          const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
+                       (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
+          const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
+                       (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : b.timestamp?.getTime ? b.timestamp.getTime() : 0);
+          return timeA - timeB;
+        });
+
+        setMessages(allMessages);
         // Scroll to bottom when new messages arrive
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -306,12 +348,45 @@ function ChildChat({ student }) {
     setError('');
     setInputValue('');
 
+    // Optimistically add user message immediately for better UX
+    const currentUser = auth.currentUser;
+    const optimisticMessage = {
+      id: `temp-${Date.now()}-${Math.random()}`,
+      role: 'user',
+      content: trimmedMessage,
+      timestamp: new Date(),
+      authorId: currentUser?.uid || null,
+      authorName: currentUser?.displayName || currentUser?.email?.split('@')[0] || null,
+    };
+    
+    // Add to optimistic messages map
+    const optimisticKey = `${trimmedMessage}-${optimisticMessage.timestamp.getTime()}`;
+    optimisticMessagesRef.current.set(optimisticKey, optimisticMessage);
+    
+    // Immediately update UI with optimistic message
+    setMessages((prevMessages) => {
+      const updated = [...prevMessages, optimisticMessage].sort((a, b) => {
+        const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
+                     (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
+        const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
+                     (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : b.timestamp?.getTime ? b.timestamp.getTime() : 0);
+        return timeA - timeB;
+      });
+      return updated;
+    });
+
+    // Scroll to bottom immediately
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+
     try {
       const childChatFn = httpsCallable(cloudFunctions, 'childChat');
       const result = await childChatFn({
         studentId,
         chatId: chatIdToUse,
         message: trimmedMessage,
+        devMode: devMode, // Skip observation context when true
       });
 
       // Message is already saved by the backend, so the real-time listener will update the UI
@@ -328,6 +403,10 @@ function ChildChat({ student }) {
         }
       }
     } catch (err) {
+      // Remove optimistic message on error
+      optimisticMessagesRef.current.delete(optimisticKey);
+      setMessages((prevMessages) => prevMessages.filter(msg => msg.id !== optimisticMessage.id));
+
       // Parse Firebase error
       let errorMessage = 'Failed to send message. Please try again.';
       if (err?.code === 'functions/invalid-argument') {
@@ -793,6 +872,66 @@ function ChildChat({ student }) {
               </IconButton>
             </>
           )}
+        </Paper>
+      </Box>
+
+      {/* Dev Mode Toggle - Temporary */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 130,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: { xs: 'calc(100% - 32px)', sm: '388px' },
+          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
+          zIndex: 999,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          px: 1,
+        }}
+      >
+        <Paper
+          elevation={2}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            px: 1.5,
+            py: 0.5,
+            backgroundColor: devMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.95)',
+            borderRadius: 2,
+            border: devMode ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={devMode}
+                onChange={(e) => setDevMode(e.target.checked)}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#f59e0b',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#f59e0b',
+                  },
+                }}
+              />
+            }
+            label={
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  fontSize: '0.7rem', 
+                  color: devMode ? '#f59e0b' : '#64748b',
+                  fontWeight: devMode ? 600 : 400,
+                }}
+              >
+                Dev Mode
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
         </Paper>
       </Box>
 

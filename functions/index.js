@@ -2248,11 +2248,20 @@ export const childChat = functions
       // Fetch chat configuration from Firestore
       const chatConfig = await getChatConfigServer(programId);
 
-      // Fetch context (current chat only)
-      const [recentObservations, recentMessages] = await Promise.all([
-        fetchRecentObservationsForChat(studentId, chatConfig.observationLimit),
-        fetchRecentChatMessages(studentId, chatId, chatConfig.chatMessageLimit),
-      ]);
+      // Dev mode: skip observation context (temporary feature for UI testing)
+      const devMode = Boolean(data?.devMode);
+      
+      let recentObservations = [];
+      let recentMessages = [];
+      
+      if (!devMode) {
+        // Fetch context (current chat only)
+        [recentObservations, recentMessages] = await Promise.all([
+          fetchRecentObservationsForChat(studentId, chatConfig.observationLimit),
+          fetchRecentChatMessages(studentId, chatId, chatConfig.chatMessageLimit),
+        ]);
+      }
+      // In dev mode, keep arrays empty - only system prompt + current message will be used
 
       // Pack context with config's system prompt
       const contextPack = packChatContext(studentId, recentObservations, recentMessages, message, chatConfig.systemPrompt);
