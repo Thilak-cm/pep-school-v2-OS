@@ -566,13 +566,13 @@ function ChildChat({ student }) {
                     if (!selected) {
                       if (isLoadingChats) {
                         return (
-                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                             Loading history...
                           </Typography>
                         );
                       }
                       return (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                           {chats.length === 0 ? 'No chats yet' : 'Select a chat'}
                         </Typography>
                       );
@@ -590,8 +590,9 @@ function ChildChat({ student }) {
                     maxWidth: '100%',
                     overflowX: 'hidden',
                     '& .MuiSelect-select': {
-                      py: 1,
-                      px: 1.5,
+                      py: 0,
+                      pl: 1.5,
+                      pr: 2, // Extra right padding for italic text overflow
                       minHeight: '44px',
                       display: 'flex',
                       alignItems: 'center',
@@ -626,7 +627,7 @@ function ChildChat({ student }) {
                       </Typography>
                     </MenuItem>
                   ) : chats.length === 0 ? (
-                    <MenuItem disabled>
+                    <MenuItem disabled sx={{ pr: 2 }}>
                       <Typography variant="body2" color="text.secondary">
                         No chats yet. Send a message to start!
                       </Typography>
