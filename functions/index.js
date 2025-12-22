@@ -1767,9 +1767,11 @@ function packChatContext(studentId, recentObservations, recentMessages, newUserM
  * @param {string} role - Message role ('user' or 'assistant')
  * @param {string} content - Message content
  * @param {string} model - Model used for assistant messages (optional)
+ * @param {string} authorId - Author user ID (optional, for user messages)
+ * @param {string} authorName - Author display name (optional, for user messages)
  * @returns {Promise<string>} Message document ID
  */
-async function saveChatMessage(studentId, chatId, role, content, model = null) {
+async function saveChatMessage(studentId, chatId, role, content, model = null, authorId = null, authorName = null) {
   if (!studentId || typeof studentId !== "string") {
     throw new Error("Invalid studentId");
   }
@@ -1799,6 +1801,14 @@ async function saveChatMessage(studentId, chatId, role, content, model = null) {
   // Add model field for assistant messages
   if (role === "assistant" && model) {
     messageData.model = model;
+  }
+
+  // Add author information for user messages
+  if (role === "user" && authorId) {
+    messageData.authorId = authorId;
+    if (authorName) {
+      messageData.authorName = authorName;
+    }
   }
 
   const docRef = await messagesRef.add(messageData);
@@ -2250,8 +2260,13 @@ export const childChat = functions
       // Check if this is the first message in the chat
       const isFirstMessage = (chatData.messageCount || 0) === 0;
 
-      // Save user message
-      await saveChatMessage(studentId, chatId, "user", message);
+      // Get author information from user document
+      const userData = userDoc.data();
+      const authorId = context.auth.uid;
+      const authorName = userData?.displayName || userData?.name || context.auth.token?.name || null;
+
+      // Save user message with author information
+      await saveChatMessage(studentId, chatId, "user", message, null, authorId, authorName);
 
       // Run LLM inference (streams internally, returns full content)
       const fullContent = await runChildChat(

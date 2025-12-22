@@ -23,6 +23,7 @@ import {
   Edit as EditIcon,
   Close as CloseIcon,
   Check as CheckIcon,
+  ContentCopy as ContentCopyIcon,
 } from '@mui/icons-material';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -156,6 +157,7 @@ function ChildChat({ student }) {
   const [error, setError] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingChatName, setEditingChatName] = useState('');
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const studentId = student?.id || student?.uid || null;
 
@@ -446,6 +448,19 @@ function ChildChat({ student }) {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     } catch {
       return '';
+    }
+  };
+
+  const handleCopyMessage = async (messageContent, messageId) => {
+    try {
+      await navigator.clipboard.writeText(messageContent);
+      setCopiedMessageId(messageId);
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy message:', err);
     }
   };
 
@@ -892,6 +907,38 @@ function ChildChat({ student }) {
                   >
                     {parseMarkdown(msg.content) || msg.content}
                   </Typography>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      mt: 1,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {msg.authorName && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          opacity: 0.7,
+                          fontSize: '0.7rem',
+                          color: 'rgba(255, 255, 255, 0.8)',
+                        }}
+                      >
+                        Author: {msg.authorName}
+                      </Typography>
+                    )}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        opacity: 0.7,
+                        fontSize: '0.7rem',
+                        color: 'rgba(255, 255, 255, 0.8)',
+                      }}
+                    >
+                      {formatTimestamp(msg.timestamp)}
+                    </Typography>
+                  </Box>
                 </Paper>
               ) : (
                 // AI message: Plain text, full width
@@ -914,18 +961,44 @@ function ChildChat({ student }) {
                   >
                     {parseMarkdown(msg.content) || msg.content}
                   </Box>
-                  <Typography
-                    variant="caption"
+                  <Box
                     sx={{
-                      display: 'block',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
                       mt: 1,
-                      opacity: 0.6,
-                      fontSize: '0.7rem',
-                      color: '#64748b',
                     }}
                   >
-                    {formatTimestamp(msg.timestamp)}
-                  </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        opacity: 0.6,
+                        fontSize: '0.7rem',
+                        color: '#64748b',
+                      }}
+                    >
+                      {formatTimestamp(msg.timestamp)}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopyMessage(msg.content, msg.id)}
+                      sx={{
+                        padding: '2px',
+                        minWidth: '20px',
+                        width: '20px',
+                        height: '20px',
+                        color: copiedMessageId === msg.id ? '#4f46e5' : '#64748b',
+                        opacity: 0.6,
+                        '&:hover': {
+                          opacity: 1,
+                          backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                        },
+                      }}
+                      aria-label="Copy message"
+                    >
+                      <ContentCopyIcon sx={{ fontSize: '0.875rem' }} />
+                    </IconButton>
+                  </Box>
                 </Box>
               )}
             </Box>
