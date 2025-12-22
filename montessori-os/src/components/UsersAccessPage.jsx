@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
-  List, ListItemButton, ListItemAvatar, ListItemText, IconButton, Checkbox, ListItemIcon, ListItem
+  List, ListItemButton, ListItemAvatar, ListItemText, IconButton, Checkbox, ListItemIcon, ListItem,
+  Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, ChevronRight, Delete } from '@mui/icons-material';
+import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, Delete, Edit } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -15,6 +16,7 @@ import {
   where,
   doc,
   setDoc,
+  updateDoc,
   runTransaction,
   Timestamp,
   serverTimestamp,
@@ -307,6 +309,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     } else {
       if (!studentForm.firstName) errors.stuFirstName = 'First name is required';
       if (!studentForm.classroomId) errors.classroomId = 'Select a classroom';
+      if (!studentForm.dob) {
+        errors.stuDob = 'Date of Birth is required';
+      } else {
+        const dobDate = new Date(studentForm.dob);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const maxDate = new Date(today);
+        const minDate = new Date(today);
+        minDate.setFullYear(today.getFullYear() - 120);
+        
+        if (dobDate > today) {
+          errors.stuDob = 'Date of Birth cannot be in the future';
+        } else if (dobDate < minDate) {
+          errors.stuDob = 'Date of Birth is too far in the past';
+        }
+      }
       const guardianFields = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone];
       const hasAny = guardianFields.some(Boolean);
       const all = guardianFields.every(v => (v || '').trim() !== '');
@@ -353,6 +371,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteDeleting, setDeleteDeleting] = useState(false);
+
+  // Student metadata dialog state
+  const [studentDialogOpen, setStudentDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentEditMode, setStudentEditMode] = useState(false);
+  const [editedStudentData, setEditedStudentData] = useState({ firstName: '', lastName: '', status: 'active', dob: '' });
+  const [studentSaving, setStudentSaving] = useState(false);
 
   // ============================================================================
   // DIALOG HANDLERS
@@ -410,6 +435,125 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     setDemoteTarget(null);
     setDemoteSelectedIds([]);
     setDemoteError('');
+  };
+
+  // ============================================================================
+  // STUDENT DIALOG HANDLERS
+  // ============================================================================
+
+  const openStudentDialog = (student) => {
+    setSelectedStudent(student);
+    // Convert dateOfBirth Timestamp to date string format for editing
+    let dobString = '';
+    if (student.dateOfBirth && student.dateOfBirth.toDate) {
+      const dobDate = student.dateOfBirth.toDate();
+      dobString = dobDate.toISOString().split('T')[0];
+    }
+    setEditedStudentData({
+      firstName: student.firstName || '',
+      lastName: student.lastName || '',
+      status: student.status || 'active',
+      dob: dobString
+    });
+    setStudentEditMode(false);
+    setValidationErrors({});
+    setStudentDialogOpen(true);
+  };
+
+  const closeStudentDialog = () => {
+    if (studentSaving) return;
+    setStudentDialogOpen(false);
+    setSelectedStudent(null);
+    setStudentEditMode(false);
+    setEditedStudentData({ firstName: '', lastName: '', status: 'active', dob: '' });
+  };
+
+  const handleStudentEditCancel = () => {
+    // Reset edited data to original student values
+    if (selectedStudent) {
+      let dobString = '';
+      if (selectedStudent.dateOfBirth && selectedStudent.dateOfBirth.toDate) {
+        const dobDate = selectedStudent.dateOfBirth.toDate();
+        dobString = dobDate.toISOString().split('T')[0];
+      }
+      setEditedStudentData({
+        firstName: selectedStudent.firstName || '',
+        lastName: selectedStudent.lastName || '',
+        status: selectedStudent.status || 'active',
+        dob: dobString
+      });
+    }
+    setStudentEditMode(false);
+    // Clear validation errors
+    setValidationErrors({});
+  };
+
+  const handleStudentEditSave = async () => {
+    if (!selectedStudent) return;
+
+    // Validate edited data
+    const errors = {};
+    if (!editedStudentData.firstName?.trim()) {
+      errors.firstName = 'First name is required';
+    }
+    if (editedStudentData.dob) {
+      const dobDate = new Date(editedStudentData.dob);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const minDate = new Date(today);
+      minDate.setFullYear(today.getFullYear() - 120);
+      
+      if (dobDate > today) {
+        errors.dob = 'Date of Birth cannot be in the future';
+      } else if (dobDate < minDate) {
+        errors.dob = 'Date of Birth is too far in the past';
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    try {
+      setStudentSaving(true);
+      const studentRef = doc(db, 'students', selectedStudent.id);
+      const updatePayload = {
+        firstName: editedStudentData.firstName.trim(),
+        lastName: (editedStudentData.lastName || '').trim(),
+        displayName: `${editedStudentData.firstName.trim()} ${(editedStudentData.lastName || '').trim()}`.trim(),
+        status: editedStudentData.status,
+        isActive: editedStudentData.status === 'active',
+        updatedAt: serverTimestamp(),
+      };
+
+      // Handle DOB - convert string to Timestamp if provided
+      if (editedStudentData.dob) {
+        updatePayload.dateOfBirth = Timestamp.fromDate(new Date(editedStudentData.dob));
+      } else {
+        // If DOB is cleared, we'll keep the existing one (don't update it)
+        // But if we want to allow clearing, we could use deleteField() here
+      }
+
+      await updateDoc(studentRef, updatePayload);
+      
+      // Refresh students list
+      await fetchStudents();
+      
+      // Update selectedStudent with new data
+      setSelectedStudent({
+        ...selectedStudent,
+        ...updatePayload,
+        dateOfBirth: editedStudentData.dob ? Timestamp.fromDate(new Date(editedStudentData.dob)) : selectedStudent.dateOfBirth
+      });
+      
+      setStudentEditMode(false);
+      notify.success('Student updated successfully');
+    } catch (error) {
+      console.error('Error updating student:', error);
+      notify.error('Failed to update student: ' + (error.message || 'Unknown error'));
+    } finally {
+      setStudentSaving(false);
+    }
   };
 
   // ============================================================================
@@ -778,11 +922,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             classroomId: studentForm.classroomId,
             status: 'active',
             isActive: true,
+            dateOfBirth: Timestamp.fromDate(new Date(studentForm.dob)),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             createdBy: currentUser?.email || 'ui',
           };
-          if (studentForm.dob) payload.dateOfBirth = Timestamp.fromDate(new Date(studentForm.dob));
           const hasGuardian = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone]
             .every(v => (v||'').trim() !== '');
           if (hasGuardian) {
@@ -1007,7 +1151,30 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     const isTeacher = type === 'teacher';
     
     return (
-      <ListItemButton onClick={onClick} disabled={disabled} alignItems="flex-start" sx={{ py: 1.25 }}>
+      <ListItemButton 
+        onClick={onClick} 
+        disabled={disabled} 
+        alignItems="flex-start" 
+        sx={{ 
+          py: 1.25,
+          borderRadius: 2,
+          mb: 1.5,
+          backgroundColor: 'white',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          border: '1px solid #e2e8f0',
+          '&:hover': {
+            backgroundColor: '#f8fafc',
+            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.15)',
+            borderColor: '#4f46e5',
+            transform: 'translateY(-1px)',
+          },
+          '&.Mui-disabled': {
+            opacity: 0.6,
+            backgroundColor: '#f8fafc',
+          },
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
         <ListItemAvatar>
           {isTeacher ? (
             <Avatar 
@@ -1017,7 +1184,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               {initials}
             </Avatar>
           ) : (
-            <Avatar>{initials}</Avatar>
+            <Avatar sx={{ 
+              backgroundColor: '#4f46e5',
+              color: 'white',
+              fontWeight: 600,
+              fontSize: '0.875rem'
+            }}>
+              {initials}
+            </Avatar>
           )}
         </ListItemAvatar>
         <ListItemText
@@ -1025,7 +1199,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           secondary={secondaryContent}
           secondaryTypographyProps={{ component: 'div' }}
         />
-        <ChevronRight color="disabled" />
       </ListItemButton>
     );
   };
@@ -1197,8 +1370,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             </Box>
 
             {loading ? <LoadingSpinner /> : (
-              <List disablePadding>
-                {filterTeachers.map((t, idx, arr) => {
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {filterTeachers.map((t) => {
                   const assigned = getTeacherClassroomIds(t.id);
                   const inactive = (t.status && t.status !== 'active');
                   const chips = assigned.slice(0, 3).map(cid => {
@@ -1208,34 +1381,32 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   const overflow = Math.max(0, assigned.length - 3);
                   
                   return (
-                    <React.Fragment key={t.id}>
-                      <UserListItem
-                        user={t}
-                        type="teacher"
-                        onClick={() => openActionDialog('teacher', t)}
-                        disabled={inactive}
-                        secondaryContent={
-                          <>
-                            <Typography variant="caption" color="text.secondary">{t.email}</Typography>
-                            <Box sx={{ mt: 0.5 }}>
-                              {assigned.length > 0 ? (
-                                <>
-                                  {chips}
-                                  {overflow > 0 && <Chip size="small" label={`+${overflow} more`} sx={{ mr: 0.5, mb: 0.5 }} />}
-                                </>
-                              ) : (
-                                <Typography variant="caption" color="text.secondary">No classrooms</Typography>
-                              )}
-                            </Box>
-                            {inactive && <Chip size="small" color="warning" variant="outlined" label="Inactive" sx={{ mt: 0.5 }} />}
-                          </>
-                        }
-                      />
-                      {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
-                    </React.Fragment>
+                    <UserListItem
+                      key={t.id}
+                      user={t}
+                      type="teacher"
+                      onClick={() => openActionDialog('teacher', t)}
+                      disabled={inactive}
+                      secondaryContent={
+                        <>
+                          <Typography variant="caption" color="text.secondary">{t.email}</Typography>
+                          <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {assigned.length > 0 ? (
+                              <>
+                                {chips}
+                                {overflow > 0 && <Chip size="small" label={`+${overflow} more`} sx={{ mr: 0.5, mb: 0.5 }} />}
+                              </>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">No classrooms</Typography>
+                            )}
+                          </Box>
+                          {inactive && <Chip size="small" color="warning" variant="outlined" label="Inactive" sx={{ mt: 0.5 }} />}
+                        </>
+                      }
+                    />
                   );
                 })}
-              </List>
+              </Box>
             )}
 
             <ClassroomFilterDialog
@@ -1290,52 +1461,66 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         {view === 'manage' && manageTab === 'superadmins' && canManageAdmins && (
           <>
             {loading ? <LoadingSpinner /> : (
-              <List disablePadding>
-                {superAdmins.map((a, idx, arr) => (
-                  <React.Fragment key={a.id}>
-                    <UserListItem
-                      user={a}
-                      type="superadmin"
-                      onClick={() => openActionDialog('superadmin', a)}
-                      secondaryContent={
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="caption" color="text.secondary">{a.email}</Typography>
-                          <Chip size="small" label="Super Admin" color="primary" />
-                        </Box>
-                      }
-                    />
-                    {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
-                  </React.Fragment>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {superAdmins.map((a) => (
+                  <UserListItem
+                    key={a.id}
+                    user={a}
+                    type="superadmin"
+                    onClick={() => openActionDialog('superadmin', a)}
+                    secondaryContent={
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary">{a.email}</Typography>
+                        <Chip 
+                          size="small" 
+                          label="Super Admin" 
+                          sx={{ 
+                            backgroundColor: '#4f46e5',
+                            color: 'white',
+                            fontWeight: 500
+                          }} 
+                        />
+                      </Box>
+                    }
+                  />
                 ))}
-              </List>
+              </Box>
             )}
           </>
         )}
 
         {/* Classroom Admins tab */}
-{view === 'manage' && manageTab === 'classroomadmins' && canManageAdmins && (
+        {view === 'manage' && manageTab === 'classroomadmins' && canManageAdmins && (
           <>
             {loading ? <LoadingSpinner /> : (
-              <List disablePadding>
-                {admins.map((a, idx, arr) => (
-                  <React.Fragment key={a.id}>
-                    <UserListItem
-                      user={a}
-                      type="classroomadmin"
-                      onClick={() => openActionDialog('classroomadmin', a)}
-                      secondaryContent={
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="caption" color="text.secondary">{a.email}</Typography>
-                          {(a.manageableClassrooms || []).map((classroomId) => (
-                            <Chip key={classroomId} size="small" label={getClassroomLabel(classroomId)} />
-                          ))}
-                        </Box>
-                      }
-                    />
-                    {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
-                  </React.Fragment>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {admins.map((a) => (
+                  <UserListItem
+                    key={a.id}
+                    user={a}
+                    type="classroomadmin"
+                    onClick={() => openActionDialog('classroomadmin', a)}
+                    secondaryContent={
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary">{a.email}</Typography>
+                        {(a.manageableClassrooms || []).map((classroomId) => (
+                          <Chip 
+                            key={classroomId} 
+                            size="small" 
+                            label={getClassroomLabel(classroomId)}
+                            sx={{ 
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    }
+                  />
                 ))}
-              </List>
+              </Box>
             )}
           </>
         )}
@@ -1346,7 +1531,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             <TextField
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
-              placeholder="Search students by name or ID"
+              placeholder="Search students by name"
               size="small"
               fullWidth
               sx={{ mb: 1 }}
@@ -1364,28 +1549,34 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             </Box>
 
             {loading ? <LoadingSpinner /> : (
-              <List disablePadding>
-                {filterStudents.map((s, idx, arr) => {
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {filterStudents.map((s) => {
                   const cls = classrooms.find(c => c.id === s.classroomId);
                   const clsLabel = cls ? (cls.name || cls.id) : (s.classroomId || 'Unknown');
                   return (
-                    <React.Fragment key={s.id}>
-                      <UserListItem
-                        user={s}
-                        type="student"
-                        onClick={() => openActionDialog('student', s)}
-                        secondaryContent={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                            {s.studentID && <Typography variant="caption" color="text.secondary">{s.studentID}</Typography>}
-                            <Chip size="small" label={clsLabel} sx={{ mr: 0.5 }} />
-                          </Box>
-                        }
-                      />
-                      {idx < arr.length - 1 && <Divider component="li" sx={{ ml: 9 }} />}
-                    </React.Fragment>
+                    <UserListItem
+                      key={s.id}
+                      user={s}
+                      type="student"
+                      onClick={() => openStudentDialog(s)}
+                      secondaryContent={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                          <Chip 
+                            size="small" 
+                            label={clsLabel} 
+                            sx={{ 
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
+                            }} 
+                          />
+                        </Box>
+                      }
+                    />
                   );
                 })}
-              </List>
+              </Box>
             )}
 
             <ClassroomFilterDialog
@@ -1621,11 +1812,15 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   <Grid item xs={12}>
                     <TextField
                       type="date"
-                      label="Date of Birth (optional)"
+                      label="Date of Birth"
+                      required
                       InputLabelProps={{ shrink: true }}
                       fullWidth
                       value={studentForm.dob}
                       onChange={(e) => setStudentForm(p => ({ ...p, dob: e.target.value }))}
+                      error={!!validationErrors.stuDob}
+                      helperText={validationErrors.stuDob}
+                      inputProps={{ max: new Date().toISOString().split('T')[0] }}
                     />
                   </Grid>
                   <Grid item xs={12}>
@@ -1931,6 +2126,181 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           >
             {deleteDeleting ? 'Deleting...' : 'Delete'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Student metadata dialog */}
+      <Dialog open={studentDialogOpen} onClose={closeStudentDialog} maxWidth="sm" fullWidth>
+        <DialogTitle component="div" sx={{ pb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ 
+              width: 56, 
+              height: 56, 
+              backgroundColor: '#4f46e5',
+              fontSize: '1.25rem',
+              fontWeight: 600
+            }}>
+              {selectedStudent ? getInitials(getFullName(selectedStudent)) : ''}
+            </Avatar>
+            <Box sx={{ flex: 1 }}>
+              <Typography component="h2" variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+                {selectedStudent ? getFullName(selectedStudent) : 'Student Details'}
+              </Typography>
+              <Chip 
+                size="small" 
+                label={getClassroomLabel(selectedStudent?.classroomId || '')} 
+                sx={{ 
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  fontWeight: 500
+                }} 
+              />
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedStudent && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+              {/* Editable fields */}
+              {studentEditMode ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <TextField
+                    label="First Name"
+                    fullWidth
+                    value={editedStudentData.firstName}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, firstName: e.target.value }))}
+                    error={!!validationErrors.firstName}
+                    helperText={validationErrors.firstName}
+                  />
+                  <TextField
+                    label="Last Name"
+                    fullWidth
+                    value={editedStudentData.lastName}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, lastName: e.target.value }))}
+                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={editedStudentData.status}
+                      label="Status"
+                      onChange={(e) => setEditedStudentData(p => ({ ...p, status: e.target.value }))}
+                    >
+                      <MenuItem value="active">Active</MenuItem>
+                      <MenuItem value="inactive">Inactive</MenuItem>
+                      <MenuItem value="graduated">Graduated</MenuItem>
+                      <MenuItem value="transferred">Transferred</MenuItem>
+                      <MenuItem value="withdrawn">Withdrawn</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    type="date"
+                    label="Date of Birth"
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                    value={editedStudentData.dob}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, dob: e.target.value }))}
+                    error={!!validationErrors.dob}
+                    helperText={validationErrors.dob}
+                    placeholder="Select date of birth"
+                    inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                  />
+                </Box>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      First Name
+                    </Typography>
+                    <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500, fontSize: '1rem' }}>
+                      {selectedStudent.firstName || 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Last Name
+                    </Typography>
+                    <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500, fontSize: '1rem' }}>
+                      {selectedStudent.lastName || 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Status
+                    </Typography>
+                    <Box sx={{ mt: 0.5 }}>
+                      <Chip 
+                        size="small" 
+                        label={selectedStudent.status || 'active'} 
+                        color={selectedStudent.status === 'active' ? 'primary' : 'default'}
+                        sx={{ fontWeight: 500 }}
+                      />
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Date of Birth
+                    </Typography>
+                    {selectedStudent.dateOfBirth && selectedStudent.dateOfBirth.toDate ? (
+                      <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500, fontSize: '1rem' }}>
+                        {selectedStudent.dateOfBirth.toDate().toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                        Not set
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {studentEditMode ? (
+            <>
+              <Button onClick={handleStudentEditCancel} disabled={studentSaving}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleStudentEditSave}
+                disabled={studentSaving}
+                startIcon={studentSaving ? <CircularProgress size={16} /> : null}
+              >
+                {studentSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => {
+                  if (selectedStudent) {
+                    openDeleteConfirm('student', selectedStudent);
+                    closeStudentDialog();
+                  }
+                }}
+                startIcon={<Delete />}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  setValidationErrors({});
+                  setStudentEditMode(true);
+                }}
+                startIcon={<Edit />}
+              >
+                Edit
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
     </Box>
