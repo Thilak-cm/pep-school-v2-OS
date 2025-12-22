@@ -13,6 +13,11 @@ import {
   MenuItem,
   FormControl,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -158,6 +163,7 @@ function ChildChat({ student }) {
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingChatName, setEditingChatName] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [chatToDelete, setChatToDelete] = useState(null);
   const messagesEndRef = useRef(null);
   const studentId = student?.id || student?.uid || null;
 
@@ -373,7 +379,7 @@ function ChildChat({ student }) {
     }
   };
 
-  const handleDeleteChat = async (chatIdToDelete) => {
+  const handleDeleteChatClick = (chatIdToDelete) => {
     if (!studentId || !chatIdToDelete) return;
 
     if (chats.length <= 1) {
@@ -381,21 +387,36 @@ function ChildChat({ student }) {
       return;
     }
 
+    // Show confirmation dialog
+    setChatToDelete(chatIdToDelete);
+  };
+
+  const handleDeleteChatConfirm = async () => {
+    if (!studentId || !chatToDelete) return;
+
     try {
       const deleteChatFn = httpsCallable(cloudFunctions, 'deleteChat');
-      await deleteChatFn({ studentId, chatId: chatIdToDelete });
+      await deleteChatFn({ studentId, chatId: chatToDelete });
       
       // Remove from local state
-      const updatedChats = chats.filter(c => c.id !== chatIdToDelete);
+      const updatedChats = chats.filter(c => c.id !== chatToDelete);
       setChats(updatedChats);
       
       // Switch to most recent chat
-      if (currentChatId === chatIdToDelete && updatedChats.length > 0) {
+      if (currentChatId === chatToDelete && updatedChats.length > 0) {
         setCurrentChatId(updatedChats[0].id);
       }
+
+      // Close dialog
+      setChatToDelete(null);
     } catch (err) {
       setError('Failed to delete chat.');
+      setChatToDelete(null);
     }
+  };
+
+  const handleDeleteChatCancel = () => {
+    setChatToDelete(null);
   };
 
   const handleStartEditChatName = (chat) => {
@@ -664,17 +685,34 @@ function ChildChat({ student }) {
                       </Typography>
                     </MenuItem>
                   ) : (
-                    chats
-                      .filter((chat) => chat.id !== currentChatId) // Don't show current chat in dropdown
+                    // Sort chats so current chat appears first, then others
+                    [...chats]
+                      .sort((a, b) => {
+                        // Current chat goes first
+                        if (a.id === currentChatId) return -1;
+                        if (b.id === currentChatId) return 1;
+                        // Others maintain their order
+                        return 0;
+                      })
                       .map((chat) => {
                         const displayName = (chat.name || 'New Chat').replace(/^["']|["']$/g, '');
+                        const isCurrentChat = chat.id === currentChatId;
                         return (
                           <MenuItem 
                             key={chat.id} 
                             value={chat.id}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1, pr: 0 }}>
-                              <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis', 
+                                  flex: 1,
+                                  fontWeight: isCurrentChat ? 600 : 400,
+                                  color: isCurrentChat ? '#4f46e5' : 'inherit',
+                                }}
+                              >
                                 {displayName}
                               </Typography>
                               <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
@@ -707,7 +745,7 @@ function ChildChat({ student }) {
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      handleDeleteChat(chat.id);
+                                      handleDeleteChatClick(chat.id);
                                     }}
                                     sx={{
                                       minWidth: '32px',
@@ -1129,6 +1167,41 @@ function ChildChat({ student }) {
           </Button>
         </Paper>
       </Box>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={chatToDelete !== null}
+        onClose={handleDeleteChatCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Delete Chat?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Delete this chat? This cannot be undone.
+            {chatToDelete && (() => {
+              const chat = chats.find(c => c.id === chatToDelete);
+              const name = chat ? (chat.name || 'this chat').replace(/^["']|["']$/g, '') : 'this chat';
+              return ` All messages in "${name}" will be deleted.`;
+            })()}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteChatCancel} color="inherit">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteChatConfirm} 
+            color="error" 
+            variant="contained"
+            autoFocus
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
