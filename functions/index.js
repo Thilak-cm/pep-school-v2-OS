@@ -1,6 +1,6 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-// import { getAuth } from "firebase-admin/auth"; // Unused - commented out to fix lint error
+import { getAuth } from "firebase-admin/auth";
 // import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
 import * as functions from "firebase-functions/v1";
@@ -13,7 +13,7 @@ import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT,
 initializeApp({ credential: applicationDefault() });
 
 const db = getFirestore();
-// const auth = getAuth(); // Unused - commented out to fix lint error
+const auth = getAuth();
 // const storage = getStorage();
 
 // Create transporter using SMTP credentials stored in functions config
@@ -369,7 +369,7 @@ export const updateUserProfileIfExists = functions
     // Only admins can update
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
     const requesterRole = requesterSnap.data()?.role;
-    if (!requesterSnap.exists || (requesterRole !== "admin" && requesterRole !== "superadmin")) {
+    if (!requesterSnap.exists || (requesterRole !== "classroomadmin" && requesterRole !== "superadmin")) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update users");
     }
 
@@ -464,8 +464,8 @@ export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firest
     const logData = snap.data();
 
     try {
-      // Fetch all admin users
-      const adminSnap = await db.collection("users").where("type", "==", "admin").get();
+      // Fetch all admin users (superadmin and classroomadmin)
+      const adminSnap = await db.collection("users").where("role", "in", ["superadmin", "classroomadmin"]).get();
       const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
 
       if (!transporter || adminEmails.length === 0) {
@@ -671,7 +671,7 @@ export const requestAccess = functions.region("asia-south1").https.onCall(async 
 
     // Email admins if possible
     try {
-      const adminSnap = await db.collection("users").where("type", "==", "admin").get();
+      const adminSnap = await db.collection("users").where("role", "in", ["superadmin", "classroomadmin"]).get();
       const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
       if (transporter && adminEmails.length > 0) {
         await transporter.sendMail({
@@ -1816,20 +1816,11 @@ async function saveChatMessage(studentId, chatId, role, content, model = null, a
 }
 
 /**
- * Run child chat inference with OpenAI (streaming internally, returns full content)
- * This function is isolated so it can be replaced with LangChain later
+ * Build messages array for OpenAI API from context pack
  * @param {Object} contextPack - Context pack from packChatContext()
- * @param {string} model - OpenAI model to use
- * @param {number} temperature - Temperature setting
- * @param {number} max_tokens - Max tokens setting
- * @returns {Promise<string>} Full assistant response content
+ * @returns {Array} Messages array for OpenAI API
  */
-async function runChildChat(contextPack, model, temperature, max_tokens) {
-  if (!OPENAI_API_KEY) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
-  }
-
-  // Build messages array for OpenAI API
+function buildOpenAIMessages(contextPack) {
   const messages = [
     { role: "system", content: contextPack.systemPrompt },
   ];
@@ -1857,6 +1848,25 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
 
   // Add the new user message
   messages.push({ role: "user", content: contextPack.userMessage });
+
+  return messages;
+}
+
+/**
+ * Run child chat inference with OpenAI (streaming internally, returns full content)
+ * This function is isolated so it can be replaced with LangChain later
+ * @param {Object} contextPack - Context pack from packChatContext()
+ * @param {string} model - OpenAI model to use
+ * @param {number} temperature - Temperature setting
+ * @param {number} max_tokens - Max tokens setting
+ * @returns {Promise<string>} Full assistant response content
+ */
+async function runChildChat(contextPack, model, temperature, max_tokens) {
+  if (!OPENAI_API_KEY) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const messages = buildOpenAIMessages(contextPack);
 
   const body = {
     model: model || CHAT_MODEL_INFO.model,
@@ -1936,6 +1946,114 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
             } catch {
               // Skip invalid JSON lines
             }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return fullContent;
+}
+
+/**
+ * Stream child chat inference with OpenAI to client via SSE
+ * @param {Object} contextPack - Context pack from packChatContext()
+ * @param {string} model - OpenAI model to use
+ * @param {number} temperature - Temperature setting
+ * @param {number} max_tokens - Max tokens setting
+ * @param {Function} sendChunk - Function to send chunk to client (SSE format)
+ * @returns {Promise<string>} Full assistant response content
+ */
+async function streamChildChat(contextPack, model, temperature, max_tokens, sendChunk) {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OpenAI key not configured");
+  }
+
+  const messages = buildOpenAIMessages(contextPack);
+
+  const body = {
+    model: model || CHAT_MODEL_INFO.model,
+    messages,
+    temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
+    max_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
+    stream: true, // Enable streaming
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[childChat] network error", e);
+    throw new Error("Unable to connect to AI service. Please check your connection.");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[childChat] OpenAI API error", response.status, errText?.slice?.(0, 500));
+
+    // Parse error for user-friendly message
+    let errorMessage = "AI service error occurred.";
+    try {
+      const errorJson = JSON.parse(errText);
+      const apiError = errorJson?.error?.message || errorMessage;
+      
+      // Handle rate limits
+      if (response.status === 429 || apiError.includes("rate limit")) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+      } else {
+        errorMessage = apiError;
+      }
+    } catch {
+      // Not JSON, use generic message
+      if (response.status === 429) {
+        errorMessage = "AI service is busy. Please try again in a moment.";
+      }
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  // Stream chunks to client and accumulate full content
+  let fullContent = "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          if (data === "[DONE]") {
+            // Send final chunk and return
+            sendChunk("", true); // Empty chunk with done flag
+            return fullContent;
+          }
+
+          try {
+            const json = JSON.parse(data);
+            const delta = json.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              // Send chunk to client immediately
+              sendChunk(delta, false);
+            }
+          } catch {
+            // Skip invalid JSON lines
+          }
         }
       }
     }
@@ -2153,8 +2271,248 @@ async function generateChatName(firstMessage) {
 }
 
 /**
- * Callable Cloud Function: Child Chat
+ * Verify authentication token from HTTP request
+ * @param {Object} req - Express request object
+ * @returns {Promise<Object>} Decoded token and user document
+ */
+async function verifyAuthToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new functions.https.HttpsError("unauthenticated", "Missing or invalid authorization header");
+  }
+
+  const token = authHeader.split("Bearer ")[1];
+  let decodedToken;
+  try {
+    decodedToken = await auth.verifyIdToken(token);
+  } catch {
+    throw new functions.https.HttpsError("unauthenticated", "Invalid token");
+  }
+
+  const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+  }
+
+  const userRole = userDoc.data()?.role;
+  if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+    throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
+  }
+
+  return { decodedToken, userDoc };
+}
+
+/**
+ * HTTP Cloud Function: Child Chat (Streaming)
  * Handles per-student AI chat with context from observations and chat history
+ * Streams response via Server-Sent Events (SSE)
+ */
+export const childChatStream = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .https.onRequest(async (req, res) => {
+    // Handle CORS preflight (OPTIONS request)
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader("Access-Control-Max-Age", "3600");
+      res.status(204).send("");
+      return;
+    }
+
+    // Only allow POST
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    // Set up SSE headers with CORS
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    // Helper function to send SSE chunk
+    const sendChunk = (chunk, done = false) => {
+      if (done) {
+        res.write("data: [DONE]\n\n");
+      } else if (chunk) {
+        // Send chunk as-is (SSE format preserves newlines within data)
+        // Replace actual newlines with \n for JSON-safe transmission, or send as-is
+        // Actually, SSE can handle newlines - just send the chunk directly
+        res.write(`data: ${chunk}\n\n`);
+      }
+    };
+
+    // Helper function to send error
+    const sendError = (error) => {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: error.message || error })}\n\n`);
+      res.end();
+    };
+
+    try {
+      // Verify authentication
+      const { decodedToken, userDoc } = await verifyAuthToken(req);
+
+      // Parse request body
+      const data = req.body;
+      const studentId = String(data?.studentId || "").trim();
+      const message = String(data?.message || "").trim();
+      let chatId = data?.chatId ? String(data.chatId).trim() : null;
+      const devMode = Boolean(data?.devMode);
+
+      if (!studentId) {
+        sendError(new Error("studentId is required"));
+        return;
+      }
+
+      if (!message) {
+        sendError(new Error("Please enter a message before sending."));
+        return;
+      }
+
+      if (!OPENAI_API_KEY) {
+        sendError(new Error("OpenAI key not configured"));
+        return;
+      }
+
+      // Get student's programId via classroom to fetch program-specific config
+      const studentDoc = await db.collection("students").doc(studentId).get();
+      if (!studentDoc.exists) {
+        sendError(new Error("Student not found"));
+        return;
+      }
+
+      const studentData = studentDoc.data();
+      const classroomId = studentData?.classroomId;
+      
+      if (!classroomId) {
+        sendError(new Error("Student has no classroom assigned"));
+        return;
+      }
+
+      // Get classroom to find programId
+      const classroomDoc = await db.collection("classrooms").doc(classroomId).get();
+      if (!classroomDoc.exists) {
+        sendError(new Error("Student's classroom not found"));
+        return;
+      }
+
+      const classroomData = classroomDoc.data();
+      const programId = classroomData?.programId || "primary";
+
+      // Handle chatId: if not provided, find most recent chat or create new one
+      if (!chatId) {
+        const existingChats = await listChatsForStudent(studentId);
+        if (existingChats.length > 0) {
+          chatId = existingChats[0].id;
+        } else {
+          chatId = await createChat(studentId);
+        }
+      }
+
+      // Verify chat exists
+      const chatDoc = await db
+        .collection("students")
+        .doc(studentId)
+        .collection("chats")
+        .doc(chatId)
+        .get();
+      
+      if (!chatDoc.exists) {
+        sendError(new Error("Chat not found"));
+        return;
+      }
+
+      const chatData = chatDoc.data();
+      if (chatData?.deleted) {
+        sendError(new Error("Chat has been deleted"));
+        return;
+      }
+
+      // Fetch chat configuration from Firestore
+      const chatConfig = await getChatConfigServer(programId);
+
+      // Fetch context (unless dev mode)
+      let recentObservations = [];
+      let recentMessages = [];
+      
+      if (!devMode) {
+        [recentObservations, recentMessages] = await Promise.all([
+          fetchRecentObservationsForChat(studentId, chatConfig.observationLimit),
+          fetchRecentChatMessages(studentId, chatId, chatConfig.chatMessageLimit),
+        ]);
+      }
+
+      // Pack context with config's system prompt
+      const contextPack = packChatContext(studentId, recentObservations, recentMessages, message, chatConfig.systemPrompt);
+
+      // Check if this is the first message in the chat
+      const isFirstMessage = (chatData.messageCount || 0) === 0;
+
+      // Get author information from user document
+      const userData = userDoc.data();
+      const authorId = decodedToken.uid;
+      const authorName = userData?.displayName || userData?.name || decodedToken.name || null;
+
+      // Save user message with author information
+      await saveChatMessage(studentId, chatId, "user", message, null, authorId, authorName);
+
+      // Stream LLM inference to client
+      let fullContent = "";
+      try {
+        fullContent = await streamChildChat(
+          contextPack,
+          chatConfig.model,
+          chatConfig.temperature,
+          chatConfig.max_tokens,
+          sendChunk // Just pass sendChunk directly - streamChildChat handles accumulation
+        );
+      } catch (streamErr) {
+        sendError(streamErr);
+        return;
+      }
+
+      if (!fullContent || !fullContent.trim()) {
+        sendError(new Error("AI returned no content"));
+        return;
+      }
+
+      // Save assistant response with model info
+      const messageId = await saveChatMessage(studentId, chatId, "assistant", fullContent, chatConfig.model);
+
+      // Update chat metadata
+      const lastMessagePreview = fullContent.substring(0, 100);
+      const newMessageCount = (chatData.messageCount || 0) + 2;
+
+      // If first message, generate chat name
+      let chatName = chatData.name || "New Chat";
+      if (isFirstMessage) {
+        chatName = await generateChatName(message);
+      }
+
+      await updateChatMetadata(studentId, chatId, {
+        name: chatName,
+        lastMessagePreview,
+        messageCount: newMessageCount,
+      });
+
+      // Send completion event with metadata
+      res.write(`event: complete\ndata: ${JSON.stringify({ chatId, messageId, success: true })}\n\n`);
+      res.end();
+    } catch (err) {
+      console.error("[childChatStream] error", err);
+      sendError(err);
+    }
+  });
+
+/**
+ * Callable Cloud Function: Child Chat (Legacy - kept for backward compatibility)
+ * Handles per-student AI chat with context from observations and chat history
+ * @deprecated Use childChatStream for streaming support
  */
 export const childChat = functions
   .region("asia-south1")
@@ -2328,210 +2686,3 @@ export const childChat = functions
     }
   });
 
-/**
- * Callable Cloud Function: Create Chat
- * Creates a new chat for a student
- */
-export const createChatFunction = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 30, memory: "256MB" })
-  .https.onCall(async (data, context) => {
-    // Authentication check
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-
-    // Admin-only check
-    const userDoc = await db.collection("users").doc(context.auth.uid).get();
-    if (!userDoc.exists) {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    // Validate parameters
-    const studentId = String(data?.studentId || "").trim();
-
-    if (!studentId) {
-      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
-    }
-
-    try {
-      const chatId = await createChat(studentId);
-      return {
-        chatId,
-        success: true,
-      };
-    } catch (err) {
-      console.error("[createChatFunction] error", err);
-      if (err instanceof functions.https.HttpsError) {
-        throw err;
-      }
-      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
-    }
-  });
-
-/**
- * Callable Cloud Function: List Chats
- * Returns list of non-deleted chats for a student
- */
-export const listChats = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 30, memory: "256MB" })
-  .https.onCall(async (data, context) => {
-    // Authentication check
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-
-    // Admin-only check
-    const userDoc = await db.collection("users").doc(context.auth.uid).get();
-    if (!userDoc.exists) {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    // Validate parameters
-    const studentId = String(data?.studentId || "").trim();
-
-    if (!studentId) {
-      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
-    }
-
-    console.log(`[listChats] Fetching chats for studentId: ${studentId}`);
-
-    try {
-      const chats = await listChatsForStudent(studentId);
-      console.log(`[listChats] Returning ${chats.length} chats for student ${studentId}`);
-      if (chats.length > 0) {
-        console.log(`[listChats] Chat names:`, chats.map(c => c.name));
-      }
-      return {
-        chats,
-        success: true,
-      };
-    } catch (err) {
-      console.error("[listChats] error", err);
-      console.error("[listChats] Error details:", {
-        message: err.message,
-        code: err.code,
-        stack: err.stack,
-      });
-      if (err instanceof functions.https.HttpsError) {
-        throw err;
-      }
-      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
-    }
-  });
-
-/**
- * Callable Cloud Function: Update Chat Name
- * Updates the name of a chat
- */
-export const updateChatName = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 30, memory: "256MB" })
-  .https.onCall(async (data, context) => {
-    // Authentication check
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-
-    // Admin-only check
-    const userDoc = await db.collection("users").doc(context.auth.uid).get();
-    if (!userDoc.exists) {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    // Validate parameters
-    const studentId = String(data?.studentId || "").trim();
-    const chatId = String(data?.chatId || "").trim();
-    const name = String(data?.name || "").trim();
-
-    if (!studentId) {
-      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
-    }
-    if (!chatId) {
-      throw new functions.https.HttpsError("invalid-argument", "chatId is required");
-    }
-    if (!name) {
-      throw new functions.https.HttpsError("invalid-argument", "name is required");
-    }
-    if (name.length > 100) {
-      throw new functions.https.HttpsError("invalid-argument", "name must be 100 characters or less");
-    }
-
-    try {
-      await updateChatMetadata(studentId, chatId, { name });
-      return {
-        success: true,
-      };
-    } catch (err) {
-      console.error("[updateChatName] error", err);
-      if (err instanceof functions.https.HttpsError) {
-        throw err;
-      }
-      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
-    }
-  });
-
-/**
- * Callable Cloud Function: Delete Chat
- * Soft deletes a chat (sets deleted flag to true)
- */
-export const deleteChat = functions
-  .region("asia-south1")
-  .runWith({ timeoutSeconds: 30, memory: "256MB" })
-  .https.onCall(async (data, context) => {
-    // Authentication check
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-
-    // Admin-only check
-    const userDoc = await db.collection("users").doc(context.auth.uid).get();
-    if (!userDoc.exists) {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
-      throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
-    }
-
-    // Validate parameters
-    const studentId = String(data?.studentId || "").trim();
-    const chatId = String(data?.chatId || "").trim();
-
-    if (!studentId) {
-      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
-    }
-    if (!chatId) {
-      throw new functions.https.HttpsError("invalid-argument", "chatId is required");
-    }
-
-    try {
-      await softDeleteChat(studentId, chatId);
-      return {
-        success: true,
-      };
-    } catch (err) {
-      console.error("[deleteChat] error", err);
-      if (err instanceof functions.https.HttpsError) {
-        throw err;
-      }
-      throw new functions.https.HttpsError("internal", err?.message || "An unexpected error occurred.");
-    }
-  });
