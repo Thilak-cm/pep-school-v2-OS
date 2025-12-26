@@ -5,7 +5,6 @@ import { getAuth } from "firebase-admin/auth";
 // Use v1 compatibility API for region(), https.onCall(), etc.
 import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
-import nodemailer from "nodemailer";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
@@ -15,16 +14,6 @@ initializeApp({ credential: applicationDefault() });
 const db = getFirestore();
 const auth = getAuth();
 // const storage = getStorage();
-
-// Create transporter using SMTP credentials stored in functions config
-const smtpUser = functions.config().smtp?.user; // TODO: update .config everywhere because it will be deprecated soon
-const smtpPass = functions.config().smtp?.pass;
-const transporter = (smtpUser && smtpPass)
-  ? nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: smtpUser, pass: smtpPass },
-    })
-  : null;
 
 // Helper: Sanitize email for use as document ID
 function sanitizeEmailForDocId(email) {
@@ -1996,31 +1985,6 @@ async function listChatsForStudent(studentId) {
   }
 }
 
-/**
- * Soft delete a chat (set deleted flag to true)
- * @param {string} studentId - Student document ID
- * @param {string} chatId - Chat document ID
- * @returns {Promise<void>}
- */
-async function softDeleteChat(studentId, chatId) {
-  if (!studentId || typeof studentId !== "string") {
-    throw new Error("Invalid studentId");
-  }
-  if (!chatId || typeof chatId !== "string") {
-    throw new Error("Invalid chatId");
-  }
-
-  const chatRef = db
-    .collection("students")
-    .doc(studentId)
-    .collection("chats")
-    .doc(chatId);
-
-  await chatRef.update({
-    deleted: true,
-    updatedAt: Timestamp.now(),
-  });
-}
 
 /**
  * Generate a chat name from the first user message using AI

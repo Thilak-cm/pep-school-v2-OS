@@ -28,5 +28,5 @@ const storage = getStorage(app);
 // Explicitly pin region to Mumbai (asia-south1)
 const cloudFunctions = getFunctions(app, 'asia-south1');
 
-export { auth, provider, db, storage, cloudFunctions };
+export { auth, provider, db, storage, cloudFunctions, app };
 export default app;
