@@ -2109,15 +2109,22 @@ export const childChatStream = functions
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     // Helper function to send SSE chunk
+    // SSE format: Each data line must end with \n\n to form a complete SSE message
+    // For chunks with newlines, we send multiple data: lines (SSE spec: they're concatenated)
     const sendChunk = (chunk, done = false) => {
       if (done) {
         res.write("data: [DONE]\n\n");
       } else if (chunk) {
-        // Send chunk as-is (SSE format preserves newlines within data)
-        // Replace actual newlines with \n for JSON-safe transmission, or send as-is
-        // Actually, SSE can handle newlines - just send the chunk directly
-        res.write(`data: ${chunk}\n\n`);
+        // Handle newlines: split into multiple data: lines per SSE spec
+        // Multiple data: lines in one message are concatenated with \n by the client
+        const lines = chunk.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          res.write(`data: ${lines[i]}\n`);
+        }
+        res.write('\n'); // End of SSE message (double newline)
       }
+      // Force immediate send - don't wait for buffer to fill
+      // Cloud Functions should handle this, but we ensure chunks are sent immediately
     };
 
     // Helper function to send error

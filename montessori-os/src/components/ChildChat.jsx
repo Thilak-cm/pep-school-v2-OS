@@ -481,53 +481,18 @@ function ChildChat({ student }) {
       let accumulatedContent = '';
       let buffer = '';
       let currentEvent = null;
+      let currentDataLines = []; // Accumulate multiple data: lines for one SSE message
+      let streamDone = false;
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          
-          if (!line) continue; // Empty line
-          
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              // Streaming complete
-              setLoading(false);
-              setStreamingContent('');
-              setStreamingMessageId(null);
-              // Message will be saved by backend and appear via Firestore listener
-              break;
-            } else if (currentEvent === 'error') {
-              // Error event
-              try {
-                const errorData = JSON.parse(data);
-                throw new Error(errorData.error || 'An error occurred');
-              } catch (e) {
-                if (e instanceof Error && e.message !== 'Unexpected token') {
-                  throw e;
-                }
-                throw new Error(data || 'An error occurred');
-              }
-            } else if (currentEvent === 'complete') {
-              // Completion event - chat metadata already updated by backend
-              // No need to reload chats here, Firestore listener will handle updates
-              currentEvent = null;
-            } else {
-              // Text chunk - append directly (SSE handles newlines naturally)
+        if (done) {
+          // Process any remaining data lines before ending
+          if (currentDataLines.length > 0 && !streamDone) {
+            const data = currentDataLines.join('\n');
+            if (data !== '[DONE]') {
               accumulatedContent += data;
               setStreamingContent(accumulatedContent);
-              
-              // Update streaming message in UI
               setMessages((prev) => 
                 prev.map((msg) => 
                   msg.id === streamingMsgId 
@@ -535,16 +500,89 @@ function ChildChat({ student }) {
                     : msg
                 )
               );
-              
-              // Scroll to bottom as content streams
-              setTimeout(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-              }, 50);
-              
-              currentEvent = null; // Reset event after processing data
             }
           }
+          break;
         }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          // Empty line indicates end of SSE message - process accumulated data lines
+          if (line.trim() === '') {
+            if (currentDataLines.length > 0) {
+              // Concatenate multiple data: lines with newlines (SSE spec)
+              const data = currentDataLines.join('\n');
+              
+              if (data === '[DONE]') {
+                // Streaming complete
+                streamDone = true;
+                setLoading(false);
+                setStreamingContent('');
+                setStreamingMessageId(null);
+                // Break out of for loop, then while loop will exit
+                i = lines.length; // Exit for loop
+                break;
+              } else if (currentEvent === 'error') {
+                // Error event
+                try {
+                  const errorData = JSON.parse(data);
+                  throw new Error(errorData.error || 'An error occurred');
+                } catch (e) {
+                  if (e instanceof Error && e.message !== 'Unexpected token') {
+                    throw e;
+                  }
+                  throw new Error(data || 'An error occurred');
+                }
+              } else if (currentEvent === 'complete') {
+                // Completion event - chat metadata already updated by backend
+                // No need to reload chats here, Firestore listener will handle updates
+                currentEvent = null;
+                currentDataLines = [];
+                continue;
+              } else {
+                // Text chunk - append to accumulated content
+                accumulatedContent += data;
+                setStreamingContent(accumulatedContent);
+                
+                // Update streaming message in UI immediately
+                setMessages((prev) => 
+                  prev.map((msg) => 
+                    msg.id === streamingMsgId 
+                      ? { ...msg, content: accumulatedContent }
+                      : msg
+                  )
+                );
+                
+                // Scroll to bottom as content streams
+                setTimeout(() => {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }, 50);
+              }
+              
+              // Reset for next message
+              currentDataLines = [];
+              currentEvent = null;
+            }
+            continue;
+          }
+          
+          // Process non-empty lines
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            // Accumulate data lines (will be processed when we hit empty line)
+            const data = line.slice(6);
+            currentDataLines.push(data);
+          }
+        }
+        
+        // Break out of while loop if stream is done
+        if (streamDone) break;
       }
 
       // Remove streaming message - Firestore listener will add the real one
