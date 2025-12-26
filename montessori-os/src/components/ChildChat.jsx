@@ -543,6 +543,13 @@ function ChildChat({ student, startInLandingPage = false }) {
 
         // Select most recent chat or set to null if none exist
         // Skip auto-selection if startInLandingPage is true AND user hasn't manually selected a chat
+        // Also skip if we're in first message flow with a temp chatId
+        const currentSelected = selectedChatIdRef.current;
+        const isTempChatId = currentSelected && currentSelected.startsWith('temp-');
+        if (isTempChatId) {
+          // Don't reset selectedChatId if we're using a temp chatId
+          return;
+        }
         if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
           setSelectedChatId(null);
         } else if (chatsList.length > 0 && !hasManuallySelectedChatRef.current) {
@@ -597,7 +604,9 @@ function ChildChat({ student, startInLandingPage = false }) {
 
           // If selected chat was deleted, select most recent (unless user manually selected landing page)
           const currentSelected = selectedChatIdRef.current;
-          if (currentSelected && !chatsList.find((c) => c.id === currentSelected)) {
+          // Skip reset logic if we're in first message flow with a temp chatId
+          const isTempChatId = currentSelected && currentSelected.startsWith('temp-');
+          if (currentSelected && !chatsList.find((c) => c.id === currentSelected) && !isTempChatId) {
             // Only reset to landing page if user hasn't manually selected a chat
             if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
               setSelectedChatId(null);
