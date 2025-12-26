@@ -7,6 +7,7 @@ import {
   Alert,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
   Paper,
   IconButton,
@@ -706,8 +707,7 @@ function ChildChat({ student }) {
                   </Box>
                 ) : (
                   <List sx={{ py: 0.5 }}>
-                    <ListItem
-                      button
+                    <ListItemButton
                       onClick={handleCreateNewChat}
                       dense
                       sx={{
@@ -726,11 +726,10 @@ function ChildChat({ student }) {
                           fontWeight: selectedChatId === null ? 600 : 400,
                         }}
                       />
-                    </ListItem>
+                    </ListItemButton>
                     {chats.map((chat) => (
-                      <ListItem
+                      <ListItemButton
                         key={chat.id}
-                        button
                         onClick={() => handleSelectChat(chat.id)}
                         dense
                         sx={{
@@ -749,7 +748,7 @@ function ChildChat({ student }) {
                             fontWeight: chat.id === selectedChatId ? 600 : 400,
                           }}
                         />
-                      </ListItem>
+                      </ListItemButton>
                     ))}
                   </List>
                 )}
