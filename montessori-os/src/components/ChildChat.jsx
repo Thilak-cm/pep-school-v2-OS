@@ -552,6 +552,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         studentId: student.id,
         message: messageText,
         chatId: selectedChatId || null, // null = auto-create/find
+        forceNewChat: selectedChatId === null, // Force new chat when in landing page mode
       });
 
       const responseData = result.data;
@@ -754,7 +755,7 @@ function ChildChat({ student, startInLandingPage = false }) {
                         sx={{
                           borderRadius: 1,
                           mx: 0.5,
-                          backgroundColor: chat.id === selectedChatId ? 'primary.light' : 'transparent',
+                          backgroundColor: 'transparent',
                           '&:hover': {
                             backgroundColor: 'grey.100',
                           },
@@ -764,7 +765,7 @@ function ChildChat({ student, startInLandingPage = false }) {
                         primary={stripQuotes(chat.name)}
                         primaryTypographyProps={{
                           variant: 'body2',
-                          fontWeight: chat.id === selectedChatId ? 600 : 400,
+                          fontWeight: chat.id === selectedChatId ? 700 : 400,
                         }}
                       />
                       </ListItemButton>
@@ -935,21 +936,11 @@ function ChildChat({ student, startInLandingPage = false }) {
                         text={message.content}
                         ariaLabel="Copy message"
                         sx={{
-                          backgroundColor: 'rgba(255,255,255,0.15)',
-                          border: 'none',
-                          minWidth: 28,
-                          minHeight: 28,
-                          borderRadius: '50%',
-                          padding: 0.5,
+                          color: 'white',
                           opacity: 0.8,
-                          transition: 'all 0.2s ease',
+                          transition: 'opacity 0.2s ease',
                           '&:hover': {
-                            backgroundColor: 'rgba(255,255,255,0.25)',
                             opacity: 1,
-                            transform: 'scale(1.05)',
-                          },
-                          '&:active': {
-                            transform: 'scale(0.95)',
                           },
                         }}
                       />
@@ -1013,12 +1004,11 @@ function ChildChat({ student, startInLandingPage = false }) {
                         text={message.content}
                         ariaLabel="Copy message"
                         sx={{
-                          backgroundColor: 'rgba(0,0,0,0.05)',
-                          border: '1px solid #e2e8f0',
-                          minWidth: 24,
-                          minHeight: 24,
+                          color: '#000000',
+                          opacity: 0.6,
+                          transition: 'opacity 0.2s ease',
                           '&:hover': {
-                            backgroundColor: '#f8fafc',
+                            opacity: 1,
                           },
                         }}
                       />

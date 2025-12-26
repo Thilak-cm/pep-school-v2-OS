@@ -38,10 +38,16 @@ export default function CopyToClipboardButton({ text = '', size = 'small', ariaL
         size={size}
         onClick={handleCopy}
         sx={{
-          color: 'text.secondary',
-          backgroundColor: 'rgba(255,255,255,0.9)',
-          border: '1px solid #e2e8f0',
-          '&:hover': { backgroundColor: '#f8fafc' },
+          color: 'inherit',
+          backgroundColor: 'transparent',
+          border: 'none',
+          padding: 0.5,
+          minWidth: 'auto',
+          minHeight: 'auto',
+          '&:hover': { 
+            backgroundColor: 'transparent',
+            opacity: 0.7,
+          },
           ...sx,
         }}
       >
