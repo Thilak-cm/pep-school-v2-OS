@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -6,14 +6,15 @@ import {
   CircularProgress,
   Alert,
   List,
-  ListItem,
   ListItemButton,
   ListItemText,
   Paper,
   IconButton,
   ClickAwayListener,
+  Dialog,
+  Button,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown } from '@mui/icons-material';
+import { Send, Add, Chat, ArrowDropDown, Edit, Delete } from '@mui/icons-material';
 import {
   collection,
   query,
@@ -22,6 +23,9 @@ import {
   getDocs,
   onSnapshot,
   Timestamp,
+  doc,
+  updateDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions, auth } from '../firebase';
@@ -212,32 +216,207 @@ const formatInlineMarkdown = (text) => {
   return parts.length > 0 ? parts : text;
 };
 
+const stripQuotes = (text) => {
+  if (!text) return text;
+  return text.replace(/^["']|["']$/g, '');
+};
+
+const messageContentSx = {
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  '& ul': {
+    margin: 0,
+    paddingLeft: 2,
+    listStyleType: 'disc',
+  },
+  '& ol': {
+    margin: 0,
+    paddingLeft: 2,
+  },
+  '& p': {
+    margin: 0,
+    marginBottom: 1,
+    '&:last-child': {
+      marginBottom: 0,
+    },
+  },
+};
+
+const TypingIndicator = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: 'flex-start',
+      mb: 1,
+      width: '100%',
+      p: 1.5,
+    }}
+  >
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+      }}
+    >
+      <CircularProgress size={18} sx={{ color: '#4f46e5' }} />
+      <Typography variant="body2" color="text.secondary">
+        Coach Pepper is thinking...
+      </Typography>
+    </Box>
+  </Box>
+);
+
+const UserBubble = ({ message, formatTimestamp }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      maxWidth: '88%',
+      p: 1.5,
+      backgroundColor: 'primary.main',
+      color: 'white',
+      borderRadius: 2,
+      position: 'relative',
+    }}
+  >
+    {message.authorName && (
+      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
+        {message.authorName}
+      </Typography>
+    )}
+    <Box
+      component="div"
+      sx={messageContentSx}
+    >
+      {formatMessage(message.content)}
+    </Box>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        mt: 0.5,
+      }}
+    >
+      {message.timestamp && (
+        <Typography
+          variant="caption"
+          sx={{
+            opacity: 0.7,
+            fontSize: '0.7rem',
+          }}
+        >
+          {formatTimestamp(message.timestamp)}
+        </Typography>
+      )}
+      <CopyToClipboardButton
+        text={message.content}
+        ariaLabel="Copy message"
+        sx={{
+          color: 'white',
+          opacity: 0.8,
+          transition: 'opacity 0.2s ease',
+          '&:hover': {
+            opacity: 1,
+          },
+        }}
+      />
+    </Box>
+  </Paper>
+);
+
+const AssistantBubble = ({ message, formatTimestamp }) => (
+  <Box
+    sx={{
+      width: '100%',
+      p: 1.5,
+      position: 'relative',
+    }}
+  >
+    <Box
+      component="div"
+      sx={{
+        ...messageContentSx,
+        color: 'text.primary',
+      }}
+    >
+      {formatMessage(message.content)}
+    </Box>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        mt: 0.5,
+      }}
+    >
+      {message.timestamp && (
+        <Typography
+          variant="caption"
+          sx={{
+            opacity: 0.7,
+            fontSize: '0.7rem',
+          }}
+        >
+          {formatTimestamp(message.timestamp)}
+        </Typography>
+      )}
+      <CopyToClipboardButton
+        text={message.content}
+        ariaLabel="Copy message"
+        sx={{
+          color: '#000000',
+          opacity: 0.6,
+          transition: 'opacity 0.2s ease',
+          '&:hover': {
+            opacity: 1,
+          },
+        }}
+      />
+    </Box>
+  </Box>
+);
+
 function ChildChat({ student, startInLandingPage = false }) {
   // State
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [chatsLoading, setChatsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [inputMessage, setInputMessage] = useState('');
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
-  const [loadingChats, setLoadingChats] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [selectedChatName, setSelectedChatName] = useState('New Chat');
+  const [assistantPending, setAssistantPending] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editingChatName, setEditingChatName] = useState('');
+  const [deletingChatId, setDeletingChatId] = useState(null);
 
   // Refs
   const messagesEndRef = useRef(null);
   const chatsUnsubscribeRef = useRef(null);
   const messagesUnsubscribeRef = useRef(null);
-  const chatDropdownAnchorRef = useRef(null);
   const startInLandingPageRef = useRef(startInLandingPage);
   const hasManuallySelectedChatRef = useRef(false);
+  const lastPendingUserTimestampRef = useRef(null);
+  const selectedChatIdRef = useRef(null);
+
+  const chatTitle = useMemo(() => {
+    if (!selectedChatId) return 'New Chat';
+    const selectedChat = chats.find((c) => c.id === selectedChatId);
+    return stripQuotes(selectedChat?.name || 'New Chat');
+  }, [chats, selectedChatId]);
   
-  // Keep ref in sync with prop
+  // Keep refs in sync
   useEffect(() => {
     startInLandingPageRef.current = startInLandingPage;
   }, [startInLandingPage]);
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
 
   // Get student display name
   const getStudentDisplayName = () => {
@@ -250,12 +429,6 @@ function ChildChat({ student, startInLandingPage = false }) {
     );
   };
 
-  // Strip quotes from chat names for display
-  const stripQuotes = (text) => {
-    if (!text) return text;
-    return text.replace(/^["']|["']$/g, '');
-  };
-
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -265,12 +438,11 @@ function ChildChat({ student, startInLandingPage = false }) {
   useEffect(() => {
     if (!student?.id) {
       setError('Student information is required');
-      setLoading(false);
-      setLoadingChats(false);
+      setChatsLoading(false);
       return;
     }
 
-    setLoadingChats(true);
+    setChatsLoading(true);
     setError('');
 
     const chatsRef = collection(db, 'students', student.id, 'chats');
@@ -329,20 +501,16 @@ function ChildChat({ student, startInLandingPage = false }) {
         // Skip auto-selection if startInLandingPage is true AND user hasn't manually selected a chat
         if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
           setSelectedChatId(null);
-          setSelectedChatName('New Chat');
         } else if (chatsList.length > 0 && !hasManuallySelectedChatRef.current) {
           setSelectedChatId(chatsList[0].id);
-          setSelectedChatName(chatsList[0].name);
         } else if (!hasManuallySelectedChatRef.current) {
           setSelectedChatId(null);
-          setSelectedChatName('New Chat');
         }
       } catch (err) {
         console.error('[ChildChat] Error loading chats:', err);
         setError('Failed to load chats. Please try again.');
       } finally {
-        setLoadingChats(false);
-        setLoading(false);
+        setChatsLoading(false);
       }
     };
 
@@ -383,26 +551,16 @@ function ChildChat({ student, startInLandingPage = false }) {
 
           setChats(chatsList);
 
-          // Update selected chat name if it changed
-          if (selectedChatId) {
-            const selectedChat = chatsList.find((c) => c.id === selectedChatId);
-            if (selectedChat) {
-              setSelectedChatName(selectedChat.name);
-            }
-          }
-
           // If selected chat was deleted, select most recent (unless user manually selected landing page)
-          if (selectedChatId && !chatsList.find((c) => c.id === selectedChatId)) {
+          const currentSelected = selectedChatIdRef.current;
+          if (currentSelected && !chatsList.find((c) => c.id === currentSelected)) {
             // Only reset to landing page if user hasn't manually selected a chat
             if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
               setSelectedChatId(null);
-              setSelectedChatName('New Chat');
             } else if (chatsList.length > 0) {
               setSelectedChatId(chatsList[0].id);
-              setSelectedChatName(chatsList[0].name);
             } else {
               setSelectedChatId(null);
-              setSelectedChatName('New Chat');
             }
           }
         },
@@ -422,17 +580,18 @@ function ChildChat({ student, startInLandingPage = false }) {
         chatsUnsubscribeRef.current();
       }
     };
-  }, [student?.id, selectedChatId]);
+  }, [student?.id]);
 
   // Load messages for selected chat
   useEffect(() => {
     if (!student?.id || !selectedChatId) {
       setMessages([]);
-      setLoadingMessages(false);
+      setMessagesLoading(false);
+      setAssistantPending(false);
       return;
     }
 
-    setLoadingMessages(true);
+    setMessagesLoading(true);
     setError('');
 
     // Clean up previous listener
@@ -470,7 +629,24 @@ function ChildChat({ student, startInLandingPage = false }) {
           });
 
           setMessages(messagesList);
-          setLoadingMessages(false);
+          setMessagesLoading(false);
+
+          // Clear pending state when an assistant response arrives after the last pending user message
+          if (assistantPending && lastPendingUserTimestampRef.current) {
+            const hasAssistantAfterPending = messagesList.some(
+              (m) =>
+                m.role === 'assistant' &&
+                m.timestamp &&
+                (m.timestamp.toMillis?.() || m.timestamp.seconds * 1000 || 0) >
+                  (lastPendingUserTimestampRef.current.toMillis?.() ||
+                    lastPendingUserTimestampRef.current.seconds * 1000 ||
+                    0)
+            );
+            if (hasAssistantAfterPending) {
+              setAssistantPending(false);
+              lastPendingUserTimestampRef.current = null;
+            }
+          }
 
           // Auto-scroll to bottom after a short delay
           setTimeout(() => {
@@ -480,7 +656,8 @@ function ChildChat({ student, startInLandingPage = false }) {
         (err) => {
           console.error('[ChildChat] Error loading messages:', err);
           setError('Failed to load messages. Please try again.');
-          setLoadingMessages(false);
+          setMessagesLoading(false);
+          setAssistantPending(false);
         }
       );
 
@@ -488,7 +665,7 @@ function ChildChat({ student, startInLandingPage = false }) {
     } catch (err) {
       console.error('[ChildChat] Error setting up messages listener:', err);
       setError('Failed to load messages. Please try again.');
-      setLoadingMessages(false);
+      setMessagesLoading(false);
     }
 
     return () => {
@@ -520,6 +697,8 @@ function ChildChat({ student, startInLandingPage = false }) {
     }
   };
 
+  const isLanding = selectedChatId === null;
+
   // Handle send message
   const handleSendMessage = async () => {
     const messageText = inputMessage.trim();
@@ -533,6 +712,7 @@ function ChildChat({ student, startInLandingPage = false }) {
     }
 
     setSending(true);
+    setAssistantPending(true);
     setError('');
 
     // Optimistically add user message
@@ -543,6 +723,7 @@ function ChildChat({ student, startInLandingPage = false }) {
       timestamp: Timestamp.now(),
       authorName: auth.currentUser?.displayName || null,
     };
+    lastPendingUserTimestampRef.current = tempUserMessage.timestamp;
     setMessages((prev) => [...prev, tempUserMessage]);
     setInputMessage('');
 
@@ -564,11 +745,6 @@ function ChildChat({ student, startInLandingPage = false }) {
       // Update selectedChatId if a new chat was created
       if (responseData.chatId && responseData.chatId !== selectedChatId) {
         setSelectedChatId(responseData.chatId);
-        // Update chat name from chats list
-        const newChat = chats.find((c) => c.id === responseData.chatId);
-        if (newChat) {
-          setSelectedChatName(newChat.name);
-        }
       }
 
       // Remove temp message (real message will come via listener)
@@ -583,6 +759,8 @@ function ChildChat({ student, startInLandingPage = false }) {
 
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+      setAssistantPending(false);
+      lastPendingUserTimestampRef.current = null;
 
       // Restore input message
       setInputMessage(messageText);
@@ -608,18 +786,90 @@ function ChildChat({ student, startInLandingPage = false }) {
     setSelectedChatId(null);
     setMessages([]);
     setInputMessage('');
-    setSelectedChatName('New Chat');
     setChatDropdownOpen(false);
     hasManuallySelectedChatRef.current = true; // Mark as manual selection
   };
 
   // Handle chat selection
   const handleSelectChat = (chatId) => {
-    const chat = chats.find((c) => c.id === chatId);
     setSelectedChatId(chatId);
-    setSelectedChatName(chat?.name || 'New Chat');
     setChatDropdownOpen(false);
     hasManuallySelectedChatRef.current = true; // Mark as manual selection
+  };
+
+  // Handle edit chat name
+  const handleEditChat = (e, chatId, chatName) => {
+    e.stopPropagation(); // Prevent triggering chat selection
+    setEditingChatId(chatId);
+    setEditingChatName(stripQuotes(chatName));
+    setEditDialogOpen(true);
+  };
+
+  // Handle save edited chat name
+  const handleSaveEditChat = async () => {
+    if (!editingChatId || !editingChatName.trim() || !student?.id) {
+      return;
+    }
+
+    try {
+      const chatRef = doc(db, 'students', student.id, 'chats', editingChatId);
+      await updateDoc(chatRef, {
+        name: editingChatName.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setEditDialogOpen(false);
+      setEditingChatId(null);
+      setEditingChatName('');
+    } catch (err) {
+      console.error('[ChildChat] Error updating chat name:', err);
+      setError('Failed to update chat name. Please try again.');
+    }
+  };
+
+  // Handle delete chat
+  const handleDeleteChat = (e, chatId) => {
+    e.stopPropagation(); // Prevent triggering chat selection
+    setDeletingChatId(chatId);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Handle confirm delete
+  const handleConfirmDelete = async () => {
+    if (!deletingChatId || !student?.id) {
+      return;
+    }
+
+    try {
+      const chatRef = doc(db, 'students', student.id, 'chats', deletingChatId);
+      await updateDoc(chatRef, {
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      });
+      
+      // If deleted chat was selected, select most recent chat or go to landing
+      if (deletingChatId === selectedChatId) {
+        const remainingChats = chats.filter((c) => c.id !== deletingChatId);
+        if (remainingChats.length > 0) {
+          setSelectedChatId(remainingChats[0].id);
+        } else {
+          setSelectedChatId(null);
+        }
+      }
+      
+      setDeleteConfirmOpen(false);
+      setDeletingChatId(null);
+    } catch (err) {
+      console.error('[ChildChat] Error deleting chat:', err);
+      setError('Failed to delete chat. Please try again.');
+      setDeleteConfirmOpen(false);
+      setDeletingChatId(null);
+    }
+  };
+
+  // Handle cancel delete
+  const handleCancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeletingChatId(null);
   };
 
   // Handle key press in input
@@ -656,23 +906,52 @@ function ChildChat({ student, startInLandingPage = false }) {
   return (
     <Box
       sx={{
-        width: '100%',
+        width: '375px',
         maxWidth: '375px',
-        height: '100%',
+        ...(isLanding
+          ? {
+              // Landing mode: fixed positioning to prevent parent container scrolling
+              height: { xs: 'calc(100vh - 64px - env(safe-area-inset-top, 0px))', sm: 'calc(100vh - 64px)' },
+              margin: 0,
+              position: 'fixed',
+              top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1,
+            }
+          : {
+              // Chat mode: normal layout with margins
+              height: '812px',
+              margin: '40px auto',
+              minHeight: '100vh',
+              position: 'relative',
+            }),
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#f8fafc',
-        position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Floating Chat Dropdown - Pinned below AppHeader */}
       <Box
         sx={{
-          position: 'fixed',
-          top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 1000,
+          ...(isLanding
+            ? {
+                // Landing mode: positioned relative to fixed container
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+              }
+            : {
+                // Chat mode: fixed to viewport
+                position: 'fixed',
+                top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+              }),
           width: '100%',
           maxWidth: '375px',
           px: 2,
@@ -683,12 +962,12 @@ function ChildChat({ student, startInLandingPage = false }) {
           gap: 1,
           alignItems: 'flex-start',
           minWidth: 0, // Allow flex children to shrink below their content size
+          boxSizing: 'border-box',
         }}
       >
         <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
           <Box sx={{ flex: 1, minWidth: 0 }}> {/* minWidth: 0 allows flex item to shrink */}
             <Paper
-              ref={chatDropdownAnchorRef}
               elevation={4}
               sx={{
                 display: 'flex',
@@ -709,18 +988,19 @@ function ChildChat({ student, startInLandingPage = false }) {
               }}
               onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
             >
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontWeight: 500, 
-                  flex: 1, 
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: selectedChatId ? 500 : 400,
+                  flex: 1,
                   minWidth: 0, // Critical for ellipsis to work in flex container
-                  overflow: 'hidden', 
-                  textOverflow: 'ellipsis', 
-                  whiteSpace: 'nowrap' 
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: selectedChatId ? 'text.primary' : 'text.secondary',
                 }}
               >
-                {stripQuotes(selectedChatName)}
+                {selectedChatId ? chatTitle : 'Load past conversations here'}
               </Typography>
               <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
             </Paper>
@@ -741,7 +1021,7 @@ function ChildChat({ student, startInLandingPage = false }) {
                   backgroundColor: 'white',
                 }}
               >
-                {loadingChats ? (
+                {chatsLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                     <CircularProgress size={20} />
                   </Box>
@@ -759,15 +1039,69 @@ function ChildChat({ student, startInLandingPage = false }) {
                           '&:hover': {
                             backgroundColor: 'grey.100',
                           },
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          pr: 0.5,
                         }}
                       >
-                      <ListItemText
-                        primary={stripQuotes(chat.name)}
-                        primaryTypographyProps={{
-                          variant: 'body2',
-                          fontWeight: chat.id === selectedChatId ? 700 : 400,
-                        }}
-                      />
+                        <ListItemText
+                          primary={stripQuotes(chat.name)}
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            fontWeight: chat.id === selectedChatId ? 700 : 400,
+                            sx: {
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            },
+                          }}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            flexShrink: 0,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleEditChat(e, chat.id, chat.name)}
+                            aria-label="Edit chat name"
+                            sx={{
+                              padding: 0.5,
+                              color: 'text.secondary',
+                              '&:hover': {
+                                color: 'primary.main',
+                                backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                              },
+                            }}
+                          >
+                            <Edit sx={{ fontSize: 16 }} />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleDeleteChat(e, chat.id)}
+                            aria-label="Delete chat"
+                            sx={{
+                              padding: 0.5,
+                              color: 'text.secondary',
+                              '&:hover': {
+                                color: 'error.main',
+                                backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                              },
+                            }}
+                          >
+                            <Delete sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Box>
                       </ListItemButton>
                     ))}
                   </List>
@@ -778,6 +1112,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         </ClickAwayListener>
         <IconButton
           onClick={handleCreateNewChat}
+          disabled={isLanding}
           aria-label="New chat"
           sx={{
             minWidth: 48,
@@ -793,6 +1128,11 @@ function ChildChat({ student, startInLandingPage = false }) {
             '&:hover': {
               backgroundColor: 'grey.50',
             },
+            '&:disabled': {
+              backgroundColor: 'grey.100',
+              color: 'text.disabled',
+              borderColor: 'divider',
+            },
           }}
         >
           <Add />
@@ -802,31 +1142,51 @@ function ChildChat({ student, startInLandingPage = false }) {
       {/* Messages Area */}
       <Box
         sx={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          p: 2,
-          pt: { xs: 'calc(64px + 56px + env(safe-area-inset-top, 0px))', sm: 'calc(64px + 56px)' },
-          pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1,
+          ...(isLanding
+            ? {
+                // Landing page: absolutely positioned between dropdown and input, no scrolling
+                position: 'absolute',
+                top: '56px', // Below the dropdown (pt: 1 + pb: 0.5 + Paper py: 1 + content ≈ 56px)
+                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' }, // Above footer
+                left: 0,
+                right: 0,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                p: 0,
+              }
+            : {
+                // Chat view: normal flex layout with scrolling
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                p: 2,
+                pt: { xs: 'calc(64px + 56px + env(safe-area-inset-top, 0px))', sm: 'calc(64px + 56px)' },
+                pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+                alignItems: 'stretch',
+                gap: 1,
+              }),
         }}
       >
-        {loadingMessages && messages.length === 0 ? (
+        {messagesLoading && messages.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
             <CircularProgress />
           </Box>
-        ) : selectedChatId === null ? (
+        ) : isLanding ? (
           <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              flex: 1,
               textAlign: 'center',
               p: 3,
+              width: '100%',
             }}
           >
             <Chat sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
@@ -871,177 +1231,14 @@ function ChildChat({ student, startInLandingPage = false }) {
                 }}
               >
                 {message.role === 'user' ? (
-                  // User message: Show in a bubble
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      maxWidth: '88%',
-                      p: 1.5,
-                      backgroundColor: 'primary.main',
-                      color: 'white',
-                      borderRadius: 2,
-                      position: 'relative',
-                    }}
-                  >
-                    {message.authorName && (
-                      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
-                        {message.authorName}
-                      </Typography>
-                    )}
-                    <Box
-                      component="div"
-                      sx={{
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        '& ul': {
-                          margin: 0,
-                          paddingLeft: 2,
-                          listStyleType: 'disc',
-                        },
-                        '& ol': {
-                          margin: 0,
-                          paddingLeft: 2,
-                        },
-                        '& p': {
-                          margin: 0,
-                          marginBottom: 1,
-                          '&:last-child': {
-                            marginBottom: 0,
-                          },
-                        },
-                      }}
-                    >
-                      {formatMessage(message.content)}
-                    </Box>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        mt: 0.5,
-                      }}
-                    >
-                      {message.timestamp && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            opacity: 0.7,
-                            fontSize: '0.7rem',
-                          }}
-                        >
-                          {formatTimestamp(message.timestamp)}
-                        </Typography>
-                      )}
-                      <CopyToClipboardButton
-                        text={message.content}
-                        ariaLabel="Copy message"
-                        sx={{
-                          color: 'white',
-                          opacity: 0.8,
-                          transition: 'opacity 0.2s ease',
-                          '&:hover': {
-                            opacity: 1,
-                          },
-                        }}
-                      />
-                    </Box>
-                  </Paper>
+                  <UserBubble message={message} formatTimestamp={formatTimestamp} />
                 ) : (
-                  // Assistant message: Full width, no bubble
-                  <Box
-                    sx={{
-                      width: '100%',
-                      p: 1.5,
-                      position: 'relative',
-                    }}
-                  >
-                    <Box
-                      component="div"
-                      sx={{
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        color: 'text.primary',
-                        '& ul': {
-                          margin: 0,
-                          paddingLeft: 2,
-                          listStyleType: 'disc',
-                        },
-                        '& ol': {
-                          margin: 0,
-                          paddingLeft: 2,
-                        },
-                        '& p': {
-                          margin: 0,
-                          marginBottom: 1,
-                          '&:last-child': {
-                            marginBottom: 0,
-                          },
-                        },
-                      }}
-                    >
-                      {formatMessage(message.content)}
-                    </Box>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        mt: 0.5,
-                      }}
-                    >
-                      {message.timestamp && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            opacity: 0.7,
-                            fontSize: '0.7rem',
-                          }}
-                        >
-                          {formatTimestamp(message.timestamp)}
-                        </Typography>
-                      )}
-                      <CopyToClipboardButton
-                        text={message.content}
-                        ariaLabel="Copy message"
-                        sx={{
-                          color: '#000000',
-                          opacity: 0.6,
-                          transition: 'opacity 0.2s ease',
-                          '&:hover': {
-                            opacity: 1,
-                          },
-                        }}
-                      />
-                    </Box>
-                  </Box>
+                  <AssistantBubble message={message} formatTimestamp={formatTimestamp} />
                 )}
               </Box>
             ))}
-            {/* Coach Pepper loading state - shows left-aligned when sending */}
-            {sending && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'flex-start',
-                  mb: 1,
-                  width: '100%',
-                  p: 1.5,
-                }}
-              >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  <CircularProgress size={18} sx={{ color: '#4f46e5' }} />
-                  <Typography variant="body2" color="text.secondary">
-                    Coach Pepper is thinking...
-                  </Typography>
-                </Box>
-              </Box>
-            )}
+            {/* Coach Pepper loading state - shows left-aligned while waiting for assistant */}
+            {assistantPending && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -1050,13 +1247,25 @@ function ChildChat({ student, startInLandingPage = false }) {
       {/* Floating Input Area - Fixed at bottom */}
       <Box
         sx={{
-          position: 'fixed',
-          bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
-          left: '50%',
-          transform: 'translateX(-50%)',
+          ...(isLanding
+            ? {
+                // Landing mode: positioned relative to fixed container
+                position: 'absolute',
+                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+              }
+            : {
+                // Chat mode: fixed to viewport
+                position: 'fixed',
+                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+              }),
           width: '100%',
           maxWidth: '375px',
-          zIndex: 1000,
           px: 2,
           pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
         }}
@@ -1124,6 +1333,80 @@ function ChildChat({ student, startInLandingPage = false }) {
           </IconButton>
         </Paper>
       </Box>
+
+      {/* Edit Chat Name Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditingChatId(null);
+          setEditingChatName('');
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Edit Chat Name
+          </Typography>
+          <TextField
+            fullWidth
+            value={editingChatName}
+            onChange={(e) => setEditingChatName(e.target.value)}
+            placeholder="Enter chat name"
+            autoFocus
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && editingChatName.trim()) {
+                handleSaveEditChat();
+              }
+            }}
+            sx={{ mb: 2 }}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button
+              onClick={() => {
+                setEditDialogOpen(false);
+                setEditingChatId(null);
+                setEditingChatName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveEditChat}
+              disabled={!editingChatName.trim()}
+            >
+              Save
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={handleCancelDelete}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Delete conversation?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This conversation will be permanently deleted. This action cannot be undone.
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button onClick={handleCancelDelete} variant="contained" autoFocus>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmDelete} color="error" variant="outlined">
+              Delete
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Box>
   );
 }
