@@ -1,215 +1,293 @@
-// ChildChat.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
   TextField,
-  Button,
   CircularProgress,
   Alert,
+  List,
+  ListItem,
+  ListItemText,
   Paper,
-  Avatar,
-  Select,
-  MenuItem,
-  FormControl,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  FormControlLabel,
-  Switch,
+  ClickAwayListener,
 } from '@mui/material';
+import { Send, Add, Chat, ArrowDropDown } from '@mui/icons-material';
 import {
-  Send as SendIcon,
-  SmartToy as AssistantIcon,
-  Person as UserIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  ContentCopy as ContentCopyIcon,
-} from '@mui/icons-material';
-import { collection, query, orderBy, limit, onSnapshot, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
-import { db, auth, app } from '../firebase';
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  onSnapshot,
+  Timestamp,
+} from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, cloudFunctions, auth } from '../firebase';
+import CopyToClipboardButton from './CopyToClipboardButton';
 
-/**
- * Parse markdown and convert to React elements
- * Supports: **bold**, line breaks, numbered lists
- */
-function parseMarkdown(text) {
-  if (!text) return null;
-
+// Basic markdown formatting function
+const formatMessage = (text) => {
+  if (!text) return '';
+  
+  // Split by lines to handle bullets and paragraphs
   const lines = text.split('\n');
-  const elements = [];
-  let key = 0;
-  let listItems = [];
+  const formatted = [];
   let inList = false;
-
-  lines.forEach((line) => {
-    const trimmedLine = line.trim();
-
-    // Check for numbered list items (e.g., "1. **text**" or "1. text")
-    const listMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+  let listItems = [];
+  let listType = null; // 'ul' or 'ol'
+  
+  const flushList = () => {
+    if (listItems.length > 0) {
+      const ListComponent = listType === 'ol' ? 'ol' : 'ul';
+      formatted.push(
+        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1 }}>
+          {listItems}
+        </Box>
+      );
+      listItems = [];
+      inList = false;
+      listType = null;
+    }
+  };
+  
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
     
-    if (listMatch) {
-      // Start or continue a list
-      if (!inList) {
+    // Handle bullet points (- or *)
+    if (trimmed.match(/^[-*]\s+/)) {
+      const content = trimmed.replace(/^[-*]\s+/, '');
+      if (!inList || listType !== 'ul') {
+        flushList();
         inList = true;
+        listType = 'ul';
       }
-      listItems.push(listMatch[2]);
+      listItems.push(
+        <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
+          {formatInlineMarkdown(content)}
+        </Box>
+      );
+    } else if (trimmed.match(/^\d+\.\s+/)) {
+      // Handle numbered lists
+      const content = trimmed.replace(/^\d+\.\s+/, '');
+      if (!inList || listType !== 'ol') {
+        flushList();
+        inList = true;
+        listType = 'ol';
+      }
+      listItems.push(
+        <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
+          {formatInlineMarkdown(content)}
+        </Box>
+      );
     } else {
-      // If we were building a list, render it now
-      if (inList && listItems.length > 0) {
-        elements.push(
-          <Box key={key++} component="ul" sx={{ pl: 3, my: 1, mb: 0.5 }}>
-            {listItems.map((item, idx) => (
-              <Box key={idx} component="li" sx={{ mb: 0.5 }}>
-                {parseBoldInText(item)}
-              </Box>
-            ))}
+      // Flush any pending list
+      flushList();
+      
+      if (trimmed.startsWith('###')) {
+        // H3 headers
+        const content = trimmed.replace(/^###\s+/, '');
+        formatted.push(
+          <Typography key={index} variant="subtitle2" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
+            {formatInlineMarkdown(content)}
+          </Typography>
+        );
+      } else if (trimmed.startsWith('##')) {
+        // H2 headers
+        const content = trimmed.replace(/^##\s+/, '');
+        formatted.push(
+          <Typography key={index} variant="subtitle1" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
+            {formatInlineMarkdown(content)}
+          </Typography>
+        );
+      } else if (trimmed.startsWith('#')) {
+        // H1 headers
+        const content = trimmed.replace(/^#\s+/, '');
+        formatted.push(
+          <Typography key={index} variant="h6" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
+            {formatInlineMarkdown(content)}
+          </Typography>
+        );
+      } else if (trimmed) {
+        // Regular paragraph
+        formatted.push(
+          <Box key={index} component="p" sx={{ m: 0, mb: 1 }}>
+            {formatInlineMarkdown(trimmed)}
           </Box>
         );
-        listItems = [];
-        inList = false;
-      }
-
-      // Handle empty lines or regular text
-      if (trimmedLine === '') {
-        elements.push(<br key={key++} />);
       } else {
-        elements.push(
-          <Box key={key++} component="div" sx={{ mb: 0.5 }}>
-            {parseBoldInText(trimmedLine)}
-          </Box>
-        );
+        // Empty line
+        formatted.push(<br key={index} />);
       }
     }
   });
+  
+  // Flush any remaining list
+  flushList();
+  
+  return formatted;
+};
 
-  // Close any remaining list
-  if (inList && listItems.length > 0) {
-    elements.push(
-      <Box key={key++} component="ul" sx={{ pl: 3, my: 1, mb: 0.5 }}>
-        {listItems.map((item, idx) => (
-          <Box key={idx} component="li" sx={{ mb: 0.5 }}>
-            {parseBoldInText(item)}
-          </Box>
-        ))}
-      </Box>
-    );
-  }
-
-  return elements.length > 0 ? elements : parseBoldInText(text);
-}
-
-/**
- * Parse bold text within a string and return React elements
- */
-function parseBoldInText(text) {
-  if (!text) return null;
-
+// Format inline markdown (bold, italic, code)
+const formatInlineMarkdown = (text) => {
+  if (!text) return '';
+  
   const parts = [];
-  let lastIndex = 0;
-  let key = 0;
-
-  const boldPattern = /\*\*(.+?)\*\*/g;
-  let match;
-
-  while ((match = boldPattern.exec(text)) !== null) {
-    // Add text before the bold
-    if (match.index > lastIndex) {
-      const beforeText = text.substring(lastIndex, match.index);
-      if (beforeText) {
-        parts.push(<span key={key++}>{beforeText}</span>);
-      }
+  let currentIndex = 0;
+  
+  // Match **bold**, *italic*, `code`, and regular text
+  const patterns = [
+    { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
+    { regex: /\*([^*]+)\*/g, type: 'italic' },
+    { regex: /`([^`]+)`/g, type: 'code' },
+  ];
+  
+  const matches = [];
+  patterns.forEach((pattern) => {
+    let match;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: pattern.type,
+        content: match[1],
+        fullMatch: match[0],
+      });
     }
-
-    // Add bold text
-    parts.push(
-      <Typography
-        key={key++}
-        component="span"
-        sx={{ fontWeight: 600, color: 'inherit' }}
-      >
-        {match[1]}
-      </Typography>
+  });
+  
+  // Sort matches by start position
+  matches.sort((a, b) => a.start - b.start);
+  
+  // Remove overlapping matches (prefer bold over italic)
+  const filteredMatches = [];
+  matches.forEach((match) => {
+    const overlaps = filteredMatches.some(
+      (m) => match.start < m.end && match.end > m.start
     );
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    const remainingText = text.substring(lastIndex);
-    if (remainingText) {
-      parts.push(<span key={key++}>{remainingText}</span>);
+    if (!overlaps) {
+      filteredMatches.push(match);
     }
+  });
+  
+  // Build formatted parts
+  filteredMatches.forEach((match) => {
+    // Add text before match
+    if (match.start > currentIndex) {
+      parts.push(text.substring(currentIndex, match.start));
+    }
+    
+    // Add formatted match
+    if (match.type === 'bold') {
+      parts.push(<strong key={`bold-${match.start}`}>{match.content}</strong>);
+    } else if (match.type === 'italic') {
+      parts.push(<em key={`italic-${match.start}`}>{match.content}</em>);
+    } else if (match.type === 'code') {
+      parts.push(
+        <Box
+          key={`code-${match.start}`}
+          component="code"
+          sx={{
+            backgroundColor: 'rgba(0,0,0,0.1)',
+            padding: '0.1em 0.3em',
+            borderRadius: '0.25em',
+            fontSize: '0.9em',
+            fontFamily: 'monospace',
+          }}
+        >
+          {match.content}
+        </Box>
+      );
+    }
+    
+    currentIndex = match.end;
+  });
+  
+  // Add remaining text
+  if (currentIndex < text.length) {
+    parts.push(text.substring(currentIndex));
   }
-
+  
   return parts.length > 0 ? parts : text;
-}
+};
 
 function ChildChat({ student }) {
-  const [messages, setMessages] = useState([]);
+  // State
   const [chats, setChats] = useState([]);
-  const [currentChatId, setCurrentChatId] = useState(null);
-  const [inputValue, setInputValue] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [selectedChatId, setSelectedChatId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [copiedMessageId, setCopiedMessageId] = useState(null);
-  const [chatToDelete, setChatToDelete] = useState(null);
-  const [devMode, setDevMode] = useState(true); // Dev toggle to skip observation context
-  const [streamingContent, setStreamingContent] = useState(''); // Current streaming assistant message
-  const [streamingMessageId, setStreamingMessageId] = useState(null); // ID of message being streamed
-  const messagesEndRef = useRef(null);
-  const optimisticMessagesRef = useRef(new Map()); // Track optimistic messages by content+timestamp
-  const streamingContentRef = useRef(''); // Ref for streaming content (always current)
-  const streamingMessageIdRef = useRef(null); // Ref for streaming message ID (always current)
-  const studentId = student?.id || student?.uid || null;
+  const [inputMessage, setInputMessage] = useState('');
+  const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [selectedChatName, setSelectedChatName] = useState('New Chat');
 
-  const getStudentName = (s) => {
-    if (!s) return 'Student';
-    return s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || 'Student';
+  // Refs
+  const messagesEndRef = useRef(null);
+  const chatsUnsubscribeRef = useRef(null);
+  const messagesUnsubscribeRef = useRef(null);
+  const chatDropdownAnchorRef = useRef(null);
+
+  // Get student display name
+  const getStudentDisplayName = () => {
+    if (!student) return 'Student';
+    return (
+      student.displayName ||
+      student.name ||
+      `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+      'Student'
+    );
   };
 
-  // Load chats for student
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Load chats list
   useEffect(() => {
-    if (!studentId) {
-      setChats([]);
-      setCurrentChatId(null);
-      setIsLoadingChats(false);
+    if (!student?.id) {
+      setError('Student information is required');
+      setLoading(false);
+      setLoadingChats(false);
       return;
     }
 
+    setLoadingChats(true);
+    setError('');
+
+    const chatsRef = collection(db, 'students', student.id, 'chats');
+
+    // Try query with orderBy first, fallback to fetching all if index missing
     const loadChats = async () => {
-      setIsLoadingChats(true);
       try {
-        const chatsRef = collection(db, 'students', studentId, 'chats');
-        
-        // Try query with orderBy first (requires composite index)
-        // If index doesn't exist, fall back to fetching all and sorting in memory
         let snapshot;
         try {
-          const q = query(chatsRef, orderBy('createdAt', 'desc'));
+          const q = query(
+            chatsRef,
+            where('deleted', '==', false),
+            orderBy('createdAt', 'desc')
+          );
           snapshot = await getDocs(q);
         } catch (indexError) {
-          // If query fails (likely missing index), fetch all chats and filter/sort in memory
-          console.warn('[loadChats] Query with orderBy failed, falling back to in-memory sort:', indexError.message);
-          snapshot = await getDocs(chatsRef);
+          // Fallback: fetch all and filter/sort in memory
+          console.warn('[ChildChat] Query with orderBy failed, using fallback:', indexError.message);
+          const allSnapshot = await getDocs(chatsRef);
+          snapshot = allSnapshot;
         }
 
-        const chatList = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          // Filter out deleted chats if we're using fallback method
+        const chatsList = [];
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          // Filter out deleted chats if using fallback
           if (data.deleted === true) {
             return;
           }
-          chatList.push({
-            id: docSnap.id,
+          chatsList.push({
+            id: doc.id,
             name: data.name || 'New Chat',
             createdAt: data.createdAt || null,
             updatedAt: data.updatedAt || null,
@@ -218,549 +296,334 @@ function ChildChat({ student }) {
           });
         });
 
-        // Sort by createdAt desc if we used fallback method
-        if (chatList.length > 0 && chatList[0].createdAt) {
-          chatList.sort((a, b) => {
-            const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
-            const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+        // Sort by createdAt desc if using fallback
+        if (chatsList.length > 0 && chatsList[0].createdAt) {
+          chatsList.sort((a, b) => {
+            const aTime = a.createdAt?.toMillis
+              ? a.createdAt.toMillis()
+              : (a.createdAt?.seconds || 0) * 1000;
+            const bTime = b.createdAt?.toMillis
+              ? b.createdAt.toMillis()
+              : (b.createdAt?.seconds || 0) * 1000;
             return bTime - aTime; // Descending order
           });
         }
 
-        setChats(chatList);
-        // Don't auto-select - let user choose or start typing
-        // currentChatId remains null to show actionable empty state
+        setChats(chatsList);
+
+        // Select most recent chat or set to null if none exist
+        if (chatsList.length > 0) {
+          setSelectedChatId(chatsList[0].id);
+          setSelectedChatName(chatsList[0].name);
+        } else {
+          setSelectedChatId(null);
+          setSelectedChatName('New Chat');
+        }
       } catch (err) {
-        console.error('Failed to load chats:', err);
-        setError('Failed to load chats.');
-        setChats([]);
-        setCurrentChatId(null);
+        console.error('[ChildChat] Error loading chats:', err);
+        setError('Failed to load chats. Please try again.');
       } finally {
-        setIsLoadingChats(false);
+        setLoadingChats(false);
+        setLoading(false);
       }
     };
 
     loadChats();
-  }, [studentId]);
 
-  // Set up real-time listener for chat messages
+    // Set up real-time listener for chats
+    let unsubscribe;
+    try {
+      const q = query(chatsRef, where('deleted', '==', false), orderBy('createdAt', 'desc'));
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const chatsList = [];
+          snapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            chatsList.push({
+              id: doc.id,
+              name: data.name || 'New Chat',
+              createdAt: data.createdAt || null,
+              updatedAt: data.updatedAt || null,
+              lastMessagePreview: data.lastMessagePreview || '',
+              messageCount: data.messageCount || 0,
+            });
+          });
+
+          // Sort by createdAt desc
+          if (chatsList.length > 0 && chatsList[0].createdAt) {
+            chatsList.sort((a, b) => {
+              const aTime = a.createdAt?.toMillis
+                ? a.createdAt.toMillis()
+                : (a.createdAt?.seconds || 0) * 1000;
+              const bTime = b.createdAt?.toMillis
+                ? b.createdAt.toMillis()
+                : (b.createdAt?.seconds || 0) * 1000;
+              return bTime - aTime;
+            });
+          }
+
+          setChats(chatsList);
+
+          // Update selected chat name if it changed
+          if (selectedChatId) {
+            const selectedChat = chatsList.find((c) => c.id === selectedChatId);
+            if (selectedChat) {
+              setSelectedChatName(selectedChat.name);
+            }
+          }
+
+          // If selected chat was deleted, select most recent
+          if (selectedChatId && !chatsList.find((c) => c.id === selectedChatId)) {
+            if (chatsList.length > 0) {
+              setSelectedChatId(chatsList[0].id);
+              setSelectedChatName(chatsList[0].name);
+            } else {
+              setSelectedChatId(null);
+              setSelectedChatName('New Chat');
+            }
+          }
+        },
+        (err) => {
+          console.error('[ChildChat] Error in chats listener:', err);
+        }
+      );
+    } catch (err) {
+      // If index doesn't exist, skip real-time updates for chats
+      console.warn('[ChildChat] Could not set up chats listener:', err);
+    }
+
+    chatsUnsubscribeRef.current = unsubscribe;
+
+    return () => {
+      if (chatsUnsubscribeRef.current) {
+        chatsUnsubscribeRef.current();
+      }
+    };
+  }, [student?.id, selectedChatId]);
+
+  // Load messages for selected chat
   useEffect(() => {
-    if (!studentId || !currentChatId) {
+    if (!student?.id || !selectedChatId) {
       setMessages([]);
-      optimisticMessagesRef.current.clear();
+      setLoadingMessages(false);
       return;
     }
 
-    const messagesRef = collection(db, 'students', studentId, 'chats', currentChatId, 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
+    setLoadingMessages(true);
+    setError('');
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const firestoreMessages = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    // Clean up previous listener
+    if (messagesUnsubscribeRef.current) {
+      messagesUnsubscribeRef.current();
+      messagesUnsubscribeRef.current = null;
+    }
 
-        // Merge Firestore messages with optimistic messages
-        // Remove optimistic messages that have been confirmed by Firestore
-        const optimisticMap = optimisticMessagesRef.current;
-        const confirmedKeys = new Set();
-        
-        // Check which optimistic messages have been confirmed
-        firestoreMessages.forEach((msg) => {
-          if (msg.role === 'user') {
-            const msgTimestamp = msg.timestamp?.toDate ? msg.timestamp.toDate().getTime() : 
-                               (msg.timestamp?.seconds ? msg.timestamp.seconds * 1000 : null);
-            if (msgTimestamp) {
-              // Check if any optimistic message matches this content and timestamp (within 5 seconds)
-              optimisticMap.forEach((optimisticMsg, key) => {
-                const optimisticTimestamp = optimisticMsg.timestamp?.getTime ? optimisticMsg.timestamp.getTime() : optimisticMsg.timestamp;
-                const timeDiff = Math.abs(msgTimestamp - optimisticTimestamp);
-                if (optimisticMsg.content === msg.content && timeDiff < 5000) {
-                  confirmedKeys.add(key);
-                }
-              });
-            }
-          }
-        });
-
-        // Remove confirmed optimistic messages
-        confirmedKeys.forEach(key => optimisticMap.delete(key));
-
-        // Combine Firestore messages with remaining optimistic messages
-        const optimisticArray = Array.from(optimisticMap.values());
-        const currentMessages = [...firestoreMessages, ...optimisticArray];
-        
-        // Check if we have a recent assistant message from Firestore (streaming complete)
-        const hasRecentAssistantMessage = firestoreMessages.some(msg => 
-          msg.role === 'assistant' && 
-          (() => {
-            const msgTime = msg.timestamp?.toDate ? msg.timestamp.toDate().getTime() : 
-                          (msg.timestamp?.seconds ? msg.timestamp.seconds * 1000 : 0);
-            const now = Date.now();
-            return now - msgTime < 5000; // 5 seconds - very recent
-          })()
-        );
-        
-        // Use refs to get current streaming state (always up-to-date)
-        const currentStreamingId = streamingMessageIdRef.current;
-        const currentStreamingContent = streamingContentRef.current;
-        
-        // If we have a recent assistant message from Firestore, clear streaming state
-        if (hasRecentAssistantMessage && currentStreamingId) {
-          streamingContentRef.current = '';
-          streamingMessageIdRef.current = null;
-          setStreamingContent('');
-          setStreamingMessageId(null);
-          setLoading(false);
-        }
-        
-        // Filter out old streaming messages, but preserve current streaming message if still streaming
-        const filteredMessages = currentMessages.filter(msg => {
-          // Keep current streaming message if it's still being streamed
-          if (msg.id === currentStreamingId && currentStreamingId) {
-            return true;
-          }
-          // Filter out other streaming messages
-          return !msg.id?.startsWith('streaming-');
-        });
-        
-        // If we have a streaming message, merge it with current content
-        let allMessages = filteredMessages;
-        if (currentStreamingId && currentStreamingContent) {
-          // Check if streaming message already exists in the array
-          const streamingMsgIndex = allMessages.findIndex(msg => msg.id === currentStreamingId);
-          if (streamingMsgIndex >= 0) {
-            // Update existing streaming message with current content
-            allMessages = allMessages.map((msg, idx) => 
-              idx === streamingMsgIndex 
-                ? { ...msg, content: currentStreamingContent }
-                : msg
-            );
-          } else {
-            // Add streaming message if it doesn't exist
-            allMessages = [...allMessages, {
-              id: currentStreamingId,
-              role: 'assistant',
-              content: currentStreamingContent,
-              timestamp: new Date(),
-            }];
-          }
-        }
-        
-        // Sort messages by timestamp
-        allMessages = allMessages.sort((a, b) => {
-          const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
-                       (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
-          const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
-                       (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : b.timestamp?.getTime ? b.timestamp.getTime() : 0);
-          return timeA - timeB;
-        });
-
-        setMessages(allMessages);
-        // Scroll to bottom when new messages arrive
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      },
-      (err) => {
-        setError('Failed to load chat messages.');
-      }
+    const messagesRef = collection(
+      db,
+      'students',
+      student.id,
+      'chats',
+      selectedChatId,
+      'messages'
     );
 
-    return () => unsubscribe();
-  }, [studentId, currentChatId]);
-
-  // Scroll to bottom on mount and when messages or streaming content changes
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
-
-  const handleSendMessage = async () => {
-    const trimmedMessage = inputValue.trim();
-    if (!trimmedMessage || loading) {
-      return;
-    }
-
-    if (!studentId) {
-      setError('Student ID is missing.');
-      return;
-    }
-
-    // If no chat is selected (landing page), create one before sending
-    let chatIdToUse = currentChatId;
-    if (!chatIdToUse) {
-      // Create new chat when user sends first message
-      setIsCreatingChat(true);
-      try {
-        const chatsRef = collection(db, 'students', studentId, 'chats');
-        const chatData = {
-          name: 'New Chat',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          lastMessagePreview: '',
-          messageCount: 0,
-          deleted: false,
-        };
-        const docRef = await addDoc(chatsRef, chatData);
-        chatIdToUse = docRef.id;
-        
-        const newChat = {
-          id: chatIdToUse,
-          name: 'New Chat',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          lastMessagePreview: '',
-          messageCount: 0,
-        };
-        setChats([newChat, ...chats]);
-        setCurrentChatId(chatIdToUse);
-      } catch (err) {
-        console.error('Failed to create chat:', err);
-        setError('Failed to create chat.');
-        setIsCreatingChat(false);
-        return;
-      } finally {
-        setIsCreatingChat(false);
-      }
-    }
-
-    setLoading(true);
-    setError('');
-    setInputValue('');
-    setStreamingContent('');
-    setStreamingMessageId(null);
-    streamingContentRef.current = '';
-    streamingMessageIdRef.current = null;
-
-    // Optimistically add user message immediately for better UX
-    const currentUser = auth.currentUser;
-    const optimisticMessage = {
-      id: `temp-${Date.now()}-${Math.random()}`,
-      role: 'user',
-      content: trimmedMessage,
-      timestamp: new Date(),
-      authorId: currentUser?.uid || null,
-      authorName: currentUser?.displayName || currentUser?.email?.split('@')[0] || null,
-    };
-    
-    // Add to optimistic messages map
-    const optimisticKey = `${trimmedMessage}-${optimisticMessage.timestamp.getTime()}`;
-    optimisticMessagesRef.current.set(optimisticKey, optimisticMessage);
-    
-    // Immediately update UI with optimistic message
-    setMessages((prevMessages) => {
-      const updated = [...prevMessages, optimisticMessage].sort((a, b) => {
-        const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
-                     (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
-        const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
-                     (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : b.timestamp?.getTime ? b.timestamp.getTime() : 0);
-        return timeA - timeB;
-      });
-      return updated;
-    });
-
-    // Scroll to bottom immediately
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
-
-    // Create streaming assistant message placeholder
-    const streamingMsgId = `streaming-${Date.now()}`;
-    setStreamingMessageId(streamingMsgId);
-    streamingMessageIdRef.current = streamingMsgId;
-    streamingContentRef.current = '';
-    const streamingMessage = {
-      id: streamingMsgId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, streamingMessage]);
-
     try {
-      // Get auth token for HTTP request
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
+      const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
-      // Get Functions URL
-      const functions = getFunctions(app, 'asia-south1');
-      const functionsUrl = `https://asia-south1-${app.options.projectId}.cloudfunctions.net/childChatStream`;
-      
-      // Make streaming request
-      const response = await fetch(functionsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const messagesList = [];
+          snapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            messagesList.push({
+              id: doc.id,
+              role: data.role || 'user',
+              content: data.content || '',
+              timestamp: data.timestamp || null,
+              authorName: data.authorName || null,
+              model: data.model || null,
+            });
+          });
+
+          setMessages(messagesList);
+          setLoadingMessages(false);
+
+          // Auto-scroll to bottom after a short delay
+          setTimeout(() => {
+            scrollToBottom();
+          }, 100);
         },
-        body: JSON.stringify({
-          studentId,
-          chatId: chatIdToUse,
-          message: trimmedMessage,
-          devMode: devMode,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = 'Failed to send message. Please try again.';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          errorMessage = errorText || errorMessage;
+        (err) => {
+          console.error('[ChildChat] Error loading messages:', err);
+          setError('Failed to load messages. Please try again.');
+          setLoadingMessages(false);
         }
-        throw new Error(errorMessage);
-      }
-
-      // Read SSE stream
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = '';
-      let buffer = '';
-      let currentEvent = null;
-      let currentDataLines = []; // Accumulate multiple data: lines for one SSE message
-      let streamDone = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          // Process any remaining data lines before ending
-          if (currentDataLines.length > 0 && !streamDone) {
-            const data = currentDataLines.join('\n');
-            if (data !== '[DONE]') {
-              accumulatedContent += data;
-              streamingContentRef.current = accumulatedContent;
-              setStreamingContent(accumulatedContent);
-              setMessages((prev) => 
-                prev.map((msg) => 
-                  msg.id === streamingMsgId 
-                    ? { ...msg, content: accumulatedContent }
-                    : msg
-                )
-              );
-            }
-          }
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          
-          // Empty line indicates end of SSE message - process accumulated data lines
-          if (line.trim() === '') {
-            if (currentDataLines.length > 0) {
-              // Concatenate multiple data: lines with newlines (SSE spec)
-              const data = currentDataLines.join('\n');
-              
-              if (data === '[DONE]') {
-                // Streaming complete
-                streamDone = true;
-                streamingContentRef.current = '';
-                streamingMessageIdRef.current = null;
-                setLoading(false);
-                setStreamingContent('');
-                setStreamingMessageId(null);
-                // Break out of for loop, then while loop will exit
-                i = lines.length; // Exit for loop
-                break;
-              } else if (currentEvent === 'error') {
-                // Error event
-                try {
-                  const errorData = JSON.parse(data);
-                  throw new Error(errorData.error || 'An error occurred');
-                } catch (e) {
-                  if (e instanceof Error && e.message !== 'Unexpected token') {
-                    throw e;
-                  }
-                  throw new Error(data || 'An error occurred');
-                }
-              } else if (currentEvent === 'complete') {
-                // Completion event - chat metadata already updated by backend
-                // No need to reload chats here, Firestore listener will handle updates
-                currentEvent = null;
-                currentDataLines = [];
-                continue;
-              } else {
-                // Text chunk - append to accumulated content
-                accumulatedContent += data;
-                streamingContentRef.current = accumulatedContent;
-                setStreamingContent(accumulatedContent);
-                
-                // Update streaming message in UI immediately
-                setMessages((prev) => 
-                  prev.map((msg) => 
-                    msg.id === streamingMsgId 
-                      ? { ...msg, content: accumulatedContent }
-                      : msg
-                  )
-                );
-                
-                // Scroll to bottom as content streams
-                setTimeout(() => {
-                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                }, 50);
-              }
-              
-              // Reset for next message
-              currentDataLines = [];
-              currentEvent = null;
-            }
-            continue;
-          }
-          
-          // Process non-empty lines
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            // Accumulate data lines (will be processed when we hit empty line)
-            const data = line.slice(6);
-            currentDataLines.push(data);
-          }
-        }
-        
-        // Break out of while loop if stream is done
-        if (streamDone) break;
-      }
-
-      // Remove streaming message - Firestore listener will add the real one
-      streamingContentRef.current = '';
-      streamingMessageIdRef.current = null;
-      setMessages((prev) => prev.filter((msg) => msg.id !== streamingMsgId));
-      setStreamingContent('');
-      setStreamingMessageId(null);
-      setLoading(false);
-    } catch (err) {
-      // Remove optimistic and streaming messages on error
-      optimisticMessagesRef.current.delete(optimisticKey);
-      setMessages((prev) => 
-        prev.filter((msg) => msg.id !== optimisticMessage.id && msg.id !== streamingMsgId)
       );
 
-      let errorMessage = 'Failed to send message. Please try again.';
-      if (err?.message) {
-        errorMessage = err.message;
-      }
-
-      streamingContentRef.current = '';
-      streamingMessageIdRef.current = null;
-      setError(errorMessage);
-      setStreamingContent('');
-      setStreamingMessageId(null);
-      setLoading(false);
-      // Restore input value on error
-      setInputValue(trimmedMessage);
-    }
-  };
-
-  const handleCreateNewChat = () => {
-    // Just return to landing page - don't create chat doc yet
-    // Chat will be created when user sends a message
-    setCurrentChatId(null);
-    setMessages([]);
-    optimisticMessagesRef.current.clear();
-  };
-
-  const handleDeleteChatClick = (chatIdToDelete) => {
-    if (!studentId || !chatIdToDelete) return;
-
-    if (chats.length <= 1) {
-      setError('Cannot delete the last chat.');
-      return;
-    }
-
-    // Show confirmation dialog
-    setChatToDelete(chatIdToDelete);
-  };
-
-  const handleDeleteChatConfirm = async () => {
-    if (!studentId || !chatToDelete) return;
-
-    try {
-      // Soft delete: update deleted flag
-      const chatRef = doc(db, 'students', studentId, 'chats', chatToDelete);
-      await updateDoc(chatRef, {
-        deleted: true,
-        updatedAt: serverTimestamp(),
-      });
-      
-      // Remove from local state
-      const updatedChats = chats.filter(c => c.id !== chatToDelete);
-      setChats(updatedChats);
-      
-      // Switch to most recent chat
-      if (currentChatId === chatToDelete && updatedChats.length > 0) {
-        setCurrentChatId(updatedChats[0].id);
-      } else if (currentChatId === chatToDelete) {
-        // No more chats, go back to landing page
-        setCurrentChatId(null);
-        setMessages([]);
-      }
-
-      // Close dialog
-      setChatToDelete(null);
+      messagesUnsubscribeRef.current = unsubscribe;
     } catch (err) {
-      console.error('Failed to delete chat:', err);
-      setError('Failed to delete chat.');
-      setChatToDelete(null);
+      console.error('[ChildChat] Error setting up messages listener:', err);
+      setError('Failed to load messages. Please try again.');
+      setLoadingMessages(false);
     }
-  };
 
-  const handleDeleteChatCancel = () => {
-    setChatToDelete(null);
-  };
+    return () => {
+      if (messagesUnsubscribeRef.current) {
+        messagesUnsubscribeRef.current();
+      }
+    };
+  }, [student?.id, selectedChatId]);
 
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
+  // Format timestamp
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
       if (diffMins < 1) return 'Just now';
       if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-      
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } catch {
       return '';
     }
   };
 
-  const handleCopyMessage = async (messageContent, messageId) => {
+  // Handle send message
+  const handleSendMessage = async () => {
+    const messageText = inputMessage.trim();
+    if (!messageText) {
+      return;
+    }
+
+    if (!student?.id) {
+      setError('Student information is required');
+      return;
+    }
+
+    setSending(true);
+    setError('');
+
+    // Optimistically add user message
+    const tempUserMessage = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: messageText,
+      timestamp: Timestamp.now(),
+      authorName: auth.currentUser?.displayName || null,
+    };
+    setMessages((prev) => [...prev, tempUserMessage]);
+    setInputMessage('');
+
     try {
-      await navigator.clipboard.writeText(messageContent);
-      setCopiedMessageId(messageId);
-      // Reset the copied state after 2 seconds
+      const childChatFn = httpsCallable(cloudFunctions, 'childChat');
+      const result = await childChatFn({
+        studentId: student.id,
+        message: messageText,
+        chatId: selectedChatId || null, // null = auto-create/find
+      });
+
+      const responseData = result.data;
+
+      if (!responseData.success) {
+        throw new Error(responseData.error || 'Failed to send message');
+      }
+
+      // Update selectedChatId if a new chat was created
+      if (responseData.chatId && responseData.chatId !== selectedChatId) {
+        setSelectedChatId(responseData.chatId);
+        // Update chat name from chats list
+        const newChat = chats.find((c) => c.id === responseData.chatId);
+        if (newChat) {
+          setSelectedChatName(newChat.name);
+        }
+      }
+
+      // Remove temp message (real message will come via listener)
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+
+      // Scroll to bottom
       setTimeout(() => {
-        setCopiedMessageId(null);
-      }, 2000);
+        scrollToBottom();
+      }, 100);
     } catch (err) {
-      console.error('Failed to copy message:', err);
+      console.error('[ChildChat] Error sending message:', err);
+
+      // Remove temp message on error
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+
+      // Restore input message
+      setInputMessage(messageText);
+
+      // Extract error message
+      let errorMessage = 'Failed to send message. Please try again.';
+      if (err?.code === 'functions/unauthenticated') {
+        errorMessage = 'You must be signed in to send messages.';
+      } else if (err?.code === 'functions/permission-denied') {
+        errorMessage = 'You do not have permission to send messages.';
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setSending(false);
     }
   };
 
-  if (!studentId) {
+  // Handle create new chat
+  const handleCreateNewChat = () => {
+    setSelectedChatId(null);
+    setMessages([]);
+    setInputMessage('');
+    setSelectedChatName('New Chat');
+    setChatDropdownOpen(false);
+  };
+
+  // Handle chat selection
+  const handleSelectChat = (chatId) => {
+    const chat = chats.find((c) => c.id === chatId);
+    setSelectedChatId(chatId);
+    setSelectedChatName(chat?.name || 'New Chat');
+    setChatDropdownOpen(false);
+  };
+
+  // Handle key press in input
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sending && inputMessage.trim()) {
+        handleSendMessage();
+      }
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (chatsUnsubscribeRef.current) {
+        chatsUnsubscribeRef.current();
+      }
+      if (messagesUnsubscribeRef.current) {
+        messagesUnsubscribeRef.current();
+      }
+    };
+  }, []);
+
+  // Validation: student required
+  if (!student?.id) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert severity="error">Student information is missing.</Alert>
+        <Alert severity="error">Student information is required to start a chat.</Alert>
       </Box>
     );
   }
@@ -768,635 +631,450 @@ function ChildChat({ student }) {
   return (
     <Box
       sx={{
+        width: '100%',
+        maxWidth: '375px',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
+        backgroundColor: '#f8fafc',
         position: 'relative',
-        pt: 12, // Space for fixed header bubble (increased for better spacing)
-        pb: 12, // Space for floating input bubble above footer
-        width: '100%',
-        maxWidth: '100%',
-        overflowX: 'hidden',
-        boxSizing: 'border-box',
       }}
     >
-      {/* Fixed Chat Selector Header - Floating Bubble Style */}
+      {/* Floating Chat Dropdown - Pinned below AppHeader */}
       <Box
         sx={{
           position: 'fixed',
-          top: 70,
+          top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
           left: '50%',
           transform: 'translateX(-50%)',
-          width: { xs: 'calc(100% - 32px)', sm: '388px' },
-          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
           zIndex: 1000,
-          overflowX: 'hidden',
-          boxSizing: 'border-box',
+          width: '100%',
+          maxWidth: '375px',
+          px: 2,
+          pt: 1,
+          pb: 0.5,
+          backgroundColor: 'transparent',
         }}
       >
-        <Paper
-          elevation={3}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            p: 1,
-            borderRadius: 4,
-            backgroundColor: '#fff',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-            border: '1px solid #e2e8f0',
-            width: '100%',
-            maxWidth: '100%',
-            overflowX: 'hidden',
-            boxSizing: 'border-box',
-          }}
-        >
-          <FormControl fullWidth sx={{ flex: 1, minWidth: 0, overflowX: 'hidden' }}>
-            <Select
-              value={currentChatId || ''}
-              onChange={(e) => {
-                if (e.target.value !== '__new__') {
-                  setCurrentChatId(e.target.value);
-                }
+        <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
+          <Box>
+            <Paper
+              ref={chatDropdownAnchorRef}
+              elevation={1}
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 2,
+                py: 0.75,
+                borderRadius: '24px',
+                backgroundColor: 'white',
+                border: '1px solid',
+                borderColor: 'divider',
+                cursor: 'pointer',
+                '&:hover': {
+                  backgroundColor: 'grey.50',
+                },
               }}
-              disabled={isCreatingChat}
-              displayEmpty
-                  renderValue={(selected) => {
-                    if (!selected) {
-                      if (isLoadingChats) {
-                        return (
-                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                            Loading history...
-                          </Typography>
-                        );
-                      }
-                      return (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                          {chats.length === 0 ? 'No chats yet' : 'Continue a past conversation'}
-                        </Typography>
-                      );
-                    }
-                    const selectedChat = chats.find(c => c.id === selected);
-                    const displayName = selectedChat ? (selectedChat.name || 'New Chat').replace(/^["']|["']$/g, '') : 'New Chat';
-                    return (
-                      <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {displayName}
-                      </Typography>
-                    );
-                  }}
-                  sx={{
-                    width: '100%',
-                    maxWidth: '100%',
-                    overflowX: 'hidden',
-                    '& .MuiSelect-select': {
-                      py: 0,
-                      pl: 1.5,
-                      pr: 2, // Extra right padding for italic text overflow
-                      minHeight: '44px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    },
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      border: 'none',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      border: 'none',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      border: 'none',
-                    },
-                  }}
-                  MenuProps={{
-                    PaperProps: {
-                      sx: {
-                        borderRadius: 2,
-                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-                        mt: 0.5,
-                      },
-                    },
-                  }}
-                >
-                  {isLoadingChats ? (
-                    <MenuItem disabled>
-                      <Typography variant="body2" color="text.secondary">
-                        Loading history...
-                      </Typography>
-                    </MenuItem>
-                  ) : chats.length === 0 ? (
-                    <MenuItem disabled sx={{ pr: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No chats yet. Send a message to start!
-                      </Typography>
-                    </MenuItem>
-                  ) : (
-                    // Sort chats so current chat appears first, then others
-                    [...chats]
-                      .sort((a, b) => {
-                        // Current chat goes first
-                        if (a.id === currentChatId) return -1;
-                        if (b.id === currentChatId) return 1;
-                        // Others maintain their order
-                        return 0;
-                      })
-                      .map((chat) => {
-                        const displayName = (chat.name || 'New Chat').replace(/^["']|["']$/g, '');
-                        const isCurrentChat = chat.id === currentChatId;
-                        return (
-                          <MenuItem 
-                            key={chat.id} 
-                            value={chat.id}
-                          >
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis', 
-                                width: '100%',
-                                fontWeight: isCurrentChat ? 600 : 400,
-                                color: isCurrentChat ? '#4f46e5' : 'inherit',
-                              }}
-                            >
-                              {displayName}
-                            </Typography>
-                          </MenuItem>
-                        );
-                      })
-                  )}
-                </Select>
-              </FormControl>
-              {/* Only show + button when on an existing chat (not on landing page) */}
-              {currentChatId && (
-                <IconButton
-                  size="small"
-                  onClick={handleCreateNewChat}
-                  disabled={isCreatingChat}
-                  sx={{
-                    minWidth: '40px',
-                    width: '40px',
-                    height: '40px',
-                    color: '#fff',
-                    backgroundColor: '#4f46e5',
-                    '&:hover': {
-                      backgroundColor: '#4338ca',
-                    },
-                    '&:disabled': {
-                      backgroundColor: '#cbd5e1',
-                      color: '#94a3b8',
-                    },
-                  }}
-                >
-                  <AddIcon fontSize="small" />
-                </IconButton>
-              )}
-        </Paper>
-      </Box>
+              onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedChatName}
+              </Typography>
+              <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary' }} />
+            </Paper>
 
-      {/* Dev Mode Toggle - Temporary */}
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 130,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: { xs: 'calc(100% - 32px)', sm: '388px' },
-          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
-          zIndex: 999,
-          display: 'flex',
-          justifyContent: 'flex-end',
-          px: 1,
-        }}
-      >
-        <Paper
-          elevation={2}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            px: 1.5,
-            py: 0.5,
-            backgroundColor: devMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.95)',
-            borderRadius: 2,
-            border: devMode ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          <FormControlLabel
-            control={
-              <Switch
-                checked={devMode}
-                onChange={(e) => setDevMode(e.target.checked)}
-                size="small"
+            {/* Simplified Dropdown Menu */}
+            {chatDropdownOpen && (
+              <Paper
+                elevation={3}
                 sx={{
-                  '& .MuiSwitch-switchBase.Mui-checked': {
-                    color: '#f59e0b',
-                  },
-                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                    backgroundColor: '#f59e0b',
-                  },
-                }}
-              />
-            }
-            label={
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  fontSize: '0.7rem', 
-                  color: devMode ? '#f59e0b' : '#64748b',
-                  fontWeight: devMode ? 600 : 400,
+                  position: 'absolute',
+                  top: '100%',
+                  left: 16,
+                  right: 16,
+                  mt: 0.5,
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  borderRadius: 2,
+                  backgroundColor: 'white',
                 }}
               >
-                Dev Mode
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
-        </Paper>
+                {loadingChats ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                    <CircularProgress size={20} />
+                  </Box>
+                ) : (
+                  <List sx={{ py: 0.5 }}>
+                    <ListItem
+                      button
+                      onClick={handleCreateNewChat}
+                      dense
+                      sx={{
+                        borderRadius: 1,
+                        mx: 0.5,
+                        backgroundColor: selectedChatId === null ? 'primary.light' : 'transparent',
+                        '&:hover': {
+                          backgroundColor: 'grey.100',
+                        },
+                      }}
+                    >
+                      <ListItemText
+                        primary="New Chat"
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          fontWeight: selectedChatId === null ? 600 : 400,
+                        }}
+                      />
+                    </ListItem>
+                    {chats.map((chat) => (
+                      <ListItem
+                        key={chat.id}
+                        button
+                        onClick={() => handleSelectChat(chat.id)}
+                        dense
+                        sx={{
+                          borderRadius: 1,
+                          mx: 0.5,
+                          backgroundColor: chat.id === selectedChatId ? 'primary.light' : 'transparent',
+                          '&:hover': {
+                            backgroundColor: 'grey.100',
+                          },
+                        }}
+                      >
+                        <ListItemText
+                          primary={chat.name}
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            fontWeight: chat.id === selectedChatId ? 600 : 400,
+                          }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+            )}
+          </Box>
+        </ClickAwayListener>
       </Box>
 
-      {/* Error Display */}
-      {error && (
-        <Box sx={{ p: 2, pb: 1 }}>
-          <Alert 
-            severity="error" 
-            onClose={() => setError('')}
-            sx={{ mb: 0 }}
-          >
-            {error}
-          </Alert>
-        </Box>
-      )}
-
-      {/* Messages List - Full width, scrollable */}
+      {/* Messages Area */}
       <Box
         sx={{
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          px: 2,
-          pt: 2,
-          pb: 3,
+          p: 2,
+          pt: { xs: 'calc(64px + 56px + env(safe-area-inset-top, 0px))', sm: 'calc(64px + 56px)' },
+          pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
           display: 'flex',
           flexDirection: 'column',
-          gap: 3,
-          width: '100%',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
+          gap: 1,
         }}
       >
-        {/* Empty state - show immediately when no chat is selected */}
-        {!currentChatId && !isCreatingChat && messages.length === 0 && !loading && (
-          <Box sx={{ 
-            textAlign: 'center', 
-            py: 12,
-            px: 3,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 2,
-          }}>
-            <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48, mb: 1 }}>
-              <AssistantIcon />
-            </Avatar>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                color: '#1e293b',
-                fontWeight: 600,
-                mb: 1,
-              }}
-            >
-              Ready to chat about {getStudentName(student)}?
-            </Typography>
-            <Typography 
-              variant="body1" 
-              sx={{ 
-                color: '#64748b',
-                maxWidth: '320px',
-                lineHeight: 1.6,
-              }}
-            >
-              Start typing below to begin a new chat, or select an existing chat from the dropdown above.
-            </Typography>
+        {loadingMessages && messages.length === 0 ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+            <CircularProgress />
           </Box>
-        )}
-
-        {/* Empty state - when a chat is selected but has no messages */}
-        {currentChatId && messages.length === 0 && !loading && (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
+        ) : selectedChatId === null ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              textAlign: 'center',
+              p: 3,
+            }}
+          >
+            <Chat sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Start a new conversation
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              Start a conversation about {getStudentName(student)}!
+              Ask Coach Pepper about {getStudentDisplayName()}'s progress, development, or observations.
             </Typography>
           </Box>
-        )}
-
-        {messages.map((msg) => {
-          const isUser = msg.role === 'user';
-          return (
-            <Box
-              key={msg.id}
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: isUser ? 'flex-end' : 'flex-start',
-                width: '100%',
-                maxWidth: '100%',
-                px: { xs: 1, sm: 2 },
-                mb: 2,
-                boxSizing: 'border-box',
-                overflowX: 'hidden',
-              }}
-            >
-              {/* Avatar above message */}
+        ) : messages.length === 0 ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              textAlign: 'center',
+              p: 3,
+            }}
+          >
+            <Chat sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              No messages yet
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Start the conversation by asking a question about {getStudentDisplayName()}.
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            {messages.map((message) => (
               <Box
+                key={message.id}
                 sx={{
                   display: 'flex',
-                  justifyContent: isUser ? 'flex-end' : 'flex-start',
-                  mb: 0.5,
+                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  mb: 1,
+                  position: 'relative',
+                  width: '100%',
                 }}
               >
-                <Avatar 
-                  sx={{ 
-                    bgcolor: isUser ? '#64748b' : '#6366f1', 
-                    width: 28, 
-                    height: 28, 
-                    flexShrink: 0 
-                  }}
-                >
-                  {isUser ? (
-                    <UserIcon fontSize="small" />
-                  ) : (
-                    <AssistantIcon fontSize="small" />
-                  )}
-                </Avatar>
-              </Box>
-
-              {/* Message content - full width */}
-              {isUser ? (
-                // User message: Bubble
-                <Paper
-                  sx={{
-                    p: 2,
-                    backgroundColor: '#4f46e5',
-                    color: '#fff',
-                    borderRadius: 3,
-                    boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
-                    maxWidth: 'min(95%, 100%)',
-                    width: 'fit-content',
-                    alignSelf: 'flex-end',
-                    boxSizing: 'border-box',
-                    overflowWrap: 'break-word',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  <Typography 
-                    variant="body1" 
-                    component="div"
-                    sx={{ 
-                      whiteSpace: 'pre-wrap', 
-                      wordBreak: 'break-word',
-                      overflowWrap: 'break-word',
-                      lineHeight: 1.6,
-                      fontSize: '0.95rem',
-                      maxWidth: '100%',
-                    }}
-                  >
-                    {parseMarkdown(msg.content) || msg.content}
-                  </Typography>
-                  <Box
+                {message.role === 'user' ? (
+                  // User message: Show in a bubble
+                  <Paper
+                    elevation={0}
                     sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      mt: 1,
-                      flexWrap: 'wrap',
+                      maxWidth: '88%',
+                      p: 1.5,
+                      backgroundColor: 'primary.main',
+                      color: 'white',
+                      borderRadius: 2,
+                      position: 'relative',
+                      '&:hover .copy-button': {
+                        opacity: 1,
+                      },
                     }}
                   >
-                    {msg.authorName && (
+                    {/* Copy Button */}
+                    <Box
+                      className="copy-button"
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        opacity: 0,
+                        transition: 'opacity 0.2s',
+                      }}
+                    >
+                      <CopyToClipboardButton
+                        text={message.content}
+                        ariaLabel="Copy message"
+                        sx={{
+                          backgroundColor: 'rgba(255,255,255,0.2)',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255,255,255,0.3)',
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    {message.authorName && (
+                      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5, pr: 4 }}>
+                        {message.authorName}
+                      </Typography>
+                    )}
+                    <Box
+                      component="div"
+                      sx={{
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        '& ul': {
+                          margin: 0,
+                          paddingLeft: 2,
+                          listStyleType: 'disc',
+                        },
+                        '& ol': {
+                          margin: 0,
+                          paddingLeft: 2,
+                        },
+                        '& p': {
+                          margin: 0,
+                          marginBottom: 1,
+                          '&:last-child': {
+                            marginBottom: 0,
+                          },
+                        },
+                      }}
+                    >
+                      {formatMessage(message.content)}
+                    </Box>
+                    {message.timestamp && (
                       <Typography
                         variant="caption"
                         sx={{
                           opacity: 0.7,
+                          display: 'block',
+                          mt: 0.5,
                           fontSize: '0.7rem',
-                          color: 'rgba(255, 255, 255, 0.8)',
                         }}
                       >
-                        Author: {msg.authorName}
+                        {formatTimestamp(message.timestamp)}
                       </Typography>
                     )}
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        opacity: 0.7,
-                        fontSize: '0.7rem',
-                        color: 'rgba(255, 255, 255, 0.8)',
-                      }}
-                    >
-                      {formatTimestamp(msg.timestamp)}
-                    </Typography>
-                  </Box>
-                </Paper>
-              ) : (
-                // AI message: Plain text, full width
-                <Box sx={{ 
-                  width: '100%', 
-                  maxWidth: '95%',
-                  boxSizing: 'border-box',
-                  overflowX: 'hidden',
-                }}>
-                  <Box
-                    sx={{ 
-                      whiteSpace: 'pre-wrap', 
-                      wordBreak: 'break-word',
-                      overflowWrap: 'break-word',
-                      lineHeight: 1.7,
-                      fontSize: '0.95rem',
-                      color: '#1e293b',
-                      maxWidth: '100%',
-                    }}
-                  >
-                    {parseMarkdown(msg.content) || msg.content}
-                  </Box>
+                  </Paper>
+                ) : (
+                  // Assistant message: Full width, no bubble
                   <Box
                     sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      mt: 1,
+                      width: '100%',
+                      p: 1.5,
+                      position: 'relative',
+                      '&:hover .copy-button': {
+                        opacity: 1,
+                      },
                     }}
                   >
-                    <Typography
-                      variant="caption"
+                    {/* Copy Button */}
+                    <Box
+                      className="copy-button"
                       sx={{
-                        opacity: 0.6,
-                        fontSize: '0.7rem',
-                        color: '#64748b',
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        opacity: 0,
+                        transition: 'opacity 0.2s',
                       }}
                     >
-                      {formatTimestamp(msg.timestamp)}
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopyMessage(msg.content, msg.id)}
+                      <CopyToClipboardButton
+                        text={message.content}
+                        ariaLabel="Copy message"
+                        sx={{
+                          backgroundColor: 'rgba(255,255,255,0.9)',
+                          border: '1px solid #e2e8f0',
+                          '&:hover': {
+                            backgroundColor: '#f8fafc',
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    <Box
+                      component="div"
                       sx={{
-                        padding: '2px',
-                        minWidth: '20px',
-                        width: '20px',
-                        height: '20px',
-                        color: copiedMessageId === msg.id ? '#4f46e5' : '#64748b',
-                        opacity: 0.6,
-                        '&:hover': {
-                          opacity: 1,
-                          backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        color: 'text.primary',
+                        '& ul': {
+                          margin: 0,
+                          paddingLeft: 2,
+                          listStyleType: 'disc',
+                        },
+                        '& ol': {
+                          margin: 0,
+                          paddingLeft: 2,
+                        },
+                        '& p': {
+                          margin: 0,
+                          marginBottom: 1,
+                          '&:last-child': {
+                            marginBottom: 0,
+                          },
                         },
                       }}
-                      aria-label="Copy message"
                     >
-                      <ContentCopyIcon sx={{ fontSize: '0.875rem' }} />
-                    </IconButton>
+                      {formatMessage(message.content)}
+                    </Box>
+                    {message.timestamp && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          opacity: 0.7,
+                          display: 'block',
+                          mt: 0.5,
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        {formatTimestamp(message.timestamp)}
+                      </Typography>
+                    )}
                   </Box>
-                </Box>
-              )}
-            </Box>
-          );
-        })}
-
-        {/* Loading state removed - streaming content is shown in messages instead */}
-
-        <div ref={messagesEndRef} />
+                )}
+              </Box>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
       </Box>
 
-      {/* Floating Input Bubble - ChatGPT style */}
+      {/* Floating Input Area - Fixed at bottom */}
       <Box
         sx={{
           position: 'fixed',
-          bottom: 80, // Above app footer with some spacing
+          bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
           left: '50%',
           transform: 'translateX(-50%)',
-          width: { xs: 'calc(100% - 32px)', sm: '388px' },
-          maxWidth: { xs: 'calc(100% - 32px)', sm: '388px' },
+          width: '100%',
+          maxWidth: '375px',
           zIndex: 1000,
-          overflowX: 'hidden',
-          boxSizing: 'border-box',
-          '@media (max-width: 599px)': {
-            '@supports (padding: env(safe-area-inset-bottom))': {
-              bottom: 'calc(80px + env(safe-area-inset-bottom))',
-            },
-          },
+          px: 2,
+          pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
         }}
       >
+        {error && (
+          <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
         <Paper
-          elevation={3}
+          elevation={4}
           sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
             p: 1,
-            borderRadius: 4,
-            backgroundColor: '#fff',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-            border: '1px solid #e2e8f0',
-            width: '100%',
-            maxWidth: '100%',
-            overflowX: 'hidden',
-            boxSizing: 'border-box',
+            borderRadius: '24px',
+            backgroundColor: 'white',
+            border: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            gap: 1,
+            alignItems: 'flex-end',
           }}
         >
           <TextField
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Ask anything about this student..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Type your message..."
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={loading}
+            disabled={sending}
             variant="standard"
             InputProps={{
               disableUnderline: true,
-              sx: {
-                fontSize: '0.95rem',
-                px: 1.5,
-                py: 1,
-                overflowX: 'hidden',
-                '&::placeholder': {
-                  opacity: 0.6,
-                },
-              },
             }}
             sx={{
-              flex: 1,
-              minWidth: 0,
-              overflowX: 'hidden',
               '& .MuiInputBase-root': {
-                minHeight: '44px',
-                overflowX: 'hidden',
+                backgroundColor: 'grey.50',
+                borderRadius: '20px',
+                px: 1.5,
+                py: 1,
               },
             }}
           />
-          <Button
-            variant="contained"
+          <IconButton
+            color="primary"
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || loading}
+            disabled={!inputMessage.trim() || sending}
+            aria-label="Send message"
             sx={{
-              minWidth: '40px',
-              width: '40px',
-              height: '40px',
-              backgroundColor: inputValue.trim() ? '#4f46e5' : '#cbd5e1',
-              borderRadius: '50%',
+              minWidth: 44,
+              minHeight: 44,
+              backgroundColor: 'primary.main',
+              color: 'white',
               '&:hover': {
-                backgroundColor: inputValue.trim() ? '#4338ca' : '#cbd5e1',
+                backgroundColor: 'primary.dark',
               },
               '&:disabled': {
-                backgroundColor: '#cbd5e1',
+                backgroundColor: 'grey.300',
+                color: 'grey.500',
               },
-              boxShadow: inputValue.trim() ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
-              transition: 'all 0.2s ease',
             }}
           >
-            {loading ? (
-              <CircularProgress size={18} sx={{ color: '#fff' }} />
-            ) : (
-              <SendIcon fontSize="small" />
-            )}
-          </Button>
+            {sending ? <CircularProgress size={20} color="inherit" /> : <Send />}
+          </IconButton>
         </Paper>
       </Box>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={chatToDelete !== null}
-        onClose={handleDeleteChatCancel}
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-description"
-      >
-        <DialogTitle id="delete-dialog-title">
-          Delete Chat?
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="delete-dialog-description">
-            Delete this chat? This cannot be undone.
-            {chatToDelete && (() => {
-              const chat = chats.find(c => c.id === chatToDelete);
-              const name = chat ? (chat.name || 'this chat').replace(/^["']|["']$/g, '') : 'this chat';
-              return ` All messages in "${name}" will be deleted.`;
-            })()}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteChatCancel} color="inherit">
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleDeleteChatConfirm} 
-            color="error" 
-            variant="contained"
-            autoFocus
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
