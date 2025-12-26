@@ -958,67 +958,150 @@ function ChildChat({ student, startInLandingPage = false }) {
           pt: 1,
           pb: 0.5,
           backgroundColor: 'transparent',
-          display: 'flex',
-          gap: 1,
-          alignItems: 'flex-start',
-          minWidth: 0, // Allow flex children to shrink below their content size
           boxSizing: 'border-box',
         }}
       >
         <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
-          <Box sx={{ flex: 1, minWidth: 0 }}> {/* minWidth: 0 allows flex item to shrink */}
+          <Box sx={{ width: '100%', position: 'relative' }}>
             <Paper
-              elevation={4}
+              elevation={2}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
-                px: 2,
-                py: 1,
-                borderRadius: '24px',
+                gap: 0,
+                px: 0,
+                py: 0,
+                borderRadius: '28px',
                 backgroundColor: 'white',
                 border: '1px solid',
-                borderColor: 'divider',
-                cursor: 'pointer',
+                borderColor: 'rgba(0, 0, 0, 0.08)',
                 width: '100%',
-                minWidth: 0, // Allow Paper to shrink
+                transition: 'all 0.2s ease-in-out',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
                 '&:hover': {
-                  backgroundColor: 'grey.50',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                  borderColor: 'rgba(0, 0, 0, 0.12)',
+                  transform: 'translateY(-1px)',
+                },
+                '&:active': {
+                  transform: 'translateY(0px)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
                 },
               }}
-              onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
             >
-              <Typography
-                variant="body2"
+              {/* Dropdown Toggle Area */}
+              <Box
+                onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
                 sx={{
-                  fontWeight: selectedChatId ? 500 : 400,
                   flex: 1,
-                  minWidth: 0, // Critical for ellipsis to work in flex container
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  color: selectedChatId ? 'text.primary' : 'text.secondary',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  px: 2.5,
+                  py: 1.25,
+                  cursor: 'pointer',
+                  minWidth: 0,
+                  '&:hover': {
+                    backgroundColor: 'grey.50',
+                  },
                 }}
               >
-                {selectedChatId ? chatTitle : 'Load past conversations here'}
-              </Typography>
-              <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: selectedChatId ? 500 : 400,
+                    flex: 1,
+                    minWidth: 0, // Critical for ellipsis to work in flex container
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: selectedChatId ? 'text.primary' : 'text.secondary',
+                    fontSize: '0.95rem',
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {selectedChatId ? chatTitle : 'Load past conversations here'}
+                </Typography>
+                <ArrowDropDown 
+                  sx={{ 
+                    fontSize: 20, 
+                    color: 'text.secondary', 
+                    flexShrink: 0,
+                    transition: 'transform 0.2s ease-in-out',
+                    transform: chatDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    opacity: 0.7,
+                  }} 
+                />
+              </Box>
+              
+              {/* Divider */}
+              <Box
+                sx={{
+                  width: '1px',
+                  height: '32px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.08)',
+                  flexShrink: 0,
+                }}
+              />
+              
+              {/* Plus Button */}
+              <IconButton
+                onClick={handleCreateNewChat}
+                disabled={isLanding}
+                aria-label="New chat"
+                sx={{
+                  minWidth: 48,
+                  minHeight: 48,
+                  width: 48,
+                  height: 48,
+                  borderRadius: '0 28px 28px 0',
+                  color: 'primary.main',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    backgroundColor: 'grey.50',
+                  },
+                  '&:active': {
+                    backgroundColor: 'grey.100',
+                  },
+                  '&:disabled': {
+                    backgroundColor: 'grey.100',
+                    color: 'text.disabled',
+                  },
+                }}
+              >
+                <Add />
+              </IconButton>
             </Paper>
 
             {/* Simplified Dropdown Menu */}
             {chatDropdownOpen && (
               <Paper
-                elevation={3}
+                elevation={4}
                 sx={{
                   position: 'absolute',
                   top: '100%',
-                  left: 16,
-                  right: 16,
-                  mt: 0.5,
+                  left: 0,
+                  right: 0,
+                  mt: 1,
                   maxHeight: '250px',
                   overflowY: 'auto',
-                  borderRadius: 2,
+                  borderRadius: '20px',
                   backgroundColor: 'white',
+                  border: '1px solid',
+                  borderColor: 'rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                  animation: 'fadeIn 0.2s ease-in-out',
+                  '@keyframes fadeIn': {
+                    from: {
+                      opacity: 0,
+                      transform: 'translateY(-8px)',
+                    },
+                    to: {
+                      opacity: 1,
+                      transform: 'translateY(0)',
+                    },
+                  },
                 }}
               >
                 {chatsLoading ? (
@@ -1026,34 +1109,40 @@ function ChildChat({ student, startInLandingPage = false }) {
                     <CircularProgress size={20} />
                   </Box>
                 ) : (
-                  <List sx={{ py: 0.5 }}>
+                  <List sx={{ py: 1 }}>
                     {chats.map((chat) => (
                       <ListItemButton
                         key={chat.id}
                         onClick={() => handleSelectChat(chat.id)}
                         dense
                         sx={{
-                          borderRadius: 1,
-                          mx: 0.5,
-                          backgroundColor: 'transparent',
+                          borderRadius: '12px',
+                          mx: 1,
+                          my: 0.25,
+                          backgroundColor: chat.id === selectedChatId ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                          transition: 'all 0.15s ease-in-out',
                           '&:hover': {
-                            backgroundColor: 'grey.100',
+                            backgroundColor: chat.id === selectedChatId ? 'rgba(79, 70, 229, 0.12)' : 'grey.50',
+                            transform: 'translateX(2px)',
                           },
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
                           pr: 0.5,
+                          py: 1,
                         }}
                       >
                         <ListItemText
                           primary={stripQuotes(chat.name)}
                           primaryTypographyProps={{
                             variant: 'body2',
-                            fontWeight: chat.id === selectedChatId ? 700 : 400,
+                            fontWeight: chat.id === selectedChatId ? 600 : 400,
                             sx: {
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
+                              fontSize: '0.9rem',
+                              color: chat.id === selectedChatId ? 'primary.main' : 'text.primary',
                             },
                           }}
                           sx={{
@@ -1076,30 +1165,36 @@ function ChildChat({ student, startInLandingPage = false }) {
                             onClick={(e) => handleEditChat(e, chat.id, chat.name)}
                             aria-label="Edit chat name"
                             sx={{
-                              padding: 0.5,
+                              padding: 0.75,
                               color: 'text.secondary',
+                              borderRadius: '8px',
+                              transition: 'all 0.15s ease-in-out',
                               '&:hover': {
                                 color: 'primary.main',
-                                backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                transform: 'scale(1.05)',
                               },
                             }}
                           >
-                            <Edit sx={{ fontSize: 16 }} />
+                            <Edit sx={{ fontSize: 18 }} />
                           </IconButton>
                           <IconButton
                             size="small"
                             onClick={(e) => handleDeleteChat(e, chat.id)}
                             aria-label="Delete chat"
                             sx={{
-                              padding: 0.5,
+                              padding: 0.75,
                               color: 'text.secondary',
+                              borderRadius: '8px',
+                              transition: 'all 0.15s ease-in-out',
                               '&:hover': {
                                 color: 'error.main',
-                                backgroundColor: 'rgba(220, 38, 38, 0.08)',
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                transform: 'scale(1.05)',
                               },
                             }}
                           >
-                            <Delete sx={{ fontSize: 16 }} />
+                            <Delete sx={{ fontSize: 18 }} />
                           </IconButton>
                         </Box>
                       </ListItemButton>
@@ -1110,33 +1205,6 @@ function ChildChat({ student, startInLandingPage = false }) {
             )}
           </Box>
         </ClickAwayListener>
-        <IconButton
-          onClick={handleCreateNewChat}
-          disabled={isLanding}
-          aria-label="New chat"
-          sx={{
-            minWidth: 48,
-            minHeight: 48,
-            width: 48,
-            height: 48,
-            backgroundColor: 'white',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: '24px',
-            color: 'primary.main',
-            flexShrink: 0, // Never shrink the button
-            '&:hover': {
-              backgroundColor: 'grey.50',
-            },
-            '&:disabled': {
-              backgroundColor: 'grey.100',
-              color: 'text.disabled',
-              borderColor: 'divider',
-            },
-          }}
-        >
-          <Add />
-        </IconButton>
       </Box>
 
       {/* Messages Area */}
@@ -1276,16 +1344,22 @@ function ChildChat({ student, startInLandingPage = false }) {
           </Alert>
         )}
         <Paper
-          elevation={4}
+          elevation={2}
           sx={{
-            p: 0.75,
-            borderRadius: '24px',
+            p: 1,
+            borderRadius: '28px',
             backgroundColor: 'white',
             border: '1px solid',
-            borderColor: 'divider',
+            borderColor: 'rgba(0, 0, 0, 0.08)',
             display: 'flex',
-            gap: 1,
+            gap: 1.5,
             alignItems: 'flex-end',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+            transition: 'all 0.2s ease-in-out',
+            '&:focus-within': {
+              boxShadow: '0 4px 16px rgba(79, 70, 229, 0.15)',
+              borderColor: 'primary.main',
+            },
           }}
         >
           <TextField
@@ -1316,16 +1390,29 @@ function ChildChat({ student, startInLandingPage = false }) {
             disabled={!inputMessage.trim() || sending}
             aria-label="Send message"
             sx={{
-              minWidth: 40,
-              minHeight: 40,
+              minWidth: 44,
+              minHeight: 44,
+              width: 44,
+              height: 44,
               backgroundColor: 'primary.main',
               color: 'white',
+              borderRadius: '22px',
+              transition: 'all 0.2s ease-in-out',
+              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
               '&:hover': {
                 backgroundColor: 'primary.dark',
+                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
+                transform: 'translateY(-1px)',
+              },
+              '&:active': {
+                transform: 'translateY(0px)',
+                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.3)',
               },
               '&:disabled': {
                 backgroundColor: 'grey.300',
                 color: 'grey.500',
+                boxShadow: 'none',
+                transform: 'none',
               },
             }}
           >
