@@ -29,9 +29,9 @@ import {
   Delete as DeleteIcon,
   ContentCopy as ContentCopyIcon,
 } from '@mui/icons-material';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions, auth } from '../firebase';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
+import { db, auth, app } from '../firebase';
 
 /**
  * Parse markdown and convert to React elements
@@ -161,7 +161,9 @@ function ChildChat({ student }) {
   const [error, setError] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [chatToDelete, setChatToDelete] = useState(null);
-  const [devMode, setDevMode] = useState(false); // Dev toggle to skip observation context
+  const [devMode, setDevMode] = useState(true); // Dev toggle to skip observation context
+  const [streamingContent, setStreamingContent] = useState(''); // Current streaming assistant message
+  const [streamingMessageId, setStreamingMessageId] = useState(null); // ID of message being streamed
   const messagesEndRef = useRef(null);
   const optimisticMessagesRef = useRef(new Map()); // Track optimistic messages by content+timestamp
   const studentId = student?.id || student?.uid || null;
@@ -183,19 +185,51 @@ function ChildChat({ student }) {
     const loadChats = async () => {
       setIsLoadingChats(true);
       try {
-        const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
-        const result = await listChatsFn({ studentId });
+        const chatsRef = collection(db, 'students', studentId, 'chats');
         
-        if (result.data?.success && result.data?.chats) {
-          const chatList = result.data.chats;
-          setChats(chatList);
-          // Don't auto-select - let user choose or start typing
-          // currentChatId remains null to show actionable empty state
-        } else {
-          // No chats found
-          setChats([]);
+        // Try query with orderBy first (requires composite index)
+        // If index doesn't exist, fall back to fetching all and sorting in memory
+        let snapshot;
+        try {
+          const q = query(chatsRef, orderBy('createdAt', 'desc'));
+          snapshot = await getDocs(q);
+        } catch (indexError) {
+          // If query fails (likely missing index), fetch all chats and filter/sort in memory
+          console.warn('[loadChats] Query with orderBy failed, falling back to in-memory sort:', indexError.message);
+          snapshot = await getDocs(chatsRef);
         }
+
+        const chatList = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          // Filter out deleted chats if we're using fallback method
+          if (data.deleted === true) {
+            return;
+          }
+          chatList.push({
+            id: docSnap.id,
+            name: data.name || 'New Chat',
+            createdAt: data.createdAt || null,
+            updatedAt: data.updatedAt || null,
+            lastMessagePreview: data.lastMessagePreview || '',
+            messageCount: data.messageCount || 0,
+          });
+        });
+
+        // Sort by createdAt desc if we used fallback method
+        if (chatList.length > 0 && chatList[0].createdAt) {
+          chatList.sort((a, b) => {
+            const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
+            const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+            return bTime - aTime; // Descending order
+          });
+        }
+
+        setChats(chatList);
+        // Don't auto-select - let user choose or start typing
+        // currentChatId remains null to show actionable empty state
       } catch (err) {
+        console.error('Failed to load chats:', err);
         setError('Failed to load chats.');
         setChats([]);
         setCurrentChatId(null);
@@ -253,8 +287,32 @@ function ChildChat({ student }) {
         confirmedKeys.forEach(key => optimisticMap.delete(key));
 
         // Combine Firestore messages with remaining optimistic messages
+        // Filter out any streaming messages (they'll be replaced by Firestore messages)
         const optimisticArray = Array.from(optimisticMap.values());
-        const allMessages = [...firestoreMessages, ...optimisticArray].sort((a, b) => {
+        const currentMessages = [...firestoreMessages, ...optimisticArray];
+        
+        // Remove streaming messages if we have Firestore messages (streaming complete)
+        const hasRecentAssistantMessage = firestoreMessages.some(msg => 
+          msg.role === 'assistant' && 
+          (() => {
+            const msgTime = msg.timestamp?.toDate ? msg.timestamp.toDate().getTime() : 
+                          (msg.timestamp?.seconds ? msg.timestamp.seconds * 1000 : 0);
+            const now = Date.now();
+            return now - msgTime < 5000; // 5 seconds - very recent
+          })()
+        );
+        
+        // If we have a recent assistant message from Firestore, clear streaming state
+        if (hasRecentAssistantMessage && streamingMessageId) {
+          setStreamingContent('');
+          setStreamingMessageId(null);
+          setLoading(false);
+        }
+        
+        // Filter out streaming messages (they start with "streaming-")
+        const filteredMessages = currentMessages.filter(msg => !msg.id?.startsWith('streaming-'));
+        
+        const allMessages = filteredMessages.sort((a, b) => {
           const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
                        (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
           const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
@@ -276,10 +334,10 @@ function ChildChat({ student }) {
     return () => unsubscribe();
   }, [studentId, currentChatId]);
 
-  // Scroll to bottom on mount and when loading changes
+  // Scroll to bottom on mount and when messages or streaming content changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, streamingContent]);
 
   const handleSendMessage = async () => {
     const trimmedMessage = inputValue.trim();
@@ -298,26 +356,30 @@ function ChildChat({ student }) {
       // Create new chat when user sends first message
       setIsCreatingChat(true);
       try {
-        const createChatFn = httpsCallable(cloudFunctions, 'createChatFunction');
-        const createResult = await createChatFn({ studentId });
-        if (createResult.data?.success && createResult.data?.chatId) {
-          chatIdToUse = createResult.data.chatId;
-          const newChat = {
-            id: chatIdToUse,
-            name: 'New Chat',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            lastMessagePreview: '',
-            messageCount: 0,
-          };
-          setChats([newChat, ...chats]);
-          setCurrentChatId(chatIdToUse);
-        } else {
-          setError('Failed to create chat.');
-          setIsCreatingChat(false);
-          return;
-        }
+        const chatsRef = collection(db, 'students', studentId, 'chats');
+        const chatData = {
+          name: 'New Chat',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastMessagePreview: '',
+          messageCount: 0,
+          deleted: false,
+        };
+        const docRef = await addDoc(chatsRef, chatData);
+        chatIdToUse = docRef.id;
+        
+        const newChat = {
+          id: chatIdToUse,
+          name: 'New Chat',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastMessagePreview: '',
+          messageCount: 0,
+        };
+        setChats([newChat, ...chats]);
+        setCurrentChatId(chatIdToUse);
       } catch (err) {
+        console.error('Failed to create chat:', err);
         setError('Failed to create chat.');
         setIsCreatingChat(false);
         return;
@@ -329,6 +391,8 @@ function ChildChat({ student }) {
     setLoading(true);
     setError('');
     setInputValue('');
+    setStreamingContent('');
+    setStreamingMessageId(null);
 
     // Optimistically add user message immediately for better UX
     const currentUser = auth.currentUser;
@@ -362,52 +426,150 @@ function ChildChat({ student }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
 
+    // Create streaming assistant message placeholder
+    const streamingMsgId = `streaming-${Date.now()}`;
+    setStreamingMessageId(streamingMsgId);
+    const streamingMessage = {
+      id: streamingMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, streamingMessage]);
+
     try {
-      const childChatFn = httpsCallable(cloudFunctions, 'childChat');
-      const result = await childChatFn({
-        studentId,
-        chatId: chatIdToUse,
-        message: trimmedMessage,
-        devMode: devMode, // Skip observation context when true
+      // Get auth token for HTTP request
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      // Get Functions URL
+      const functions = getFunctions(app, 'asia-south1');
+      const functionsUrl = `https://asia-south1-${app.options.projectId}.cloudfunctions.net/childChatStream`;
+      
+      // Make streaming request
+      const response = await fetch(functionsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          studentId,
+          chatId: chatIdToUse,
+          message: trimmedMessage,
+          devMode: devMode,
+        }),
       });
 
-      // Message is already saved by the backend, so the real-time listener will update the UI
-      if (result.data?.success) {
-        // Reload chats to get updated name and metadata
-        const listChatsFn = httpsCallable(cloudFunctions, 'listChats');
-        const chatResult = await listChatsFn({ studentId });
-        if (chatResult.data?.success && chatResult.data?.chats) {
-          setChats(chatResult.data.chats);
-          // Ensure we're still on the correct chat
-          if (result.data?.chatId) {
-            setCurrentChatId(result.data.chatId);
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to send message. Please try again.';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Read SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      let buffer = '';
+      let currentEvent = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          
+          if (!line) continue; // Empty line
+          
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              // Streaming complete
+              setLoading(false);
+              setStreamingContent('');
+              setStreamingMessageId(null);
+              // Message will be saved by backend and appear via Firestore listener
+              break;
+            } else if (currentEvent === 'error') {
+              // Error event
+              try {
+                const errorData = JSON.parse(data);
+                throw new Error(errorData.error || 'An error occurred');
+              } catch (e) {
+                if (e instanceof Error && e.message !== 'Unexpected token') {
+                  throw e;
+                }
+                throw new Error(data || 'An error occurred');
+              }
+            } else if (currentEvent === 'complete') {
+              // Completion event - chat metadata already updated by backend
+              // No need to reload chats here, Firestore listener will handle updates
+              currentEvent = null;
+            } else {
+              // Text chunk - append directly (SSE handles newlines naturally)
+              accumulatedContent += data;
+              setStreamingContent(accumulatedContent);
+              
+              // Update streaming message in UI
+              setMessages((prev) => 
+                prev.map((msg) => 
+                  msg.id === streamingMsgId 
+                    ? { ...msg, content: accumulatedContent }
+                    : msg
+                )
+              );
+              
+              // Scroll to bottom as content streams
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 50);
+              
+              currentEvent = null; // Reset event after processing data
+            }
           }
         }
       }
-    } catch (err) {
-      // Remove optimistic message on error
-      optimisticMessagesRef.current.delete(optimisticKey);
-      setMessages((prevMessages) => prevMessages.filter(msg => msg.id !== optimisticMessage.id));
 
-      // Parse Firebase error
+      // Remove streaming message - Firestore listener will add the real one
+      setMessages((prev) => prev.filter((msg) => msg.id !== streamingMsgId));
+      setStreamingContent('');
+      setStreamingMessageId(null);
+      setLoading(false);
+    } catch (err) {
+      // Remove optimistic and streaming messages on error
+      optimisticMessagesRef.current.delete(optimisticKey);
+      setMessages((prev) => 
+        prev.filter((msg) => msg.id !== optimisticMessage.id && msg.id !== streamingMsgId)
+      );
+
       let errorMessage = 'Failed to send message. Please try again.';
-      if (err?.code === 'functions/invalid-argument') {
-        errorMessage = err?.message || 'Invalid request. Please check your input.';
-      } else if (err?.code === 'functions/permission-denied') {
-        errorMessage = 'You don\'t have permission to access this chat.';
-      } else if (err?.code === 'functions/unavailable') {
-        errorMessage = 'Unable to connect to AI service. Please check your connection.';
-      } else if (err?.code === 'functions/internal') {
-        errorMessage = err?.message || 'AI service error occurred. Please try again.';
-      } else if (err?.message) {
+      if (err?.message) {
         errorMessage = err.message;
       }
 
       setError(errorMessage);
+      setStreamingContent('');
+      setStreamingMessageId(null);
+      setLoading(false);
       // Restore input value on error
       setInputValue(trimmedMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -435,8 +597,12 @@ function ChildChat({ student }) {
     if (!studentId || !chatToDelete) return;
 
     try {
-      const deleteChatFn = httpsCallable(cloudFunctions, 'deleteChat');
-      await deleteChatFn({ studentId, chatId: chatToDelete });
+      // Soft delete: update deleted flag
+      const chatRef = doc(db, 'students', studentId, 'chats', chatToDelete);
+      await updateDoc(chatRef, {
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      });
       
       // Remove from local state
       const updatedChats = chats.filter(c => c.id !== chatToDelete);
@@ -445,11 +611,16 @@ function ChildChat({ student }) {
       // Switch to most recent chat
       if (currentChatId === chatToDelete && updatedChats.length > 0) {
         setCurrentChatId(updatedChats[0].id);
+      } else if (currentChatId === chatToDelete) {
+        // No more chats, go back to landing page
+        setCurrentChatId(null);
+        setMessages([]);
       }
 
       // Close dialog
       setChatToDelete(null);
     } catch (err) {
+      console.error('Failed to delete chat:', err);
       setError('Failed to delete chat.');
       setChatToDelete(null);
     }
@@ -573,7 +744,7 @@ function ChildChat({ student }) {
                       }
                       return (
                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                          {chats.length === 0 ? 'No chats yet' : 'Select a chat'}
+                          {chats.length === 0 ? 'No chats yet' : 'Continue a past conversation'}
                         </Typography>
                       );
                     }
@@ -1002,30 +1173,7 @@ function ChildChat({ student }) {
           );
         })}
 
-        {/* Coach Pepper themed loading state - Plain text style */}
-        {loading && (
-          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%', px: { xs: 1, sm: 2 }, mb: 2, gap: 1 }}>
-            {/* Avatar */}
-            <Avatar sx={{ bgcolor: '#6366f1', width: 28, height: 28, flexShrink: 0 }}>
-              <AssistantIcon fontSize="small" />
-            </Avatar>
-            {/* Loading message */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <CircularProgress 
-                size={18} 
-                sx={{ 
-                  color: '#6366f1',
-                  '& .MuiCircularProgress-circle': {
-                    strokeLinecap: 'round',
-                  }
-                }} 
-              />
-              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', color: '#64748b' }}>
-                Coach Pepper is thinking...
-              </Typography>
-            </Box>
-          </Box>
-        )}
+        {/* Loading state removed - streaming content is shown in messages instead */}
 
         <div ref={messagesEndRef} />
       </Box>
