@@ -2366,16 +2366,11 @@ export const childChat = functions
       const classroomData = classroomDoc.data();
       const programId = classroomData?.programId || "primary"; // Default to primary if missing
 
-      // Handle chatId: if not provided, find most recent chat or create new one
-      if (!chatId) {
-        const existingChats = await listChatsForStudent(studentId);
-        if (existingChats.length > 0) {
-          // Use most recently created chat
-          chatId = existingChats[0].id;
-        } else {
-          // Create new chat
-          chatId = await createChat(studentId);
-        }
+      // Handle chatId: if not provided or forceNewChat is true, create new chat
+      const forceNewChat = Boolean(data?.forceNewChat);
+      if (!chatId || forceNewChat) {
+        // Always create new chat when forceNewChat is true or no chatId provided
+        chatId = await createChat(studentId);
       }
 
       // Verify chat exists
