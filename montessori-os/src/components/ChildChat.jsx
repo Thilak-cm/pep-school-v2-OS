@@ -678,10 +678,14 @@ function ChildChat({ student, startInLandingPage = false }) {
           pt: 1,
           pb: 0.5,
           backgroundColor: 'transparent',
+          display: 'flex',
+          gap: 1,
+          alignItems: 'flex-start',
+          minWidth: 0, // Allow flex children to shrink below their content size
         }}
       >
         <ClickAwayListener onClickAway={() => setChatDropdownOpen(false)}>
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}> {/* minWidth: 0 allows flex item to shrink */}
             <Paper
               ref={chatDropdownAnchorRef}
               elevation={4}
@@ -697,16 +701,27 @@ function ChildChat({ student, startInLandingPage = false }) {
                 borderColor: 'divider',
                 cursor: 'pointer',
                 width: '100%',
+                minWidth: 0, // Allow Paper to shrink
                 '&:hover': {
                   backgroundColor: 'grey.50',
                 },
               }}
               onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
             >
-              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 500, 
+                  flex: 1, 
+                  minWidth: 0, // Critical for ellipsis to work in flex container
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  whiteSpace: 'nowrap' 
+                }}
+              >
                 {stripQuotes(selectedChatName)}
               </Typography>
-              <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary' }} />
+              <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
             </Paper>
 
             {/* Simplified Dropdown Menu */}
@@ -731,26 +746,6 @@ function ChildChat({ student, startInLandingPage = false }) {
                   </Box>
                 ) : (
                   <List sx={{ py: 0.5 }}>
-                    <ListItemButton
-                      onClick={handleCreateNewChat}
-                      dense
-                      sx={{
-                        borderRadius: 1,
-                        mx: 0.5,
-                        backgroundColor: selectedChatId === null ? 'primary.light' : 'transparent',
-                        '&:hover': {
-                          backgroundColor: 'grey.100',
-                        },
-                      }}
-                    >
-                      <ListItemText
-                        primary="New Chat"
-                        primaryTypographyProps={{
-                          variant: 'body2',
-                          fontWeight: selectedChatId === null ? 600 : 400,
-                        }}
-                      />
-                    </ListItemButton>
                     {chats.map((chat) => (
                       <ListItemButton
                         key={chat.id}
@@ -780,6 +775,27 @@ function ChildChat({ student, startInLandingPage = false }) {
             )}
           </Box>
         </ClickAwayListener>
+        <IconButton
+          onClick={handleCreateNewChat}
+          aria-label="New chat"
+          sx={{
+            minWidth: 48,
+            minHeight: 48,
+            width: 48,
+            height: 48,
+            backgroundColor: 'white',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: '24px',
+            color: 'primary.main',
+            flexShrink: 0, // Never shrink the button
+            '&:hover': {
+              backgroundColor: 'grey.50',
+            },
+          }}
+        >
+          <Add />
+        </IconButton>
       </Box>
 
       {/* Messages Area */}
