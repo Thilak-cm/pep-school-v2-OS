@@ -458,58 +458,6 @@ export const updateUserWithEmailCheck = functions.region("asia-south1").https.on
   }
 });
 
-export const notifyAdminsOnUnauthorized = functions.region("asia-south1").firestore
-  .document("access_logs/{logId}")
-  .onCreate(async (snap) => {
-    const logData = snap.data();
-
-    try {
-      // Fetch all admin users (superadmin and classroomadmin)
-      const adminSnap = await db.collection("users").where("role", "in", ["superadmin", "classroomadmin"]).get();
-      const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
-
-      if (!transporter || adminEmails.length === 0) {
-        console.warn("Email transporter not configured or no admin emails found");
-        return;
-      }
-
-      const mailOptions = {
-        from: smtpUser,
-        to: adminEmails.join(","),
-        subject: "Unauthorized Access Attempt Detected",
-        text: "An unauthorized user attempted to access the Montessori Observation Hub.\n\n" +
-              "Email: " + logData.email + "\n" +
-              "Display Name: " + logData.displayName + "\n" +
-              "Reason: " + logData.reason + "\n" +
-              "Timestamp: " + new Date(logData.timestamp._seconds * 1000).toLocaleString() + "\n\n" +
-              "User Agent: " + logData.userAgent,
-      };
-
-      await transporter.sendMail(mailOptions);
-    } catch (err) {
-      console.error("Failed to send unauthorized access email", err);
-    }
-}); 
-
-// Callable: log unauthorized access from client (bypasses Firestore rules)
-export const logUnauthorizedAccess = functions.region("asia-south1").https.onCall(async (data, context) => {
-  const payload = {
-    email: data?.email || context.auth?.token?.email || null,
-    displayName: data?.displayName || context.auth?.token?.name || null,
-    photoURL: data?.photoURL || null,
-    reason: data?.reason || "unknown",
-    timestamp: new Date().toISOString(),
-    userAgent: data?.userAgent || "",
-  };
-
-  try {
-    const ref = await db.collection("access_logs").add(payload);
-    return { ok: true, id: ref.id };
-  } catch (err) {
-    console.error("logUnauthorizedAccess failed", err);
-    throw new functions.https.HttpsError("internal", "Failed to log unauthorized access");
-  }
-});
 
 // Callable: Migrate pending user document to users/{uid} when user signs in
 // - Called automatically when user signs in and no doc exists at users/{uid}
@@ -650,47 +598,6 @@ export const migratePendingUser = functions
     }
   });
 
-// Callable function: user clicks Request Access -> we record and notify
-export const requestAccess = functions.region("asia-south1").https.onCall(async (data, context) => {
-  const requesterUid = context.auth?.uid || null;
-  const requesterEmail = context.auth?.token?.email || data?.email || null;
-  const requesterName = context.auth?.token?.name || data?.name || null;
-  const note = "";
-
-  const record = {
-    email: requesterEmail,
-    displayName: requesterName,
-    uid: requesterUid,
-    note,
-    userAgent: data?.userAgent || "",
-    createdAt: new Date().toISOString(),
-  };
-
-  try {
-    const docRef = await db.collection("access_requests").add(record);
-
-    // Email admins if possible
-    try {
-      const adminSnap = await db.collection("users").where("role", "in", ["superadmin", "classroomadmin"]).get();
-      const adminEmails = adminSnap.docs.map((d) => d.data().email).filter(Boolean);
-      if (transporter && adminEmails.length > 0) {
-        await transporter.sendMail({
-          from: smtpUser,
-          to: adminEmails.join(","),
-          subject: "Access Request Submitted",
-          text: "A user submitted an access request.\n\nEmail: " + requesterEmail + "\nName: " + requesterName + "\nUID: " + requesterUid + "\nWhen: " + record.createdAt,
-        });
-      }
-    } catch (mailErr) {
-      console.warn("requestAccess: could not email admins", mailErr);
-    }
-
-    return { ok: true, id: docRef.id };
-  } catch (err) {
-    console.error("requestAccess failed", err);
-    throw new functions.https.HttpsError("internal", "Failed to submit access request");
-  }
-});
 
 // -----------------------------------------------
 // AI: Text Cleanup (server-side OpenAI invocation)
@@ -700,7 +607,7 @@ const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 1000 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
-const PROMPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const PROMPT_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
 let textSummarizerCache = { data: null, ts: 0 };
 
 async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
@@ -876,6 +783,7 @@ export const aiWhisperTranscribe = functions
     const filename = `recording_${Date.now()}.mp3`;
     form.append("file", blob, filename);
     form.append("model", WHISPER_MODEL_INFO.model);
+    form.append("response_format", "verbose_json"); // Get detected language
     const contextPrompt = await getVoiceContextPromptServer({ forceRefresh: !!data?.forceRefresh });
     form.append("prompt", contextPrompt);
     if (languageCode && languageCode !== "en-US") {
@@ -900,7 +808,8 @@ export const aiWhisperTranscribe = functions
     }
     const json = await response.json();
     const text = (json?.text || "").trim();
-    return { text, languageCode };
+    const detectedLanguage = json?.language || undefined;
+    return { text, languageCode, detectedLanguage };
   });
 
 export const aiWhisperTranslate = functions
@@ -956,10 +865,22 @@ export const aiWhisperTranslate = functions
 
 const NUDGE_IDS = Object.freeze(["duration", "modality", "independence", "evidence", "subjective"]);
 
-async function getCoachConfigServer(docId) {
+// In-memory TTL cache for coach prompts (1 day)
+const COACH_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+const coachConfigCache = new Map(); // docId -> { data, ts }
+
+async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
   if (!docId || typeof docId !== "string") {
     throw new Error("Invalid coach docId");
   }
+
+  // Check cache first
+  const cached = coachConfigCache.get(docId);
+  const fresh = !forceRefresh && cached && (Date.now() - cached.ts < COACH_CACHE_TTL_MS);
+  if (fresh) {
+    return cached.data;
+  }
+
   const snap = await db.collection("ai_prompts").doc(docId).get();
   if (!snap.exists) {
     throw new Error(`Coach prompt configuration not found in Firestore for doc ${docId}`);
@@ -988,7 +909,7 @@ async function getCoachConfigServer(docId) {
   const finalPrompt = typeof data.finalPrompt === "string" ? data.finalPrompt : undefined;
   const coachFeatureEnable = data.coach_feature_enable === true; // default false
   
-  return {
+  const result = {
     title,
     description,
     enabledNudges,
@@ -999,6 +920,10 @@ async function getCoachConfigServer(docId) {
     finalPrompt,
     coachFeatureEnable,
   };
+
+  // Cache the result
+  coachConfigCache.set(docId, { data: result, ts: Date.now() });
+  return result;
 }
 
 // Callable: Run Coach Review on observation text
@@ -1055,7 +980,8 @@ export const aiCoachReview = functions
       // Get coach configuration from Firestore; if missing treat as disabled
       let config;
       try {
-        config = await getCoachConfigServer(coachDocId);
+        const forceRefresh = !!data?.forceRefresh;
+        config = await getCoachConfigServer(coachDocId, { forceRefresh });
       } catch {
         return {
           nudges: [],

@@ -59,10 +59,12 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     const call = httpsCallable(cloudFunctions, 'aiWhisperTranscribe');
     const resp = await call({ audioBase64, mimeType: mp3Blob.type, languageCode });
     const text = String(resp?.data?.text || '').trim();
-    const out = { text, languageCode };
+    const detectedLanguage = resp?.data?.detectedLanguage || undefined;
+    const out = { text, languageCode, detectedLanguage };
     try {
       await trackEvent('stt_transcription', {
         input_language_hint: languageCode || 'auto',
+        detected_language: detectedLanguage || 'unknown',
         text_len: lengthBucket(text.length)
       });
     } catch (_) {}

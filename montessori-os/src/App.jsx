@@ -193,27 +193,11 @@ function App() {
   useEffect(() => {
     if (!user) return;
 
-    const logUnauthorized = async (reason) => {
-      try {
-        const fn = httpsCallable(cloudFunctions, 'logUnauthorizedAccess');
-        await fn({
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          reason,
-          userAgent: navigator.userAgent,
-        });
-      } catch (err) {
-        console.error('Error logging unauthorized access', err);
-      }
-    };
-
     const validateAccess = async () => {
       // Domain check - allow multiple domains
       const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
       const emailLower = user.email.toLowerCase();
       if (!allowedDomains.some(domain => emailLower.endsWith(domain))) {
-        await logUnauthorized('invalid_domain');
         setUnauthorized(true);
         setScreen('accessDenied');
         return;
@@ -253,14 +237,12 @@ function App() {
         
         // Ensure userSnap is valid before checking exists()
         if (!userSnap || !userSnap.exists()) {
-          await logUnauthorized('not_in_users_collection');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
         }
         const userDoc = userSnap.data();
         if (!userDoc.role) {
-          await logUnauthorized('missing_role');
           setUnauthorized(true);
           setScreen('accessDenied');
           return;
@@ -269,7 +251,6 @@ function App() {
         // Classroom admins must have manageableClassrooms; surface hard failure if missing to avoid silent permission errors
         if (userDoc.role === 'classroomadmin' && userManageableClassrooms.length === 0) {
           console.error('Classroom admin missing manageableClassrooms');
-          await logUnauthorized('missing_manageableClassrooms');
           alert('Your classroom access is not configured. Please ask a super admin to add manageable classrooms to your account.');
           setUnauthorized(true);
           setScreen('accessDenied');
@@ -283,7 +264,6 @@ function App() {
         setScreen('landingPage');
       } catch (err) {
         console.error('Access validation error', err);
-        await logUnauthorized('validation_error');
         setUnauthorized(true);
         setScreen('accessDenied');
       }
