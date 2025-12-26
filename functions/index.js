@@ -2117,11 +2117,11 @@ export const childChatStream = functions
       } else if (chunk) {
         // Handle newlines: split into multiple data: lines per SSE spec
         // Multiple data: lines in one message are concatenated with \n by the client
-        const lines = chunk.split('\n');
+        const lines = chunk.split("\n");
         for (let i = 0; i < lines.length; i++) {
           res.write(`data: ${lines[i]}\n`);
         }
-        res.write('\n'); // End of SSE message (double newline)
+        res.write("\n"); // End of SSE message (double newline)
       }
       // Force immediate send - don't wait for buffer to fill
       // Cloud Functions should handle this, but we ensure chunks are sent immediately

@@ -166,6 +166,8 @@ function ChildChat({ student }) {
   const [streamingMessageId, setStreamingMessageId] = useState(null); // ID of message being streamed
   const messagesEndRef = useRef(null);
   const optimisticMessagesRef = useRef(new Map()); // Track optimistic messages by content+timestamp
+  const streamingContentRef = useRef(''); // Ref for streaming content (always current)
+  const streamingMessageIdRef = useRef(null); // Ref for streaming message ID (always current)
   const studentId = student?.id || student?.uid || null;
 
   const getStudentName = (s) => {
@@ -287,11 +289,10 @@ function ChildChat({ student }) {
         confirmedKeys.forEach(key => optimisticMap.delete(key));
 
         // Combine Firestore messages with remaining optimistic messages
-        // Filter out any streaming messages (they'll be replaced by Firestore messages)
         const optimisticArray = Array.from(optimisticMap.values());
         const currentMessages = [...firestoreMessages, ...optimisticArray];
         
-        // Remove streaming messages if we have Firestore messages (streaming complete)
+        // Check if we have a recent assistant message from Firestore (streaming complete)
         const hasRecentAssistantMessage = firestoreMessages.some(msg => 
           msg.role === 'assistant' && 
           (() => {
@@ -302,17 +303,54 @@ function ChildChat({ student }) {
           })()
         );
         
+        // Use refs to get current streaming state (always up-to-date)
+        const currentStreamingId = streamingMessageIdRef.current;
+        const currentStreamingContent = streamingContentRef.current;
+        
         // If we have a recent assistant message from Firestore, clear streaming state
-        if (hasRecentAssistantMessage && streamingMessageId) {
+        if (hasRecentAssistantMessage && currentStreamingId) {
+          streamingContentRef.current = '';
+          streamingMessageIdRef.current = null;
           setStreamingContent('');
           setStreamingMessageId(null);
           setLoading(false);
         }
         
-        // Filter out streaming messages (they start with "streaming-")
-        const filteredMessages = currentMessages.filter(msg => !msg.id?.startsWith('streaming-'));
+        // Filter out old streaming messages, but preserve current streaming message if still streaming
+        const filteredMessages = currentMessages.filter(msg => {
+          // Keep current streaming message if it's still being streamed
+          if (msg.id === currentStreamingId && currentStreamingId) {
+            return true;
+          }
+          // Filter out other streaming messages
+          return !msg.id?.startsWith('streaming-');
+        });
         
-        const allMessages = filteredMessages.sort((a, b) => {
+        // If we have a streaming message, merge it with current content
+        let allMessages = filteredMessages;
+        if (currentStreamingId && currentStreamingContent) {
+          // Check if streaming message already exists in the array
+          const streamingMsgIndex = allMessages.findIndex(msg => msg.id === currentStreamingId);
+          if (streamingMsgIndex >= 0) {
+            // Update existing streaming message with current content
+            allMessages = allMessages.map((msg, idx) => 
+              idx === streamingMsgIndex 
+                ? { ...msg, content: currentStreamingContent }
+                : msg
+            );
+          } else {
+            // Add streaming message if it doesn't exist
+            allMessages = [...allMessages, {
+              id: currentStreamingId,
+              role: 'assistant',
+              content: currentStreamingContent,
+              timestamp: new Date(),
+            }];
+          }
+        }
+        
+        // Sort messages by timestamp
+        allMessages = allMessages.sort((a, b) => {
           const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 
                        (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : a.timestamp?.getTime ? a.timestamp.getTime() : 0);
           const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 
@@ -393,6 +431,8 @@ function ChildChat({ student }) {
     setInputValue('');
     setStreamingContent('');
     setStreamingMessageId(null);
+    streamingContentRef.current = '';
+    streamingMessageIdRef.current = null;
 
     // Optimistically add user message immediately for better UX
     const currentUser = auth.currentUser;
@@ -429,6 +469,8 @@ function ChildChat({ student }) {
     // Create streaming assistant message placeholder
     const streamingMsgId = `streaming-${Date.now()}`;
     setStreamingMessageId(streamingMsgId);
+    streamingMessageIdRef.current = streamingMsgId;
+    streamingContentRef.current = '';
     const streamingMessage = {
       id: streamingMsgId,
       role: 'assistant',
@@ -492,6 +534,7 @@ function ChildChat({ student }) {
             const data = currentDataLines.join('\n');
             if (data !== '[DONE]') {
               accumulatedContent += data;
+              streamingContentRef.current = accumulatedContent;
               setStreamingContent(accumulatedContent);
               setMessages((prev) => 
                 prev.map((msg) => 
@@ -521,6 +564,8 @@ function ChildChat({ student }) {
               if (data === '[DONE]') {
                 // Streaming complete
                 streamDone = true;
+                streamingContentRef.current = '';
+                streamingMessageIdRef.current = null;
                 setLoading(false);
                 setStreamingContent('');
                 setStreamingMessageId(null);
@@ -547,6 +592,7 @@ function ChildChat({ student }) {
               } else {
                 // Text chunk - append to accumulated content
                 accumulatedContent += data;
+                streamingContentRef.current = accumulatedContent;
                 setStreamingContent(accumulatedContent);
                 
                 // Update streaming message in UI immediately
@@ -586,6 +632,8 @@ function ChildChat({ student }) {
       }
 
       // Remove streaming message - Firestore listener will add the real one
+      streamingContentRef.current = '';
+      streamingMessageIdRef.current = null;
       setMessages((prev) => prev.filter((msg) => msg.id !== streamingMsgId));
       setStreamingContent('');
       setStreamingMessageId(null);
@@ -602,6 +650,8 @@ function ChildChat({ student }) {
         errorMessage = err.message;
       }
 
+      streamingContentRef.current = '';
+      streamingMessageIdRef.current = null;
       setError(errorMessage);
       setStreamingContent('');
       setStreamingMessageId(null);
