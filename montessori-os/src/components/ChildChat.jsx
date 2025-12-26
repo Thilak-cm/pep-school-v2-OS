@@ -243,6 +243,12 @@ function ChildChat({ student }) {
     );
   };
 
+  // Strip quotes from chat names for display
+  const stripQuotes = (text) => {
+    if (!text) return text;
+    return text.replace(/^["']|["']$/g, '');
+  };
+
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -661,26 +667,27 @@ function ChildChat({ student }) {
           <Box>
             <Paper
               ref={chatDropdownAnchorRef}
-              elevation={1}
+              elevation={4}
               sx={{
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
                 gap: 1,
                 px: 2,
-                py: 0.75,
+                py: 1,
                 borderRadius: '24px',
                 backgroundColor: 'white',
                 border: '1px solid',
                 borderColor: 'divider',
                 cursor: 'pointer',
+                width: '100%',
                 '&:hover': {
                   backgroundColor: 'grey.50',
                 },
               }}
               onClick={() => setChatDropdownOpen(!chatDropdownOpen)}
             >
-              <Typography variant="body2" sx={{ fontWeight: 500, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedChatName}
+              <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {stripQuotes(selectedChatName)}
               </Typography>
               <ArrowDropDown sx={{ fontSize: 18, color: 'text.secondary' }} />
             </Paper>
@@ -741,13 +748,13 @@ function ChildChat({ student }) {
                           },
                         }}
                       >
-                        <ListItemText
-                          primary={chat.name}
-                          primaryTypographyProps={{
-                            variant: 'body2',
-                            fontWeight: chat.id === selectedChatId ? 600 : 400,
-                          }}
-                        />
+                      <ListItemText
+                        primary={stripQuotes(chat.name)}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          fontWeight: chat.id === selectedChatId ? 600 : 400,
+                        }}
+                      />
                       </ListItemButton>
                     ))}
                   </List>
@@ -1014,7 +1021,7 @@ function ChildChat({ student }) {
         <Paper
           elevation={4}
           sx={{
-            p: 1,
+            p: 0.75,
             borderRadius: '24px',
             backgroundColor: 'white',
             border: '1px solid',
@@ -1039,10 +1046,10 @@ function ChildChat({ student }) {
             }}
             sx={{
               '& .MuiInputBase-root': {
-                backgroundColor: 'grey.50',
+                backgroundColor: 'transparent',
                 borderRadius: '20px',
                 px: 1.5,
-                py: 1,
+                py: 0.75,
               },
             }}
           />
@@ -1052,8 +1059,8 @@ function ChildChat({ student }) {
             disabled={!inputMessage.trim() || sending}
             aria-label="Send message"
             sx={{
-              minWidth: 44,
-              minHeight: 44,
+              minWidth: 40,
+              minHeight: 40,
               backgroundColor: 'primary.main',
               color: 'white',
               '&:hover': {
