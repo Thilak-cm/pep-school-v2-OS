@@ -212,7 +212,7 @@ const formatInlineMarkdown = (text) => {
   return parts.length > 0 ? parts : text;
 };
 
-function ChildChat({ student }) {
+function ChildChat({ student, startInLandingPage = false }) {
   // State
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
@@ -231,6 +231,13 @@ function ChildChat({ student }) {
   const chatsUnsubscribeRef = useRef(null);
   const messagesUnsubscribeRef = useRef(null);
   const chatDropdownAnchorRef = useRef(null);
+  const startInLandingPageRef = useRef(startInLandingPage);
+  const hasManuallySelectedChatRef = useRef(false);
+  
+  // Keep ref in sync with prop
+  useEffect(() => {
+    startInLandingPageRef.current = startInLandingPage;
+  }, [startInLandingPage]);
 
   // Get student display name
   const getStudentDisplayName = () => {
@@ -319,10 +326,14 @@ function ChildChat({ student }) {
         setChats(chatsList);
 
         // Select most recent chat or set to null if none exist
-        if (chatsList.length > 0) {
+        // Skip auto-selection if startInLandingPage is true AND user hasn't manually selected a chat
+        if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
+          setSelectedChatId(null);
+          setSelectedChatName('New Chat');
+        } else if (chatsList.length > 0 && !hasManuallySelectedChatRef.current) {
           setSelectedChatId(chatsList[0].id);
           setSelectedChatName(chatsList[0].name);
-        } else {
+        } else if (!hasManuallySelectedChatRef.current) {
           setSelectedChatId(null);
           setSelectedChatName('New Chat');
         }
@@ -380,9 +391,13 @@ function ChildChat({ student }) {
             }
           }
 
-          // If selected chat was deleted, select most recent
+          // If selected chat was deleted, select most recent (unless user manually selected landing page)
           if (selectedChatId && !chatsList.find((c) => c.id === selectedChatId)) {
-            if (chatsList.length > 0) {
+            // Only reset to landing page if user hasn't manually selected a chat
+            if (startInLandingPageRef.current && !hasManuallySelectedChatRef.current) {
+              setSelectedChatId(null);
+              setSelectedChatName('New Chat');
+            } else if (chatsList.length > 0) {
               setSelectedChatId(chatsList[0].id);
               setSelectedChatName(chatsList[0].name);
             } else {
@@ -594,6 +609,7 @@ function ChildChat({ student }) {
     setInputMessage('');
     setSelectedChatName('New Chat');
     setChatDropdownOpen(false);
+    hasManuallySelectedChatRef.current = true; // Mark as manual selection
   };
 
   // Handle chat selection
@@ -602,6 +618,7 @@ function ChildChat({ student }) {
     setSelectedChatId(chatId);
     setSelectedChatName(chat?.name || 'New Chat');
     setChatDropdownOpen(false);
+    hasManuallySelectedChatRef.current = true; // Mark as manual selection
   };
 
   // Handle key press in input
@@ -800,7 +817,7 @@ function ChildChat({ student }) {
               Start a new conversation
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Ask Coach Pepper about {getStudentDisplayName()}'s progress, development, or observations.
+              Type something to start a chat or pick a past conversation from above.
             </Typography>
           </Box>
         ) : messages.length === 0 ? (

@@ -725,6 +725,7 @@ function App() {
                   {screen === 'childChat' && (
                     <ChildChat
                       student={selectedStudent}
+                      startInLandingPage={true}
                     />
                   )}
 
