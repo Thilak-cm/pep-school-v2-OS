@@ -841,37 +841,10 @@ function ChildChat({ student }) {
                       color: 'white',
                       borderRadius: 2,
                       position: 'relative',
-                      '&:hover .copy-button': {
-                        opacity: 1,
-                      },
                     }}
                   >
-                    {/* Copy Button */}
-                    <Box
-                      className="copy-button"
-                      sx={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        opacity: 0,
-                        transition: 'opacity 0.2s',
-                      }}
-                    >
-                      <CopyToClipboardButton
-                        text={message.content}
-                        ariaLabel="Copy message"
-                        sx={{
-                          backgroundColor: 'rgba(255,255,255,0.2)',
-                          border: '1px solid rgba(255,255,255,0.3)',
-                          '&:hover': {
-                            backgroundColor: 'rgba(255,255,255,0.3)',
-                          },
-                        }}
-                      />
-                    </Box>
-
                     {message.authorName && (
-                      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5, pr: 4 }}>
+                      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
                         {message.authorName}
                       </Typography>
                     )}
@@ -900,19 +873,48 @@ function ChildChat({ student }) {
                     >
                       {formatMessage(message.content)}
                     </Box>
-                    {message.timestamp && (
-                      <Typography
-                        variant="caption"
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        mt: 0.5,
+                      }}
+                    >
+                      {message.timestamp && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            opacity: 0.7,
+                            fontSize: '0.7rem',
+                          }}
+                        >
+                          {formatTimestamp(message.timestamp)}
+                        </Typography>
+                      )}
+                      <CopyToClipboardButton
+                        text={message.content}
+                        ariaLabel="Copy message"
                         sx={{
-                          opacity: 0.7,
-                          display: 'block',
-                          mt: 0.5,
-                          fontSize: '0.7rem',
+                          backgroundColor: 'rgba(255,255,255,0.15)',
+                          border: 'none',
+                          minWidth: 28,
+                          minHeight: 28,
+                          borderRadius: '50%',
+                          padding: 0.5,
+                          opacity: 0.8,
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255,255,255,0.25)',
+                            opacity: 1,
+                            transform: 'scale(1.05)',
+                          },
+                          '&:active': {
+                            transform: 'scale(0.95)',
+                          },
                         }}
-                      >
-                        {formatTimestamp(message.timestamp)}
-                      </Typography>
-                    )}
+                      />
+                    </Box>
                   </Paper>
                 ) : (
                   // Assistant message: Full width, no bubble
@@ -921,35 +923,8 @@ function ChildChat({ student }) {
                       width: '100%',
                       p: 1.5,
                       position: 'relative',
-                      '&:hover .copy-button': {
-                        opacity: 1,
-                      },
                     }}
                   >
-                    {/* Copy Button */}
-                    <Box
-                      className="copy-button"
-                      sx={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        opacity: 0,
-                        transition: 'opacity 0.2s',
-                      }}
-                    >
-                      <CopyToClipboardButton
-                        text={message.content}
-                        ariaLabel="Copy message"
-                        sx={{
-                          backgroundColor: 'rgba(255,255,255,0.9)',
-                          border: '1px solid #e2e8f0',
-                          '&:hover': {
-                            backgroundColor: '#f8fafc',
-                          },
-                        }}
-                      />
-                    </Box>
-
                     <Box
                       component="div"
                       sx={{
@@ -976,19 +951,39 @@ function ChildChat({ student }) {
                     >
                       {formatMessage(message.content)}
                     </Box>
-                    {message.timestamp && (
-                      <Typography
-                        variant="caption"
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        mt: 0.5,
+                      }}
+                    >
+                      {message.timestamp && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            opacity: 0.7,
+                            fontSize: '0.7rem',
+                          }}
+                        >
+                          {formatTimestamp(message.timestamp)}
+                        </Typography>
+                      )}
+                      <CopyToClipboardButton
+                        text={message.content}
+                        ariaLabel="Copy message"
                         sx={{
-                          opacity: 0.7,
-                          display: 'block',
-                          mt: 0.5,
-                          fontSize: '0.7rem',
+                          backgroundColor: 'rgba(0,0,0,0.05)',
+                          border: '1px solid #e2e8f0',
+                          minWidth: 24,
+                          minHeight: 24,
+                          '&:hover': {
+                            backgroundColor: '#f8fafc',
+                          },
                         }}
-                      >
-                        {formatTimestamp(message.timestamp)}
-                      </Typography>
-                    )}
+                      />
+                    </Box>
                   </Box>
                 )}
               </Box>
