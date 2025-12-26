@@ -1017,6 +1017,31 @@ function ChildChat({ student, startInLandingPage = false }) {
                 )}
               </Box>
             ))}
+            {/* Coach Pepper loading state - shows left-aligned when sending */}
+            {sending && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'flex-start',
+                  mb: 1,
+                  width: '100%',
+                  p: 1.5,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <CircularProgress size={18} sx={{ color: '#4f46e5' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Coach Pepper is thinking...
+                  </Typography>
+                </Box>
+              </Box>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -1095,7 +1120,7 @@ function ChildChat({ student, startInLandingPage = false }) {
               },
             }}
           >
-            {sending ? <CircularProgress size={20} color="inherit" /> : <Send />}
+            <Send />
           </IconButton>
         </Paper>
       </Box>
