@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { keyframes } from '@emotion/react';
 import {
   Box,
   Typography,
@@ -16,7 +17,7 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown, Edit, Delete } from '@mui/icons-material';
+import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Settings, AutoAwesome } from '@mui/icons-material';
 import {
   collection,
   query,
@@ -244,30 +245,66 @@ const messageContentSx = {
   },
 };
 
-const TypingIndicator = () => (
-  <Box
-    sx={{
-      display: 'flex',
-      justifyContent: 'flex-start',
-      mb: 1,
-      width: '100%',
-      p: 1.5,
-    }}
-  >
+// Keyframe animations for buffer stages
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+`;
+
+const TypingIndicator = ({ stage = null }) => {
+  const getStageContent = () => {
+    switch (stage) {
+      case 'creating':
+        return {
+          icon: <Settings sx={{ fontSize: 18, color: '#4f46e5', animation: `${spin} 2s linear infinite` }} />,
+          text: 'Creating your chat...',
+        };
+      case 'preparing':
+        return {
+          icon: <AutoAwesome sx={{ fontSize: 18, color: '#4f46e5', animation: `${pulse} 1.5s ease-in-out infinite` }} />,
+          text: 'Preparing context...',
+        };
+      case 'thinking':
+      default:
+        return {
+          icon: <CircularProgress size={18} sx={{ color: '#4f46e5' }} />,
+          text: 'Coach Pepper is thinking...',
+        };
+    }
+  };
+
+  const { icon, text } = getStageContent();
+
+  return (
     <Box
       sx={{
         display: 'flex',
-        alignItems: 'center',
-        gap: 1,
+        justifyContent: 'flex-start',
+        mb: 1,
+        width: '100%',
+        p: 1.5,
       }}
     >
-      <CircularProgress size={18} sx={{ color: '#4f46e5' }} />
-      <Typography variant="body2" color="text.secondary">
-        Coach Pepper is thinking...
-      </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        {icon}
+        <Typography variant="body2" color="text.secondary">
+          {text}
+        </Typography>
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 const UserBubble = ({ message, formatTimestamp }) => (
   <Paper
@@ -397,6 +434,9 @@ function ChildChat({ student, startInLandingPage = false }) {
   const [editingChatName, setEditingChatName] = useState('');
   const [deletingChatId, setDeletingChatId] = useState(null);
   const [devMode, setDevMode] = useState(true); // Default ON - excludes observations from context
+  const [bufferStage, setBufferStage] = useState(null); // 'creating' | 'preparing' | 'thinking' | null
+  const [tempChatId, setTempChatId] = useState(null);
+  const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
 
   // Refs
   const messagesEndRef = useRef(null);
@@ -406,6 +446,7 @@ function ChildChat({ student, startInLandingPage = false }) {
   const hasManuallySelectedChatRef = useRef(false);
   const lastPendingUserTimestampRef = useRef(null);
   const selectedChatIdRef = useRef(null);
+  const stageTimersRef = useRef([]);
 
   const chatTitle = useMemo(() => {
     if (!selectedChatId) return 'New Chat';
@@ -594,6 +635,12 @@ function ChildChat({ student, startInLandingPage = false }) {
       return;
     }
 
+    // Skip setting up listener for temp chatId (first message flow)
+    if (selectedChatId.startsWith('temp-')) {
+      setMessagesLoading(false);
+      return;
+    }
+
     setMessagesLoading(true);
     setError('');
 
@@ -630,6 +677,15 @@ function ChildChat({ student, startInLandingPage = false }) {
               model: data.model || null,
             });
           });
+
+          // If we're in first message flow and real messages arrive, remove temp messages
+          if (isFirstMessageFlow && messagesList.length > 0) {
+            // Real messages have arrived - remove any temp messages
+            // messagesList from Firestore doesn't include temp messages, so this replaces them
+            clearStageProgression();
+            setIsFirstMessageFlow(false);
+            setTempChatId(null);
+          }
 
           setMessages(messagesList);
           setMessagesLoading(false);
@@ -676,7 +732,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         messagesUnsubscribeRef.current();
       }
     };
-  }, [student?.id, selectedChatId]);
+  }, [student?.id, selectedChatId, isFirstMessageFlow]);
 
   // Format timestamp
   const formatTimestamp = (timestamp) => {
@@ -702,6 +758,31 @@ function ChildChat({ student, startInLandingPage = false }) {
 
   const isLanding = selectedChatId === null;
 
+  // Start stage progression for first message flow
+  const startStageProgression = () => {
+    // Clear any existing timers
+    stageTimersRef.current.forEach((timer) => clearTimeout(timer));
+    stageTimersRef.current = [];
+
+    // Stage 1: Creating (1 second)
+    setBufferStage('creating');
+    const timer1 = setTimeout(() => {
+      setBufferStage('preparing');
+      const timer2 = setTimeout(() => {
+        setBufferStage('thinking');
+      }, 1000); // 1 second
+      stageTimersRef.current.push(timer2);
+    }, 1000); // 1 second
+    stageTimersRef.current.push(timer1);
+  };
+
+  // Clear stage progression timers
+  const clearStageProgression = () => {
+    stageTimersRef.current.forEach((timer) => clearTimeout(timer));
+    stageTimersRef.current = [];
+    setBufferStage(null);
+  };
+
   // Handle send message
   const handleSendMessage = async () => {
     const messageText = inputMessage.trim();
@@ -714,9 +795,21 @@ function ChildChat({ student, startInLandingPage = false }) {
       return;
     }
 
+    const isFirstMessage = selectedChatId === null;
+    let localTempChatId = null;
+
     setSending(true);
     setAssistantPending(true);
     setError('');
+
+    // For first message flow: create optimistic chat
+    if (isFirstMessage) {
+      localTempChatId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      setTempChatId(localTempChatId);
+      setIsFirstMessageFlow(true);
+      setSelectedChatId(localTempChatId); // Switch to chat view immediately
+      startStageProgression(); // Start stage progression
+    }
 
     // Optimistically add user message
     const tempUserMessage = {
@@ -735,8 +828,8 @@ function ChildChat({ student, startInLandingPage = false }) {
       const result = await childChatFn({
         studentId: student.id,
         message: messageText,
-        chatId: selectedChatId || null, // null = auto-create/find
-        forceNewChat: selectedChatId === null, // Force new chat when in landing page mode
+        chatId: isFirstMessage ? null : selectedChatId, // null = auto-create/find
+        forceNewChat: isFirstMessage, // Force new chat when in landing page mode
         devMode: devMode, // When true, excludes observations from context to reduce token usage
       });
 
@@ -746,13 +839,28 @@ function ChildChat({ student, startInLandingPage = false }) {
         throw new Error(responseData.error || 'Failed to send message');
       }
 
-      // Update selectedChatId if a new chat was created
-      if (responseData.chatId && responseData.chatId !== selectedChatId) {
-        setSelectedChatId(responseData.chatId);
+      // Clear stage progression when backend completes
+      if (isFirstMessageFlow) {
+        clearStageProgression();
       }
 
-      // Remove temp message (real message will come via listener)
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+      // Update selectedChatId if a new chat was created
+      if (responseData.chatId) {
+        if (isFirstMessageFlow && responseData.chatId !== localTempChatId) {
+          // Update from temp to real chatId
+          setSelectedChatId(responseData.chatId);
+          setTempChatId(null);
+          // Don't clear isFirstMessageFlow yet - wait for real messages to arrive
+        } else if (!isFirstMessageFlow && responseData.chatId !== selectedChatId) {
+          setSelectedChatId(responseData.chatId);
+        }
+      }
+
+      // Remove temp message only for existing chats (real message will come via listener)
+      // For first message flow, keep temp message visible until real messages arrive
+      if (!isFirstMessageFlow) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+      }
 
       // Scroll to bottom
       setTimeout(() => {
@@ -761,10 +869,26 @@ function ChildChat({ student, startInLandingPage = false }) {
     } catch (err) {
       console.error('[ChildChat] Error sending message:', err);
 
-      // Remove temp message on error
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
-      setAssistantPending(false);
-      lastPendingUserTimestampRef.current = null;
+      // Clear stage progression on error
+      if (isFirstMessageFlow) {
+        clearStageProgression();
+      }
+
+      // For first message flow: keep user message visible, return to landing
+      if (isFirstMessageFlow) {
+        // Keep temp message visible (don't remove it)
+        setAssistantPending(false);
+        lastPendingUserTimestampRef.current = null;
+        // Return to landing page
+        setSelectedChatId(null);
+        setTempChatId(null);
+        setIsFirstMessageFlow(false);
+      } else {
+        // For existing chats: remove temp message (existing behavior)
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
+        setAssistantPending(false);
+        lastPendingUserTimestampRef.current = null;
+      }
 
       // Restore input message
       setInputMessage(messageText);
@@ -895,6 +1019,9 @@ function ChildChat({ student, startInLandingPage = false }) {
       if (messagesUnsubscribeRef.current) {
         messagesUnsubscribeRef.current();
       }
+      // Clear stage timers
+      stageTimersRef.current.forEach((timer) => clearTimeout(timer));
+      stageTimersRef.current = [];
     };
   }, []);
 
@@ -1353,7 +1480,7 @@ function ChildChat({ student, startInLandingPage = false }) {
               </Box>
             ))}
             {/* Coach Pepper loading state - shows left-aligned while waiting for assistant */}
-            {assistantPending && <TypingIndicator />}
+            {assistantPending && <TypingIndicator stage={bufferStage} />}
             <div ref={messagesEndRef} />
           </>
         )}
