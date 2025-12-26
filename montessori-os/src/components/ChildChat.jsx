@@ -13,6 +13,8 @@ import {
   ClickAwayListener,
   Dialog,
   Button,
+  Switch,
+  Tooltip,
 } from '@mui/material';
 import { Send, Add, Chat, ArrowDropDown, Edit, Delete } from '@mui/icons-material';
 import {
@@ -394,6 +396,7 @@ function ChildChat({ student, startInLandingPage = false }) {
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingChatName, setEditingChatName] = useState('');
   const [deletingChatId, setDeletingChatId] = useState(null);
+  const [devMode, setDevMode] = useState(true); // Default ON - excludes observations from context
 
   // Refs
   const messagesEndRef = useRef(null);
@@ -734,6 +737,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         message: messageText,
         chatId: selectedChatId || null, // null = auto-create/find
         forceNewChat: selectedChatId === null, // Force new chat when in landing page mode
+        devMode: devMode, // When true, excludes observations from context to reduce token usage
       });
 
       const responseData = result.data;
@@ -1205,6 +1209,49 @@ function ChildChat({ student, startInLandingPage = false }) {
             )}
           </Box>
         </ClickAwayListener>
+        
+        {/* Dev Mode Toggle - Positioned below dropdown */}
+        <Tooltip title={devMode ? 'Dev Mode: ON (observations excluded)' : 'Dev Mode: OFF (observations included)'} arrow>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 0.5,
+              mt: 0.5,
+              px: 2,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                fontSize: '0.7rem',
+                color: 'text.secondary',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Dev Mode
+            </Typography>
+            <Switch
+              checked={devMode}
+              onChange={(e) => setDevMode(e.target.checked)}
+              size="small"
+              sx={{
+                '& .MuiSwitch-thumb': {
+                  width: 16,
+                  height: 16,
+                },
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: 'primary.main',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: 'primary.main',
+                },
+              }}
+            />
+          </Box>
+        </Tooltip>
       </Box>
 
       {/* Messages Area */}
