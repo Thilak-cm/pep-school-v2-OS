@@ -1016,8 +1016,8 @@ function AddNoteModal({
           if (typeof transcriptionData.sttConfidence === 'number') {
             observationData.sttConfidence = transcriptionData.sttConfidence;
           }
-          // Log detected language from transcription
-          if (transcriptionData.detectedLanguage) {
+          // Save detected language from transcription (if available)
+          if (transcriptionData.detectedLanguage != null && transcriptionData.detectedLanguage !== '') {
             observationData.detectedLanguage = transcriptionData.detectedLanguage;
           }
           // Drop alternatives/spoken language/provider per schema simplification
