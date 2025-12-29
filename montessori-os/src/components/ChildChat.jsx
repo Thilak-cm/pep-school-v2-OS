@@ -980,6 +980,7 @@ function ChildChat({ student, startInLandingPage = false }) {
       const chatRef = doc(db, 'students', student.id, 'chats', deletingChatId);
       await updateDoc(chatRef, {
         deleted: true,
+        deletedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       

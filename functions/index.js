@@ -1359,6 +1359,27 @@ export const previewBaseballCard = functions
     };
   });
 
+/**
+ * Recursively delete a Firestore document and all its subcollections
+ * @param {Firestore.DocumentReference} docRef - Document reference to delete
+ * @returns {Promise<void>}
+ */
+async function deleteDocumentRecursively(docRef) {
+  const subcollections = await docRef.listCollections();
+  
+  // Delete all subcollections first
+  for (const subcollection of subcollections) {
+    const subcollectionDocs = await subcollection.get();
+    const deletePromises = subcollectionDocs.docs.map(doc => 
+      deleteDocumentRecursively(doc.ref)
+    );
+    await Promise.all(deletePromises);
+  }
+  
+  // Delete the document itself
+  await docRef.delete();
+}
+
 export const generateBaseballCards = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 540, memory: "1GB" })
@@ -1386,6 +1407,59 @@ export const generateBaseballCards = functions
 
     console.log("[baseballCard] generation run complete");
     return null;
+  });
+
+export const cleanupDeletedChats = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "512MB" })
+  .pubsub.schedule("0 0 1 * *")  // First day of every month at midnight
+  .timeZone("Asia/Kolkata")
+  .onRun(async () => {
+    console.log("[cleanupDeletedChats] Starting monthly cleanup of deleted chats");
+    
+    const cutoffDate = Timestamp.fromMillis(
+      Date.now() - (31 * 24 * 60 * 60 * 1000)  // 31 days ago
+    );
+    
+    try {
+      // Query all chats with deleted=true and deletedAt older than 31 days
+      const chatsRef = db.collectionGroup("chats");
+      const query = chatsRef
+        .where("deleted", "==", true)
+        .where("deletedAt", "<=", cutoffDate);
+      
+      const snapshot = await query.get();
+      console.log(`[cleanupDeletedChats] Found ${snapshot.size} chats to delete`);
+      
+      let deletedCount = 0;
+      let errorCount = 0;
+      
+      // Process deletions in batches to avoid overwhelming Firestore
+      const batchSize = 10;
+      const docs = snapshot.docs;
+      
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const batch = docs.slice(i, i + batchSize);
+        const deletePromises = batch.map(async (doc) => {
+          try {
+            await deleteDocumentRecursively(doc.ref);
+            deletedCount++;
+            console.log(`[cleanupDeletedChats] Deleted chat ${doc.id} (${deletedCount}/${snapshot.size})`);
+          } catch (error) {
+            errorCount++;
+            console.error(`[cleanupDeletedChats] Error deleting chat ${doc.id}:`, error);
+          }
+        });
+        
+        await Promise.all(deletePromises);
+      }
+      
+      console.log(`[cleanupDeletedChats] Cleanup complete. Deleted: ${deletedCount}, Errors: ${errorCount}`);
+      return { deletedCount, errorCount, totalFound: snapshot.size };
+    } catch (error) {
+      console.error("[cleanupDeletedChats] Fatal error during cleanup:", error);
+      throw error;
+    }
   });
 
 // -----------------------------------------------
