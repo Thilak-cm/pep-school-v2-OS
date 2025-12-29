@@ -17,7 +17,7 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Settings, AutoAwesome } from '@mui/icons-material';
+import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Settings, AutoAwesome, Mic, Pause, PlayArrow } from '@mui/icons-material';
 import {
   collection,
   query,
@@ -33,6 +33,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions, auth } from '../firebase';
 import CopyToClipboardButton from './CopyToClipboardButton';
+import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
 
 // Basic markdown formatting function
 const formatMessage = (text) => {
@@ -438,6 +439,14 @@ function ChildChat({ student, startInLandingPage = false }) {
   const [tempChatId, setTempChatId] = useState(null);
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
 
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [waveformData, setWaveformData] = useState([]);
+  const [showTimeLimitWarning, setShowTimeLimitWarning] = useState(false);
+
   // Refs
   const messagesEndRef = useRef(null);
   const chatsUnsubscribeRef = useRef(null);
@@ -447,6 +456,18 @@ function ChildChat({ student, startInLandingPage = false }) {
   const lastPendingUserTimestampRef = useRef(null);
   const selectedChatIdRef = useRef(null);
   const stageTimersRef = useRef([]);
+  
+  // Recording refs
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const streamRef = useRef(null);
+  const discardRef = useRef(false);
+  
+  const MAX_RECORDING_TIME = 300; // 5 minutes
 
   const chatTitle = useMemo(() => {
     if (!selectedChatId) return 'New Chat';
@@ -504,7 +525,6 @@ function ChildChat({ student, startInLandingPage = false }) {
           snapshot = await getDocs(q);
         } catch (indexError) {
           // Fallback: fetch all and filter/sort in memory
-          console.warn('[ChildChat] Query with orderBy failed, using fallback:', indexError.message);
           const allSnapshot = await getDocs(chatsRef);
           snapshot = allSnapshot;
         }
@@ -558,7 +578,6 @@ function ChildChat({ student, startInLandingPage = false }) {
           setSelectedChatId(null);
         }
       } catch (err) {
-        console.error('[ChildChat] Error loading chats:', err);
         setError('Failed to load chats. Please try again.');
       } finally {
         setChatsLoading(false);
@@ -618,12 +637,10 @@ function ChildChat({ student, startInLandingPage = false }) {
           }
         },
         (err) => {
-          console.error('[ChildChat] Error in chats listener:', err);
         }
       );
     } catch (err) {
       // If index doesn't exist, skip real-time updates for chats
-      console.warn('[ChildChat] Could not set up chats listener:', err);
     }
 
     chatsUnsubscribeRef.current = unsubscribe;
@@ -722,7 +739,6 @@ function ChildChat({ student, startInLandingPage = false }) {
           }, 100);
         },
         (err) => {
-          console.error('[ChildChat] Error loading messages:', err);
           setError('Failed to load messages. Please try again.');
           setMessagesLoading(false);
           setAssistantPending(false);
@@ -731,7 +747,6 @@ function ChildChat({ student, startInLandingPage = false }) {
 
       messagesUnsubscribeRef.current = unsubscribe;
     } catch (err) {
-      console.error('[ChildChat] Error setting up messages listener:', err);
       setError('Failed to load messages. Please try again.');
       setMessagesLoading(false);
     }
@@ -762,6 +777,347 @@ function ChildChat({ student, startInLandingPage = false }) {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } catch {
       return '';
+    }
+  };
+
+  // Format recording time as M:SS
+  const formatRecordingTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Start recording timer
+  const startTimer = () => {
+    timerRef.current = setInterval(() => {
+      setRecordingTime((prevTime) => {
+        const newTime = prevTime + 1;
+
+        // Show warning at 4:45 (285 seconds)
+        if (newTime === 285) {
+          setShowTimeLimitWarning(true);
+        }
+
+        // Auto-stop at 5 minutes
+        if (newTime >= MAX_RECORDING_TIME) {
+          stopRecording();
+          setError('Recording stopped at 5 minutes. Transcribing…');
+          return MAX_RECORDING_TIME;
+        }
+
+        return newTime;
+      });
+    }, 1000);
+  };
+
+  // Stop recording timer
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const updateWaveform = () => {
+    if (!analyserRef.current || !streamRef.current) {
+      animationFrameRef.current = null;
+      return;
+    }
+
+    const isActuallyRecording = mediaRecorderRef.current?.state === 'recording';
+    const isActuallyPaused = mediaRecorderRef.current?.state === 'paused';
+    
+    if (!isActuallyRecording || isActuallyPaused) {
+      animationFrameRef.current = null;
+      return;
+    }
+
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const timeDataArray = new Uint8Array(bufferLength);
+    analyserRef.current.getByteTimeDomainData(timeDataArray);
+    
+    let maxAmplitude = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const sample = Math.abs(timeDataArray[i] - 128);
+      if (sample > maxAmplitude) {
+        maxAmplitude = sample;
+      }
+    }
+    
+    const normalizedLoudness = Math.min(1, (maxAmplitude / 128) * 3);
+    const numBars = 60;
+    const reducedData = [];
+    const baseAmplitude = normalizedLoudness * 220;
+    
+    for (let i = 0; i < numBars; i++) {
+      const waveVariation = Math.sin((i / numBars) * Math.PI * 4) * 0.3 + 1;
+      const barValue = Math.min(255, baseAmplitude * waveVariation);
+      reducedData.push(Math.max(4, barValue));
+    }
+    
+    setWaveformData(reducedData);
+    animationFrameRef.current = requestAnimationFrame(updateWaveform);
+  };
+
+  const resetRecordingState = () => {
+    stopTimer();
+    
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+    
+    if (audioContextRef.current) {
+      try {
+        if (audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close();
+        }
+      } catch (e) {}
+      audioContextRef.current = null;
+    }
+    
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      streamRef.current = null;
+    }
+    
+    analyserRef.current = null;
+    setIsRecording(false);
+    setIsPaused(false);
+    setRecordingTime(0);
+    setIsTranscribing(false);
+    setWaveformData([]);
+    setShowTimeLimitWarning(false);
+    audioChunksRef.current = [];
+    discardRef.current = false;
+  };
+
+  const startRecording = async () => {
+    if (isRecording || isTranscribing) {
+      return;
+    }
+
+    resetRecordingState();
+
+    try {
+      discardRef.current = false;
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100
+        }
+      });
+      
+      streamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp3')
+        ? 'audio/mp3'
+        : MediaRecorder.isTypeSupported('audio/mpeg')
+        ? 'audio/mpeg'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.onerror = (event) => {
+        setError(`Recording error: ${event.error?.message || 'Unknown error'}`);
+        resetRecordingState();
+      };
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        if (discardRef.current) {
+          audioChunksRef.current = [];
+          discardRef.current = false;
+          resetRecordingState();
+          return;
+        }
+
+        try {
+          stream.getTracks().forEach(track => {
+            if (track.readyState === 'live') {
+              track.stop();
+            }
+          });
+        } catch (e) {}
+
+        if (!audioChunksRef.current || audioChunksRef.current.length === 0) {
+          setError('Recording failed: No audio data captured. Please try again.');
+          resetRecordingState();
+          return;
+        }
+
+        const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm;codecs=opus';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        if (!blob || blob.size === 0) {
+          setError('Recording failed: Invalid audio data. Please try again.');
+          resetRecordingState();
+          return;
+        }
+
+        if (blob.size < 1024) {
+          setError('Recording too short. Please record for at least 1 second.');
+          resetRecordingState();
+          return;
+        }
+
+        handleTranscription(blob);
+      };
+
+      // Set state BEFORE starting to avoid race conditions
+      setIsRecording(true);
+      setIsPaused(false);
+      setRecordingTime(0);
+      setShowTimeLimitWarning(false);
+      setWaveformData([]);
+
+      mediaRecorderRef.current.start();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+        
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 2048;
+        analyserRef.current.smoothingTimeConstant = 0.3;
+        source.connect(analyserRef.current);
+        
+        if (!animationFrameRef.current) {
+          updateWaveform();
+        }
+      } catch (audioError) {}
+
+      startTimer();
+
+    } catch (error) {
+      
+      if (error.name === 'NotAllowedError') {
+        setError('Microphone access denied. Enable mic in browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        setError('No microphone found. Please connect a microphone.');
+      } else {
+        setError(`Error accessing microphone: ${error.message}`);
+      }
+      resetRecordingState();
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        setIsPaused(false);
+        stopTimer();
+        
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      } catch (error) {
+        setError('Error stopping recording. Please try again.');
+        resetRecordingState();
+      }
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording && !isPaused && typeof mediaRecorderRef.current.pause === 'function') {
+      try {
+        mediaRecorderRef.current.pause();
+        setIsPaused(true);
+        stopTimer();
+        
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      } catch (e) {}
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isRecording && isPaused && typeof mediaRecorderRef.current.resume === 'function') {
+      try {
+        mediaRecorderRef.current.resume();
+        setIsPaused(false);
+        startTimer();
+        
+        if (!animationFrameRef.current) {
+          updateWaveform();
+        }
+      } catch (e) {}
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      discardRef.current = true;
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      stopTimer();
+      
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    } else {
+      resetRecordingState();
+    }
+  };
+
+  const handleTranscription = async (blob) => {
+    if (!validateAudioForTranscription(blob)) {
+      setError('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
+      resetRecordingState();
+      return;
+    }
+
+    setIsTranscribing(true);
+    setError('');
+
+    try {
+      const result = await translateAudioToEnglish(blob);
+      
+      if (result.text) {
+        setInputMessage(result.text);
+      } else {
+        setError('No speech detected in the recording.');
+      }
+    } catch (error) {
+      const errorMessage = error?.message || error?.code || 'Unknown error';
+      setError(`Transcription failed: ${errorMessage}`);
+    } finally {
+      resetRecordingState();
     }
   };
 
@@ -876,7 +1232,6 @@ function ChildChat({ student, startInLandingPage = false }) {
         scrollToBottom();
       }, 100);
     } catch (err) {
-      console.error('[ChildChat] Error sending message:', err);
 
       // Clear stage progression on error
       if (isFirstMessageFlow) {
@@ -958,7 +1313,6 @@ function ChildChat({ student, startInLandingPage = false }) {
       setEditingChatId(null);
       setEditingChatName('');
     } catch (err) {
-      console.error('[ChildChat] Error updating chat name:', err);
       setError('Failed to update chat name. Please try again.');
     }
   };
@@ -997,7 +1351,6 @@ function ChildChat({ student, startInLandingPage = false }) {
       setDeleteConfirmOpen(false);
       setDeletingChatId(null);
     } catch (err) {
-      console.error('[ChildChat] Error deleting chat:', err);
       setError('Failed to delete chat. Please try again.');
       setDeleteConfirmOpen(false);
       setDeletingChatId(null);
@@ -1032,8 +1385,35 @@ function ChildChat({ student, startInLandingPage = false }) {
       // Clear stage timers
       stageTimersRef.current.forEach((timer) => clearTimeout(timer));
       stageTimersRef.current = [];
+      
+      // Cleanup recording
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+        } catch (_) {}
+      }
+      if (audioContextRef.current) {
+        try {
+          if (audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+          }
+        } catch (_) {}
+      }
+      if (streamRef.current) {
+        try {
+          streamRef.current.getTracks().forEach(track => track.stop());
+        } catch (_) {}
+      }
     };
-  }, []);
+  }, [audioUrl]);
 
   // Validation: student required
   if (!student?.id) {
@@ -1527,82 +1907,285 @@ function ChildChat({ student, startInLandingPage = false }) {
             {error}
           </Alert>
         )}
-        <Paper
-          elevation={2}
-          sx={{
-            p: 1,
-            borderRadius: '28px',
-            backgroundColor: 'white',
-            border: '1px solid',
-            borderColor: 'rgba(0, 0, 0, 0.08)',
-            display: 'flex',
-            gap: 1.5,
-            alignItems: 'flex-end',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            transition: 'all 0.2s ease-in-out',
-            '&:focus-within': {
-              boxShadow: '0 4px 16px rgba(79, 70, 229, 0.15)',
-              borderColor: 'primary.main',
-            },
-          }}
-        >
-          <TextField
-            fullWidth
-            multiline
-            maxRows={4}
-            placeholder="Type your message..."
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={sending}
-            variant="standard"
-            InputProps={{
-              disableUnderline: true,
-            }}
+        {isRecording || isTranscribing ? (
+          // Recording UI
+          <Paper
+            elevation={2}
             sx={{
-              '& .MuiInputBase-root': {
-                backgroundColor: 'transparent',
-                borderRadius: '20px',
-                px: 1.5,
-                py: 0.75,
-              },
+              p: 2,
+              borderRadius: '28px',
+              backgroundColor: 'white',
+              border: '1px solid',
+              borderColor: 'rgba(0, 0, 0, 0.08)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
             }}
-          />
-          <IconButton
-            color="primary"
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || sending}
-            aria-label="Send message"
+          >
+            {isTranscribing ? (
+              // Transcription loading state
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, py: 1 }}>
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">
+                  Transcribing...
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {/* Timer and Waveform Row */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                  {/* Timer */}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                      color: 'text.primary',
+                      minWidth: '40px',
+                    }}
+                  >
+                    {formatRecordingTime(recordingTime)}
+                  </Typography>
+
+                  {/* Waveform */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      gap: 0.5,
+                      height: 32,
+                      px: 1,
+                      minWidth: 0,
+                      overflow: 'hidden', // Prevent extending beyond box
+                      maxWidth: '100%',
+                    }}
+                  >
+                    {waveformData.length > 0 ? (
+                      waveformData.map((value, index) => {
+                        // Normalize amplitude (0-255) to height (3-24px)
+                        const normalizedValue = Math.min(255, Math.max(0, value));
+                        // Use linear mapping for direct loudness reflection
+                        const height = Math.max(3, (normalizedValue / 255) * 24);
+                        return (
+                          <Box
+                            key={index}
+                            sx={{
+                              width: 2,
+                              minWidth: 2,
+                              maxWidth: 2,
+                              height: `${height}px`,
+                              backgroundColor: isPaused ? 'grey.400' : 'primary.main',
+                              borderRadius: 1,
+                              transition: 'height 0.1s linear', // Faster, linear transition for responsiveness
+                              alignSelf: 'center',
+                              flexShrink: 0,
+                            }}
+                          />
+                        );
+                      })
+                    ) : (
+                      // Placeholder dots when no waveform data yet
+                      Array.from({ length: 60 }).map((_, index) => (
+                        <Box
+                          key={index}
+                          sx={{
+                            width: 2,
+                            minWidth: 2,
+                            maxWidth: 2,
+                            height: '4px',
+                            backgroundColor: 'grey.300',
+                            borderRadius: 1,
+                            flexShrink: 0,
+                          }}
+                        />
+                      ))
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Control Buttons Row */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                  {/* Trash/Delete Button */}
+                  <IconButton
+                    onClick={cancelRecording}
+                    aria-label="Delete recording"
+                    sx={{
+                      minWidth: 44,
+                      minHeight: 44,
+                      width: 44,
+                      height: 44,
+                      color: 'text.primary',
+                      '&:hover': {
+                        backgroundColor: 'grey.100',
+                      },
+                    }}
+                  >
+                    <Delete />
+                  </IconButton>
+
+                  {/* Pause/Resume Button */}
+                  {typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.prototype.pause === 'function' ? (
+                    <IconButton
+                      onClick={isPaused ? resumeRecording : pauseRecording}
+                      aria-label={isPaused ? 'Resume recording' : 'Pause recording'}
+                      sx={{
+                        minWidth: 48,
+                        minHeight: 48,
+                        width: 48,
+                        height: 48,
+                        backgroundColor: 'error.main',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: 'error.dark',
+                        },
+                      }}
+                    >
+                      {isPaused ? <PlayArrow /> : <Pause />}
+                    </IconButton>
+                  ) : (
+                    <Box sx={{ width: 48, height: 48 }} />
+                  )}
+
+                  {/* Send Button */}
+                  <IconButton
+                    onClick={stopRecording}
+                    aria-label="Send recording"
+                    sx={{
+                      minWidth: 48,
+                      minHeight: 48,
+                      width: 48,
+                      height: 48,
+                      backgroundColor: 'success.main',
+                      color: 'white',
+                      '&:hover': {
+                        backgroundColor: 'success.dark',
+                      },
+                    }}
+                  >
+                    <Send />
+                  </IconButton>
+                </Box>
+
+                {/* Paused Indicator */}
+                {isPaused && (
+                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Recording paused
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Time Limit Warning */}
+                {showTimeLimitWarning && !isPaused && (
+                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="warning.main">
+                      Recording will stop at 5 minutes
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
+          </Paper>
+        ) : (
+          // Normal Input UI
+          <Paper
+            elevation={2}
             sx={{
-              minWidth: 44,
-              minHeight: 44,
-              width: 44,
-              height: 44,
-              backgroundColor: 'primary.main',
-              color: 'white',
-              borderRadius: '22px',
+              p: 1,
+              borderRadius: '28px',
+              backgroundColor: 'white',
+              border: '1px solid',
+              borderColor: 'rgba(0, 0, 0, 0.08)',
+              display: 'flex',
+              gap: 1.5,
+              alignItems: 'flex-end',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
               transition: 'all 0.2s ease-in-out',
-              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
-              '&:hover': {
-                backgroundColor: 'primary.dark',
-                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
-                transform: 'translateY(-1px)',
-              },
-              '&:active': {
-                transform: 'translateY(0px)',
-                boxShadow: '0 2px 6px rgba(79, 70, 229, 0.3)',
-              },
-              '&:disabled': {
-                backgroundColor: 'grey.300',
-                color: 'grey.500',
-                boxShadow: 'none',
-                transform: 'none',
+              '&:focus-within': {
+                boxShadow: '0 4px 16px rgba(79, 70, 229, 0.15)',
+                borderColor: 'primary.main',
               },
             }}
           >
-            <Send />
-          </IconButton>
-        </Paper>
+            <TextField
+              fullWidth
+              multiline
+              maxRows={4}
+              placeholder="Type your message..."
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={sending || isRecording}
+              variant="standard"
+              InputProps={{
+                disableUnderline: true,
+              }}
+              sx={{
+                '& .MuiInputBase-root': {
+                  backgroundColor: 'transparent',
+                  borderRadius: '20px',
+                  px: 1.5,
+                  py: 1.25,
+                },
+              }}
+            />
+            {/* Mic Button */}
+            <IconButton
+              onClick={startRecording}
+              disabled={isRecording || sending}
+              aria-label="Start voice recording"
+              sx={{
+                minWidth: 44,
+                minHeight: 44,
+                width: 44,
+                height: 44,
+                color: 'primary.main',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  color: 'primary.dark',
+                  backgroundColor: 'transparent',
+                },
+                '&:active': {
+                  transform: 'scale(0.95)',
+                },
+                '&:disabled': {
+                  color: 'grey.400',
+                  backgroundColor: 'transparent',
+                },
+              }}
+            >
+              <Mic />
+            </IconButton>
+            {/* Send Button */}
+            <IconButton
+              color="primary"
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || sending}
+              aria-label="Send message"
+              sx={{
+                minWidth: 44,
+                minHeight: 44,
+                width: 44,
+                height: 44,
+                color: 'primary.main',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  color: 'primary.dark',
+                  backgroundColor: 'transparent',
+                },
+                '&:active': {
+                  transform: 'scale(0.95)',
+                },
+                '&:disabled': {
+                  color: 'grey.400',
+                  backgroundColor: 'transparent',
+                },
+              }}
+            >
+              <Send />
+            </IconButton>
+          </Paper>
+        )}
       </Box>
 
       {/* Edit Chat Name Dialog */}
