@@ -1413,7 +1413,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         } catch (_) {}
       }
     };
-  }, [audioUrl]);
+  }, []);
 
   // Validation: student required
   if (!student?.id) {
