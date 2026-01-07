@@ -90,10 +90,16 @@ function App() {
 
   const handleLessonNotesSaved = (info) => {
     setLessonNoteEditObservation(null);
-    const targetScreen = lessonNotesReturnScreen || 'timeline';
-    setScreen(targetScreen);
     if (info?.studentId) {
       setSelectedStudent((prev) => prev?.id === info.studentId ? prev : { ...(prev || {}), id: info.studentId });
+      // Navigate to student dashboard showing lesson notes
+      setStudentDashboardNoteType('lesson');
+      setStudentDashboardReturnScreen(lessonNotesReturnScreen || 'classroomTimeline');
+      setScreen('studentDashboard');
+    } else {
+      // Fallback: return to previous screen if no studentId
+      const targetScreen = lessonNotesReturnScreen || 'timeline';
+      setScreen(targetScreen);
     }
   };
 
