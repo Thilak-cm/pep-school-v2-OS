@@ -17,7 +17,76 @@ import {
 import { collectionGroup, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
-import NewFeaturePill from './NewFeaturePill';
+
+// Cache configuration
+const CACHE_KEY_PREFIX = 'notificationsPageCache';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Build cache key for user
+const buildCacheKey = (uid) => {
+  return `${CACHE_KEY_PREFIX}:${uid || 'anonymous'}`;
+};
+
+// Read cached data
+const getCachedData = (key, dataType) => {
+  if (typeof window === 'undefined' || !window?.localStorage || !key) return null;
+  try {
+    const cacheKey = `${key}:${dataType}`;
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.timestamp || parsed.payload === undefined) return null;
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+      window.localStorage.removeItem(cacheKey);
+      return null;
+    }
+    return parsed.payload;
+  } catch (err) {
+    console.warn(`Failed to read ${dataType} cache`, err);
+    return null;
+  }
+};
+
+// Write cached data
+const setCachedData = (key, dataType, payload) => {
+  if (typeof window === 'undefined' || !window?.localStorage || !key) return;
+  try {
+    const cacheKey = `${key}:${dataType}`;
+    const value = JSON.stringify({ timestamp: Date.now(), payload });
+    window.localStorage.setItem(cacheKey, value);
+  } catch (error) {
+    // Handle quota exceeded errors gracefully
+    if (error && (error.name === 'QuotaExceededError' || error.code === 22)) {
+      try {
+        // Try to clear old cache entries
+        Object.keys(window.localStorage).forEach(k => {
+          if (k.startsWith(CACHE_KEY_PREFIX)) {
+            window.localStorage.removeItem(k);
+          }
+        });
+      } catch (_) {
+        // Ignore secondary failures
+      }
+      console.warn('Notifications cache disabled: storage quota exceeded');
+      return;
+    }
+    console.error(`Failed to write ${dataType} cache`, error);
+  }
+};
+
+// Clear all notifications cache (for logout/login invalidation)
+export const clearNotificationsCache = () => {
+  if (typeof window === 'undefined' || !window?.localStorage) return;
+  try {
+    Object.keys(window.localStorage).forEach(k => {
+      if (k.startsWith(CACHE_KEY_PREFIX)) {
+        window.localStorage.removeItem(k);
+      }
+    });
+  } catch (err) {
+    console.warn('Failed to clear notifications cache', err);
+  }
+};
 
 function NotificationsPage() {
   const [loading, setLoading] = useState(true);
@@ -64,6 +133,20 @@ function NotificationsPage() {
           return;
         }
 
+        const cacheKey = buildCacheKey(uid);
+        
+        // Try to load from cache first
+        const cachedSignals = getCachedData(cacheKey, 'signals');
+        const cachedStudentNames = getCachedData(cacheKey, 'studentNames');
+        
+        if (cachedSignals && cachedStudentNames) {
+          setSignals(cachedSignals);
+          setStudentNames(cachedStudentNames);
+          if (active) setLoading(false);
+          return;
+        }
+
+        // Fetch fresh data
         const signalsQuery = query(collectionGroup(db, 'ai_summaries'));
         const snapshot = await getDocs(signalsQuery);
         if (!active) return;
@@ -74,6 +157,9 @@ function NotificationsPage() {
             const studentId = d.ref.parent?.parent?.id || null;
             return { id: d.id, studentId, ...(d.data() || {}) };
           });
+        
+        // Cache signals
+        setCachedData(cacheKey, 'signals', rows);
         setSignals(rows);
 
         // Fetch student names (superadmin only) for display
@@ -90,7 +176,11 @@ function NotificationsPage() {
             return [sid, sid];
           }
         }));
-        setStudentNames(Object.fromEntries(nameEntries));
+        const studentNamesMap = Object.fromEntries(nameEntries);
+        
+        // Cache student names
+        setCachedData(cacheKey, 'studentNames', studentNamesMap);
+        setStudentNames(studentNamesMap);
       } catch (err) {
         console.error('Failed to load signals', err);
         setError('Failed to load notifications.');
@@ -115,6 +205,26 @@ function NotificationsPage() {
 
   const isSuperAdmin = currentRole === 'superadmin';
 
+  // Show loading state while role is being fetched
+  if (currentRole === null) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 320,
+        flexDirection: 'column',
+        gap: 2
+      }}>
+        <CircularProgress size={32} />
+        <Typography variant="body2" color="text.secondary">
+          Coach Pepper is gathering notifications...
+        </Typography>
+      </Box>
+    );
+  }
+
   if (!isSuperAdmin) {
     return (
       <Box sx={{
@@ -124,7 +234,21 @@ function NotificationsPage() {
         justifyContent: 'center',
         minHeight: 320
       }}>
-        <NewFeaturePill label="New notifications page coming soon!" />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0'
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            New notifications page coming soon!
+          </Typography>
+        </Box>
       </Box>
     );
   }

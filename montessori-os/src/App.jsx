@@ -45,7 +45,7 @@ import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
 import { isSuperAdmin } from './utils/roleUtils';
 import SettingsPage from './components/SettingsPage.jsx';
-import NotificationsPage from './components/NotificationsPage.jsx';
+import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
 import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
 
@@ -193,6 +193,9 @@ function App() {
   useEffect(() => {
     if (!user) return;
 
+    // Clear notifications cache on login (user change)
+    clearNotificationsCache();
+
     const validateAccess = async () => {
       // Domain check - allow multiple domains
       const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
@@ -284,6 +287,8 @@ function App() {
       setAnalyticsUserId(null);
       setRole(null);
       setManageableClassrooms([]);
+      // Clear notifications cache on logout
+      clearNotificationsCache();
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
