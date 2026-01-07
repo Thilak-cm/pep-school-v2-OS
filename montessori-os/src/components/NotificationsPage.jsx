@@ -104,11 +104,12 @@ function NotificationsPage() {
   }, [currentRole]);
 
   const severityCounts = signals.reduce((acc, s) => {
+    if (s.status !== 'ok') return acc;
     const sev = s?.redFlag?.severity || null;
-    if (s.status !== 'ok' || !sev) return acc;
-    acc[sev] = (acc[sev] || 0) + 1;
+    const key = sev || 'clear';
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
-  }, { low: 0, medium: 0, high: 0 });
+  }, { low: 0, medium: 0, high: 0, clear: 0 });
 
   const gapsList = signals.filter((s) => s.status === 'ok' && Array.isArray(s.coverageGaps) && s.coverageGaps.length > 0);
 
@@ -139,23 +140,66 @@ function NotificationsPage() {
           border: '1px solid #e2e8f0'
         }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-          {loading && <CircularProgress size={20} />}
-        </Stack>
+        {loading && (
+          <Stack alignItems="center" justifyContent="center" sx={{ py: 4 }}>
+            <CircularProgress size={24} />
+          </Stack>
+        )}
 
-        {error && currentRole === 'superadmin' && (
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2 }}>
+        {!loading && error && (
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
             <ErrorOutline color="error" fontSize="small" />
             <Typography variant="body2" color="error">{error}</Typography>
           </Stack>
         )}
 
-        {!error && !loading && isSuperAdmin && (
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Chip icon={<WarningIcon />} label={`High: ${severityCounts.high || 0}`} color="error" variant="outlined" />
-              <Chip icon={<WarningIcon />} label={`Medium: ${severityCounts.medium || 0}`} color="warning" variant="outlined" />
-              <Chip icon={<WarningIcon />} label={`Low: ${severityCounts.low || 0}`} variant="outlined" />
+        {!loading && !error && (
+          <Stack spacing={2}>
+            <Stack spacing={1}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Flag Distribution
+              </Typography>
+              <Box
+                sx={{
+                  display: 'flex',
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                  border: '1px solid #e2e8f0',
+                  height: 36
+                }}
+              >
+                {['high', 'medium', 'low', 'clear'].map((key) => {
+                  const count = severityCounts[key] || 0;
+                  const colors = {
+                    high: '#ef4444',
+                    medium: '#f59e0b',
+                    low: '#94a3b8',
+                    clear: '#22c55e'
+                  };
+                  return (
+                    <Box
+                      key={key}
+                      sx={{
+                        flex: 1,
+                        backgroundColor: colors[key],
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          color: key === 'high' ? '#fff' : '#0f172a'
+                        }}
+                      >
+                        {count}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
             </Stack>
 
             <Divider />
