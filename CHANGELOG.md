@@ -1,5 +1,18 @@
 # Changelog
 
+# 7.1.1 — 2026-01-07
+
+### Added
+- Baseball Card: student context in summaries (name, DOB), shared fallback prompt, and runtime prompt substitution for student focus.
+
+### Changed
+- ClassroomTimeline: lesson summary rendering can optionally include student comments.
+- NotificationsPage: caching of notifications data with improved loading states; layout refines feature pill to styled Box.
+
+# 7.1.0 — 2026-01-06
+
+# Changelog
+
 # 7.1.0 — 2026-01-06
 
 ### Added
