@@ -12,7 +12,8 @@ import {
   Stack,
   Alert,
   Chip,
-  Popover
+  Popover,
+  Tooltip
 } from '@mui/material';
 import {
   Notes as NotesIcon,
@@ -42,6 +43,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [signalsError, setSignalsError] = useState('');
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
+  const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
   const [regenError, setRegenError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -225,16 +227,31 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       low: '#94a3b8'
     };
     return (
-      <Chip
-        label={label}
-        size="small"
-        onClick={(e) => setFlagAnchorEl(e.currentTarget)}
-        sx={{
-          backgroundColor: colorMap[severity] || '#cbd5e1',
-          color: '#fff',
-          fontWeight: 600
-        }}
-      />
+      <Tooltip title="Tap to view reason" arrow>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={(e) => setFlagAnchorEl(e.currentTarget)}
+          endIcon={<InfoOutlined sx={{ fontSize: 18 }} />}
+          sx={{
+            borderRadius: 999,
+            textTransform: 'none',
+            fontWeight: 800,
+            borderColor: colorMap[severity] || '#cbd5e1',
+            color: colorMap[severity] || '#334155',
+            '&:hover': {
+              borderColor: colorMap[severity] || '#94a3b8',
+              backgroundColor: 'rgba(15, 23, 42, 0.04)'
+            }
+          }}
+          aria-label="View flag reason"
+        >
+          <span role="img" aria-label="Flag" style={{ marginRight: 6 }}>
+            🚩
+          </span>
+          {label}
+        </Button>
+      </Tooltip>
     );
   };
 
@@ -261,20 +278,39 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       const displayList = coverageGaps.slice(0, 3).join(', ');
       const extra = coverageCount > 3 ? ` +${coverageCount - 3} more` : '';
       return (
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
-          <Typography variant="body2" sx={{ color: '#f59e0b', fontWeight: 600 }}>
-            Coverage gaps: {displayList}{extra}
-          </Typography>
-        </Stack>
+        <Tooltip title="Tap to view all missing domains" arrow>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
+            sx={{
+              cursor: 'pointer',
+              borderRadius: 1,
+              px: 0.5,
+              py: 0.25,
+              '&:hover': { backgroundColor: 'rgba(15, 23, 42, 0.04)' }
+            }}
+            aria-label="View missing domains"
+          >
+            <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+            <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 800 }}>
+              Missing domains:
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+              {displayList}{extra}
+            </Typography>
+            <InfoOutlined sx={{ fontSize: 18, color: '#64748b' }} />
+          </Stack>
+        </Tooltip>
       );
     }
 
     return (
       <Stack direction="row" alignItems="center" spacing={1}>
         <CheckCircleOutline sx={{ fontSize: 18, color: '#22c55e' }} />
-        <Typography variant="body2" sx={{ color: '#16a34a', fontWeight: 600 }}>
-          Coverage looks complete
+        <Typography variant="body2" sx={{ color: '#16a34a', fontWeight: 800 }}>
+          All domains covered
         </Typography>
       </Stack>
     );
@@ -391,7 +427,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
               </Avatar>
               <Box>
                 <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                  Coach Pepper’s summary
+                  Weekly Snapshot
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
                   {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardConfig?.windowDays || BASEBALL_CARD_DEFAULTS.windowDays} days
@@ -474,11 +510,29 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
       >
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-          {severity ? `Flag: ${severity}` : 'No flag'}
+          {severity ? `🚩 Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}` : 'No flag'}
         </Typography>
         <Typography variant="body2" sx={{ color: '#334155' }}>
           {severityReason || 'No reason provided.'}
         </Typography>
+      </Popover>
+
+      <Popover
+        open={Boolean(missingDomainsAnchorEl)}
+        anchorEl={missingDomainsAnchorEl}
+        onClose={() => setMissingDomainsAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{ sx: { p: 2, maxWidth: 340 } }}
+      >
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+          Missing domains
+        </Typography>
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          {coverageGaps.map((gap, idx) => (
+            <Chip key={`missing-domain-${idx}`} label={gap} size="small" variant="outlined" />
+          ))}
+        </Stack>
       </Popover>
 
       <Card
