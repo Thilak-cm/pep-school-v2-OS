@@ -17,6 +17,7 @@ import {
 import { collectionGroup, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
+import NewFeaturePill from './NewFeaturePill';
 
 function NotificationsPage() {
   const [loading, setLoading] = useState(true);
@@ -62,17 +63,16 @@ function NotificationsPage() {
           return;
         }
 
-        const signalsQuery = query(
-          collectionGroup(db, 'ai_summaries'),
-          where(documentId(), '==', 'signals')
-        );
+        const signalsQuery = query(collectionGroup(db, 'ai_summaries'));
         const snapshot = await getDocs(signalsQuery);
         if (!active) return;
 
-        const rows = snapshot.docs.map((d) => {
-          const studentId = d.ref.parent?.parent?.id || null;
-          return { id: d.id, studentId, ...(d.data() || {}) };
-        });
+        const rows = snapshot.docs
+          .filter((d) => d.id === 'signals')
+          .map((d) => {
+            const studentId = d.ref.parent?.parent?.id || null;
+            return { id: d.id, studentId, ...(d.data() || {}) };
+          });
         setSignals(rows);
 
         // Fetch student names (superadmin only) for display
@@ -132,17 +132,17 @@ function NotificationsPage() {
           Student signals (weekly). Super admins only for now.
         </Typography>
 
-        {error && (
+        {error && currentRole === 'superadmin' && (
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2 }}>
             <ErrorOutline color="error" fontSize="small" />
             <Typography variant="body2" color="error">{error}</Typography>
           </Stack>
         )}
 
-        {!error && !loading && currentRole && currentRole !== 'superadmin' && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Notifications are visible to super admins only.
-          </Typography>
+        {!loading && currentRole !== 'superadmin' && (
+          <Box sx={{ mt: 2 }}>
+            <NewFeaturePill label="New notifications page coming soon!" />
+          </Box>
         )}
 
         {!error && !loading && currentRole === 'superadmin' && (
