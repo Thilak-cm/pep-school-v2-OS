@@ -24,7 +24,6 @@ import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import NewFeaturePill from './NewFeaturePill';
 import { collection, addDoc, serverTimestamp, getDoc, doc, query, where, limit, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -203,14 +202,6 @@ function TextInput({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Feature hint */}
-      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-        <NewFeaturePill
-          label="New Feature: Try typing @ in text box below!"
-          size="sm"
-          showIcon={false}
-        />
-      </Box>
       {/* Title centered */}
       <Typography variant="h6" sx={{ textAlign: 'center', mb: 1 }}>
         Write your observation
@@ -1367,9 +1358,6 @@ function AddNoteModal({
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Lesson Note
                     </Typography>
-                    <Box sx={{ opacity: 1 }}>
-                      <NewFeaturePill label="New" size="sm" />
-                    </Box>
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Structured lesson observation
