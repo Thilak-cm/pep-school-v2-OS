@@ -16,6 +16,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import {
   Notes as NotesIcon,
   BarChart as BarChartIcon,
@@ -35,6 +36,84 @@ import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import NewFeaturePill from './NewFeaturePill';
+
+const confettiFall = keyframes`
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(400px) rotate(360deg);
+    opacity: 0;
+  }
+`;
+
+const confettiFallSmall = keyframes`
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(200px) rotate(360deg);
+    opacity: 0;
+  }
+`;
+
+const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+
+function ConfettiAnimation({ count = 50, small = false }) {
+  const particles = React.useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => {
+        const isWide = Math.random() > 0.5; // Mix of wide and tall rectangles
+        const width = isWide ? 12 + Math.random() * 8 : 6 + Math.random() * 4;
+        const height = isWide ? 6 + Math.random() * 4 : 12 + Math.random() * 8;
+        return {
+          id: i,
+          left: `${Math.random() * 100}%`,
+          delay: Math.random() * 2.5, // Spread over the full 2.5 seconds
+          duration: 2.5 + Math.random() * 0.5, // 2.5-3 seconds for smooth fall
+          color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+          width,
+          height,
+          rotation: Math.random() * 360, // Random starting rotation
+        };
+      }),
+    [count]
+  );
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 1,
+      }}
+    >
+      {particles.map((particle) => (
+        <Box
+          key={particle.id}
+          sx={{
+            position: 'absolute',
+            left: particle.left,
+            top: '-10px',
+            width: particle.width,
+            height: particle.height,
+            backgroundColor: particle.color,
+            borderRadius: '2px', // Slight rounding for softer look
+            transform: `rotate(${particle.rotation}deg)`,
+            animation: `${small ? confettiFallSmall : confettiFall} ${particle.duration}s ease-out ${particle.delay}s forwards`,
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
 function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
@@ -52,6 +131,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [reloadKey, setReloadKey] = useState(0);
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
+  const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
+  const coverageConfettiTimerRef = useRef(null);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -220,6 +301,37 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
   const coverageGaps = Array.isArray(signalsData?.coverageGaps) ? signalsData.coverageGaps : [];
   const coverageCount = coverageGaps.length;
+  const coverageTone = coverageCount === 0 ? 'balanced' : coverageCount > 4 ? 'alert' : 'warning';
+  const coveragePalette = {
+    balanced: {
+      borderColor: '#22c55e',
+      hoverBorderColor: '#16a34a',
+      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+      hoverBackground: 'rgba(22, 163, 74, 0.12)',
+      textColor: '#166534',
+      iconColor: '#22c55e',
+      title: 'Coverage balanced',
+    },
+    warning: {
+      borderColor: '#f59e0b',
+      hoverBorderColor: '#d97706',
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      hoverBackground: 'rgba(245, 158, 11, 0.14)',
+      textColor: '#92400e',
+      iconColor: '#f59e0b',
+      title: 'Missing domains',
+    },
+    alert: {
+      borderColor: '#dc2626',
+      hoverBorderColor: '#b91c1c',
+      backgroundColor: 'rgba(220, 38, 38, 0.1)',
+      hoverBackground: 'rgba(220, 38, 38, 0.14)',
+      textColor: '#991b1b',
+      iconColor: '#dc2626',
+      title: 'Missing domains',
+    },
+  };
+  const coverageStyles = coveragePalette[coverageTone];
   const severityColor = severity === 'high'
     ? '#dc2626'
     : severity === 'medium'
@@ -286,42 +398,51 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       );
     }
 
-    if (coverageCount > 0) {
-      return (
-        <Tooltip title="Tap to view all missing domains" arrow>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />}
-            endIcon={<InfoOutlined sx={{ fontSize: 18 }} />}
-            onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 700,
-              borderRadius: 2,
-              borderColor: '#f59e0b',
-              color: '#0f172a',
-              px: 1.5,
-              '&:hover': {
-                borderColor: '#d97706',
-                backgroundColor: 'rgba(245, 158, 11, 0.08)'
-              }
-            }}
-            aria-label={`View ${coverageCount} missing domains`}
-          >
-            Missing domains: {coverageCount}
-          </Button>
-        </Tooltip>
+    const buttonIcon =
+      coverageTone === 'balanced' ? (
+        <CheckCircle sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+      ) : (
+        <WarningIcon sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
       );
-    }
+
+    const handleCoverageClick = (e) => {
+      setMissingDomainsAnchorEl(e.currentTarget);
+      if (coverageTone === 'balanced') {
+        if (coverageConfettiTimerRef.current) {
+          clearTimeout(coverageConfettiTimerRef.current);
+        }
+        setShowCoverageConfetti(true);
+        coverageConfettiTimerRef.current = setTimeout(() => setShowCoverageConfetti(false), 2600);
+      }
+    };
 
     return (
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <CheckCircle sx={{ fontSize: 18, color: '#22c55e' }} />
-        <Typography variant="body2" sx={{ color: '#16a34a', fontWeight: 800 }}>
-          Missing domains: None
-        </Typography>
-      </Stack>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={buttonIcon}
+        onClick={handleCoverageClick}
+        sx={{
+          textTransform: 'none',
+          fontWeight: 700,
+          borderRadius: 2,
+          borderColor: coverageStyles.borderColor,
+          color: coverageStyles.textColor,
+          backgroundColor: coverageStyles.backgroundColor,
+          px: 1.5,
+          '&:hover': {
+            borderColor: coverageStyles.hoverBorderColor,
+            backgroundColor: coverageStyles.hoverBackground
+          }
+        }}
+        aria-label={
+          coverageTone === 'balanced'
+            ? 'View coverage details'
+            : `View ${coverageCount} missing domains`
+        }
+      >
+        {coverageTone === 'balanced' ? 'Coverage balanced' : `Missing domains: ${coverageCount}`}
+      </Button>
     );
   };
   const studentLabel = getStudentName(student);
@@ -415,8 +536,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardLoading, cardError, cardData, isSuperAdmin]);
 
+  useEffect(() => {
+    return () => {
+      if (coverageConfettiTimerRef.current) {
+        clearTimeout(coverageConfettiTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
       <Card
         sx={{
           borderRadius: 2,
@@ -541,19 +670,69 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       <Popover
         open={Boolean(missingDomainsAnchorEl)}
         anchorEl={missingDomainsAnchorEl}
-        onClose={() => setMissingDomainsAnchorEl(null)}
+        onClose={() => {
+          setMissingDomainsAnchorEl(null);
+          setShowCoverageConfetti(false);
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{ sx: { p: 2, maxWidth: 340 } }}
+        PaperProps={{
+          sx: {
+            p: 2,
+            maxWidth: 340,
+            border: `1px solid ${coverageStyles.borderColor}`,
+          }
+        }}
       >
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-          Missing domains
-        </Typography>
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-          {coverageGaps.map((gap, idx) => (
-            <Chip key={`missing-domain-${idx}`} label={gap} size="small" variant="outlined" />
-          ))}
-        </Stack>
+        <Box sx={{ position: 'relative', overflow: 'hidden' }}>
+          {coverageTone === 'balanced' && showCoverageConfetti && (
+            <ConfettiAnimation count={35} small />
+          )}
+          <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              {coverageTone === 'balanced' ? (
+                <CheckCircle sx={{ fontSize: 20, color: coverageStyles.iconColor }} />
+              ) : (
+                <WarningIcon sx={{ fontSize: 20, color: coverageStyles.iconColor }} />
+              )}
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: coverageStyles.textColor }}>
+                {coverageStyles.title}
+              </Typography>
+            </Stack>
+            {coverageTone === 'balanced' ? (
+              <>
+                <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                  Notes in the past {cardWindowDays} days have been balanced. Great job keeping coverage even!
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Keep rotating through domains to maintain this streak.
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography
+                  variant="body2"
+                  sx={{ color: coverageTone === 'alert' ? '#b91c1c' : '#92400e' }}
+                >
+                  {coverageTone === 'warning'
+                    ? 'A few domains need attention. Try adding observations in these areas soon.'
+                    : 'Many domains are missing. Prioritize observations in these areas this week.'}
+                </Typography>
+                {coverageGaps.length > 0 ? (
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    {coverageGaps.map((gap, idx) => (
+                      <Chip key={`missing-domain-${idx}`} label={gap} size="small" variant="outlined" />
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Domains list unavailable right now.
+                  </Typography>
+                )}
+              </>
+            )}
+          </Stack>
+        </Box>
       </Popover>
 
       <Card
