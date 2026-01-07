@@ -57,7 +57,8 @@ function NotificationsPage() {
           setLoading(false);
           return;
         }
-        if (currentRole && currentRole !== 'superadmin') {
+        if (currentRole === null) return; // wait for role
+        if (currentRole !== 'superadmin') {
           setSignals([]);
           setLoading(false);
           return;
@@ -111,6 +112,22 @@ function NotificationsPage() {
 
   const gapsList = signals.filter((s) => s.status === 'ok' && Array.isArray(s.coverageGaps) && s.coverageGaps.length > 0);
 
+  const isSuperAdmin = currentRole === 'superadmin';
+
+  if (!isSuperAdmin) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 320
+      }}>
+        <NewFeaturePill label="New notifications page coming soon!" />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Paper
@@ -123,14 +140,8 @@ function NotificationsPage() {
         }}
       >
         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-            Notifications
-          </Typography>
           {loading && <CircularProgress size={20} />}
         </Stack>
-        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-          Student signals (weekly). Super admins only for now.
-        </Typography>
 
         {error && currentRole === 'superadmin' && (
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2 }}>
@@ -139,13 +150,7 @@ function NotificationsPage() {
           </Stack>
         )}
 
-        {!loading && currentRole !== 'superadmin' && (
-          <Box sx={{ mt: 2 }}>
-            <NewFeaturePill label="New notifications page coming soon!" />
-          </Box>
-        )}
-
-        {!error && !loading && currentRole === 'superadmin' && (
+        {!error && !loading && isSuperAdmin && (
           <Stack spacing={2} sx={{ mt: 2 }}>
             <Stack direction="row" spacing={1} flexWrap="wrap">
               <Chip icon={<WarningIcon />} label={`High: ${severityCounts.high || 0}`} color="error" variant="outlined" />
