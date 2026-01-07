@@ -1,5 +1,17 @@
 # Changelog
 
+# 7.1.0 — 2026-01-06
+
+### Added
+- Firestore collection group rule for `ai_summaries` so signals can be queried safely across students by privileged admins and teachers.
+
+### Changed
+- Notifications page now treats `null` severity as a green “Clear” flag and shows a four-lane, equal-width segmented pill with per-category counts (High/Medium/Low/Clear).
+- Simplified the notifications header chips, removed redundant captions, and tightened the superadmin-only view to focus on the new flag distribution.
+
+### Fixed
+- Resolved “Missing or insufficient permissions” when loading signals by aligning client queries with the new collection group rule.
+
 # 7.0.1 — 2025-12-19
 
 ### Fixed
