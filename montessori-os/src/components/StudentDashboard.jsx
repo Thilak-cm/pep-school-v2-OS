@@ -1,5 +1,5 @@
 // StudentDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Card,
@@ -45,6 +45,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [regenRunning, setRegenRunning] = useState(false);
   const [regenError, setRegenError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const summaryScrollRef = useRef(null);
+  const [showScrollFade, setShowScrollFade] = useState(false);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -339,8 +341,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             sx={{
               color: '#334155',
               whiteSpace: 'pre-line',
-              maxHeight: '32vh',
-              overflowY: 'auto',
             }}
           >
             {cardData.summary}
@@ -353,6 +353,22 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       </Box>
     );
   };
+
+  const updateScrollFade = () => {
+    const el = summaryScrollRef.current;
+    if (!el) return;
+    const canScroll = el.scrollHeight - el.clientHeight > 4;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    setShowScrollFade(canScroll && !atBottom);
+  };
+
+  useEffect(() => {
+    updateScrollFade();
+    // Ensure fade updates if viewport changes (e.g., device rotation)
+    window.addEventListener('resize', updateScrollFade);
+    return () => window.removeEventListener('resize', updateScrollFade);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardLoading, cardError, cardData, isSuperAdmin]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -390,8 +406,29 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             {isSuperAdmin && signalsStatus === 'ok' && getSeverityChip()}
           </Box>
 
-          <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
-            {renderBaseballCardBody()}
+          <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+            <Box
+              ref={summaryScrollRef}
+              onScroll={updateScrollFade}
+              sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
+              aria-label="Student summary (scroll for more)"
+            >
+              {renderBaseballCardBody()}
+            </Box>
+            {showScrollFade && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 56,
+                  pointerEvents: 'none',
+                  background:
+                    'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+            )}
           </Box>
         </CardContent>
       </Card>
