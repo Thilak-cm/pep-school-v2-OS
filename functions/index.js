@@ -1469,7 +1469,7 @@ export const regenerateBaseballCardForStudent = functions
       timezone: baseConfig.timezone,
     };
 
-    const results = await runBaseballCards({
+    await runBaseballCards({
       studentIds: [studentId],
       config: mergedConfig,
       prompt: basePrompt,
@@ -1479,7 +1479,7 @@ export const regenerateBaseballCardForStudent = functions
       concurrency: 1,
     });
 
-    // When not collecting results, `results` will be empty; we still return a simple ack.
+    // Regeneration writes directly to Firestore; return a simple ack.
     return {
       status: "ok",
       studentId,
