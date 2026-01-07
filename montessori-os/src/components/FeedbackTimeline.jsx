@@ -20,7 +20,8 @@ import {
   MenuItem,
   Alert,
   Snackbar,
-  TextField as MuiTextField
+  TextField as MuiTextField,
+  Collapse
 } from '@mui/material';
 import { 
   Search, 
@@ -35,7 +36,9 @@ import {
   Chat,
   Person,
   AccessTime,
-  AdminPanelSettings
+  AdminPanelSettings,
+  ExpandMore,
+  ExpandLess
 } from '@mui/icons-material';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -74,6 +77,14 @@ function FeedbackTimeline({ currentUser, userRole }) {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [userFilter, setUserFilter] = useState('');
+  
+  // Collapse state for status groups (new is expanded by default, others collapsed)
+  const [expandedStatuses, setExpandedStatuses] = useState({
+    new: true,
+    reviewed: false,
+    implemented: false,
+    declined: false
+  });
 
   // Load all feedback
   useEffect(() => {
@@ -207,6 +218,13 @@ function FeedbackTimeline({ currentUser, userRole }) {
 
   const hasActiveFilters = searchQuery || categoryFilter || statusFilter || userFilter;
 
+  const toggleStatusGroup = (status) => {
+    setExpandedStatuses(prev => ({
+      ...prev,
+      [status]: !prev[status]
+    }));
+  };
+
   if (!canView) {
     return (
       <Box sx={{ p: 2 }}>
@@ -338,98 +356,116 @@ function FeedbackTimeline({ currentUser, userRole }) {
             const statusFeedback = groupedFeedback[status] || [];
             if (statusFeedback.length === 0) return null;
             
+            const isExpanded = expandedStatuses[status];
+            
             return (
               <Box key={status}>
-                {/* Status Header */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 2, 
-                  py: 2,
-                  px: 1
-                }}>
-                  <Chip
-                    label={`${statusFeedback.length} ${status.charAt(0).toUpperCase() + status.slice(1)}`}
-                    color={getStatusColor(status)}
-                    variant="filled"
-                    size="medium"
-                  />
-                  <Typography variant="h6" color="text.secondary">
-                    {status.charAt(0).toUpperCase() + status.slice(1)} Feedback
-                  </Typography>
-                </Box>
-                
-                {/* Feedback Cards for this Status */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
-                  {statusFeedback.map((feedback) => (
-                    <Card
-                      key={feedback.id}
-                      onClick={() => handleFeedbackClick(feedback)}
+                {/* Status Header as Toggle Button */}
+                <Button
+                  onClick={() => toggleStatusGroup(status)}
+                  fullWidth
+                  variant={isExpanded ? "contained" : "outlined"}
+                  color={getStatusColor(status)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    py: 1.5,
+                    px: 2,
+                    mb: 2,
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    '&:hover': {
+                      boxShadow: 2
+                    }
+                  }}
+                  endIcon={isExpanded ? <ExpandLess /> : <ExpandMore />}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                    <Chip
+                      label={`${statusFeedback.length} ${status.charAt(0).toUpperCase() + status.slice(1)}`}
+                      color={isExpanded ? "default" : getStatusColor(status)}
+                      variant={isExpanded ? "filled" : "filled"}
+                      size="medium"
                       sx={{
-                        cursor: 'pointer',
-                        '&:hover': {
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease-in-out',
+                        backgroundColor: isExpanded ? 'background.paper' : undefined,
+                        color: isExpanded ? 'primary.main' : undefined
+                      }}
+                    />
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        color: isExpanded ? 'primary.contrastText' : 'text.primary',
+                        fontWeight: 600
                       }}
                     >
-                      <CardContent sx={{ p: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                          {feedback.category && (
+                      {status.charAt(0).toUpperCase() + status.slice(1)} Feedback
+                    </Typography>
+                  </Box>
+                </Button>
+                
+                {/* Feedback Cards for this Status */}
+                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                    {statusFeedback.map((feedback) => (
+                      <Card
+                        key={feedback.id}
+                        onClick={() => handleFeedbackClick(feedback)}
+                        sx={{
+                          cursor: 'pointer',
+                          '&:hover': {
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s ease-in-out',
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                            {feedback.category && (
+                              <Chip
+                                icon={getCategoryIcon(feedback.category)}
+                                label={getCategoryLabel(feedback.category)}
+                                size="small"
+                                variant="outlined"
+                              />
+                            )}
                             <Chip
-                              icon={getCategoryIcon(feedback.category)}
-                              label={getCategoryLabel(feedback.category)}
+                              label={feedback.status}
+                              size="small"
+                              color={getStatusColor(feedback.status)}
+                            />
+                            <Chip
+                              label={feedback.userRole}
                               size="small"
                               variant="outlined"
+                              sx={{ ml: 'auto' }}
                             />
-                          )}
-                          <Chip
-                            label={feedback.status}
-                            size="small"
-                            color={getStatusColor(feedback.status)}
-                          />
-                          <Chip
-                            label={feedback.userRole}
-                            size="small"
-                            variant="outlined"
-                            sx={{ ml: 'auto' }}
-                          />
-                        </Box>
-                        
-                        <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
-                          {feedback.message.length > 150 
-                            ? `${feedback.message.substring(0, 150)}...` 
-                            : feedback.message
-                          }
-                        </Typography>
-                        
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Person sx={{ fontSize: 16 }} />
-                            {feedback.userDisplayName || feedback.userEmail}
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <AccessTime sx={{ fontSize: 16 }} />
-                            {formatTimestamp(feedback.timestamp)}
+                          
+                          <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5 }}>
+                            {feedback.message.length > 150 
+                              ? `${feedback.message.substring(0, 150)}...` 
+                              : feedback.message
+                            }
+                          </Typography>
+                          
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Person sx={{ fontSize: 16 }} />
+                              {feedback.userDisplayName || feedback.userEmail}
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <AccessTime sx={{ fontSize: 16 }} />
+                              {formatTimestamp(feedback.timestamp)}
+                            </Box>
                           </Box>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Box>
-                
-                {/* Divider between status groups (except after the last one) */}
-                {status !== statusOrder[statusOrder.length - 1] && (
-                  <Divider sx={{ my: 3 }}>
-                    <Chip 
-                      label="Next Status Group" 
-                      size="small" 
-                      variant="outlined"
-                      sx={{ backgroundColor: 'background.paper' }}
-                    />
-                  </Divider>
-                )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Box>
+                </Collapse>
               </Box>
             );
           })}
