@@ -988,21 +988,37 @@ const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let baseballPromptCache = { data: null, ts: 0 };
 let baseballConfigCache = { data: null, ts: 0 };
 
-const BASEBALL_SYSTEM_PROMPT_FALLBACK = `You are Coach Pepper, summarizing the last <WINDOW_DAYS> days of notes for ONE student.
-You receive an array of notes with various fields in them. Understand them so you can generate a structured summary output.
+const BASEBALL_SYSTEM_PROMPT_FALLBACK = `# Student Summary Generator (Concise)
 
-Rules:
-- Output concise JSON only. No markdown. Return exactly one JSON object matching the schema; no extra keys.
-- Summaries must be grounded ONLY in provided notes. Never invent details, diagnoses, or events.
-- Keep wording clear, teacher-friendly, and brief; prefer active voice.
-- Bullets: 3–7 items (depends on content size). Each bullet must include a concrete evidence clause with a date (e.g., “On Nov 18 …”).
-- Lesson summary: 1–2 sentence conclusion weaving the recent lessons/overall takeaway (no heading).
+You are Coach Pepper, generating evidence-based student summaries for internal staff review.
 
-Output schema:
+## Input
+Array of observation notes for ONE student from last <WINDOW_DAYS> days. Each note has: text, observedAt, studentId, plus metadata.
+
+## Output Schema (JSON only, no markdown)
 {
-  "bullets": ["...", "..."],
-  "lessonSummary": "..."
-}`;
+  "summary": "2-3 paragraph staff-facing summary",
+  "redFlag": {
+    "severity": "low"|"medium"|"high"|null,
+    "reason": "brief explanation or null"
+  },
+  "coverageGaps": ["academic domains with zero observations"]
+}
+
+## Summary Guidelines
+- Structure: 2-3 short paragraphs (3-5 sentences each). Para 1: academic progress (materials, concepts, trajectory) leading with most frequent areas. Para 2: social-emotional patterns (independence, focus, peer interactions, regulation). Para 3 optional for cross-cutting themes.
+- Style: concise, active voice, professional; staff-facing. Ground every claim in notes with natural dates (“On Dec 4…”, “In early November…”). No invented content, diagnoses, or next steps. Summarize what appears—don’t force domains.
+
+## Red Flag Logic
+- Raise HIGH for safety/aggression/elopement, severe dysregulation, total refusal/regression.
+- Raise MEDIUM for persistent social difficulties, consistent avoidance of academic areas, emotional patterns affecting learning, significant foundational gaps.
+- Raise LOW for emerging concerns, variable engagement, or when observation coverage is limited/missing (e.g., “dog that didn’t bark”).
+- If no concern, set severity to null and reason to null.
+
+## Coverage Gaps
+- List major domains with NO observations: Language/Literacy, Mathematics, Practical Life, Sensorial, Cultural Studies, Creative Arts.
+- Only list domains expected for the age/stage. Use empty array if coverage is complete.
+`;
 
 function isFreshCache(cacheEntry) {
   return cacheEntry?.data && (Date.now() - cacheEntry.ts < BASEBALL_CACHE_TTL_MS);
@@ -1174,14 +1190,24 @@ async function callBaseballCard(notes, config, prompt, windowDays) {
     throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
   }
 
-  const bullets = Array.isArray(parsed.bullets) ? parsed.bullets : [];
-  const lessonSummary = typeof parsed.lessonSummary === "string" ? parsed.lessonSummary : "";
+  const summary = typeof parsed.summary === "string" ? parsed.summary : "";
+  const redFlagRaw = parsed.redFlag || {};
+  const redFlag = {
+    severity: ["low", "medium", "high"].includes(redFlagRaw?.severity) ? redFlagRaw.severity : null,
+    reason: typeof redFlagRaw?.reason === "string" ? redFlagRaw.reason : null,
+  };
+  const coverageGaps = Array.isArray(parsed.coverageGaps) ? parsed.coverageGaps.filter((c) => typeof c === "string") : [];
 
-  return { bullets, lessonSummary, rawContent };
+  return { summary, redFlag, coverageGaps, rawContent };
 }
 
 async function writeBaseballCardDoc(studentId, payload) {
   const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("baseball_card");
+  await ref.set(payload);
+}
+
+async function writeSignalsDoc(studentId, payload) {
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("signals");
   await ref.set(payload);
 }
 
@@ -1227,14 +1253,14 @@ async function runBaseballCards({
 
       if (!notes.length) {
         const payload = {
-          bullets: [],
-          lessonSummary: "",
+          summary: "",
+          redFlag: { severity: null, reason: null },
+          coverageGaps: [],
           noteCount: 0,
           windowDays: effectiveWindowDays,
           timezone: config.timezone,
           model: config.model,
           temperature: config.temperature,
-          promptVersion: prompt.version || null,
           generatedAt: new Date(),
           status: "no_notes",
         };
@@ -1242,6 +1268,17 @@ async function runBaseballCards({
           results.push({ studentId, status: "no_notes", payload });
         } else if (!dryRun) {
           await writeBaseballCardDoc(studentId, payload);
+          await writeSignalsDoc(studentId, {
+            redFlag: payload.redFlag,
+            coverageGaps: payload.coverageGaps,
+            noteCount: payload.noteCount,
+            windowDays: payload.windowDays,
+            timezone: payload.timezone,
+            model: payload.model,
+            temperature: payload.temperature,
+            generatedAt: payload.generatedAt,
+            status: payload.status,
+          });
         }
         return;
       }
@@ -1250,14 +1287,14 @@ async function runBaseballCards({
       const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays);
 
       const payload = {
-        bullets: aiResult.bullets,
-        lessonSummary: aiResult.lessonSummary,
+        summary: aiResult.summary,
+        redFlag: aiResult.redFlag,
+        coverageGaps: aiResult.coverageGaps,
         noteCount: formatted.length,
         windowDays: effectiveWindowDays,
         timezone: config.timezone,
         model: config.model,
         temperature: config.temperature,
-        promptVersion: prompt.version || null,
         generatedAt: new Date(),
         status: "ok",
         sourceNoteIds: formatted.map((n) => n.id).filter(Boolean),
@@ -1268,6 +1305,17 @@ async function runBaseballCards({
         results.push({ studentId, status: "ok", payload });
       } else if (!dryRun) {
         await writeBaseballCardDoc(studentId, payload);
+        await writeSignalsDoc(studentId, {
+          redFlag: aiResult.redFlag,
+          coverageGaps: aiResult.coverageGaps,
+          noteCount: payload.noteCount,
+          windowDays: payload.windowDays,
+          timezone: payload.timezone,
+          model: payload.model,
+          temperature: payload.temperature,
+          generatedAt: payload.generatedAt,
+          status: payload.status,
+        });
       }
     } catch (err) {
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
@@ -1352,8 +1400,9 @@ export const previewBaseballCard = functions
       windowDays: result.payload?.windowDays ?? windowDays,
       usedConfig: mergedConfig,
       usedPrompt: promptPayload,
-      bullets: result.payload?.bullets,
-      lessonSummary: result.payload?.lessonSummary,
+      summary: result.payload?.summary,
+      redFlag: result.payload?.redFlag,
+      coverageGaps: result.payload?.coverageGaps,
       rawContent: result.payload?.rawContent,
       generatedAt: result.payload?.generatedAt?.toISOString?.() || new Date().toISOString(),
     };

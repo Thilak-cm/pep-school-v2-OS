@@ -10,7 +10,9 @@ import {
   Button,
   Skeleton,
   Stack,
-  Alert
+  Alert,
+  Chip,
+  Popover
 } from '@mui/material';
 import {
   Notes as NotesIcon,
@@ -19,7 +21,9 @@ import {
   ArrowForward,
   AutoAwesome,
   ErrorOutline,
-  Chat as ChatIcon
+  Chat as ChatIcon,
+  CheckCircleOutline,
+  InfoOutlined
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -33,6 +37,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [cardData, setCardData] = useState(null);
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
   const [currentRole, setCurrentRole] = useState(null);
+  const [signalsLoading, setSignalsLoading] = useState(true);
+  const [signalsError, setSignalsError] = useState('');
+  const [signalsData, setSignalsData] = useState(null);
+  const [flagAnchorEl, setFlagAnchorEl] = useState(null);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -97,23 +105,32 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       setCardData(null);
       setCardError('');
       setCardLoading(false);
+      setSignalsData(null);
+      setSignalsError('');
+      setSignalsLoading(false);
       return () => { active = false; };
     }
 
     setCardLoading(true);
     setCardError('');
+    setSignalsLoading(true);
+    setSignalsError('');
 
     const fetchCard = async () => {
       try {
         const ref = doc(db, 'students', studentId, 'ai_summaries', 'baseball_card');
-        const snap = await getDoc(ref);
+        const signalsRef = doc(db, 'students', studentId, 'ai_summaries', 'signals');
+        const [snap, signalsSnap] = await Promise.all([getDoc(ref), getDoc(signalsRef)]);
         if (!active) return;
         setCardData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+        setSignalsData(signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null);
       } catch (err) {
         console.error('Error loading baseball card', err);
         if (active) setCardError('Failed to load the baseball card.');
+        if (active) setSignalsError('Failed to load student signals.');
       } finally {
         if (active) setCardLoading(false);
+        if (active) setSignalsLoading(false);
       }
     };
 
@@ -187,6 +204,75 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const cardNoteCount = cardData?.noteCount;
   const cardStatus = cardData?.status || null;
   const isNoNotes = cardStatus === 'no_notes' || cardNoteCount === 0;
+  const signalsStatus = signalsData?.status || null;
+  const severity = signalsStatus === 'ok' ? (signalsData?.redFlag?.severity || null) : null;
+  const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
+  const coverageGaps = Array.isArray(signalsData?.coverageGaps) ? signalsData.coverageGaps : [];
+  const coverageCount = coverageGaps.length;
+
+  const getSeverityChip = () => {
+    if (!severity) return null;
+    const label = `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`;
+    const colorMap = {
+      high: '#dc2626',
+      medium: '#f59e0b',
+      low: '#94a3b8'
+    };
+    return (
+      <Chip
+        label={label}
+        size="small"
+        onClick={(e) => setFlagAnchorEl(e.currentTarget)}
+        sx={{
+          backgroundColor: colorMap[severity] || '#cbd5e1',
+          color: '#fff',
+          fontWeight: 600
+        }}
+      />
+    );
+  };
+
+  const renderCoverageRow = () => {
+    if (signalsLoading) {
+      return (
+        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+          Checking coverage…
+        </Typography>
+      );
+    }
+    if (signalsStatus !== 'ok') {
+      return (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <InfoOutlined sx={{ fontSize: 18, color: '#94a3b8' }} />
+          <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+            Coverage pending
+          </Typography>
+        </Stack>
+      );
+    }
+
+    if (coverageCount > 0) {
+      const displayList = coverageGaps.slice(0, 3).join(', ');
+      const extra = coverageCount > 3 ? ` +${coverageCount - 3} more` : '';
+      return (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+          <Typography variant="body2" sx={{ color: '#f59e0b', fontWeight: 600 }}>
+            Coverage gaps: {displayList}{extra}
+          </Typography>
+        </Stack>
+      );
+    }
+
+    return (
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <CheckCircleOutline sx={{ fontSize: 18, color: '#22c55e' }} />
+        <Typography variant="body2" sx={{ color: '#16a34a', fontWeight: 600 }}>
+          Coverage looks complete
+        </Typography>
+      </Stack>
+    );
+  };
   const studentLabel = getStudentName(student);
   const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
 
@@ -243,22 +329,21 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-        {cardData.lessonSummary && (
-          <Typography variant="body2" sx={{ color: '#334155' }}>
-            {cardData.lessonSummary}
+        {cardData.summary ? (
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#334155',
+              whiteSpace: 'pre-line',
+              maxHeight: '32vh',
+              overflowY: 'auto',
+            }}
+          >
+            {cardData.summary}
           </Typography>
-        )}
-        {Array.isArray(cardData.bullets) && cardData.bullets.length > 0 ? (
-          <Box component="ul" sx={{ pl: 2, m: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-            {cardData.bullets.map((b, idx) => (
-              <li key={`bb-bullet-${idx}`} style={{ color: '#0f172a', lineHeight: 1.5 }}>
-                <Typography variant="body2">{b}</Typography>
-              </li>
-            ))}
-          </Box>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            No bullets returned.
+            No summary returned.
           </Typography>
         )}
       </Box>
@@ -291,8 +376,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
                   {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardConfig?.windowDays || BASEBALL_CARD_DEFAULTS.windowDays} days
                 </Typography>
+                {isSuperAdmin && (
+                  <Box sx={{ mt: 0.5 }}>
+                    {renderCoverageRow()}
+                  </Box>
+                )}
               </Box>
             </Box>
+            {isSuperAdmin && signalsStatus === 'ok' && getSeverityChip()}
           </Box>
 
           <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
@@ -300,6 +391,21 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           </Box>
         </CardContent>
       </Card>
+      <Popover
+        open={Boolean(flagAnchorEl)}
+        anchorEl={flagAnchorEl}
+        onClose={() => setFlagAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
+      >
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+          {severity ? `Flag: ${severity}` : 'No flag'}
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#334155' }}>
+          {severityReason || 'No reason provided.'}
+        </Typography>
+      </Popover>
 
       <Card
         sx={{
@@ -335,6 +441,47 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </CardContent>
       </CardActionArea>
     </Card>
+
+    {/* AI Chat Card - Admin Only */}
+    {isSuperAdmin && (
+      <Card
+        sx={{
+          borderRadius: 2,
+          '&:hover': {
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            transform: 'translateY(-2px)',
+          },
+          transition: 'all 0.2s ease-in-out',
+        }}
+      >
+        <CardActionArea
+          onClick={() => {
+            trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {});
+            onOpenChat?.();
+          }}
+          sx={{ p: 0 }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
+                  <ChatIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                    Chat with Coach Pepper
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b' }}>
+                    Ask questions about {getStudentName(student)}'s development
+                  </Typography>
+                </Box>
+              </Box>
+              <ArrowForward sx={{ color: '#94a3b8' }} />
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    )}
 
     <Card
       sx={{
@@ -387,47 +534,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </CardContent>
       </CardActionArea>
     </Card>
-
-    {/* AI Chat Card - Admin Only */}
-    {isSuperAdmin && (
-      <Card
-        sx={{
-          borderRadius: 2,
-          '&:hover': {
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            transform: 'translateY(-2px)',
-          },
-          transition: 'all 0.2s ease-in-out',
-        }}
-      >
-        <CardActionArea
-          onClick={() => {
-            trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {});
-            onOpenChat?.();
-          }}
-          sx={{ p: 0 }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-                <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
-                  <ChatIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                    Chat with Coach Pepper
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
-                    Ask questions about {getStudentName(student)}'s development
-                  </Typography>
-                </Box>
-              </Box>
-              <ArrowForward sx={{ color: '#94a3b8' }} />
-            </Box>
-          </CardContent>
-        </CardActionArea>
-      </Card>
-    )}
   </Box>
   );
 }

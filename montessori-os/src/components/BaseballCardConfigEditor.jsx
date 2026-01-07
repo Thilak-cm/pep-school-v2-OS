@@ -21,21 +21,37 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
-const DEFAULT_PROMPT = `You are Coach Pepper, summarizing the last <WINDOW_DAYS> days of notes for ONE student.
-You receive an array of notes with various fields in them. Understand them so you can generate a structured summary output.
+const DEFAULT_PROMPT = `# Student Summary Generator (Concise)
 
-Rules:
-- Output concise JSON only. No markdown. Return exactly one JSON object matching the schema; no extra keys.
-- Summaries must be grounded ONLY in provided notes. Never invent details, diagnoses, or events.
-- Keep wording clear, teacher-friendly, and brief; prefer active voice.
-- Bullets: 3–7 items (depends on content size). Each bullet must include a concrete evidence clause with a date (e.g., “On Nov 18 …”).
-- Lesson summary: 1–2 sentence conclusion weaving the recent lessons/overall takeaway (no heading).
+You are Coach Pepper, generating evidence-based student summaries for internal staff review.
 
-Output schema:
+## Input
+Array of observation notes for ONE student from last <WINDOW_DAYS> days. Each note has: text, observedAt, studentId, plus metadata.
+
+## Output Schema (JSON only, no markdown)
 {
-  "bullets": ["...", "..."],
-  "lessonSummary": "..."
-}`;
+  "summary": "2-3 paragraph staff-facing summary",
+  "redFlag": {
+    "severity": "low"|"medium"|"high"|null,
+    "reason": "brief explanation or null"
+  },
+  "coverageGaps": ["academic domains with zero observations"]
+}
+
+## Summary Guidelines
+- Structure: 2-3 short paragraphs (3-5 sentences each). Para 1: academic progress (materials, concepts, trajectory) leading with most frequent areas. Para 2: social-emotional patterns (independence, focus, peer interactions, regulation). Para 3 optional for cross-cutting themes.
+- Style: concise, active voice, professional; staff-facing. Ground every claim in notes with natural dates (“On Dec 4…”, “In early November…”). No invented content, diagnoses, or next steps. Summarize what appears—don’t force domains.
+
+## Red Flag Logic
+- Raise HIGH for safety/aggression/elopement, severe dysregulation, total refusal/regression.
+- Raise MEDIUM for persistent social difficulties, consistent avoidance of academic areas, emotional patterns affecting learning, significant foundational gaps.
+- Raise LOW for emerging concerns, variable engagement, or when observation coverage is limited/missing (e.g., “dog that didn’t bark”).
+- If no concern, set severity to null and reason to null.
+
+## Coverage Gaps
+- List major domains with NO observations: Language/Literacy, Mathematics, Practical Life, Sensorial, Cultural Studies, Creative Arts.
+- Only list domains expected for the age/stage. Use empty array if coverage is complete.
+`;
 
 export default function BaseballCardConfigEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
@@ -428,18 +444,18 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
               />
             </Stack>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-            <Button
-              variant="contained"
-              onClick={handleRunPlayground}
-              disabled={playgroundRunning || !selectedStudent}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+              <Button
+                variant="contained"
+                onClick={handleRunPlayground}
+                disabled={playgroundRunning || !selectedStudent}
                 startIcon={playgroundRunning ? <CircularProgress size={18} /> : null}
                 sx={{ minWidth: 160 }}
               >
                 {playgroundRunning ? 'Running…' : 'Run preview'}
               </Button>
               <Typography variant="body2" color="text.secondary">
-                Raw LLM response:
+                Preview + raw response
               </Typography>
             </Stack>
 
@@ -450,23 +466,75 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
             )}
 
             {playgroundResult && (
-              <Box
-                sx={{
-                  p: 2,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 2,
-                  backgroundColor: '#f8fafc',
-                  fontFamily: 'ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                  wordBreak: 'break-word'
-                }}
-                component="pre"
-              >
-                {typeof playgroundResult.rawContent === 'string' && playgroundResult.rawContent.trim().length > 0
-                  ? playgroundResult.rawContent
-                  : JSON.stringify(playgroundResult, null, 2)}
-              </Box>
+              <Stack spacing={2}>
+                <Box
+                  sx={{
+                    p: 2,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 2,
+                    backgroundColor: '#f8fafc',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Summary
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', color: '#334155' }}>
+                    {playgroundResult.summary || '—'}
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip
+                      label={`Flag: ${playgroundResult.redFlag?.severity || 'none'}`}
+                      size="small"
+                      color={
+                        playgroundResult.redFlag?.severity === 'high'
+                          ? 'error'
+                          : playgroundResult.redFlag?.severity === 'medium'
+                            ? 'warning'
+                            : playgroundResult.redFlag?.severity === 'low'
+                              ? 'default'
+                              : 'success'
+                      }
+                      variant={playgroundResult.redFlag?.severity ? 'filled' : 'outlined'}
+                    />
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      {playgroundResult.redFlag?.reason || 'No reason provided.'}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      Coverage gaps:
+                    </Typography>
+                    {Array.isArray(playgroundResult.coverageGaps) && playgroundResult.coverageGaps.length > 0 ? (
+                      playgroundResult.coverageGaps.map((gap, idx) => (
+                        <Chip key={`gap-${idx}`} label={gap} size="small" variant="outlined" />
+                      ))
+                    ) : (
+                      <Chip label="None" size="small" color="success" variant="outlined" />
+                    )}
+                  </Stack>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 2,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 2,
+                    backgroundColor: '#f8fafc',
+                    fontFamily: 'ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word'
+                  }}
+                  component="pre"
+                >
+                  {typeof playgroundResult.rawContent === 'string' && playgroundResult.rawContent.trim().length > 0
+                    ? playgroundResult.rawContent
+                    : JSON.stringify(playgroundResult, null, 2)}
+                </Box>
+              </Stack>
             )}
           </Stack>
         </CardContent>
