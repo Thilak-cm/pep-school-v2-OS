@@ -7,6 +7,7 @@ import {
   Typography,
   Avatar,
   CardActionArea,
+  IconButton,
   Button,
   Skeleton,
   Stack,
@@ -24,7 +25,9 @@ import {
   ErrorOutline,
   Chat as ChatIcon,
   CheckCircleOutline,
-  InfoOutlined
+  InfoOutlined,
+  FlagRounded,
+  CheckCircle
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -217,40 +220,49 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
   const coverageGaps = Array.isArray(signalsData?.coverageGaps) ? signalsData.coverageGaps : [];
   const coverageCount = coverageGaps.length;
+  const severityColor = severity === 'high'
+    ? '#dc2626'
+    : severity === 'medium'
+      ? '#f59e0b'
+      : severity === 'low'
+        ? '#94a3b8'
+        : '#22c55e';
 
   const getSeverityChip = () => {
-    if (!severity) return null;
-    const label = `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`;
+    if (signalsLoading || signalsStatus !== 'ok') return null;
+
     const colorMap = {
       high: '#dc2626',
       medium: '#f59e0b',
-      low: '#94a3b8'
+      low: '#94a3b8',
+      none: '#22c55e'
     };
+
+    const paletteColor = colorMap[severity] || colorMap.none;
+    const label = severity
+      ? `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`
+      : 'Verified';
+    const IconComponent = severity ? FlagRounded : CheckCircle;
+
     return (
-      <Tooltip title="Tap to view reason" arrow>
-        <Button
-          variant="outlined"
-          size="small"
+      <Tooltip title={label} arrow>
+        <IconButton
           onClick={(e) => setFlagAnchorEl(e.currentTarget)}
-          endIcon={<InfoOutlined sx={{ fontSize: 18 }} />}
           sx={{
-            borderRadius: 999,
-            textTransform: 'none',
-            fontWeight: 800,
-            borderColor: colorMap[severity] || '#cbd5e1',
-            color: colorMap[severity] || '#334155',
+            width: 40,
+            height: 40,
+            border: `1px solid ${paletteColor}`,
+            color: paletteColor,
+            backgroundColor: 'rgba(15, 23, 42, 0.04)',
             '&:hover': {
-              borderColor: colorMap[severity] || '#94a3b8',
-              backgroundColor: 'rgba(15, 23, 42, 0.04)'
+              backgroundColor: 'rgba(15, 23, 42, 0.08)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
             }
           }}
-          aria-label="View flag reason"
+          aria-label="View flag details"
         >
-          <span role="img" aria-label="Flag" style={{ marginRight: 6 }}>
-            🚩
-          </span>
-          {label}
-        </Button>
+          <IconComponent sx={{ fontSize: 22 }} />
+        </IconButton>
       </Tooltip>
     );
   };
@@ -275,42 +287,39 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     }
 
     if (coverageCount > 0) {
-      const displayList = coverageGaps.slice(0, 3).join(', ');
-      const extra = coverageCount > 3 ? ` +${coverageCount - 3} more` : '';
       return (
         <Tooltip title="Tap to view all missing domains" arrow>
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={1}
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />}
+            endIcon={<InfoOutlined sx={{ fontSize: 18 }} />}
             onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
             sx={{
-              cursor: 'pointer',
-              borderRadius: 1,
-              px: 0.5,
-              py: 0.25,
-              '&:hover': { backgroundColor: 'rgba(15, 23, 42, 0.04)' }
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: 2,
+              borderColor: '#f59e0b',
+              color: '#0f172a',
+              px: 1.5,
+              '&:hover': {
+                borderColor: '#d97706',
+                backgroundColor: 'rgba(245, 158, 11, 0.08)'
+              }
             }}
-            aria-label="View missing domains"
+            aria-label={`View ${coverageCount} missing domains`}
           >
-            <WarningIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
-            <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 800 }}>
-              Missing domains:
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-              {displayList}{extra}
-            </Typography>
-            <InfoOutlined sx={{ fontSize: 18, color: '#64748b' }} />
-          </Stack>
+            Missing domains: {coverageCount}
+          </Button>
         </Tooltip>
       );
     }
 
     return (
       <Stack direction="row" alignItems="center" spacing={1}>
-        <CheckCircleOutline sx={{ fontSize: 18, color: '#22c55e' }} />
+        <CheckCircle sx={{ fontSize: 18, color: '#22c55e' }} />
         <Typography variant="body2" sx={{ color: '#16a34a', fontWeight: 800 }}>
-          All domains covered
+          Missing domains: None
         </Typography>
       </Stack>
     );
@@ -416,10 +425,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           maxHeight: '60vh',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'hidden' }}>
+          {isSuperAdmin && (
+            <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+              {getSeverityChip()}
+            </Box>
+          )}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
@@ -439,7 +454,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                 )}
               </Box>
             </Box>
-            {isSuperAdmin && signalsStatus === 'ok' && getSeverityChip()}
           </Box>
 
           <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>
@@ -509,11 +523,18 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
       >
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-          {severity ? `🚩 Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}` : 'No flag'}
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+          {severity ? (
+            <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
+          ) : (
+            <CheckCircle sx={{ fontSize: 22, color: severityColor }} />
+          )}
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
+            {severity ? `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}` : 'No active flag'}
+          </Typography>
+        </Stack>
         <Typography variant="body2" sx={{ color: '#334155' }}>
-          {severityReason || 'No reason provided.'}
+          {severityReason || (severity ? 'No reason provided.' : 'This student currently has no concerns flagged.')}
         </Typography>
       </Popover>
 
