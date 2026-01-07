@@ -56,7 +56,7 @@ import {
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
 
-const renderLessonSummary = (note, showGroupDefaults = false) => {
+const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
   const dimensions = getLessonDimensions(note);
   const groupDefaults = note.groupDefaults || {};
   return (
@@ -116,7 +116,8 @@ const renderLessonSummary = (note, showGroupDefaults = false) => {
           })}
         </Box>
       )}
-      {note.studentComment && (
+      {/* Only show student comment if explicitly requested (for expanded views) */}
+      {showStudentComment && note.studentComment && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="text.secondary">
             💬 {note.studentComment}
