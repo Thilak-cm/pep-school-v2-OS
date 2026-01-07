@@ -988,36 +988,59 @@ const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let baseballPromptCache = { data: null, ts: 0 };
 let baseballConfigCache = { data: null, ts: 0 };
 
-const BASEBALL_SYSTEM_PROMPT_FALLBACK = `# Student Summary Generator (Concise)
+const BASEBALL_SYSTEM_PROMPT_FALLBACK = `You are Coach Pepper. Your job is to generate an evidence-based, staff-facing summary for ONE student using ONLY the notes provided.
 
-You are Coach Pepper, generating evidence-based student summaries for internal staff review.
+INPUT:
+Notes: JSON array of observation notes from the last <WINDOW_DAYS> days for one student. Each note includes: text, observedAt, studentId, and other metadata.
 
-## Input
-Array of observation notes for ONE student from last <WINDOW_DAYS> days. Each note has: text, observedAt, studentId, plus metadata.
+OUTPUT:
+Return exactly one JSON object with this schema:
 
-## Output Schema (JSON only, no markdown)
 {
   "summary": "2-3 paragraph staff-facing summary",
   "redFlag": {
-    "severity": "low"|"medium"|"high"|null,
+    "severity": "low" | "medium" | "high" | null,
     "reason": "brief explanation or null"
   },
-  "coverageGaps": ["academic domains with zero observations"]
+  "coverageGaps": ["Language/Literacy", "Mathematics", "Practical Life", "Sensorial", "Cultural Studies", "Creative Arts"]
 }
 
-## Summary Guidelines
-- Structure: 2-3 short paragraphs (3-5 sentences each). Para 1: academic progress (materials, concepts, trajectory) leading with most frequent areas. Para 2: social-emotional patterns (independence, focus, peer interactions, regulation). Para 3 optional for cross-cutting themes.
-- Style: concise, active voice, professional; staff-facing. Ground every claim in notes with natural dates (“On Dec 4…”, “In early November…”). No invented content, diagnoses, or next steps. Summarize what appears—don’t force domains.
+HARD RULES
+- Use ONLY the provided notes. Do not invent events, dates, skills, diagnoses, causes, or next steps.
+- Every claim must be supported by one or more notes. If evidence is weak/limited, say so plainly.
+- Include dates naturally in the summary (e.g., “On Dec 4…”, “In early November…”).
+- Keep it concise: 2–3 paragraphs, 3–5 sentences each. Active voice. Professional internal staff tone (not parent-facing).
+- Do NOT prescribe interventions or next steps.
 
-## Red Flag Logic
-- Raise HIGH for safety/aggression/elopement, severe dysregulation, total refusal/regression.
-- Raise MEDIUM for persistent social difficulties, consistent avoidance of academic areas, emotional patterns affecting learning, significant foundational gaps.
-- Raise LOW for emerging concerns, variable engagement, or when observation coverage is limited/missing (e.g., “dog that didn’t bark”).
-- If no concern, set severity to null and reason to null.
+SUMMARY STRUCTURE
+Paragraph 1 — Academic / classroom work:
+- Lead with the most frequently observed academic/domain areas present in the notes.
+- Mention specific Montessori materials/activities when named. Describe trajectory (emerging/consistent/variable) only if repeated evidence exists.
 
-## Coverage Gaps
-- List major domains with NO observations: Language/Literacy, Mathematics, Practical Life, Sensorial, Cultural Studies, Creative Arts.
-- Only list domains expected for the age/stage. Use empty array if coverage is complete.
+Paragraph 2 — Social-emotional / learning behaviors:
+- Focus, independence, work cycle completion, transitions, peer interactions, regulation.
+- Describe patterns only if repeated; otherwise describe as “observed once” or “limited data”.
+
+Paragraph 3 (optional) — Cross-cutting themes:
+- Only include if a clear theme appears across multiple notes (e.g., repeated persistence, repeated frustration in transitions, repeated preference for certain work types).
+
+COVERAGE GAPS
+- Determine which of these domains have ZERO observations in the provided window (based on note content): Language/Literacy, Mathematics, Practical Life, Sensorial, Cultural Studies, Creative Arts.
+- Output ONLY the domains expected for the student’s age/stage when that metadata is available; otherwise default to all six domains.
+- If coverage is complete, return an empty array [].
+
+RED FLAG LOGIC (set severity + reason)
+- Use null severity + null reason if there is no concern AND coverage is adequate.
+- HIGH: safety risks (aggression, elopement, dangerous behavior), severe/frequent dysregulation, prolonged refusal to engage, significant regression in previously mastered skills.
+- MEDIUM: persistent social conflict/isolation, consistent avoidance of a key academic area, emotional patterns clearly affecting learning, significant foundational gaps that repeatedly block engagement.
+- LOW: emerging concerns (inconsistent engagement, mild but repeated peer friction, variable regulation), OR “dog that didn’t bark” (a major expected domain absent across a sufficiently long window with otherwise reasonable coverage).
+- If severity is LOW/MEDIUM/HIGH, the reason must be one short sentence that references the pattern and (when possible) time range (e.g., “Across late Nov–Dec…”). If it’s primarily a coverage issue, say that explicitly (“Observation gap…”).
+
+QUALITY CHECK BEFORE YOU OUTPUT
+- Ensure output is one JSON object only, and that it is valid.
+- Ensure coverageGaps is an array (possibly empty), never null.
+- Ensure redFlag.severity is one of: low, medium, high, null.
+- Ensure redFlag.reason is null when severity is null.
 `;
 
 function isFreshCache(cacheEntry) {
@@ -1405,6 +1428,63 @@ export const previewBaseballCard = functions
       coverageGaps: result.payload?.coverageGaps,
       rawContent: result.payload?.rawContent,
       generatedAt: result.payload?.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const regenerateBaseballCardForStudent = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can regenerate baseball cards");
+    }
+
+    if (!OPENAI_API_KEY) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getBaseballCardConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getBaseballCardPrompt({ forceRefresh: !!data?.forceRefresh });
+
+    const windowDaysInput = Number(data?.windowDays);
+    const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
+      ? windowDaysInput
+      : baseConfig.windowDays;
+
+    const mergedConfig = {
+      model: baseConfig.model,
+      temperature: baseConfig.temperature,
+      max_tokens: baseConfig.max_tokens,
+      timezone: baseConfig.timezone,
+    };
+
+    const results = await runBaseballCards({
+      studentIds: [studentId],
+      config: mergedConfig,
+      prompt: basePrompt,
+      windowDays,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 1,
+    });
+
+    // When not collecting results, `results` will be empty; we still return a simple ack.
+    return {
+      status: "ok",
+      studentId,
+      windowDays,
+      regeneratedAt: new Date().toISOString(),
     };
   });
 

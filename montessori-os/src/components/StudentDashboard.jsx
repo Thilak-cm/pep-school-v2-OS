@@ -26,7 +26,8 @@ import {
   InfoOutlined
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import NewFeaturePill from './NewFeaturePill';
@@ -41,6 +42,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [signalsError, setSignalsError] = useState('');
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
+  const [regenRunning, setRegenRunning] = useState(false);
+  const [regenError, setRegenError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -136,7 +140,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     fetchCard();
     return () => { active = false; };
-  }, [studentId]);
+  }, [studentId, reloadKey]);
 
   // Fetch notes count for past 7 days
   useEffect(() => {
@@ -391,6 +395,39 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           </Box>
         </CardContent>
       </Card>
+      {isSuperAdmin && (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: -2, mb: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={regenRunning || !studentId}
+            onClick={async () => {
+              try {
+                setRegenError('');
+                setRegenRunning(true);
+                const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+                await call({ studentId });
+                setReloadKey((k) => k + 1);
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.error('Regenerate failed', e);
+                setRegenError(e?.message || 'Failed to regenerate.');
+              } finally {
+                setRegenRunning(false);
+              }
+            }}
+            sx={{ textTransform: 'none' }}
+            aria-label="Regenerate student summary now"
+          >
+            {regenRunning ? 'Regenerating…' : 'Regenerate now'}
+          </Button>
+          {regenError && (
+            <Typography variant="body2" color="error">
+              {regenError}
+            </Typography>
+          )}
+        </Stack>
+      )}
       <Popover
         open={Boolean(flagAnchorEl)}
         anchorEl={flagAnchorEl}
