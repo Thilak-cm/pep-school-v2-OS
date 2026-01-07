@@ -7,6 +7,7 @@ import * as functions from "firebase-functions/v1";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
+import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 
 initializeApp({ credential: applicationDefault() });
@@ -988,60 +989,6 @@ const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let baseballPromptCache = { data: null, ts: 0 };
 let baseballConfigCache = { data: null, ts: 0 };
 
-const BASEBALL_SYSTEM_PROMPT_FALLBACK = `You are Coach Pepper. Your job is to generate an evidence-based, staff-facing summary for ONE student using ONLY the notes provided.
-
-INPUT:
-Notes: JSON array of observation notes from the last <WINDOW_DAYS> days for one student. Each note includes: text, observedAt, studentId, and other metadata.
-
-OUTPUT:
-Return exactly one JSON object with this schema:
-
-{
-  "summary": "2-3 paragraph staff-facing summary",
-  "redFlag": {
-    "severity": "low" | "medium" | "high" | null,
-    "reason": "brief explanation or null"
-  },
-  "coverageGaps": ["Language/Literacy", "Mathematics", "Practical Life", "Sensorial", "Cultural Studies", "Creative Arts"]
-}
-
-HARD RULES
-- Use ONLY the provided notes. Do not invent events, dates, skills, diagnoses, causes, or next steps.
-- Every claim must be supported by one or more notes. If evidence is weak/limited, say so plainly.
-- Include dates naturally in the summary (e.g., “On Dec 4…”, “In early November…”).
-- Keep it concise: 2–3 paragraphs, 3–5 sentences each. Active voice. Professional internal staff tone (not parent-facing).
-- Do NOT prescribe interventions or next steps.
-
-SUMMARY STRUCTURE
-Paragraph 1 — Academic / classroom work:
-- Lead with the most frequently observed academic/domain areas present in the notes.
-- Mention specific Montessori materials/activities when named. Describe trajectory (emerging/consistent/variable) only if repeated evidence exists.
-
-Paragraph 2 — Social-emotional / learning behaviors:
-- Focus, independence, work cycle completion, transitions, peer interactions, regulation.
-- Describe patterns only if repeated; otherwise describe as “observed once” or “limited data”.
-
-Paragraph 3 (optional) — Cross-cutting themes:
-- Only include if a clear theme appears across multiple notes (e.g., repeated persistence, repeated frustration in transitions, repeated preference for certain work types).
-
-COVERAGE GAPS
-- Determine which of these domains have ZERO observations in the provided window (based on note content): Language/Literacy, Mathematics, Practical Life, Sensorial, Cultural Studies, Creative Arts.
-- Output ONLY the domains expected for the student’s age/stage when that metadata is available; otherwise default to all six domains.
-- If coverage is complete, return an empty array [].
-
-RED FLAG LOGIC (set severity + reason)
-- Use null severity + null reason if there is no concern AND coverage is adequate.
-- HIGH: safety risks (aggression, elopement, dangerous behavior), severe/frequent dysregulation, prolonged refusal to engage, significant regression in previously mastered skills.
-- MEDIUM: persistent social conflict/isolation, consistent avoidance of a key academic area, emotional patterns clearly affecting learning, significant foundational gaps that repeatedly block engagement.
-- LOW: emerging concerns (inconsistent engagement, mild but repeated peer friction, variable regulation), OR “dog that didn’t bark” (a major expected domain absent across a sufficiently long window with otherwise reasonable coverage).
-- If severity is LOW/MEDIUM/HIGH, the reason must be one short sentence that references the pattern and (when possible) time range (e.g., “Across late Nov–Dec…”). If it’s primarily a coverage issue, say that explicitly (“Observation gap…”).
-
-QUALITY CHECK BEFORE YOU OUTPUT
-- Ensure output is one JSON object only, and that it is valid.
-- Ensure coverageGaps is an array (possibly empty), never null.
-- Ensure redFlag.severity is one of: low, medium, high, null.
-- Ensure redFlag.reason is null when severity is null.
-`;
 
 function isFreshCache(cacheEntry) {
   return cacheEntry?.data && (Date.now() - cacheEntry.ts < BASEBALL_CACHE_TTL_MS);
@@ -1114,7 +1061,6 @@ const chooseObservationTimestamp = (obs) => {
 function formatObservationForPrompt(obs) {
   const ts = chooseObservationTimestamp(obs);
   return {
-    id: obs.id || "",
     type: obs.type || "",
     text: obs.text || "",
     lessonTitle: obs.lessonTitle || obs.title || "",
@@ -1163,9 +1109,37 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
   return notes;
 }
 
-async function callBaseballCard(notes, config, prompt, windowDays) {
-  const renderedSystem = (prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK).replace("<WINDOW_DAYS>", String(windowDays));
-  const userPrompt = `Generate the last ${windowDays}-day summary.\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
+function formatDobForContext(dobValue) {
+  const dobDate = normalizeTimestampValue(dobValue);
+  return dobDate ? dobDate.toISOString().split("T")[0] : "dob unavailable in context";
+}
+
+async function getStudentContext(studentId) {
+  try {
+    const snap = await db.collection("students").doc(studentId).get();
+    if (!snap.exists) {
+      return { studentName: "Unknown student", dob: "dob unavailable in context" };
+    }
+    const data = snap.data() || {};
+    const fallbackName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+    const studentName = data.displayName || data.name || fallbackName || "Unknown student";
+    const dob = formatDobForContext(data.dob);
+    return { studentName, dob };
+  } catch (err) {
+    console.warn(`[baseballCard] failed to fetch student context for ${studentId}:`, err);
+    return { studentName: "Unknown student", dob: "dob unavailable in context" };
+  }
+}
+
+async function callBaseballCard(notes, config, prompt, windowDays, studentContext) {
+  const safeContext = {
+    studentName: studentContext?.studentName || "Unknown student",
+    dob: studentContext?.dob || "dob unavailable in context",
+  };
+  const renderedSystem = (prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK)
+    .replace("<WINDOW_DAYS>", String(windowDays))
+    .replaceAll("<STUDENT_NAME>", safeContext.studentName);
+  const userPrompt = `Generate the last ${windowDays}-day summary.\n\nStudent:\n${JSON.stringify(safeContext)}\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
 
   const body = {
     model: config.model || BASEBALL_CARD_DEFAULTS.model,
@@ -1273,6 +1247,7 @@ async function runBaseballCards({
   await runWithConcurrency(ids, async (studentId) => {
     try {
       const notes = await fetchStudentNotesForWindow(studentId, effectiveWindowDays);
+      const studentContext = await getStudentContext(studentId);
 
       if (!notes.length) {
         const payload = {
@@ -1307,7 +1282,8 @@ async function runBaseballCards({
       }
 
       const formatted = notes.map(formatObservationForPrompt);
-      const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays);
+      const aiResult = await callBaseballCard(formatted, config, prompt, effectiveWindowDays, studentContext);
+      const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
       const payload = {
         summary: aiResult.summary,
@@ -1320,7 +1296,7 @@ async function runBaseballCards({
         temperature: config.temperature,
         generatedAt: new Date(),
         status: "ok",
-        sourceNoteIds: formatted.map((n) => n.id).filter(Boolean),
+        sourceNoteIds,
         rawContent: aiResult.rawContent,
       };
 
