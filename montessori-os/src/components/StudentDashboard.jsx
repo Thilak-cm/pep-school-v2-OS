@@ -334,7 +334,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const coverageStyles = coveragePalette[coverageTone];
   const severityColor = severity === 'high'
     ? '#dc2626'
-    : severity === 'medium'
+    : severity === 'medium' || severity === 'med'
       ? '#f59e0b'
       : severity === 'low'
         ? '#94a3b8'
@@ -346,15 +346,19 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     const colorMap = {
       high: '#dc2626',
       medium: '#f59e0b',
+      med: '#f59e0b',
       low: '#94a3b8',
       none: '#22c55e'
     };
 
     const paletteColor = colorMap[severity] || colorMap.none;
-    const label = severity
-      ? `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`
-      : 'Verified';
-    const IconComponent = severity ? FlagRounded : CheckCircle;
+    const getSeverityLabel = (sev) => {
+      if (!sev) return 'No flag';
+      if (sev === 'med') return 'Flag: Medium';
+      return `Flag: ${sev.charAt(0).toUpperCase()}${sev.slice(1)}`;
+    };
+    const label = getSeverityLabel(severity);
+    const IconComponent = FlagRounded;
 
     return (
       <Tooltip title={label} arrow>
@@ -653,13 +657,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
       >
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-          {severity ? (
-            <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
-          ) : (
-            <CheckCircle sx={{ fontSize: 22, color: severityColor }} />
-          )}
+          <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
-            {severity ? `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}` : 'No active flag'}
+            {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
           </Typography>
         </Stack>
         <Typography variant="body2" sx={{ color: '#334155' }}>
