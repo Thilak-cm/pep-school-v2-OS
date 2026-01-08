@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
 import { Home, Settings, Notifications } from '@mui/icons-material';
-import { collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collectionGroup, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from './firebase';
 import { getIstIsoWeekKey } from './utils/weekKey';
@@ -11,7 +11,6 @@ const FOOTER_HEIGHT = 64;
 function AppFooter({ onHome, onNavigate, active = null }) {
   const [value, setValue] = useState(active || 'none');
   const [badgeCount, setBadgeCount] = useState(0);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     setValue(active || 'none');
@@ -24,18 +23,33 @@ function AppFooter({ onHome, onNavigate, active = null }) {
       if (!uid) {
         if (activeFlag) {
           setBadgeCount(0);
-          setIsSuperAdmin(false);
         }
         return;
       }
 
       try {
+        // Determine user role and classroom scope
         const userSnap = await getDoc(doc(db, 'users', uid));
         const role = userSnap.exists() ? (userSnap.data()?.role || null) : null;
-        const superAdmin = role === 'superadmin';
-        if (!activeFlag) return;
-        setIsSuperAdmin(superAdmin);
-        if (!superAdmin) {
+
+        let accessibleClassrooms = null; // null => all classrooms
+        if (role === 'superadmin') {
+          accessibleClassrooms = null;
+        } else if (role === 'classroomadmin') {
+          accessibleClassrooms = Array.isArray(userSnap.data()?.manageableClassrooms)
+            ? userSnap.data().manageableClassrooms.filter(Boolean)
+            : [];
+        } else {
+          const classroomsSnap = await getDocs(query(collection(db, 'classrooms')));
+          accessibleClassrooms = classroomsSnap.docs
+            .map((d) => ({ id: d.id, ...(d.data() || {}) }))
+            .filter((c) => (c.status || 'active') !== 'archived')
+            .filter((c) => Array.isArray(c.teacherIds) && c.teacherIds.includes(uid))
+            .map((c) => c.id);
+        }
+
+        // If no accessible classrooms and not superadmin, short-circuit
+        if (accessibleClassrooms !== null && accessibleClassrooms.length === 0) {
           setBadgeCount(0);
           return;
         }
@@ -43,18 +57,64 @@ function AppFooter({ onHome, onNavigate, active = null }) {
         const weekKey = getIstIsoWeekKey();
         const signalsQuery = query(
           collectionGroup(db, 'ai_summaries'),
-          where('weekKey', '==', weekKey),
-          where('escalatedThisWeek', '==', true)
+          where('weekKey', '==', weekKey)
         );
         const snapshot = await getDocs(signalsQuery);
         if (!activeFlag) return;
-        const count = snapshot.docs.filter((d) => d.id === 'signals').length;
-        setBadgeCount(count);
+
+        const rows = snapshot.docs
+          .filter((d) => d.id === 'signals')
+          .map((d) => {
+            const studentId = d.ref.parent?.parent?.id || null;
+            const data = d.data() || {};
+            return {
+              studentId,
+              ...data,
+              severity: data.severity || 'clear',
+              severityScore: Number.isFinite(data.severityScore) ? data.severityScore : 0,
+              evidenceCount: Number.isFinite(data.evidenceCount) ? data.evidenceCount : (Number.isFinite(data.noteCount) ? data.noteCount : 0),
+            };
+          });
+
+        // If user can see all classrooms (superadmin), no need to scope
+        if (accessibleClassrooms === null) {
+          const escalatedCount = rows.filter((r) => r.escalatedThisWeek).length;
+          setBadgeCount(escalatedCount);
+          return;
+        }
+
+        // Fetch student classroom mapping for scoped filtering
+        const studentIds = Array.from(
+          new Set(
+            rows
+              .map((r) => r.studentId)
+              .filter(Boolean)
+          )
+        );
+
+        const studentEntries = await Promise.all(studentIds.map(async (sid) => {
+          try {
+            const sSnap = await getDoc(doc(db, 'students', sid));
+            if (!sSnap.exists()) return [sid, null];
+            const s = sSnap.data() || {};
+            return [sid, s.classroomId || null];
+          } catch (err) {
+            return [sid, null];
+          }
+        }));
+        const studentClassrooms = Object.fromEntries(studentEntries);
+
+        const filtered = rows.filter((r) => {
+          const classroomId = r.studentId ? studentClassrooms[r.studentId] : null;
+          return classroomId && accessibleClassrooms.includes(classroomId);
+        });
+
+        const escalatedCount = filtered.filter((r) => r.escalatedThisWeek).length;
+        setBadgeCount(escalatedCount);
       } catch (err) {
         console.warn('Failed to load notifications badge', err);
         if (activeFlag) {
           setBadgeCount(0);
-          setIsSuperAdmin(false);
         }
       }
     };
@@ -101,7 +161,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
       color="error"
       overlap="circular"
       badgeContent={badgeCount > 99 ? '99+' : badgeCount}
-      invisible={!isSuperAdmin || badgeCount <= 0}
+      invisible={badgeCount <= 0}
     >
       <Notifications />
     </Badge>

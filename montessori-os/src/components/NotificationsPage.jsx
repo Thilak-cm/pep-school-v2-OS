@@ -17,7 +17,7 @@ import {
   CheckCircleOutline,
   ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import { collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
@@ -27,8 +27,11 @@ const CACHE_KEY_PREFIX = 'notificationsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Build cache key for user
-const buildCacheKey = (uid, weekKey) => {
-  return `${CACHE_KEY_PREFIX}:${uid || 'anonymous'}:${weekKey || 'current'}`;
+const buildCacheKey = (uid, weekKey, role, accessibleClassrooms = []) => {
+  const scopeKey = Array.isArray(accessibleClassrooms) && accessibleClassrooms.length
+    ? accessibleClassrooms.slice().sort().join('|')
+    : 'all';
+  return `${CACHE_KEY_PREFIX}:${uid || 'anonymous'}:${weekKey || 'current'}:${role || 'unknown'}:${scopeKey}`;
 };
 
 // Read cached data
@@ -96,8 +99,10 @@ function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [signals, setSignals] = useState([]);
-  const [currentRole, setCurrentRole] = useState(null);
   const [studentInfo, setStudentInfo] = useState({});
+  const [currentRole, setCurrentRole] = useState(null);
+  const [accessibleClassrooms, setAccessibleClassrooms] = useState([]);
+  const [accessLoaded, setAccessLoaded] = useState(false);
   const weekKey = getIstIsoWeekKey();
 
   useEffect(() => {
@@ -106,19 +111,59 @@ function NotificationsPage() {
 
   useEffect(() => {
     let active = true;
-    const loadRole = async () => {
+    const loadAccessScope = async () => {
       try {
+        setAccessLoaded(false);
         const uid = auth?.currentUser?.uid;
-        if (!uid) return;
-        const snap = await getDoc(doc(db, 'users', uid));
+        if (!uid) {
+          setCurrentRole(null);
+          setAccessibleClassrooms([]);
+          setAccessLoaded(true);
+          return;
+        }
+
+        const userSnap = await getDoc(doc(db, 'users', uid));
         if (!active) return;
-        setCurrentRole(snap.exists() ? (snap.data()?.role || null) : null);
+        const role = userSnap.exists() ? (userSnap.data()?.role || null) : null;
+        setCurrentRole(role);
+
+        if (role === 'superadmin') {
+          setAccessibleClassrooms([]);
+          setAccessLoaded(true);
+          return;
+        }
+
+        if (role === 'classroomadmin') {
+          const scope = Array.isArray(userSnap.data()?.manageableClassrooms)
+            ? userSnap.data().manageableClassrooms.filter(Boolean)
+            : [];
+          setAccessibleClassrooms(scope);
+          setAccessLoaded(true);
+          return;
+        }
+
+        // Teacher or other roles: derive classrooms by teacher assignment
+        const classroomsSnap = await getDocs(query(collection(db, 'classrooms')));
+        if (!active) return;
+        const teacherClassrooms = classroomsSnap.docs
+          .map((d) => ({ id: d.id, ...(d.data() || {}) }))
+          .filter((c) => (c.status || 'active') !== 'archived')
+          .filter((c) => Array.isArray(c.teacherIds) && c.teacherIds.includes(uid))
+          .map((c) => c.id);
+
+        setAccessibleClassrooms(teacherClassrooms);
+        setAccessLoaded(true);
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to load user role', err);
+        console.warn('Failed to load access scope', err);
+        if (active) {
+          setCurrentRole(null);
+          setAccessibleClassrooms([]);
+          setAccessLoaded(true);
+        }
       }
     };
-    loadRole();
+
+    loadAccessScope();
     return () => { active = false; };
   }, []);
 
@@ -131,15 +176,11 @@ function NotificationsPage() {
           setLoading(false);
           return;
         }
-        if (currentRole === null) return; // wait for role
-        if (currentRole !== 'superadmin') {
-          setSignals([]);
-          setStudentInfo({});
-          setLoading(false);
-          return;
-        }
+        if (!accessLoaded) return;
+        setLoading(true);
+        setError('');
 
-        const cacheKey = buildCacheKey(uid, weekKey);
+        const cacheKey = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
         
         // Try to load from cache first
         const cachedSignals = getCachedData(cacheKey, 'signals');
@@ -175,11 +216,7 @@ function NotificationsPage() {
             };
           });
         
-        // Cache signals
-        setCachedData(cacheKey, 'signals', rows);
-        setSignals(rows);
-
-        // Fetch student info (superadmin only) for display
+        // Fetch student info for display and scoping
         const ids = rows.map((r) => r.studentId).filter(Boolean);
         const uniqueIds = Array.from(new Set(ids));
         const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
@@ -195,9 +232,33 @@ function NotificationsPage() {
         }));
         const studentInfoMap = Object.fromEntries(nameEntries);
         
-        // Cache student info
-        setCachedData(cacheKey, 'studentInfo', studentInfoMap);
-        setStudentInfo(studentInfoMap);
+        // Apply classroom scoping for non-superadmin roles
+        const isSuperAdmin = currentRole === 'superadmin';
+        let filteredSignals = rows;
+        if (!isSuperAdmin) {
+          const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
+          if (scopedClassrooms.length === 0) {
+            filteredSignals = [];
+          } else {
+            filteredSignals = rows.filter((r) => {
+              const classroomId = studentInfoMap[r.studentId]?.classroomId;
+              return classroomId && scopedClassrooms.includes(classroomId);
+            });
+          }
+        }
+
+        // Limit student info to filtered signals to keep cache smaller
+        const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));
+        const filteredStudentInfo = Object.fromEntries(
+          Object.entries(studentInfoMap).filter(([sid]) => allowedIds.has(sid))
+        );
+
+        // Cache scoped results
+        setCachedData(cacheKey, 'signals', filteredSignals);
+        setCachedData(cacheKey, 'studentInfo', filteredStudentInfo);
+
+        setSignals(filteredSignals);
+        setStudentInfo(filteredStudentInfo);
       } catch (err) {
         console.error('Failed to load signals', err);
         setError('Failed to load notifications.');
@@ -208,9 +269,7 @@ function NotificationsPage() {
 
     fetchSignals();
     return () => { active = false; };
-  }, [currentRole, weekKey]);
-
-  const isSuperAdmin = currentRole === 'superadmin';
+  }, [weekKey, accessLoaded, currentRole, accessibleClassrooms]);
 
   const sortBySeverityEvidence = (a, b) => {
     const sevDiff = (b.severityScore || 0) - (a.severityScore || 0);
@@ -313,54 +372,6 @@ function NotificationsPage() {
       </Stack>
     );
   };
-
-  // Show loading state while role is being fetched
-  if (currentRole === null) {
-    return (
-      <Box sx={{
-        display: 'flex',
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 320,
-        flexDirection: 'column',
-        gap: 2
-      }}>
-        <CircularProgress size={32} />
-        <Typography variant="body2" color="text.secondary">
-          Coach Pepper is gathering notifications...
-        </Typography>
-      </Box>
-    );
-  }
-
-  if (!isSuperAdmin) {
-    return (
-      <Box sx={{
-        display: 'flex',
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 320
-      }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            p: 1.5,
-            borderRadius: 2,
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0'
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            New notifications page coming soon!
-          </Typography>
-        </Box>
-      </Box>
-    );
-  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
