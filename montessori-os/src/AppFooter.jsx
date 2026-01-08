@@ -11,6 +11,7 @@ const FOOTER_HEIGHT = 64;
 function AppFooter({ onHome, onNavigate, active = null }) {
   const [value, setValue] = useState(active || 'none');
   const [badgeCount, setBadgeCount] = useState(0);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     setValue(active || 'none');
@@ -31,6 +32,14 @@ function AppFooter({ onHome, onNavigate, active = null }) {
         // Determine user role and classroom scope
         const userSnap = await getDoc(doc(db, 'users', uid));
         const role = userSnap.exists() ? (userSnap.data()?.role || null) : null;
+
+        // Non-superadmins do not see notifications yet
+        if (role !== 'superadmin') {
+          setIsSuperAdmin(false);
+          setBadgeCount(0);
+          return;
+        }
+        setIsSuperAdmin(true);
 
         let accessibleClassrooms = null; // null => all classrooms
         if (role === 'superadmin') {
@@ -161,7 +170,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
       color="error"
       overlap="circular"
       badgeContent={badgeCount > 99 ? '99+' : badgeCount}
-      invisible={badgeCount <= 0}
+      invisible={!isSuperAdmin || badgeCount <= 0}
     >
       <Notifications />
     </Badge>

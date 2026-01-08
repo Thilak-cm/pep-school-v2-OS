@@ -21,6 +21,7 @@ import { collectionGroup, collection, query, where, getDocs, doc, getDoc } from 
 import { auth, db } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
+import NewFeaturePill from './NewFeaturePill';
 
 // Cache configuration
 const CACHE_KEY_PREFIX = 'notificationsPageCache';
@@ -104,6 +105,7 @@ function NotificationsPage() {
   const [accessibleClassrooms, setAccessibleClassrooms] = useState([]);
   const [accessLoaded, setAccessLoaded] = useState(false);
   const weekKey = getIstIsoWeekKey();
+  const isSuperAdmin = currentRole === 'superadmin';
 
   useEffect(() => {
     prepareNotificationsFeature();
@@ -270,6 +272,41 @@ function NotificationsPage() {
     fetchSignals();
     return () => { active = false; };
   }, [weekKey, accessLoaded, currentRole, accessibleClassrooms]);
+
+  if (!accessLoaded) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 320,
+        flexDirection: 'column',
+        gap: 2
+      }}>
+        <CircularProgress size={32} />
+        <Typography variant="body2" color="text.secondary">
+          Coach Pepper is gathering notifications...
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 320
+        }}
+      >
+        <NewFeaturePill label="Notifications page feature coming soon!" size="md" />
+      </Box>
+    );
+  }
 
   const sortBySeverityEvidence = (a, b) => {
     const sevDiff = (b.severityScore || 0) - (a.severityScore || 0);
