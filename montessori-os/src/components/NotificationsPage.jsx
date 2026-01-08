@@ -357,6 +357,8 @@ function NotificationsPage() {
       if (severity === 'high') return 'error';
       if (severity === 'medium') return 'warning';
       if (severity === 'low') return 'default';
+      // Treat null/clear as the baseline green flag
+      if (severity === 'clear' || !severity) return 'success';
       return 'default';
     };
 
@@ -393,13 +395,11 @@ function NotificationsPage() {
                         Evidence: {item.evidenceCount ?? 0}
                       </Typography>
                     </Box>
-                    {item.severity && item.severity !== 'clear' && (
-                      <Chip
-                        label={`Flag: ${item.severity}`}
-                        size="small"
-                        color={severityColor(item.severity)}
-                      />
-                    )}
+                    <Chip
+                      label={`Flag: ${item.severity || 'clear'}`}
+                      size="small"
+                      color={severityColor(item.severity)}
+                    />
                   </Stack>
                 </Paper>
               );
@@ -482,11 +482,16 @@ function NotificationsPage() {
                 ))}
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                {['high', 'medium', 'low'].map((key) => (
+                {[
+                  { key: 'high', label: 'HIGH', color: 'error' },
+                  { key: 'medium', label: 'MEDIUM', color: 'warning' },
+                  { key: 'low', label: 'LOW', color: 'default' },
+                  { key: 'clear', label: 'GREEN', color: 'success' },
+                ].map(({ key, label, color }) => (
                   <Chip
                     key={key}
-                    label={`${key.toUpperCase()}: ${severityCounts[key] || 0}`}
-                    color={key === 'high' ? 'error' : key === 'medium' ? 'warning' : 'default'}
+                    label={`${label}: ${severityCounts[key] || 0}`}
+                    color={color}
                     size="small"
                   />
                 ))}
