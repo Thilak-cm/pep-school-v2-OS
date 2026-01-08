@@ -1,5 +1,27 @@
 # Changelog
 
+# 7.2.0 — 2026-01-08
+
+### Added
+- Weekly escalation notifications system: tracks student severity transitions (clear→low/medium/high) on a per-week basis using ISO week keys (Asia/Kolkata timezone).
+- Bell badge in AppFooter: superadmin-only notification count showing number of students whose severity escalated during the current week (capped at 99+).
+- Inbox-style NotificationsPage: organized into three sections — "Escalated (This Week)" (actionable list), "Still Open (No Change)" (collapsed by default), and "Improved (This Week)" (collapsed by default).
+- Week-based severity tracking: backend signals doc now stores `weekKey`, `weekBaselineSeverity`, `severityScore`, `prevSeverity`, `escalatedThisWeek`, `improvedThisWeek`, and `evidenceCount` fields for transition detection.
+- Classroom grouping: notifications grouped by classroom with severity-first, then evidence-count sorting within each group.
+- WeekKey utilities: shared `getIstIsoWeekKey()` helper in both frontend (`montessori-os/src/utils/weekKey.js`) and backend (`functions/utils/weekKey.js`) for consistent week boundary calculation.
+
+### Changed
+- NotificationsPage: refactored from card-per-student display to inbox-style sections with classroom grouping and priority-based sorting.
+- Signals generation: baseball card pipeline now applies week rollover logic — when week changes, baseline is set from previous severity and transition flags reset; within the same week, flags latch to track any escalation/improvement.
+- Caching strategy: notifications cache now keyed by `uid + weekKey` so data refreshes automatically on week rollover.
+- AppFooter: added real-time badge count query using collectionGroup for `ai_summaries` filtered by current weekKey and escalatedThisWeek flag.
+
+### Technical
+- Firestore indexes: added collection group index for `ai_summaries` queries combining `weekKey` and `escalatedThisWeek` boolean filters.
+- Week rollover logic: idempotent per student per week — multiple baseball card runs within the same ISO week don't double-count escalations.
+- Severity scoring: numeric severity scores (0=clear, 1=low, 2=medium, 3=high) enable deterministic comparison and sorting.
+- Evidence count: used as secondary sort key within same severity level to prioritize students with more supporting observations.
+
 # 7.1.1 — 2026-01-07
 
 ### Added
@@ -8,10 +30,6 @@
 ### Changed
 - ClassroomTimeline: lesson summary rendering can optionally include student comments.
 - NotificationsPage: caching of notifications data with improved loading states; layout refines feature pill to styled Box.
-
-# 7.1.0 — 2026-01-06
-
-# Changelog
 
 # 7.1.0 — 2026-01-06
 
