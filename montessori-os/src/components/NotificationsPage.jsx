@@ -265,8 +265,24 @@ function NotificationsPage() {
         }}
       >
         {loading && (
-          <Stack alignItems="center" justifyContent="center" sx={{ py: 4 }}>
-            <CircularProgress size={24} />
+          <Stack spacing={3} alignItems="center" justifyContent="center" sx={{ py: 6 }}>
+            <CircularProgress
+              size={40}
+              sx={{
+                color: '#4f46e5',
+                '& .MuiCircularProgress-circle': {
+                  strokeLinecap: 'round',
+                }
+              }}
+            />
+            <Stack spacing={1} alignItems="center">
+              <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                Coach Pepper is checking for coverage gaps...
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Analyzing student observations and curriculum coverage
+              </Typography>
+            </Stack>
           </Stack>
         )}
 
