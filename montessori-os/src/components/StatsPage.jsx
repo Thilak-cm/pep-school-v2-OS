@@ -156,6 +156,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     thisWeekChange: 0,
     voiceNotes: 0,
     textNotes: 0,
+    lessonNotes: 0,
     voiceLanguageDistribution: [],
     topStudents: [],
     strugglingStudents: [],
@@ -631,10 +632,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
         // Calculate note types
         const voiceNotes = filteredObservations.filter(obs => 
-          obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration
+          (obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration) && obs.type !== 'lesson'
         );
         const textNotes = filteredObservations.filter(obs => 
-          obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)
+          (obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)) && obs.type !== 'lesson' && !obs.lessonTitle
+        );
+        const lessonNotes = filteredObservations.filter(obs => 
+          obs.type === 'lesson' || obs.lessonTitle
         );
 
         // Voice language distribution removed
@@ -770,6 +774,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           thisWeekChange: thisWeekChange,
           voiceNotes: voiceNotes.length,
           textNotes: textNotes.length,
+          lessonNotes: lessonNotes.length,
           topStudents,
           strugglingStudents,
           weeklyActivity,
@@ -836,11 +841,52 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     }
   };
 
+  // Helper function to get observation date with fallback
+  const getObservationDateFast = (obs) => {
+    if (obs?.observedAt?.toDate) return obs.observedAt.toDate();
+    if (obs?.createdAt?.toDate) return obs.createdAt.toDate();
+    if (obs?.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+    if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+    return new Date(0);
+  };
+
+  // Filter observations by time period for pie chart
+  const filteredObservationsForPie = useMemo(() => {
+    const list = stats?.allObservations || [];
+    const now = new Date();
+    let days = 7; // default 1W
+    switch (timePeriod) {
+      case '1D': days = 1; break;
+      case '1W': days = 7; break;
+      case '1M': days = 30; break;
+      case '3M': days = 90; break;
+      case '6M': days = 180; break;
+      case '1Y': days = 365; break;
+      default: days = 7;
+    }
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return list.filter(o => getObservationDateFast(o) >= start);
+  }, [stats?.allObservations, timePeriod]);
+
   // Memoize pie chart data to prevent re-renders when time period changes
-  const pieChartData = useMemo(() => [
-    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
-    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
-  ], [stats.voiceNotes, stats.textNotes]);
+  const pieChartData = useMemo(() => {
+    // Calculate note types from filtered observations
+    const voiceNotes = filteredObservationsForPie.filter(obs => 
+      (obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration) && obs.type !== 'lesson'
+    );
+    const textNotes = filteredObservationsForPie.filter(obs => 
+      (obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)) && obs.type !== 'lesson' && !obs.lessonTitle
+    );
+    const lessonNotes = filteredObservationsForPie.filter(obs => 
+      obs.type === 'lesson' || obs.lessonTitle
+    );
+
+    return [
+      { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' },
+      { name: 'Text', value: textNotes.length, color: '#f59e0b' },
+      { name: 'Lesson', value: lessonNotes.length, color: '#059669' }
+    ];
+  }, [filteredObservationsForPie]);
 
   // Custom label to show % inside each pie slice - memoized to prevent flickering
   const renderNoteDistributionLabel = React.useCallback(({
@@ -877,13 +923,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   };
 
   // Compute Activity Trend count based on selected timePeriod
-  const getObservationDateFast = (obs) => {
-    if (obs?.observedAt?.toDate) return obs.observedAt.toDate();
-    if (obs?.createdAt?.toDate) return obs.createdAt.toDate();
-    if (obs?.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
-    if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
-    return new Date(0);
-  };
 
   const activityCount = useMemo(() => {
     const list = stats?.allObservations || [];
@@ -1803,48 +1842,15 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           {/* Overview Tab */}
           {activeTab === 0 && (
             <Box sx={{ width: '100%', minWidth: 0 }}>
-              {/* Activity Trend Chart */}
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between', 
-                mb: 3,
-                p: 2,
-                backgroundColor: 'primary.50',
-                borderRadius: 2,
-                border: '1px solid',
-                borderColor: 'primary.200'
-              }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', mb: 0.5 }}>
-                    Activity Trend
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {timePeriod === '1D' ? 'Last 24 Hours' : 
-                     timePeriod === '1W' ? 'Last 7 Days' :
-                     timePeriod === '1M' ? 'Last 4 Weeks' :
-                     timePeriod === '3M' ? 'Last 3 Months' :
-                     timePeriod === '6M' ? 'Last 6 Months' :
-                     timePeriod === '1Y' ? 'Last 12 Months' : 'Weekly'}
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {activityCount}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    notes created
-                  </Typography>
-                </Box>
-              </Box>
-              
-              {/* Time Period Toggles */}
-              <Box sx={{ mb: 2 }}>
+              {/* Time Period Picker */}
+              <Box sx={{ mb: 3, width: '100%', minWidth: 0 }}>
+                
                 <ToggleButtonGroup
                   value={timePeriod}
                   exclusive
                   onChange={handleTimePeriodChange}
                   size="small"
+                  fullWidth
                   sx={{
                     '& .MuiToggleButton-root': {
                       textTransform: 'none',
@@ -1852,6 +1858,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                       px: 2,
                       py: 1,
                       borderColor: '#e2e8f0',
+                      flex: 1,
                       '&.Mui-selected': {
                         backgroundColor: '#4f46e5',
                         color: 'white',
@@ -1870,16 +1877,37 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                   <ToggleButton value="1Y">1Y</ToggleButton>
                 </ToggleButtonGroup>
               </Box>
-              
+
+              {/* Activity Trend Chart */}
               <Box sx={{ 
                 backgroundColor: 'white',
                 borderRadius: 2,
-                p: 2,
+                p: 3,
                 border: '1px solid #e2e8f0',
                 mb: 3,
                 width: '100%',
                 minWidth: 0
               }}>
+                {/* Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      Activity Trend
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', mt: 0.5 }}>
+                      {activityCount} notes created
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {timePeriod === '1D' ? 'Last 24 Hours' : 
+                     timePeriod === '1W' ? 'Last 7 Days' :
+                     timePeriod === '1M' ? 'Last 4 Weeks' :
+                     timePeriod === '3M' ? 'Last 3 Months' :
+                     timePeriod === '6M' ? 'Last 6 Months' :
+                     timePeriod === '1Y' ? 'Last 12 Months' : 'Weekly'}
+                  </Typography>
+                </Box>
+                
                 <ActivityTrendChart />
               </Box>
 
@@ -1897,7 +1925,15 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                   {/* Header */}
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1 }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      All Time Note Distribution
+                      Note Distribution
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {timePeriod === '1D' ? 'Last 24 Hours' : 
+                       timePeriod === '1W' ? 'Last 7 Days' :
+                       timePeriod === '1M' ? 'Last 4 Weeks' :
+                       timePeriod === '3M' ? 'Last 3 Months' :
+                       timePeriod === '6M' ? 'Last 6 Months' :
+                       timePeriod === '1Y' ? 'Last 12 Months' : 'All Time'}
                     </Typography>
                   </Box>
                   
@@ -1914,7 +1950,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                             outerRadius={90}
                             paddingAngle={3}
                             dataKey="value"
-                            label={renderNoteDistributionLabel}
+                            label={false}
                             labelLine={false}
                             isAnimationActive={false}
                           >
