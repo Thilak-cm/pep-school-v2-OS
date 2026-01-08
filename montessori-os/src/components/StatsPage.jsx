@@ -630,16 +630,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         const thisWeekChange = lastWeek.length > 0 ? 
           ((thisWeek.length - lastWeek.length) / lastWeek.length * 100) : 0;
 
-        // Calculate note types
-        const voiceNotes = filteredObservations.filter(obs => 
-          (obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration) && obs.type !== 'lesson'
-        );
-        const textNotes = filteredObservations.filter(obs => 
-          (obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)) && obs.type !== 'lesson' && !obs.lessonTitle
-        );
-        const lessonNotes = filteredObservations.filter(obs => 
-          obs.type === 'lesson' || obs.lessonTitle
-        );
+        // Calculate note types (mutually exclusive to prevent double counting)
+        const isLessonNote = (obs) => obs?.type === 'lesson' || !!obs?.lessonTitle;
+        const isVoiceNote = (obs) =>
+          !isLessonNote(obs) &&
+          (obs?.tags?.type === 'voice' ||
+            obs?.type === 'voice' ||
+            obs?.tags?.includes?.('voice') ||
+            !!obs?.duration);
+        const isTextNote = (obs) =>
+          !isLessonNote(obs) &&
+          !isVoiceNote(obs) &&
+          (obs?.tags?.type === 'text' ||
+            obs?.type === 'text' ||
+            obs?.tags?.includes?.('text') ||
+            (!obs?.duration && !!obs?.text));
+
+        const lessonNotes = filteredObservations.filter(isLessonNote);
+        const voiceNotes = filteredObservations.filter(isVoiceNote);
+        const textNotes = filteredObservations.filter(isTextNote);
 
         // Voice language distribution removed
         const voiceLanguageDistribution = [];
@@ -870,16 +879,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
   // Memoize pie chart data to prevent re-renders when time period changes
   const pieChartData = useMemo(() => {
-    // Calculate note types from filtered observations
-    const voiceNotes = filteredObservationsForPie.filter(obs => 
-      (obs.tags?.type === 'voice' || obs.type === 'voice' || obs.tags?.includes?.('voice') || obs.duration) && obs.type !== 'lesson'
-    );
-    const textNotes = filteredObservationsForPie.filter(obs => 
-      (obs.tags?.type === 'text' || obs.type === 'text' || obs.tags?.includes?.('text') || (!obs.duration && obs.text)) && obs.type !== 'lesson' && !obs.lessonTitle
-    );
-    const lessonNotes = filteredObservationsForPie.filter(obs => 
-      obs.type === 'lesson' || obs.lessonTitle
-    );
+    // Calculate note types from filtered observations (mutually exclusive)
+    const isLessonNote = (obs) => obs?.type === 'lesson' || !!obs?.lessonTitle;
+    const isVoiceNote = (obs) =>
+      !isLessonNote(obs) &&
+      (obs?.tags?.type === 'voice' ||
+        obs?.type === 'voice' ||
+        obs?.tags?.includes?.('voice') ||
+        !!obs?.duration);
+    const isTextNote = (obs) =>
+      !isLessonNote(obs) &&
+      !isVoiceNote(obs) &&
+      (obs?.tags?.type === 'text' ||
+        obs?.type === 'text' ||
+        obs?.tags?.includes?.('text') ||
+        (!obs?.duration && !!obs?.text));
+
+    const lessonNotes = filteredObservationsForPie.filter(isLessonNote);
+    const voiceNotes = filteredObservationsForPie.filter(isVoiceNote);
+    const textNotes = filteredObservationsForPie.filter(isTextNote);
 
     return [
       { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' },
@@ -2007,6 +2025,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                         }} />
                         <Typography variant="body2" sx={{ fontWeight: 600, color: item.color, mb: 0.5 }}>
                           {item.value}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>
+                          {(() => {
+                            const total = pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0);
+                            if (!total) return '0%';
+                            const pct = (Number(item?.value) || 0) / total;
+                            return `${Math.round(pct * 100)}%`;
+                          })()}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {item.name}
