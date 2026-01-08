@@ -1,15 +1,77 @@
 import React, { useEffect, useState } from 'react';
-import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
+import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
 import { Home, Settings, Notifications } from '@mui/icons-material';
+import { collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from './firebase';
+import { getIstIsoWeekKey } from './utils/weekKey';
 
 const FOOTER_HEIGHT = 64;
 
 function AppFooter({ onHome, onNavigate, active = null }) {
   const [value, setValue] = useState(active || 'none');
+  const [badgeCount, setBadgeCount] = useState(0);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     setValue(active || 'none');
   }, [active]);
+
+  useEffect(() => {
+    let activeFlag = true;
+
+    const fetchBadge = async (uid) => {
+      if (!uid) {
+        if (activeFlag) {
+          setBadgeCount(0);
+          setIsSuperAdmin(false);
+        }
+        return;
+      }
+
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const role = userSnap.exists() ? (userSnap.data()?.role || null) : null;
+        const superAdmin = role === 'superadmin';
+        if (!activeFlag) return;
+        setIsSuperAdmin(superAdmin);
+        if (!superAdmin) {
+          setBadgeCount(0);
+          return;
+        }
+
+        const weekKey = getIstIsoWeekKey();
+        const signalsQuery = query(
+          collectionGroup(db, 'ai_summaries'),
+          where('weekKey', '==', weekKey),
+          where('escalatedThisWeek', '==', true)
+        );
+        const snapshot = await getDocs(signalsQuery);
+        if (!activeFlag) return;
+        const count = snapshot.docs.filter((d) => d.id === 'signals').length;
+        setBadgeCount(count);
+      } catch (err) {
+        console.warn('Failed to load notifications badge', err);
+        if (activeFlag) {
+          setBadgeCount(0);
+          setIsSuperAdmin(false);
+        }
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      fetchBadge(user?.uid);
+    });
+
+    fetchBadge(auth?.currentUser?.uid);
+
+    return () => {
+      activeFlag = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   const handleAction = (target) => {
     if (target === 'home' && onHome) {
@@ -33,6 +95,17 @@ function AppFooter({ onHome, onNavigate, active = null }) {
       handleAction(target);
     }
   };
+
+  const notificationsIcon = (
+    <Badge
+      color="error"
+      overlap="circular"
+      badgeContent={badgeCount > 99 ? '99+' : badgeCount}
+      invisible={!isSuperAdmin || badgeCount <= 0}
+    >
+      <Notifications />
+    </Badge>
+  );
 
   return (
     <Box
@@ -98,7 +171,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
           <BottomNavigationAction
             label="Notifications"
             value="notifications"
-            icon={<Notifications />}
+            icon={notificationsIcon}
             onClick={() => handleClickSelected('notifications')}
           />
           <BottomNavigationAction

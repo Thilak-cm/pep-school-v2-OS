@@ -64,6 +64,14 @@
         { "fieldPath": "deleted", "order": "ASCENDING" },
         { "fieldPath": "deletedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "ai_summaries",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "weekKey", "order": "ASCENDING" },
+        { "fieldPath": "escalatedThisWeek", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

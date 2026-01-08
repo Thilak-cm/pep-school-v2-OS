@@ -7,24 +7,28 @@ import {
   Chip,
   CircularProgress,
   Divider,
-  Avatar
+  Avatar,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
-  WarningAmber as WarningIcon,
   ErrorOutline,
-  CheckCircleOutline
+  CheckCircleOutline,
+  ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
-import { collectionGroup, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
+import { getIstIsoWeekKey } from '../utils/weekKey';
 
 // Cache configuration
 const CACHE_KEY_PREFIX = 'notificationsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Build cache key for user
-const buildCacheKey = (uid) => {
-  return `${CACHE_KEY_PREFIX}:${uid || 'anonymous'}`;
+const buildCacheKey = (uid, weekKey) => {
+  return `${CACHE_KEY_PREFIX}:${uid || 'anonymous'}:${weekKey || 'current'}`;
 };
 
 // Read cached data
@@ -93,7 +97,8 @@ function NotificationsPage() {
   const [error, setError] = useState('');
   const [signals, setSignals] = useState([]);
   const [currentRole, setCurrentRole] = useState(null);
-  const [studentNames, setStudentNames] = useState({});
+  const [studentInfo, setStudentInfo] = useState({});
+  const weekKey = getIstIsoWeekKey();
 
   useEffect(() => {
     prepareNotificationsFeature();
@@ -129,25 +134,29 @@ function NotificationsPage() {
         if (currentRole === null) return; // wait for role
         if (currentRole !== 'superadmin') {
           setSignals([]);
+          setStudentInfo({});
           setLoading(false);
           return;
         }
 
-        const cacheKey = buildCacheKey(uid);
+        const cacheKey = buildCacheKey(uid, weekKey);
         
         // Try to load from cache first
         const cachedSignals = getCachedData(cacheKey, 'signals');
-        const cachedStudentNames = getCachedData(cacheKey, 'studentNames');
+        const cachedStudentInfo = getCachedData(cacheKey, 'studentInfo');
         
-        if (cachedSignals && cachedStudentNames) {
+        if (cachedSignals && cachedStudentInfo) {
           setSignals(cachedSignals);
-          setStudentNames(cachedStudentNames);
+          setStudentInfo(cachedStudentInfo);
           if (active) setLoading(false);
           return;
         }
 
         // Fetch fresh data
-        const signalsQuery = query(collectionGroup(db, 'ai_summaries'));
+        const signalsQuery = query(
+          collectionGroup(db, 'ai_summaries'),
+          where('weekKey', '==', weekKey)
+        );
         const snapshot = await getDocs(signalsQuery);
         if (!active) return;
 
@@ -155,32 +164,40 @@ function NotificationsPage() {
           .filter((d) => d.id === 'signals')
           .map((d) => {
             const studentId = d.ref.parent?.parent?.id || null;
-            return { id: d.id, studentId, ...(d.data() || {}) };
+            const data = d.data() || {};
+            return {
+              id: d.id,
+              studentId,
+              ...data,
+              severity: data.severity || 'clear',
+              severityScore: Number.isFinite(data.severityScore) ? data.severityScore : 0,
+              evidenceCount: Number.isFinite(data.evidenceCount) ? data.evidenceCount : (Number.isFinite(data.noteCount) ? data.noteCount : 0),
+            };
           });
         
         // Cache signals
         setCachedData(cacheKey, 'signals', rows);
         setSignals(rows);
 
-        // Fetch student names (superadmin only) for display
+        // Fetch student info (superadmin only) for display
         const ids = rows.map((r) => r.studentId).filter(Boolean);
         const uniqueIds = Array.from(new Set(ids));
         const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
           try {
             const sSnap = await getDoc(doc(db, 'students', sid));
-            if (!sSnap.exists()) return [sid, sid];
+            if (!sSnap.exists()) return [sid, { name: sid, classroomId: '' }];
             const s = sSnap.data() || {};
             const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
-            return [sid, label];
+            return [sid, { name: label, classroomId: s.classroomId || '' }];
           } catch (e) {
-            return [sid, sid];
+            return [sid, { name: sid, classroomId: '' }];
           }
         }));
-        const studentNamesMap = Object.fromEntries(nameEntries);
+        const studentInfoMap = Object.fromEntries(nameEntries);
         
-        // Cache student names
-        setCachedData(cacheKey, 'studentNames', studentNamesMap);
-        setStudentNames(studentNamesMap);
+        // Cache student info
+        setCachedData(cacheKey, 'studentInfo', studentInfoMap);
+        setStudentInfo(studentInfoMap);
       } catch (err) {
         console.error('Failed to load signals', err);
         setError('Failed to load notifications.');
@@ -191,19 +208,111 @@ function NotificationsPage() {
 
     fetchSignals();
     return () => { active = false; };
-  }, [currentRole]);
+  }, [currentRole, weekKey]);
 
-  const severityCounts = signals.reduce((acc, s) => {
-    if (s.status !== 'ok') return acc;
-    const sev = s?.redFlag?.severity || null;
-    const key = sev || 'clear';
+  const isSuperAdmin = currentRole === 'superadmin';
+
+  const sortBySeverityEvidence = (a, b) => {
+    const sevDiff = (b.severityScore || 0) - (a.severityScore || 0);
+    if (sevDiff !== 0) return sevDiff;
+    return (b.evidenceCount || 0) - (a.evidenceCount || 0);
+  };
+
+  const escalatedList = signals.filter((s) => s.escalatedThisWeek).sort(sortBySeverityEvidence);
+  const improvedList = signals.filter((s) => s.improvedThisWeek).sort(sortBySeverityEvidence);
+  const stillOpenList = signals
+    .filter((s) => !s.escalatedThisWeek && !s.improvedThisWeek && (s.severityScore || 0) > 0)
+    .sort(sortBySeverityEvidence);
+
+  const severityCounts = escalatedList.reduce((acc, s) => {
+    const key = s.severity || 'clear';
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, { low: 0, medium: 0, high: 0, clear: 0 });
 
-  const gapsList = signals.filter((s) => s.status === 'ok' && Array.isArray(s.coverageGaps) && s.coverageGaps.length > 0);
+  const groupByClassroom = (items) => {
+    const grouped = {};
+    items.forEach((item) => {
+      const info = studentInfo[item.studentId] || {};
+      const classroomId = info.classroomId || 'unassigned';
+      if (!grouped[classroomId]) grouped[classroomId] = [];
+      grouped[classroomId].push(item);
+    });
+    return Object.entries(grouped).map(([classroomId, entries]) => ({
+      classroomId,
+      items: entries.sort(sortBySeverityEvidence)
+    }));
+  };
 
-  const isSuperAdmin = currentRole === 'superadmin';
+  const renderGroupedList = (items, emptyMessage) => {
+    const groups = groupByClassroom(items);
+    if (!groups.length) {
+      return (
+        <Stack direction="row" spacing={1} alignItems="center">
+          <CheckCircleOutline sx={{ color: '#22c55e' }} />
+          <Typography variant="body2" color="text.secondary">
+            {emptyMessage}
+          </Typography>
+        </Stack>
+      );
+    }
+
+    const severityColor = (severity) => {
+      if (severity === 'high') return 'error';
+      if (severity === 'medium') return 'warning';
+      if (severity === 'low') return 'default';
+      return 'default';
+    };
+
+    return (
+      <Stack spacing={1.5}>
+        {groups.map((group) => (
+          <Stack key={group.classroomId} spacing={1}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+              Classroom: {group.classroomId}
+            </Typography>
+            {group.items.map((item) => {
+              const info = studentInfo[item.studentId] || {};
+              const displayName = info.name || item.studentId;
+              return (
+                <Paper
+                  key={`${item.studentId}-${item.generatedAt || item.id}`}
+                  variant="outlined"
+                  sx={{ p: 1.5, borderRadius: 2, borderColor: '#e2e8f0' }}
+                >
+                  <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap">
+                    <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
+                      {displayName?.[0]?.toUpperCase?.() || '?'}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 180 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                        {displayName}
+                      </Typography>
+                      {Array.isArray(item.coverageGaps) && item.coverageGaps.length > 0 && (
+                        <Typography variant="body2" sx={{ color: '#64748b' }}>
+                          Gaps: {item.coverageGaps.join(', ')}
+                        </Typography>
+                      )}
+                      <Typography variant="body2" color="text.secondary">
+                        Evidence: {item.evidenceCount ?? 0}
+                      </Typography>
+                    </Box>
+                    {item.severity && item.severity !== 'clear' && (
+                      <Chip
+                        label={`Flag: ${item.severity}`}
+                        size="small"
+                        color={severityColor(item.severity)}
+                      />
+                    )}
+                  </Stack>
+                </Paper>
+              );
+            })}
+          </Stack>
+        ))}
+      </Stack>
+    );
+  };
 
   // Show loading state while role is being fetched
   if (currentRole === null) {
@@ -277,10 +386,10 @@ function NotificationsPage() {
             />
             <Stack spacing={1} alignItems="center">
               <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                Coach Pepper is checking for coverage gaps...
+                Coach Pepper is checking for escalations...
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Analyzing student observations and curriculum coverage
+                Analyzing student observations for weekly changes
               </Typography>
             </Stack>
           </Stack>
@@ -294,104 +403,90 @@ function NotificationsPage() {
         )}
 
         {!loading && !error && (
-          <Stack spacing={2}>
-            <Stack spacing={1}>
+          <Stack spacing={3}>
+            <Stack spacing={1.5}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Flag Distribution
+                This week
               </Typography>
-              <Box
-                sx={{
-                  display: 'flex',
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                  border: '1px solid #e2e8f0',
-                  height: 36
-                }}
-              >
-                {['high', 'medium', 'low', 'clear'].map((key) => {
-                  const count = severityCounts[key] || 0;
-                  const colors = {
-                    high: '#ef4444',
-                    medium: '#f59e0b',
-                    low: '#94a3b8',
-                    clear: '#22c55e'
-                  };
-                  return (
-                    <Box
-                      key={key}
-                      sx={{
-                        flex: 1,
-                        backgroundColor: colors[key],
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 700,
-                          color: key === 'high' ? '#fff' : '#0f172a'
-                        }}
-                      >
-                        {count}
-                      </Typography>
-                    </Box>
-                  );
-                })}
-              </Box>
+              <Stack direction="row" spacing={1.5} flexWrap="wrap">
+                {[
+                  { label: 'Escalated (This Week)', value: escalatedList.length, color: '#ef4444' },
+                  { label: 'Still Open', value: stillOpenList.length, color: '#f59e0b' },
+                  { label: 'Improved', value: improvedList.length, color: '#22c55e' },
+                ].map((stat) => (
+                  <Box
+                    key={stat.label}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: '#f8fafc',
+                      minWidth: 180
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      {stat.label}
+                    </Typography>
+                    <Typography variant="h6" sx={{ color: stat.color, fontWeight: 700 }}>
+                      {stat.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                {['high', 'medium', 'low'].map((key) => (
+                  <Chip
+                    key={key}
+                    label={`${key.toUpperCase()}: ${severityCounts[key] || 0}`}
+                    color={key === 'high' ? 'error' : key === 'medium' ? 'warning' : 'default'}
+                    size="small"
+                  />
+                ))}
+              </Stack>
             </Stack>
 
             <Divider />
 
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Coverage gaps
-            </Typography>
-            {gapsList.length === 0 ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CheckCircleOutline sx={{ color: '#22c55e' }} />
-                <Typography variant="body2" sx={{ color: '#16a34a' }}>
-                  No coverage gaps detected in the latest run.
+            <Stack spacing={1.5}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Escalated (This Week)
+              </Typography>
+              {renderGroupedList(escalatedList, 'No escalations detected this week.')}
+            </Stack>
+
+            <Accordion disableGutters elevation={0}>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  px: 0,
+                  '& .MuiAccordionSummary-content': { m: 0 }
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Still Open (No Change)
                 </Typography>
-              </Stack>
-            ) : (
-              <Stack spacing={1.5}>
-                {gapsList.map((item) => (
-                  <Paper
-                    key={item.studentId}
-                    variant="outlined"
-                    sx={{ p: 1.5, borderRadius: 2, borderColor: '#e2e8f0' }}
-                  >
-                    <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap">
-                      <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
-                        {studentNames[item.studentId]?.[0]?.toUpperCase?.() || '?'}
-                      </Avatar>
-                      <Box sx={{ flex: 1, minWidth: 180 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                          {studentNames[item.studentId] || item.studentId}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#64748b' }}>
-                          Gaps: {item.coverageGaps.join(', ')}
-                        </Typography>
-                      </Box>
-                      {item.redFlag?.severity && (
-                        <Chip
-                          label={`Flag: ${item.redFlag.severity}`}
-                          size="small"
-                          color={
-                            item.redFlag.severity === 'high'
-                              ? 'error'
-                              : item.redFlag.severity === 'medium'
-                                ? 'warning'
-                                : 'default'
-                          }
-                        />
-                      )}
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            )}
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 0 }}>
+                {renderGroupedList(stillOpenList, 'No unchanged flags this week.')}
+              </AccordionDetails>
+            </Accordion>
+
+            <Accordion disableGutters elevation={0}>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  px: 0,
+                  '& .MuiAccordionSummary-content': { m: 0 }
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Improved (This Week)
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 0 }}>
+                {renderGroupedList(improvedList, 'No improvements recorded this week.')}
+              </AccordionDetails>
+            </Accordion>
           </Stack>
         )}
       </Paper>

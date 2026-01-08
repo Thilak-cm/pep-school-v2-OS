@@ -9,6 +9,7 @@ import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
+import { getIstIsoWeekKey } from "./utils/weekKey.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -1208,6 +1209,69 @@ async function writeSignalsDoc(studentId, payload) {
   await ref.set(payload);
 }
 
+const SEVERITY_SCORE = {
+  clear: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+function normalizeSeverity(severity) {
+  const val = typeof severity === "string" ? severity.toLowerCase() : "";
+  return ["low", "medium", "high"].includes(val) ? val : "clear";
+}
+
+function severityToScore(severity) {
+  return SEVERITY_SCORE[normalizeSeverity(severity)] ?? 0;
+}
+
+async function buildSignalsPayload(studentId, baseSignals) {
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("signals");
+  const snap = await ref.get();
+  const existing = snap.exists ? (snap.data() || {}) : {};
+
+  const currentWeekKey = getIstIsoWeekKey(new Date());
+  const prevSeverity = normalizeSeverity(existing.severity);
+  const prevSeverityScore = severityToScore(prevSeverity);
+
+  let weekBaselineSeverity = normalizeSeverity(
+    existing.weekKey === currentWeekKey
+      ? (existing.weekBaselineSeverity || existing.severity || "clear")
+      : (existing.severity || "clear"),
+  );
+  let weekBaselineSeverityScore = severityToScore(weekBaselineSeverity);
+
+  let escalatedThisWeek = existing.weekKey === currentWeekKey && existing.escalatedThisWeek === true;
+  let improvedThisWeek = existing.weekKey === currentWeekKey && existing.improvedThisWeek === true;
+
+  if (existing.weekKey !== currentWeekKey) {
+    weekBaselineSeverity = normalizeSeverity(existing.severity || "clear");
+    weekBaselineSeverityScore = severityToScore(weekBaselineSeverity);
+    escalatedThisWeek = false;
+    improvedThisWeek = false;
+  }
+
+  const severity = normalizeSeverity(baseSignals?.redFlag?.severity);
+  const severityScore = severityToScore(severity);
+
+  escalatedThisWeek = escalatedThisWeek || (severityScore > prevSeverityScore);
+  improvedThisWeek = improvedThisWeek || (severityScore < prevSeverityScore);
+
+  return {
+    ...baseSignals,
+    severity,
+    severityScore,
+    prevSeverity,
+    prevSeverityScore,
+    weekKey: currentWeekKey,
+    weekBaselineSeverity,
+    weekBaselineSeverityScore,
+    escalatedThisWeek,
+    improvedThisWeek,
+    lastUpdatedAt: new Date(),
+  };
+}
+
 async function fetchActiveStudentIds() {
   const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
   return studentsSnap.docs.map((doc) => doc.id);
@@ -1266,7 +1330,7 @@ async function runBaseballCards({
           results.push({ studentId, status: "no_notes", payload });
         } else if (!dryRun) {
           await writeBaseballCardDoc(studentId, payload);
-          await writeSignalsDoc(studentId, {
+          const signalsPayload = await buildSignalsPayload(studentId, {
             redFlag: payload.redFlag,
             coverageGaps: payload.coverageGaps,
             noteCount: payload.noteCount,
@@ -1276,7 +1340,9 @@ async function runBaseballCards({
             temperature: payload.temperature,
             generatedAt: payload.generatedAt,
             status: payload.status,
+            evidenceCount: payload.noteCount,
           });
+          await writeSignalsDoc(studentId, signalsPayload);
         }
         return;
       }
@@ -1304,7 +1370,7 @@ async function runBaseballCards({
         results.push({ studentId, status: "ok", payload });
       } else if (!dryRun) {
         await writeBaseballCardDoc(studentId, payload);
-        await writeSignalsDoc(studentId, {
+        const signalsPayload = await buildSignalsPayload(studentId, {
           redFlag: aiResult.redFlag,
           coverageGaps: aiResult.coverageGaps,
           noteCount: payload.noteCount,
@@ -1314,7 +1380,9 @@ async function runBaseballCards({
           temperature: payload.temperature,
           generatedAt: payload.generatedAt,
           status: payload.status,
+          evidenceCount: payload.noteCount,
         });
+        await writeSignalsDoc(studentId, signalsPayload);
       }
     } catch (err) {
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
