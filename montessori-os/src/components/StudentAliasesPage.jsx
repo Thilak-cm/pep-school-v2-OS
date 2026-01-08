@@ -494,7 +494,10 @@ function StudentAliasesPage({ currentUser, userRole }) {
                             tabIndex={-1}
                             disableRipple
                             checked={selected}
-                            onChange={() => handleToggleStudent(student.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStudent(student.id);
+                            }}
                           />
                           <ListItemText
                             primary={getStudentDisplayName(student)}

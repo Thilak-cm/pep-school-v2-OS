@@ -451,6 +451,17 @@ function LessonNoteWizard({
   const showDefaultsSection = showDefaults && setupComplete;
   const showOverridesSection = setupComplete && defaultsComplete;
 
+  // Check if all dimensions have been explicitly selected for all selected students
+  const allDimensionsSelected = useMemo(() => {
+    if (!showOverridesSection || selectedStudents.length === 0) return false;
+    return selectedStudents.every((studentId) => {
+      return dimensionList.every((dimension) => {
+        // Check if dimension has been explicitly set (not relying on defaults)
+        return studentOverrides[studentId]?.dimensions?.[dimension] !== undefined;
+      });
+    });
+  }, [showOverridesSection, selectedStudents, dimensionList, studentOverrides]);
+
   const scrollToSection = (ref) => {
     if (!ref?.current) return;
     ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1209,7 +1220,7 @@ function LessonNoteWizard({
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={saving || !showOverridesSection || !isDirty}
+          disabled={saving || !showOverridesSection || !isDirty || !allDimensionsSelected}
         >
           {saving ? 'Saving…' : 'Save Lesson Note'}
         </Button>

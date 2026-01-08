@@ -338,7 +338,16 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
                     return (
                       <ListItem key={s.id} button onClick={() => toggleSelect(s.id)}>
                         <ListItemIcon>
-                          <Checkbox edge="start" tabIndex={-1} disableRipple checked={checked} />
+                          <Checkbox
+                            edge="start"
+                            tabIndex={-1}
+                            disableRipple
+                            checked={checked}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelect(s.id);
+                            }}
+                          />
                         </ListItemIcon>
                         <ListItemText primary={label} secondary={s.classroomId ? `Current: ${s.classroomId}` : null} />
                       </ListItem>
