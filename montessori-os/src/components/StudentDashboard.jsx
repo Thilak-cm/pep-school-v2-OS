@@ -35,7 +35,6 @@ import { httpsCallable } from 'firebase/functions';
 import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
-import NewFeaturePill from './NewFeaturePill';
 
 const confettiFall = keyframes`
   0% {
@@ -453,14 +452,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
 
   const renderBaseballCardBody = () => {
-    if (!isSuperAdmin) {
-      return (
-        <Box sx={{ mt: 1 }}>
-          <NewFeaturePill label="Feature coming soon!" />
-        </Box>
-      );
-    }
-
     if (cardLoading) {
       return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
@@ -563,11 +554,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         }}
       >
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'hidden' }}>
-          {isSuperAdmin && (
-            <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
-              {getSeverityChip()}
-            </Box>
-          )}
+          <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+            {getSeverityChip()}
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
@@ -580,11 +569,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
                   {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardConfig?.windowDays || BASEBALL_CARD_DEFAULTS.windowDays} days
                 </Typography>
-                {isSuperAdmin && (
-                  <Box sx={{ mt: 0.5 }}>
-                    {renderCoverageRow()}
-                  </Box>
-                )}
+                <Box sx={{ mt: 0.5 }}>
+                  {renderCoverageRow()}
+                </Box>
               </Box>
             </Box>
           </Box>
