@@ -31,7 +31,10 @@ import {
   FlagRounded,
   WarningAmber as WarningIcon,
   CheckCircle,
-  InfoOutlined
+  InfoOutlined,
+  TrendingUp,
+  RemoveCircleOutline,
+  TrendingDown
 } from '@mui/icons-material';
 import { collectionGroup, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -39,7 +42,7 @@ import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
-import NewFeaturePill from './NewFeaturePill';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -209,6 +212,8 @@ function NotificationsPage() {
   const coverageConfettiTimerRef = useRef(null);
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
+  const [expandedClassrooms, setExpandedClassrooms] = useState(new Set());
+  const [expandedFlagTypes, setExpandedFlagTypes] = useState(new Set());
 
   useEffect(() => {
     prepareNotificationsFeature();
@@ -446,11 +451,11 @@ function NotificationsPage() {
 
   // Load data when a card is expanded
   useEffect(() => {
-    if (expandedStudentId && isSuperAdmin) {
+    if (expandedStudentId) {
       const reloadKey = reloadKeys[expandedStudentId] || 0;
       loadBaseballCardForStudent(expandedStudentId, reloadKey > 0);
     }
-  }, [expandedStudentId, isSuperAdmin, reloadKeys, loadBaseballCardForStudent]);
+  }, [expandedStudentId, reloadKeys, loadBaseballCardForStudent]);
 
   // Cleanup confetti timer on unmount
   useEffect(() => {
@@ -499,22 +504,6 @@ function NotificationsPage() {
         <Typography variant="body2" color="text.secondary">
           Coach Pepper is gathering notifications...
         </Typography>
-      </Box>
-    );
-  }
-
-  if (!isSuperAdmin) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 320
-        }}
-      >
-        <NewFeaturePill label="Notifications page feature coming soon!" size="md" />
       </Box>
     );
   }
@@ -795,22 +784,31 @@ function NotificationsPage() {
     );
   };
 
-  const groupByClassroom = (items) => {
+  const groupByClassroomAndSeverity = (items) => {
     const grouped = {};
     items.forEach((item) => {
       const info = studentInfo[item.studentId] || {};
       const classroomId = info.classroomId || 'unassigned';
-      if (!grouped[classroomId]) grouped[classroomId] = [];
-      grouped[classroomId].push(item);
+      const severity = item.severity || 'clear';
+      if (!grouped[classroomId]) grouped[classroomId] = {};
+      if (!grouped[classroomId][severity]) grouped[classroomId][severity] = [];
+      grouped[classroomId][severity].push(item);
     });
-    return Object.entries(grouped).map(([classroomId, entries]) => ({
+    return Object.entries(grouped).map(([classroomId, severityGroups]) => ({
       classroomId,
-      items: entries.sort(sortBySeverityEvidence)
+      severityGroups: Object.entries(severityGroups).map(([severity, entries]) => ({
+        severity,
+        items: entries.sort(sortBySeverityEvidence)
+      })).sort((a, b) => {
+        // Sort severity: high > medium > low > clear
+        const order = { high: 0, medium: 1, med: 1, low: 2, clear: 3 };
+        return (order[a.severity] ?? 4) - (order[b.severity] ?? 4);
+      })
     }));
   };
 
   const renderGroupedList = (items, emptyMessage) => {
-    const groups = groupByClassroom(items);
+    const groups = groupByClassroomAndSeverity(items);
     if (!groups.length) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
@@ -831,83 +829,215 @@ function NotificationsPage() {
       return 'default';
     };
 
+    const getSeverityLabel = (severity) => {
+      if (!severity || severity === 'clear') return 'Clear';
+      if (severity === 'med') return 'Medium';
+      return severity.charAt(0).toUpperCase() + severity.slice(1);
+    };
+
+    const toggleClassroom = (classroomId) => {
+      setExpandedClassrooms(prev => {
+        const next = new Set(prev);
+        if (next.has(classroomId)) {
+          next.delete(classroomId);
+        } else {
+          next.add(classroomId);
+        }
+        return next;
+      });
+    };
+
+    const toggleFlagType = (classroomId, severity) => {
+      const key = `${classroomId}:${severity}`;
+      setExpandedFlagTypes(prev => {
+        const next = new Set(prev);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    };
+
     return (
-      <Stack spacing={1.5}>
-        {groups.map((group) => (
-          <Stack key={group.classroomId} spacing={1}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-              Classroom: {group.classroomId}
-            </Typography>
-            {group.items.map((item) => {
-              const info = studentInfo[item.studentId] || {};
-              const displayName = info.name || item.studentId;
-              const isExpanded = expandedStudentId === item.studentId;
-              const handleCardClick = () => {
-                if (isExpanded) {
-                  setExpandedStudentId(null);
-                } else {
-                  setExpandedStudentId(item.studentId);
+      <Stack spacing={1}>
+        {groups.map((group) => {
+          const isClassroomExpanded = expandedClassrooms.has(group.classroomId);
+          const totalStudents = group.severityGroups.reduce((sum, sg) => sum + sg.items.length, 0);
+          
+          return (
+            <Accordion
+              key={group.classroomId}
+              expanded={isClassroomExpanded}
+              onChange={() => toggleClassroom(group.classroomId)}
+              disableGutters
+              elevation={0}
+              sx={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 2,
+                '&:before': { display: 'none' },
+                '&.Mui-expanded': {
+                  borderColor: '#cbd5e1',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 }
-              };
-              return (
-                <Paper
-                  key={`${item.studentId}-${item.generatedAt || item.id}`}
-                  variant="outlined"
-                  onClick={isSuperAdmin ? handleCardClick : undefined}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    borderColor: '#e2e8f0',
-                    cursor: isSuperAdmin ? 'pointer' : 'default',
-                    transition: 'all 0.2s ease-in-out',
-                    '&:hover': isSuperAdmin ? {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                      borderColor: '#cbd5e1',
-                      transform: 'translateY(-1px)'
-                    } : {},
-                    ...(isExpanded && {
-                      borderColor: '#6366f1',
-                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
-                    })
-                  }}
-                >
-                  <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap">
-                    <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
-                      {displayName?.[0]?.toUpperCase?.() || '?'}
-                    </Avatar>
-                    <Box sx={{ flex: 1, minWidth: 180 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                        {displayName}
-                      </Typography>
-                    </Box>
-                    <Chip
-                      label={`Flag: ${item.severity || 'clear'}`}
-                      size="small"
-                      color={severityColor(item.severity)}
-                    />
-                    {isSuperAdmin && (
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCardClick();
-                        }}
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  px: 2,
+                  py: 1.5,
+                  '& .MuiAccordionSummary-content': {
+                    m: 0,
+                    alignItems: 'center'
+                  }
+                }}
+              >
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                    Classroom: {group.classroomId}
+                  </Typography>
+                  <Chip
+                    label={totalStudents}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      backgroundColor: '#f1f5f9',
+                      color: '#475569'
+                    }}
+                  />
+                </Stack>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                <Stack spacing={1}>
+                  {group.severityGroups.map((severityGroup) => {
+                    const flagKey = `${group.classroomId}:${severityGroup.severity}`;
+                    const isFlagExpanded = expandedFlagTypes.has(flagKey);
+                    const severity = severityGroup.severity;
+                    
+                    return (
+                      <Accordion
+                        key={flagKey}
+                        expanded={isFlagExpanded}
+                        onChange={() => toggleFlagType(group.classroomId, severity)}
+                        disableGutters
+                        elevation={0}
                         sx={{
-                          color: '#64748b',
-                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.2s ease-in-out'
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 1.5,
+                          '&:before': { display: 'none' },
+                          backgroundColor: '#f8fafc'
                         }}
-                        aria-label={isExpanded ? 'Collapse card' : 'Expand card'}
                       >
-                        <ExpandMoreIcon />
-                      </IconButton>
-                    )}
-                  </Stack>
-                </Paper>
-              );
-            })}
-          </Stack>
-        ))}
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          sx={{
+                            px: 1.5,
+                            py: 1,
+                            minHeight: 40,
+                            '& .MuiAccordionSummary-content': {
+                              m: 0,
+                              alignItems: 'center'
+                            }
+                          }}
+                        >
+                          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                            <Chip
+                              label={`Flag: ${getSeverityLabel(severity)}`}
+                              size="small"
+                              color={severityColor(severity)}
+                              sx={{ fontWeight: 600 }}
+                            />
+                            <Chip
+                              label={severityGroup.items.length}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                backgroundColor: 'white',
+                                color: '#475569'
+                              }}
+                            />
+                          </Stack>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ px: 1.5, pb: 1.5 }}>
+                          <Stack spacing={1}>
+                            {severityGroup.items.map((item) => {
+                              const info = studentInfo[item.studentId] || {};
+                              const displayName = info.name || item.studentId;
+                              const isExpanded = expandedStudentId === item.studentId;
+                              const handleCardClick = () => {
+                                if (isExpanded) {
+                                  setExpandedStudentId(null);
+                                } else {
+                                  setExpandedStudentId(item.studentId);
+                                }
+                              };
+                              return (
+                                <Paper
+                                  key={`${item.studentId}-${item.generatedAt || item.id}`}
+                                  variant="outlined"
+                                  onClick={handleCardClick}
+                                  sx={{
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    borderColor: '#e2e8f0',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': {
+                                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                                      borderColor: '#cbd5e1',
+                                      transform: 'translateY(-1px)'
+                                    },
+                                    ...(isExpanded && {
+                                      borderColor: '#6366f1',
+                                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
+                                    })
+                                  }}
+                                >
+                                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                                    <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
+                                      {displayName?.[0]?.toUpperCase?.() || '?'}
+                                    </Avatar>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                                        {displayName}
+                                      </Typography>
+                                    </Box>
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCardClick();
+                                      }}
+                                      sx={{
+                                        color: '#64748b',
+                                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease-in-out',
+                                        flexShrink: 0
+                                      }}
+                                      aria-label={isExpanded ? 'Collapse card' : 'Expand card'}
+                                    >
+                                      <ExpandMoreIcon />
+                                    </IconButton>
+                                  </Stack>
+                                </Paper>
+                              );
+                            })}
+                          </Stack>
+                        </AccordionDetails>
+                      </Accordion>
+                    );
+                  })}
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
       </Stack>
     );
   };
@@ -977,11 +1107,9 @@ function NotificationsPage() {
           }}
         >
           <DialogContent sx={{ pt: 3, pb: 2, position: 'relative', flex: 1, overflow: 'auto' }}>
-            {isSuperAdmin && (
-              <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1 }}>
-                {getSeverityChip(studentId)}
-              </Box>
-            )}
+            <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1 }}>
+              {getSeverityChip(studentId)}
+            </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap', position: 'relative' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
@@ -998,11 +1126,9 @@ function NotificationsPage() {
                     <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
                       {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardWindowDays} days
                     </Typography>
-                    {isSuperAdmin && (
-                      <Box sx={{ mt: 0.5 }}>
-                        {renderCoverageRow(studentId)}
-                      </Box>
-                    )}
+                    <Box sx={{ mt: 0.5 }}>
+                      {renderCoverageRow(studentId)}
+                    </Box>
                   </Box>
                 </Box>
               </Box>
@@ -1191,25 +1317,20 @@ function NotificationsPage() {
         }}
       >
         {loading && (
-          <Stack spacing={3} alignItems="center" justifyContent="center" sx={{ py: 6 }}>
-            <CircularProgress
-              size={40}
-              sx={{
-                color: '#4f46e5',
-                '& .MuiCircularProgress-circle': {
-                  strokeLinecap: 'round',
-                }
-              }}
-            />
-            <Stack spacing={1} alignItems="center">
-              <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                Coach Pepper is checking for escalations...
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Analyzing student observations for weekly changes
-              </Typography>
-            </Stack>
-          </Stack>
+          <Box sx={{
+            display: 'flex',
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 320,
+            flexDirection: 'column',
+            gap: 2
+          }}>
+            <CircularProgress size={32} />
+            <Typography variant="body2" color="text.secondary">
+              Loading notifications...
+            </Typography>
+          </Box>
         )}
 
         {!loading && error && (
@@ -1220,51 +1341,172 @@ function NotificationsPage() {
         )}
 
         {!loading && !error && (
-          <Stack spacing={3}>
+          <Stack spacing={2}>
             <Stack spacing={1.5}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                This week
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                This Week
               </Typography>
-              <Stack direction="row" spacing={1.5} flexWrap="wrap">
+              
+              {/* Weekly Summary Header */}
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#1e293b', fontSize: '0.875rem' }}>
+                Behavioral Flag Breakdown
+              </Typography>
+              
+              {/* Compact Stat Cards - Side by Side */}
+              <Stack direction="row" spacing={1.5} sx={{ width: '100%' }}>
                 {[
-                  { label: 'Escalated (This Week)', value: escalatedList.length, color: '#ef4444' },
-                  { label: 'Still Open', value: stillOpenList.length, color: '#f59e0b' },
-                  { label: 'Improved', value: improvedList.length, color: '#22c55e' },
-                ].map((stat) => (
-                  <Box
-                    key={stat.label}
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      border: '1px solid #e2e8f0',
-                      backgroundColor: '#f8fafc',
-                      minWidth: 180
-                    }}
-                  >
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.label}
-                    </Typography>
-                    <Typography variant="h6" sx={{ color: stat.color, fontWeight: 700 }}>
-                      {stat.value}
-                    </Typography>
-                  </Box>
-                ))}
+                  { 
+                    label: 'Escalate', 
+                    value: escalatedList.length, 
+                    color: '#ef4444',
+                    bgColor: '#fef2f2',
+                    icon: TrendingUp
+                  },
+                  { 
+                    label: 'Open', 
+                    value: stillOpenList.length, 
+                    color: '#f59e0b',
+                    bgColor: '#fffbeb',
+                    icon: RemoveCircleOutline
+                  },
+                  { 
+                    label: 'Improved', 
+                    value: improvedList.length, 
+                    color: '#22c55e',
+                    bgColor: '#f0fdf4',
+                    icon: TrendingDown
+                  },
+                ].map((stat) => {
+                  const IconComponent = stat.icon;
+                  return (
+                    <Card
+                      key={stat.label}
+                      sx={{
+                        flex: 1,
+                        borderRadius: 1.5,
+                        border: '1px solid #e2e8f0',
+                        backgroundColor: stat.bgColor,
+                        boxShadow: 'none'
+                      }}
+                    >
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                        <Stack direction="column" alignItems="center" spacing={1}>
+                          <IconComponent sx={{ color: stat.color, fontSize: 24 }} />
+                          <Typography variant="h5" sx={{ color: stat.color, fontWeight: 700, lineHeight: 1 }}>
+                            {stat.value}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textAlign: 'center' }}>
+                            {stat.label}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                {[
-                  { key: 'high', label: 'HIGH', color: 'error' },
-                  { key: 'medium', label: 'MEDIUM', color: 'warning' },
-                  { key: 'low', label: 'LOW', color: 'default' },
-                  { key: 'clear', label: 'GREEN', color: 'success' },
-                ].map(({ key, label, color }) => (
-                  <Chip
-                    key={key}
-                    label={`${label}: ${severityCounts[key] || 0}`}
-                    color={color}
-                    size="small"
-                  />
-                ))}
-              </Stack>
+
+              {/* Compact Severity Breakdown */}
+              <Card sx={{ borderRadius: 1.5, border: '1px solid #e2e8f0', backgroundColor: 'white' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5, color: '#1e293b', fontSize: '0.875rem' }}>
+                    Severity Breakdown
+                  </Typography>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    {/* Compact Donut Chart */}
+                    <Box sx={{ width: 120, height: 120, flexShrink: 0, position: 'relative' }}>
+                      {(() => {
+                        const chartData = [
+                          { name: 'High', value: severityCounts.high || 0, color: '#dc2626' },
+                          { name: 'Medium', value: severityCounts.medium || 0, color: '#f59e0b' },
+                          { name: 'Low', value: severityCounts.low || 0, color: '#94a3b8' },
+                          { name: 'Clear', value: severityCounts.clear || 0, color: '#22c55e' },
+                        ];
+                        const filteredData = chartData.filter(item => item.value > 0);
+                        const total = chartData.reduce((sum, item) => sum + item.value, 0);
+
+                        if (total === 0) {
+                          return (
+                            <Box sx={{ 
+                              width: '100%', 
+                              height: '100%', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              flexDirection: 'column',
+                              gap: 0.5
+                            }}>
+                              <CheckCircleOutline sx={{ fontSize: 32, color: '#e2e8f0' }} />
+                              <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                                No escalations
+                              </Typography>
+                            </Box>
+                          );
+                        }
+
+                        return (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={filteredData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={35}
+                                outerRadius={50}
+                                paddingAngle={filteredData.length > 1 ? 2 : 0}
+                                dataKey="value"
+                                startAngle={90}
+                                endAngle={-270}
+                              >
+                                {filteredData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip
+                                contentStyle={{
+                                  backgroundColor: 'white',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: 6,
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                  padding: '8px 12px'
+                                }}
+                                formatter={(value) => [value, 'Students']}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        );
+                      })()}
+                    </Box>
+
+                    {/* Compact Legend */}
+                    <Stack spacing={1} sx={{ flex: 1 }}>
+                      {[
+                        { key: 'high', label: 'High', color: '#dc2626', count: severityCounts.high || 0 },
+                        { key: 'medium', label: 'Medium', color: '#f59e0b', count: severityCounts.medium || 0 },
+                        { key: 'low', label: 'Low', color: '#94a3b8', count: severityCounts.low || 0 },
+                        { key: 'clear', label: 'Clear', color: '#22c55e', count: severityCounts.clear || 0 },
+                      ].map(({ key, label, color, count }) => (
+                        <Stack key={key} direction="row" alignItems="center" spacing={1}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '2px',
+                              backgroundColor: color,
+                              flexShrink: 0
+                            }}
+                          />
+                          <Typography variant="caption" sx={{ color: '#64748b', flex: 1, fontSize: '0.75rem' }}>
+                            {label}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 600, fontSize: '0.75rem' }}>
+                            {count}
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
             </Stack>
 
             <Divider />
