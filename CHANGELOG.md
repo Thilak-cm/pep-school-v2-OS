@@ -1,5 +1,24 @@
 # Changelog
 
+# 7.2.1 — 2026-01-08
+
+### Added
+- Expandable baseball card in NotificationsPage: clicking any student card opens a modal showing the full baseball card summary with all features (severity flags, coverage status, regenerate functionality).
+- Modal footer actions: three-button footer in baseball card modal with "View Dashboard" (navigates to student dashboard), "Regenerate" (superadmin-only), and "Close" buttons.
+- Scroll fade effect: gradient fade at bottom of scrollable baseball card content to indicate more content is available below.
+
+### Changed
+- NotificationsPage modal UI: removed outer card wrapper for cleaner, more spacious layout; title format changed to "{Student Name}'s Snapshot" with "Snapshot" on second line to accommodate flag icon.
+- Baseball card loading state: replaced skeleton loaders with Coach Pepper-themed loading indicator ("Coach Pepper is preparing [Student Name]'s snapshot...").
+- NotificationsPage: removed Add Note floating action button from notifications screen.
+- Lesson Notes save button UX: save button is now always clickable (except during save operation) instead of being disabled when validation fails; clicking with incomplete information shows specific warning notifications indicating what needs to be completed.
+- Lesson Notes validation messages: improved validation messages to be more specific and actionable, with different messages for individual vs group modes and clearer guidance on missing requirements (lesson title, classroom, students, dimension ratings).
+- Lesson Notes group mode: fixed validation to allow saving in group mode when defaults are complete, even without explicit overrides for each student (students inherit defaults).
+
+### Technical
+- Baseball card data loading: implemented per-student caching and lazy loading when cards are expanded; accordion behavior ensures only one card expanded at a time.
+- Modal state management: added comprehensive state tracking for expanded student, baseball card data, loading states, errors, and regeneration status per student.
+
 # 7.2.0 — 2026-01-08
 
 ### Added
