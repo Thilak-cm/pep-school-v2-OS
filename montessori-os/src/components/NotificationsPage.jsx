@@ -999,11 +999,11 @@ function NotificationsPage() {
                                     })
                                   }}
                                 >
-                                  <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap">
+                                  <Stack direction="row" alignItems="center" spacing={1.5}>
                                     <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
                                       {displayName?.[0]?.toUpperCase?.() || '?'}
                                     </Avatar>
-                                    <Box sx={{ flex: 1, minWidth: 180 }}>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
                                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
                                         {displayName}
                                       </Typography>
@@ -1017,7 +1017,8 @@ function NotificationsPage() {
                                       sx={{
                                         color: '#64748b',
                                         transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                        transition: 'transform 0.2s ease-in-out'
+                                        transition: 'transform 0.2s ease-in-out',
+                                        flexShrink: 0
                                       }}
                                       aria-label={isExpanded ? 'Collapse card' : 'Expand card'}
                                     >
@@ -1344,6 +1345,11 @@ function NotificationsPage() {
             <Stack spacing={1.5}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
                 This Week
+              </Typography>
+              
+              {/* Weekly Summary Header */}
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#1e293b', fontSize: '0.875rem' }}>
+                Behavioral Flag Breakdown
               </Typography>
               
               {/* Compact Stat Cards - Side by Side */}
