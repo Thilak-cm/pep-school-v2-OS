@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { keyframes } from '@emotion/react';
 import {
   Box,
   Typography,
@@ -10,18 +11,103 @@ import {
   Avatar,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Dialog,
+  DialogContent,
+  DialogActions,
+  Card,
+  CardContent,
+  Button,
+  Skeleton,
+  IconButton,
+  Tooltip,
+  Popover
 } from '@mui/material';
 import {
   ErrorOutline,
   CheckCircleOutline,
-  ExpandMore as ExpandMoreIcon
+  ExpandMore as ExpandMoreIcon,
+  AutoAwesome,
+  FlagRounded,
+  WarningAmber as WarningIcon,
+  CheckCircle,
+  InfoOutlined
 } from '@mui/icons-material';
 import { collectionGroup, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
+import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import NewFeaturePill from './NewFeaturePill';
+
+// Confetti animation for coverage celebration
+const confettiFallSmall = keyframes`
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(200px) rotate(360deg);
+    opacity: 0;
+  }
+`;
+
+const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+
+function ConfettiAnimation({ count = 50, small = false }) {
+  const particles = React.useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => {
+        const isWide = Math.random() > 0.5;
+        const width = isWide ? 12 + Math.random() * 8 : 6 + Math.random() * 4;
+        const height = isWide ? 6 + Math.random() * 4 : 12 + Math.random() * 8;
+        return {
+          id: i,
+          left: `${Math.random() * 100}%`,
+          delay: Math.random() * 2.5,
+          duration: 2.5 + Math.random() * 0.5,
+          color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+          width,
+          height,
+          rotation: Math.random() * 360,
+        };
+      }),
+    [count]
+  );
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 1,
+      }}
+    >
+      {particles.map((particle) => (
+        <Box
+          key={particle.id}
+          sx={{
+            position: 'absolute',
+            left: particle.left,
+            top: '-10px',
+            width: particle.width,
+            height: particle.height,
+            backgroundColor: particle.color,
+            borderRadius: '2px',
+            transform: `rotate(${particle.rotation}deg)`,
+            animation: `${confettiFallSmall} ${particle.duration}s ease-out ${particle.delay}s forwards`,
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
 
 // Cache configuration
 const CACHE_KEY_PREFIX = 'notificationsPageCache';
@@ -107,8 +193,54 @@ function NotificationsPage() {
   const weekKey = getIstIsoWeekKey();
   const isSuperAdmin = currentRole === 'superadmin';
 
+  // Baseball card expansion state
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
+  const [baseballCardData, setBaseballCardData] = useState({});
+  const [baseballCardLoading, setBaseballCardLoading] = useState({});
+  const [baseballCardError, setBaseballCardError] = useState({});
+  const [baseballCardConfig, setBaseballCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
+  const [signalsDataMap, setSignalsDataMap] = useState({});
+  const [regenRunning, setRegenRunning] = useState({});
+  const [regenError, setRegenError] = useState({});
+  const [reloadKeys, setReloadKeys] = useState({});
+  const [flagAnchorEl, setFlagAnchorEl] = useState(null);
+  const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
+  const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
+  const coverageConfettiTimerRef = useRef(null);
+  const summaryScrollRef = useRef(null);
+  const [showScrollFade, setShowScrollFade] = useState(false);
+
   useEffect(() => {
     prepareNotificationsFeature();
+  }, []);
+
+  // Load baseball card config
+  useEffect(() => {
+    let active = true;
+    const loadConfig = async () => {
+      try {
+        const ref = doc(db, 'config', 'baseball_card');
+        const snap = await getDoc(ref);
+        if (!active) return;
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          setBaseballCardConfig({
+            model: data.model || BASEBALL_CARD_DEFAULTS.model,
+            temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+            windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
+            timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
+            max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens
+          });
+        } else {
+          setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
+        }
+      } catch (err) {
+        console.warn('Failed to load baseball card config', err);
+        setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
+      }
+    };
+    loadConfig();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -273,6 +405,85 @@ function NotificationsPage() {
     return () => { active = false; };
   }, [weekKey, accessLoaded, currentRole, accessibleClassrooms]);
 
+  // Load baseball card data for a student
+  const loadBaseballCardForStudent = React.useCallback(async (studentId, forceReload = false) => {
+    if (!studentId) return;
+    
+    // Skip if already loaded and not forcing reload, unless currently loading
+    if (!forceReload && baseballCardData[studentId] !== undefined && !baseballCardLoading[studentId]) {
+      return;
+    }
+
+    // Skip if already loading
+    if (baseballCardLoading[studentId]) {
+      return;
+    }
+
+    setBaseballCardLoading(prev => ({ ...prev, [studentId]: true }));
+    setBaseballCardError(prev => ({ ...prev, [studentId]: '' }));
+
+    try {
+      const cardRef = doc(db, 'students', studentId, 'ai_summaries', 'baseball_card');
+      const signalsRef = doc(db, 'students', studentId, 'ai_summaries', 'signals');
+      const [cardSnap, signalsSnap] = await Promise.all([getDoc(cardRef), getDoc(signalsRef)]);
+
+      setBaseballCardData(prev => ({
+        ...prev,
+        [studentId]: cardSnap.exists() ? { id: cardSnap.id, ...cardSnap.data() } : null
+      }));
+
+      setSignalsDataMap(prev => ({
+        ...prev,
+        [studentId]: signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null
+      }));
+    } catch (err) {
+      console.error(`Error loading baseball card for student ${studentId}`, err);
+      setBaseballCardError(prev => ({ ...prev, [studentId]: 'Failed to load the baseball card.' }));
+    } finally {
+      setBaseballCardLoading(prev => ({ ...prev, [studentId]: false }));
+    }
+  }, [baseballCardData, baseballCardLoading]);
+
+  // Load data when a card is expanded
+  useEffect(() => {
+    if (expandedStudentId && isSuperAdmin) {
+      const reloadKey = reloadKeys[expandedStudentId] || 0;
+      loadBaseballCardForStudent(expandedStudentId, reloadKey > 0);
+    }
+  }, [expandedStudentId, isSuperAdmin, reloadKeys, loadBaseballCardForStudent]);
+
+  // Cleanup confetti timer on unmount
+  useEffect(() => {
+    return () => {
+      if (coverageConfettiTimerRef.current) {
+        clearTimeout(coverageConfettiTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Update scroll fade effect
+  const updateScrollFade = React.useCallback(() => {
+    const el = summaryScrollRef.current;
+    if (!el) return;
+    const canScroll = el.scrollHeight - el.clientHeight > 4;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    setShowScrollFade(canScroll && !atBottom);
+  }, []);
+
+  useEffect(() => {
+    if (expandedStudentId) {
+      // Small delay to ensure DOM is updated
+      const timer = setTimeout(() => {
+        updateScrollFade();
+      }, 100);
+      window.addEventListener('resize', updateScrollFade);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', updateScrollFade);
+      };
+    }
+  }, [expandedStudentId, updateScrollFade, baseballCardData, baseballCardLoading]);
+
   if (!accessLoaded) {
     return (
       <Box sx={{
@@ -326,6 +537,264 @@ function NotificationsPage() {
     return acc;
   }, { low: 0, medium: 0, high: 0, clear: 0 });
 
+  // Helper function to get student name
+  const getStudentName = (studentId) => {
+    if (!studentId) return 'Student';
+    const info = studentInfo[studentId] || {};
+    return info.name || studentId;
+  };
+
+  // Get severity chip component for a student
+  const getSeverityChip = (studentId) => {
+    const signalsData = signalsDataMap[studentId];
+    const signalsLoading = baseballCardLoading[studentId];
+    const signalsStatus = signalsData?.status || null;
+    const severity = signalsStatus === 'ok' ? (signalsData?.redFlag?.severity || null) : null;
+
+    if (signalsLoading || signalsStatus !== 'ok') return null;
+
+    const colorMap = {
+      high: '#dc2626',
+      medium: '#f59e0b',
+      med: '#f59e0b',
+      low: '#94a3b8',
+      none: '#22c55e'
+    };
+
+    const paletteColor = colorMap[severity] || colorMap.none;
+    const getSeverityLabel = (sev) => {
+      if (!sev) return 'No flag';
+      if (sev === 'med') return 'Flag: Medium';
+      return `Flag: ${sev.charAt(0).toUpperCase()}${sev.slice(1)}`;
+    };
+    const label = getSeverityLabel(severity);
+    const IconComponent = FlagRounded;
+
+    return (
+      <Tooltip title={label} arrow>
+        <IconButton
+          onClick={(e) => {
+            e.stopPropagation();
+            setFlagAnchorEl({ el: e.currentTarget, studentId });
+          }}
+          sx={{
+            width: 40,
+            height: 40,
+            border: `1px solid ${paletteColor}`,
+            color: paletteColor,
+            backgroundColor: 'rgba(15, 23, 42, 0.04)',
+            '&:hover': {
+              backgroundColor: 'rgba(15, 23, 42, 0.08)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+            }
+          }}
+          aria-label="View flag details"
+        >
+          <IconComponent sx={{ fontSize: 22 }} />
+        </IconButton>
+      </Tooltip>
+    );
+  };
+
+  // Render coverage row for a student
+  const renderCoverageRow = (studentId) => {
+    const signalsData = signalsDataMap[studentId];
+    const signalsLoading = baseballCardLoading[studentId];
+    const signalsStatus = signalsData?.status || null;
+    const coverageGaps = Array.isArray(signalsData?.coverageGaps) ? signalsData.coverageGaps : [];
+    const coverageCount = coverageGaps.length;
+    const coverageTone = coverageCount === 0 ? 'balanced' : coverageCount > 4 ? 'alert' : 'warning';
+    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+
+    const coveragePalette = {
+      balanced: {
+        borderColor: '#22c55e',
+        hoverBorderColor: '#16a34a',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        hoverBackground: 'rgba(22, 163, 74, 0.12)',
+        textColor: '#166534',
+        iconColor: '#22c55e',
+        title: 'Coverage balanced',
+      },
+      warning: {
+        borderColor: '#f59e0b',
+        hoverBorderColor: '#d97706',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        hoverBackground: 'rgba(245, 158, 11, 0.14)',
+        textColor: '#92400e',
+        iconColor: '#f59e0b',
+        title: 'Missing domains',
+      },
+      alert: {
+        borderColor: '#dc2626',
+        hoverBorderColor: '#b91c1c',
+        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+        hoverBackground: 'rgba(220, 38, 38, 0.14)',
+        textColor: '#991b1b',
+        iconColor: '#dc2626',
+        title: 'Missing domains',
+      },
+    };
+    const coverageStyles = coveragePalette[coverageTone];
+
+    if (signalsLoading) {
+      return (
+        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+          Checking coverage…
+        </Typography>
+      );
+    }
+    if (signalsStatus !== 'ok') {
+      return (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <InfoOutlined sx={{ fontSize: 18, color: '#94a3b8' }} />
+          <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+            Coverage pending
+          </Typography>
+        </Stack>
+      );
+    }
+
+    const buttonIcon =
+      coverageTone === 'balanced' ? (
+        <CheckCircle sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+      ) : (
+        <WarningIcon sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+      );
+
+    const handleCoverageClick = (e) => {
+      e.stopPropagation();
+      setMissingDomainsAnchorEl({ el: e.currentTarget, studentId, coverageGaps, coverageTone, coverageStyles, cardWindowDays });
+      if (coverageTone === 'balanced') {
+        if (coverageConfettiTimerRef.current) {
+          clearTimeout(coverageConfettiTimerRef.current);
+        }
+        setShowCoverageConfetti(true);
+        coverageConfettiTimerRef.current = setTimeout(() => setShowCoverageConfetti(false), 2600);
+      }
+    };
+
+    return (
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={buttonIcon}
+        onClick={handleCoverageClick}
+        sx={{
+          textTransform: 'none',
+          fontWeight: 700,
+          borderRadius: 2,
+          borderColor: coverageStyles.borderColor,
+          color: coverageStyles.textColor,
+          backgroundColor: coverageStyles.backgroundColor,
+          px: 1.5,
+          '&:hover': {
+            borderColor: coverageStyles.hoverBorderColor,
+            backgroundColor: coverageStyles.hoverBackground
+          }
+        }}
+        aria-label={
+          coverageTone === 'balanced'
+            ? 'View coverage details'
+            : `View ${coverageCount} missing domains`
+        }
+      >
+        {coverageTone === 'balanced' ? 'Coverage balanced' : `Missing domains: ${coverageCount}`}
+      </Button>
+    );
+  };
+
+  // Render baseball card body for a student
+  const renderBaseballCardBody = (studentId) => {
+    const cardData = baseballCardData[studentId];
+    const cardLoading = baseballCardLoading[studentId];
+    const cardError = baseballCardError[studentId];
+    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+    const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
+    const cardNoteCount = cardData?.noteCount;
+    const cardStatus = cardData?.status || null;
+    const isNoNotes = cardStatus === 'no_notes' || cardNoteCount === 0;
+    const studentLabel = getStudentName(studentId);
+
+    if (cardLoading) {
+      return (
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            py: 4,
+            mt: 1
+          }}
+        >
+          <CircularProgress
+            size={40}
+            sx={{
+              color: '#4f46e5',
+              '& .MuiCircularProgress-circle': {
+                strokeLinecap: 'round',
+              }
+            }}
+          />
+          <Typography variant="body1" sx={{ color: '#64748b', textAlign: 'center' }}>
+            Coach Pepper is preparing {studentLabel}'s snapshot...
+          </Typography>
+        </Box>
+      );
+    }
+
+    if (cardError) {
+      return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ErrorOutline fontSize="small" color="error" />
+            <Typography variant="body2" color="error">
+              {cardError}
+            </Typography>
+          </Stack>
+        </Box>
+      );
+    }
+
+    if (!cardData) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          No summary available yet. The nightly job will generate it automatically.
+        </Typography>
+      );
+    }
+
+    if (isNoNotes) {
+      return (
+        <Typography variant="body2" color="error">
+          No notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
+        </Typography>
+      );
+    }
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+        {cardData.summary ? (
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#334155',
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {cardData.summary}
+          </Typography>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No summary returned.
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
   const groupByClassroom = (items) => {
     const grouped = {};
     items.forEach((item) => {
@@ -372,11 +841,35 @@ function NotificationsPage() {
             {group.items.map((item) => {
               const info = studentInfo[item.studentId] || {};
               const displayName = info.name || item.studentId;
+              const isExpanded = expandedStudentId === item.studentId;
+              const handleCardClick = () => {
+                if (isExpanded) {
+                  setExpandedStudentId(null);
+                } else {
+                  setExpandedStudentId(item.studentId);
+                }
+              };
               return (
                 <Paper
                   key={`${item.studentId}-${item.generatedAt || item.id}`}
                   variant="outlined"
-                  sx={{ p: 1.5, borderRadius: 2, borderColor: '#e2e8f0' }}
+                  onClick={isSuperAdmin ? handleCardClick : undefined}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    borderColor: '#e2e8f0',
+                    cursor: isSuperAdmin ? 'pointer' : 'default',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': isSuperAdmin ? {
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      borderColor: '#cbd5e1',
+                      transform: 'translateY(-1px)'
+                    } : {},
+                    ...(isExpanded && {
+                      borderColor: '#6366f1',
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
+                    })
+                  }}
                 >
                   <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap">
                     <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
@@ -386,20 +879,29 @@ function NotificationsPage() {
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
                         {displayName}
                       </Typography>
-                      {Array.isArray(item.coverageGaps) && item.coverageGaps.length > 0 && (
-                        <Typography variant="body2" sx={{ color: '#64748b' }}>
-                          Gaps: {item.coverageGaps.join(', ')}
-                        </Typography>
-                      )}
-                      <Typography variant="body2" color="text.secondary">
-                        Evidence: {item.evidenceCount ?? 0}
-                      </Typography>
                     </Box>
                     <Chip
                       label={`Flag: ${item.severity || 'clear'}`}
                       size="small"
                       color={severityColor(item.severity)}
                     />
+                    {isSuperAdmin && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCardClick();
+                        }}
+                        sx={{
+                          color: '#64748b',
+                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease-in-out'
+                        }}
+                        aria-label={isExpanded ? 'Collapse card' : 'Expand card'}
+                      >
+                        <ExpandMoreIcon />
+                      </IconButton>
+                    )}
                   </Stack>
                 </Paper>
               );
@@ -410,8 +912,275 @@ function NotificationsPage() {
     );
   };
 
+  // Render baseball card modal
+  const renderBaseballCardModal = () => {
+    if (!expandedStudentId) return null;
+
+    const studentId = expandedStudentId;
+    const studentName = getStudentName(studentId);
+    const cardData = baseballCardData[studentId];
+    const cardLoading = baseballCardLoading[studentId];
+    const cardError = baseballCardError[studentId];
+    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
+    const cardNoteCount = cardData?.noteCount;
+    const signalsData = signalsDataMap[studentId];
+    const signalsStatus = signalsData?.status || null;
+    const severity = signalsStatus === 'ok' ? (signalsData?.redFlag?.severity || null) : null;
+    const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
+    const severityColor = severity === 'high'
+      ? '#dc2626'
+      : severity === 'medium' || severity === 'med'
+        ? '#f59e0b'
+        : severity === 'low'
+          ? '#94a3b8'
+          : '#22c55e';
+
+    const handleRegenerate = async () => {
+      try {
+        setRegenError(prev => ({ ...prev, [studentId]: '' }));
+        setRegenRunning(prev => ({ ...prev, [studentId]: true }));
+        const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+        await call({ studentId });
+        setReloadKeys(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }));
+        // Reload the data with force reload
+        await loadBaseballCardForStudent(studentId, true);
+      } catch (e) {
+        console.error('Regenerate failed', e);
+        setRegenError(prev => ({ ...prev, [studentId]: e?.message || 'Failed to regenerate.' }));
+      } finally {
+        setRegenRunning(prev => ({ ...prev, [studentId]: false }));
+      }
+    };
+
+    const currentFlagAnchor = flagAnchorEl?.studentId === studentId ? flagAnchorEl.el : null;
+    const currentMissingDomainsAnchor = missingDomainsAnchorEl?.studentId === studentId ? missingDomainsAnchorEl.el : null;
+    const currentCoverageGaps = missingDomainsAnchorEl?.studentId === studentId ? missingDomainsAnchorEl.coverageGaps : [];
+    const currentCoverageTone = missingDomainsAnchorEl?.studentId === studentId ? missingDomainsAnchorEl.coverageTone : null;
+    const currentCoverageStyles = missingDomainsAnchorEl?.studentId === studentId ? missingDomainsAnchorEl.coverageStyles : null;
+    const currentCardWindowDays = missingDomainsAnchorEl?.studentId === studentId ? missingDomainsAnchorEl.cardWindowDays : cardWindowDays;
+
+    return (
+      <>
+        <Dialog
+          open={true}
+          onClose={() => setExpandedStudentId(null)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              maxHeight: '90vh',
+              m: { xs: 1, sm: 2 },
+              display: 'flex',
+              flexDirection: 'column'
+            }
+          }}
+        >
+          <DialogContent sx={{ pt: 3, pb: 2, position: 'relative', flex: 1, overflow: 'auto' }}>
+            {isSuperAdmin && (
+              <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1 }}>
+                {getSeverityChip(studentId)}
+              </Box>
+            )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap', position: 'relative' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                  <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
+                    <AutoAwesome />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                      {studentName}'s
+                    </Typography>
+                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                      Snapshot
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                      {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardWindowDays} days
+                    </Typography>
+                    {isSuperAdmin && (
+                      <Box sx={{ mt: 0.5 }}>
+                        {renderCoverageRow(studentId)}
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+
+              <Box sx={{ position: 'relative', minHeight: 200, flex: 1 }}>
+                <Box
+                  ref={summaryScrollRef}
+                  onScroll={updateScrollFade}
+                  sx={{ overflowY: 'auto', pr: 1, pb: 6, maxHeight: '50vh' }}
+                  aria-label="Student summary (scroll for more)"
+                >
+                  {renderBaseballCardBody(studentId)}
+                </Box>
+                {showScrollFade && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 56,
+                      pointerEvents: 'none',
+                      background:
+                        'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,1) 100%)',
+                    }}
+                  />
+                )}
+              </Box>
+
+              {isSuperAdmin && regenError[studentId] && (
+                <Typography variant="body2" color="error">
+                  {regenError[studentId]}
+                </Typography>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2, pt: 1 }}>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={() => {
+                try {
+                  const info = studentInfo[studentId] || {};
+                  window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                    detail: {
+                      studentId,
+                      student: { id: studentId, name: info.name, classroomId: info.classroomId },
+                      noteTypeFilter: 'textVoice'
+                    }
+                  }));
+                } catch (err) {
+                  console.error('Failed to navigate to student dashboard', err);
+                }
+                setExpandedStudentId(null);
+              }}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              View Dashboard
+            </Button>
+            {isSuperAdmin && (
+              <Button
+                variant="outlined"
+                fullWidth
+                disabled={regenRunning[studentId] || !studentId}
+                onClick={handleRegenerate}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                {regenRunning[studentId] ? 'Regenerating…' : 'Regenerate'}
+              </Button>
+            )}
+            <Button
+              variant="text"
+              fullWidth
+              onClick={() => setExpandedStudentId(null)}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Flag details popover */}
+        <Popover
+          open={Boolean(currentFlagAnchor)}
+          anchorEl={currentFlagAnchor}
+          onClose={() => setFlagAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+            <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
+              {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
+            </Typography>
+          </Stack>
+          <Typography variant="body2" sx={{ color: '#334155' }}>
+            {severityReason || (severity ? 'No reason provided.' : 'This student currently has no concerns flagged.')}
+          </Typography>
+        </Popover>
+
+        {/* Coverage details popover */}
+        {currentMissingDomainsAnchor && currentCoverageStyles && (
+          <Popover
+            open={Boolean(currentMissingDomainsAnchor)}
+            anchorEl={currentMissingDomainsAnchor}
+            onClose={() => {
+              setMissingDomainsAnchorEl(null);
+              setShowCoverageConfetti(false);
+            }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            PaperProps={{
+              sx: {
+                p: 2,
+                maxWidth: 340,
+                border: `1px solid ${currentCoverageStyles.borderColor}`,
+              }
+            }}
+          >
+            <Box sx={{ position: 'relative', overflow: 'hidden' }}>
+              {currentCoverageTone === 'balanced' && showCoverageConfetti && (
+                <ConfettiAnimation count={35} small />
+              )}
+              <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {currentCoverageTone === 'balanced' ? (
+                    <CheckCircle sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                  ) : (
+                    <WarningIcon sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                  )}
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: currentCoverageStyles.textColor }}>
+                    {currentCoverageStyles.title}
+                  </Typography>
+                </Stack>
+                {currentCoverageTone === 'balanced' ? (
+                  <>
+                    <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                      Notes in the past {currentCardWindowDays} days have been balanced. Great job keeping coverage even!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Keep rotating through domains to maintain this streak.
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: currentCoverageTone === 'alert' ? '#b91c1c' : '#92400e' }}
+                    >
+                      {currentCoverageTone === 'warning'
+                        ? 'A few domains need attention. Try adding observations in these areas soon.'
+                        : 'Many domains are missing. Prioritize observations in these areas this week.'}
+                    </Typography>
+                    {currentCoverageGaps.length > 0 ? (
+                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        {currentCoverageGaps.map((gap, idx) => (
+                          <Chip key={`missing-domain-${idx}`} label={gap} size="small" variant="outlined" />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Domains list unavailable right now.
+                      </Typography>
+                    )}
+                  </>
+                )}
+              </Stack>
+            </Box>
+          </Popover>
+        )}
+      </>
+    );
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {renderBaseballCardModal()}
       <Paper
         elevation={0}
         sx={{

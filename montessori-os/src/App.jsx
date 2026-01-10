@@ -912,7 +912,8 @@ function App() {
                 screen !== 'configLessonNotes' &&
                 screen !== 'configAiTools' &&
                 screen !== 'chatCommandCentre' &&
-                screen !== 'baseballCardConfig' && (
+                screen !== 'baseballCardConfig' &&
+                screen !== 'notifications' && (
                 <AddNoteFab 
                   showLabel 
                   onClick={() => setAddNoteOpen(true)} 
