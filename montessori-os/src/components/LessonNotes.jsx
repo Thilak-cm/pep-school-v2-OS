@@ -610,16 +610,65 @@ function LessonNoteWizard({
 
   const handleSave = async () => {
     if (saving) return;
+    
+    // Check if nothing has changed
+    if (!isDirty) {
+      notify.warning('No changes to save.');
+      return;
+    }
+    
+    // Edit mode validation
     if (isEditMode && selectedStudents.length === 0) {
-      notify.warning('Select the student for this lesson note.');
+      notify.warning('Please select the student for this lesson note.');
       return;
     }
-    if (!setupComplete) {
-      notify.warning('Add a lesson title, select a classroom, and pick at least one student.');
+    
+    // Setup validation - check individual requirements for clearer messages
+    if (!context.lessonTitle.trim()) {
+      notify.warning('Please enter a lesson title.');
       return;
     }
-    if (!defaultsComplete) {
-      notify.warning('Set a rating for every dimension.');
+    if (!context.classroomId) {
+      notify.warning('Please select a classroom.');
+      return;
+    }
+    if (selectedStudents.length === 0) {
+      notify.warning('Please select at least one student.');
+      return;
+    }
+    
+    // Group mode: check if student selection is finalized
+    if (lessonMode === 'group' && !studentsLocked) {
+      notify.warning('Please confirm your student selection by clicking "Done selecting students".');
+      return;
+    }
+    
+    // Group mode: check if defaults are complete
+    if (lessonMode === 'group' && !defaultsComplete) {
+      const missingDimensions = dimensionList.filter((dim) => !effectiveDefaults[dim]);
+      if (missingDimensions.length === 1) {
+        notify.warning(`Please set a rating for the "${missingDimensions[0]}" dimension.`);
+      } else {
+        notify.warning(`Please set ratings for all dimensions: ${missingDimensions.join(', ')}`);
+      }
+      return;
+    }
+    
+    // Check if all dimensions are selected for all students
+    // In group mode with complete defaults, students can inherit defaults, so skip this check
+    // In individual mode, require explicit ratings for all dimensions
+    if (lessonMode === 'individual' && !allDimensionsSelected) {
+      const missingStudents = selectedStudents.filter((studentId) => {
+        return !dimensionList.every((dimension) => {
+          return studentOverrides[studentId]?.dimensions?.[dimension] !== undefined;
+        });
+      });
+      if (missingStudents.length === 1) {
+        const studentName = getStudentDisplayName(studentsById[missingStudents[0]]);
+        notify.warning(`Please complete all ratings for ${studentName}.`);
+      } else {
+        notify.warning(`Please complete all ratings for ${missingStudents.length} student(s).`);
+      }
       return;
     }
 
@@ -1220,7 +1269,7 @@ function LessonNoteWizard({
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={saving || !showOverridesSection || !isDirty || !allDimensionsSelected}
+          disabled={saving}
         >
           {saving ? 'Saving…' : 'Save Lesson Note'}
         </Button>
