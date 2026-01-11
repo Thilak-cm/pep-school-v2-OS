@@ -163,7 +163,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
     <Badge
       color="error"
       overlap="circular"
-      badgeContent={badgeCount > 99 ? '99+' : badgeCount}
+      variant="dot"
       invisible={badgeCount <= 0}
     >
       <Notifications />

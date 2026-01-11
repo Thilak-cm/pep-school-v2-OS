@@ -489,24 +489,7 @@ function NotificationsPage() {
     }
   }, [expandedStudentId, updateScrollFade, baseballCardData, baseballCardLoading]);
 
-  if (!accessLoaded) {
-    return (
-      <Box sx={{
-        display: 'flex',
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 320,
-        flexDirection: 'column',
-        gap: 2
-      }}>
-        <CircularProgress size={32} />
-        <Typography variant="body2" color="text.secondary">
-          Coach Pepper is gathering notifications...
-        </Typography>
-      </Box>
-    );
-  }
+  const isLoading = !accessLoaded || loading;
 
   const sortBySeverityEvidence = (a, b) => {
     const sevDiff = (b.severityScore || 0) - (a.severityScore || 0);
@@ -1307,40 +1290,39 @@ function NotificationsPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {renderBaseballCardModal()}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 3,
-          backgroundColor: 'white',
-          borderRadius: 2,
-          border: '1px solid #e2e8f0'
-        }}
-      >
-        {loading && (
-          <Box sx={{
-            display: 'flex',
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 320,
-            flexDirection: 'column',
-            gap: 2
-          }}>
-            <CircularProgress size={32} />
-            <Typography variant="body2" color="text.secondary">
-              Loading notifications...
-            </Typography>
-          </Box>
-        )}
-
-        {!loading && error && (
+      {isLoading ? (
+        <Box sx={{
+          display: 'flex',
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 220px)',
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <CircularProgress size={32} />
+          <Typography variant="body2" color="text.secondary">
+            Coach Pepper is gathering notifications...
+          </Typography>
+        </Box>
+      ) : (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            backgroundColor: 'white',
+            borderRadius: 2,
+            border: '1px solid #e2e8f0'
+          }}
+        >
+        {!isLoading && error && (
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
             <ErrorOutline color="error" fontSize="small" />
             <Typography variant="body2" color="error">{error}</Typography>
           </Stack>
         )}
 
-        {!loading && !error && (
+        {!isLoading && !error && (
           <Stack spacing={2}>
             <Stack spacing={1.5}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
@@ -1553,7 +1535,8 @@ function NotificationsPage() {
             </Accordion>
           </Stack>
         )}
-      </Paper>
+        </Paper>
+      )}
     </Box>
   );
 }
