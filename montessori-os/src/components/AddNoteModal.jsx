@@ -203,10 +203,16 @@ function TextInput({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Title centered */}
-      <Typography variant="h6" sx={{ textAlign: 'center', mb: 1 }}>
+      <Typography variant="h6" sx={{ textAlign: 'center', mb: -1 }}>
         Write your observation
       </Typography>
-      
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ mt: -1, textAlign: 'center', display: 'block' }}
+      >
+        Rough notes are okay — AI will polish for you.
+      </Typography>
       <Box sx={{ position: 'relative' }}>
         <MentionTextArea
           value={text}
@@ -232,9 +238,6 @@ function TextInput({
           {wordCount} word{wordCount !== 1 ? 's' : ''}
         </Typography>
       </Box>
-      <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
-        Rough notes are okay — AI will polish for you.
-      </Typography>
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

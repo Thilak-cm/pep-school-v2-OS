@@ -13,6 +13,9 @@ import {
   Stack,
   Alert,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
   Popover,
   Tooltip
 } from '@mui/material';
@@ -22,11 +25,11 @@ import {
   BarChart as BarChartIcon,
   WarningAmber as WarningIcon,
   ArrowForward,
-  AutoAwesome,
   ErrorOutline,
   Chat as ChatIcon,
   CheckCircleOutline,
   InfoOutlined,
+  Refresh,
   FlagRounded,
   CheckCircle
 } from '@mui/icons-material';
@@ -127,6 +130,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
   const [regenError, setRegenError] = useState('');
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
+  const [notesSinceGenerated, setNotesSinceGenerated] = useState(null);
+  const [notesSinceGeneratedLoading, setNotesSinceGeneratedLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
@@ -140,6 +146,50 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
   const studentId = student?.id || student?.uid || null;
   const isSuperAdmin = currentRole === 'superadmin';
+
+  const toDate = (value) => {
+    if (!value) return null;
+    if (typeof value?.toDate === 'function') return value.toDate();
+    if (Number.isFinite(value?.seconds)) return new Date(value.seconds * 1000);
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatGeneratedAt = (value) => {
+    const date = toDate(value);
+    if (!date) return 'an unknown time';
+    const rounded = new Date(date.getTime());
+    const minutes = rounded.getMinutes();
+    if (minutes >= 30) {
+      rounded.setHours(rounded.getHours() + 1);
+    }
+    rounded.setMinutes(0, 0, 0);
+    const formatted = new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    }).format(rounded);
+    return formatted.replace(/\b(am|pm)\b/, (match) => match.toUpperCase());
+  };
+
+  const handleRegenerate = async () => {
+    try {
+      setRegenError('');
+      setRegenRunning(true);
+      const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+      await call({ studentId });
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Regenerate failed', e);
+      setRegenError(e?.message || 'Failed to regenerate.');
+    } finally {
+      setRegenRunning(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -289,6 +339,75 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     fetchNotesCount();
   }, [studentId]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchNotesSinceGenerated = async () => {
+      if (!isSuperAdmin || !regenDialogOpen || !studentId) {
+        if (active) {
+          setNotesSinceGenerated(null);
+          setNotesSinceGeneratedLoading(false);
+        }
+        return;
+      }
+
+      const generatedAtDate = toDate(cardData?.generatedAt);
+      if (!generatedAtDate) {
+        if (active) {
+          setNotesSinceGenerated(null);
+          setNotesSinceGeneratedLoading(false);
+        }
+        return;
+      }
+
+      if (active) {
+        setNotesSinceGeneratedLoading(true);
+      }
+
+      try {
+        const observationsQuery = query(
+          collectionGroup(db, 'observations'),
+          where('studentId', '==', studentId),
+          where('createdAt', '>', Timestamp.fromDate(generatedAtDate)),
+          orderBy('createdAt', 'desc'),
+          limit(1000)
+        );
+        const observationsSnap = await getDocs(observationsQuery);
+        if (!active) return;
+        setNotesSinceGenerated(observationsSnap.docs.length);
+      } catch (error) {
+        console.error('Error fetching notes since snapshot:', error);
+        if (error.code === 'failed-precondition' && error.message?.includes('index')) {
+          try {
+            const fallbackQuery = query(
+              collectionGroup(db, 'observations'),
+              where('studentId', '==', studentId),
+              orderBy('observedAt', 'desc'),
+              limit(200)
+            );
+            const fallbackSnap = await getDocs(fallbackQuery);
+            if (!active) return;
+            const count = fallbackSnap.docs.filter((docSnap) => {
+              const obs = docSnap.data();
+              const obsDate = toDate(obs.observedAt || obs.createdAt || obs.timestamp);
+              return obsDate && obsDate > generatedAtDate;
+            }).length;
+            setNotesSinceGenerated(count);
+          } catch (fallbackError) {
+            console.error('Fallback query for notes since snapshot failed:', fallbackError);
+            if (active) setNotesSinceGenerated(null);
+          }
+        } else if (active) {
+          setNotesSinceGenerated(null);
+        }
+      } finally {
+        if (active) setNotesSinceGeneratedLoading(false);
+      }
+    };
+
+    fetchNotesSinceGenerated();
+    return () => { active = false; };
+  }, [studentId, cardData?.generatedAt, isSuperAdmin, regenDialogOpen]);
 
   const cardWindowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
   const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
@@ -554,14 +673,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         }}
       >
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'hidden' }}>
-          <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ position: 'absolute', top: 12, right: 12 }}>
+            {isSuperAdmin && (
+              <IconButton
+                disabled={regenRunning || !studentId}
+                onClick={() => setRegenDialogOpen(true)}
+                sx={{
+                  width: 40,
+                  height: 40,
+                  border: '1px solid #a5b4fc',
+                  color: '#4f46e5',
+                  backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(79, 70, 229, 0.12)'
+                  }
+                }}
+                aria-label="Regenerate student summary"
+              >
+                <Refresh sx={{ fontSize: 20 }} />
+              </IconButton>
+            )}
             {getSeverityChip()}
-          </Box>
+          </Stack>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
-                <AutoAwesome />
-              </Avatar>
               <Box>
                 <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
                   Weekly Snapshot
@@ -602,39 +737,95 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           </Box>
         </CardContent>
       </Card>
-      {isSuperAdmin && (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: -2, mb: 2 }}>
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={regenRunning || !studentId}
-            onClick={async () => {
-              try {
-                setRegenError('');
-                setRegenRunning(true);
-                const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
-                await call({ studentId });
-                setReloadKey((k) => k + 1);
-              } catch (e) {
-                // eslint-disable-next-line no-console
-                console.error('Regenerate failed', e);
-                setRegenError(e?.message || 'Failed to regenerate.');
-              } finally {
-                setRegenRunning(false);
-              }
-            }}
-            sx={{ textTransform: 'none' }}
-            aria-label="Regenerate student summary now"
-          >
-            {regenRunning ? 'Regenerating…' : 'Regenerate now'}
-          </Button>
-          {regenError && (
-            <Typography variant="body2" color="error">
-              {regenError}
-            </Typography>
-          )}
-        </Stack>
+      {regenError && (
+        <Typography variant="body2" color="error">
+          {regenError}
+        </Typography>
       )}
+      <Dialog
+        open={regenDialogOpen}
+        onClose={() => setRegenDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, #eef2ff 0%, #ffffff 55%)',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
+          }
+        }}
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                  border: '1px solid rgba(99,102,241,0.35)'
+                }}
+              >
+                <Refresh sx={{ fontSize: 22, color: '#4f46e5' }} />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                  Regenerate weekly snapshot?
+                </Typography>
+              </Box>
+            </Stack>
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                backgroundColor: '#eef2ff',
+                border: '1px solid rgba(79, 70, 229, 0.2)'
+              }}
+            >
+              <Typography variant="body2" sx={{ color: '#3730a3', fontWeight: 600 }}>
+                Last generated: {formatGeneratedAt(cardData?.generatedAt)}
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ color: '#475569' }}>
+              {notesSinceGeneratedLoading
+                ? 'Checking for notes added after this snapshot...'
+                : Number.isFinite(notesSinceGenerated)
+                  ? `Regenerating will include ${notesSinceGenerated} new note${notesSinceGenerated === 1 ? '' : 's'} added after this snapshot.`
+                  : 'Unable to check for new notes right now.'}
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button
+            onClick={() => setRegenDialogOpen(false)}
+            disabled={regenRunning}
+            sx={{ textTransform: 'none', color: '#475569' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              setRegenDialogOpen(false);
+              await handleRegenerate();
+            }}
+            disabled={regenRunning || !studentId}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 999,
+              px: 3,
+              boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)'
+            }}
+          >
+            {regenRunning ? 'Regenerating…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Popover
         open={Boolean(flagAnchorEl)}
         anchorEl={flagAnchorEl}
