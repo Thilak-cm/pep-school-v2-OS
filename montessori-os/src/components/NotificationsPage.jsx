@@ -7,7 +7,6 @@ import {
   Stack,
   Chip,
   CircularProgress,
-  Divider,
   Avatar,
   Accordion,
   AccordionSummary,
@@ -15,8 +14,6 @@ import {
   Dialog,
   DialogContent,
   DialogActions,
-  Card,
-  CardContent,
   Button,
   Skeleton,
   IconButton,
@@ -42,7 +39,6 @@ import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -502,12 +498,6 @@ function NotificationsPage() {
   const stillOpenList = signals
     .filter((s) => !s.escalatedThisWeek && !s.improvedThisWeek && (s.severityScore || 0) > 0)
     .sort(sortBySeverityEvidence);
-
-  const severityCounts = escalatedList.reduce((acc, s) => {
-    const key = s.severity || 'clear';
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, { low: 0, medium: 0, high: 0, clear: 0 });
 
   // Helper function to get student name
   const getStudentName = (studentId) => {
@@ -1324,117 +1314,6 @@ function NotificationsPage() {
 
         {!isLoading && !error && (
           <Stack spacing={2}>
-            <Stack spacing={1.5}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                Coach Pepper's Weekly Report
-              </Typography>
-              
-              {/* Compact Severity Breakdown */}
-              <Card sx={{ borderRadius: 1.5, border: '1px solid #e2e8f0', backgroundColor: 'white' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5, color: '#1e293b', fontSize: '0.875rem' }}>
-                    Severity Breakdown
-                  </Typography>
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    {/* Compact Donut Chart */}
-                    <Box sx={{ width: 120, height: 120, flexShrink: 0, position: 'relative' }}>
-                      {(() => {
-                        const chartData = [
-                          { name: 'High', value: severityCounts.high || 0, color: '#dc2626' },
-                          { name: 'Medium', value: severityCounts.medium || 0, color: '#f59e0b' },
-                          { name: 'Low', value: severityCounts.low || 0, color: '#94a3b8' },
-                          { name: 'Clear', value: severityCounts.clear || 0, color: '#22c55e' },
-                        ];
-                        const filteredData = chartData.filter(item => item.value > 0);
-                        const total = chartData.reduce((sum, item) => sum + item.value, 0);
-
-                        if (total === 0) {
-                          return (
-                            <Box sx={{ 
-                              width: '100%', 
-                              height: '100%', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              flexDirection: 'column',
-                              gap: 0.5
-                            }}>
-                              <CheckCircleOutline sx={{ fontSize: 32, color: '#e2e8f0' }} />
-                              <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.7rem' }}>
-                                No escalations
-                              </Typography>
-                            </Box>
-                          );
-                        }
-
-                        return (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={filteredData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={35}
-                                outerRadius={50}
-                                paddingAngle={filteredData.length > 1 ? 2 : 0}
-                                dataKey="value"
-                                startAngle={90}
-                                endAngle={-270}
-                              >
-                                {filteredData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <RechartsTooltip
-                                contentStyle={{
-                                  backgroundColor: 'white',
-                                  border: '1px solid #e2e8f0',
-                                  borderRadius: 6,
-                                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                                  padding: '8px 12px'
-                                }}
-                                formatter={(value) => [value, 'Students']}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        );
-                      })()}
-                    </Box>
-
-                    {/* Compact Legend */}
-                    <Stack spacing={1} sx={{ flex: 1 }}>
-                      {[
-                        { key: 'high', label: 'High', color: '#dc2626', count: severityCounts.high || 0 },
-                        { key: 'medium', label: 'Medium', color: '#f59e0b', count: severityCounts.medium || 0 },
-                        { key: 'low', label: 'Low', color: '#94a3b8', count: severityCounts.low || 0 },
-                        { key: 'clear', label: 'Clear', color: '#22c55e', count: severityCounts.clear || 0 },
-                      ].map(({ key, label, color, count }) => (
-                        <Stack key={key} direction="row" alignItems="center" spacing={1}>
-                          <Box
-                            sx={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: '2px',
-                              backgroundColor: color,
-                              flexShrink: 0
-                            }}
-                          />
-                          <Typography variant="caption" sx={{ color: '#64748b', flex: 1, fontSize: '0.75rem' }}>
-                            {label}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 600, fontSize: '0.75rem' }}>
-                            {count}
-                          </Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Stack>
-
-            <Divider />
-
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
               Behavioral Flag Breakdown
             </Typography>
