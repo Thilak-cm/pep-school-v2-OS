@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 // import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
 import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
@@ -12,6 +13,9 @@ import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT,
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 
 initializeApp({ credential: applicationDefault() });
+
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+const getOpenAiKey = () => process.env.OPENAI_API_KEY || OPENAI_API_KEY.value() || null;
 
 const db = getFirestore();
 const auth = getAuth();
@@ -476,7 +480,6 @@ export const migratePendingUser = functions
 // -----------------------------------------------
 // AI: Text Cleanup (server-side OpenAI invocation)
 // -----------------------------------------------
-const OPENAI_API_KEY = functions.config().openai?.key || process.env.OPENAI_API_KEY || null;
 const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 1000 };
 
@@ -517,12 +520,13 @@ async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
 
 export const aiTextCleanup = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
@@ -563,7 +567,7 @@ export const aiTextCleanup = functions
       response = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Authorization": `Bearer ${openAiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
@@ -637,10 +641,11 @@ const MAX_CALLABLE_BYTES = 9.5 * 1024 * 1024;
 
 export const aiWhisperTranscribe = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "512MB" })
+  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    if (!OPENAI_API_KEY) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
 
     const audioBase64 = data?.audioBase64;
     const mimeType = String(data?.mimeType || "audio/mpeg");
@@ -668,7 +673,7 @@ export const aiWhisperTranscribe = functions
     try {
       response = await fetch(WHISPER_TRANSCRIBE_ENDPOINT, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
+        headers: { "Authorization": `Bearer ${openAiKey}` },
         body: form,
       });
     } catch (e) {
@@ -688,10 +693,11 @@ export const aiWhisperTranscribe = functions
 
 export const aiWhisperTranslate = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "512MB" })
+  .runWith({ timeoutSeconds: 300, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    if (!OPENAI_API_KEY) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
 
     const audioBase64 = data?.audioBase64;
     const mimeType = String(data?.mimeType || "audio/mpeg");
@@ -715,7 +721,7 @@ export const aiWhisperTranslate = functions
     try {
       response = await fetch(WHISPER_TRANSLATE_ENDPOINT, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` },
+        headers: { "Authorization": `Bearer ${openAiKey}` },
         body: form,
       });
     } catch (e) {
@@ -803,12 +809,13 @@ async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
 // Callable: Run Coach Review on observation text
 export const aiCoachReview = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
@@ -906,7 +913,7 @@ export const aiCoachReview = functions
         response = await fetch(CHAT_ENDPOINT, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Authorization": `Bearer ${openAiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
@@ -1133,6 +1140,11 @@ async function getStudentContext(studentId) {
 }
 
 async function callBaseballCard(notes, config, prompt, windowDays, studentContext) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
     dob: studentContext?.dob || "dob unavailable in context",
@@ -1158,7 +1170,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     response = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -1397,7 +1409,7 @@ async function runBaseballCards({
 
 export const previewBaseballCard = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB" })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1409,7 +1421,8 @@ export const previewBaseballCard = functions
       throw new functions.https.HttpsError("permission-denied", "Only super admins can preview baseball cards");
     }
 
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
@@ -1477,7 +1490,7 @@ export const previewBaseballCard = functions
 
 export const regenerateBaseballCardForStudent = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 300, memory: "1GB" })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -1489,7 +1502,8 @@ export const regenerateBaseballCardForStudent = functions
       throw new functions.https.HttpsError("permission-denied", "Only super admins can regenerate baseball cards");
     }
 
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
@@ -1555,11 +1569,12 @@ async function deleteDocumentRecursively(docRef) {
 
 export const generateBaseballCards = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 540, memory: "1GB" })
-  .pubsub.schedule("0 0 * * 0")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .pubsub.schedule("0 0 * * 1")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       console.error("[baseballCard] OpenAI key not configured");
       return null;
     }
@@ -1907,7 +1922,8 @@ function buildOpenAIMessages(contextPack) {
  * @returns {Promise<string>} Full assistant response content
  */
 async function runChildChat(contextPack, model, temperature, max_tokens) {
-  if (!OPENAI_API_KEY) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
   }
 
@@ -1926,7 +1942,7 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
     response = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -2011,7 +2027,8 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
  * @returns {Promise<string>} Full assistant response content
  */
 async function streamChildChat(contextPack, model, temperature, max_tokens, sendChunk) {
-  if (!OPENAI_API_KEY) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
     throw new Error("OpenAI key not configured");
   }
 
@@ -2030,7 +2047,7 @@ async function streamChildChat(contextPack, model, temperature, max_tokens, send
     response = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -2246,7 +2263,8 @@ async function generateChatName(firstMessage) {
     return "New Chat";
   }
 
-  if (!OPENAI_API_KEY) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
     console.warn("[generateChatName] OpenAI key not configured, using fallback");
     return "New Chat";
   }
@@ -2257,7 +2275,7 @@ async function generateChatName(firstMessage) {
     const response = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -2332,7 +2350,7 @@ async function verifyAuthToken(req) {
  */
 export const childChatStream = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onRequest(async (req, res) => {
     // Handle CORS preflight (OPTIONS request)
     if (req.method === "OPTIONS") {
@@ -2413,7 +2431,8 @@ export const childChatStream = functions
         return;
       }
 
-      if (!OPENAI_API_KEY) {
+      const openAiKey = getOpenAiKey();
+      if (!openAiKey) {
         sendError(new Error("OpenAI key not configured"));
         return;
       }
@@ -2555,7 +2574,7 @@ export const childChatStream = functions
  */
 export const childChat = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB" })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     // Authentication check
     if (!context.auth) {
@@ -2586,7 +2605,8 @@ export const childChat = functions
       throw new functions.https.HttpsError("invalid-argument", "Please enter a message before sending.");
     }
 
-    if (!OPENAI_API_KEY) {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
@@ -2719,4 +2739,3 @@ export const childChat = functions
       throw new functions.https.HttpsError("internal", errorMessage);
     }
   });
-

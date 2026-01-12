@@ -24,8 +24,6 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           gap: 1,
           mt: 4,
           pt: 3,
-          borderTop: '1px solid',
-          borderColor: 'divider',
         }}
       >
         <Typography 

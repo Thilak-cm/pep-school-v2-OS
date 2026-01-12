@@ -1326,67 +1326,9 @@ function NotificationsPage() {
           <Stack spacing={2}>
             <Stack spacing={1.5}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                This Week
+                Coach Pepper's Weekly Report
               </Typography>
               
-              {/* Weekly Summary Header */}
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#1e293b', fontSize: '0.875rem' }}>
-                Behavioral Flag Breakdown
-              </Typography>
-              
-              {/* Compact Stat Cards - Side by Side */}
-              <Stack direction="row" spacing={1.5} sx={{ width: '100%' }}>
-                {[
-                  { 
-                    label: 'Escalate', 
-                    value: escalatedList.length, 
-                    color: '#ef4444',
-                    bgColor: '#fef2f2',
-                    icon: TrendingUp
-                  },
-                  { 
-                    label: 'Open', 
-                    value: stillOpenList.length, 
-                    color: '#f59e0b',
-                    bgColor: '#fffbeb',
-                    icon: RemoveCircleOutline
-                  },
-                  { 
-                    label: 'Improved', 
-                    value: improvedList.length, 
-                    color: '#22c55e',
-                    bgColor: '#f0fdf4',
-                    icon: TrendingDown
-                  },
-                ].map((stat) => {
-                  const IconComponent = stat.icon;
-                  return (
-                    <Card
-                      key={stat.label}
-                      sx={{
-                        flex: 1,
-                        borderRadius: 1.5,
-                        border: '1px solid #e2e8f0',
-                        backgroundColor: stat.bgColor,
-                        boxShadow: 'none'
-                      }}
-                    >
-                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                        <Stack direction="column" alignItems="center" spacing={1}>
-                          <IconComponent sx={{ color: stat.color, fontSize: 24 }} />
-                          <Typography variant="h5" sx={{ color: stat.color, fontWeight: 700, lineHeight: 1 }}>
-                            {stat.value}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textAlign: 'center' }}>
-                            {stat.label}
-                          </Typography>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-
               {/* Compact Severity Breakdown */}
               <Card sx={{ borderRadius: 1.5, border: '1px solid #e2e8f0', backgroundColor: 'white' }}>
                 <CardContent sx={{ p: 2 }}>
@@ -1493,41 +1435,103 @@ function NotificationsPage() {
 
             <Divider />
 
-            <Stack spacing={1.5}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Escalated (This Week)
-              </Typography>
-              {renderGroupedList(escalatedList, 'No escalations detected this week.')}
-            </Stack>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+              Behavioral Flag Breakdown
+            </Typography>
 
-            <Accordion disableGutters elevation={0}>
+            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{
-                  px: 0,
-                  '& .MuiAccordionSummary-content': { m: 0 }
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  border: '1px solid #fecaca',
+                  backgroundColor: '#fef2f2',
+                  minHeight: 'auto',
+                  '& .MuiAccordionSummary-content': { m: 0 },
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#b91c1c' }
                 }}
               >
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Still Open (No Change)
-                </Typography>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <TrendingUp sx={{ color: '#b91c1c', fontSize: 22 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b91c1c' }}>
+                      Escalated
+                    </Typography>
+                  </Stack>
+                  <Chip
+                    size="small"
+                    label={`${escalatedList.length} students`}
+                    sx={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}
+                  />
+                </Stack>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 0 }}>
+                {renderGroupedList(escalatedList, 'No escalations detected this week.')}
+              </AccordionDetails>
+            </Accordion>
+
+            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  border: '1px solid #fde68a',
+                  backgroundColor: '#fffbeb',
+                  minHeight: 'auto',
+                  '& .MuiAccordionSummary-content': { m: 0 },
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#b45309' }
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <RemoveCircleOutline sx={{ color: '#b45309', fontSize: 22 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b45309' }}>
+                      Still Open
+                    </Typography>
+                  </Stack>
+                  <Chip
+                    size="small"
+                    label={`${stillOpenList.length} students`}
+                    sx={{ backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 600 }}
+                  />
+                </Stack>
               </AccordionSummary>
               <AccordionDetails sx={{ px: 0 }}>
                 {renderGroupedList(stillOpenList, 'No unchanged flags this week.')}
               </AccordionDetails>
             </Accordion>
 
-            <Accordion disableGutters elevation={0}>
+            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{
-                  px: 0,
-                  '& .MuiAccordionSummary-content': { m: 0 }
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: 2,
+                  border: '1px solid #bbf7d0',
+                  backgroundColor: '#f0fdf4',
+                  minHeight: 'auto',
+                  '& .MuiAccordionSummary-content': { m: 0 },
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#166534' }
                 }}
               >
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Improved (This Week)
-                </Typography>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <TrendingDown sx={{ color: '#166534', fontSize: 22 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#166534' }}>
+                      Improved
+                    </Typography>
+                  </Stack>
+                  <Chip
+                    size="small"
+                    label={`${improvedList.length} students`}
+                    sx={{ backgroundColor: '#dcfce7', color: '#166534', fontWeight: 600 }}
+                  />
+                </Stack>
               </AccordionSummary>
               <AccordionDetails sx={{ px: 0 }}>
                 {renderGroupedList(improvedList, 'No improvements recorded this week.')}

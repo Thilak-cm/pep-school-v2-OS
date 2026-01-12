@@ -23,8 +23,9 @@ import {
   Feedback,
   Logout
 } from '@mui/icons-material';
+import VersionBadge from './VersionBadge';
 
-function SettingsPage({ currentUser, onNavigate, onSignOut }) {
+function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const initials = (currentUser?.displayName || currentUser?.email || 'U')
     .split(' ')
@@ -165,6 +166,8 @@ function SettingsPage({ currentUser, onNavigate, onSignOut }) {
           </ListItemButton>
         </List>
       </Paper>
+
+      <VersionBadge userRole={userRole} showInProfile />
 
       <Dialog
         open={confirmOpen}

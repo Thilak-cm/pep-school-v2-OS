@@ -4,7 +4,6 @@ import {
   Typography,
   Avatar
 } from '@mui/material';
-import VersionBadge from './VersionBadge';
 import { getRoleLabel, isClassroomAdmin, isSuperAdmin } from '../utils/roleUtils';
 
 const ProfilePage = ({ user, role }) => {
@@ -75,9 +74,6 @@ const ProfilePage = ({ user, role }) => {
           {roleLabel}
         </Typography>
       </Box>
-
-      {/* Version Badge - shows for all users in profile */}
-      <VersionBadge userRole={role} showInProfile={true} />
 
     </Box>
   );

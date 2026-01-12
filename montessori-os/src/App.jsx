@@ -431,7 +431,7 @@ function App() {
   };
 
   const backNavigation = getBackNavigation();
-  const showBackButton = screen !== 'landingPage';
+  const showBackButton = screen !== 'landingPage' && screen !== 'notifications';
   const handleNavigation = (path) => {
     if (path === 'settings') {
       setScreen('settings');
@@ -832,6 +832,7 @@ function App() {
                   {screen === 'settings' && (
                     <SettingsPage
                       currentUser={user}
+                      userRole={role}
                       onNavigate={handleNavigation}
                       onSignOut={handleSignOut}
                     />
