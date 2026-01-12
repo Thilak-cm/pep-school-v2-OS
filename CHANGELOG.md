@@ -1,5 +1,11 @@
 # Changelog
 
+# 7.2.3 — 2026-01-08
+
+### Changed
+- NotificationsPage: moved Behavioral Flag Breakdown header below the severity chart and removed the top summary cards.
+- NotificationsPage: accordion headers now include escalation/open/improved icons and pill-style styling without top divider lines.
+
 # 7.2.1 — 2026-01-08
 
 ### Added
