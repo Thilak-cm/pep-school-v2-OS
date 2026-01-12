@@ -1,5 +1,13 @@
 # Changelog
 
+# 7.2.4 — 2026-01-08
+
+### Changed
+- SettingsPage: app version badge now appears here; removed from ProfilePage.
+- VersionBadge: removed the divider styling above the app version.
+- NotificationsPage: removed the severity breakdown donut chart so the behavioral flags are the primary focus.
+- AppHeader: hide back button on Notifications screen.
+
 # 7.2.3 — 2026-01-08
 
 ### Changed
