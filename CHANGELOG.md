@@ -1,5 +1,15 @@
 # Changelog
 
+# 7.2.5 — 2026-01-08
+
+### Added
+- BaseballCardSnapshotCard: shared weekly snapshot card shell with optional footer slot for actions.
+
+### Changed
+- StudentDashboard: weekly snapshot now uses the shared snapshot card layout for consistent structure.
+- NotificationsPage: snapshot modal now uses the shared card, with footer buttons rendered inside the card.
+- NotificationsPage: snapshot modal overlay is transparent (no extra panel) and the card height is increased to fill more vertical space.
+
 # 7.2.4 — 2026-01-08
 
 ### Changed
