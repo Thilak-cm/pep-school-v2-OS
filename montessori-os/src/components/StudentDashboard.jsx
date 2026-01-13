@@ -9,7 +9,6 @@ import {
   CardActionArea,
   IconButton,
   Button,
-  Skeleton,
   Stack,
   Alert,
   Chip,
@@ -25,7 +24,6 @@ import {
   BarChart as BarChartIcon,
   WarningAmber as WarningIcon,
   ArrowForward,
-  ErrorOutline,
   Chat as ChatIcon,
   CheckCircleOutline,
   InfoOutlined,
@@ -38,6 +36,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 
 const confettiFall = keyframes`
   0% {
@@ -412,8 +411,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const cardWindowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
   const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
   const cardNoteCount = cardData?.noteCount;
-  const cardStatus = cardData?.status || null;
-  const isNoNotes = cardStatus === 'no_notes' || cardNoteCount === 0;
   const signalsStatus = signalsData?.status || null;
   const severity = signalsStatus === 'ok' ? (signalsData?.redFlag?.severity || null) : null;
   const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
@@ -570,70 +567,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const studentLabel = getStudentName(student);
   const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
 
-  const renderBaseballCardBody = () => {
-    if (cardLoading) {
-      return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-          <Skeleton variant="text" width="70%" />
-          <Skeleton variant="text" width="90%" />
-          <Skeleton variant="text" width="80%" />
-        </Box>
-      );
-    }
-
-    if (cardError) {
-      return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <ErrorOutline fontSize="small" color="error" />
-            <Typography variant="body2" color="error">
-              {cardError}
-            </Typography>
-          </Stack>
-          <Button variant="outlined" size="small" onClick={() => onOpenFeedback?.(feedbackMessage)}>
-            Send feedback
-          </Button>
-        </Box>
-      );
-    }
-
-    if (!cardData) {
-      return (
-        <Typography variant="body2" color="text.secondary">
-          No summary available yet. The nightly job will generate it automatically.
-        </Typography>
-      );
-    }
-
-    if (isNoNotes) {
-      return (
-        <Typography variant="body2" color="error">
-          No notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
-        </Typography>
-      );
-    }
-
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-        {cardData.summary ? (
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#334155',
-              whiteSpace: 'pre-line',
-            }}
-          >
-            {cardData.summary}
-          </Typography>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            No summary returned.
-          </Typography>
-        )}
-      </Box>
-    );
-  };
-
   const updateScrollFade = () => {
     const el = summaryScrollRef.current;
     if (!el) return;
@@ -660,83 +593,24 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
-      <Card
-        sx={{
-          borderRadius: 2,
-          border: '1px solid #e2e8f0',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)',
-          maxHeight: '60vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative'
-        }}
-      >
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflow: 'hidden' }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ position: 'absolute', top: 12, right: 12 }}>
-            {isSuperAdmin && (
-              <IconButton
-                disabled={regenRunning || !studentId}
-                onClick={() => setRegenDialogOpen(true)}
-                sx={{
-                  width: 40,
-                  height: 40,
-                  border: '1px solid #a5b4fc',
-                  color: '#4f46e5',
-                  backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(79, 70, 229, 0.12)'
-                  }
-                }}
-                aria-label="Regenerate student summary"
-              >
-                <Refresh sx={{ fontSize: 20 }} />
-              </IconButton>
-            )}
-            {getSeverityChip()}
-          </Stack>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box>
-                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                  Weekly Snapshot
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748b' }}>
-                  {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardConfig?.windowDays || BASEBALL_CARD_DEFAULTS.windowDays} days
-                </Typography>
-                <Box sx={{ mt: 0.5 }}>
-                  {renderCoverageRow()}
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-
-          <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>
-            <Box
-              ref={summaryScrollRef}
-              onScroll={updateScrollFade}
-              sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
-              aria-label="Student summary (scroll for more)"
-            >
-              {renderBaseballCardBody()}
-            </Box>
-            {showScrollFade && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 56,
-                  pointerEvents: 'none',
-                  background:
-                    'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,1) 100%)',
-                }}
-              />
-            )}
-          </Box>
-        </CardContent>
-      </Card>
+      <BaseballCardSnapshotCard
+        noteCount={cardNoteCount}
+        windowDays={cardWindowDays}
+        coverage={renderCoverageRow()}
+        topRightActions={getSeverityChip()}
+        onRegenerateClick={isSuperAdmin ? () => setRegenDialogOpen(true) : null}
+        regenDisabled={regenRunning || !studentId}
+        cardData={cardData}
+        cardLoading={cardLoading}
+        cardError={cardError}
+        cardWindowDays={cardWindowDays}
+        studentLabel={studentLabel}
+        onOpenFeedback={onOpenFeedback}
+        feedbackMessage={feedbackMessage}
+        summaryScrollRef={summaryScrollRef}
+        onSummaryScroll={updateScrollFade}
+        showScrollFade={showScrollFade}
+      />
       {regenError && (
         <Typography variant="body2" color="error">
           {regenError}

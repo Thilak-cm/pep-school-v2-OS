@@ -13,9 +13,7 @@ import {
   AccordionDetails,
   Dialog,
   DialogContent,
-  DialogActions,
   Button,
-  Skeleton,
   IconButton,
   Tooltip,
   Popover
@@ -24,7 +22,6 @@ import {
   ErrorOutline,
   CheckCircleOutline,
   ExpandMore as ExpandMoreIcon,
-  AutoAwesome,
   FlagRounded,
   WarningAmber as WarningIcon,
   CheckCircle,
@@ -39,6 +36,7 @@ import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -666,97 +664,6 @@ function NotificationsPage() {
     );
   };
 
-  // Render baseball card body for a student
-  const renderBaseballCardBody = (studentId) => {
-    const cardData = baseballCardData[studentId];
-    const cardLoading = baseballCardLoading[studentId];
-    const cardError = baseballCardError[studentId];
-    const cardWindowDays = Number.isFinite(baseballCardConfig?.windowDays) ? baseballCardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
-    const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
-    const cardNoteCount = cardData?.noteCount;
-    const cardStatus = cardData?.status || null;
-    const isNoNotes = cardStatus === 'no_notes' || cardNoteCount === 0;
-    const studentLabel = getStudentName(studentId);
-
-    if (cardLoading) {
-      return (
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 2,
-            py: 4,
-            mt: 1
-          }}
-        >
-          <CircularProgress
-            size={40}
-            sx={{
-              color: '#4f46e5',
-              '& .MuiCircularProgress-circle': {
-                strokeLinecap: 'round',
-              }
-            }}
-          />
-          <Typography variant="body1" sx={{ color: '#64748b', textAlign: 'center' }}>
-            Coach Pepper is preparing {studentLabel}'s snapshot...
-          </Typography>
-        </Box>
-      );
-    }
-
-    if (cardError) {
-      return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <ErrorOutline fontSize="small" color="error" />
-            <Typography variant="body2" color="error">
-              {cardError}
-            </Typography>
-          </Stack>
-        </Box>
-      );
-    }
-
-    if (!cardData) {
-      return (
-        <Typography variant="body2" color="text.secondary">
-          No summary available yet. The nightly job will generate it automatically.
-        </Typography>
-      );
-    }
-
-    if (isNoNotes) {
-      return (
-        <Typography variant="body2" color="error">
-          No notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
-        </Typography>
-      );
-    }
-
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-        {cardData.summary ? (
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#334155',
-              whiteSpace: 'pre-line',
-            }}
-          >
-            {cardData.summary}
-          </Typography>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            No summary returned.
-          </Typography>
-        )}
-      </Box>
-    );
-  };
-
   const groupByClassroomAndSeverity = (items) => {
     const grouped = {};
     items.forEach((item) => {
@@ -1067,120 +974,82 @@ function NotificationsPage() {
         <Dialog
           open={true}
           onClose={() => setExpandedStudentId(null)}
-          maxWidth="md"
-          fullWidth
+          maxWidth="sm"
+          fullWidth={false}
           PaperProps={{
             sx: {
-              borderRadius: 2,
-              maxHeight: '90vh',
+              backgroundColor: 'transparent',
+              boxShadow: 'none',
+              border: 'none',
               m: { xs: 1, sm: 2 },
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              overflow: 'visible'
             }
           }}
         >
-          <DialogContent sx={{ pt: 3, pb: 2, position: 'relative', flex: 1, overflow: 'auto' }}>
-            <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1 }}>
-              {getSeverityChip(studentId)}
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap', position: 'relative' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-                  <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
-                    <AutoAwesome />
-                  </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                      {studentName}'s
-                    </Typography>
-                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                      Snapshot
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                      {Number.isFinite(cardNoteCount) ? cardNoteCount : '—'} notes over last {cardWindowDays} days
-                    </Typography>
-                    <Box sx={{ mt: 0.5 }}>
-                      {renderCoverageRow(studentId)}
-                    </Box>
-                  </Box>
-                </Box>
-              </Box>
-
-              <Box sx={{ position: 'relative', minHeight: 200, flex: 1 }}>
-                <Box
-                  ref={summaryScrollRef}
-                  onScroll={updateScrollFade}
-                  sx={{ overflowY: 'auto', pr: 1, pb: 6, maxHeight: '50vh' }}
-                  aria-label="Student summary (scroll for more)"
-                >
-                  {renderBaseballCardBody(studentId)}
-                </Box>
-                {showScrollFade && (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 56,
-                      pointerEvents: 'none',
-                      background:
-                        'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,1) 100%)',
-                    }}
-                  />
+          <DialogContent sx={{ p: 0, position: 'relative', flex: 1, overflow: 'visible' }}>
+            <Stack spacing={2} sx={{ width: 'min(560px, 100%)', mx: 'auto' }}>
+              <BaseballCardSnapshotCard
+                noteCount={cardNoteCount}
+                windowDays={cardWindowDays}
+                coverage={renderCoverageRow(studentId)}
+                topRightActions={getSeverityChip(studentId)}
+                onRegenerateClick={isSuperAdmin ? handleRegenerate : null}
+                regenDisabled={regenRunning[studentId] || !studentId}
+                cardData={cardData}
+                cardLoading={cardLoading}
+                cardError={cardError}
+                cardWindowDays={cardWindowDays}
+                studentLabel={studentName}
+                minHeight="72vh"
+                maxHeight="88vh"
+                summaryScrollRef={summaryScrollRef}
+                onSummaryScroll={updateScrollFade}
+                showScrollFade={showScrollFade}
+                footer={(
+                  <Stack spacing={1}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      onClick={() => {
+                        try {
+                          const info = studentInfo[studentId] || {};
+                          window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                            detail: {
+                              studentId,
+                              student: { id: studentId, name: info.name, classroomId: info.classroomId },
+                              noteTypeFilter: 'textVoice'
+                            }
+                          }));
+                        } catch (err) {
+                          console.error('Failed to navigate to student dashboard', err);
+                        }
+                        setExpandedStudentId(null);
+                      }}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      View Dashboard
+                    </Button>
+                    <Button
+                      variant="text"
+                      fullWidth
+                      onClick={() => setExpandedStudentId(null)}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Close
+                    </Button>
+                  </Stack>
                 )}
-              </Box>
+              />
 
               {isSuperAdmin && regenError[studentId] && (
                 <Typography variant="body2" color="error">
                   {regenError[studentId]}
                 </Typography>
               )}
-            </Box>
+            </Stack>
           </DialogContent>
-          <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2, pt: 1 }}>
-            <Button
-              variant="contained"
-              fullWidth
-              onClick={() => {
-                try {
-                  const info = studentInfo[studentId] || {};
-                  window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                    detail: {
-                      studentId,
-                      student: { id: studentId, name: info.name, classroomId: info.classroomId },
-                      noteTypeFilter: 'textVoice'
-                    }
-                  }));
-                } catch (err) {
-                  console.error('Failed to navigate to student dashboard', err);
-                }
-                setExpandedStudentId(null);
-              }}
-              sx={{ textTransform: 'none', fontWeight: 600 }}
-            >
-              View Dashboard
-            </Button>
-            {isSuperAdmin && (
-              <Button
-                variant="outlined"
-                fullWidth
-                disabled={regenRunning[studentId] || !studentId}
-                onClick={handleRegenerate}
-                sx={{ textTransform: 'none', fontWeight: 600 }}
-              >
-                {regenRunning[studentId] ? 'Regenerating…' : 'Regenerate'}
-              </Button>
-            )}
-            <Button
-              variant="text"
-              fullWidth
-              onClick={() => setExpandedStudentId(null)}
-              sx={{ textTransform: 'none', fontWeight: 600 }}
-            >
-              Close
-            </Button>
-          </DialogActions>
         </Dialog>
 
         {/* Flag details popover */}
