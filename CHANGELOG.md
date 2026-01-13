@@ -4,11 +4,13 @@
 
 ### Added
 - BaseballCardSnapshotCard: shared weekly snapshot card shell with optional footer slot for actions.
+- NotificationsPage: regenerate confirmation dialog now matches the StudentDashboard flow.
 
 ### Changed
 - StudentDashboard: weekly snapshot now uses the shared snapshot card layout for consistent structure.
 - NotificationsPage: snapshot modal now uses the shared card, with footer buttons rendered inside the card.
 - NotificationsPage: snapshot modal overlay is transparent (no extra panel) and the card height is increased to fill more vertical space.
+- StudentDashboard/NotificationsPage: coverage button color/label now prioritize language/math gaps with concise “Language/Math + X more” messaging.
 
 # 7.2.4 — 2026-01-08
 

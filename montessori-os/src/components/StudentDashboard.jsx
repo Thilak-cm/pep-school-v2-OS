@@ -416,7 +416,29 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
   const coverageGaps = Array.isArray(signalsData?.coverageGaps) ? signalsData.coverageGaps : [];
   const coverageCount = coverageGaps.length;
-  const coverageTone = coverageCount === 0 ? 'balanced' : coverageCount > 4 ? 'alert' : 'warning';
+  const hasLanguageGap = coverageGaps.some((gap) => {
+    const label = String(gap || '').toLowerCase();
+    return label.includes('language') || label.includes('literacy');
+  });
+  const hasMathGap = coverageGaps.some((gap) => {
+    const label = String(gap || '').toLowerCase();
+    return label.includes('math') || label.includes('numeracy');
+  });
+  const coverageTone = coverageCount === 0 ? 'balanced' : (hasLanguageGap || hasMathGap) ? 'alert' : 'warning';
+  const coverageButtonLabel = (() => {
+    if (coverageCount === 0) return 'Coverage balanced';
+    if (hasLanguageGap || hasMathGap) {
+      const critical = [];
+      if (hasLanguageGap) critical.push('Language');
+      if (hasMathGap) critical.push('Math');
+      const extraCount = Math.max(0, coverageCount - critical.length);
+      if (extraCount > 0) {
+        return `${critical.join(', ')} + ${extraCount} more`;
+      }
+      return `${critical.join(', ')}`;
+    }
+    return `Missing: ${coverageCount} ${coverageCount === 1 ? 'domain' : 'domains'}`;
+  })();
   const coveragePalette = {
     balanced: {
       borderColor: '#22c55e',
@@ -554,13 +576,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             backgroundColor: coverageStyles.hoverBackground
           }
         }}
-        aria-label={
-          coverageTone === 'balanced'
-            ? 'View coverage details'
-            : `View ${coverageCount} missing domains`
-        }
+        aria-label={coverageButtonLabel}
       >
-        {coverageTone === 'balanced' ? 'Coverage balanced' : `Missing domains: ${coverageCount}`}
+        {coverageButtonLabel}
       </Button>
     );
   };
