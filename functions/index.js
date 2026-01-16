@@ -1122,20 +1122,64 @@ function formatDobForContext(dobValue) {
   return dobDate ? dobDate.toISOString().split("T")[0] : "dob unavailable in context";
 }
 
+function calculateAgeFromDob(dobValue) {
+  const dobDate = normalizeTimestampValue(dobValue);
+  if (!dobDate) {
+    return "age unavailable";
+  }
+
+  const today = new Date();
+  const birthDate = new Date(dobDate);
+  
+  // Calculate years
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  let days = today.getDate() - birthDate.getDate();
+
+  // Adjust for negative days
+  if (days < 0) {
+    months--;
+    // Get days in the previous month
+    const lastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    days += lastMonth.getDate();
+  }
+
+  // Adjust for negative months
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  // Build age string
+  const parts = [];
+  if (years > 0) {
+    parts.push(`${years} ${years === 1 ? "year" : "years"}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} ${months === 1 ? "month" : "months"}`);
+  }
+  if (days > 0 || parts.length === 0) {
+    parts.push(`${days} ${days === 1 ? "day" : "days"}`);
+  }
+
+  return parts.length > 0 ? `${parts.join(" ")} old` : "age unavailable";
+}
+
 async function getStudentContext(studentId) {
   try {
     const snap = await db.collection("students").doc(studentId).get();
     if (!snap.exists) {
-      return { studentName: "Unknown student", dob: "dob unavailable in context" };
+      return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable" };
     }
     const data = snap.data() || {};
     const fallbackName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
     const studentName = data.displayName || data.name || fallbackName || "Unknown student";
     const dob = formatDobForContext(data.dob);
-    return { studentName, dob };
+    const age = calculateAgeFromDob(data.dob);
+    return { studentName, dob, age };
   } catch (err) {
     console.warn(`[baseballCard] failed to fetch student context for ${studentId}:`, err);
-    return { studentName: "Unknown student", dob: "dob unavailable in context" };
+    return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable" };
   }
 }
 
@@ -1148,10 +1192,12 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
   const safeContext = {
     studentName: studentContext?.studentName || "Unknown student",
     dob: studentContext?.dob || "dob unavailable in context",
+    age: studentContext?.age || "age unavailable",
   };
   const renderedSystem = (prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK)
     .replace("<WINDOW_DAYS>", String(windowDays))
-    .replaceAll("<STUDENT_NAME>", safeContext.studentName);
+    .replaceAll("<STUDENT_NAME>", safeContext.studentName)
+    .replaceAll("<STUDENT_AGE>", safeContext.age);
   const userPrompt = `Generate the last ${windowDays}-day summary.\n\nStudent:\n${JSON.stringify(safeContext)}\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
 
   const body = {
