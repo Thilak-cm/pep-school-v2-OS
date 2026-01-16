@@ -497,7 +497,14 @@ const handleStudentClick = (student) => {
             setExpandedClassroomId(null);
             onSelectClassroom(classroom);
           }}
-          sx={{ p: 0, cursor: 'pointer' }}
+          sx={{
+            p: 0,
+            cursor: 'pointer',
+            outline: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            '&:focus-visible': { outline: 'none' },
+            '&:active': { backgroundColor: 'transparent' },
+          }}
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
@@ -533,6 +540,9 @@ const handleStudentClick = (student) => {
               variant="outlined"
               endIcon={isExpanded ? <ExpandLess /> : <ExpandMore />}
               onClick={(event) => handleToggleStudents(event, classroom.id)}
+              disableRipple
+              disableFocusRipple
+              disableTouchRipple
               sx={{ textTransform: 'none', mt: 1 }}
             >
               View students

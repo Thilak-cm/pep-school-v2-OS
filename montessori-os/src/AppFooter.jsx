@@ -214,6 +214,11 @@ function AppFooter({ onHome, onNavigate, active = null }) {
               color: '#64748b',
               paddingTop: 0.5,
               paddingBottom: 0.5,
+              outline: 'none',
+              '&:focus-visible': {
+                outline: 'none',
+                boxShadow: 'none',
+              },
               '& .MuiBottomNavigationAction-label': {
                 fontSize: '0.75rem',
                 fontWeight: 600,
