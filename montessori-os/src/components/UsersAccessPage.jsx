@@ -1904,7 +1904,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                                     />
                                   </ListItemIcon>
                                   <ListItemText
-                                    primary={branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)}
+                                    primary={(branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)).toUpperCase()}
                                     primaryTypographyProps={{ variant: 'body2' }}
                                   />
                                 </ListItemButton>
