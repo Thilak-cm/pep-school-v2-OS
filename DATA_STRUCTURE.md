@@ -31,13 +31,13 @@ Notes:
 
 Branch model overview
 - Add a first-class `branchId` dimension to core docs (users, classrooms, students, observations) to isolate data per campus/center.
-- `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `hyderabad`.
+- `branches` is a lightweight metadata collection; you created four empty docs already: `hsr`, `whitefield`, `varthur`, `kokapet`.
 - Admins are global; teachers/staff are scoped to one or more branches via `branchIds`.
 - Programs are global at `/programs/{programId}`.
 
 ```typescript
 // Shared types
-type BranchId = 'hsr' | 'whitefield' | 'varthur' | 'hyderabad';
+type BranchId = 'hsr' | 'whitefield' | 'varthur' | 'kokapet';
 type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
 ```
 
@@ -70,7 +70,7 @@ interface BranchDoc {
 ```
 Guidance
 - Keep docs simple; the presence of a doc is enough to list a branch.
-- Use slugs `hsr`, `whitefield`, `varthur`, `hyderabad` as document IDs.
+- Use slugs `hsr`, `whitefield`, `varthur`, `kokapet` as document IDs.
 - UI: show the currently selected branch in Profile; admins choose a branch on entry before landing.
 
 ---

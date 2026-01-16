@@ -92,11 +92,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   // Student form
   const [studentForm, setStudentForm] = useState({
-    firstName: '', lastName: '', classroomId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: ''
+    firstName: '', lastName: '', classroomId: '', branchId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: ''
   });
 
   // Shared state
   const [classrooms, setClassrooms] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(true);
   const [teachers, setTeachers] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -157,6 +159,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     }
     setUserLoading(false);
     fetchClassrooms();
+    fetchBranches();
   }, [hasUserManagementAccess, isClassroomAdminUser, manageableClassrooms]);
 
   useEffect(() => {
@@ -217,13 +220,43 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         id: c.id, 
         name: c.name || c.id, 
         studentCount: c.studentCount || 0, 
-        teacherIds: c.teacherIds || [] 
+        teacherIds: c.teacherIds || [],
+        branchId: c.branchId || null
       })));
     } catch (e) {
       console.error('Fetch classrooms error', e);
       setError('Failed to fetch classrooms');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      setBranchesLoading(true);
+      const branchesQuery = query(collection(db, 'branches'));
+      const branchesSnap = await getDocs(branchesQuery);
+      const branchesList = branchesSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id, // Use doc ID as the value
+          name: data.name || doc.id.charAt(0).toUpperCase() + doc.id.slice(1),
+          ...data
+        };
+      });
+      // Sort branches by order if available, otherwise by name
+      branchesList.sort((a, b) => {
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        return (a.name || a.id).localeCompare(b.name || b.id);
+      });
+      setBranches(branchesList);
+    } catch (e) {
+      console.error('Fetch branches error', e);
+      setError('Failed to fetch branches');
+    } finally {
+      setBranchesLoading(false);
     }
   };
 
@@ -309,6 +342,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       if (role === 'classroomadmin' && selectedAdminClassrooms.length === 0) errors.classrooms = 'Select at least one classroom';
     } else {
       if (!studentForm.firstName) errors.stuFirstName = 'First name is required';
+      if (!studentForm.branchId) errors.branchId = 'Select a branch';
       if (!studentForm.classroomId) errors.classroomId = 'Select a classroom';
       if (!studentForm.dob) {
         errors.stuDob = 'Date of Birth is required';
@@ -921,6 +955,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             lastName: (studentForm.lastName || '').trim(),
             displayName: `${studentForm.firstName} ${studentForm.lastName || ''}`.trim(),
             classroomId: studentForm.classroomId,
+            branchId: studentForm.branchId,
             status: 'active',
             isActive: true,
             dateOfBirth: Timestamp.fromDate(new Date(studentForm.dob)),
@@ -1020,7 +1055,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   };
 
   const resetStudentForm = () => {
-    setStudentForm({ firstName: '', lastName: '', classroomId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: '' });
+    setStudentForm({ firstName: '', lastName: '', classroomId: '', branchId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: '' });
   };
 
   // ============================================================================
@@ -1809,6 +1844,46 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     {validationErrors.classroomId && (
                       <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
                     )}
+                  </Grid>
+                  <Grid item xs={12}>
+                    <FormControl fullWidth error={!!validationErrors.branchId}>
+                      <InputLabel id="branch-select-label">Branch</InputLabel>
+                      <Select
+                        labelId="branch-select-label"
+                        label="Branch"
+                        value={studentForm.branchId}
+                        onChange={(e) => setStudentForm(p => ({ ...p, branchId: e.target.value }))}
+                        disabled={branchesLoading}
+                      >
+                        {branchesLoading ? (
+                          <MenuItem disabled>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', py: 1 }}>
+                              <CircularProgress size={16} sx={{ color: '#4f46e5' }} />
+                              <Typography variant="body2" color="text.secondary">
+                                Coach Pepper is fetching branches...
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ) : branches.length === 0 ? (
+                          <MenuItem disabled>
+                            <Typography variant="body2" color="text.secondary">
+                              No branches available
+                            </Typography>
+                          </MenuItem>
+                        ) : (
+                          branches.map((branch) => (
+                            <MenuItem key={branch.id} value={branch.id}>
+                              {branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                      {validationErrors.branchId && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                          {validationErrors.branchId}
+                        </Typography>
+                      )}
+                    </FormControl>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
