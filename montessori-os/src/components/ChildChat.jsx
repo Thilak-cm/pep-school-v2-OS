@@ -18,6 +18,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Settings, AutoAwesome, Mic, Pause, PlayArrow } from '@mui/icons-material';
+import { formatDate } from '../utils/dateFormat';
 import {
   collection,
   query,
@@ -769,12 +770,14 @@ function ChildChat({ student, startInLandingPage = false }) {
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
+      // Keep relative dates as-is
       if (diffMins < 1) return 'Just now';
       if (diffMins < 60) return `${diffMins}m ago`;
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays < 7) return `${diffDays}d ago`;
 
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      // Use standardized format for absolute dates (date-only, no time)
+      return formatDate(timestamp, false);
     } catch {
       return '';
     }

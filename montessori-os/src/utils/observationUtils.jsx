@@ -1,21 +1,9 @@
 import React from 'react';
 import { Visibility, MenuBook } from '@mui/icons-material';
+import { formatTimestamp } from './dateFormat';
 
-/**
- * Format timestamp for display
- * @param {Object} timestamp - Firebase timestamp object
- * @returns {string} Formatted timestamp string
- */
-export const formatTimestamp = (timestamp) => {
-  if (!timestamp) return 'No timestamp';
-  if (timestamp.seconds) {
-    return new Date(timestamp.seconds * 1000).toLocaleString();
-  }
-  if (timestamp.toDate) {
-    return timestamp.toDate().toLocaleString();
-  }
-  return 'Invalid timestamp';
-};
+// Re-export formatTimestamp for backward compatibility
+export { formatTimestamp };
 
 /**
  * Get icon for observation type

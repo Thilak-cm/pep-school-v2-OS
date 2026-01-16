@@ -9,6 +9,7 @@ import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, Delete, Edit } fr
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
+import { formatDate } from '../utils/dateFormat';
 import {
   collection,
   getDocs,
@@ -2242,11 +2243,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     </Typography>
                     {selectedStudent.dateOfBirth && selectedStudent.dateOfBirth.toDate ? (
                       <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500, fontSize: '1rem' }}>
-                        {selectedStudent.dateOfBirth.toDate().toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
+                        {formatDate(selectedStudent.dateOfBirth, false)}
                       </Typography>
                     ) : (
                       <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>

@@ -18,6 +18,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
+import { formatTimestamp as formatDateWithTime } from '../utils/dateFormat';
 import {
   Send,
   ExpandMore,
@@ -143,8 +144,7 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefi
 
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'Unknown';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    return formatDateWithTime(timestamp);
   };
 
   return (
