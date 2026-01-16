@@ -1846,44 +1846,79 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     )}
                   </Grid>
                   <Grid item xs={12}>
-                    <FormControl fullWidth error={!!validationErrors.branchId}>
-                      <InputLabel id="branch-select-label">Branch</InputLabel>
-                      <Select
-                        labelId="branch-select-label"
-                        label="Branch"
-                        value={studentForm.branchId}
-                        onChange={(e) => setStudentForm(p => ({ ...p, branchId: e.target.value }))}
-                        disabled={branchesLoading}
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch *</Typography>
+                    {branchesLoading ? (
+                      <Box
+                        sx={{
+                          backgroundColor: 'white',
+                          p: 2,
+                          borderRadius: 1.5,
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          justifyContent: 'center'
+                        }}
                       >
-                        {branchesLoading ? (
-                          <MenuItem disabled>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', py: 1 }}>
-                              <CircularProgress size={16} sx={{ color: '#4f46e5' }} />
-                              <Typography variant="body2" color="text.secondary">
-                                Coach Pepper is fetching branches...
-                              </Typography>
-                            </Box>
-                          </MenuItem>
-                        ) : branches.length === 0 ? (
-                          <MenuItem disabled>
+                        <CircularProgress size={20} sx={{ color: '#4f46e5' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Coach Pepper is fetching branches...
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box
+                        sx={{
+                          backgroundColor: 'white',
+                          p: 0.75,
+                          borderRadius: 1.5,
+                          border: '1px solid #e2e8f0',
+                          maxHeight: 184,
+                          overflowY: 'auto'
+                        }}
+                      >
+                        {branches.length === 0 ? (
+                          <Box sx={{ p: 2, textAlign: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
                               No branches available
                             </Typography>
-                          </MenuItem>
+                          </Box>
                         ) : (
-                          branches.map((branch) => (
-                            <MenuItem key={branch.id} value={branch.id}>
-                              {branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)}
-                            </MenuItem>
-                          ))
+                          <List dense disablePadding>
+                            {branches.map((branch) => (
+                              <ListItem key={branch.id} disablePadding>
+                                <ListItemButton
+                                  dense
+                                  onClick={() => {
+                                    setStudentForm((p) => ({ ...p, branchId: branch.id }));
+                                    if (validationErrors.branchId) {
+                                      setValidationErrors(prev => ({ ...prev, branchId: '' }));
+                                    }
+                                  }}
+                                >
+                                  <ListItemIcon sx={{ minWidth: 32 }}>
+                                    <Checkbox
+                                      edge="start"
+                                      tabIndex={-1}
+                                      disableRipple
+                                      checked={studentForm.branchId === branch.id}
+                                    />
+                                  </ListItemIcon>
+                                  <ListItemText
+                                    primary={branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)}
+                                    primaryTypographyProps={{ variant: 'body2' }}
+                                  />
+                                </ListItemButton>
+                              </ListItem>
+                            ))}
+                          </List>
                         )}
-                      </Select>
-                      {validationErrors.branchId && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                          {validationErrors.branchId}
-                        </Typography>
-                      )}
-                    </FormControl>
+                      </Box>
+                    )}
+                    {validationErrors.branchId && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                        {validationErrors.branchId}
+                      </Typography>
+                    )}
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
