@@ -1235,6 +1235,13 @@ function NotificationsPage() {
                     ? `Regenerating will include ${notesSinceGenerated} new note${notesSinceGenerated === 1 ? '' : 's'} added after this snapshot.`
                     : 'Unable to check for new notes right now.'}
               </Typography>
+              {!notesSinceGeneratedLoading && Number.isFinite(notesSinceGenerated) && (
+                <Typography variant="body2" sx={{ color: notesSinceGenerated === 0 ? '#dc2626' : '#059669', fontStyle: 'italic' }}>
+                  {notesSinceGenerated === 0
+                    ? 'Regeneration will not include any additional information, so it may not be necessary.'
+                    : 'This will refresh the snapshot with the latest observations and may provide updated insights.'}
+                </Typography>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
