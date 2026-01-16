@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -51,6 +51,7 @@ import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 import { isAdminRole } from '../utils/roleUtils';
+import useSwipeTabs from '../hooks/useSwipeTabs';
 import { 
   PERFORMANCE_TARGETS, 
   calculateStudentPerformance, 
@@ -1853,12 +1854,39 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           
           {/* Divider removed to reduce visual clutter */}
 
-          {/* Content based on active tab */}
-          
-          {/* Performance target header removed */}
-          
-          {/* Overview Tab */}
-          {activeTab === 0 && (
+          {/* Content based on active tab - Wrapped for swipe navigation */}
+          <Box 
+            {...swipeBind}
+            ref={(el) => {
+              containerWidthRef.current = el;
+              if (swipeBind.ref) {
+                if (typeof swipeBind.ref === 'function') {
+                  swipeBind.ref(el);
+                } else {
+                  swipeBind.ref.current = el;
+                }
+              }
+            }}
+            sx={{ 
+              touchAction: 'pan-x pan-y', // Allow both horizontal and vertical panning
+              overflow: 'hidden', // Hide tabs that are off-screen
+              position: 'relative',
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                width: '400%', // Four tabs side by side
+                transform: getTransform(),
+                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                willChange: isDragging ? 'transform' : 'auto',
+              }}
+            >
+              {/* Performance target header removed */}
+              
+              {/* Overview Tab */}
+              <Box sx={{ width: '25%', flexShrink: 0 }}>
+                {activeTab === 0 && (
             <Box sx={{ width: '100%', minWidth: 0 }}>
               {/* Time Period Picker */}
               <Box sx={{ mb: 3, width: '100%', minWidth: 0 }}>
@@ -2044,11 +2072,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
               {/* Voice Note Language Distribution removed */}
             </Box>
-          )}
-
-          {/* Classrooms Tab */}
-          {activeTab === 1 && (
-            tabLoadingStates[1] ? (
+            )}
+              </Box>
+              
+              {/* Classrooms Tab */}
+              <Box sx={{ width: '25%', flexShrink: 0 }}>
+                {activeTab === 1 && (
+                  tabLoadingStates[1] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
@@ -2150,18 +2180,20 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     <ClassroomComparisonChart />
                   </Box>
                 </Box>
-              ) : (
-                <Alert severity="info">
-                  No classroom data available.
-                </Alert>
-              )}
-            </Box>
-            )
-          )}
-
-          {/* Teachers Tab */}
-          {activeTab === 2 && (
-            tabLoadingStates[2] ? (
+                  ) : (
+                    <Alert severity="info">
+                      No classroom data available.
+                    </Alert>
+                  )}
+                    </Box>
+                  )
+                )}
+              </Box>
+              
+              {/* Teachers Tab */}
+              <Box sx={{ width: '25%', flexShrink: 0 }}>
+                {activeTab === 2 && (
+                  tabLoadingStates[2] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
@@ -2320,18 +2352,20 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                   </Dialog>
                   
                 </Box>
-              ) : (
-                <Alert severity="info">
-                  No teacher data available.
-                </Alert>
-              )}
-            </Box>
-            )
-          )}
-
-          {/* Students Tab */}
-          {activeTab === 3 && (
-            tabLoadingStates[3] ? (
+                  ) : (
+                    <Alert severity="info">
+                      No teacher data available.
+                    </Alert>
+                  )}
+                    </Box>
+                  )
+                )}
+              </Box>
+              
+              {/* Students Tab */}
+              <Box sx={{ width: '25%', flexShrink: 0 }}>
+                {activeTab === 3 && (
+                  tabLoadingStates[3] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
@@ -2622,14 +2656,17 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     </Box>
                   )}
                 </Box>
-              ) : (
-                <Alert severity="info">
-                  No student data available.
-                </Alert>
-              )}
+                  ) : (
+                    <Alert severity="info">
+                      No student data available.
+                    </Alert>
+                  )}
+                    </Box>
+                  )
+                )}
+              </Box>
             </Box>
-            )
-          )}
+          </Box>
         </CardContent>
       </Card>
 

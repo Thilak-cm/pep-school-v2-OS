@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
   Button,
+  ButtonBase,
   IconButton,
   Divider,
   TextField,
@@ -49,6 +50,7 @@ import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import { isAdminRole } from '../utils/roleUtils';
+import useSwipeTabs from '../hooks/useSwipeTabs';
 import {
   getLessonDimensions,
   LESSON_RATING_LABELS,
@@ -354,6 +356,38 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
   const handleStudentClick = (student) => {
     onNavigateToStudent(student);
+  };
+
+  // Swipe navigation between tabs
+  const { bind: swipeBind, dx, isDragging } = useSwipeTabs({
+    onSwipeLeft: () => {
+      // Swipe left = next tab (if not on last tab)
+      if (activeTab < 1) {
+        setActiveTab(activeTab + 1);
+      }
+    },
+    onSwipeRight: () => {
+      // Swipe right = previous tab (if not on first tab)
+      if (activeTab > 0) {
+        setActiveTab(activeTab - 1);
+      }
+    },
+  });
+
+  // Calculate container width for swipe feedback
+  const containerWidthRef = useRef(null);
+  const containerWidth = containerWidthRef.current?.offsetWidth || 0;
+  
+  // Calculate transform based on active tab and swipe delta
+  const getTransform = () => {
+    if (!isDragging || !containerWidth) {
+      return `translateX(-${activeTab * 50}%)`;
+    }
+    // During swipe, offset by dx relative to current tab position
+    // Each tab is 50% of the container (since we have 2 tabs = 200% total width)
+    const baseOffset = -activeTab * 50; // percentage
+    const dxPercent = (dx / containerWidth) * 100;
+    return `translateX(${baseOffset + dxPercent}%)`;
   };
 
   if (!classroom) {
@@ -687,45 +721,83 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
           {/* Expanding pill search */}
           <Box
-            onClick={() => setShowSearch(true)}
             sx={{
               display: 'flex',
               alignItems: 'center',
-              width: showSearch ? 320 : 160,
+              width: showSearch ? 360 : 200,
+              maxWidth: 420,
+              minWidth: 180,
+              flex: '1 1 auto',
               transition: 'width 200ms ease',
             }}
           >
-            <OutlinedInput
-              inputRef={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onBlur={() => { if (!searchQuery) setShowSearch(false); }}
-              placeholder={'Search'}
-              size="small"
-              startAdornment={(
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              )}
-              sx={{
-                height: 36,
-                borderRadius: 999,
-                px: 0.5,
-                py: 0,
-                '& .MuiOutlinedInput-notchedOutline': { borderRadius: 999 },
-                '& .MuiInputBase-input': {
-                  p: 0.5,
-                  pl: 0.5,
-                },
-              }}
-            />
+            {showSearch ? (
+              <OutlinedInput
+                inputRef={searchInputRef}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => { if (!searchQuery) setShowSearch(false); }}
+                placeholder="Search notes or students"
+                size="small"
+                startAdornment={(
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                )}
+                sx={{
+                  height: 36,
+                  borderRadius: 999,
+                  px: 0.75,
+                  py: 0,
+                  backgroundColor: '#f8fafc',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderRadius: 999,
+                    borderColor: '#e2e8f0',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#cbd5e1',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#94a3b8',
+                  },
+                  '& .MuiInputBase-input': {
+                    p: 0.5,
+                    pl: 0.25,
+                  },
+                }}
+              />
+            ) : (
+              <ButtonBase
+                onClick={() => setShowSearch(true)}
+                disableRipple
+                aria-label="Open search"
+                sx={{
+                  width: '100%',
+                  height: 36,
+                  borderRadius: 999,
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  px: 1.25,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: 0.75,
+                  color: '#64748b',
+                  transition: 'background-color 150ms ease, border-color 150ms ease',
+                  '&:hover': {
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#cbd5e1',
+                  },
+                }}
+              >
+                <Search fontSize="small" />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit' }}>
+                  Search
+                </Typography>
+              </ButtonBase>
+            )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {activeTab === 0 && (
-              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-                Showing {filteredObservations.length} of {filteredNotes.length} notes
-              </Typography>
-            )}
             <Button
               startIcon={<FilterList />}
               onClick={activeTab === 0 ? toggleFilters : undefined}
@@ -794,14 +866,45 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         </Tabs>
       </Box>
 
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <Box sx={{ 
-          backgroundColor: 'white',
-          borderRadius: 1,
-          p: 2,
-          minHeight: '200px'
-        }}>
+      {/* Tab Content - Wrapped for swipe navigation */}
+      <Box 
+        {...swipeBind}
+        ref={(el) => {
+          containerWidthRef.current = el;
+          if (swipeBind.ref) {
+            if (typeof swipeBind.ref === 'function') {
+              swipeBind.ref(el);
+            } else {
+              swipeBind.ref.current = el;
+            }
+          }
+        }}
+        sx={{ 
+          touchAction: 'pan-x pan-y', // Allow both horizontal and vertical panning
+          overflow: 'hidden', // Hide tabs that are off-screen
+          position: 'relative',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            width: '200%', // Two tabs side by side
+            transform: getTransform(),
+            transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            willChange: isDragging ? 'transform' : 'auto',
+          }}
+        >
+          {/* Tab 0: Notes */}
+          <Box 
+            sx={{ 
+              width: '50%',
+              flexShrink: 0,
+              backgroundColor: 'white',
+              borderRadius: 1,
+              p: 2,
+              minHeight: '200px'
+            }}
+          >
           {/* Notes Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -947,16 +1050,19 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               )}
             </Box>
           )}
-        </Box>
-      )}
-      
-      {activeTab === 1 && (
-        <Box sx={{ 
-          backgroundColor: 'white',
-          borderRadius: 1,
-          p: 2,
-          minHeight: '200px'
-        }}>
+          </Box>
+          
+          {/* Tab 1: Students */}
+          <Box 
+            sx={{ 
+              width: '50%',
+              flexShrink: 0,
+              backgroundColor: 'white',
+              borderRadius: 1,
+              p: 2,
+              minHeight: '200px'
+            }}
+          >
           {/* Students Count */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -983,8 +1089,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
               ))}
             </Box>
           )}
+          </Box>
         </Box>
-      )}
+      </Box>
       
       {/* Note Expansion Dialog */}
       <NoteExpansionDialog
