@@ -390,6 +390,7 @@ function App() {
       case 'childChat':
         return () => setScreen('studentDashboard');
       case 'profile':
+        return () => setScreen('settings');
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
@@ -431,7 +432,7 @@ function App() {
   };
 
   const backNavigation = getBackNavigation();
-  const showBackButton = screen !== 'landingPage' && screen !== 'notifications';
+  const showBackButton = screen !== 'landingPage' && screen !== 'notifications' && screen !== 'settings';
   const handleNavigation = (path) => {
     if (path === 'settings') {
       setScreen('settings');

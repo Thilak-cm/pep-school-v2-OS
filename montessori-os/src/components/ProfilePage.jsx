@@ -2,11 +2,18 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Avatar
+  Avatar,
+  Paper
 } from '@mui/material';
 import { getRoleLabel, isClassroomAdmin, isSuperAdmin } from '../utils/roleUtils';
 
 const ProfilePage = ({ user, role }) => {
+  const initials = (user?.displayName || user?.email || 'U')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   const roleLabel = getRoleLabel(role);
   const roleColor = isSuperAdmin(role) ? '#dc2626' : (isClassroomAdmin(role) ? '#ea580c' : '#4f46e5');
@@ -15,7 +22,7 @@ const ProfilePage = ({ user, role }) => {
     <Box sx={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      gap: 3,
+      gap: 2,
       pb: 4 
     }}>
       {/* Header */}
@@ -25,55 +32,52 @@ const ProfilePage = ({ user, role }) => {
         </Typography>
       </Box>
 
-      {/* Profile Photo Section */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center',
-        py: 2
-      }}>
-        <Avatar
-          src={user?.photoURL}
-          sx={{
-            width: 120,
-            height: 120,
-            mb: 2,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            border: '4px solid white',
-            fontSize: '3rem',
-            fontWeight: 700,
-            backgroundColor: '#4f46e5'
-          }}
-        >
-          {user?.displayName?.charAt(0) || 'U'}
-        </Avatar>
-        
-        <Typography variant="h4" sx={{ 
-          fontWeight: 700, 
-          color: '#1e293b',
-          textAlign: 'center',
-          mb: 0.5
-        }}>
-          {user?.displayName || 'User'}
-        </Typography>
-        
-        <Typography variant="body1" sx={{ 
-          color: '#64748b',
-          textAlign: 'center',
-          mb: 1
-        }}>
-          {user?.email}
-        </Typography>
-        
-        <Typography variant="body2" sx={{ 
-          color: roleColor,
-          textAlign: 'center',
-          fontWeight: 600,
-          textTransform: 'capitalize'
-        }}>
-          {roleLabel}
-        </Typography>
-      </Box>
+      {/* Profile Card */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.5,
+          borderRadius: 2,
+          border: '1px solid #e2e8f0',
+          backgroundColor: 'white',
+          textAlign: 'center'
+        }}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+          <Avatar
+            src={user?.photoURL || undefined}
+            alt={user?.displayName || 'Profile'}
+            sx={{
+              width: 88,
+              height: 88,
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              bgcolor: '#4f46e5'
+            }}
+          >
+            {initials}
+          </Avatar>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+              {user?.displayName || 'Pep School user'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#64748b' }}>
+              {user?.email}
+            </Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: roleColor,
+                fontWeight: 600,
+                textTransform: 'capitalize',
+                mt: 0.5
+              }}
+            >
+              {roleLabel}
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
 
     </Box>
   );

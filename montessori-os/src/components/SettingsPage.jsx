@@ -13,8 +13,7 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  Paper,
-  Avatar
+  Paper
 } from '@mui/material';
 import {
   Person,
@@ -27,12 +26,6 @@ import VersionBadge from './VersionBadge';
 
 function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const initials = (currentUser?.displayName || currentUser?.email || 'U')
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
   const menuItems = [
     {
@@ -74,41 +67,6 @@ function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
         gap: 2
       }}
     >
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          borderRadius: 2,
-          border: '1px solid #e2e8f0',
-          backgroundColor: 'white',
-          textAlign: 'center'
-        }}
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-          <Avatar
-            src={currentUser?.photoURL || undefined}
-            alt={currentUser?.displayName || 'Profile'}
-            sx={{
-              width: 88,
-              height: 88,
-              fontSize: '1.5rem',
-              fontWeight: 700,
-              bgcolor: '#4f46e5'
-            }}
-          >
-            {initials}
-          </Avatar>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
-              {currentUser?.displayName || 'Pep School user'}
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              {currentUser?.email}
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
-
       <Paper
         elevation={0}
         sx={{
