@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
   Card,
   CardContent,
-  LinearProgress,
   Chip,
   Tabs,
   Tab,
@@ -20,11 +19,6 @@ import {
   Autocomplete,
   TextField,
   Button,
-  Divider,
-  Paper,
-  Stack,
-  Badge,
-  Tooltip,
   Select,
   FormControl,
   InputLabel,
@@ -36,22 +30,15 @@ import {
   TrendingDown,
   People,
   School,
-  Mic,
-  TextFields,
   ArrowBack,
   FilterList,
-  Download,
-  Refresh,
-  Visibility,
-  VisibilityOff,
   Clear
 } from '@mui/icons-material';
-import { collection, collectionGroup, query, getDocs, orderBy, getDoc, doc, where, limit, documentId, Timestamp } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, orderBy, where, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 import { isAdminRole } from '../utils/roleUtils';
-import useSwipeTabs from '../hooks/useSwipeTabs';
 import { 
   PERFORMANCE_TARGETS, 
   calculateStudentPerformance, 
@@ -62,18 +49,9 @@ import {
   isLowPerformer
 } from '../config/performanceTargets';
 
-// Granular cache system - each data type cached separately
+// Granular cache system - each data type cached separately (filters apply in-memory)
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
-
-const getFilterKeySegment = (items = []) => {
-  if (!Array.isArray(items) || items.length === 0) return 'all';
-  const ids = items
-    .map(item => item?.id)
-    .filter(Boolean)
-    .sort();
-  return ids.length ? ids.join('|') : 'all';
-};
 
 // Build base cache key for user/role context
 const buildBaseCacheKey = (userId, role, manageableClassrooms = []) => {
@@ -217,12 +195,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     role,
     manageableClassrooms
   ), [user?.uid, role, manageableClassrooms]);
-  
-  // Filter-based cache key for observations (changes with filters)
-  const observationsCacheKey = useMemo(() => {
-    const filterKey = `${getFilterKeySegment(selectedClassrooms)}:${getFilterKeySegment(selectedTeachers)}:${getFilterKeySegment(selectedStudents)}`;
-    return `${baseCacheKey}:obs:${filterKey}`;
-  }, [baseCacheKey, selectedClassrooms, selectedTeachers, selectedStudents]);
 
   useEffect(() => {
     setMounted(true);
@@ -249,10 +221,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     const needsTeachers = tabIndex === 0 || tabIndex === 2; // Overview and Teachers tabs
     const needsStudents = tabIndex === 0 || tabIndex === 1 || tabIndex === 3; // Overview, Classrooms, Students tabs
     const needsBranches = isAdmin; // Only admins need branches
+    const hasUserFilters = selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
 
     // Check cache for each data type independently
-    const cachedObservations = needsObservations ? getCachedData(observationsCacheKey, 'observations') : null;
-    const cachedStats = needsObservations ? getCachedData(observationsCacheKey, 'stats') : null;
+    const cachedObservations = needsObservations ? getCachedData(baseCacheKey, 'observations') : null;
+    const cachedStats = needsObservations ? getCachedData(baseCacheKey, 'stats') : null;
+    const canUseCachedStats = !hasUserFilters && cachedStats;
     const cachedClassrooms = needsClassrooms ? getCachedData(baseCacheKey, 'classrooms') : null;
     const cachedTeachers = needsTeachers ? getCachedData(baseCacheKey, 'teachers') : null;
     const cachedStudents = needsStudents ? getCachedData(baseCacheKey, 'students') : null;
@@ -260,7 +234,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
     // If we have all cached data needed for this tab, use it
     const hasAllCachedData = 
-      (!needsObservations || (cachedObservations && cachedStats)) &&
+      (!needsObservations || (cachedObservations && canUseCachedStats)) &&
       (!needsClassrooms || cachedClassrooms) &&
       (!needsTeachers || cachedTeachers) &&
       (!needsStudents || cachedStudents) &&
@@ -268,14 +242,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
     if (hasAllCachedData) {
       // Use cached data - set state immediately
-      if (cachedStats) {
-        setStats({ ...cachedStats, loading: false });
-      } else if (cachedObservations) {
-        // If we have observations but no stats, we need to recalculate stats
-        // This shouldn't happen normally, but handle it gracefully
-        // Fall through to fetchData to recalculate
-      } else {
-        // No cached data at all, proceed to fetch
+      if (canUseCachedStats) {
+        const observations = Array.isArray(cachedObservations) ? cachedObservations : [];
+        setStats({ ...cachedStats, allObservations: observations, loading: false });
       }
       
       // Set other cached data
@@ -296,7 +265,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       }
       
       // If we have all cached data including stats, we're done
-      if (cachedStats) {
+      if (canUseCachedStats) {
         setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
         setFilterLoading(false);
         return;
@@ -396,17 +365,20 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           }
         }
         
-        // Fetch teachers (users with teacher role) - only if needed for this tab and not cached
+        // Fetch all users (teachers, superadmins, classroomadmins) - only if needed for this tab and not cached
         if (needsTeachers && !cachedTeachers) {
           try {
           // First try to get all users to see if the collection is accessible
           const allUsersQuery = query(collection(db, 'users'));
           const allUsersSnap = await getDocs(allUsersQuery);
           
-          // Now filter for teachers client-side
-          const teacherUsers = allUsersSnap.docs.filter(doc => doc.data().role === 'teacher');
+          // Include all users (teachers, superadmins, classroomadmins)
+          const allUsers = allUsersSnap.docs.filter(doc => {
+            const userRole = doc.data().role;
+            return userRole === 'teacher' || userRole === 'superadmin' || userRole === 'classroomadmin';
+          });
           
-          teachersData = teacherUsers.map(doc => ({
+          teachersData = allUsers.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
@@ -572,6 +544,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           );
           filteredTeachersData = teacherClassroomTeachers;
         }
+
+        const roleScopedObservations = filteredObservations;
         
         // Apply user-selected filters with AND logic between different filter types
         // Classrooms filter: OR logic within classrooms, AND logic with other filters
@@ -795,12 +769,16 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           loading: false
         };
         
+        const statsCachePayload = { ...statsPayload };
+        delete statsCachePayload.allObservations;
         setStats(statsPayload);
         
-        // Cache each data type separately (only cache what we fetched, not what was already cached)
+        // Cache each data type separately (cache role-scoped observations, stats only for unfiltered views)
         if (needsObservations && !cachedObservations) {
-          setCachedData(observationsCacheKey, 'observations', filteredObservations);
-          setCachedData(observationsCacheKey, 'stats', statsPayload);
+          setCachedData(baseCacheKey, 'observations', roleScopedObservations);
+        }
+        if (needsObservations && !cachedStats && !hasUserFilters) {
+          setCachedData(baseCacheKey, 'stats', statsCachePayload);
         }
         if (needsClassrooms && !cachedClassrooms && filteredClassroomsData.length > 0) {
           setCachedData(baseCacheKey, 'classrooms', filteredClassroomsData);
@@ -832,7 +810,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   // Load Overview tab data immediately (default tab) - this loads observations for charts
   useEffect(() => {
     fetchTabData(0);
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, baseCacheKey, observationsCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
+  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, baseCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
 
   const handleTabChange = async (event, newValue) => {
     // Teachers can't access certain tabs
@@ -1854,39 +1832,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           
           {/* Divider removed to reduce visual clutter */}
 
-          {/* Content based on active tab - Wrapped for swipe navigation */}
-          <Box 
-            {...swipeBind}
-            ref={(el) => {
-              containerWidthRef.current = el;
-              if (swipeBind.ref) {
-                if (typeof swipeBind.ref === 'function') {
-                  swipeBind.ref(el);
-                } else {
-                  swipeBind.ref.current = el;
-                }
-              }
-            }}
-            sx={{ 
-              touchAction: 'pan-x pan-y', // Allow both horizontal and vertical panning
-              overflow: 'hidden', // Hide tabs that are off-screen
-              position: 'relative',
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                width: '400%', // Four tabs side by side
-                transform: getTransform(),
-                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                willChange: isDragging ? 'transform' : 'auto',
-              }}
-            >
-              {/* Performance target header removed */}
-              
-              {/* Overview Tab */}
-              <Box sx={{ width: '25%', flexShrink: 0 }}>
-                {activeTab === 0 && (
+          {/* Content based on active tab */}
+          <Box sx={{ width: '100%', minWidth: 0 }}>
+            {/* Overview Tab */}
+            {activeTab === 0 && (
             <Box sx={{ width: '100%', minWidth: 0 }}>
               {/* Time Period Picker */}
               <Box sx={{ mb: 3, width: '100%', minWidth: 0 }}>
@@ -2073,11 +2022,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               {/* Voice Note Language Distribution removed */}
             </Box>
             )}
-              </Box>
-              
-              {/* Classrooms Tab */}
-              <Box sx={{ width: '25%', flexShrink: 0 }}>
-                {activeTab === 1 && (
+            
+            {/* Classrooms Tab */}
+            {activeTab === 1 && (
                   tabLoadingStates[1] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
@@ -2188,11 +2135,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     </Box>
                   )
                 )}
-              </Box>
               
-              {/* Teachers Tab */}
-              <Box sx={{ width: '25%', flexShrink: 0 }}>
-                {activeTab === 2 && (
+            {/* Teachers Tab */}
+            {activeTab === 2 && (
                   tabLoadingStates[2] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
@@ -2360,11 +2305,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     </Box>
                   )
                 )}
-              </Box>
               
-              {/* Students Tab */}
-              <Box sx={{ width: '25%', flexShrink: 0 }}>
-                {activeTab === 3 && (
+            {/* Students Tab */}
+            {activeTab === 3 && (
                   tabLoadingStates[3] ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                 <CircularProgress />
@@ -2664,9 +2607,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     </Box>
                   )
                 )}
-              </Box>
             </Box>
-          </Box>
         </CardContent>
       </Card>
 
