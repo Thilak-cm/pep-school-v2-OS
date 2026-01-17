@@ -246,13 +246,33 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     const hasUserFilters = selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
 
     // Check cache for each data type independently
-    const cachedObservations = needsObservations ? getCachedData(baseCacheKey, 'observations') : null;
-    const cachedStats = needsObservations ? getCachedData(baseCacheKey, 'stats') : null;
-    const canUseCachedStats = !hasUserFilters && cachedStats;
+    let cachedObservations = needsObservations ? getCachedData(baseCacheKey, 'observations') : null;
+    let cachedStats = needsObservations ? getCachedData(baseCacheKey, 'stats') : null;
     const cachedClassrooms = needsClassrooms ? getCachedData(baseCacheKey, 'classrooms') : null;
     const cachedTeachers = needsTeachers ? getCachedData(baseCacheKey, 'teachers') : null;
     const cachedStudents = needsStudents ? getCachedData(baseCacheKey, 'students') : null;
     const cachedBranches = needsBranches ? getCachedData(baseCacheKey, 'branches') : null;
+
+    // If we have cached students but cached observations is an empty list, it's very likely a stale cache
+    // created during a previous index/permission failure. Invalidate observations+stats cache and refetch.
+    if (
+      needsObservations &&
+      Array.isArray(cachedStudents) && cachedStudents.length > 0 &&
+      Array.isArray(cachedObservations) && cachedObservations.length === 0
+    ) {
+      try {
+        const obsKey = buildDataTypeCacheKey(baseCacheKey, 'observations');
+        const statsKey = buildDataTypeCacheKey(baseCacheKey, 'stats');
+        window.localStorage.removeItem(obsKey);
+        window.localStorage.removeItem(statsKey);
+      } catch (_) {
+        // ignore
+      }
+      cachedObservations = null;
+      cachedStats = null;
+    }
+
+    const canUseCachedStats = !hasUserFilters && cachedStats;
 
     // If we have all cached data needed for this tab, use it
     const hasAllCachedData = 
@@ -488,7 +508,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
             }
           }
         }
-        
+
         // Sort by observedAt client-side (only if we just fetched, cache is already sorted)
         if (allObservations.length > 0 && !cachedObservations) {
           allObservations.sort((a, b) => {
@@ -1762,18 +1782,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     <Box sx={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      gap: 3,
+      gap: 0,
       pb: 4,
       width: '100%',
       minWidth: 0
     }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
-            {role === 'teacher' ? 'My Statistics' : 'Statistics & Analytics'}
-          </Typography>
-        </Box>
         
         {/* Filter Button */}
         {!hideDropdownsForSingleBranchAdmin && (

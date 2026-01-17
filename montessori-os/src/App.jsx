@@ -256,7 +256,28 @@ function App() {
           setScreen('accessDenied');
           return;
         }
-        const userManageableClassrooms = Array.isArray(userDoc.manageableClassrooms) ? userDoc.manageableClassrooms.filter(Boolean) : [];
+        // Normalize manageableClassrooms to classroom document IDs.
+        // Some older records may store full paths like "classrooms/abc" or doc-ref-ish objects.
+        const normalizeClassroomId = (value) => {
+          if (!value) return null;
+          if (typeof value === 'string') {
+            const parts = String(value).trim().split('/').filter(Boolean);
+            return parts.length ? parts[parts.length - 1] : null;
+          }
+          if (typeof value === 'object') {
+            if (typeof value.id === 'string') return value.id.trim();
+            if (typeof value.path === 'string') {
+              const parts = String(value.path).trim().split('/').filter(Boolean);
+              return parts.length ? parts[parts.length - 1] : null;
+            }
+          }
+          return null;
+        };
+
+        const rawManageable = Array.isArray(userDoc.manageableClassrooms) ? userDoc.manageableClassrooms : [];
+        const userManageableClassrooms = Array.from(
+          new Set(rawManageable.map(normalizeClassroomId).filter(Boolean))
+        );
         // Classroom admins must have manageableClassrooms; surface hard failure if missing to avoid silent permission errors
         if (userDoc.role === 'classroomadmin' && userManageableClassrooms.length === 0) {
           console.error('Classroom admin missing manageableClassrooms');
