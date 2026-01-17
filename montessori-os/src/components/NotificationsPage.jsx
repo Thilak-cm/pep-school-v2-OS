@@ -1403,7 +1403,7 @@ function NotificationsPage() {
         {!isLoading && !error && (
           <Stack spacing={2}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
-              Behavioral Flag Breakdown
+              Student Signals Breakdown
             </Typography>
 
             <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
