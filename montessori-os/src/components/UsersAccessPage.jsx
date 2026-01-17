@@ -322,6 +322,40 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
 
+  // Group classrooms by branch for easier visual digestion
+  const classroomsByBranch = useMemo(() => {
+    const grouped = new Map();
+    
+    // Add classrooms with branches
+    classrooms.forEach(cls => {
+      const branchId = cls.branchId || 'no-branch';
+      if (!grouped.has(branchId)) {
+        grouped.set(branchId, []);
+      }
+      grouped.get(branchId).push(cls);
+    });
+    
+    // Sort classrooms within each branch
+    grouped.forEach((classrooms, branchId) => {
+      classrooms.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+    });
+    
+    // Convert to array with branch info
+    return Array.from(grouped.entries()).map(([branchId, classrooms]) => {
+      const branch = branches.find(b => b.id === branchId);
+      return {
+        branchId,
+        branchName: branch ? branch.name : (branchId === 'no-branch' ? 'Unassigned' : branchId),
+        classrooms
+      };
+    }).sort((a, b) => {
+      // Sort branches: "Unassigned" last, others by name
+      if (a.branchId === 'no-branch') return 1;
+      if (b.branchId === 'no-branch') return -1;
+      return a.branchName.localeCompare(b.branchName);
+    });
+  }, [classrooms, branches]);
+
   // ============================================================================
   // VALIDATION
   // ============================================================================
@@ -1465,17 +1499,26 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 {manageTeacher && manageTeacher.status && manageTeacher.status !== 'active' && (
                   <Alert severity="warning" sx={{ mb: 2 }}>This teacher is inactive. Access changes are disabled.</Alert>
                 )}
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                  {classrooms.map(c => (
-                    <Chip
-                      key={c.id}
-                      label={c.name || c.id}
-                      onClick={() => toggleManageClassroom(c.id)}
-                      color={manageSelectedIds.includes(c.id) ? 'primary' : 'default'}
-                      variant={manageSelectedIds.includes(c.id) ? 'filled' : 'outlined'}
-                      clickable
-                      size="small"
-                    />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                  {classroomsByBranch.map(({ branchId, branchName, classrooms: branchClassrooms }) => (
+                    <Box key={branchId}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        {branchName}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {branchClassrooms.map(c => (
+                          <Chip
+                            key={c.id}
+                            label={c.name || c.id}
+                            onClick={() => toggleManageClassroom(c.id)}
+                            color={manageSelectedIds.includes(c.id) ? 'primary' : 'default'}
+                            variant={manageSelectedIds.includes(c.id) ? 'filled' : 'outlined'}
+                            clickable
+                            size="small"
+                          />
+                        ))}
+                      </Box>
+                    </Box>
                   ))}
                 </Box>
               </DialogContent>
@@ -2100,17 +2143,26 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           <Typography variant="body2" sx={{ mb: 2 }}>
             Select classrooms this admin can manage.
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {classrooms.map((cls) => (
-              <Chip
-                key={cls.id}
-                label={cls.name || cls.id}
-                onClick={() => handleClassroomDialogToggle(cls.id)}
-                color={classroomDialogSelection.includes(cls.id) ? 'primary' : 'default'}
-                variant={classroomDialogSelection.includes(cls.id) ? 'filled' : 'outlined'}
-                clickable
-                size="small"
-              />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {classroomsByBranch.map(({ branchId, branchName, classrooms: branchClassrooms }) => (
+              <Box key={branchId}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                  {branchName}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {branchClassrooms.map((cls) => (
+                    <Chip
+                      key={cls.id}
+                      label={cls.name || cls.id}
+                      onClick={() => handleClassroomDialogToggle(cls.id)}
+                      color={classroomDialogSelection.includes(cls.id) ? 'primary' : 'default'}
+                      variant={classroomDialogSelection.includes(cls.id) ? 'filled' : 'outlined'}
+                      clickable
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </Box>
             ))}
           </Box>
           {classroomDialogError && (
@@ -2140,18 +2192,27 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Select classrooms this user should teach after demotion.
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {classrooms.map(c => (
-              <Chip
-                key={c.id}
-                label={c.name || c.id}
-                onClick={() => toggleDemoteClassroom(c.id)}
-                color={demoteSelectedIds.includes(c.id) ? 'primary' : 'default'}
-                variant={demoteSelectedIds.includes(c.id) ? 'filled' : 'outlined'}
-                clickable
-                size="small"
-                disabled={demoteSaving}
-              />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {classroomsByBranch.map(({ branchId, branchName, classrooms: branchClassrooms }) => (
+              <Box key={branchId}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                  {branchName}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {branchClassrooms.map(c => (
+                    <Chip
+                      key={c.id}
+                      label={c.name || c.id}
+                      onClick={() => toggleDemoteClassroom(c.id)}
+                      color={demoteSelectedIds.includes(c.id) ? 'primary' : 'default'}
+                      variant={demoteSelectedIds.includes(c.id) ? 'filled' : 'outlined'}
+                      clickable
+                      size="small"
+                      disabled={demoteSaving}
+                    />
+                  ))}
+                </Box>
+              </Box>
             ))}
           </Box>
           {demoteError && (
