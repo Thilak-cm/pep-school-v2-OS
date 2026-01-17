@@ -1,5 +1,11 @@
 # Changelog
 
+# 7.2.6 — 2026-01-08
+
+### Fixed
+- Classroom admin stats page: resolved issue where stats showed all zeros due to stale localStorage cache. Added cache invalidation logic that detects when cached observations are empty but cached students are non-empty (indicating stale cache from previous index/permission failures) and automatically clears the observations+stats cache to force fresh Firestore queries.
+- Classroom admin scoping: normalized `manageableClassrooms` IDs in App.jsx to handle both full paths (e.g., "classrooms/abc") and plain IDs, ensuring classroom-admin queries match Firestore document IDs correctly.
+
 # 7.2.5 — 2026-01-08
 
 ### Added
