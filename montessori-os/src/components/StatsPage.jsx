@@ -188,6 +188,16 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   const isAdmin = isAdminRole(role);
   const isClassroomAdmin = role === 'classroomadmin';
   const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms.filter(Boolean) : []) : [];
+
+  const singleBranchId = useMemo(() => {
+    if (!isClassroomAdmin) return null;
+    const branchIds = Array.from(new Set(
+      (classrooms || []).map(c => c?.branchId).filter(Boolean)
+    ));
+    return branchIds.length === 1 ? branchIds[0] : null;
+  }, [classrooms, isClassroomAdmin]);
+
+  const hideDropdownsForSingleBranchAdmin = Boolean(isClassroomAdmin && singleBranchId);
   
   // Base cache key (user/role context) - doesn't change with filters
   const baseCacheKey = useMemo(() => buildBaseCacheKey(
@@ -199,6 +209,18 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (hideDropdownsForSingleBranchAdmin && singleBranchId && selectedBranchId !== singleBranchId) {
+      setSelectedBranchId(singleBranchId);
+    }
+  }, [hideDropdownsForSingleBranchAdmin, singleBranchId, selectedBranchId]);
+
+  useEffect(() => {
+    if (hideDropdownsForSingleBranchAdmin && showFilters) {
+      setShowFilters(false);
+    }
+  }, [hideDropdownsForSingleBranchAdmin, showFilters]);
 
   // Helper function to fetch data for a specific tab
   const fetchTabData = async (tabIndex) => {
@@ -259,7 +281,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
       }
       if (cachedBranches) {
         setBranches(cachedBranches);
-        if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+        if (isAdmin && !isClassroomAdmin && selectedBranchId === null && cachedBranches.length > 0) {
           setSelectedBranchId(cachedBranches[0].id);
         }
       }
@@ -294,7 +316,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         if (cachedStudents) setStudents(cachedStudents);
         if (cachedBranches) {
           setBranches(cachedBranches);
-          if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+          if (isAdmin && !isClassroomAdmin && selectedBranchId === null && cachedBranches.length > 0) {
             setSelectedBranchId(cachedBranches[0].id);
           }
         }
@@ -321,8 +343,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               return (a.name || a.id).localeCompare(b.name || b.id);
             });
             setBranches(branchesData);
-            // Set default selected branch to first one if not set
-            if (selectedBranchId === null && branchesData.length > 0) {
+            // Set default selected branch to first one if not set (super admins only)
+            if (!isClassroomAdmin && selectedBranchId === null && branchesData.length > 0) {
               setSelectedBranchId(branchesData[0].id);
             }
           } catch (error) {
@@ -1754,30 +1776,32 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         </Box>
         
         {/* Filter Button */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {hasActiveFilters() && (
-            <Chip 
-              label={`${stats.allObservations.length} filtered`}
+        {!hideDropdownsForSingleBranchAdmin && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {hasActiveFilters() && (
+              <Chip 
+                label={`${stats.allObservations.length} filtered`}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            )}
+            <Button
+              startIcon={<FilterList />}
+              onClick={() => setShowFilters(!showFilters)}
+              variant={hasActiveFilters() ? 'contained' : 'outlined'}
+              color={hasActiveFilters() ? 'primary' : 'default'}
               size="small"
-              color="primary"
-              variant="outlined"
-            />
-          )}
-          <Button
-            startIcon={<FilterList />}
-            onClick={() => setShowFilters(!showFilters)}
-            variant={hasActiveFilters() ? 'contained' : 'outlined'}
-            color={hasActiveFilters() ? 'primary' : 'default'}
-            size="small"
-            aria-label="Toggle filters"
-          >
-            Filters
-          </Button>
-        </Box>
+              aria-label="Toggle filters"
+            >
+              Filters
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {/* Filters Section */}
-      {showFilters && <FilterSection />}
+      {!hideDropdownsForSingleBranchAdmin && showFilters && <FilterSection />}
 
       {/* Statistics Content */}
       <Card sx={{ 
@@ -2039,7 +2063,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
               </Typography>
               {/* Branch Selector (Admin Only) - Dropdown */}
-                {isAdmin && (
+                {isAdmin && !hideDropdownsForSingleBranchAdmin && (
                   <Box sx={{ mb: 3 }}>
                     {branches.length > 0 ? (
                       <FormControl 
@@ -2199,15 +2223,17 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     <Chip label="Active" size="small" clickable onClick={() => setTeacherStatusFilter('active')} color={teacherStatusFilter==='active'?'primary':'default'} variant={teacherStatusFilter==='active'?'filled':'outlined'} />
                     <Chip label="Inactive" size="small" clickable onClick={() => setTeacherStatusFilter('inactive')} color={teacherStatusFilter==='inactive'?'primary':'default'} variant={teacherStatusFilter==='inactive'?'filled':'outlined'} />
                     <Chip label="No Classrooms" size="small" clickable onClick={() => setTeacherOnlyNoClassrooms(v=>!v)} color={teacherOnlyNoClassrooms?'primary':'default'} variant={teacherOnlyNoClassrooms?'filled':'outlined'} />
-                    <Chip
-                      label={selectedTeacherClassroomFilterIds.length > 0 ? `Classrooms (${selectedTeacherClassroomFilterIds.length})` : 'Classrooms'}
-                      size="small"
-                      clickable
-                      onClick={() => setTeacherClassroomFilterOpen(true)}
-                      color={selectedTeacherClassroomFilterIds.length>0?'primary':'default'}
-                      variant={selectedTeacherClassroomFilterIds.length>0?'filled':'outlined'}
-                      disabled={teacherOnlyNoClassrooms}
-                    />
+                    {!hideDropdownsForSingleBranchAdmin && (
+                      <Chip
+                        label={selectedTeacherClassroomFilterIds.length > 0 ? `Classrooms (${selectedTeacherClassroomFilterIds.length})` : 'Classrooms'}
+                        size="small"
+                        clickable
+                        onClick={() => setTeacherClassroomFilterOpen(true)}
+                        color={selectedTeacherClassroomFilterIds.length>0?'primary':'default'}
+                        variant={selectedTeacherClassroomFilterIds.length>0?'filled':'outlined'}
+                        disabled={teacherOnlyNoClassrooms}
+                      />
+                    )}
                   </Box>
                   {/* Teacher List (14-day activity) */}
                   <Box sx={{ mb: 3 }}>
@@ -2271,30 +2297,32 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     )}
                   </Box>
                   {/* Classroom Filter dialog */}
-                  <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>
-                    <DialogTitle component="div">
-                      <Typography component="h2" variant="h6">Filter by Classrooms</Typography>
-                    </DialogTitle>
-                    <DialogContent>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                        {classrooms.map(c => (
-                          <Chip
-                            key={c.id}
-                            label={c.name || c.id}
-                            onClick={() => setSelectedTeacherClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
-                            color={selectedTeacherClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
-                            variant={selectedTeacherClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
-                            clickable
-                            size="small"
-                          />
-                        ))}
-                      </Box>
-                    </DialogContent>
-                    <DialogActions>
-                      <Button onClick={() => setSelectedTeacherClassroomFilterIds([])}>Clear</Button>
-                      <Button variant="contained" onClick={() => setTeacherClassroomFilterOpen(false)}>Apply</Button>
-                    </DialogActions>
-                  </Dialog>
+                  {!hideDropdownsForSingleBranchAdmin && (
+                    <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>
+                      <DialogTitle component="div">
+                        <Typography component="h2" variant="h6">Filter by Classrooms</Typography>
+                      </DialogTitle>
+                      <DialogContent>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                          {classrooms.map(c => (
+                            <Chip
+                              key={c.id}
+                              label={c.name || c.id}
+                              onClick={() => setSelectedTeacherClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                              color={selectedTeacherClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
+                              variant={selectedTeacherClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
+                              clickable
+                              size="small"
+                            />
+                          ))}
+                        </Box>
+                      </DialogContent>
+                      <DialogActions>
+                        <Button onClick={() => setSelectedTeacherClassroomFilterIds([])}>Clear</Button>
+                        <Button variant="contained" onClick={() => setTeacherClassroomFilterOpen(false)}>Apply</Button>
+                      </DialogActions>
+                    </Dialog>
+                  )}
                   
                 </Box>
                   ) : (
