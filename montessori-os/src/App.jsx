@@ -921,6 +921,7 @@ function App() {
               {/* Global Add Note FAB - hidden on non-observation utility pages */}
               {screen !== 'profile' &&
                 screen !== 'stats' &&
+                screen !== 'studentStats' &&
                 screen !== 'feedback' &&
                 screen !== 'feedbackTimeline' &&
                 screen !== 'accessDenied' &&
