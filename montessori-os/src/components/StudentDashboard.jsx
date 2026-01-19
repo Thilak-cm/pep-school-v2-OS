@@ -623,6 +623,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         cardError={cardError}
         cardWindowDays={cardWindowDays}
         studentLabel={studentLabel}
+        student={student}
         onOpenFeedback={onOpenFeedback}
         feedbackMessage={feedbackMessage}
         summaryScrollRef={summaryScrollRef}

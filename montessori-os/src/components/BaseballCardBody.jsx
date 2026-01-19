@@ -9,6 +9,7 @@ export default function BaseballCardBody({
   cardError,
   cardWindowDays,
   studentLabel = 'Student',
+  student = null,
   loadingVariant = 'skeleton',
   loadingMessage,
   onOpenFeedback,
