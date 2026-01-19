@@ -613,6 +613,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+        const fortyTwoDaysAgo = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
 
         // Helper function to get observation date with fallback
         const getObservationDate = (obs) => {
@@ -730,14 +731,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         // Calculate student performance
         const studentStats = {};
         
-        // Initialize ALL students with 0 counts (including those with no observations)
-        studentsData.forEach(student => {
+        // Active students only (default missing status -> active)
+        const activeStudentsData = (Array.isArray(studentsData) ? studentsData : [])
+          .filter((student) => (student?.status || 'active') === 'active');
+
+        // Initialize ALL active students with 0 counts (including those with no observations)
+        activeStudentsData.forEach(student => {
           studentStats[student.id] = { 
             id: student.id,
             name: student.displayName || student.name || 'Unknown Student',
             classroomId: student.classroomId,
             count: 0,
-            thisWeekCount: 0
+            thisWeekCount: 0,
+            last42DaysCount: 0
           };
         });
         
@@ -750,12 +756,41 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
             if (obsDate >= weekAgo) {
               studentStats[obs.studentId].thisWeekCount++;
             }
+            if (obsDate >= fortyTwoDaysAgo) {
+              studentStats[obs.studentId].last42DaysCount++;
+            }
           }
         });
 
         // For admins, show ALL students. For teachers, this will be filtered by their classrooms
         const topStudents = Object.values(studentStats)
           .sort((a, b) => b.thisWeekCount - a.thisWeekCount);
+
+        // 42-day performance buckets
+        const performance42DaySummary = (() => {
+          const values = Object.values(studentStats);
+          const totals = {
+            excellent: 0, // 12+
+            sufficient: 0, // 8-11
+            needsSupport: 0, // 4-7
+            immediateAttention: 0, // 0-3
+            studentCount: values.length,
+            averageNotes: 0,
+            totalNotes: 0,
+          };
+          if (values.length === 0) return totals;
+
+          for (const s of values) {
+            const n = Number.isFinite(s?.last42DaysCount) ? s.last42DaysCount : 0;
+            totals.totalNotes += n;
+            if (n >= 12) totals.excellent += 1;
+            else if (n >= 8) totals.sufficient += 1;
+            else if (n >= 4) totals.needsSupport += 1;
+            else totals.immediateAttention += 1;
+          }
+          totals.averageNotes = totals.totalNotes / totals.studentCount;
+          return totals;
+        })();
 
         // Weekly activity for trend analysis
         const weeklyActivity = [];
@@ -783,6 +818,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           textNotes: textNotes.length,
           lessonNotes: lessonNotes.length,
           topStudents,
+          performance42DaySummary,
           weeklyActivity,
           teacherStats,
           classroomStats,
@@ -2333,6 +2369,76 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Student Performance
               </Typography>
+
+              {stats?.performance42DaySummary?.studentCount > 0 && (
+                <Card
+                  sx={{
+                    mb: 3,
+                    borderRadius: 2,
+                    backgroundColor: 'white',
+                    border: '1px solid',
+                    borderColor: 'grey.200',
+                    boxShadow: 'none',
+                  }}
+                >
+                  <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                          Performance Summary (last 42 days)
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Target: 2 notes per student per week (≈12 notes / 42 days)
+                        </Typography>
+                      </Box>
+
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: 2,
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Excellent (12+)
+                          </Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'success.main' }}>
+                            {stats.performance42DaySummary.excellent}
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Sufficient (8–11)
+                          </Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'info.main' }}>
+                            {stats.performance42DaySummary.sufficient}
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Needs Support (4–7)
+                          </Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'warning.main' }}>
+                            {stats.performance42DaySummary.needsSupport}
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            Immediate Attention (0–3)
+                          </Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'error.main' }}>
+                            {stats.performance42DaySummary.immediateAttention}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
               
               {stats.topStudents.length > 0 ? (
                 <Box>

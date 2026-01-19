@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Avatar,
+  Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -189,6 +190,9 @@ function NotificationsPage() {
   const [currentRole, setCurrentRole] = useState(null);
   const [accessibleClassrooms, setAccessibleClassrooms] = useState([]);
   const [accessLoaded, setAccessLoaded] = useState(false);
+  const [performanceSummary, setPerformanceSummary] = useState(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState('');
   const weekKey = getIstIsoWeekKey();
   const isSuperAdmin = currentRole === 'superadmin';
 
@@ -304,6 +308,123 @@ function NotificationsPage() {
     loadAccessScope();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const fetchPerformanceSummary = async () => {
+      try {
+        if (!accessLoaded) return;
+        setPerformanceLoading(true);
+        setPerformanceError('');
+
+        const isRoleSuperAdmin = currentRole === 'superadmin';
+        const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
+
+        const students = [];
+
+        if (isRoleSuperAdmin) {
+          const studentsSnap = await getDocs(collection(db, 'students'));
+          studentsSnap.docs.forEach((docSnap) => {
+            students.push({ id: docSnap.id, ...(docSnap.data() || {}) });
+          });
+        } else {
+          if (scopedClassrooms.length === 0) {
+            if (active) {
+              setPerformanceSummary({
+                excellent: 0,
+                sufficient: 0,
+                needsSupport: 0,
+                immediateAttention: 0,
+                studentCount: 0,
+                averageNotes: 0,
+                totalNotes: 0,
+              });
+            }
+            return;
+          }
+          const batchSize = 10;
+          for (let i = 0; i < scopedClassrooms.length; i += batchSize) {
+            const batch = scopedClassrooms.slice(i, i + batchSize);
+            const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
+            const studentsSnap = await getDocs(studentsQuery);
+            studentsSnap.docs.forEach((docSnap) => {
+              students.push({ id: docSnap.id, ...(docSnap.data() || {}) });
+            });
+          }
+        }
+
+        const activeStudents = students.filter((student) => (student?.status || 'active') === 'active');
+        const studentIds = activeStudents.map((student) => student.id).filter(Boolean);
+
+        const cutoffDate = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000);
+        const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+
+        const countsByStudent = Object.fromEntries(studentIds.map((id) => [id, 0]));
+
+        if (studentIds.length > 0) {
+          const batchSize = 10;
+          for (let i = 0; i < studentIds.length; i += batchSize) {
+            const batch = studentIds.slice(i, i + batchSize);
+            const observationsQuery = query(
+              collectionGroup(db, 'observations'),
+              where('studentId', 'in', batch),
+              where('observedAt', '>=', cutoffTimestamp),
+              orderBy('observedAt', 'desc')
+            );
+            const observationsSnap = await getDocs(observationsQuery);
+            observationsSnap.docs.forEach((docSnap) => {
+              const obs = docSnap.data() || {};
+              const studentId = obs.studentId;
+              if (!studentId || countsByStudent[studentId] === undefined) return;
+              const obsDate = toDate(obs.observedAt || obs.createdAt || obs.timestamp);
+              if (!obsDate || obsDate < cutoffDate) return;
+              countsByStudent[studentId] += 1;
+            });
+          }
+        }
+
+        const totals = {
+          excellent: 0,
+          sufficient: 0,
+          needsSupport: 0,
+          immediateAttention: 0,
+          studentCount: activeStudents.length,
+          averageNotes: 0,
+          totalNotes: 0,
+        };
+
+        if (activeStudents.length > 0) {
+          Object.values(countsByStudent).forEach((count) => {
+            const n = Number.isFinite(count) ? count : 0;
+            totals.totalNotes += n;
+            if (n >= 12) totals.excellent += 1;
+            else if (n >= 8) totals.sufficient += 1;
+            else if (n >= 4) totals.needsSupport += 1;
+            else totals.immediateAttention += 1;
+          });
+          totals.averageNotes = totals.totalNotes / totals.studentCount;
+        }
+
+        if (active) {
+          setPerformanceSummary(totals);
+        }
+      } catch (err) {
+        const message = err?.message || 'Unable to load performance summary.';
+        if (active) {
+          if (err?.code === 'failed-precondition' && message.toLowerCase().includes('index')) {
+            setPerformanceError('Firestore index required. Please deploy indexes for observations.');
+          } else {
+            setPerformanceError(message);
+          }
+        }
+      } finally {
+        if (active) setPerformanceLoading(false);
+      }
+    };
+
+    fetchPerformanceSummary();
+    return () => { active = false; };
+  }, [accessLoaded, currentRole, accessibleClassrooms]);
 
   useEffect(() => {
     let active = true;
@@ -1384,29 +1505,30 @@ function NotificationsPage() {
           </Typography>
         </Box>
       ) : (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 3,
-            backgroundColor: 'white',
-            borderRadius: 2,
-            border: '1px solid #e2e8f0'
-          }}
-        >
-        {!isLoading && error && (
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-            <ErrorOutline color="error" fontSize="small" />
-            <Typography variant="body2" color="error">{error}</Typography>
-          </Stack>
-        )}
+        <Stack spacing={2}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              backgroundColor: 'white',
+              borderRadius: 2,
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            {!isLoading && error && (
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                <ErrorOutline color="error" fontSize="small" />
+                <Typography variant="body2" color="error">{error}</Typography>
+              </Stack>
+            )}
 
-        {!isLoading && !error && (
-          <Stack spacing={2}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
-              Weekly Student Signals Breakdown
-            </Typography>
+            {!isLoading && !error && (
+              <Stack spacing={2}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+                  Weekly Student Signals Breakdown
+                </Typography>
 
-            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+                <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{
@@ -1439,7 +1561,7 @@ function NotificationsPage() {
               </AccordionDetails>
             </Accordion>
 
-            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+                <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{
@@ -1472,7 +1594,7 @@ function NotificationsPage() {
               </AccordionDetails>
             </Accordion>
 
-            <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+                <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 sx={{
@@ -1504,9 +1626,84 @@ function NotificationsPage() {
                 {renderGroupedList(improvedList, 'No improvements recorded this week.')}
               </AccordionDetails>
             </Accordion>
-          </Stack>
-        )}
-        </Paper>
+              </Stack>
+            )}
+          </Paper>
+
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              backgroundColor: 'white',
+              borderRadius: 2,
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Performance Summary (last 42 days)
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Target: 2 notes per student per week (≈12 notes / 42 days)
+                </Typography>
+              </Box>
+              {performanceLoading ? (
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">
+                    Loading performance summary...
+                  </Typography>
+                </Stack>
+              ) : performanceError ? (
+                <Alert severity="warning">{performanceError}</Alert>
+              ) : performanceSummary?.studentCount === 0 ? (
+                <Alert severity="info">No active students available in this scope.</Alert>
+              ) : (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                    gap: 1.5,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      Excellent (12+)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'success.main' }}>
+                      {performanceSummary?.excellent ?? 0} students
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      Sufficient (8–11)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'info.main' }}>
+                      {performanceSummary?.sufficient ?? 0} students
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      Needs Support (4–7)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'warning.main' }}>
+                      {performanceSummary?.needsSupport ?? 0} students
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      Immediate Attention (0–3)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'error.main' }}>
+                      {performanceSummary?.immediateAttention ?? 0} students
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+        </Stack>
       )}
     </Box>
   );
