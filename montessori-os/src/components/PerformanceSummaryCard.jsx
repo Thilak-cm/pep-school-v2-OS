@@ -79,7 +79,7 @@ function PerformanceSummaryCard({
         ) : (
           <Stack spacing={2}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
-              Performance Summary
+              Teacher Performance Summary
             </Typography>
             
             {/* Donut Chart */}
