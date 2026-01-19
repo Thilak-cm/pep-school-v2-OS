@@ -1,6 +1,17 @@
 # Changelog
 
-# 7.2.6 — 2026-01-08
+# 7.3.0 — 2026-01-18
+
+### Fixed
+- NotificationsPage: Performance Summary now loads instantly on subsequent visits by adding caching layer. First load still fetches from Firestore, but subsequent loads within 24 hours use cached data, matching the fast loading behavior of StatsPage.
+
+### Changed
+- StatsPage: Removed "View Baseball Card" button from student card modal. Student cards now only show the "View Dashboard" button for a cleaner interface.
+- PerformanceSummaryCard: Simplified UI to match note distribution pattern. Removed extra info (title, subtitle, descriptions, total notes, average notes), now shows clean donut chart with center text "total students X" and simple legend below with each color showing type and value.
+- StatsPage: Improved student search functionality. Removed grey placeholder card, changed from fuzzy search to exact substring matching (case-insensitive), shows student card immediately on match with basic details (name, notes this week, total notes) and "View Dashboard" button.
+- PerformanceSummaryCard: Added "Teacher Performance Summary" title inside the card, matching the style and placement of "Student Signals Breakdown" card on NotificationsPage.
+
+# 7.2.6 — 2026-01-17
 
 ### Fixed
 - Classroom admin stats page: resolved issue where stats showed all zeros due to stale localStorage cache. Added cache invalidation logic that detects when cached observations are empty but cached students are non-empty (indicating stale cache from previous index/permission failures) and automatically clears the observations+stats cache to force fresh Firestore queries.
