@@ -1403,7 +1403,7 @@ function NotificationsPage() {
         {!isLoading && !error && (
           <Stack spacing={2}>
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
-              Student Signals Breakdown
+              Weekly Student Signals Breakdown
             </Typography>
 
             <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
@@ -1457,7 +1457,7 @@ function NotificationsPage() {
                   <Stack direction="row" alignItems="center" spacing={1}>
                     <RemoveCircleOutline sx={{ color: '#b45309', fontSize: 22 }} />
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b45309' }}>
-                      Still Open
+                      No Change
                     </Typography>
                   </Stack>
                   <Chip
