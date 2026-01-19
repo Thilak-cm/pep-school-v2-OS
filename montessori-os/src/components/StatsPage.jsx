@@ -2532,18 +2532,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                                 View Dashboard
                               </Button>
                             )}
-                            {onNavigateToBaseballCard && (
-                              <Button 
-                                fullWidth
-                                variant="outlined"
-                                onClick={() => {
-                                  onNavigateToBaseballCard(matchedStudent);
-                                }}
-                                sx={{ textTransform: 'none', fontWeight: 600 }}
-                              >
-                                View Baseball Card
-                              </Button>
-                            )}
                           </Box>
                         </Box>
                       </Box>

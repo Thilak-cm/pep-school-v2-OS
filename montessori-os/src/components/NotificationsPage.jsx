@@ -40,6 +40,7 @@ import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
+import PerformanceSummaryCard from './PerformanceSummaryCard';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -317,6 +318,19 @@ function NotificationsPage() {
         setPerformanceLoading(true);
         setPerformanceError('');
 
+        const uid = auth?.currentUser?.uid;
+        const cacheKey = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
+        
+        // Try to load from cache first
+        const cachedPerformanceSummary = getCachedData(cacheKey, 'performanceSummary');
+        if (cachedPerformanceSummary) {
+          if (active) {
+            setPerformanceSummary(cachedPerformanceSummary);
+            setPerformanceLoading(false);
+          }
+          return;
+        }
+
         const isRoleSuperAdmin = currentRole === 'superadmin';
         const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
 
@@ -329,16 +343,18 @@ function NotificationsPage() {
           });
         } else {
           if (scopedClassrooms.length === 0) {
+            const emptySummary = {
+              excellent: 0,
+              sufficient: 0,
+              needsSupport: 0,
+              immediateAttention: 0,
+              studentCount: 0,
+              averageNotes: 0,
+              totalNotes: 0,
+            };
             if (active) {
-              setPerformanceSummary({
-                excellent: 0,
-                sufficient: 0,
-                needsSupport: 0,
-                immediateAttention: 0,
-                studentCount: 0,
-                averageNotes: 0,
-                totalNotes: 0,
-              });
+              setPerformanceSummary(emptySummary);
+              setCachedData(cacheKey, 'performanceSummary', emptySummary);
             }
             return;
           }
@@ -407,6 +423,7 @@ function NotificationsPage() {
 
         if (active) {
           setPerformanceSummary(totals);
+          setCachedData(cacheKey, 'performanceSummary', totals);
         }
       } catch (err) {
         const message = err?.message || 'Unable to load performance summary.';
@@ -424,7 +441,7 @@ function NotificationsPage() {
 
     fetchPerformanceSummary();
     return () => { active = false; };
-  }, [accessLoaded, currentRole, accessibleClassrooms]);
+  }, [accessLoaded, currentRole, accessibleClassrooms, weekKey]);
 
   useEffect(() => {
     let active = true;
@@ -1630,79 +1647,11 @@ function NotificationsPage() {
             )}
           </Paper>
 
-          <Paper
-            elevation={0}
-            sx={{
-              p: 3,
-              backgroundColor: 'white',
-              borderRadius: 2,
-              border: '1px solid #e2e8f0'
-            }}
-          >
-            <Stack spacing={1.5}>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                  Performance Summary (last 42 days)
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Target: 2 notes per student per week (≈12 notes / 42 days)
-                </Typography>
-              </Box>
-              {performanceLoading ? (
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <CircularProgress size={18} />
-                  <Typography variant="body2" color="text.secondary">
-                    Loading performance summary...
-                  </Typography>
-                </Stack>
-              ) : performanceError ? (
-                <Alert severity="warning">{performanceError}</Alert>
-              ) : performanceSummary?.studentCount === 0 ? (
-                <Alert severity="info">No active students available in this scope.</Alert>
-              ) : (
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: 1.5,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                      Excellent (12+)
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'success.main' }}>
-                      {performanceSummary?.excellent ?? 0} students
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                      Sufficient (8–11)
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'info.main' }}>
-                      {performanceSummary?.sufficient ?? 0} students
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                      Needs Support (4–7)
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'warning.main' }}>
-                      {performanceSummary?.needsSupport ?? 0} students
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                      Immediate Attention (0–3)
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'error.main' }}>
-                      {performanceSummary?.immediateAttention ?? 0} students
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
-            </Stack>
-          </Paper>
+          <PerformanceSummaryCard
+            summary={performanceSummary}
+            loading={performanceLoading}
+            error={performanceError}
+          />
         </Stack>
       )}
     </Box>
