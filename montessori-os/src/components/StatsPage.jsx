@@ -116,7 +116,7 @@ const setCachedData = (key, dataType, payload) => {
   }
 };
 
-const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
+const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [stats, setStats] = useState({
@@ -2461,150 +2461,94 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     />
                   </Box>
 
-                  {/* Student Cards with Horizontal Bars */}
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>
-                      Pick a student to view detailed stats
-                    </Typography>
+                  {/* Student Search Results */}
+                  {studentSearchQuery.trim() && (() => {
+                    // Exact substring matching - case-insensitive (no fuzzy logic)
+                    const query = studentSearchQuery.trim().toLowerCase();
+                    const matchedStudent = stats.topStudents.find(student => {
+                      const studentName = (student.name || '').toLowerCase().trim();
+                      return studentName.includes(query) || studentName === query;
+                    });
                     
-                    {/* Show placeholder when no search query, actual students when searching */}
-                    {!studentSearchQuery.trim() ? (
-                      // Placeholder card when no search
-                      <Box sx={{ 
-                        p: 3, 
-                        backgroundColor: 'grey.50', 
-                        borderRadius: 2, 
-                        border: '1px dashed #cbd5e1',
-                        textAlign: 'center'
-                      }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Search for a student above to view their performance
-                        </Typography>
+                    if (!matchedStudent) {
+                      return (
                         <Box sx={{ 
-                          position: 'relative', 
-                          height: 12, 
-                          backgroundColor: '#e2e8f0', 
-                          borderRadius: 6,
-                          overflow: 'hidden'
+                          textAlign: 'center', 
+                          py: 4, 
+                          color: 'text.secondary',
+                          backgroundColor: 'grey.50',
+                          borderRadius: 2,
+                          mb: 3
                         }}>
-                          <Box sx={{
-                            height: '100%',
-                            width: '0%',
-                            backgroundColor: '#9ca3af',
-                            borderRadius: 6
-                          }} />
+                          <Typography variant="body2">
+                            No student found matching "{studentSearchQuery.trim()}".
+                          </Typography>
                         </Box>
-
-                      </Box>
-                    ) : (
-                      // Show actual students when searching
-                      (() => {
-                        const displayStudents = fuzzySearchStudents(stats.topStudents, studentSearchQuery.trim());
-                        
-                        if (displayStudents.length === 0) {
-                          return (
-                            <Box sx={{ 
-                              textAlign: 'center', 
-                              py: 4, 
-                              color: 'text.secondary',
-                              backgroundColor: 'grey.50',
-                              borderRadius: 2
-                            }}>
-                              <Typography variant="body2">
-                                No students found matching your search.
+                      );
+                    }
+                    
+                    return (
+                      <Box sx={{ mb: 3 }}>
+                        <Box sx={{ 
+                          p: 3, 
+                          backgroundColor: 'white', 
+                          borderRadius: 2, 
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                        }}>
+                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
+                            {matchedStudent.name}
+                          </Typography>
+                          
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 }}>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                Notes This Week
+                              </Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                {matchedStudent.thisWeekCount || 0}
                               </Typography>
                             </Box>
-                          );
-                        }
-                        
-                        return displayStudents.map((student, index) => {
-                          const isSelected = selectedStudent?.id === student.id;
-                          
-                          return (
-                            <Box key={student.id} sx={{ 
-                              mb: 1.5, 
-                              p: 2, 
-                              backgroundColor: isSelected ? 'primary.50' : 'white', 
-                              borderRadius: 2, 
-                              border: isSelected ? '2px solid' : '1px solid',
-                              borderColor: isSelected ? 'primary.main' : '#e2e8f0',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              '&:hover': {
-                                backgroundColor: isSelected ? 'primary.50' : 'grey.50',
-                                transform: 'translateY(-1px)',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                              }
-                            }}
-                            onClick={() => setSelectedStudent(isSelected ? null : student)}
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontWeight: 600,
-                                    minWidth: 120,
-                                    color: 'text.primary'
-                                  }}
-                                >
-                                  {student.name}
-                                </Typography>
-                                <Typography 
-                                  variant="body2" 
-                                  color="text.secondary" 
-                                  sx={{ minWidth: 80, textAlign: 'right', mr: 2 }}
-                                >
-                                  {student.thisWeekCount} notes
-                                </Typography>
-                              </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                Total Notes
+                              </Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                                {matchedStudent.count || 0}
+                              </Typography>
                             </Box>
-                          );
-                        });
-                      })()
-                    )}
-                  </Box>
-
-                  {/* Selected Student Detailed Stats */}
-                  {selectedStudent && (
-                    <Box sx={{ 
-                      p: 3, 
-                      backgroundColor: 'primary.50', 
-                      borderRadius: 2, 
-                      border: '1px solid',
-                      borderColor: 'primary.200'
-                    }}>
-                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'primary.main' }}>
-                        {selectedStudent.name} - Detailed Stats
-                      </Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                            {selectedStudent.thisWeekCount}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Notes This Week
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                            {selectedStudent.count}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Total Notes
-                          </Typography>
+                          </Box>
+                          
+                          <Box sx={{ display: 'flex', gap: 1.5, flexDirection: 'column' }}>
+                            {onNavigateToStudent && (
+                              <Button 
+                                fullWidth
+                                variant="contained"
+                                onClick={() => {
+                                  onNavigateToStudent(matchedStudent);
+                                }}
+                                sx={{ textTransform: 'none', fontWeight: 600 }}
+                              >
+                                View Dashboard
+                              </Button>
+                            )}
+                            {onNavigateToBaseballCard && (
+                              <Button 
+                                fullWidth
+                                variant="outlined"
+                                onClick={() => {
+                                  onNavigateToBaseballCard(matchedStudent);
+                                }}
+                                sx={{ textTransform: 'none', fontWeight: 600 }}
+                              >
+                                View Baseball Card
+                              </Button>
+                            )}
+                          </Box>
                         </Box>
                       </Box>
-                      <Box sx={{ mt: 2, textAlign: 'center' }}>
-                        <Button 
-                          size="small" 
-                          onClick={() => setSelectedStudent(null)}
-                          variant="outlined"
-                        >
-                          Close Details
-                        </Button>
-                      </Box>
-                    </Box>
-                  )}
+                    );
+                  })()}
                 </Box>
                   ) : (
                     <Alert severity="info">

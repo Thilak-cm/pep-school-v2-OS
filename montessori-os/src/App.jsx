@@ -811,6 +811,18 @@ function App() {
                     user={user}
                     role={role}
                     manageableClassrooms={manageableClassrooms}
+                    onNavigateToStudent={(student) => {
+                      setSelectedStudent(student);
+                      setStudentDashboardReturnScreen('stats');
+                      setStudentDashboardNoteType('textVoice');
+                      setScreen('studentDashboard');
+                    }}
+                    onNavigateToBaseballCard={(student) => {
+                      setSelectedStudent(student);
+                      setStudentDashboardReturnScreen('stats');
+                      setStudentDashboardNoteType('textVoice');
+                      setScreen('studentDashboard');
+                    }}
                   />
                   )}
 
