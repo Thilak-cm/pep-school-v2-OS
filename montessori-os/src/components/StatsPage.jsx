@@ -39,6 +39,7 @@ import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 import { isAdminRole } from '../utils/roleUtils';
+import PerformanceSummaryCard from './PerformanceSummaryCard';
 // Granular cache system - each data type cached separately (filters apply in-memory)
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
@@ -1977,7 +1978,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                     </Typography>
                   </Box>
                   
-                  {/* Pie Chart */}
+                  {/* Donut Chart */}
                   {mounted ? (
                     <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
                       <ResponsiveContainer width="100%" height="100%">
@@ -1986,7 +1987,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                             data={pieChartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={0}
+                            innerRadius={60}
                             outerRadius={90}
                             paddingAngle={3}
                             dataKey="value"
@@ -2015,6 +2016,48 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                           />
                         </PieChart>
                       </ResponsiveContainer>
+                      {/* Center text overlay */}
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          textAlign: 'center',
+                          pointerEvents: 'none',
+                          zIndex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 400,
+                            color: '#94a3b8',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            mb: 1
+                          }}
+                        >
+                          Total notes
+                        </Typography>
+                        <Typography
+                          sx={{
+                            fontSize: '32px',
+                            fontWeight: 400,
+                            color: '#0f172a',
+                            lineHeight: 1,
+                            fontFamily: 'Inter, system-ui, sans-serif'
+                          }}
+                        >
+                          {pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0).toLocaleString()}
+                        </Typography>
+                      </Box>
                     </Box>
                   ) : (
                     <Box sx={{ 
@@ -2370,75 +2413,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                 Student Performance
               </Typography>
 
-              {stats?.performance42DaySummary?.studentCount > 0 && (
-                <Card
-                  sx={{
-                    mb: 3,
-                    borderRadius: 2,
-                    backgroundColor: 'white',
-                    border: '1px solid',
-                    borderColor: 'grey.200',
-                    boxShadow: 'none',
-                  }}
-                >
-                  <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                          Performance Summary (last 42 days)
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Target: 2 notes per student per week (≈12 notes / 42 days)
-                        </Typography>
-                      </Box>
-
-                      <Box
-                        sx={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                          gap: 2,
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            Excellent (12+)
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'success.main' }}>
-                            {stats.performance42DaySummary.excellent}
-                          </Typography>
-                        </Box>
-
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            Sufficient (8–11)
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'info.main' }}>
-                            {stats.performance42DaySummary.sufficient}
-                          </Typography>
-                        </Box>
-
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            Needs Support (4–7)
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'warning.main' }}>
-                            {stats.performance42DaySummary.needsSupport}
-                          </Typography>
-                        </Box>
-
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                            Immediate Attention (0–3)
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'error.main' }}>
-                            {stats.performance42DaySummary.immediateAttention}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              )}
+              <PerformanceSummaryCard
+                summary={stats?.performance42DaySummary}
+                sx={{ mb: 3 }}
+              />
               
               {stats.topStudents.length > 0 ? (
                 <Box>
