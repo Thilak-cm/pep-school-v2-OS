@@ -39,16 +39,6 @@ import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
 import { isAdminRole } from '../utils/roleUtils';
-import { 
-  PERFORMANCE_TARGETS, 
-  calculateStudentPerformance, 
-  calculateTeacherPerformance, 
-  calculateClassroomPerformance,
-  isHighPerformer,
-  isMediumPerformer,
-  isLowPerformer
-} from '../config/performanceTargets';
-
 // Granular cache system - each data type cached separately (filters apply in-memory)
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
@@ -138,7 +128,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
     lessonNotes: 0,
     voiceLanguageDistribution: [],
     topStudents: [],
-    strugglingStudents: [],
     weeklyActivity: [],
     teacherStats: [],
     classroomStats: [],
@@ -692,8 +681,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
             thisWeekObservations: thisWeekObs.length,
             avgPerStudent: classroomStudents.length > 0 ? 
               (thisWeekObs.length / classroomStudents.length) : 0,
-            target: PERFORMANCE_TARGETS.CLASSROOM.NOTES_PER_STUDENT_PER_WEEK,
-            performance: calculateClassroomPerformance(thisWeekObs.length, classroomStudents.length)
           };
         });
 
@@ -736,9 +723,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
             thisWeekObservations: thisWeekObs.length,
             last14DaysObservations: last14DaysObs.length,
             last14DaysVoice: last14Voice,
-            last14DaysText: last14Text,
-            target: PERFORMANCE_TARGETS.TEACHER.NOTES_PER_WEEK,
-            performance: calculateTeacherPerformance(thisWeekObs.length)
+            last14DaysText: last14Text
           };
         });
 
@@ -772,10 +757,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
         const topStudents = Object.values(studentStats)
           .sort((a, b) => b.thisWeekCount - a.thisWeekCount);
 
-        const strugglingStudents = Object.values(studentStats)
-          .filter(student => student.thisWeekCount < PERFORMANCE_TARGETS.STUDENT.STRUGGLING_THRESHOLD)
-          .sort((a, b) => a.thisWeekCount - b.thisWeekCount);
-
         // Weekly activity for trend analysis
         const weeklyActivity = [];
         for (let i = 3; i >= 0; i--) {
@@ -802,7 +783,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
           textNotes: textNotes.length,
           lessonNotes: lessonNotes.length,
           topStudents,
-          strugglingStudents,
           weeklyActivity,
           teacherStats,
           classroomStats,
@@ -1415,9 +1395,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
 
     const data = filteredClassroomStats.map(classroom => ({
       name: classroom.name,
-      'This Week': classroom.thisWeekObservations,
-      percentage: classroom.performance,
-      target: classroom.studentCount * classroom.target
+      'This Week': classroom.thisWeekObservations
     }));
 
     // Don't render chart until mounted AND has data
@@ -1468,8 +1446,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
                   const notesCount = payload[0].value;
-                  const percentage = payload[0].payload.percentage;
-                  const target = payload[0].payload.target;
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
@@ -1478,14 +1454,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                       p: 1.5,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
-                      <Typography sx={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', mb: 0.5 }}>
-                        {label}
-                      </Typography>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
                         {notesCount} {notesCount === 1 ? 'note' : 'notes'}
-                      </Typography>
-                      <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
-                        {percentage.toFixed(1)}% of target ({notesCount}/{Math.round(target)})
                       </Typography>
                     </Box>
                   );
@@ -2366,48 +2336,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
               
               {stats.topStudents.length > 0 ? (
                 <Box>
-                  {/* Performance Summary */}
-                  <Box sx={{ 
-                    p: 2, 
-                    backgroundColor: '#f8fafc', 
-                    borderRadius: 2, 
-                    border: '1px solid #e2e8f0',
-                    mb: 3
-                  }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-                      Performance Summary
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Top Performers</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {stats.topStudents.filter(s => isHighPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">On Track</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                          {stats.topStudents.filter(s => isMediumPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Needs Support</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                          {stats.topStudents.filter(s => isLowPerformer(calculateStudentPerformance(s.thisWeekCount))).length} students
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">Average Notes</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {stats.topStudents.length > 0 ? 
-                            (stats.topStudents.reduce((sum, s) => sum + s.thisWeekCount, 0) / stats.topStudents.length).toFixed(1) : '0.0'}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    
-
-                  </Box>
-
                   {/* Search Bar */}
                   <Box sx={{ mb: 3 }}>
                     <TextField
@@ -2506,9 +2434,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                         }
                         
                         return displayStudents.map((student, index) => {
-                          const target = PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK;
-                          const percentage = calculateStudentPerformance(student.thisWeekCount);
-                          const isTopPerformer = student.thisWeekCount >= PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK;
                           const isSelected = selectedStudent?.id === student.id;
                           
                           return (
@@ -2535,7 +2460,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                                   sx={{ 
                                     fontWeight: 600,
                                     minWidth: 120,
-                                    color: isTopPerformer ? 'success.main' : 'text.primary'
+                                    color: 'text.primary'
                                   }}
                                 >
                                   {student.name}
@@ -2548,51 +2473,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack }) => {
                                   {student.thisWeekCount} notes
                                 </Typography>
                               </Box>
-                              
-                              {/* Horizontal Progress Bar */}
-                              <Box sx={{ 
-                                position: 'relative', 
-                                height: 12, 
-                                backgroundColor: '#f1f5f9', 
-                                borderRadius: 6,
-                                overflow: 'hidden'
-                              }}>
-                                <Box sx={{
-                                  height: '100%',
-                                  width: `${percentage}%`,
-                                  backgroundColor: percentage >= 100 ? '#10b981' : 
-                                                 isHighPerformer(percentage) ? '#f59e0b' : '#ef4444',
-                                  borderRadius: 6,
-                                  transition: 'width 0.3s ease',
-                                  position: 'relative'
-                                }}>
-                                  {/* Target line indicator */}
-                                  {percentage < 100 && (
-                                    <Box sx={{
-                                      position: 'absolute',
-                                      right: 0,
-                                      top: 0,
-                                      height: '100%',
-                                      width: '2px',
-                                      backgroundColor: 'white',
-                                      boxShadow: '0 0 4px rgba(0,0,0,0.3)'
-                                    }} />
-                                  )}
-                                </Box>
-                                
-                                {/* Target marker */}
-                                <Box sx={{
-                                  position: 'absolute',
-                                  left: `${Math.min((PERFORMANCE_TARGETS.STUDENT.NOTES_PER_WEEK / Math.max(...stats.topStudents.map(s => s.thisWeekCount))) * 100, 100)}%`,
-                                  top: 0,
-                                  height: '100%',
-                                  width: '2px',
-                                  backgroundColor: '#64748b',
-                                  opacity: 0.6
-                                }} />
-                              </Box>
-                              
-
                             </Box>
                           );
                         });
