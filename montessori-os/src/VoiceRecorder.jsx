@@ -557,7 +557,7 @@ const VoiceRecorder = ({
               color: '#0f172a'
             }}
           >
-            Speak your heart out in{' '}
+            Speak in{' '}
             <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
               English
             </Box>
@@ -581,7 +581,7 @@ const VoiceRecorder = ({
             <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, display: 'inline' }}>
               Hindi
             </Box>
-            {' (or all together too) — ChatGPT will auto‑translate, clean up and polish your speech!'}
+            {' — Coach Pepper will auto‑translate, clean up and polish your speech!'}
           </Typography>
          )}
       </CardContent>

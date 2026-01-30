@@ -1,5 +1,13 @@
 # Changelog
 
+# 7.3.2 — 2026-01-30
+
+### Added
+- Lesson Notes: per-field mic dictation for Short Description, Group Comment (group mode), and per-student comment fields using the existing voice recorder flow.
+
+### Changed
+- Lesson Notes: mic button styling is more visible on text fields.
+
 # 7.3.1 — 2026-01-30
 
 ### Added
