@@ -18,7 +18,8 @@ import {
   TextFields,
   AutoFixHigh,
   ArrowBack,
-  MenuBook
+  MenuBook,
+  PhotoLibrary
 } from '@mui/icons-material';
 import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
@@ -37,6 +38,7 @@ import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
+import NewFeaturePill from './NewFeaturePill';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -1364,6 +1366,38 @@ function AddNoteModal({
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Structured lesson observation
+                  </Typography>
+                </Box>
+              </Box>
+              {/* Photos/Videos (coming soon) */}
+              <Box
+                aria-label="Photos/Videos note (coming soon)"
+                aria-disabled="true"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  border: '1px dashed',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  p: 2,
+                  width: '100%',
+                  backgroundColor: 'action.disabledBackground',
+                  cursor: 'not-allowed',
+                  opacity: 0.75,
+                  pointerEvents: 'none'
+                }}
+              >
+                <PhotoLibrary sx={{ fontSize: 32, color: 'text.disabled' }} />
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                    <Typography variant="body1" sx={{ color: 'text.disabled' }}>
+                      Media Note
+                    </Typography>
+                    <NewFeaturePill label="Feature coming soon" />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Capture photos and videos for richer observations
                   </Typography>
                 </Box>
               </Box>

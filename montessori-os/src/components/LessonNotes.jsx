@@ -1432,7 +1432,7 @@ function LessonNoteWizard({
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 1 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            Dictate note
+            Dictate for lesson note
           </Typography>
           <IconButton aria-label="Close dictation" onClick={closeDictation}>
             <Close />
