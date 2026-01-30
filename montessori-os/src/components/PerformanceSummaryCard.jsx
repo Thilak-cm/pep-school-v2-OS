@@ -99,8 +99,6 @@ function PerformanceSummaryCard({
 
           {error ? (
             <Alert severity="warning">{error}</Alert>
-          ) : totalStudents === 0 ? (
-            <Alert severity="info">No active students available in this scope.</Alert>
           ) : loading ? (
             <Box
               sx={{
@@ -109,6 +107,7 @@ function PerformanceSummaryCard({
                 minWidth: 0,
                 minHeight: 250,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
@@ -116,10 +115,12 @@ function PerformanceSummaryCard({
               <Stack direction="row" spacing={1.5} alignItems="center">
                 <CircularProgress size={18} />
                 <Typography variant="body2" color="text.secondary">
-                  Coach Pepper is brewing the latest insights...
-                </Typography>
+                  Coach Pepper is creating the performance summary...
+                  </Typography>
               </Stack>
             </Box>
+          ) : totalStudents === 0 ? (
+            <Alert severity="info">No active students available in this scope.</Alert>
           ) : (
             <>
               {/* Donut Chart */}
