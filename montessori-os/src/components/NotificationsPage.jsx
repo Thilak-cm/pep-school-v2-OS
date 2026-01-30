@@ -738,6 +738,7 @@ function NotificationsPage() {
     return (b.evidenceCount || 0) - (a.evidenceCount || 0);
   };
 
+  const highFlaggedList = signals.filter((s) => s.severity === 'high').sort(sortBySeverityEvidence);
   const escalatedList = signals.filter((s) => s.escalatedThisWeek).sort(sortBySeverityEvidence);
   const improvedList = signals.filter((s) => s.improvedThisWeek).sort(sortBySeverityEvidence);
   const stillOpenList = signals
@@ -1187,6 +1188,102 @@ function NotificationsPage() {
     );
   };
 
+  const renderHighFlagList = (items) => {
+    if (!items.length) {
+      return (
+        <Stack direction="row" spacing={1} alignItems="center">
+          <CheckCircleOutline sx={{ color: '#22c55e' }} />
+          <Typography variant="body2" color="text.secondary">
+            No alerts currently!
+          </Typography>
+        </Stack>
+      );
+    }
+
+    return (
+      <Stack spacing={1}>
+        {items.map((item) => {
+          const displayName = getStudentName(item.studentId);
+          const reason =
+            signalsDataMap[item.studentId]?.redFlag?.reason
+            || item?.redFlag?.reason
+            || 'High severity flag - review required.';
+          const isExpanded = expandedStudentId === item.studentId;
+          const handleCardClick = () => {
+            if (isExpanded) {
+              setExpandedStudentId(null);
+            } else {
+              setExpandedStudentId(item.studentId);
+            }
+          };
+
+          return (
+            <Paper
+              key={`${item.studentId}-${item.generatedAt || item.id}`}
+              variant="outlined"
+              onClick={handleCardClick}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                borderColor: '#e2e8f0',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  borderColor: '#cbd5e1',
+                  transform: 'translateY(-1px)'
+                },
+                ...(isExpanded && {
+                  borderColor: '#dc2626',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
+                })
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.5}>
+                <Avatar sx={{ width: 36, height: 36, bgcolor: '#dc2626' }}>
+                  {displayName?.[0]?.toUpperCase?.() || '?'}
+                </Avatar>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                    {displayName}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {reason}
+                  </Typography>
+                </Box>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCardClick();
+                  }}
+                  sx={{
+                    color: '#64748b',
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease-in-out',
+                    flexShrink: 0
+                  }}
+                  aria-label={isExpanded ? 'Collapse card' : 'Expand card'}
+                >
+                  <ExpandMoreIcon />
+                </IconButton>
+              </Stack>
+            </Paper>
+          );
+        })}
+      </Stack>
+    );
+  };
+
   // Render baseball card modal
   const renderBaseballCardModal = () => {
     if (!expandedStudentId) return null;
@@ -1523,6 +1620,61 @@ function NotificationsPage() {
         </Box>
       ) : (
         <Stack spacing={2}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              backgroundColor: 'white',
+              borderRadius: 2,
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            {!isLoading && !error && (
+              <Stack spacing={2}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+                  Red Flag Alerts!
+                </Typography>
+
+                {highFlaggedList.length > 0 ? (
+                  <Accordion disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon />}
+                      sx={{
+                        px: 1.5,
+                        py: 1,
+                        borderRadius: 2,
+                        border: '1px solid #fecaca',
+                        backgroundColor: '#fef2f2',
+                        minHeight: 'auto',
+                        '& .MuiAccordionSummary-content': { m: 0 },
+                        '& .MuiAccordionSummary-expandIconWrapper': { color: '#b91c1c' }
+                      }}
+                    >
+                      <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <WarningIcon sx={{ color: '#b91c1c', fontSize: 22 }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b91c1c' }}>
+                            High flags
+                          </Typography>
+                        </Stack>
+                        <Chip
+                          size="small"
+                          label={`${highFlaggedList.length} students`}
+                          sx={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}
+                        />
+                      </Stack>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 0 }}>
+                      {renderHighFlagList(highFlaggedList)}
+                    </AccordionDetails>
+                  </Accordion>
+                ) : (
+                  renderHighFlagList(highFlaggedList)
+                )}
+              </Stack>
+            )}
+          </Paper>
+
           <Paper
             elevation={0}
             sx={{
