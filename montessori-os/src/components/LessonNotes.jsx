@@ -12,6 +12,8 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   IconButton,
+  InputAdornment,
+  Dialog,
   Collapse,
   Checkbox,
   List,
@@ -26,7 +28,9 @@ import {
   ExpandLess,
   Group,
   Person,
-  Search
+  Search,
+  Mic,
+  Close
 } from '@mui/icons-material';
 import {
   collection,
@@ -42,6 +46,7 @@ import {
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
+import VoiceRecorder from '../VoiceRecorder';
 import {
   LESSON_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
@@ -124,8 +129,16 @@ function LessonNoteWizard({
   const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
   const [lessonConfig, setLessonConfig] = useState(null);
   const [lessonConfigLoading, setLessonConfigLoading] = useState(true);
+  const [dictationOpen, setDictationOpen] = useState(false);
+  const [dictationTarget, setDictationTarget] = useState(null);
+  const [dictationSelection, setDictationSelection] = useState({ start: null, end: null });
   const initialPrefillDoneRef = useRef(false);
   const editPrefillDoneRef = useRef(false);
+  const inputRefs = useRef({
+    lessonDescription: null,
+    groupComment: null,
+    studentComment: {}
+  });
 
   const setupRef = useRef(null);
   const defaultsRef = useRef(null);
@@ -569,6 +582,67 @@ function LessonNoteWizard({
     markDirty();
   };
 
+  const getTargetValue = (target) => {
+    if (!target) return '';
+    if (target.field === 'lessonDescription') return context.lessonDescription || '';
+    if (target.field === 'groupComment') return context.groupComment || '';
+    if (target.field === 'studentComment') return studentOverrides[target.studentId]?.comment || '';
+    return '';
+  };
+
+  const getInputElementForTarget = (target) => {
+    if (!target) return null;
+    if (target.field === 'lessonDescription') return inputRefs.current.lessonDescription;
+    if (target.field === 'groupComment') return inputRefs.current.groupComment;
+    if (target.field === 'studentComment') {
+      return inputRefs.current.studentComment?.[target.studentId] || null;
+    }
+    return null;
+  };
+
+  const insertAtSelection = (baseValue, insertText, selection) => {
+    if (!insertText) return baseValue;
+    const start = Number.isInteger(selection?.start) ? selection.start : baseValue.length;
+    const end = Number.isInteger(selection?.end) ? selection.end : baseValue.length;
+    return `${baseValue.slice(0, start)}${insertText}${baseValue.slice(end)}`;
+  };
+
+  const openDictationFor = (target) => {
+    const inputEl = getInputElementForTarget(target);
+    const start = inputEl && Number.isInteger(inputEl.selectionStart) ? inputEl.selectionStart : null;
+    const end = inputEl && Number.isInteger(inputEl.selectionEnd) ? inputEl.selectionEnd : null;
+    setDictationSelection({ start, end });
+    setDictationTarget(target);
+    setDictationOpen(true);
+  };
+
+  const closeDictation = () => {
+    setDictationOpen(false);
+    setDictationTarget(null);
+    setDictationSelection({ start: null, end: null });
+  };
+
+  const handleDictationSave = (transcriptionData) => {
+    const insertText = transcriptionData?.text?.trim();
+    if (!insertText || !dictationTarget) {
+      closeDictation();
+      return;
+    }
+
+    const currentValue = getTargetValue(dictationTarget);
+    const nextValue = insertAtSelection(currentValue, insertText, dictationSelection);
+
+    if (dictationTarget.field === 'lessonDescription') {
+      setContextField('lessonDescription', nextValue);
+    } else if (dictationTarget.field === 'groupComment') {
+      setContextField('groupComment', nextValue);
+    } else if (dictationTarget.field === 'studentComment') {
+      setStudentComment(dictationTarget.studentId, nextValue);
+    }
+
+    closeDictation();
+  };
+
   const getRatingForStudent = (studentId, dimension) => {
     const studentValue = studentOverrides[studentId]?.dimensions?.[dimension];
     if (studentValue) return studentValue;
@@ -975,6 +1049,28 @@ function LessonNoteWizard({
             placeholder="Add a short description (optional)"
             value={context.lessonDescription}
             onChange={(e) => setContextField('lessonDescription', e.target.value)}
+            inputRef={(el) => {
+              inputRefs.current.lessonDescription = el;
+            }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="Dictate short description"
+                    onClick={() => openDictationFor({ field: 'lessonDescription' })}
+                    color="primary"
+                    size="small"
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      bgcolor: 'action.hover'
+                    }}
+                  >
+                    <Mic fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           {lessonMode === 'group' && (
             <TextField
@@ -986,6 +1082,28 @@ function LessonNoteWizard({
               helperText="Optional note that appears for every student"
               value={context.groupComment}
               onChange={(e) => setContextField('groupComment', e.target.value)}
+              inputRef={(el) => {
+                inputRefs.current.groupComment = el;
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="Dictate group comment"
+                      onClick={() => openDictationFor({ field: 'groupComment' })}
+                    color="primary"
+                    size="small"
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      bgcolor: 'action.hover'
+                    }}
+                    >
+                      <Mic fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
             />
           )}
 
@@ -1253,6 +1371,31 @@ function LessonNoteWizard({
                       value={studentOverrides[student.id]?.comment || ''}
                       onChange={(e) => setStudentComment(student.id, e.target.value)}
                       sx={{ mt: 1 }}
+                      inputRef={(el) => {
+                        if (!inputRefs.current.studentComment) {
+                          inputRefs.current.studentComment = {};
+                        }
+                        inputRefs.current.studentComment[student.id] = el;
+                      }}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label={`Dictate comment for ${getStudentDisplayName(student)}`}
+                              onClick={() => openDictationFor({ field: 'studentComment', studentId: student.id })}
+                            color="primary"
+                            size="small"
+                            sx={{
+                              border: 1,
+                              borderColor: 'divider',
+                              bgcolor: 'action.hover'
+                            }}
+                            >
+                              <Mic fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
                     />
                   </Paper>
                 ))}
@@ -1274,6 +1417,37 @@ function LessonNoteWizard({
           {saving ? 'Saving…' : 'Save Lesson Note'}
         </Button>
       </Box>
+
+      <Dialog
+        open={dictationOpen}
+        onClose={closeDictation}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Dictate note
+          </Typography>
+          <IconButton aria-label="Close dictation" onClick={closeDictation}>
+            <Close />
+          </IconButton>
+        </Box>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <VoiceRecorder
+            variant="cardless"
+            onSave={handleDictationSave}
+            onNext={closeDictation}
+            autoAdvanceOnSave
+          />
+        </Box>
+      </Dialog>
     </Box>
   );
 }
