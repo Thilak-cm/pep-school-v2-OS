@@ -33,7 +33,7 @@ import {
   RemoveCircleOutline,
   TrendingDown
 } from '@mui/icons-material';
-import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp, documentId } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
@@ -194,6 +194,8 @@ function NotificationsPage() {
   const [performanceSummary, setPerformanceSummary] = useState(null);
   const [performanceLoading, setPerformanceLoading] = useState(false);
   const [performanceError, setPerformanceError] = useState('');
+  const [performanceClassroomOptions, setPerformanceClassroomOptions] = useState([]);
+  const [selectedPerformanceClassroomId, setSelectedPerformanceClassroomId] = useState('');
   const weekKey = getIstIsoWeekKey();
   const isSuperAdmin = currentRole === 'superadmin';
 
@@ -312,6 +314,69 @@ function NotificationsPage() {
 
   useEffect(() => {
     let active = true;
+    const loadPerformanceClassrooms = async () => {
+      try {
+        if (!accessLoaded) return;
+
+        let classroomsData = [];
+        if (currentRole === 'superadmin') {
+          const classroomsSnap = await getDocs(collection(db, 'classrooms'));
+          classroomsData = classroomsSnap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() || {})
+          }));
+        } else {
+          const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms.filter(Boolean) : [];
+          if (scopedClassrooms.length === 0) {
+            if (active) {
+              setPerformanceClassroomOptions([]);
+              setSelectedPerformanceClassroomId('');
+            }
+            return;
+          }
+          const batchSize = 10;
+          for (let i = 0; i < scopedClassrooms.length; i += batchSize) {
+            const batch = scopedClassrooms.slice(i, i + batchSize);
+            const classroomsQuery = query(
+              collection(db, 'classrooms'),
+              where(documentId(), 'in', batch)
+            );
+            const classroomsSnap = await getDocs(classroomsQuery);
+            classroomsSnap.docs.forEach((docSnap) => {
+              classroomsData.push({ id: docSnap.id, ...(docSnap.data() || {}) });
+            });
+          }
+        }
+
+        const options = classroomsData
+          .filter((c) => (c?.status || 'active') !== 'archived')
+          .map((c) => ({
+            id: c.id,
+            label: c.name || c.displayName || c.label || c.id
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        if (active) {
+          setPerformanceClassroomOptions(options);
+          setSelectedPerformanceClassroomId((prev) => (
+            prev && options.some((option) => option.id === prev) ? prev : ''
+          ));
+        }
+      } catch (err) {
+        console.warn('Failed to load performance classroom options', err);
+        if (active) {
+          setPerformanceClassroomOptions([]);
+          setSelectedPerformanceClassroomId('');
+        }
+      }
+    };
+
+    loadPerformanceClassrooms();
+    return () => { active = false; };
+  }, [accessLoaded, currentRole, accessibleClassrooms]);
+
+  useEffect(() => {
+    let active = true;
     const fetchPerformanceSummary = async () => {
       try {
         if (!accessLoaded) return;
@@ -319,7 +384,8 @@ function NotificationsPage() {
         setPerformanceError('');
 
         const uid = auth?.currentUser?.uid;
-        const cacheKey = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
+        const cacheKeyBase = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
+        const cacheKey = `${cacheKeyBase}:classroom:${selectedPerformanceClassroomId || 'all'}`;
         
         // Try to load from cache first
         const cachedPerformanceSummary = getCachedData(cacheKey, 'performanceSummary');
@@ -370,7 +436,10 @@ function NotificationsPage() {
         }
 
         const activeStudents = students.filter((student) => (student?.status || 'active') === 'active');
-        const studentIds = activeStudents.map((student) => student.id).filter(Boolean);
+        const scopedStudents = selectedPerformanceClassroomId
+          ? activeStudents.filter((student) => student.classroomId === selectedPerformanceClassroomId)
+          : activeStudents;
+        const studentIds = scopedStudents.map((student) => student.id).filter(Boolean);
 
         const cutoffDate = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000);
         const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
@@ -404,12 +473,12 @@ function NotificationsPage() {
           sufficient: 0,
           needsSupport: 0,
           immediateAttention: 0,
-          studentCount: activeStudents.length,
+          studentCount: scopedStudents.length,
           averageNotes: 0,
           totalNotes: 0,
         };
 
-        if (activeStudents.length > 0) {
+        if (scopedStudents.length > 0) {
           Object.values(countsByStudent).forEach((count) => {
             const n = Number.isFinite(count) ? count : 0;
             totals.totalNotes += n;
@@ -441,7 +510,7 @@ function NotificationsPage() {
 
     fetchPerformanceSummary();
     return () => { active = false; };
-  }, [accessLoaded, currentRole, accessibleClassrooms, weekKey]);
+  }, [accessLoaded, currentRole, accessibleClassrooms, weekKey, selectedPerformanceClassroomId]);
 
   useEffect(() => {
     let active = true;
@@ -1803,6 +1872,9 @@ function NotificationsPage() {
             summary={performanceSummary}
             loading={performanceLoading}
             error={performanceError}
+            classroomOptions={performanceClassroomOptions}
+            selectedClassroomId={selectedPerformanceClassroomId}
+            onClassroomChange={setSelectedPerformanceClassroomId}
           />
         </Stack>
       )}

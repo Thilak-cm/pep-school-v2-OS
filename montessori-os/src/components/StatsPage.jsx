@@ -147,6 +147,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
+  const [roleScopedClassrooms, setRoleScopedClassrooms] = useState([]);
+  const [roleScopedStudents, setRoleScopedStudents] = useState([]);
+  const [roleScopedObservations, setRoleScopedObservations] = useState([]);
+  const [selectedPerformanceClassroomId, setSelectedPerformanceClassroomId] = useState('');
 
   // Student search state
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -578,6 +582,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         }
 
         const roleScopedObservations = filteredObservations;
+        setRoleScopedObservations(roleScopedObservations);
+        setRoleScopedStudents(filteredStudentsData);
+        setRoleScopedClassrooms(filteredClassroomsData);
         
         // Apply user-selected filters with AND logic between different filter types
         // Classrooms filter: OR logic within classrooms, AND logic with other filters
@@ -896,6 +903,72 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
     return new Date(0);
   };
+
+  const performanceClassroomOptions = useMemo(() => {
+    if (!Array.isArray(roleScopedClassrooms)) return [];
+    return roleScopedClassrooms
+      .map((classroom) => ({
+        id: classroom.id,
+        label: classroom.name || classroom.displayName || classroom.label || classroom.id
+      }))
+      .filter((option) => option.id)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [roleScopedClassrooms]);
+
+  useEffect(() => {
+    if (!selectedPerformanceClassroomId) return;
+    if (!performanceClassroomOptions.some((option) => option.id === selectedPerformanceClassroomId)) {
+      setSelectedPerformanceClassroomId('');
+    }
+  }, [performanceClassroomOptions, selectedPerformanceClassroomId]);
+
+  const computePerformanceSummary = (studentsList = [], observationsList = [], classroomId = '') => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
+    const activeStudents = (Array.isArray(studentsList) ? studentsList : [])
+      .filter((student) => (student?.status || 'active') === 'active')
+      .filter((student) => (!classroomId ? true : student.classroomId === classroomId));
+
+    const studentIds = new Set(activeStudents.map((student) => student.id).filter(Boolean));
+    const countsByStudent = Object.fromEntries(activeStudents.map((student) => [student.id, 0]));
+
+    (Array.isArray(observationsList) ? observationsList : []).forEach((obs) => {
+      const studentId = obs?.studentId;
+      if (!studentId || !studentIds.has(studentId)) return;
+      const obsDate = getObservationDateFast(obs);
+      if (obsDate < cutoff) return;
+      countsByStudent[studentId] += 1;
+    });
+
+    const totals = {
+      excellent: 0,
+      sufficient: 0,
+      needsSupport: 0,
+      immediateAttention: 0,
+      studentCount: activeStudents.length,
+      averageNotes: 0,
+      totalNotes: 0
+    };
+
+    if (activeStudents.length > 0) {
+      Object.values(countsByStudent).forEach((count) => {
+        const n = Number.isFinite(count) ? count : 0;
+        totals.totalNotes += n;
+        if (n >= 12) totals.excellent += 1;
+        else if (n >= 8) totals.sufficient += 1;
+        else if (n >= 4) totals.needsSupport += 1;
+        else totals.immediateAttention += 1;
+      });
+      totals.averageNotes = totals.totalNotes / totals.studentCount;
+    }
+
+    return totals;
+  };
+
+  const performanceSummaryForCard = useMemo(
+    () => computePerformanceSummary(roleScopedStudents, roleScopedObservations, selectedPerformanceClassroomId),
+    [roleScopedStudents, roleScopedObservations, selectedPerformanceClassroomId]
+  );
 
   // Filter observations by time period for pie chart
   const filteredObservationsForPie = useMemo(() => {
@@ -2414,7 +2487,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               </Typography>
 
               <PerformanceSummaryCard
-                summary={stats?.performance42DaySummary}
+                summary={performanceSummaryForCard}
+                classroomOptions={performanceClassroomOptions}
+                selectedClassroomId={selectedPerformanceClassroomId}
+                onClassroomChange={setSelectedPerformanceClassroomId}
                 sx={{ mb: 3 }}
               />
               

@@ -1,5 +1,14 @@
 # Changelog
 
+# 7.3.1 — 2026-01-30
+
+### Added
+- PerformanceSummaryCard: classroom selector to filter the 42-day performance summary per classroom on NotificationsPage and StatsPage.
+
+### Changed
+- PerformanceSummaryCard: loading state now only replaces the pie chart area, keeping the header, selector, and legend visible.
+- PerformanceSummaryCard: loading copy updated to Coach Pepper themed messaging.
+
 # 7.3.0 — 2026-01-18
 
 ### Fixed
