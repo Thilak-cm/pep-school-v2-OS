@@ -75,7 +75,7 @@ function PerformanceSummaryCard({
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Stack spacing={2}>
           <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
-            Performance Summary
+            Performance Summary for the last 42 days
           </Typography>
 
           {hasClassroomOptions && (
@@ -86,6 +86,16 @@ function PerformanceSummaryCard({
                 value={selectedClassroomId}
                 label="Select a classroom"
                 onChange={(event) => onClassroomChange?.(event.target.value)}
+                MenuProps={{
+                  anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+                  transformOrigin: { vertical: 'top', horizontal: 'left' },
+                  PaperProps: {
+                    sx: {
+                      maxHeight: 320,
+                      overflowY: 'auto'
+                    }
+                  }
+                }}
               >
                 <MenuItem value="">All classrooms</MenuItem>
                 {classroomOptions.map((option) => (
