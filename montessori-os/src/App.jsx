@@ -483,6 +483,9 @@ function App() {
     setScreen('landingPage');
   };
 
+  const showHeader = !loading && user && screen !== 'accessDenied';
+  const showFooter = !loading && user && screen !== 'accessDenied';
+
   // Mobile-first responsive container
   return (
     <>
@@ -629,7 +632,7 @@ function App() {
           {!loading && user && (
             <>
               {/* Sticky Header (outside scrollable content) */}
-              {screen !== 'accessDenied' && (
+              {showHeader && (
                 <AppHeader 
                   title={pageTitle}
                   onBack={backNavigation}
@@ -641,14 +644,17 @@ function App() {
               <Box
                 sx={{
                   flex: 1,
+                  minHeight: 0,
                   overflowY: 'auto',
                   overflowX: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  paddingTop: { 
-                    xs: 'calc(64px + env(safe-area-inset-top, 0px))', 
-                    sm: '64px' 
-                  }, // Account for fixed header + safe area on mobile
+                  paddingTop: showHeader
+                    ? {
+                        xs: 'calc(64px + env(safe-area-inset-top, 0px))',
+                        sm: '64px',
+                      }
+                    : 0, // Only reserve space if header is shown
                 }}
               >
                 <Box
@@ -656,8 +662,8 @@ function App() {
                     padding: { xs: 2, sm: 3 },
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: 'fit-content',
-                    pb: { xs: 12, sm: 12 },
+                    minHeight: 0,
+                    pb: showFooter ? { xs: 12, sm: 12 } : 0,
                     width: '100%',
                     maxWidth: '100%',
                     overflowX: 'hidden',
@@ -984,7 +990,7 @@ function App() {
                 }}
               />
               <UpdateNotification />
-              {screen !== 'accessDenied' && (
+              {showFooter && (
                 <AppFooter
                   onHome={handleHome}
                   onNavigate={handleNavigation}

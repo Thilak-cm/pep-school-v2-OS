@@ -1430,8 +1430,8 @@ function ChildChat({ student, startInLandingPage = false }) {
   return (
     <Box
       sx={{
-        width: '375px',
-        maxWidth: '375px',
+        width: '100%',
+        maxWidth: { xs: '100%', sm: '420px' },
         ...(isLanding
           ? {
               // Landing mode: fixed positioning to prevent parent container scrolling
@@ -1445,14 +1445,12 @@ function ChildChat({ student, startInLandingPage = false }) {
             }
           : {
               // Chat mode: normal layout with margins
-              height: '812px',
-              margin: '40px auto',
-              minHeight: '100vh',
+              margin: 0,
               position: 'relative',
             }),
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'background.default',
         overflow: 'hidden',
       }}
     >
@@ -1477,7 +1475,7 @@ function ChildChat({ student, startInLandingPage = false }) {
                 zIndex: 1000,
               }),
           width: '100%',
-          maxWidth: '375px',
+          maxWidth: { xs: '100%', sm: '420px' },
           px: 2,
           pt: 1,
           pb: 0.5,
@@ -1900,7 +1898,7 @@ function ChildChat({ student, startInLandingPage = false }) {
                 zIndex: 1000,
               }),
           width: '100%',
-          maxWidth: '375px',
+          maxWidth: { xs: '100%', sm: '420px' },
           px: 2,
           pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
         }}
