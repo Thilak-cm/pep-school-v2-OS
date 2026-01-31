@@ -137,6 +137,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [showScrollFade, setShowScrollFade] = useState(false);
   const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
   const coverageConfettiTimerRef = useRef(null);
+  const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -145,6 +146,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
   const studentId = student?.id || student?.uid || null;
   const isSuperAdmin = currentRole === 'superadmin';
+  const studentForCard = student ? { ...student, dateOfBirth: studentDob } : null;
 
   const toDate = (value) => {
     if (!value) return null;
@@ -207,6 +209,27 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     loadRole();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadStudentDob = async () => {
+      if (!studentId) {
+        setStudentDob(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, 'students', studentId));
+        if (!active) return;
+        const data = snap.exists() ? (snap.data() || {}) : {};
+        setStudentDob(data.dateOfBirth || data.dob || null);
+      } catch (err) {
+        if (!active) return;
+        setStudentDob(null);
+      }
+    };
+    loadStudentDob();
+    return () => { active = false; };
+  }, [studentId]);
 
   // Load baseball card config (windowDays, model, etc.)
   useEffect(() => {
@@ -623,7 +646,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         cardError={cardError}
         cardWindowDays={cardWindowDays}
         studentLabel={studentLabel}
-        student={student}
+        student={studentForCard}
         onOpenFeedback={onOpenFeedback}
         feedbackMessage={feedbackMessage}
         summaryScrollRef={summaryScrollRef}

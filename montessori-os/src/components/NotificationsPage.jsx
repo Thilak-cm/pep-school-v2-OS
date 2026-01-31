@@ -220,6 +220,7 @@ function NotificationsPage() {
   const [showScrollFade, setShowScrollFade] = useState(false);
   const [expandedClassrooms, setExpandedClassrooms] = useState(new Set());
   const [expandedFlagTypes, setExpandedFlagTypes] = useState(new Set());
+  const [studentDobMap, setStudentDobMap] = useState({});
 
   useEffect(() => {
     prepareNotificationsFeature();
@@ -311,6 +312,30 @@ function NotificationsPage() {
     loadAccessScope();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const fetchDob = async () => {
+      if (!expandedStudentId) return;
+      try {
+        const snap = await getDoc(doc(db, 'students', expandedStudentId));
+        if (!active) return;
+        const data = snap.exists() ? (snap.data() || {}) : {};
+        setStudentDobMap(prev => ({
+          ...prev,
+          [expandedStudentId]: data.dateOfBirth || data.dob || null
+        }));
+      } catch (err) {
+        if (!active) return;
+        setStudentDobMap(prev => ({
+          ...prev,
+          [expandedStudentId]: null
+        }));
+      }
+    };
+    fetchDob();
+    return () => { active = false; };
+  }, [expandedStudentId]);
 
   useEffect(() => {
     let active = true;
@@ -1359,6 +1384,7 @@ function NotificationsPage() {
 
     const studentId = expandedStudentId;
     const studentName = getStudentName(studentId);
+    const studentDob = studentDobMap[studentId] || null;
     const cardData = baseballCardData[studentId];
     const cardLoading = baseballCardLoading[studentId];
     const cardError = baseballCardError[studentId];
@@ -1433,6 +1459,7 @@ function NotificationsPage() {
                 cardError={cardError}
                 cardWindowDays={cardWindowDays}
                 studentLabel={studentName}
+                student={{ id: studentId, dateOfBirth: studentDob }}
                 minHeight="72vh"
                 maxHeight="88vh"
                 summaryScrollRef={summaryScrollRef}

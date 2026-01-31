@@ -130,25 +130,6 @@ export default function BaseballCardSnapshotCard({
             {topRightActions}
           </Stack>
         )}
-        {ageString && (
-          <Box sx={{ position: 'absolute', top: 56, right: 12 }}>
-            <Chip
-              label={`Age: ${ageString}`}
-              size="small"
-              sx={{
-                height: 24,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                color: '#4f46e5',
-                border: '1px solid rgba(79, 70, 229, 0.2)',
-                '& .MuiChip-label': {
-                  px: 1
-                }
-              }}
-            />
-          </Box>
-        )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box>
@@ -158,9 +139,37 @@ export default function BaseballCardSnapshotCard({
               <Typography variant="body2" sx={{ color: '#64748b' }}>
                 {Number.isFinite(noteCount) ? noteCount : '-'} notes over last {resolvedWindowDays} days
               </Typography>
-              {coverage && (
-                <Box sx={{ mt: 0.5 }}>
-                  {coverage}
+              {(coverage || ageString) && (
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1.5,
+                    width: '100%',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
+                    {coverage}
+                  </Box>
+                  {ageString && (
+                    <Chip
+                      label={ageString}
+                      size="small"
+                      sx={{
+                        height: 24,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                        color: '#4f46e5',
+                        border: '1px solid rgba(79, 70, 229, 0.2)',
+                        '& .MuiChip-label': {
+                          px: 1
+                        }
+                      }}
+                    />
+                  )}
                 </Box>
               )}
             </Box>
