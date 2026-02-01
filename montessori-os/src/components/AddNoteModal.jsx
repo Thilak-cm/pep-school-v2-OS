@@ -33,7 +33,7 @@ import { ref, uploadBytesResumable, deleteObject } from 'firebase/storage';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import { isAdminRole } from '../utils/roleUtils';
+import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
 import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
@@ -319,6 +319,7 @@ function AddNoteModal({
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const isAdminUser = isAdminRole(userRole);
+  const isSuperAdminUser = isSuperAdmin(userRole);
 
   // Media note state
   const [mediaKind, setMediaKind] = useState(null); // 'photo' | 'video' | 'pdf'
@@ -1729,24 +1730,28 @@ function AddNoteModal({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 2,
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid',
+                  borderColor: 'divider',
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': { 
+                  cursor: isSuperAdminUser ? 'pointer' : 'not-allowed',
+                  backgroundColor: isSuperAdminUser ? 'white' : 'action.disabledBackground',
+                  opacity: isSuperAdminUser ? 1 : 0.6,
+                  pointerEvents: isSuperAdminUser ? 'auto' : 'none',
+                  '&:hover': isSuperAdminUser ? {
                     backgroundColor: '#f8fafc',
                     border: '1px solid #4f46e5'
-                  }
+                  } : undefined
                 }}
                 onClick={() => handleSelectMedia('photo')}
                 aria-label="Add media note"
+                aria-disabled={!isSuperAdminUser}
               >
-                <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <PhotoLibrary sx={{ fontSize: 32, color: isSuperAdminUser ? '#4f46e5' : 'text.disabled' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    <Typography variant="body1" sx={{ color: isSuperAdminUser ? '#1e293b' : 'text.disabled' }}>
                       Media Note
                     </Typography>
                     <NewFeaturePill label="New" />
