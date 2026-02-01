@@ -21,6 +21,8 @@ import {
   MenuBook,
   PhotoLibrary
 } from '@mui/icons-material';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
@@ -336,6 +338,7 @@ function AddNoteModal({
   const [pdfEssenceLoading, setPdfEssenceLoading] = useState(false);
   const [pdfPageCount, setPdfPageCount] = useState(null);
   const [pdfExtractedText, setPdfExtractedText] = useState('');
+  const pdfWorkerSetupRef = useRef(false);
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -1038,17 +1041,12 @@ function AddNoteModal({
   };
 
   const extractPdfTextFromFile = async (file) => {
-    // Load pdf.js from CDN to avoid bundling issues when the package isn't installed locally
-    const pdfjs = await import(
-      /* @vite-ignore */
-      'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.mjs'
-    );
-    if (pdfjs.GlobalWorkerOptions) {
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
+    if (pdfjsLib.GlobalWorkerOptions && !pdfWorkerSetupRef.current) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+      pdfWorkerSetupRef.current = true;
     }
     const data = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data }).promise;
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
     const parts = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -1858,6 +1856,14 @@ function AddNoteModal({
                             {formatBytes(mediaSource.size)}
                           </Typography>
                         ) : null}
+                        {(pdfTitleLoading || pdfEssenceLoading) && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <CircularProgress size={14} />
+                            <Typography variant="caption" color="text.secondary">
+                              Coach Pepper is scanning and understanding the PDF...
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
                     )
                   ) : (
@@ -1890,9 +1896,6 @@ function AddNoteModal({
                         setPdfTitle(e.target.value);
                         setMediaDirty(true);
                       }}
-                      InputProps={{
-                        endAdornment: pdfTitleLoading ? <CircularProgress size={18} /> : null,
-                      }}
                       fullWidth
                     />
                     <TextField
@@ -1901,9 +1904,6 @@ function AddNoteModal({
                       onChange={(e) => {
                         setPdfEssence(e.target.value);
                         setMediaDirty(true);
-                      }}
-                      InputProps={{
-                        endAdornment: pdfEssenceLoading ? <CircularProgress size={18} /> : null,
                       }}
                       fullWidth
                       multiline
