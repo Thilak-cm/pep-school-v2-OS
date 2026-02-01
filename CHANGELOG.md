@@ -1,5 +1,15 @@
 # Changelog
 
+# 8.0.0 — 2026-01-31
+
+### Added
+- Media notes end-to-end: teachers can create photo, mp4 video, and PDF observations; photos auto-compress to WebP, PDFs get title + essence suggestions via new callable functions, and a Storage finalize trigger records authoritative metadata and marks notes ready.
+- Media timeline: new Media tab with Photos/Videos grid and Docs list, showing pending placeholders, ready items with download URLs, and failed status messaging. Media creation flow now matches other note UIs with footer actions and inline progress.
+
+### Changed
+- Security hardening: Firestore rules now validate media doc shape, enforce a 24h delete window for teacher-authored media, and keep updates create/delete-only; Storage rules align to the deterministic storagePath, strict content-type/extension checks, and 2MB cap for photos.
+- UI consistency: Media filters now include media type in queries, ensuring media notes appear on the correct student timeline; cleaned up helper text and layout parity with text/voice note creation.
+
 # 7.3.2 — 2026-01-30
 
 ### Added
