@@ -52,8 +52,9 @@ const FilterPanel = ({
 
   const lockedToLesson = noteTypeFilter === 'lesson';
   const lockedToTextVoice = noteTypeFilter === 'textVoice';
-  const voiceActive = !lockedToLesson && filters.types?.includes('voice');
-  const textActive = !lockedToLesson && filters.types?.includes('text');
+  const lockedToMedia = noteTypeFilter === 'media';
+  const voiceActive = !(lockedToLesson || lockedToMedia) && filters.types?.includes('voice');
+  const textActive = !(lockedToLesson || lockedToMedia) && filters.types?.includes('text');
   const lessonActive = lockedToLesson || filters.types?.includes('lesson');
   return (
     <Box>
@@ -215,9 +216,9 @@ const FilterPanel = ({
                     variant={voiceActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<Mic />}
-                    disabled={lockedToLesson}
+                    disabled={lockedToLesson || lockedToMedia}
                     onClick={() => {
-                      if (lockedToLesson) return;
+                      if (lockedToLesson || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('voice')
                         ? currentTypes.filter((t) => t !== 'voice')
@@ -259,7 +260,7 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...(lockedToLesson && {
+                      ...((lockedToLesson || lockedToMedia) && {
                         opacity: 0.4,
                       }),
                     }}
@@ -271,9 +272,9 @@ const FilterPanel = ({
                     variant={textActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<EditNote />}
-                    disabled={lockedToLesson}
+                    disabled={lockedToLesson || lockedToMedia}
                     onClick={() => {
-                      if (lockedToLesson) return;
+                      if (lockedToLesson || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('text')
                         ? currentTypes.filter((t) => t !== 'text')
@@ -315,7 +316,7 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...(lockedToLesson && {
+                      ...((lockedToLesson || lockedToMedia) && {
                         opacity: 0.4,
                       }),
                     }}
@@ -327,9 +328,9 @@ const FilterPanel = ({
                     variant={lessonActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<MenuBook />}
-                    disabled={lockedToTextVoice}
+                    disabled={lockedToTextVoice || lockedToMedia}
                     onClick={() => {
-                      if (lockedToTextVoice) return;
+                      if (lockedToTextVoice || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('lesson')
                         ? currentTypes.filter((t) => t !== 'lesson')
@@ -371,7 +372,7 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...(lockedToTextVoice && {
+                      ...((lockedToTextVoice || lockedToMedia) && {
                         opacity: 0.4,
                       }),
                     }}

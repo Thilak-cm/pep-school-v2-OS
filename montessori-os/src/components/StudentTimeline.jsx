@@ -1,5 +1,5 @@
 // StudentTimeline.jsx (refactored)
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -14,11 +14,12 @@ import {
   Chip,
   Divider,
   Tabs,
-  Tab
+  Tab,
+  IconButton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, Movie, InsertDriveFile, CloudUpload, ErrorOutline } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
 // Import new modular components
@@ -31,6 +32,7 @@ import {
   NOTE_KIND
 } from '../utils/export';
 import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
+import { canDeleteObservation } from '../utils/observationPermissions';
 import {
   getLessonDimensions, 
   LESSON_RATING_LABELS, 
@@ -38,6 +40,7 @@ import {
 } from '../utils/lessonNoteConstraints';
 import { MenuBook } from '@mui/icons-material';
 import ExportWizard from './ExportWizard';
+import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
@@ -59,6 +62,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const initialNoteType = noteTypeFilter || 'textVoice';
   const [activeNoteType, setActiveNoteType] = useState(initialNoteType);
   const [exportWizardOpen, setExportWizardOpen] = useState(false);
+  const [mediaUrls, setMediaUrls] = useState({});
+  const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
+  const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
+  const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
+  const toJsDate = (ts) => {
+    if (!ts) return null;
+    if (ts.toDate) return ts.toDate();
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return new Date(ts);
+  };
+  const notifiedFailuresRef = useRef(new Set());
   
   useEffect(() => {
     const nextType = noteTypeFilter || 'textVoice';
@@ -139,6 +153,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return map;
   }, [observations]);
 
+  const totalInActiveTab = useMemo(() => {
+    if (activeNoteType === 'lesson') {
+      return (observations || []).filter((o) => o.type === 'lesson').length;
+    }
+    if (activeNoteType === 'media') {
+      return (observations || []).filter((o) => o.type === 'media').length;
+    }
+    return (observations || []).filter((o) => o.type !== 'lesson' && o.type !== 'media').length;
+  }, [observations, activeNoteType]);
+
   // Use the filter hook instead of local state
   const {
     showFilters,
@@ -159,7 +183,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return source.filter((obs) => obs.type === 'lesson');
     }
     if (activeNoteType === 'textVoice') {
-      return source.filter((obs) => obs.type !== 'lesson');
+      return source.filter((obs) => obs.type !== 'lesson' && obs.type !== 'media');
+    }
+    if (activeNoteType === 'media') {
+      return source.filter((obs) => obs.type === 'media');
     }
     return source;
   }, [filteredObservations, activeNoteType]);
@@ -257,9 +284,66 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }
   }, [observations, selectedObservation]);
 
+  useEffect(() => {
+    const readyMedia = (observations || []).filter((obs) =>
+      obs.type === 'media' &&
+      obs.status === 'ready' &&
+      Array.isArray(obs.media) &&
+      obs.media.length > 0 &&
+      obs.media[0]?.storagePath
+    );
+    const missingPaths = readyMedia
+      .map((obs) => obs.media[0].storagePath)
+      .filter((path) => path && !mediaUrls[path]);
+    if (missingPaths.length === 0) return;
+    (async () => {
+      const entries = await Promise.all(missingPaths.map(async (path) => {
+        try {
+          const url = await getDownloadURL(ref(storage, path));
+          return [path, url];
+        } catch (err) {
+          console.error('Failed to fetch media URL', err);
+          return null;
+        }
+      }));
+      const updates = {};
+      entries.forEach((entry) => {
+        if (entry && entry[0] && entry[1]) {
+          updates[entry[0]] = entry[1];
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        setMediaUrls((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+  }, [observations, mediaUrls]);
+
+  useEffect(() => {
+    (observations || []).forEach((obs) => {
+      if (obs.type === 'media' && obs.status === 'failed' && !notifiedFailuresRef.current.has(obs.id)) {
+        notifiedFailuresRef.current.add(obs.id);
+        notify.error('Media upload failed. Please try again.', {
+          actionLabel: mediaDeleteAllowed(obs) ? 'Delete' : undefined,
+          onUndo: mediaDeleteAllowed(obs)
+            ? () => {
+                setSelectedObservation(obs);
+                setDeleteConfirmOpen(true);
+              }
+            : undefined,
+        });
+      }
+    });
+  }, [observations]);
+
 
 
   const handleObservationClick = (observation) => {
+    if (observation?.type === 'media') {
+      const path = observation.media?.[0]?.storagePath;
+      const url = path ? mediaUrls[path] : null;
+      setMediaPreview({ observation, url: url || null });
+      return;
+    }
     setSelectedObservation(observation);
     setDetailDialogOpen(true);
   };
@@ -275,6 +359,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   const handleDeleteConfirm = async () => {
     if (!selectedObservation) return;
+    if (!canDeleteObservation(selectedObservation, currentUser, userRole)) {
+      notify.error('You are not allowed to delete this note.');
+      return;
+    }
     const obs = selectedObservation;
     setDeleteConfirmOpen(false);
     setDetailDialogOpen(false);
@@ -288,6 +376,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || student.id || obs.studentId;
+          if (obs.type === 'media' && obs.media?.[0]?.storagePath) {
+            await deleteObject(ref(storage, obs.media[0].storagePath)).catch(() => {});
+          }
           await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
@@ -410,7 +501,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   };
 
   const exportableObservations = useMemo(
-    () => applyFilters(observations, null),
+    () => applyFilters(observations.filter((o) => o.type !== 'media'), null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [observations, filters]
   );
@@ -479,7 +570,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {combinedFiltersActive && (
             <Chip 
-              label={`Showing ${visibleObservations.length} of ${observations.length} notes`}
+              label={`Showing ${visibleObservations.length} of ${totalInActiveTab} notes`}
               size="small"
               color="primary"
               variant="outlined"
@@ -520,7 +611,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         textColor="primary"
         indicatorColor="primary"
         sx={{
-          mt: 1,
+          mt: 0.5,
           '& .MuiTab-root': {
             textTransform: 'none',
             fontWeight: 600,
@@ -533,6 +624,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       >
         <Tab value="textVoice" label="Observations" />
         <Tab value="lesson" label="Lesson Notes" />
+        <Tab value="media" label="Media" />
       </Tabs>
 
       {loading ? (
@@ -543,7 +635,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           {/* Filter Panel */}
           <FilterPanel
             showFilters={showFilters}
@@ -559,148 +651,342 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           />
 
           {/* Summary */}
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
           </Typography>
 
-          {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
-          {(() => {
-            const groups = { today: [], last7Days: [], beyond: [] };
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const toDate = (ts) => {
-              if (!ts) return null;
-              if (ts.toDate) return ts.toDate();
-              if (ts.seconds) return new Date(ts.seconds * 1000);
-              return new Date(ts);
-            };
-            (visibleObservations || []).forEach((obs) => {
-              let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
-              if (d >= today) groups.today.push(obs);
-              else if (d >= lastWeek) groups.last7Days.push(obs);
-              else groups.beyond.push(obs);
-            });
+          {activeNoteType === 'media' ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <Tabs
+                value={mediaSubTab}
+                onChange={(_, val) => setMediaSubTab(val)}
+                textColor="primary"
+                indicatorColor="primary"
+                variant="fullWidth"
+              >
+                <Tab value="photos" label="Photos / Videos" />
+                <Tab value="docs" label="Docs" />
+              </Tabs>
 
-            const renderGroup = (label, items, labelColor) => (
-              items && items.length > 0 ? (
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: labelColor }}>
-                      {label}
-                    </Typography>
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                  {items.map((obs) => (
-                    <Card
-                      key={obs.id}
-                      onClick={() => handleObservationClick(obs)}
-                      sx={{
-                        cursor: 'pointer',
-                        '&:hover': {
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.2s ease-in-out',
-                        position: 'relative',
-                      }}
-                      aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
-                    >
-                      {/* Note Type Indicator - only needed when mixing note kinds (lesson tab) */}
-                      {activeNoteType === 'lesson' && (() => {
-                        const icon = getObservationTypeIcon(obs.type);
-                        const label = getObservationTypeText(obs.type);
+              {(() => {
+                const sortedMedia = [...(visibleObservations || [])].sort((a, b) => {
+                  const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
+                  const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
+                  return db - da;
+                });
+                const photosVideos = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() !== 'pdf');
+                const docs = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() === 'pdf');
+                const renderStatusChip = (obs) => {
+                  if (obs.status === 'pending_upload') {
+                    return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload sx={{ fontSize: 16 }} />} />;
+                  }
+                  if (obs.status === 'failed') {
+                    return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline sx={{ fontSize: 16 }} />} />;
+                  }
+                  return null;
+                };
+
+                if (mediaSubTab === 'docs') {
+                  return docs.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {docs.map((obs) => {
+                        const path = obs.media?.[0]?.storagePath;
+                        const url = path ? mediaUrls[path] : null;
+                        const isReady = obs.status === 'ready' && url;
                         return (
-                          <Box sx={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            borderRadius: 1,
-                            px: 1,
-                            py: 0.5,
-                            border: '1px solid #e2e8f0'
-                          }}>
-                            {icon}
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
-                              {label}
-                            </Typography>
-                          </Box>
-                        );
-                      })()}
-                      <CardContent sx={{ p: 2 }}>
-                        {(() => {
-                          const isLesson = obs.type === 'lesson';
-                          return (
-                            <>
-                              {/* Teacher Information */}
-                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                                <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                                  👩‍🏫
-                                </span>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                                  {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
+                          <Card
+                            key={obs.id}
+                            onClick={() => {
+                              if (isReady) window.open(url, '_blank');
+                            }}
+                            sx={{
+                              cursor: isReady ? 'pointer' : 'default',
+                              '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
+                              p: 1.5
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <InsertDriveFile color="primary" />
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                  {obs.pdfTitle || 'PDF'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatTimestamp(obs.observedAt || obs.timestamp)}
                                 </Typography>
                               </Box>
-                              {isLesson ? (
-                                renderLessonContent(obs)
-                              ) : (
-                                <>
-                                  <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                    {obs.text || '(transcribing…)'}
-                                  </Typography>
-                                  {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                        Tagged Lesson Notes:
-                                      </Typography>
-                                      {(obs.linkedLessonObservationId || []).map((id) => (
-                                        <Chip
-                                          key={id}
-                                          size="small"
-                                          variant="outlined"
-                                          label={lessonTitleById[id] || 'Lesson note'}
-                                          sx={{ borderRadius: 999 }}
-                                        />
-                                      ))}
-                                    </Box>
-                                  )}
-                                </>
+                              {renderStatusChip(obs)}
+                              {mediaDeleteAllowed(obs) && (
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  variant="outlined"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedObservation(obs);
+                                    setDeleteConfirmOpen(true);
+                                  }}
+                                  startIcon={<Delete />}
+                                >
+                                  Delete
+                                </Button>
                               )}
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
-                              </Box>
-                            </>
-                          );
-                        })()}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </>
-              ) : null
-            );
+                            </Box>
+                          </Card>
+                        );
+                      })}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      No documents yet.
+                    </Typography>
+                  );
+                }
 
-            return (
-              <>
-                {renderGroup('Today', groups.today, 'primary.main')}
-                {renderGroup('Last 7 Days', groups.last7Days, 'text.secondary')}
-                {renderGroup('Beyond 7 Days', groups.beyond, 'text.secondary')}
-              </>
-            );
-          })()}
-          {visibleObservations.length === 0 && observations.length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No observations match the current filters.
-            </Typography>
-          )}
-          {observations.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-              No observations yet.
-            </Typography>
+                return photosVideos.length > 0 ? (
+                  <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)' },
+                    gap: 1
+                  }}>
+                    {photosVideos.map((obs) => {
+                      const path = obs.media?.[0]?.storagePath;
+                      const url = path ? mediaUrls[path] : null;
+                      const isPending = obs.status === 'pending_upload';
+                      const isFailed = obs.status === 'failed';
+                      const isReady = obs.status === 'ready' && url;
+                      return (
+                        <Box
+                          key={obs.id}
+                          onClick={() => {
+                            if (isReady) handleObservationClick(obs);
+                          }}
+                          sx={{
+                            cursor: isReady ? 'pointer' : 'default',
+                            '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
+                            position: 'relative',
+                            borderRadius: 2,
+                            overflow: 'hidden',
+                            backgroundColor: '#f8fafc',
+                            aspectRatio: '1 / 1'
+                          }}
+                        >
+                          <Box sx={{ position: 'relative', height: '100%' }}>
+                            {isReady && obs.mediaKind === 'photo' && (
+                              <Box
+                                component="img"
+                                src={url}
+                                alt="Photo"
+                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            )}
+                            {isReady && obs.mediaKind === 'video' && (
+                              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Movie color="primary" />
+                              </Box>
+                            )}
+                            {isPending && (
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexDirection: 'column',
+                                  gap: 0.5,
+                                  backgroundColor: 'rgba(248,250,252,0.85)',
+                                }}
+                              >
+                                <CircularProgress size={20} />
+                                <Typography variant="caption" color="text.secondary">
+                                  Uploading
+                                </Typography>
+                              </Box>
+                            )}
+                            {isFailed && (
+                              <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1 }}>
+                                <ErrorOutline color="error" />
+                                <Typography variant="caption" color="error">Upload failed</Typography>
+                              </Box>
+                            )}
+                            <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                              {renderStatusChip(obs)}
+                            </Box>
+                            {mediaDeleteAllowed(obs) && (
+                              <IconButton
+                                size="small"
+                                aria-label="Delete media"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedObservation(obs);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                sx={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(255,255,255,0.9)' }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                    No photos or videos yet.
+                  </Typography>
+                );
+              })()}
+
+              {visibleObservations.length === 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                  No media notes yet.
+                </Typography>
+              )}
+            </Box>
+          ) : (
+            <>
+              {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
+              {(() => {
+                const groups = { today: [], last7Days: [], beyond: [] };
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const toDate = (ts) => {
+                  if (!ts) return null;
+                  if (ts.toDate) return ts.toDate();
+                  if (ts.seconds) return new Date(ts.seconds * 1000);
+                  return new Date(ts);
+                };
+                (visibleObservations || []).forEach((obs) => {
+                  let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
+                  if (d >= today) groups.today.push(obs);
+                  else if (d >= lastWeek) groups.last7Days.push(obs);
+                  else groups.beyond.push(obs);
+                });
+
+                const renderGroup = (label, items, labelColor) => (
+                  items && items.length > 0 ? (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: labelColor }}>
+                          {label}
+                        </Typography>
+                        <Divider sx={{ flex: 1 }} />
+                      </Box>
+                      {items.map((obs) => (
+                        <Card
+                          key={obs.id}
+                          onClick={() => handleObservationClick(obs)}
+                          sx={{
+                            cursor: 'pointer',
+                            '&:hover': {
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                              transform: 'translateY(-1px)',
+                            },
+                            transition: 'all 0.2s ease-in-out',
+                            position: 'relative',
+                          }}
+                          aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
+                        >
+                          {/* Note Type Indicator - only needed when mixing note kinds (lesson tab) */}
+                          {activeNoteType === 'lesson' && (() => {
+                            const icon = getObservationTypeIcon(obs.type);
+                            const label = getObservationTypeText(obs.type);
+                            return (
+                              <Box sx={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                borderRadius: 1,
+                                px: 1,
+                                py: 0.5,
+                                border: '1px solid #e2e8f0'
+                              }}>
+                                {icon}
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
+                                  {label}
+                                </Typography>
+                              </Box>
+                            );
+                          })()}
+                          <CardContent sx={{ p: 2 }}>
+                            {(() => {
+                              const isLesson = obs.type === 'lesson';
+                              return (
+                                <>
+                                  {/* Teacher Information */}
+                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                                    <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                                      👩‍🏫
+                                    </span>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                      {obs.createdByName || obs.createdBy || 'Unknown Teacher'}
+                                    </Typography>
+                                  </Box>
+                                  {isLesson ? (
+                                    renderLessonContent(obs)
+                                  ) : (
+                                    <>
+                                      <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                        {obs.text || '(transcribing…)'}
+                                      </Typography>
+                                      {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
+                                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                            Tagged Lesson Notes:
+                                          </Typography>
+                                          {(obs.linkedLessonObservationId || []).map((id) => (
+                                            <Chip
+                                              key={id}
+                                              size="small"
+                                              variant="outlined"
+                                              label={lessonTitleById[id] || 'Lesson note'}
+                                              sx={{ borderRadius: 999 }}
+                                            />
+                                          ))}
+                                        </Box>
+                                      )}
+                                    </>
+                                  )}
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                    <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                    <Typography variant="caption" color="text.secondary">{formatTimestamp(obs.observedAt || obs.timestamp)}</Typography>
+                                  </Box>
+                                </>
+                              );
+                            })()}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </>
+                  ) : null
+                );
+
+                return (
+                  <>
+                    {renderGroup('Today', groups.today, 'primary.main')}
+                    {renderGroup('Last 7 Days', groups.last7Days, 'text.secondary')}
+                    {renderGroup('Beyond 7 Days', groups.beyond, 'text.secondary')}
+                  </>
+                );
+              })()}
+              {visibleObservations.length === 0 && observations.length > 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                  No observations match the current filters.
+                </Typography>
+              )}
+              {observations.length === 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                  No observations yet.
+                </Typography>
+              )}
+            </>
           )}
         </Box>
       )}
@@ -715,6 +1001,70 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           userRole={userRole}
           isClassroomContext={false}
         />
+
+      {/* Media Preview Dialog */}
+      <Dialog
+        open={!!mediaPreview}
+        onClose={() => setMediaPreview(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6">Photo</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (
+            <Box
+              component="img"
+              src={mediaPreview.url}
+              alt="Media"
+              sx={{ width: '100%', borderRadius: 2, maxHeight: 420, objectFit: 'contain' }}
+            />
+          )}
+          {mediaPreview?.observation?.mediaKind === 'video' && mediaPreview?.url && (
+            <Box sx={{ width: '100%' }}>
+              <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+            </Box>
+          )}
+          {(!mediaPreview?.url) && (
+            <Typography variant="body2" color="text.secondary">
+              Download URL not ready yet. Please wait for upload to finish.
+            </Typography>
+          )}
+          {mediaPreview?.observation && (
+            <Typography variant="body2" color="text.secondary">
+              Date Captured: {formatTimestamp(mediaPreview.observation.observedAt || mediaPreview.observation.timestamp)}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setMediaPreview(null)}>Close</Button>
+          {mediaPreview?.url && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                window.open(mediaPreview.url, '_blank');
+              }}
+            >
+              Open
+            </Button>
+          )}
+          {mediaPreview?.observation && mediaDeleteAllowed(mediaPreview.observation) && (
+            <Button
+              color="error"
+              variant="contained"
+              startIcon={<Delete />}
+              onClick={() => {
+                setSelectedObservation(mediaPreview.observation);
+                setMediaPreview(null);
+                setDeleteConfirmOpen(true);
+              }}
+            >
+              Delete
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog
@@ -738,18 +1088,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            Are you sure you want to delete this observation note?
+            {selectedObservation?.type === 'media'
+              ? 'Delete this media note and remove the attached file from storage?'
+              : 'Are you sure you want to delete this observation note?'}
           </Typography>
           {selectedObservation && (
-            <Typography variant="body2" color="text.secondary" sx={{ 
-              fontStyle: 'italic',
-              backgroundColor: '#f8fafc',
-              padding: 2,
-              borderRadius: 2,
-              border: '1px solid #e2e8f0'
-            }}>
-              "{selectedObservation.text?.substring(0, 100)}{selectedObservation.text?.length > 100 ? '...' : ''}"
-            </Typography>
+            selectedObservation.type === 'media' ? (
+              <Typography variant="body2" color="text.secondary" sx={{ 
+                backgroundColor: '#f8fafc',
+                padding: 2,
+                borderRadius: 2,
+                border: '1px solid #e2e8f0'
+              }}>
+                {selectedObservation.mediaKind ? selectedObservation.mediaKind.toUpperCase() : 'Media'} · {selectedObservation.media?.[0]?.storagePath || 'No file path'}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ 
+                fontStyle: 'italic',
+                backgroundColor: '#f8fafc',
+                padding: 2,
+                borderRadius: 2,
+                border: '1px solid #e2e8f0'
+              }}>
+                "{selectedObservation.text?.substring(0, 100)}{selectedObservation.text?.length > 100 ? '...' : ''}"
+              </Typography>
+            )
           )}
           <Typography variant="body2" color="error" sx={{ mt: 2, fontWeight: 'medium' }}>
             This action cannot be undone.

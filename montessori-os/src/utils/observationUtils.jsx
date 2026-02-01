@@ -1,5 +1,5 @@
 import React from 'react';
-import { Visibility, MenuBook } from '@mui/icons-material';
+import { Visibility, MenuBook, PhotoLibrary } from '@mui/icons-material';
 import { formatTimestamp } from './dateFormat';
 
 // Re-export formatTimestamp for backward compatibility
@@ -12,6 +12,7 @@ export { formatTimestamp };
  */
 export const getObservationTypeIcon = (type) => {
   if (type === 'lesson') return <MenuBook sx={{ fontSize: 16 }} />;
+  if (type === 'media') return <PhotoLibrary sx={{ fontSize: 16 }} />;
   return <Visibility sx={{ fontSize: 16 }} />;
 };
 
@@ -22,6 +23,7 @@ export const getObservationTypeIcon = (type) => {
  */
 export const getObservationTypeText = (type) => {
   if (type === 'lesson') return 'Lesson Note';
+  if (type === 'media') return 'Media Note';
   return 'Observation';
 };
 

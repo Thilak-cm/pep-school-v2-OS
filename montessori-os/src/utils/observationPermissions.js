@@ -9,7 +9,18 @@ import { isAdminRole } from './roleUtils';
  */
 export const canDeleteObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
-  return isAdminRole(userRole);
+  if (isAdminRole(userRole)) return true;
+  const isAuthor = observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
+  if (!isAuthor) return false;
+  if (observation.type === 'media') {
+    const ts = observation.createdAt || observation.observedAt || observation.timestamp;
+    const createdAt = ts?.toDate
+      ? ts.toDate()
+      : (ts?.seconds ? new Date(ts.seconds * 1000) : (ts ? new Date(ts) : null));
+    if (!createdAt) return false;
+    return (Date.now() - createdAt.getTime()) <= 24 * 60 * 60 * 1000;
+  }
+  return true;
 };
 
 /**

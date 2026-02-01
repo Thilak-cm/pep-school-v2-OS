@@ -88,6 +88,9 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
         selectedTypes.add('voice');
         selectedTypes.add('text');
       }
+      if (overrideNoteTypeFilter === 'media') {
+        selectedTypes.add('media');
+      }
       filtered = filtered.filter(obs => selectedTypes.has(obs.type));
     }
 

@@ -1,7 +1,7 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-// import { getStorage } from "firebase-admin/storage";
+import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
@@ -19,7 +19,7 @@ const getOpenAiKey = () => process.env.OPENAI_API_KEY || OPENAI_API_KEY.value() 
 
 const db = getFirestore();
 const auth = getAuth();
-// const storage = getStorage();
+const storage = getStorage();
 
 // Helper: Sanitize email for use as document ID
 function sanitizeEmailForDocId(email) {
@@ -228,6 +228,273 @@ export const createAuthUserAndProfile = functions
       console.error("createAuthUserAndProfile error:", err);
       if (err instanceof functions.https.HttpsError) throw err;
       throw new functions.https.HttpsError("internal", err?.message || "Failed to create/update user");
+    }
+  });
+
+// -------------------------------------------------
+// PDF helpers (title + essence) for media notes
+// -------------------------------------------------
+const PDF_TITLE_MODEL = { model: "gpt-4o-mini", temperature: 0.4, max_tokens: 48 };
+const PDF_ESSENCE_MODEL = { model: "gpt-4o-mini", temperature: 0.35, max_tokens: 220 };
+const MAX_PDF_TEXT_LENGTH = 15000;
+
+async function runChatCompletion(messages, modelInfo) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelInfo.model,
+        messages,
+        temperature: modelInfo.temperature,
+        max_tokens: modelInfo.max_tokens,
+      }),
+    });
+  } catch (err) {
+    console.error("[runChatCompletion] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[runChatCompletion] OpenAI error", response.status, errText?.slice?.(0, 300));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const content = json?.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+  return content;
+}
+
+export const suggestPdfTitle = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const rawText = String(data?.extractedText || "").trim();
+    if (!rawText) {
+      throw new functions.https.HttpsError("invalid-argument", "extractedText is required");
+    }
+    const text = rawText.slice(0, MAX_PDF_TEXT_LENGTH);
+    const fileName = String(data?.fileName || "").trim();
+    const pageCount = Number.isFinite(data?.pageCount) ? Number(data.pageCount) : null;
+
+    const systemPrompt = "You title short PDF uploads for Montessori teachers. Output a concise, parent-friendly title (max 8 words). No quotes, no markdown.";
+    const userPrompt = [
+      fileName ? `Filename: ${fileName}` : null,
+      pageCount ? `Pages: ${pageCount}` : null,
+      "Extracted text:",
+      text,
+    ].filter(Boolean).join("\n");
+
+    const title = await runChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      PDF_TITLE_MODEL
+    );
+
+    return { title: title.split("\n")[0].trim() };
+  });
+
+export const extractPdfEssence = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const rawText = String(data?.extractedText || "").trim();
+    if (!rawText) {
+      throw new functions.https.HttpsError("invalid-argument", "extractedText is required");
+    }
+    const text = rawText.slice(0, MAX_PDF_TEXT_LENGTH);
+
+    const systemPrompt = "You summarize short PDF notes for Montessori teachers. Write 2–3 clear sentences (max ~120 words) covering the main idea and actions. No bullets, no markdown.";
+    const userPrompt = `Extracted text:\n${text}`;
+
+    const essence = await runChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      PDF_ESSENCE_MODEL
+    );
+
+    return { essence_text: essence.trim() };
+  });
+
+// -------------------------------------------------
+// Storage finalize: media uploads -> Firestore metadata
+// -------------------------------------------------
+const MEDIA_PATH_REGEX = new RegExp("^students/([^/]+)/observations/([^/]+)/media/([^/]+)$");
+const MEDIA_CONFIG = {
+  photo: { extension: ".webp", contentType: "image/webp", maxBytes: 2 * 1024 * 1024 },
+  pdf: { extension: ".pdf", contentType: "application/pdf" },
+  video: { extension: ".mp4", contentType: "video/mp4" },
+};
+
+function parseWebpDimensions(buffer) {
+  if (!buffer || buffer.length < 30) return null;
+  if (buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") {
+    return null;
+  }
+
+  const chunkHeader = buffer.toString("ascii", 12, 16);
+  if (chunkHeader === "VP8X" && buffer.length >= 30) {
+    const width = 1 + (buffer[24] | (buffer[25] << 8) | (buffer[26] << 16));
+    const height = 1 + (buffer[27] | (buffer[28] << 8) | (buffer[29] << 16));
+    return { width, height };
+  }
+
+  const vp8Start = buffer.indexOf(Buffer.from([0x9d, 0x01, 0x2a]));
+  if (chunkHeader === "VP8 " && vp8Start !== -1 && buffer.length >= vp8Start + 7) {
+    const width = buffer.readUInt16LE(vp8Start + 3) & 0x3fff;
+    const height = buffer.readUInt16LE(vp8Start + 5) & 0x3fff;
+    return { width, height };
+  }
+
+  if (chunkHeader === "VP8L" && buffer.length >= 21) {
+    const b0 = buffer[20];
+    const b1 = buffer[21];
+    const b2 = buffer[22];
+    const b3 = buffer[23];
+    const width = 1 + (((b1 & 0x3F) << 8) | b0);
+    const height = 1 + (((b3 & 0x0F) << 10) | (b2 << 2) | ((b1 & 0xC0) >> 6));
+    return { width, height };
+  }
+
+  return null;
+}
+
+async function markMediaFailed(obsRef, errorCode, errorMessage) {
+  try {
+    await obsRef.set(
+      {
+        status: "failed",
+        errorCode,
+        errorMessage,
+        updatedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error("[mediaFinalize] failed to mark doc failed", err);
+  }
+}
+
+async function deleteStorageFile(bucketName, filePath) {
+  try {
+    await storage.bucket(bucketName).file(filePath).delete();
+  } catch (err) {
+    if (err?.code !== 404) {
+      console.error("[mediaFinalize] delete file error", err);
+    }
+  }
+}
+
+export const mediaFinalize = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB" })
+  .storage.object()
+  .onFinalize(async (object) => {
+    const filePath = object.name;
+    const contentType = object.contentType || "";
+    const sizeBytes = Number(object.size || 0);
+    if (!filePath) return;
+
+    const match = MEDIA_PATH_REGEX.exec(filePath);
+    if (!match) return;
+
+    const [, studentId, observationId, fileName] = match;
+    const obsRef = db.collection("students").doc(studentId).collection("observations").doc(observationId);
+    const obsSnap = await obsRef.get();
+    if (!obsSnap.exists) {
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    const data = obsSnap.data() || {};
+    if (data.type !== "media") {
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    const mediaKind = data.mediaKind;
+    const config = MEDIA_CONFIG[mediaKind];
+    if (!config) {
+      await markMediaFailed(obsRef, "unsupported_kind", "Unsupported media type");
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    if (!fileName.endsWith(config.extension) || contentType !== config.contentType) {
+      await markMediaFailed(obsRef, "content_type_mismatch", "Upload must be in the expected format");
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    if (config.maxBytes && sizeBytes > config.maxBytes) {
+      await markMediaFailed(obsRef, "file_too_large", "Photo exceeds 2MB limit");
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    const expectedPath = Array.isArray(data.media) && data.media.length > 0 ? data.media[0]?.storagePath : null;
+    if (expectedPath && expectedPath !== filePath) {
+      await markMediaFailed(obsRef, "path_mismatch", "Upload path does not match note");
+      await deleteStorageFile(object.bucket, filePath);
+      return;
+    }
+
+    let dimensions = null;
+    if (mediaKind === "photo") {
+      try {
+        const [buffer] = await storage.bucket(object.bucket).file(filePath).download();
+        dimensions = parseWebpDimensions(buffer);
+      } catch (err) {
+        console.error("[mediaFinalize] failed to read image for dimensions", err);
+      }
+    }
+
+    const mediaEntry = {
+      storagePath: filePath,
+      contentType,
+      sizeBytes,
+    };
+    if (dimensions?.width && dimensions?.height) {
+      mediaEntry.width = dimensions.width;
+      mediaEntry.height = dimensions.height;
+    }
+
+    try {
+      await obsRef.set(
+        {
+          media: [mediaEntry],
+          status: "ready",
+          errorCode: null,
+          errorMessage: null,
+          updatedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error("[mediaFinalize] failed to update Firestore", err);
     }
   });
 
