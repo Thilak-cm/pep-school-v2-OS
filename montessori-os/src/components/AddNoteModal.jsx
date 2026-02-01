@@ -25,11 +25,11 @@ import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, addDoc, serverTimestamp, getDoc, doc, query, where, limit, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp, getDoc, doc, query, where, limit, getDocs, updateDoc, arrayUnion, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, storage, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { httpsCallable } from 'firebase/functions';
-import { cloudFunctions } from '../firebase';
+import { ref, uploadBytesResumable, deleteObject } from 'firebase/storage';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
@@ -296,6 +296,7 @@ const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
 const STEP_COACH = 'coach';
+const STEP_MEDIA = 'media';
 
 function AddNoteModal({
   open,
@@ -318,6 +319,22 @@ function AddNoteModal({
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const isAdminUser = isAdminRole(userRole);
+
+  // Media note state
+  const [mediaKind, setMediaKind] = useState(null); // 'photo' | 'video' | 'pdf'
+  const [mediaSource, setMediaSource] = useState(null); // { file | blob, size, width?, height?, contentType, extension, originalName }
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
+  const [mediaTeacherComment, setMediaTeacherComment] = useState('');
+  const [mediaUploadProgress, setMediaUploadProgress] = useState({});
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaDirty, setMediaDirty] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const [pdfTitle, setPdfTitle] = useState('');
+  const [pdfEssence, setPdfEssence] = useState('');
+  const [pdfTitleLoading, setPdfTitleLoading] = useState(false);
+  const [pdfEssenceLoading, setPdfEssenceLoading] = useState(false);
+  const [pdfPageCount, setPdfPageCount] = useState(null);
+  const [pdfExtractedText, setPdfExtractedText] = useState('');
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -345,6 +362,7 @@ function AddNoteModal({
   const coachRequestIdRef = useRef(0);
   const coachTimerRef = useRef({ t5: null, t10: null });
   const lastCoachSignatureRef = useRef(null);
+  const mediaFileInputRef = useRef(null);
 
   const { students: mentionableStudents } = useMentionableStudents({ currentUser, userRole });
   const transcriptSuggestions = useTranscriptStudentSuggestions(
@@ -692,6 +710,23 @@ function AddNoteModal({
     setTagDialogOpen(false);
     setPendingStudents(null);
     setMultiStudentWarningOpen(false);
+    if (mediaPreviewUrl) {
+      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
+    }
+    setMediaKind(null);
+    setMediaSource(null);
+    setMediaPreviewUrl('');
+    setMediaTeacherComment('');
+    setMediaUploadProgress({});
+    setMediaUploading(false);
+    setMediaDirty(false);
+    setMediaError('');
+    setPdfTitle('');
+    setPdfEssence('');
+    setPdfTitleLoading(false);
+    setPdfEssenceLoading(false);
+    setPdfPageCount(null);
+    setPdfExtractedText('');
     onClose();
   };
 
@@ -700,6 +735,7 @@ function AddNoteModal({
     if (step === STEP_NOTE_TYPE) return false; // silent close for window 1
     if (step === STEP_TEXT_INPUT) return textDirty;
     if (step === STEP_RECORD) return voiceDirty;
+    if (step === STEP_MEDIA) return mediaDirty || mediaUploading;
     if (step === STEP_RECIPIENTS) {
       return (
         selectedStudents.length > 0 ||
@@ -728,7 +764,7 @@ function AddNoteModal({
       window.addEventListener('beforeunload', onBeforeUnload);
       return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }
-  }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, saving]);
+  }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, mediaDirty, mediaUploading, mediaSource, saving]);
 
   useEffect(() => {
     return () => clearCoachTimers();
@@ -881,6 +917,26 @@ function AddNoteModal({
     setMultiStudentWarningOpen(false);
   };
 
+  const resetMediaState = () => {
+    if (mediaPreviewUrl) {
+      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
+    }
+    setMediaKind(null);
+    setMediaSource(null);
+    setMediaPreviewUrl('');
+    setMediaTeacherComment('');
+    setMediaUploadProgress({});
+    setMediaUploading(false);
+    setMediaDirty(false);
+    setMediaError('');
+    setPdfTitle('');
+    setPdfEssence('');
+    setPdfTitleLoading(false);
+    setPdfEssenceLoading(false);
+    setPdfPageCount(null);
+    setPdfExtractedText('');
+  };
+
   const handleSelectVoice = () => {
     setVoiceTranscribing(false);
     setTextData(null);
@@ -897,6 +953,12 @@ function AddNoteModal({
   const handleSelectLesson = () => {
     handleClose();
     if (onOpenLessonNotePage) onOpenLessonNotePage();
+  };
+
+  const handleSelectMedia = (kind = null) => {
+    resetMediaState();
+    setStep(STEP_MEDIA);
+    setMediaKind(kind || 'photo');
   };
 
   const handleVoiceSave = (transcriptionData) => {
@@ -936,6 +998,277 @@ function AddNoteModal({
     setVoiceTranscribing(false);
     // Return to recorder so user can retry
     setStep(STEP_RECORD);
+  };
+
+  const convertImageToWebP = async (file) => {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = url;
+      });
+      const maxDim = 2048;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const maxBytes = 2 * 1024 * 1024;
+      let quality = 0.82;
+      let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+      while (blob && blob.size > maxBytes && quality > 0.45) {
+        quality -= 0.08;
+        blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+      }
+      if (!blob) throw new Error('Unable to compress image');
+      if (blob.size > maxBytes) throw new Error('Photo must be under 2MB after compression');
+      return { blob, width, height };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const extractPdfTextFromFile = async (file) => {
+    // Load pdf.js from CDN to avoid bundling issues when the package isn't installed locally
+    const pdfjs = await import(
+      /* @vite-ignore */
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.mjs'
+    );
+    if (pdfjs.GlobalWorkerOptions) {
+      pdfjs.GlobalWorkerOptions.workerSrc =
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js';
+    }
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data }).promise;
+    const parts = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const page = await pdf.getPage(pageNum);
+      // eslint-disable-next-line no-await-in-loop
+      const content = await page.getTextContent();
+      const strings = content.items.map((i) => i.str).join(' ');
+      parts.push(strings);
+    }
+    return { text: parts.join('\n').trim(), pageCount: pdf.numPages };
+  };
+
+  const runPdfSuggestions = async (text, pageCount, fileName) => {
+    const payload = { extractedText: text, pageCount, fileName };
+    const suggestFn = httpsCallable(cloudFunctions, 'suggestPdfTitle');
+    const essenceFn = httpsCallable(cloudFunctions, 'extractPdfEssence');
+    setPdfTitleLoading(true);
+    setPdfEssenceLoading(true);
+    const [titleRes, essenceRes] = await Promise.allSettled([
+      suggestFn(payload),
+      essenceFn(payload)
+    ]);
+    if (titleRes.status === 'fulfilled' && titleRes.value?.data?.title) {
+      setPdfTitle(titleRes.value.data.title);
+    } else {
+      notify.warning('Could not suggest a title automatically.');
+    }
+    if (essenceRes.status === 'fulfilled' && essenceRes.value?.data?.essence_text) {
+      setPdfEssence(essenceRes.value.data.essence_text);
+    } else {
+      notify.warning('Could not generate a summary automatically.');
+    }
+    setPdfTitleLoading(false);
+    setPdfEssenceLoading(false);
+  };
+
+  const handleMediaFileChosen = async (file) => {
+    if (!file) return;
+    setMediaDirty(true);
+    setMediaError('');
+    try {
+      if (mediaKind === 'pdf') {
+        if (!(file.type?.includes('pdf') || file.name?.toLowerCase().endsWith('.pdf'))) {
+          notify.error('Please select a PDF file.');
+          return;
+        }
+        setPdfTitle('');
+        setPdfEssence('');
+        setPdfExtractedText('');
+        setPdfPageCount(null);
+        setMediaSource({
+          file,
+          size: file.size,
+          contentType: 'application/pdf',
+          extension: 'pdf',
+          originalName: file.name
+        });
+        const { text, pageCount } = await extractPdfTextFromFile(file);
+        setPdfExtractedText(text);
+        setPdfPageCount(pageCount);
+        runPdfSuggestions(text, pageCount, file.name).catch(() => {});
+        return;
+      }
+
+      // Photo/Video mode
+      if (file.type === 'video/mp4' || file.name?.toLowerCase().endsWith('.mp4')) {
+        if (mediaPreviewUrl) {
+          try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
+        }
+        const previewUrl = URL.createObjectURL(file);
+        setMediaKind('video');
+        setMediaSource({
+          file,
+          size: file.size,
+          contentType: 'video/mp4',
+          extension: 'mp4',
+          originalName: file.name
+        });
+        setMediaPreviewUrl(previewUrl);
+        return;
+      }
+
+      if (!file.type?.startsWith('image/')) {
+        notify.error('Please choose an image or mp4 video file.');
+        return;
+      }
+
+      const { blob, width, height } = await convertImageToWebP(file);
+      if (mediaPreviewUrl) {
+        try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
+      }
+      const previewUrl = URL.createObjectURL(blob);
+      setMediaKind('photo');
+      setMediaSource({
+        blob,
+        size: blob.size,
+        width,
+        height,
+        contentType: 'image/webp',
+        extension: 'webp',
+        originalName: file.name
+      });
+      setMediaPreviewUrl(previewUrl);
+    } catch (err) {
+      console.error('Media selection error', err);
+      setMediaError(err?.message || 'Could not process file');
+      notify.error(err?.message || 'Could not process file');
+    }
+  };
+
+  const uploadMediaToStorage = (storagePath, source, observationId, studentId) => {
+    const storageRef = ref(storage, storagePath);
+    const payload = source.blob || source.file;
+    return new Promise((resolve, reject) => {
+      const task = uploadBytesResumable(storageRef, payload, {
+        contentType: source.contentType,
+        customMetadata: {
+          observationId,
+          studentId
+        }
+      });
+      task.on('state_changed', (snap) => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: pct }));
+      }, async (error) => {
+        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: 0 }));
+        await deleteObject(storageRef).catch(() => {});
+        reject(error);
+      }, () => {
+        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: 100 }));
+        resolve();
+      });
+    });
+  };
+
+  const uploadMediaForStudent = async (studentId, source) => {
+    const studentDocRef = doc(db, 'students', studentId);
+    const studentSnap = await getDoc(studentDocRef);
+    const studentData = studentSnap.data();
+    const obsRef = doc(collection(db, 'students', studentId, 'observations'));
+    const storagePath = `students/${studentId}/observations/${obsRef.id}/media/original.${source.extension}`;
+    const kind = mediaKind === 'video' ? 'video' : (mediaKind === 'pdf' ? 'pdf' : 'photo');
+
+    const mediaEntry = {
+      storagePath,
+      contentType: source.contentType,
+      sizeBytes: source.size || 0,
+      ...(source.width ? { width: source.width, height: source.height } : {})
+    };
+
+    const docData = {
+      studentId,
+      classroomId: studentData?.classroomId || 'unknown',
+      type: 'media',
+      mediaKind: kind,
+      status: 'pending_upload',
+      media: [mediaEntry],
+      observedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdBy: currentUser?.uid || 'unknown',
+      createdByName: currentUser?.displayName || 'Unknown Teacher',
+      createdByEmail: currentUser?.email || 'unknown@email.com',
+      ...(mediaTeacherComment?.trim() ? { teacherComment: mediaTeacherComment.trim() } : {}),
+      ...(kind === 'pdf' && pdfTitle?.trim() ? { pdfTitle: pdfTitle.trim() } : {}),
+      ...(kind === 'pdf' && pdfEssence?.trim() ? { essence_text: pdfEssence.trim() } : {}),
+    };
+
+    await setDoc(obsRef, docData);
+    try {
+      await uploadMediaToStorage(storagePath, source, obsRef.id, studentId);
+      return { observationId: obsRef.id, studentId };
+    } catch (err) {
+      await deleteDoc(obsRef).catch(() => {});
+      throw err;
+    }
+  };
+
+  const handleCreateMediaNote = async () => {
+    if (!mediaSource) {
+      notify.warning('Choose a photo, video, or PDF first.');
+      return;
+    }
+    if (!selectedStudents || selectedStudents.length === 0) {
+      notify.warning('Select at least one student.');
+      return;
+    }
+    setSaving(true);
+    setMediaUploading(true);
+    setMediaError('');
+    const successes = [];
+    for (const stuId of selectedStudents) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await uploadMediaForStudent(stuId, mediaSource);
+        successes.push(res);
+      } catch (err) {
+        console.error('Upload failed', err);
+        setMediaError('Upload failed. Please try again.');
+        notify.error(err?.message || 'Upload failed for one of the students.');
+      }
+    }
+    setSaving(false);
+    setMediaUploading(false);
+    if (successes.length > 0) {
+      const firstStudentId = selectedStudents[0];
+      notify.success('Upload started. You can keep working.', {
+        actionLabel: firstStudentId ? 'View Media' : undefined,
+        onUndo: firstStudentId
+          ? () => {
+              try {
+                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                  detail: { studentId: firstStudentId, noteTypeFilter: 'media' }
+                }));
+              } catch (_) { /* noop */ }
+              handleClose();
+            }
+          : undefined
+      });
+      handleClose();
+    }
   };
 
   const saveNote = async (coachResult = null) => {
@@ -1153,6 +1486,25 @@ function AddNoteModal({
     setSnackbarOpen(false);
   };
 
+  const formatBytes = (bytes) => {
+    if (bytes == null) return '';
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    const fixed = value >= 10 ? value.toFixed(0) : value.toFixed(1);
+    return `${fixed} ${units[unitIndex]}`;
+  };
+
+  const mediaProgressValues = Object.values(mediaUploadProgress || {});
+  const mediaProgressPercent = mediaProgressValues.length
+    ? Math.round(mediaProgressValues.reduce((a, b) => a + b, 0) / mediaProgressValues.length)
+    : 0;
+
   return (
     <Dialog
       open={open}
@@ -1219,6 +1571,8 @@ function AddNoteModal({
                   } else {
                     setStep(STEP_NOTE_TYPE);
                   }
+                } else if (step === STEP_MEDIA) {
+                  setStep(STEP_NOTE_TYPE);
                 }
               }}
               sx={{
@@ -1369,38 +1723,267 @@ function AddNoteModal({
                   </Typography>
                 </Box>
               </Box>
-              {/* Photos/Videos (coming soon) */}
+              {/* Media Note */}
               <Box
-                aria-label="Photos/Videos note (coming soon)"
-                aria-disabled="true"
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 2,
-                  border: '1px dashed',
-                  borderColor: 'divider',
+                  border: '1px solid #e2e8f0',
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  backgroundColor: 'action.disabledBackground',
-                  cursor: 'not-allowed',
-                  opacity: 0.75,
-                  pointerEvents: 'none'
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  '&:hover': { 
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #4f46e5'
+                  }
                 }}
+                onClick={() => handleSelectMedia('photo')}
+                aria-label="Add media note"
               >
-                <PhotoLibrary sx={{ fontSize: 32, color: 'text.disabled' }} />
+                <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: 'text.disabled' }}>
+                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Media Note
                     </Typography>
-                    <NewFeaturePill label="Feature coming soon" />
+                    <NewFeaturePill label="New" />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    Capture photos and videos for richer observations
+                    Attach photos, videos, or PDFs
                   </Typography>
                 </Box>
               </Box>
+            </Box>
+          </Box>
+        )}
+
+        {step === STEP_MEDIA && (
+          <Box
+            sx={{
+              p: 2,
+              pt: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              pb: 1.5
+            }}
+          >
+            <input
+              key={mediaKind}
+              ref={mediaFileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              accept={mediaKind === 'pdf' ? 'application/pdf' : 'image/*,video/mp4'}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleMediaFileChosen(f);
+                e.target.value = '';
+              }}
+            />
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant={mediaKind === 'pdf' ? 'outlined' : 'contained'}
+                      onClick={() => {
+                        resetMediaState();
+                        setMediaKind('photo');
+                      }}
+                    >
+                      Photo / Video
+                    </Button>
+                    <Button
+                      variant={mediaKind === 'pdf' ? 'contained' : 'outlined'}
+                      onClick={() => {
+                        resetMediaState();
+                        setMediaKind('pdf');
+                      }}
+                    >
+                      PDF
+                    </Button>
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    border: '1px dashed #cbd5e1',
+                    borderRadius: 2,
+                    p: 2,
+                    minHeight: 140,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: 1,
+                    backgroundColor: '#f8fafc',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => mediaFileInputRef.current?.click()}
+                >
+                  {mediaSource ? (
+                    mediaKind === 'photo' && mediaPreviewUrl ? (
+                      <img
+                        src={mediaPreviewUrl}
+                        alt="Selected"
+                        style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 12 }}
+                      />
+                    ) : mediaKind === 'video' ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {mediaSource.originalName || 'video.mp4'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatBytes(mediaSource.size)}
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {mediaSource.originalName || 'PDF'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {pdfPageCount ? `${pdfPageCount} page${pdfPageCount > 1 ? 's' : ''}` : 'Ready to upload'}
+                        </Typography>
+                        {mediaSource.size ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {formatBytes(mediaSource.size)}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    )
+                  ) : (
+                    <>
+                      <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        Click to choose a file
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" align="center">
+                        {mediaKind === 'pdf'
+                          ? 'Upload a PDF to get title & summary suggestions.'
+                          : 'Upload photos or videos.'}
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+
+                {mediaError && (
+                  <Alert severity="error" onClose={() => setMediaError('')}>
+                    {mediaError}
+                  </Alert>
+                )}
+
+                {mediaKind === 'pdf' && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <TextField
+                      label="PDF Title"
+                      value={pdfTitle}
+                      onChange={(e) => {
+                        setPdfTitle(e.target.value);
+                        setMediaDirty(true);
+                      }}
+                      InputProps={{
+                        endAdornment: pdfTitleLoading ? <CircularProgress size={18} /> : null,
+                      }}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Essence (2-3 sentences)"
+                      value={pdfEssence}
+                      onChange={(e) => {
+                        setPdfEssence(e.target.value);
+                        setMediaDirty(true);
+                      }}
+                      InputProps={{
+                        endAdornment: pdfEssenceLoading ? <CircularProgress size={18} /> : null,
+                      }}
+                      fullWidth
+                      multiline
+                      minRows={3}
+                    />
+                  </Box>
+                )}
+
+                <TextField
+                  label="Teacher comment (optional)"
+                  value={mediaTeacherComment}
+                  onChange={(e) => {
+                    setMediaTeacherComment(e.target.value);
+                    setMediaDirty(true);
+                  }}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                />
+
+                {mediaUploading && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 1.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      backgroundColor: 'background.default'
+                    }}
+                  >
+                    <CircularProgress size={20} />
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Coach Pepper is prepping your media note...
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+              <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
+                <ClassroomStudentPicker
+                  selectedStudents={selectedStudents}
+                  onStudentsChange={handleStudentsChange}
+                  currentUser={currentUser}
+                  userRole={userRole}
+                  disabledStudentIds={[]}
+                  textData={null}
+                  voiceData={null}
+                />
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 1,
+                pt: 1.5,
+                borderTop: '1px solid #e2e8f0',
+                backgroundColor: 'white',
+                position: 'sticky',
+                bottom: 0,
+                mt: 0.5
+              }}
+            >
+              <Button
+                variant="outlined"
+                onClick={() => requestClose('media-cancel')}
+                disabled={saving || mediaUploading}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleCreateMediaNote}
+                disabled={saving || mediaUploading || !mediaSource || selectedStudents.length === 0}
+              >
+                Create Media Note
+              </Button>
             </Box>
           </Box>
         )}
