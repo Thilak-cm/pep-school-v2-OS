@@ -19,7 +19,8 @@ import {
   AutoFixHigh,
   ArrowBack,
   MenuBook,
-  PhotoLibrary
+  PhotoLibrary,
+  CloudUpload
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -1013,27 +1014,48 @@ function AddNoteModal({
         image.onerror = reject;
         image.src = url;
       });
-      const maxDim = 2048;
+      const maxBytes = 2 * 1024 * 1024;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to process image');
+
+      const renderToBlob = async (w, h, q) => {
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+        return new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', q));
+      };
+
+      const maxDim = 1600;
       let { width, height } = img;
       if (width > maxDim || height > maxDim) {
         const scale = Math.min(maxDim / width, maxDim / height);
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      const maxBytes = 2 * 1024 * 1024;
+
       let quality = 0.82;
-      let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
-      while (blob && blob.size > maxBytes && quality > 0.45) {
+      let blob = await renderToBlob(width, height, quality);
+      while (blob && blob.size > maxBytes && quality > 0.4) {
         quality -= 0.08;
-        blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+        blob = await renderToBlob(width, height, quality);
       }
+
+      while (blob && blob.size > maxBytes && (width > 1024 || height > 1024)) {
+        width = Math.round(width * 0.85);
+        height = Math.round(height * 0.85);
+        quality = Math.min(quality, 0.65);
+        blob = await renderToBlob(width, height, quality);
+        while (blob && blob.size > maxBytes && quality > 0.3) {
+          quality -= 0.07;
+          blob = await renderToBlob(width, height, quality);
+        }
+      }
+
       if (!blob) throw new Error('Unable to compress image');
-      if (blob.size > maxBytes) throw new Error('Photo must be under 2MB after compression');
+      if (blob.size > maxBytes) {
+        throw new Error('Photo is still above 2MB after compression. Try a smaller photo.');
+      }
       return { blob, width, height };
     } finally {
       URL.revokeObjectURL(url);
@@ -1829,11 +1851,20 @@ function AddNoteModal({
                 >
                   {mediaSource ? (
                     mediaKind === 'photo' && mediaPreviewUrl ? (
-                      <img
-                        src={mediaPreviewUrl}
-                        alt="Selected"
-                        style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 12 }}
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          component="img"
+                          src={mediaPreviewUrl}
+                          alt="Selected"
+                          sx={{ maxWidth: '100%', maxHeight: 200, borderRadius: 2 }}
+                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            Tap to upload another photo/video.
+                          </Typography>
+                        </Box>
+                      </Box>
                     ) : mediaKind === 'video' ? (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1842,6 +1873,12 @@ function AddNoteModal({
                         <Typography variant="caption" color="text.secondary">
                           {formatBytes(mediaSource.size)}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            Tap to upload another photo/video.
+                          </Typography>
+                        </Box>
                       </Box>
                     ) : (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
@@ -1856,6 +1893,12 @@ function AddNoteModal({
                             {formatBytes(mediaSource.size)}
                           </Typography>
                         ) : null}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            Tap to upload another PDF.
+                          </Typography>
+                        </Box>
                         {(pdfTitleLoading || pdfEssenceLoading) && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                             <CircularProgress size={14} />
