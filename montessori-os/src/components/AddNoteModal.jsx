@@ -20,7 +20,9 @@ import {
   ArrowBack,
   MenuBook,
   PhotoLibrary,
-  CloudUpload
+  CloudUpload,
+  Edit,
+  CheckCircle
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -333,6 +335,8 @@ function AddNoteModal({
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDirty, setMediaDirty] = useState(false);
   const [mediaError, setMediaError] = useState('');
+  const [mediaDisplayName, setMediaDisplayName] = useState('');
+  const [mediaNameEditing, setMediaNameEditing] = useState(false);
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfEssence, setPdfEssence] = useState('');
   const [pdfTitleLoading, setPdfTitleLoading] = useState(false);
@@ -726,6 +730,8 @@ function AddNoteModal({
     setMediaUploading(false);
     setMediaDirty(false);
     setMediaError('');
+    setMediaDisplayName('');
+    setMediaNameEditing(false);
     setPdfTitle('');
     setPdfEssence('');
     setPdfTitleLoading(false);
@@ -934,12 +940,26 @@ function AddNoteModal({
     setMediaUploading(false);
     setMediaDirty(false);
     setMediaError('');
+    setMediaDisplayName('');
+    setMediaNameEditing(false);
     setPdfTitle('');
     setPdfEssence('');
     setPdfTitleLoading(false);
     setPdfEssenceLoading(false);
     setPdfPageCount(null);
     setPdfExtractedText('');
+  };
+
+  const getPdfBaseName = (name) => {
+    const raw = String(name || '');
+    if (raw.toLowerCase().endsWith('.pdf')) return raw.slice(0, -4);
+    return raw;
+  };
+
+  const buildPdfName = (base) => {
+    const trimmed = String(base || '').trim();
+    if (!trimmed) return 'document.pdf';
+    return `${trimmed}.pdf`;
   };
 
   const handleSelectVoice = () => {
@@ -1126,6 +1146,8 @@ function AddNoteModal({
           extension: 'pdf',
           originalName: file.name
         });
+        setMediaDisplayName(file.name);
+        setMediaNameEditing(false);
         const { text, pageCount } = await extractPdfTextFromFile(file);
         setPdfExtractedText(text);
         setPdfPageCount(pageCount);
@@ -1147,6 +1169,8 @@ function AddNoteModal({
           extension: 'mp4',
           originalName: file.name
         });
+        setMediaDisplayName(file.name);
+        setMediaNameEditing(false);
         setMediaPreviewUrl(previewUrl);
         return;
       }
@@ -1171,6 +1195,8 @@ function AddNoteModal({
         extension: 'webp',
         originalName: file.name
       });
+      setMediaDisplayName(file.name);
+      setMediaNameEditing(false);
       setMediaPreviewUrl(previewUrl);
     } catch (err) {
       console.error('Media selection error', err);
@@ -1212,10 +1238,12 @@ function AddNoteModal({
     const storagePath = `students/${studentId}/observations/${obsRef.id}/media/original.${source.extension}`;
     const kind = mediaKind === 'video' ? 'video' : (mediaKind === 'pdf' ? 'pdf' : 'photo');
 
+    const displayName = mediaDisplayName?.trim();
     const mediaEntry = {
       storagePath,
       contentType: source.contentType,
       sizeBytes: source.size || 0,
+      ...(displayName ? { displayName } : {}),
       ...(source.width ? { width: source.width, height: source.height } : {})
     };
 
@@ -1858,6 +1886,39 @@ function AddNoteModal({
                           alt="Selected"
                           sx={{ maxWidth: '100%', maxHeight: 200, borderRadius: 2 }}
                         />
+                        {(mediaDisplayName || mediaSource.originalName) && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                            {mediaNameEditing ? (
+                              <TextField
+                                size="small"
+                                value={mediaDisplayName}
+                                onChange={(e) => {
+                                  setMediaDisplayName(e.target.value);
+                                  setMediaDirty(true);
+                                }}
+                                onBlur={() => setMediaNameEditing(false)}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                autoFocus
+                                sx={{ width: 220 }}
+                              />
+                            ) : (
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {mediaDisplayName || mediaSource.originalName}
+                              </Typography>
+                            )}
+                            <IconButton
+                              size="small"
+                              aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMediaNameEditing((prev) => !prev);
+                              }}
+                            >
+                              {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
+                            </IconButton>
+                          </Box>
+                        )}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
                           <Typography variant="caption" color="text.secondary">
@@ -1867,9 +1928,37 @@ function AddNoteModal({
                       </Box>
                     ) : mediaKind === 'video' ? (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {mediaSource.originalName || 'video.mp4'}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                          {mediaNameEditing ? (
+                            <TextField
+                              size="small"
+                              value={mediaDisplayName}
+                              onChange={(e) => {
+                                setMediaDisplayName(e.target.value);
+                                setMediaDirty(true);
+                              }}
+                              onBlur={() => setMediaNameEditing(false)}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              autoFocus
+                              sx={{ width: 220 }}
+                            />
+                          ) : (
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {mediaDisplayName || mediaSource.originalName || 'video.mp4'}
+                            </Typography>
+                          )}
+                          <IconButton
+                            size="small"
+                            aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaNameEditing((prev) => !prev);
+                            }}
+                          >
+                            {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
+                          </IconButton>
+                        </Box>
                         <Typography variant="caption" color="text.secondary">
                           {formatBytes(mediaSource.size)}
                         </Typography>
@@ -1882,31 +1971,51 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {mediaSource.originalName || 'PDF'}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                          {mediaNameEditing ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <TextField
+                                size="small"
+                                value={getPdfBaseName(mediaDisplayName || mediaSource.originalName || '')}
+                                onChange={(e) => {
+                                  setMediaDisplayName(buildPdfName(e.target.value));
+                                  setMediaDirty(true);
+                                }}
+                                onBlur={() => setMediaNameEditing(false)}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                autoFocus
+                                sx={{ width: 200 }}
+                              />
+                              <Typography variant="body2" color="text.disabled">
+                                .pdf
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {mediaDisplayName || mediaSource.originalName || 'PDF'}
+                            </Typography>
+                          )}
+                          <IconButton
+                            size="small"
+                            aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMediaNameEditing((prev) => !prev);
+                            }}
+                          >
+                            {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
+                          </IconButton>
+                        </Box>
                         <Typography variant="caption" color="text.secondary">
                           {pdfPageCount ? `${pdfPageCount} page${pdfPageCount > 1 ? 's' : ''}` : 'Ready to upload'}
                         </Typography>
-                        {mediaSource.size ? (
-                          <Typography variant="caption" color="text.secondary">
-                            {formatBytes(mediaSource.size)}
-                          </Typography>
-                        ) : null}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
                           <Typography variant="caption" color="text.secondary">
                             Tap to upload another PDF.
                           </Typography>
                         </Box>
-                        {(pdfTitleLoading || pdfEssenceLoading) && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                            <CircularProgress size={14} />
-                            <Typography variant="caption" color="text.secondary">
-                              Coach Pepper is scanning and understanding the PDF...
-                            </Typography>
-                          </Box>
-                        )}
                       </Box>
                     )
                   ) : (
@@ -2310,6 +2419,22 @@ function AddNoteModal({
               Discard
             </Button>
           </Box>
+        </Box>
+      </Dialog>
+      {/* PDF processing dialog */}
+      <Dialog
+        open={step === STEP_MEDIA && mediaKind === 'pdf' && (pdfTitleLoading || pdfEssenceLoading)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <CircularProgress />
+          <Typography variant="h6" sx={{ textAlign: 'center' }}>
+            Coach Pepper is scanning your PDF
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+            This takes a few seconds. We’ll fill in the title and summary when it’s ready.
+          </Typography>
         </Box>
       </Dialog>
       <Snackbar 
