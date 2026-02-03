@@ -1,5 +1,15 @@
 # Changelog
 
+# 8.0.1 — 2026-01-31
+
+### Fixed
+- Media notes: improved iOS photo compression with extra downscaling so large photos consistently fit under the 2MB limit.
+
+### Changed
+- Media notes: PDF upload card now shows a single Coach Pepper scan state with a small spinner while title/essence are generated.
+- Media notes: selected photo/video/PDF cards now include a small upload icon and “tap to upload another” hint for easy replacement.
+- Student picker: search input now looks like a rounded search bar with a magnifying glass and scrolling placeholder text.
+
 # 8.0.0 — 2026-01-31
 
 ### Added
