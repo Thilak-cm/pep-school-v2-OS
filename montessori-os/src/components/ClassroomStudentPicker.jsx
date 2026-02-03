@@ -18,7 +18,8 @@ import {
   Paper,
   Button,
   Tooltip,
-  Stack
+  Stack,
+  InputAdornment
 } from '@mui/material';
 import { 
   ExpandMore, 
@@ -1049,15 +1050,51 @@ function ClassroomStudentPicker({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             disabled={studentsLoading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Typography variant="body2" sx={{ lineHeight: 1 }}>
+                    🔍
+                  </Typography>
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 999,
+                backgroundColor: 'background.paper'
+              }
+            }}
           />
           {(!searchQuery || searchQuery.length === 0) && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+            <Box
+              sx={{
+                position: 'absolute',
+                left: 44,
+                right: 16,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+                '@keyframes scrollPlaceholder': {
+                  '0%': { transform: 'translateX(0%)' },
+                  '45%': { transform: 'translateX(0%)' },
+                  '100%': { transform: 'translateX(-55%)' }
+                }
+              }}
             >
-              Search students, classrooms, or groups
-            </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  animation: 'scrollPlaceholder 10s linear infinite'
+                }}
+              >
+                Search students, classrooms, or groups
+              </Typography>
+            </Box>
           )}
         </Box>
 
