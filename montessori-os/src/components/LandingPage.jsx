@@ -17,14 +17,10 @@ import {
   BarChart,
   PersonAdd,
   Download,
-  Psychology,
-  Tune
+  Psychology
 } from '@mui/icons-material';
-import { isSuperAdmin } from '../utils/roleUtils';
-
 function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
   const isTeacher = userRole === 'teacher';
-  const isSuperAdminUser = isSuperAdmin(userRole);
   
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -260,43 +256,6 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
             </Grid>
 
 
-            {/* Configurations */}
-            {isSuperAdminUser && (
-              <Grid size={12}>
-                <Card
-                  sx={{
-                    borderRadius: 2,
-                    '&:hover': {
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                      transform: 'translateY(-2px)',
-                    },
-                    transition: 'all 0.2s ease-in-out',
-                  }}
-                >
-                  <CardActionArea onClick={() => onNavigate('/config')} sx={{ p: 0 }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar sx={{ bgcolor: '#7c3aed', width: 56, height: 56 }}>
-                            <Tune />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                              Configurations
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-                              Manage configuration settings
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <ArrowForward sx={{ color: '#94a3b8' }} />
-                      </Box>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              </Grid>
-            )}
-
             {/* Review Classroom Notes */}
             <Grid size={12}>
               <Card
@@ -332,13 +291,13 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                             color: '#1e293b',
                             fontWeight: 600
                           }}>
-                            Review Classroom Notes
+                            Export Notes
                           </Typography>
                           <Typography variant="body2" sx={{ 
                             color: '#64748b',
                             mt: 0.5
                           }}>
-                            Export notes at classroom level
+                            Save notes as .txt files
                           </Typography>
                         </Box>
                       </Box>

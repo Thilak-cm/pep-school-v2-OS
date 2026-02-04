@@ -415,8 +415,9 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-      case 'config':
         return () => setScreen('landingPage');
+      case 'config':
+        return () => setScreen('settings');
       case 'configLessonNotes':
       case 'configAiTools':
         return () => setScreen('config');
@@ -866,6 +867,8 @@ function App() {
                   {screen === 'classroomNotesReview' && (
                     <ReviewClassroomNotes
                       currentUser={user}
+                      userRole={role}
+                      manageableClassrooms={manageableClassrooms}
                     />
                   )}
 

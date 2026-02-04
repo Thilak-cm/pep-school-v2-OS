@@ -273,7 +273,7 @@ function ExportWizard({
               }}
               inputProps={{ 
                 inputMode: 'numeric', 
-                placeholder: `${new Date().toLocaleDateString('en-GB')}`
+                placeholder: 'Up to today'
               }}
               inputRef={toInputRef}
               fullWidth

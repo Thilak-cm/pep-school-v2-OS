@@ -1,39 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Autocomplete,
   Box,
-  Typography,
+  Button,
   Card,
   CardContent,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Checkbox,
-  ListItemText,
-  Button,
-  CircularProgress,
-  Stack,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField
+  CircularProgress,
+  Divider,
+  Stack,
+  TextField,
+  Typography
 } from '@mui/material';
 import { Download, Refresh } from '@mui/icons-material';
-import { collection, collectionGroup, getDocs, query, where } from 'firebase/firestore';
+import { collection, collectionGroup, documentId, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import exportObservations from '../utils/export';
+import ExportWizard from './ExportWizard';
+import { executeExportJob, filterObservationsForExport, NOTE_KIND } from '../utils/export';
 import useNotify from '../notifications/useNotify';
+import { isSuperAdmin, isClassroomAdmin } from '../utils/roleUtils';
 
-const MENU_PROPS = {
-  PaperProps: {
-    style: {
-      maxHeight: 48 * 6.5 + 8,
-      width: 280
-    }
-  }
-};
+const BATCH_LIMIT = 10;
 
 const getTimestampValue = (observation) => {
   const source = observation?.observedAt || observation?.timestamp;
@@ -70,174 +57,350 @@ const buildGroupedByClassroom = (notes = [], classrooms = []) => {
   return Array.from(groups.values()).sort((a, b) => a.order - b.order);
 };
 
-function ReviewClassroomNotes({ currentUser }) {
+const getStudentLabel = (student = {}) => {
+  const direct = student.displayName || student.name;
+  if (direct) return direct;
+  const names = [student.firstName, student.lastName].filter(Boolean).join(' ');
+  return names || 'Student';
+};
+
+const sanitizeObservations = (items = []) => items.filter((obs) => obs?.type !== 'media');
+
+function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = [] }) {
   const notify = useNotify();
   const [classrooms, setClassrooms] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loadingClassrooms, setLoadingClassrooms] = useState(true);
-  const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [exportWizardOpen, setExportWizardOpen] = useState(false);
+  const [exportObservations, setExportObservations] = useState([]);
+  const [exportContext, setExportContext] = useState(null);
+  const [exportSubjectLabel, setExportSubjectLabel] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [fetchingNotes, setFetchingNotes] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState('json');
-  const [exportNotes, setExportNotes] = useState([]);
-  const [exportDateFrom, setExportDateFrom] = useState('');
-  const [exportDateTo, setExportDateTo] = useState('');
+  const [selectedClassroomIds, setSelectedClassroomIds] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
+  const isTeacher = userRole === 'teacher';
+  const isClassroomAdminUser = isClassroomAdmin(userRole);
+  const isSuperAdminUser = isSuperAdmin(userRole);
+
+  const selectedClassrooms = useMemo(
+    () => classrooms.filter((cls) => selectedClassroomIds.includes(cls.id)),
+    [classrooms, selectedClassroomIds]
+  );
+
+  const classroomNames = useMemo(
+    () => selectedClassrooms.map((cls) => cls.name || cls.id),
+    [selectedClassrooms]
+  );
 
   useEffect(() => {
-    const fetchClassrooms = async () => {
+    let isMounted = true;
+
+    const loadClassrooms = async () => {
       setLoadingClassrooms(true);
       try {
-        const snapshot = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
-        const list = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => (a?.name || '').localeCompare(b?.name || ''));
-        setClassrooms(list);
+        let results = [];
+
+        if (isTeacher) {
+          if (!currentUser?.uid) {
+            if (isMounted) setClassrooms([]);
+            return;
+          }
+          const snap = await getDocs(query(collection(db, 'classrooms')));
+          results = snap.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((cls) => (cls.status || 'active') !== 'archived')
+            .filter((cls) => Array.isArray(cls.teacherIds) && cls.teacherIds.includes(currentUser.uid));
+        } else if (isClassroomAdminUser) {
+          const ids = (manageableClassrooms || []).filter(Boolean);
+          if (!ids.length) {
+            if (isMounted) setClassrooms([]);
+            return;
+          }
+
+          const batches = [];
+          for (let i = 0; i < ids.length; i += BATCH_LIMIT) {
+            batches.push(ids.slice(i, i + BATCH_LIMIT));
+          }
+
+          const collected = [];
+          for (const batch of batches) {
+            const q = query(
+              collection(db, 'classrooms'),
+              where(documentId(), 'in', batch),
+              where('status', '==', 'active')
+            );
+            const snap = await getDocs(q);
+            collected.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          }
+
+          const deduped = {};
+          collected.forEach((cls) => {
+            if (cls?.id) deduped[cls.id] = cls;
+          });
+          results = Object.values(deduped);
+        } else {
+          const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+          results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        }
+
+        // Exclude adolescent classrooms and sort
+        results = results
+          .filter((cls) => !String(cls?.name || '').toLowerCase().includes('adolescent'))
+          .sort((a, b) => (a?.name || '').localeCompare(b?.name || '', undefined, { sensitivity: 'base' }));
+
+        if (isMounted) setClassrooms(results);
       } catch (err) {
         console.error('Error loading classrooms for export', err);
         notify.error('Unable to load classrooms right now. Please try again.', {
           id: 'export-classrooms-load-error',
           duration: 4000
         });
+        if (isMounted) setClassrooms([]);
       } finally {
-        setLoadingClassrooms(false);
+        if (isMounted) setLoadingClassrooms(false);
       }
     };
 
-    fetchClassrooms();
-  }, []);
+    loadClassrooms();
 
-  const selectedClassrooms = useMemo(
-    () => classrooms.filter(cls => selectedClassroomIds.includes(cls.id)),
-    [classrooms, selectedClassroomIds]
-  );
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.uid, isTeacher, isClassroomAdminUser, manageableClassrooms, notify]);
 
-  const handleSelectChange = (event) => {
-    const value = event.target.value;
-    setSelectedClassroomIds(typeof value === 'string' ? value.split(',') : value);
-  };
+  useEffect(() => {
+    // Wait for classrooms when role needs them
+    if ((isTeacher || isClassroomAdminUser) && loadingClassrooms) return;
 
-  const resetExportState = () => {
-    setConfirmOpen(false);
-    setExportNotes([]);
-    setExportDateFrom('');
-    setExportDateTo('');
-    setExporting(false);
-    setFetchingNotes(false);
-  };
+    let isMounted = true;
 
-  const loadObservationsForSelection = async () => {
-    const observations = [];
+    const loadStudents = async () => {
+      setLoadingStudents(true);
+      try {
+        let results = [];
 
-    await Promise.all(
-      selectedClassrooms.map(async (classroom) => {
-        const notesQuery = query(
-          collectionGroup(db, 'observations'),
-          where('classroomId', '==', classroom.id)
+        if (isTeacher) {
+          const allowedIds = classrooms.map((cls) => cls.id).filter(Boolean);
+          if (!allowedIds.length) {
+            if (isMounted) setStudents([]);
+            return;
+          }
+
+          for (let i = 0; i < allowedIds.length; i += BATCH_LIMIT) {
+            const batch = allowedIds.slice(i, i + BATCH_LIMIT);
+            const q = query(collection(db, 'students'), where('classroomId', 'in', batch));
+            const snap = await getDocs(q);
+            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          }
+        } else if (isClassroomAdminUser) {
+          const adminClassroomIds = classrooms.map((cls) => cls.id).filter(Boolean);
+          if (!adminClassroomIds.length) {
+            if (isMounted) setStudents([]);
+            return;
+          }
+
+          for (let i = 0; i < adminClassroomIds.length; i += BATCH_LIMIT) {
+            const batch = adminClassroomIds.slice(i, i + BATCH_LIMIT);
+            const q = query(collection(db, 'students'), where('classroomId', 'in', batch));
+            const snap = await getDocs(q);
+            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          }
+        } else {
+          const snap = await getDocs(collection(db, 'students'));
+          results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        }
+
+        const deduped = new Map();
+        results.forEach((stu) => {
+          if (stu?.id) deduped.set(stu.id, stu);
+        });
+
+        const sorted = Array.from(deduped.values()).sort((a, b) =>
+          getStudentLabel(a).localeCompare(getStudentLabel(b), undefined, { sensitivity: 'base' })
         );
+
+        if (isMounted) setStudents(sorted);
+      } catch (err) {
+        console.error('Error loading students for export', err);
+        notify.error('Unable to load students right now. Please try again.', {
+          id: 'export-students-load-error',
+          duration: 4000
+        });
+        if (isMounted) setStudents([]);
+      } finally {
+        if (isMounted) setLoadingStudents(false);
+      }
+    };
+
+    loadStudents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [classrooms, isTeacher, isClassroomAdminUser, loadingClassrooms, notify]);
+
+  const handleStudentChange = (_, value) => {
+    setSelectedStudent(value || null);
+    if (value) {
+      setSelectedClassroomIds([]);
+    }
+  };
+
+  const handleClassroomsChange = (_, value = []) => {
+    setSelectedClassroomIds(value.map((cls) => cls.id));
+  };
+
+  const fetchStudentObservations = async (student) => {
+    const notesQuery = query(collectionGroup(db, 'observations'), where('studentId', '==', student.id));
+    const snapshot = await getDocs(notesQuery);
+    return sanitizeObservations(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+  };
+
+  const fetchClassroomObservations = async (classroomList = []) => {
+    const observations = [];
+    await Promise.all(
+      classroomList.map(async (cls) => {
+        const notesQuery = query(collectionGroup(db, 'observations'), where('classroomId', '==', cls.id));
         const snapshot = await getDocs(notesQuery);
-        snapshot.forEach(doc => {
-          observations.push({ id: doc.id, classroomName: classroom.name, classroomId: classroom.id, ...doc.data() });
+        snapshot.forEach((doc) => {
+          observations.push({
+            id: doc.id,
+            classroomName: cls.name,
+            classroomId: cls.id,
+            ...doc.data()
+          });
         });
       })
     );
-
-    return observations.sort((a, b) => getTimestampValue(b) - getTimestampValue(a));
+    return sanitizeObservations(observations);
   };
 
-  const handleExport = async (format = 'json') => {
-    if (!selectedClassroomIds.length) {
-      notify.warning('Select at least one classroom to export notes.', { id: 'export-classrooms-none', duration: 3000 });
+  const handlePrepareExport = async () => {
+    if (!selectedStudent && selectedClassroomIds.length === 0) {
+      notify.warning('Select a student or at least one classroom to export.', {
+        id: 'export-selection-missing',
+        duration: 3000
+      });
       return;
     }
 
-    setExportFormat(format);
-    setExportNotes([]);
-    setExportDateFrom('');
-    setExportDateTo('');
-    setConfirmOpen(true);
-    setFetchingNotes(true);
-
+    setLoadingNotes(true);
     try {
-      const observations = await loadObservationsForSelection();
-
-      if (!observations.length) {
-        resetExportState();
-        notify.warning('No notes found for the selected classroom(s).', { id: 'export-classrooms-empty', duration: 3500 });
+      if (selectedStudent) {
+        const observations = await fetchStudentObservations(selectedStudent);
+        if (!observations.length) {
+          notify.warning('No notes found for the selected student.', {
+            id: 'export-student-empty',
+            duration: 3200
+          });
+          return;
+        }
+        const sorted = observations.sort((a, b) => getTimestampValue(b) - getTimestampValue(a));
+        setExportObservations(sorted);
+        setExportContext({ type: 'student', student: selectedStudent });
+        setExportSubjectLabel(getStudentLabel(selectedStudent));
+        setExportWizardOpen(true);
         return;
       }
 
-      setExportNotes(observations);
+      const observations = await fetchClassroomObservations(selectedClassrooms);
+      if (!observations.length) {
+        notify.warning('No notes found for the selected classroom(s).', {
+          id: 'export-classrooms-empty',
+          duration: 3200
+        });
+        return;
+      }
+      const sorted = observations.sort((a, b) => getTimestampValue(b) - getTimestampValue(a));
+      setExportObservations(sorted);
+      setExportContext({
+        type: 'classrooms',
+        classroomIds: selectedClassroomIds.slice(),
+        classrooms: selectedClassrooms.slice()
+      });
+      const label =
+        selectedClassrooms.length === 1
+          ? `Classroom: ${selectedClassrooms[0]?.name || 'Classroom'}`
+          : `Classrooms: ${classroomNames.join(', ')}`;
+      setExportSubjectLabel(label);
+      setExportWizardOpen(true);
     } catch (err) {
-      console.error('Error exporting classroom notes', err);
-      resetExportState();
-      notify.error('Failed to prepare notes for export. Please try again.', { id: 'export-classrooms-prepare-error', duration: 4000 });
-      return;
+      console.error('Error preparing export', err);
+      notify.error('Failed to prepare notes for export. Please try again.', {
+        id: 'export-prepare-error',
+        duration: 4000
+      });
     } finally {
-      setFetchingNotes(false);
+      setLoadingNotes(false);
     }
   };
 
-  const handleExportCancel = () => {
-    resetExportState();
-  };
-
-  const filterObservationsByDate = (notes) => {
-    if (!notes || !notes.length) return [];
-    const fromMs = exportDateFrom ? new Date(`${exportDateFrom}T00:00:00`).getTime() : null;
-    const toMs = exportDateTo ? new Date(`${exportDateTo}T23:59:59`).getTime() : null;
-
-    return notes.filter((note) => {
-      const timestamp = getTimestampValue(note);
-      if (!timestamp) return true;
-      if (fromMs && timestamp < fromMs) return false;
-      if (toMs && timestamp > toMs) return false;
-      return true;
-    });
-  };
-
-  const filteredExportNotes = useMemo(
-    () => filterObservationsByDate(exportNotes),
-    [exportNotes, exportDateFrom, exportDateTo]
-  );
-
-  const handleExportConfirm = () => {
-    if (!exportNotes.length) {
-      return;
-    }
-
-    const notesToExport = filteredExportNotes;
-
-    if (!notesToExport.length) {
-      return;
-    }
-
+  const handleRunExport = ({ noteKinds, format, dateRange }) => {
+    if (!exportContext) return;
     setExporting(true);
 
     try {
-      const subjectTitle = selectedClassrooms.length === 1
-        ? `${selectedClassrooms[0]?.name || 'Classroom'} Notes`
-        : `Classroom Notes (${selectedClassrooms.length} classes)`;
+      const filtered = filterObservationsForExport({
+        observations: exportObservations,
+        noteKinds,
+        dateRange
+      });
 
-      const groupedByClassroom = buildGroupedByClassroom(notesToExport, selectedClassrooms);
+      if (!filtered.length) {
+        notify.warning('No notes match the selected filters.', {
+          id: 'export-filter-empty',
+          duration: 3000
+        });
+        setExporting(false);
+        return;
+      }
 
-      const result = exportObservations({
-        observations: notesToExport,
-        currentUser,
-        format: exportFormat,
-        exportType: 'classroom_notes_export',
-        subject: {
-          type: 'classroom_collection',
-          classroomIds: selectedClassroomIds,
-          classroomNames: selectedClassrooms.map(cls => cls.name || cls.id),
-          title: subjectTitle,
-          groupedBy: 'classroom',
-          selectedDateRange: {
-            from: exportDateFrom || null,
-            to: exportDateTo || null
-          }
-        },
+      const subject =
+        exportContext.type === 'student'
+          ? {
+              type: 'student',
+              id: exportContext.student?.id,
+              name: getStudentLabel(exportContext.student),
+              displayName: getStudentLabel(exportContext.student),
+              classroomId: exportContext.student?.classroomId || null
+            }
+          : {
+              type: 'classroom_collection',
+              classroomIds: exportContext.classroomIds || [],
+              classroomNames: (exportContext.classrooms || []).map((cls) => cls.name || cls.id),
+              groupedBy: 'classroom',
+              selectedDateRange: {
+                from: dateRange?.from || null,
+                to: dateRange?.to || null
+              }
+            };
+
+      const subjectTitle =
+        exportContext.type === 'student'
+          ? `${getStudentLabel(exportContext.student)} - Notes`
+          : `${(exportContext.classrooms || []).length === 1
+            ? (exportContext.classrooms || [])[0]?.name || 'Classroom'
+            : `${(exportContext.classrooms || []).length} Classrooms`
+          } - Notes`;
+
+      const groupedObservations =
+        exportContext.type === 'classrooms'
+          ? buildGroupedByClassroom(filtered, exportContext.classrooms || [])
+          : null;
+
+      const result = executeExportJob({
+        actor: currentUser,
+        subject,
+        data: { observations: filtered },
+        noteKinds,
+        format,
+        dateRange,
+        exportType: exportContext.type === 'student' ? 'student_export' : 'classroom_notes_export',
         textHeader: subjectTitle,
-        groupedObservations: groupedByClassroom
+        groupedObservations
       });
 
       if (!result?.success) {
@@ -245,19 +408,32 @@ function ReviewClassroomNotes({ currentUser }) {
       }
 
       notify.success(`Exported ${result.observationCount} notes.`, {
-        id: 'export-classrooms-success',
+        id: 'export-success',
         duration: 3500
       });
-      resetExportState();
+      setExportWizardOpen(false);
+      setExportContext(null);
     } catch (err) {
-      console.error('Error exporting classroom notes', err);
-      setExporting(false);
+      console.error('Export error', err);
       notify.error('Failed to export notes. Please try again.', {
-        id: 'export-classrooms-error',
+        id: 'export-error',
         duration: 4000
       });
+    } finally {
+      setExporting(false);
     }
   };
+
+  const handleCloseWizard = () => {
+    setExportWizardOpen(false);
+    setExportContext(null);
+  };
+
+  const selectionSummary = selectedStudent
+    ? `Student: ${getStudentLabel(selectedStudent)}`
+    : selectedClassroomIds.length
+      ? `Classrooms: ${classroomNames.join(', ')}`
+      : 'No selection yet';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -265,236 +441,151 @@ function ReviewClassroomNotes({ currentUser }) {
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
-              Review Classroom Notes
+              Export Notes
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-              Select one or more classrooms to export every student note for manual review.
+              Choose a student or select classrooms to export observations and lesson notes in one file.
             </Typography>
           </Box>
 
-          {loadingClassrooms ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <CircularProgress size={20} />
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Coach Pepper is gathering classrooms…
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>
+                Student (single)
               </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Selecting a student ignores any classroom selection.
+              </Typography>
+              <Autocomplete
+                options={students}
+                loading={loadingStudents}
+                value={selectedStudent}
+                onChange={handleStudentChange}
+                getOptionLabel={(option) => getStudentLabel(option)}
+                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Search student"
+                    placeholder="Start typing a student name"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {loadingStudents ? <CircularProgress color="inherit" size={18} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      )
+                    }}
+                  />
+                )}
+                clearOnBlur={false}
+              />
             </Box>
-          ) : (
-            <FormControl fullWidth>
-              <InputLabel id="classroom-multi-select-label">Classrooms</InputLabel>
-              <Select
-                labelId="classroom-multi-select-label"
-                multiple
-                value={selectedClassroomIds}
-                onChange={handleSelectChange}
-                label="Classrooms"
-                renderValue={(selected) => {
-                  if (!selected.length) return 'Select classrooms';
-                  if (selected.length > 3) {
-                    return `${selected.length} classrooms selected`;
-                  }
-                  const names = classrooms
-                    .filter(cls => selected.includes(cls.id))
-                    .map(cls => cls.name || cls.id);
-                  return names.join(', ');
-                }}
-                MenuProps={MENU_PROPS}
-              >
-                {classrooms.map((classroom) => (
-                  <MenuItem key={classroom.id} value={classroom.id}>
-                    <Checkbox checked={selectedClassroomIds.includes(classroom.id)} />
-                    <ListItemText
-                      primary={classroom.name || 'Unnamed classroom'}
-                      secondary={classroom.teacherNames?.join(', ')}
-                    />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
 
-          {selectedClassrooms.length > 0 && (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" flex={1}>
-                {selectedClassrooms.map(cls => (
-                  <Chip key={cls.id} label={cls.name || cls.id} />
-                ))}
+            <Divider flexItem>or</Divider>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>
+                Classrooms (multi-select)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Disabled while a student is selected.
+              </Typography>
+              <Autocomplete
+                multiple
+                options={classrooms}
+                value={selectedClassrooms}
+                onChange={handleClassroomsChange}
+                getOptionLabel={(option) => option?.name || option?.id || 'Classroom'}
+                isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                disabled={!!selectedStudent}
+                loading={loadingClassrooms}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      {...getTagProps({ index })}
+                      key={option.id}
+                      label={option.name || option.id}
+                      size="small"
+                    />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Select classrooms"
+                    placeholder="Search classrooms"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {loadingClassrooms ? <CircularProgress color="inherit" size={18} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      )
+                    }}
+                  />
+                )}
+              />
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }} alignItems="center">
+                <Button
+                  variant="text"
+                  startIcon={<Refresh />}
+                  onClick={() => setSelectedClassroomIds([])}
+                  disabled={!!selectedStudent || loadingClassrooms || !selectedClassroomIds.length}
+                  sx={{ minWidth: 'unset' }}
+                >
+                  Clear classrooms
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  {selectedStudent
+                    ? 'Classroom selection is disabled when a student is chosen.'
+                    : `${selectedClassroomIds.length || 0} selected`}
+                </Typography>
               </Stack>
+            </Box>
+
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              justifyContent="space-between"
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Selection
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectionSummary}
+                </Typography>
+              </Box>
               <Button
-                variant="text"
-                startIcon={<Refresh />}
-                onClick={() => setSelectedClassroomIds([])}
-                disabled={fetchingNotes || !selectedClassroomIds.length}
-                sx={{ alignSelf: { xs: 'flex-start', sm: 'auto' }, minWidth: 'unset' }}
+                variant="contained"
+                startIcon={loadingNotes ? <CircularProgress size={16} color="inherit" /> : <Download />}
+                onClick={handlePrepareExport}
+                disabled={loadingNotes || (!selectedStudent && selectedClassroomIds.length === 0)}
+                sx={{ alignSelf: { xs: 'stretch', sm: 'auto' }, minWidth: 180 }}
               >
-                Clear selection
+                {loadingNotes ? 'Preparing…' : 'Export'}
               </Button>
             </Stack>
-          )}
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<Download />}
-              onClick={() => handleExport('json')}
-              disabled={loadingClassrooms || fetchingNotes}
-              sx={{ flex: 1 }}
-            >
-              Export as JSON
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => handleExport('txt')}
-              disabled={loadingClassrooms || fetchingNotes}
-              sx={{ flex: 1 }}
-            >
-              Export as TXT
-            </Button>
           </Stack>
-
         </CardContent>
       </Card>
 
-      <Dialog
-        open={confirmOpen}
-        onClose={handleExportCancel}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 420,
-            width: 'calc(100% - 32px)',
-            mx: 'auto'
-          }
-        }}
-      >
-        <DialogTitle component="div" sx={{ pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Download color="primary" />
-            <Typography component="h2" variant="h6">Confirm Export</Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          {fetchingNotes ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <CircularProgress size={20} />
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                Preparing notes for export…
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                Export {filteredExportNotes.length} {filteredExportNotes.length === 1 ? 'note' : 'notes'} across
-                {' '}
-                {selectedClassrooms.length === 1
-                  ? `${selectedClassrooms[0]?.name || 'this classroom'}`
-                  : `${selectedClassrooms.length} classrooms`}?
-              </Typography>
-
-              <Box sx={{ mb: 2 }}>
-                <Typography
-                  variant="caption"
-                  sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}
-                >
-                  Date Range (optional)
-                </Typography>
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={() => {
-                    setExportDateFrom('');
-                    setExportDateTo('');
-                  }}
-                  disabled={!exportDateFrom && !exportDateTo}
-                  sx={{ alignSelf: 'flex-start', mb: 1, p: 0, minWidth: 'unset' }}
-                >
-                  Clear dates
-                </Button>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <TextField
-                    label="From Date"
-                    type="date"
-                    size="small"
-                    value={exportDateFrom}
-                    onChange={(e) => setExportDateFrom(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ flex: 1 }}
-                  />
-                  <TextField
-                    label="To Date"
-                    type="date"
-                    size="small"
-                    value={exportDateTo}
-                    onChange={(e) => setExportDateTo(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    placeholder="Today"
-                    sx={{ flex: 1, '& input::placeholder': { opacity: 0.6, color: 'text.disabled' } }}
-                  />
-                </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  p: 2,
-                  backgroundColor: '#f8fafc',
-                  borderRadius: 2,
-                  border: '1px solid #e2e8f0',
-                  mb: 2
-                }}
-              >
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Classrooms:</strong>{' '}
-                  {selectedClassrooms.map(cls => cls.name || cls.id).join(', ')}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Export Type:</strong> Selected Classrooms
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Count:</strong> {filteredExportNotes.length} out of {exportNotes.length} notes
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Date Range:</strong>{' '}
-                  {exportDateFrom || exportDateTo
-                    ? `${exportDateFrom || 'Start'} to ${exportDateTo || 'Today'}`
-                    : 'All dates'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  <strong>Format:</strong> {exportFormat.toUpperCase()} file (.{exportFormat})
-                </Typography>
-              </Box>
-
-              {filteredExportNotes.length === 0 && exportNotes.length > 0 && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  No notes match the selected date range. Adjust the filters to proceed.
-                </Alert>
-              )}
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button
-            onClick={handleExportCancel}
-            variant="outlined"
-            sx={{ flex: 1 }}
-            disabled={exporting}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleExportConfirm}
-            variant="contained"
-            sx={{ flex: 1 }}
-            disabled={exporting || fetchingNotes || filteredExportNotes.length === 0}
-            startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <Download />}
-          >
-            {exporting ? 'Exporting…' : `Export as ${exportFormat.toUpperCase()}`}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ExportWizard
+        open={exportWizardOpen}
+        onClose={handleCloseWizard}
+        onConfirm={handleRunExport}
+        observations={exportObservations}
+        defaultNoteKind={NOTE_KIND.BOTH}
+        isSuperAdmin={isSuperAdminUser}
+        defaultFormat="txt"
+        loading={exporting}
+        title="Export Notes"
+        subjectLabel={exportSubjectLabel}
+      />
     </Box>
   );
 }

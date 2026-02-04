@@ -20,12 +20,15 @@ import {
   BarChart,
   Group,
   Feedback,
-  Logout
+  Logout,
+  Tune
 } from '@mui/icons-material';
 import VersionBadge from './VersionBadge';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const isSuperAdminUser = isSuperAdmin(userRole);
 
   const menuItems = [
     {
@@ -47,7 +50,12 @@ function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
       text: 'Feedback & Suggestions',
       icon: <Feedback />,
       action: () => onNavigate('/feedback')
-    }
+    },
+    ...(isSuperAdminUser ? [{
+      text: 'Configurations',
+      icon: <Tune />,
+      action: () => onNavigate('/config')
+    }] : [])
   ];
 
   const handleLogout = () => {
