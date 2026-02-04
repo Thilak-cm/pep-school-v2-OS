@@ -1,5 +1,15 @@
 # Changelog
 
+# 8.1.0 — 2026-02-04
+
+### Added
+- Unified Export Notes page: choose a student (overrides classrooms) or multi-select classrooms, then export via the shared ExportWizard with note kind and date filtering.
+- Role-scoped loading for classrooms/students mirrors StudentTimeline permissions (teachers: assigned; classroom admins: manageableClassrooms; super admins: all), and exports flow through `executeExportJob` with classroom grouping preserved.
+
+### Changed
+- App wiring now passes `userRole` and `manageableClassrooms` into the export page while keeping the existing classroomNotesReview route name.
+- ExportWizard “To” date placeholder now reads “Up to today” instead of showing the current date.
+
 # 8.0.1 — 2026-01-31
 
 ### Fixed
