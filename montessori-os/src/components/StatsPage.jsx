@@ -247,6 +247,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const cachedStudents = needsStudents ? getCachedData(baseCacheKey, 'students') : null;
     const cachedBranches = needsBranches ? getCachedData(baseCacheKey, 'branches') : null;
 
+    // Invalidate cached stats if they predate the teacher observation/lesson split
+    if (
+      needsTeachers &&
+      cachedStats &&
+      Array.isArray(cachedStats.teacherStats) &&
+      cachedStats.teacherStats.some(teacher =>
+        teacher.last14DaysObservationNotes === undefined ||
+        teacher.last14DaysLessonNotes === undefined
+      )
+    ) {
+      cachedStats = null;
+    }
+
     // If we have cached students but cached observations is an empty list, it's very likely a stale cache
     // created during a previous index/permission failure. Invalidate observations+stats cache and refetch.
     if (
@@ -280,7 +293,23 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       // Use cached data - set state immediately
       if (canUseCachedStats) {
         const observations = Array.isArray(cachedObservations) ? cachedObservations : [];
-        setStats({ ...cachedStats, allObservations: observations, loading: false });
+        const normalizedTeacherStats = (cachedStats?.teacherStats || []).map((teacher) => {
+          const observationNotes = teacher.last14DaysObservationNotes ?? (
+            (teacher.last14DaysVoice || 0) + (teacher.last14DaysText || 0)
+          );
+          const lessonNotes = teacher.last14DaysLessonNotes ?? 0;
+          return {
+            ...teacher,
+            last14DaysObservationNotes: observationNotes,
+            last14DaysLessonNotes: lessonNotes
+          };
+        });
+        setStats({
+          ...cachedStats,
+          teacherStats: normalizedTeacherStats,
+          allObservations: observations,
+          loading: false
+        });
       }
       
       // Set other cached data
@@ -707,21 +736,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             return obsDate >= twoWeeksAgo;
           });
 
-          // Voice/Text split for last 14 days
-          const isVoice = (obs) => (
-            obs?.tags?.type === 'voice' ||
-            obs?.type === 'voice' ||
-            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('voice')) ||
-            !!obs?.duration
-          );
-          const isText = (obs) => (
-            obs?.tags?.type === 'text' ||
-            obs?.type === 'text' ||
-            (typeof obs?.tags?.includes === 'function' && obs.tags.includes('text')) ||
-            (!obs?.duration && !!obs?.text)
-          );
-          const last14Voice = last14DaysObs.filter(isVoice).length;
-          const last14Text = last14DaysObs.filter(isText).length;
+          const last14LessonNotes = last14DaysObs.filter(isLessonNote).length;
+          const last14Observations = last14DaysObs.filter(obs => !isLessonNote(obs)).length;
           
           return {
             id: teacher.id,
@@ -731,8 +747,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             totalObservations: teacherObservations.length,
             thisWeekObservations: thisWeekObs.length,
             last14DaysObservations: last14DaysObs.length,
-            last14DaysVoice: last14Voice,
-            last14DaysText: last14Text
+            last14DaysObservationNotes: last14Observations,
+            last14DaysLessonNotes: last14LessonNotes
           };
         });
 
@@ -2403,8 +2419,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         </Box>
 
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                          <Chip size="small" variant="outlined" color="success" label={`Voice: ${teacher.last14DaysVoice}`} />
-                          <Chip size="small" variant="outlined" color="info" label={`Text: ${teacher.last14DaysText}`} />
+                          <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.last14DaysObservationNotes ?? 0}`} />
+                          <Chip size="small" variant="outlined" color="info" label={`Lesson Notes: ${teacher.last14DaysLessonNotes ?? 0}`} />
                         </Box>
                       </Box>
                     ))}

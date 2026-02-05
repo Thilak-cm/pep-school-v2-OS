@@ -1,5 +1,13 @@
 # Changelog
 
+# 8.1.1 — 2026-02-05
+
+### Changed
+- StatsPage Teachers tab: merged voice/text counts into a single Observations chip and added Lesson Notes count for the last 14 days.
+
+### Fixed
+- StatsPage: invalidated cached stats missing the new teacher note split fields to prevent stale/zero counts.
+
 # 8.1.0 — 2026-02-04
 
 ### Added
