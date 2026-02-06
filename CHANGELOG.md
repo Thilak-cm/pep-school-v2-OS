@@ -1,5 +1,18 @@
 # Changelog
 
+# 8.1.2 — 2026-02-06
+
+### Added
+- StatsPage Classrooms tab: branch selector for admins and a 1W/1M time toggle for classroom charts.
+- StatsPage Teachers tab: program dividers for classroom groups and a 1W/1M time toggle for teacher activity.
+
+### Changed
+- StatsPage: removed global filters and simplified the Students tab to a top students list.
+- StatsPage: classroom/teacher activity now reflects the selected 1W/1M window.
+
+### Fixed
+- StatsPage: classrooms now load more reliably (fallback when `status` is missing) and are always available for teacher grouping.
+
 # 8.1.1 — 2026-02-05
 
 ### Changed
