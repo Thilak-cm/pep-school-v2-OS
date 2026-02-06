@@ -1,5 +1,18 @@
 # Changelog
 
+# 8.2.0 — 2026-02-06
+
+### Added
+- StatsPage Teachers tab: classroom selector with scoped counts and a “counts for this classroom only” hint.
+- StatsPage Teachers tab: “Also contributed Y notes to X other classrooms” indicator for multi-class teachers.
+
+### Changed
+- StatsPage Teachers tab: simplified layout to a single classroom-scoped list (removed program accordion grouping).
+- StatsPage Classrooms/Teachers tabs: time period toggle labels now read “Last 7 days” and “Last 30 days”.
+
+### Fixed
+- StatsPage Teachers tab: teacher counts are now scoped to the selected classroom to prevent cross-classroom duplication.
+
 # 8.1.2 — 2026-02-06
 
 ### Added
