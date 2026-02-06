@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -9,15 +9,13 @@ import {
   Tab,
   CircularProgress,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider,
+  Stack,
   ToggleButtonGroup,
   ToggleButton,
-  IconButton,
-  Autocomplete,
-  TextField,
   Button,
   Select,
   FormControl,
@@ -31,18 +29,40 @@ import {
   People,
   School,
   ArrowBack,
-  FilterList,
-  Clear
+  ExpandMore
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, where, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
-import { fuzzySearchClassrooms, fuzzySearchTeachers, fuzzySearchStudents } from '../utils/fuzzySearch';
-import { isAdminRole } from '../utils/roleUtils';
 import PerformanceSummaryCard from './PerformanceSummaryCard';
-// Granular cache system - each data type cached separately (filters apply in-memory)
+import { isAdminRole } from '../utils/roleUtils';
+// Granular cache system - each data type cached separately (role scoping applies in-memory)
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
+
+const PROGRAM_LABELS = {
+  toddler: 'Toddler',
+  primary: 'Primary',
+  elementary: 'Elementary',
+  adolescent: 'Adolescent',
+  unassigned: 'Unassigned'
+};
+
+const getProgramLabel = (programId) => {
+  const key = String(programId || '').trim();
+  if (!key) return PROGRAM_LABELS.unassigned;
+  return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
+};
+
+const normalizeClassroomId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object' && value.id) return value.id;
+  if (typeof value === 'string') {
+    const parts = value.split('/');
+    return parts[parts.length - 1] || value;
+  }
+  return value;
+};
 
 // Build base cache key for user/role context
 const buildBaseCacheKey = (userId, role, manageableClassrooms = []) => {
@@ -119,6 +139,8 @@ const setCachedData = (key, dataType, payload) => {
 const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
+  const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
+  const [teacherTimePeriod, setTeacherTimePeriod] = useState('1W');
   const [stats, setStats] = useState({
     totalObservations: 0,
     thisWeek: 0,
@@ -136,38 +158,18 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     loading: true
   });
 
-  // Filter states
-  const [selectedClassrooms, setSelectedClassrooms] = useState([]);
-  const [selectedTeachers, setSelectedTeachers] = useState([]);
-  const [selectedStudents, setSelectedStudents] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterLoading, setFilterLoading] = useState(false);
-  
-  // Data for filters
+  // Data lists
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
-  const [roleScopedClassrooms, setRoleScopedClassrooms] = useState([]);
-  const [roleScopedStudents, setRoleScopedStudents] = useState([]);
-  const [roleScopedObservations, setRoleScopedObservations] = useState([]);
-  const [selectedPerformanceClassroomId, setSelectedPerformanceClassroomId] = useState('');
-
-  // Student search state
-  const [studentSearchQuery, setStudentSearchQuery] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  // Teacher search state
-  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
-  // Teachers tab local filters (like Manage Users)
-  const [teacherStatusFilter, setTeacherStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
-  const [teacherOnlyNoClassrooms, setTeacherOnlyNoClassrooms] = useState(false);
-  const [teacherClassroomFilterOpen, setTeacherClassroomFilterOpen] = useState(false);
-  const [selectedTeacherClassroomFilterIds, setSelectedTeacherClassroomFilterIds] = useState([]);
-  const [teachersToShow, setTeachersToShow] = useState(5); // Pagination: show 5 initially
-  const [mounted, setMounted] = useState(false);
-  
-  // Branch filter state (admin only)
+  const [programLookup, setProgramLookup] = useState({});
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const [roleScopedStudents, setRoleScopedStudents] = useState([]);
+  const [roleScopedObservations, setRoleScopedObservations] = useState([]);
+  const [expandedTeacherClassrooms, setExpandedTeacherClassrooms] = useState(new Set());
+  const [mounted, setMounted] = useState(false);
+  
   const [scopeError, setScopeError] = useState('');
   
   // Track which tabs have loaded their data (lazy loading)
@@ -191,9 +193,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     return branchIds.length === 1 ? branchIds[0] : null;
   }, [classrooms, isClassroomAdmin]);
 
-  const hideDropdownsForSingleBranchAdmin = Boolean(isClassroomAdmin && singleBranchId);
-  
-  // Base cache key (user/role context) - doesn't change with filters
+  const hideBranchSelector = Boolean(isClassroomAdmin && singleBranchId);
+
+  // Base cache key (user/role context) - stable across tabs
   const baseCacheKey = useMemo(() => buildBaseCacheKey(
     user?.uid,
     role,
@@ -205,16 +207,45 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }, []);
 
   useEffect(() => {
-    if (hideDropdownsForSingleBranchAdmin && singleBranchId && selectedBranchId !== singleBranchId) {
+    if (hideBranchSelector && singleBranchId && selectedBranchId !== singleBranchId) {
       setSelectedBranchId(singleBranchId);
     }
-  }, [hideDropdownsForSingleBranchAdmin, singleBranchId, selectedBranchId]);
+  }, [hideBranchSelector, singleBranchId, selectedBranchId]);
 
   useEffect(() => {
-    if (hideDropdownsForSingleBranchAdmin && showFilters) {
-      setShowFilters(false);
-    }
-  }, [hideDropdownsForSingleBranchAdmin, showFilters]);
+    let isMounted = true;
+
+    const fetchPrograms = async () => {
+      try {
+        const programsSnap = await getDocs(collection(db, 'programs'));
+        if (!isMounted) return;
+
+        const classroomProgramMap = {};
+        programsSnap.forEach((programDoc) => {
+          const data = programDoc.data() || {};
+          const programId = programDoc.id;
+          const classroomPaths = Array.isArray(data.classrooms) ? data.classrooms : [];
+          classroomPaths.forEach((path) => {
+            const normalizedId = normalizeClassroomId(path);
+            if (normalizedId) {
+              classroomProgramMap[normalizedId] = programId;
+            }
+          });
+        });
+
+        setProgramLookup(classroomProgramMap);
+      } catch (err) {
+        console.error('Error fetching program metadata', err);
+      }
+    };
+
+    fetchPrograms();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
 
   // Helper function to fetch data for a specific tab
   const fetchTabData = async (tabIndex) => {
@@ -225,7 +256,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       setTeachers([]);
       setStudents([]);
       setStats(prev => ({ ...prev, loading: false }));
-      setFilterLoading(false);
       return;
     } else {
       setScopeError('');
@@ -233,11 +263,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
     // Determine what data this tab needs
     const needsObservations = tabIndex === 0 || tabIndex === 1 || tabIndex === 2 || tabIndex === 3; // All tabs need observations
-    const needsClassrooms = tabIndex === 0 || tabIndex === 1; // Overview and Classrooms tabs
-    const needsTeachers = tabIndex === 0 || tabIndex === 2; // Overview and Teachers tabs
-    const needsStudents = tabIndex === 0 || tabIndex === 1 || tabIndex === 3; // Overview, Classrooms, Students tabs
-    const needsBranches = isAdmin; // Only admins need branches
-    const hasUserFilters = selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
+    const needsClassrooms = true; // Required for role scoping and teacher grouping
+    const needsTeachers = true;
+    const needsStudents = true;
+    const needsBranches = isAdmin;
 
     // Check cache for each data type independently
     let cachedObservations = needsObservations ? getCachedData(baseCacheKey, 'observations') : null;
@@ -279,7 +308,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       cachedStats = null;
     }
 
-    const canUseCachedStats = !hasUserFilters && cachedStats;
+    const canUseCachedStats = !!cachedStats;
 
     // If we have all cached data needed for this tab, use it
     const hasAllCachedData = 
@@ -324,15 +353,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       }
       if (cachedBranches) {
         setBranches(cachedBranches);
-        if (isAdmin && !isClassroomAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+        if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
           setSelectedBranchId(cachedBranches[0].id);
         }
       }
-      
       // If we have all cached data including stats, we're done
       if (canUseCachedStats) {
         setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
-        setFilterLoading(false);
         return;
       }
       // Otherwise, continue to fetchData to recalculate stats from cached observations
@@ -340,7 +367,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
     const fetchData = async () => {
       try {
-        setFilterLoading(true);
         setTabLoadingStates(prev => ({ ...prev, [tabIndex]: true }));
         if (tabIndex === 0) {
           setStats(prev => ({ ...prev, loading: true }));
@@ -359,13 +385,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         if (cachedStudents) setStudents(cachedStudents);
         if (cachedBranches) {
           setBranches(cachedBranches);
-          if (isAdmin && !isClassroomAdmin && selectedBranchId === null && cachedBranches.length > 0) {
+          if (isAdmin && selectedBranchId === null && cachedBranches.length > 0) {
             setSelectedBranchId(cachedBranches[0].id);
           }
         }
-        
+
         // Fetch branches (for admin branch filter) - only if not cached
-        if (isAdmin && !cachedBranches) {
+        if (needsBranches && !cachedBranches) {
           try {
             const branchesQuery = query(collection(db, 'branches'));
             const branchesSnap = await getDocs(branchesQuery);
@@ -374,11 +400,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               return {
                 id: doc.id,
                 name: data.name || doc.id.toUpperCase(),
-                classrooms: data.classrooms || [], // Array of classroom IDs
+                classrooms: data.classrooms || [],
                 ...data
               };
             });
-            // Sort branches by name or order
             branchesData.sort((a, b) => {
               if (a.order !== undefined && b.order !== undefined) {
                 return a.order - b.order;
@@ -386,8 +411,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               return (a.name || a.id).localeCompare(b.name || b.id);
             });
             setBranches(branchesData);
-            // Set default selected branch to first one if not set (super admins only)
-            if (!isClassroomAdmin && selectedBranchId === null && branchesData.length > 0) {
+            if (isAdmin && selectedBranchId === null && branchesData.length > 0) {
               setSelectedBranchId(branchesData[0].id);
             }
           } catch (error) {
@@ -396,7 +420,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             setBranches([]);
           }
         }
-        
+        const isActiveClassroom = (classroom) => (classroom?.status || 'active') === 'active';
+
         // Fetch classrooms - only if needed for this tab and not cached
         if (needsClassrooms && !cachedClassrooms) {
           try {
@@ -407,14 +432,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               const batch = ids.slice(i, i + batchSize);
               const classroomsQuery = query(
                 collection(db, 'classrooms'),
-                where(documentId(), 'in', batch),
-                where('status', '==', 'active')
+                where(documentId(), 'in', batch)
               );
               const classroomsSnap = await getDocs(classroomsQuery);
               classroomsSnap.docs.forEach(doc => {
                 classroomsData.push({ id: doc.id, ...doc.data() });
               });
             }
+            classroomsData = classroomsData.filter(isActiveClassroom);
           } else {
             const classroomConstraints = [where('status', '==', 'active')];
             const classroomsQuery = query(collection(db, 'classrooms'), ...classroomConstraints);
@@ -423,6 +448,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               id: doc.id,
               ...doc.data()
             }));
+            classroomsData = classroomsData.filter(isActiveClassroom);
+            if (classroomsData.length === 0) {
+              const fallbackSnap = await getDocs(collection(db, 'classrooms'));
+              classroomsData = fallbackSnap.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(isActiveClassroom);
+            }
           }
           } catch (error) {
             console.error('Classrooms query failed:', error);
@@ -613,35 +645,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         const roleScopedObservations = filteredObservations;
         setRoleScopedObservations(roleScopedObservations);
         setRoleScopedStudents(filteredStudentsData);
-        setRoleScopedClassrooms(filteredClassroomsData);
         
-        // Apply user-selected filters with AND logic between different filter types
-        // Classrooms filter: OR logic within classrooms, AND logic with other filters
-        if (selectedClassrooms.length > 0) {
-          const classroomStudentIds = studentsData
-            .filter(student => selectedClassrooms.some(classroom => classroom.id === student.classroomId))
-            .map(student => student.id);
-          filteredObservations = filteredObservations.filter(obs => 
-            classroomStudentIds.includes(obs.studentId)
-          );
-        }
-        
-        // Teachers filter: OR logic within teachers, AND logic with other filters
-        if (selectedTeachers.length > 0) {
-          const selectedTeacherIds = selectedTeachers.map(teacher => teacher.id);
-          filteredObservations = filteredObservations.filter(obs => 
-            selectedTeacherIds.includes(obs.createdBy)
-          );
-        }
-        
-        // Students filter: OR logic within students, AND logic with other filters
-        if (selectedStudents.length > 0) {
-          const selectedStudentIds = selectedStudents.map(student => student.id);
-          filteredObservations = filteredObservations.filter(obs => 
-            selectedStudentIds.includes(obs.studentId)
-          );
-        }
-
         setClassrooms(filteredClassroomsData);
         setTeachers(filteredTeachersData);
         setStudents(filteredStudentsData);
@@ -709,6 +713,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             const obsDate = getObservationDate(obs);
             return obsDate >= weekAgo;
           });
+          const thisWeekLessonNotes = thisWeekObs.filter(isLessonNote).length;
+          const thisWeekObservationNotes = thisWeekObs.length - thisWeekLessonNotes;
           
           return {
             id: classroom.id,
@@ -717,6 +723,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             studentCount: classroomStudents.length,
             totalObservations: classroomObservations.length,
             thisWeekObservations: thisWeekObs.length,
+            thisWeekLessonNotes,
+            thisWeekObservationNotes,
             avgPerStudent: classroomStudents.length > 0 ? 
               (thisWeekObs.length / classroomStudents.length) : 0,
           };
@@ -855,11 +863,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         delete statsCachePayload.allObservations;
         setStats(statsPayload);
         
-        // Cache each data type separately (cache role-scoped observations, stats only for unfiltered views)
+        // Cache each data type separately (cache role-scoped observations, stats only for full-scope views)
         if (needsObservations && !cachedObservations) {
           setCachedData(baseCacheKey, 'observations', roleScopedObservations);
         }
-        if (needsObservations && !cachedStats && !hasUserFilters) {
+        if (needsObservations && !cachedStats) {
           setCachedData(baseCacheKey, 'stats', statsCachePayload);
         }
         if (needsClassrooms && !cachedClassrooms && filteredClassroomsData.length > 0) {
@@ -874,14 +882,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         if (needsBranches && !cachedBranches && branchesData.length > 0) {
           setCachedData(baseCacheKey, 'branches', branchesData);
         }
-
       } catch (error) {
         console.error('Error fetching stats:', error);
         if (tabIndex === 0) {
           setStats(prev => ({ ...prev, loading: false }));
         }
       } finally {
-        setFilterLoading(false);
         setTabLoadingStates(prev => ({ ...prev, [tabIndex]: false }));
       }
     };
@@ -892,7 +898,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   // Load Overview tab data immediately (default tab) - this loads observations for charts
   useEffect(() => {
     fetchTabData(0);
-  }, [selectedClassrooms, selectedTeachers, selectedStudents, user, role, baseCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
+  }, [user, role, baseCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
 
   const handleTabChange = async (event, newValue) => {
     // Teachers can't access certain tabs
@@ -912,38 +918,21 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   };
 
   // Helper function to get observation date with fallback
-  const getObservationDateFast = (obs) => {
+  const getObservationDateFast = useCallback((obs) => {
     if (obs?.observedAt?.toDate) return obs.observedAt.toDate();
     if (obs?.createdAt?.toDate) return obs.createdAt.toDate();
     if (obs?.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
     if (obs?.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
     return new Date(0);
-  };
+  }, []);
 
-  const performanceClassroomOptions = useMemo(() => {
-    if (!Array.isArray(roleScopedClassrooms)) return [];
-    return roleScopedClassrooms
-      .map((classroom) => ({
-        id: classroom.id,
-        label: classroom.name || classroom.displayName || classroom.label || classroom.id
-      }))
-      .filter((option) => option.id)
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [roleScopedClassrooms]);
+  const isLessonNoteFast = useCallback((obs) => obs?.type === 'lesson' || !!obs?.lessonTitle, []);
 
-  useEffect(() => {
-    if (!selectedPerformanceClassroomId) return;
-    if (!performanceClassroomOptions.some((option) => option.id === selectedPerformanceClassroomId)) {
-      setSelectedPerformanceClassroomId('');
-    }
-  }, [performanceClassroomOptions, selectedPerformanceClassroomId]);
-
-  const computePerformanceSummary = (studentsList = [], observationsList = [], classroomId = '') => {
+  const computePerformanceSummary = (studentsList = [], observationsList = []) => {
     const now = new Date();
     const cutoff = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
     const activeStudents = (Array.isArray(studentsList) ? studentsList : [])
-      .filter((student) => (student?.status || 'active') === 'active')
-      .filter((student) => (!classroomId ? true : student.classroomId === classroomId));
+      .filter((student) => (student?.status || 'active') === 'active');
 
     const studentIds = new Set(activeStudents.map((student) => student.id).filter(Boolean));
     const countsByStudent = Object.fromEntries(activeStudents.map((student) => [student.id, 0]));
@@ -982,9 +971,85 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   };
 
   const performanceSummaryForCard = useMemo(
-    () => computePerformanceSummary(roleScopedStudents, roleScopedObservations, selectedPerformanceClassroomId),
-    [roleScopedStudents, roleScopedObservations, selectedPerformanceClassroomId]
+    () => computePerformanceSummary(roleScopedStudents, roleScopedObservations),
+    [roleScopedStudents, roleScopedObservations]
   );
+
+  const classroomStatsForPeriod = useMemo(() => {
+    const days = classroomTimePeriod === '1M' ? 30 : 7;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const classroomByStudent = new Map();
+    (students || []).forEach((student) => {
+      if (student?.id && student?.classroomId) {
+        classroomByStudent.set(student.id, student.classroomId);
+      }
+    });
+
+    const countsByClassroom = new Map();
+    const ensureCounts = (classroomId) => {
+      if (!countsByClassroom.has(classroomId)) {
+        countsByClassroom.set(classroomId, { observationNotes: 0, lessonNotes: 0 });
+      }
+      return countsByClassroom.get(classroomId);
+    };
+
+    (stats?.allObservations || []).forEach((obs) => {
+      const obsDate = getObservationDateFast(obs);
+      if (obsDate < cutoff) return;
+      const classroomId = obs?.classroomId || classroomByStudent.get(obs?.studentId);
+      if (!classroomId) return;
+      const counts = ensureCounts(classroomId);
+      if (isLessonNoteFast(obs)) {
+        counts.lessonNotes += 1;
+      } else {
+        counts.observationNotes += 1;
+      }
+    });
+
+    return (classrooms || []).map((classroom) => {
+      const counts = countsByClassroom.get(classroom.id) || { observationNotes: 0, lessonNotes: 0 };
+      return {
+        id: classroom.id,
+        name: classroom.name,
+        branchId: classroom.branchId,
+        thisWeekObservationNotes: counts.observationNotes,
+        thisWeekLessonNotes: counts.lessonNotes
+      };
+    });
+  }, [classroomTimePeriod, stats?.allObservations, students, classrooms, getObservationDateFast, isLessonNoteFast]);
+
+  const teacherStatsForPeriod = useMemo(() => {
+    const days = teacherTimePeriod === '1M' ? 30 : 7;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const countsByTeacher = new Map();
+
+    (stats?.allObservations || []).forEach((obs) => {
+      const obsDate = getObservationDateFast(obs);
+      if (obsDate < cutoff) return;
+      const teacherId = obs?.createdBy;
+      if (!teacherId) return;
+      if (!countsByTeacher.has(teacherId)) {
+        countsByTeacher.set(teacherId, { observationNotes: 0, lessonNotes: 0, total: 0 });
+      }
+      const counts = countsByTeacher.get(teacherId);
+      counts.total += 1;
+      if (isLessonNoteFast(obs)) {
+        counts.lessonNotes += 1;
+      } else {
+        counts.observationNotes += 1;
+      }
+    });
+
+    return (stats?.teacherStats || []).map((teacher) => {
+      const counts = countsByTeacher.get(teacher.id) || { observationNotes: 0, lessonNotes: 0, total: 0 };
+      return {
+        ...teacher,
+        periodObservations: counts.total,
+        periodObservationNotes: counts.observationNotes,
+        periodLessonNotes: counts.lessonNotes
+      };
+    });
+  }, [stats?.allObservations, stats?.teacherStats, teacherTimePeriod, getObservationDateFast, isLessonNoteFast]);
 
   // Filter observations by time period for pie chart
   const filteredObservationsForPie = useMemo(() => {
@@ -1061,10 +1126,16 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     }
   };
 
-  const clearFilters = () => {
-    setSelectedClassrooms([]);
-    setSelectedTeachers([]);
-    setSelectedStudents([]);
+  const handleClassroomTimePeriodChange = (event, newPeriod) => {
+    if (newPeriod !== null) {
+      setClassroomTimePeriod(newPeriod);
+    }
+  };
+
+  const handleTeacherTimePeriodChange = (event, newPeriod) => {
+    if (newPeriod !== null) {
+      setTeacherTimePeriod(newPeriod);
+    }
   };
 
   // Compute Activity Trend count based on selected timePeriod
@@ -1086,32 +1157,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     return list.filter(o => getObservationDateFast(o) >= start).length;
   }, [stats?.allObservations, timePeriod]);
 
-  const getFilterSummary = () => {
-    const filters = [];
-    
-    if (selectedClassrooms.length > 0) {
-      const classroomNames = selectedClassrooms.map(c => c.name).join(', ');
-      filters.push(`Classrooms: ${classroomNames}`);
-    }
-    
-    if (selectedTeachers.length > 0) {
-      const teacherNames = selectedTeachers.map(t => t.displayName || t.email).join(', ');
-      filters.push(`Teachers: ${teacherNames}`);
-    }
-    
-    if (selectedStudents.length > 0) {
-      const studentNames = selectedStudents.map(s => s.displayName || s.name).join(', ');
-      filters.push(`Students: ${studentNames}`);
-    }
-    
-    if (filters.length === 0) {
-      return 'All data (no filters applied)';
-    }
-    
-    return filters.join(' • ');
-  };
-
-  // Helpers for Teachers tab: sort by first name and filter by search
+  // Helpers for Teachers tab: sort by first name
   const getFirstName = (name, email) => {
     const source = name || email || '';
     const base = source.includes('@') ? source.split('@')[0] : source;
@@ -1135,47 +1181,109 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
 
   const sortedTeacherStats = useMemo(() => {
-    const list = stats?.teacherStats || [];
+    const list = teacherStatsForPeriod || [];
     return [...list].sort((a, b) =>
       getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
     );
-  }, [stats?.teacherStats]);
+  }, [teacherStatsForPeriod]);
 
-  const filteredTeacherStats = useMemo(() => {
-    const q = teacherSearchQuery?.trim();
-    let base = sortedTeacherStats;
-    if (q) {
-      base = fuzzySearchTeachers(base, q);
-    }
-    // Status filter
-    base = base.filter(t => {
-      const status = (t.status || 'active');
-      if (teacherStatusFilter === 'active') return status === 'active';
-      if (teacherStatusFilter === 'inactive') return status !== 'active';
-      return true;
-    });
-    // Classroom filters
-    base = base.filter(t => {
-      const assigned = getTeacherClassroomIds(t.id);
-      if (teacherOnlyNoClassrooms) return assigned.length === 0;
-      if (selectedTeacherClassroomFilterIds.length > 0) {
-        return assigned.some(cid => selectedTeacherClassroomFilterIds.includes(cid));
+  const classroomProgramLookup = useMemo(() => {
+    const mapping = { ...programLookup };
+    (classrooms || []).forEach((cls) => {
+      const cid = normalizeClassroomId(cls.id);
+      if (!cid) return;
+      const programId = cls.programId || mapping[cid];
+      if (programId) {
+        mapping[cid] = programId;
+      } else if (!mapping[cid]) {
+        mapping[cid] = 'unassigned';
       }
-      return true;
     });
-    // Keep alphabetical order
-    return [...base].sort((a, b) =>
-      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
+    return mapping;
+  }, [classrooms, programLookup]);
+
+  const teacherStatsForList = useMemo(() => {
+    return [...sortedTeacherStats];
+  }, [sortedTeacherStats]);
+
+  const teacherClassroomGroups = useMemo(() => {
+    const teacherMap = new Map((teacherStatsForList || []).map(t => [t.id, t]));
+    const groups = (classrooms || [])
+      .map(classroom => {
+        const teacherIds = Array.isArray(classroom?.teacherIds) ? classroom.teacherIds : [];
+        const teachers = teacherIds.map(id => teacherMap.get(id)).filter(Boolean);
+        return {
+          id: classroom.id,
+          name: classroom.name || classroom.id,
+          teachers
+        };
+      })
+      .filter(group => group.teachers.length > 0);
+
+    const unassignedTeachers = (teacherStatsForList || []).filter(teacher => {
+      const assigned = getTeacherClassroomIds(teacher.id);
+      return assigned.length === 0;
+    });
+    if (unassignedTeachers.length > 0) {
+      groups.push({
+        id: 'no-classrooms',
+        name: 'No Classrooms',
+        teachers: unassignedTeachers
+      });
+    }
+
+    return groups;
+  }, [classrooms, teacherStatsForList, teacherToClassroomIds]);
+
+  const teacherClassroomSections = useMemo(() => {
+    const sectionsMap = new Map();
+    let noClassroomsGroup = null;
+
+    teacherClassroomGroups.forEach((group) => {
+      if (group.id === 'no-classrooms') {
+        noClassroomsGroup = group;
+        return;
+      }
+      const programId = classroomProgramLookup[group.id] || 'unassigned';
+      if (!sectionsMap.has(programId)) sectionsMap.set(programId, []);
+      sectionsMap.get(programId).push(group);
+    });
+
+    const orderedProgramIds = Array.from(sectionsMap.keys()).sort((a, b) =>
+      getProgramLabel(a).localeCompare(getProgramLabel(b), undefined, { sensitivity: 'base' })
     );
-  }, [sortedTeacherStats, teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds, teacherToClassroomIds]);
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setTeachersToShow(5);
-  }, [teacherSearchQuery, teacherStatusFilter, teacherOnlyNoClassrooms, selectedTeacherClassroomFilterIds]);
+    const sections = orderedProgramIds.map((programId) => {
+      const groups = sectionsMap.get(programId) || [];
+      groups.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+      return {
+        id: programId,
+        label: getProgramLabel(programId),
+        groups
+      };
+    });
 
-  const hasActiveFilters = () => {
-    return selectedClassrooms.length > 0 || selectedTeachers.length > 0 || selectedStudents.length > 0;
+    if (noClassroomsGroup) {
+      sections.push({
+        id: 'no-classrooms',
+        label: 'No Classrooms',
+        groups: [noClassroomsGroup]
+      });
+    }
+
+    return sections;
+  }, [teacherClassroomGroups, classroomProgramLookup]);
+
+  const toggleTeacherClassroom = (classroomId) => {
+    setExpandedTeacherClassrooms(prev => {
+      const next = new Set(prev);
+      if (next.has(classroomId)) {
+        next.delete(classroomId);
+      } else {
+        next.add(classroomId);
+      }
+      return next;
+    });
   };
 
   // Hard-stop UI if classroom scoping is missing
@@ -1242,248 +1350,27 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     </Card>
   );
 
-  const FilterSection = () => (
-    <Card sx={{ mb: 3, borderRadius: 2 }}>
-      <CardContent sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Data Filters
-          </Typography>
-          <Button
-            size="small"
-            onClick={clearFilters}
-            startIcon={<Clear />}
-          >
-            Clear All
-          </Button>
-        </Box>
-        
-        {showFilters && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Classrooms Filter */}
-            <Box sx={{ position: 'relative' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-                Classrooms
-              </Typography>
-              <Autocomplete
-                multiple
-                options={classrooms}
-                getOptionLabel={(option) => option.name}
-                value={selectedClassrooms}
-                onChange={(event, newValue) => setSelectedClassrooms(newValue)}
-                filterOptions={(options, { inputValue }) => 
-                  fuzzySearchClassrooms(options, inputValue)
-                }
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="Select Classrooms" 
-                    size="small"
-                    placeholder="Search classrooms..."
-                    fullWidth
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      label={option.name}
-                      size="small"
-                      {...getTagProps({ index })}
-                      onDelete={() => {
-                        const newValue = value.filter((_, i) => i !== index);
-                        setSelectedClassrooms(newValue);
-                      }}
-                    />
-                  ))
-                }
-                noOptionsText="No classrooms found"
-                loading={classrooms.length === 0}
-              />
-              {selectedClassrooms.length > 0 && (
-                <Button
-                  size="small"
-                  onClick={() => setSelectedClassrooms([])}
-                  sx={{ 
-                    position: 'absolute', 
-                    top: 20, 
-                    right: -8, 
-                    minWidth: 'auto',
-                    p: 0.5,
-                    backgroundColor: 'white',
-                    border: '1px solid #e2e8f0',
-                    '&:hover': { backgroundColor: 'grey.50' }
-                  }}
-                >
-                  <Clear sx={{ fontSize: 16 }} />
-                </Button>
-              )}
-            </Box>
-
-            {/* Teachers Filter */}
-            <Box sx={{ position: 'relative' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-                Teachers
-              </Typography>
-              <Autocomplete
-                multiple
-                options={teachers}
-                getOptionLabel={(option) => option.displayName || option.email}
-                value={selectedTeachers}
-                onChange={(event, newValue) => setSelectedTeachers(newValue)}
-                filterOptions={(options, { inputValue }) => 
-                  fuzzySearchTeachers(options, inputValue)
-                }
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="Select Teachers" 
-                    size="small"
-                    placeholder="Search teachers..."
-                    fullWidth
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      label={option.displayName || option.email}
-                      size="small"
-                      {...getTagProps({ index })}
-                      onDelete={() => {
-                        const newValue = value.filter((_, i) => i !== index);
-                        setSelectedTeachers(newValue);
-                      }}
-                    />
-                  ))
-                }
-                noOptionsText="No teachers found"
-                loading={teachers.length === 0}
-              />
-              {selectedTeachers.length > 0 && (
-                <Button
-                  size="small"
-                  onClick={() => setSelectedTeachers([])}
-                  sx={{ 
-                    position: 'absolute', 
-                    top: 20, 
-                    right: -8, 
-                    minWidth: 'auto',
-                    p: 0.5,
-                    backgroundColor: 'white',
-                    border: '1px solid #e2e8f0',
-                    '&:hover': { backgroundColor: 'grey.50' }
-                  }}
-                >
-                  <Clear sx={{ fontSize: 16 }} />
-                </Button>
-              )}
-            </Box>
-
-            {/* Students Filter */}
-            <Box sx={{ position: 'relative' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
-                Students
-              </Typography>
-              <Autocomplete
-                multiple
-                options={students}
-                getOptionLabel={(option) => option.displayName || option.name}
-                value={selectedStudents}
-                onChange={(event, newValue) => setSelectedStudents(newValue)}
-                filterOptions={(options, { inputValue }) => 
-                  fuzzySearchStudents(options, inputValue)
-                }
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="Select Students" 
-                    size="small"
-                    placeholder="Search students..."
-                    fullWidth
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      label={option.displayName || option.name}
-                      size="small"
-                      {...getTagProps({ index })}
-                      onDelete={() => {
-                        const newValue = value.filter((_, i) => i !== index);
-                        setSelectedStudents(newValue);
-                      }}
-                    />
-                  ))
-                }
-                noOptionsText="No students found"
-                loading={students.length === 0}
-              />
-              {selectedStudents.length > 0 && (
-                <Button
-                  size="small"
-                  onClick={() => setSelectedStudents([])}
-                  sx={{ 
-                    position: 'absolute', 
-                    top: 20, 
-                    right: -8, 
-                    minWidth: 'auto',
-                    p: 0.5,
-                    backgroundColor: 'white',
-                    border: '1px solid #e2e8f0',
-                    '&:hover': { backgroundColor: 'grey.50' }
-                  }}
-                >
-                  <Clear sx={{ fontSize: 16 }} />
-                </Button>
-              )}
-            </Box>
-          </Box>
-        )}
-        
-        {/* Filter Summary */}
-        <Box sx={{ mt: 2, p: 1.5, backgroundColor: 'grey.50', borderRadius: 1, border: '1px solid #e2e8f0' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Showing data for: <strong>{getFilterSummary()}</strong>
-            </Typography>
-            {filterLoading && <CircularProgress size={12} />}
-          </Box>
-          {stats.allObservations.length > 0 && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-              <strong>{stats.allObservations.length}</strong> observation{stats.allObservations.length !== 1 ? 's' : ''} found
-            </Typography>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-
   // Removed TabNavigationGrid (replaced with compact Tabs header)
 
 
 
   const ClassroomComparisonChart = () => {
-    // Filter classroom stats by selected branch (admin only)
     const filteredClassroomStats = useMemo(() => {
       if (isAdmin && selectedBranchId) {
-        // Find the selected branch to get its classrooms array
         const selectedBranch = branches.find(b => b.id === selectedBranchId);
-        if (selectedBranch && selectedBranch.classrooms && selectedBranch.classrooms.length > 0) {
-          // Filter by classroom IDs from branch document
+        if (selectedBranch && Array.isArray(selectedBranch.classrooms) && selectedBranch.classrooms.length > 0) {
           const branchClassroomIds = selectedBranch.classrooms.map(cid => {
-            // Handle both full paths (e.g., "classrooms/allstars") and just IDs (e.g., "allstars")
             const parts = String(cid).split('/');
             return parts[parts.length - 1];
           });
-          return stats.classroomStats.filter(classroom => 
+          return classroomStatsForPeriod.filter(classroom =>
             branchClassroomIds.includes(classroom.id)
           );
         }
-        // Fallback: if branch doesn't have classrooms array, use branchId
-        return stats.classroomStats.filter(classroom => classroom.branchId === selectedBranchId);
+        return classroomStatsForPeriod.filter(classroom => classroom.branchId === selectedBranchId);
       }
-      // For teachers, return all their accessible classrooms (already filtered)
-      return stats.classroomStats;
-    }, [stats.classroomStats, selectedBranchId, role, branches]);
+      return classroomStatsForPeriod;
+    }, [classroomStatsForPeriod, selectedBranchId, isAdmin, branches]);
 
     if (!mounted) {
       return (
@@ -1521,7 +1408,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
     const data = filteredClassroomStats.map(classroom => ({
       name: classroom.name,
-      'This Week': classroom.thisWeekObservations
+      Observations: classroom.thisWeekObservationNotes ?? classroom.thisWeekObservations ?? 0,
+      'Lesson Notes': classroom.thisWeekLessonNotes ?? 0
     }));
 
     // Don't render chart until mounted AND has data
@@ -1543,17 +1431,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     }
 
     return (
-      <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300, position: 'relative' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <RechartsBarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+      <Box sx={{ width: '100%', minWidth: 0 }}>
+        <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <RechartsBarChart data={data} margin={{ top: 16, right: 20, left: 0, bottom: 36 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="name" 
               tick={{ fontSize: 12, fill: '#64748b' }}
               axisLine={{ stroke: '#e2e8f0' }}
               angle={-45}
               textAnchor="end"
-              height={80}
+              height={70}
+              tickMargin={6}
             />
             <YAxis 
               tick={{ fontSize: 12, fill: '#64748b' }}
@@ -1571,7 +1461,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               }}
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const notesCount = payload[0].value;
+                  const observationsValue = payload.find(item => item.dataKey === 'Observations')?.value ?? 0;
+                  const lessonNotesValue = payload.find(item => item.dataKey === 'Lesson Notes')?.value ?? 0;
+                  const notesCount = observationsValue + lessonNotesValue;
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
@@ -1580,18 +1472,58 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                       p: 1.5,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
+                      <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                        {label}
+                      </Typography>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5', mt: 0.5 }}>
                         {notesCount} {notesCount === 1 ? 'note' : 'notes'}
                       </Typography>
+                      <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <Typography sx={{ fontSize: '12px', color: '#4f46e5' }}>
+                          Observations: {observationsValue}
+                        </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#059669' }}>
+                          Lesson Notes: {lessonNotesValue}
+                        </Typography>
+                      </Box>
                     </Box>
                   );
                 }
                 return null;
               }}
             />
-            <Bar dataKey="This Week" fill="#4f46e5" radius={[4, 4, 0, 0]}             />
-          </RechartsBarChart>
-        </ResponsiveContainer>
+              <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} />
+            </RechartsBarChart>
+          </ResponsiveContainer>
+        </Box>
+        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'center' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 2,
+              alignItems: 'center',
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 999,
+              border: '1px solid #e2e8f0',
+              backgroundColor: 'white'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Observations
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Lesson Notes
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
       </Box>
     );
   };
@@ -1856,6 +1788,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     );
   };
 
+  const classroomPeriodLabel = classroomTimePeriod === '1M' ? 'Notes This Month' : 'Notes This Week';
+  const teacherPeriodLabel = teacherTimePeriod === '1M' ? '30d' : '7d';
+
   if (stats.loading) {
     return (
       <Box sx={{ 
@@ -1883,36 +1818,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       width: '100%',
       minWidth: 0
     }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        
-        {/* Filter Button */}
-        {!hideDropdownsForSingleBranchAdmin && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {hasActiveFilters() && (
-              <Chip 
-                label={`${stats.allObservations.length} filtered`}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
-            )}
-            <Button
-              startIcon={<FilterList />}
-              onClick={() => setShowFilters(!showFilters)}
-              variant={hasActiveFilters() ? 'contained' : 'outlined'}
-              color={hasActiveFilters() ? 'primary' : 'default'}
-              size="small"
-              aria-label="Toggle filters"
-            >
-              Filters
-            </Button>
-          </Box>
-        )}
-      </Box>
-
-      {/* Filters Section */}
-      {!hideDropdownsForSingleBranchAdmin && showFilters && <FilterSection />}
+      {/* Header removed (filters deprecated) */}
 
       {/* Statistics Content */}
       <Card sx={{ 
@@ -2212,94 +2118,119 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             ) : (
             <Box>
               <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                {role === 'teacher' ? 'My Classrooms' : 'Classroom Performance'}
-              </Typography>
-              {/* Branch Selector (Admin Only) - Dropdown */}
-                {isAdmin && !hideDropdownsForSingleBranchAdmin && (
-                  <Box sx={{ mb: 3 }}>
-                    {branches.length > 0 ? (
-                      <FormControl 
-                        size="small" 
-                        sx={{ 
-                          minWidth: 220,
-                          '& .MuiInputLabel-root': {
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                            color: 'text.secondary'
+              <Box sx={{ mb: 2, maxWidth: 220 }}>
+                <ToggleButtonGroup
+                  value={classroomTimePeriod}
+                  exclusive
+                  onChange={handleClassroomTimePeriodChange}
+                  size="small"
+                  fullWidth
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 2,
+                      py: 0.75,
+                      borderColor: '#e2e8f0',
+                      flex: 1,
+                      '&.Mui-selected': {
+                        backgroundColor: '#4f46e5',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#4338ca'
+                        }
+                      }
+                    }
+                  }}
+                >
+                  <ToggleButton value="1W">1W</ToggleButton>
+                  <ToggleButton value="1M">1M</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              {isAdmin && !hideBranchSelector && (
+                <Box sx={{ mb: 3 }}>
+                  {branches.length > 0 ? (
+                    <FormControl 
+                      size="small" 
+                      sx={{ 
+                        minWidth: 220,
+                        '& .MuiInputLabel-root': {
+                          fontSize: '0.875rem',
+                          fontWeight: 500,
+                          color: 'text.secondary'
+                        },
+                        '& .MuiOutlinedInput-root': {
+                          fontSize: '0.9375rem',
+                          fontWeight: 600,
+                          backgroundColor: 'white',
+                          '& .MuiSelect-select': {
+                            py: 1.25,
+                            px: 1.5
                           },
-                          '& .MuiOutlinedInput-root': {
-                            fontSize: '0.9375rem',
-                            fontWeight: 600,
-                            backgroundColor: 'white',
-                            '& .MuiSelect-select': {
-                              py: 1.25,
-                              px: 1.5
-                            },
-                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                              borderColor: 'primary.main'
-                            },
-                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                              borderColor: 'primary.main',
-                              borderWidth: 2
-                            }
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'primary.main'
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'primary.main',
+                            borderWidth: 2
                           }
-                        }}
-                      >
-                        <InputLabel id="branch-select-label">Select Branch</InputLabel>
-                        <Select
-                          labelId="branch-select-label"
-                          value={selectedBranchId || ''}
-                          label="Select Branch"
-                          onChange={(e) => setSelectedBranchId(e.target.value)}
-                          MenuProps={{
-                            PaperProps: {
-                              sx: {
-                                mt: 1,
-                                borderRadius: 2,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                '& .MuiMenuItem-root': {
-                                  fontSize: '0.9375rem',
-                                  fontWeight: 500,
-                                  py: 1.25,
-                                  px: 1.5,
+                        }
+                      }}
+                    >
+                      <InputLabel id="branch-select-label">Select Branch</InputLabel>
+                      <Select
+                        labelId="branch-select-label"
+                        value={selectedBranchId || ''}
+                        label="Select Branch"
+                        onChange={(e) => setSelectedBranchId(e.target.value)}
+                        MenuProps={{
+                          PaperProps: {
+                            sx: {
+                              mt: 1,
+                              borderRadius: 2,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                              '& .MuiMenuItem-root': {
+                                fontSize: '0.9375rem',
+                                fontWeight: 500,
+                                py: 1.25,
+                                px: 1.5,
+                                '&:hover': {
+                                  backgroundColor: 'primary.50'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: 'primary.100',
+                                  fontWeight: 600,
                                   '&:hover': {
-                                    backgroundColor: 'primary.50'
-                                  },
-                                  '&.Mui-selected': {
-                                    backgroundColor: 'primary.100',
-                                    fontWeight: 600,
-                                    '&:hover': {
-                                      backgroundColor: 'primary.100'
-                                    }
+                                    backgroundColor: 'primary.100'
                                   }
                                 }
                               }
                             }
-                          }}
-                        >
-                          {branches.map((branch) => (
-                            <MenuItem key={branch.id} value={branch.id}>
-                              {branch.name || branch.id.toUpperCase()}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                        Coach Pepper is sorting through branches...
-                      </Typography>
-                    )}
-                  </Box>
-                )}
+                          }
+                        }}
+                      >
+                        {branches.map((branch) => (
+                          <MenuItem key={branch.id} value={branch.id}>
+                            {branch.name || branch.id.toUpperCase()}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                      Coach Pepper is sorting through branches...
+                    </Typography>
+                  )}
+                </Box>
+              )}
               </Box>
               
-              {stats.classroomStats.length > 0 ? (
+              {classroomStatsForPeriod.length > 0 ? (
                 <Box sx={{ width: '100%', minWidth: 0 }}>
                   {/* Classroom Comparison Chart */}
                   <Box sx={{ mb: 3, width: '100%', minWidth: 0 }}>
                     <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                      {role === 'teacher' ? 'My Classrooms This Week' : 'Notes This Week'}
+                      {role === 'teacher' ? `My Classrooms · ${classroomPeriodLabel}` : classroomPeriodLabel}
                     </Typography>
                     <ClassroomComparisonChart />
                   </Box>
@@ -2324,159 +2255,145 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               </Box>
             ) : (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Teacher Performance
-              </Typography>
-              
-              {stats.teacherStats.length > 0 ? (
-                <Box>
-                  {/* Search Bar */}
-                  <Box sx={{ mb: 3 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Search teachers by name..."
-                      value={teacherSearchQuery}
-                      onChange={(e) => setTeacherSearchQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <Box sx={{ color: 'text.secondary', mr: 1 }}>
-                            <People sx={{ fontSize: 20 }} />
-                          </Box>
-                        ),
-                        endAdornment: (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {teacherSearchQuery && (
-                              <IconButton
-                                size="small"
-                                onClick={() => setTeacherSearchQuery('')}
-                                sx={{ p: 0.5 }}
-                                aria-label="Clear search"
-                              >
-                                <Clear sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            )}
-                          </Box>
-                        )
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          backgroundColor: 'white',
-                          '&:hover': {
-                            backgroundColor: 'grey.50'
-                          }
+              <Box sx={{ mb: 2, maxWidth: 220 }}>
+                <ToggleButtonGroup
+                  value={teacherTimePeriod}
+                  exclusive
+                  onChange={handleTeacherTimePeriodChange}
+                  size="small"
+                  fullWidth
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 2,
+                      py: 0.75,
+                      borderColor: '#e2e8f0',
+                      flex: 1,
+                      '&.Mui-selected': {
+                        backgroundColor: '#4f46e5',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#4338ca'
                         }
-                      }}
-                    />
-                  </Box>
-                  {/* Filters (like Manage Users) */}
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                    <Chip label="All" size="small" clickable onClick={() => setTeacherStatusFilter('all')} color={teacherStatusFilter==='all'?'primary':'default'} variant={teacherStatusFilter==='all'?'filled':'outlined'} />
-                    <Chip label="Active" size="small" clickable onClick={() => setTeacherStatusFilter('active')} color={teacherStatusFilter==='active'?'primary':'default'} variant={teacherStatusFilter==='active'?'filled':'outlined'} />
-                    <Chip label="Inactive" size="small" clickable onClick={() => setTeacherStatusFilter('inactive')} color={teacherStatusFilter==='inactive'?'primary':'default'} variant={teacherStatusFilter==='inactive'?'filled':'outlined'} />
-                    <Chip label="No Classrooms" size="small" clickable onClick={() => setTeacherOnlyNoClassrooms(v=>!v)} color={teacherOnlyNoClassrooms?'primary':'default'} variant={teacherOnlyNoClassrooms?'filled':'outlined'} />
-                    {!hideDropdownsForSingleBranchAdmin && (
-                      <Chip
-                        label={selectedTeacherClassroomFilterIds.length > 0 ? `Classrooms (${selectedTeacherClassroomFilterIds.length})` : 'Classrooms'}
-                        size="small"
-                        clickable
-                        onClick={() => setTeacherClassroomFilterOpen(true)}
-                        color={selectedTeacherClassroomFilterIds.length>0?'primary':'default'}
-                        variant={selectedTeacherClassroomFilterIds.length>0?'filled':'outlined'}
-                        disabled={teacherOnlyNoClassrooms}
-                      />
-                    )}
-                  </Box>
-                  {/* Teacher List (14-day activity) */}
+                      }
+                    }
+                  }}
+                >
+                  <ToggleButton value="1W">1W</ToggleButton>
+                  <ToggleButton value="1M">1M</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+              {teacherStatsForList.length > 0 ? (
+                <Box>
+                  {/* Teacher List */}
                   <Box sx={{ mb: 3 }}>
-                    {filteredTeacherStats.slice(0, teachersToShow).map((teacher) => (
-                      <Box
-                        key={teacher.id}
-                        sx={{
-                          mb: 1.5,
-                          p: 2,
-                          backgroundColor: 'white',
-                          borderRadius: 2,
-                          border: '1px solid #e2e8f0'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {teacher.name}
-                            </Typography>
-                            {teacher.status && teacher.status !== 'active' && (
-                              <Chip size="small" color="warning" variant="outlined" label="Inactive" />
-                            )}
-                          </Box>
-                          <Chip
-                            size="small"
-                            label={`${teacher.last14DaysObservations} ${teacher.last14DaysObservations === 1 ? 'note' : 'notes'} in 14d`}
-                            color={teacher.last14DaysObservations === 0 ? 'error' : 'primary'}
-                            variant={teacher.last14DaysObservations === 0 ? 'filled' : 'outlined'}
-                          />
-                        </Box>
+                    {teacherClassroomSections.length > 0 ? (
+                      <Stack spacing={2}>
+                        {teacherClassroomSections.map((section) => (
+                          <Box key={section.id} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                                {section.label}
+                              </Typography>
+                              <Divider sx={{ flex: 1 }} />
+                            </Box>
+                            <Stack spacing={1.5}>
+                              {section.groups.map((group) => {
+                                const isExpanded = expandedTeacherClassrooms.has(group.id);
+                                return (
+                                  <Accordion
+                                    key={group.id}
+                                    expanded={isExpanded}
+                                    onChange={() => toggleTeacherClassroom(group.id)}
+                                    disableGutters
+                                    elevation={0}
+                                    sx={{
+                                      border: '1px solid #e2e8f0',
+                                      borderRadius: 2,
+                                      '&:before': { display: 'none' },
+                                      '&.Mui-expanded': {
+                                        borderColor: '#cbd5e1',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                                      }
+                                    }}
+                                  >
+                                    <AccordionSummary
+                                      expandIcon={<ExpandMore />}
+                                      sx={{
+                                        px: 2,
+                                        py: 1.5,
+                                        '& .MuiAccordionSummary-content': {
+                                          m: 0,
+                                          alignItems: 'center'
+                                        }
+                                      }}
+                                    >
+                                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                                          {group.name}
+                                        </Typography>
+                                        <Chip
+                                          label={`${group.teachers.length} ${group.teachers.length === 1 ? 'teacher' : 'teachers'}`}
+                                          size="small"
+                                          sx={{
+                                            height: 22,
+                                            fontSize: '0.72rem',
+                                            fontWeight: 600,
+                                            backgroundColor: '#f1f5f9',
+                                            color: '#475569'
+                                          }}
+                                        />
+                                      </Stack>
+                                    </AccordionSummary>
+                                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
+                                      <Stack spacing={1.5}>
+                                        {group.teachers.map((teacher) => (
+                                          <Box
+                                            key={teacher.id}
+                                            sx={{
+                                              p: 2,
+                                              backgroundColor: 'white',
+                                              borderRadius: 2,
+                                              border: '1px solid #e2e8f0'
+                                            }}
+                                          >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                  {teacher.name}
+                                                </Typography>
+                                                {teacher.status && teacher.status !== 'active' && (
+                                                  <Chip size="small" color="warning" variant="outlined" label="Inactive" />
+                                                )}
+                                              </Box>
+                                        <Chip
+                                          size="small"
+                                          label={`${teacher.periodObservations ?? 0} ${teacher.periodObservations === 1 ? 'note' : 'notes'} in ${teacherPeriodLabel}`}
+                                          color={(teacher.periodObservations ?? 0) === 0 ? 'error' : 'primary'}
+                                          variant={(teacher.periodObservations ?? 0) === 0 ? 'filled' : 'outlined'}
+                                        />
+                                            </Box>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                          <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.last14DaysObservationNotes ?? 0}`} />
-                          <Chip size="small" variant="outlined" color="info" label={`Lesson Notes: ${teacher.last14DaysLessonNotes ?? 0}`} />
-                        </Box>
-                      </Box>
-                    ))}
-                    {/* Show "View 5 more teachers" button if there are more teachers to show */}
-                    {filteredTeacherStats.length > teachersToShow && (
-                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                        <Button
-                          variant="outlined"
-                          onClick={() => setTeachersToShow(prev => prev + 5)}
-                          sx={{
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            px: 3,
-                            py: 1,
-                            borderRadius: 2,
-                            borderColor: 'primary.main',
-                            color: 'primary.main',
-                            '&:hover': {
-                              borderColor: 'primary.dark',
-                              backgroundColor: 'primary.50'
-                            }
-                          }}
-                        >
-                          View 5 more teachers
-                        </Button>
-                      </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                        <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
+                                        <Chip size="small" variant="outlined" color="info" label={`Lesson Notes: ${teacher.periodLessonNotes ?? 0}`} />
+                                            </Box>
+                                          </Box>
+                                        ))}
+                                      </Stack>
+                                    </AccordionDetails>
+                                  </Accordion>
+                                );
+                              })}
+                            </Stack>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Alert severity="info">No teacher data available.</Alert>
                     )}
                   </Box>
-                  {/* Classroom Filter dialog */}
-                  {!hideDropdownsForSingleBranchAdmin && (
-                    <Dialog open={teacherClassroomFilterOpen} onClose={() => setTeacherClassroomFilterOpen(false)}>
-                      <DialogTitle component="div">
-                        <Typography component="h2" variant="h6">Filter by Classrooms</Typography>
-                      </DialogTitle>
-                      <DialogContent>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                          {classrooms.map(c => (
-                            <Chip
-                              key={c.id}
-                              label={c.name || c.id}
-                              onClick={() => setSelectedTeacherClassroomFilterIds(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
-                              color={selectedTeacherClassroomFilterIds.includes(c.id) ? 'primary' : 'default'}
-                              variant={selectedTeacherClassroomFilterIds.includes(c.id) ? 'filled' : 'outlined'}
-                              clickable
-                              size="small"
-                            />
-                          ))}
-                        </Box>
-                      </DialogContent>
-                      <DialogActions>
-                        <Button onClick={() => setSelectedTeacherClassroomFilterIds([])}>Clear</Button>
-                        <Button variant="contained" onClick={() => setTeacherClassroomFilterOpen(false)}>Apply</Button>
-                      </DialogActions>
-                    </Dialog>
-                  )}
-                  
                 </Box>
                   ) : (
                     <Alert severity="info">
@@ -2504,131 +2421,52 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
               <PerformanceSummaryCard
                 summary={performanceSummaryForCard}
-                classroomOptions={performanceClassroomOptions}
-                selectedClassroomId={selectedPerformanceClassroomId}
-                onClassroomChange={setSelectedPerformanceClassroomId}
                 sx={{ mb: 3 }}
               />
               
               {stats.topStudents.length > 0 ? (
                 <Box>
-                  {/* Search Bar */}
-                  <Box sx={{ mb: 3 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Search students by name..."
-                      value={studentSearchQuery}
-                      onChange={(e) => setStudentSearchQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <Box sx={{ color: 'text.secondary', mr: 1 }}>
-                            <People sx={{ fontSize: 20 }} />
-                          </Box>
-                        ),
-                        endAdornment: (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {studentSearchQuery && (
-                              <IconButton
-                                size="small"
-                                onClick={() => setStudentSearchQuery('')}
-                                sx={{ p: 0.5 }}
-                                aria-label="Clear search"
-                              >
-                                <Clear sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            )}
-                          </Box>
-                        )
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                    Top Students This Week
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    {stats.topStudents.slice(0, 10).map((student) => (
+                      <Box
+                        key={student.id}
+                        sx={{
+                          p: 2,
                           backgroundColor: 'white',
-                          '&:hover': {
-                            backgroundColor: 'grey.50'
-                          }
-                        }
-                      }}
-                    />
-                  </Box>
-
-                  {/* Student Search Results */}
-                  {studentSearchQuery.trim() && (() => {
-                    // Exact substring matching - case-insensitive (no fuzzy logic)
-                    const query = studentSearchQuery.trim().toLowerCase();
-                    const matchedStudent = stats.topStudents.find(student => {
-                      const studentName = (student.name || '').toLowerCase().trim();
-                      return studentName.includes(query) || studentName === query;
-                    });
-                    
-                    if (!matchedStudent) {
-                      return (
-                        <Box sx={{ 
-                          textAlign: 'center', 
-                          py: 4, 
-                          color: 'text.secondary',
-                          backgroundColor: 'grey.50',
                           borderRadius: 2,
-                          mb: 3
-                        }}>
-                          <Typography variant="body2">
-                            No student found matching "{studentSearchQuery.trim()}".
-                          </Typography>
-                        </Box>
-                      );
-                    }
-                    
-                    return (
-                      <Box sx={{ mb: 3 }}>
-                        <Box sx={{ 
-                          p: 3, 
-                          backgroundColor: 'white', 
-                          borderRadius: 2, 
                           border: '1px solid #e2e8f0',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                        }}>
-                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
-                            {matchedStudent.name}
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 2,
+                          flexWrap: 'wrap'
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {student.name}
                           </Typography>
-                          
-                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2, mb: 3 }}>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                Notes This Week
-                              </Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                {matchedStudent.thisWeekCount || 0}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                Total Notes
-                              </Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                                {matchedStudent.count || 0}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          <Box sx={{ display: 'flex', gap: 1.5, flexDirection: 'column' }}>
-                            {onNavigateToStudent && (
-                              <Button 
-                                fullWidth
-                                variant="contained"
-                                onClick={() => {
-                                  onNavigateToStudent(matchedStudent);
-                                }}
-                                sx={{ textTransform: 'none', fontWeight: 600 }}
-                              >
-                                View Dashboard
-                              </Button>
-                            )}
-                          </Box>
+                          <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                            <Chip size="small" label={`This week: ${student.thisWeekCount || 0}`} />
+                            <Chip size="small" label={`Total: ${student.count || 0}`} />
+                          </Stack>
                         </Box>
+                        {onNavigateToStudent && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => onNavigateToStudent(student)}
+                            sx={{ textTransform: 'none', fontWeight: 600 }}
+                          >
+                            View Dashboard
+                          </Button>
+                        )}
                       </Box>
-                    );
-                  })()}
+                    ))}
+                  </Stack>
                 </Box>
                   ) : (
                     <Alert severity="info">
