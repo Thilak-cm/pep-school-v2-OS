@@ -9,10 +9,6 @@ import {
   Tab,
   CircularProgress,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Divider,
   Stack,
   ToggleButtonGroup,
   ToggleButton,
@@ -28,8 +24,7 @@ import {
   TrendingDown,
   People,
   School,
-  ArrowBack,
-  ExpandMore
+  ArrowBack
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, getDocs, orderBy, where, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -39,30 +34,6 @@ import { isAdminRole } from '../utils/roleUtils';
 // Granular cache system - each data type cached separately (role scoping applies in-memory)
 const CACHE_KEY_PREFIX = 'statsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (1 day)
-
-const PROGRAM_LABELS = {
-  toddler: 'Toddler',
-  primary: 'Primary',
-  elementary: 'Elementary',
-  adolescent: 'Adolescent',
-  unassigned: 'Unassigned'
-};
-
-const getProgramLabel = (programId) => {
-  const key = String(programId || '').trim();
-  if (!key) return PROGRAM_LABELS.unassigned;
-  return PROGRAM_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
-};
-
-const normalizeClassroomId = (value) => {
-  if (!value) return '';
-  if (typeof value === 'object' && value.id) return value.id;
-  if (typeof value === 'string') {
-    const parts = value.split('/');
-    return parts[parts.length - 1] || value;
-  }
-  return value;
-};
 
 // Build base cache key for user/role context
 const buildBaseCacheKey = (userId, role, manageableClassrooms = []) => {
@@ -141,6 +112,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   const [timePeriod, setTimePeriod] = useState('1W');
   const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
   const [teacherTimePeriod, setTeacherTimePeriod] = useState('1W');
+  const [selectedTeacherClassroomId, setSelectedTeacherClassroomId] = useState('');
   const [stats, setStats] = useState({
     totalObservations: 0,
     thisWeek: 0,
@@ -162,12 +134,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
-  const [programLookup, setProgramLookup] = useState({});
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [roleScopedStudents, setRoleScopedStudents] = useState([]);
   const [roleScopedObservations, setRoleScopedObservations] = useState([]);
-  const [expandedTeacherClassrooms, setExpandedTeacherClassrooms] = useState(new Set());
   const [mounted, setMounted] = useState(false);
   
   const [scopeError, setScopeError] = useState('');
@@ -213,39 +183,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }, [hideBranchSelector, singleBranchId, selectedBranchId]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchPrograms = async () => {
-      try {
-        const programsSnap = await getDocs(collection(db, 'programs'));
-        if (!isMounted) return;
-
-        const classroomProgramMap = {};
-        programsSnap.forEach((programDoc) => {
-          const data = programDoc.data() || {};
-          const programId = programDoc.id;
-          const classroomPaths = Array.isArray(data.classrooms) ? data.classrooms : [];
-          classroomPaths.forEach((path) => {
-            const normalizedId = normalizeClassroomId(path);
-            if (normalizedId) {
-              classroomProgramMap[normalizedId] = programId;
-            }
-          });
-        });
-
-        setProgramLookup(classroomProgramMap);
-      } catch (err) {
-        console.error('Error fetching program metadata', err);
-      }
-    };
-
-    fetchPrograms();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
+    if (!selectedTeacherClassroomId) return;
+    const exists = (classrooms || []).some((classroom) => classroom.id === selectedTeacherClassroomId);
+    if (!exists) {
+      setSelectedTeacherClassroomId('');
+    }
+  }, [classrooms, selectedTeacherClassroomId]);
 
   // Helper function to fetch data for a specific tab
   const fetchTabData = async (tabIndex) => {
@@ -1018,39 +961,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     });
   }, [classroomTimePeriod, stats?.allObservations, students, classrooms, getObservationDateFast, isLessonNoteFast]);
 
-  const teacherStatsForPeriod = useMemo(() => {
-    const days = teacherTimePeriod === '1M' ? 30 : 7;
-    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const countsByTeacher = new Map();
-
-    (stats?.allObservations || []).forEach((obs) => {
-      const obsDate = getObservationDateFast(obs);
-      if (obsDate < cutoff) return;
-      const teacherId = obs?.createdBy;
-      if (!teacherId) return;
-      if (!countsByTeacher.has(teacherId)) {
-        countsByTeacher.set(teacherId, { observationNotes: 0, lessonNotes: 0, total: 0 });
-      }
-      const counts = countsByTeacher.get(teacherId);
-      counts.total += 1;
-      if (isLessonNoteFast(obs)) {
-        counts.lessonNotes += 1;
-      } else {
-        counts.observationNotes += 1;
-      }
-    });
-
-    return (stats?.teacherStats || []).map((teacher) => {
-      const counts = countsByTeacher.get(teacher.id) || { observationNotes: 0, lessonNotes: 0, total: 0 };
-      return {
-        ...teacher,
-        periodObservations: counts.total,
-        periodObservationNotes: counts.observationNotes,
-        periodLessonNotes: counts.lessonNotes
-      };
-    });
-  }, [stats?.allObservations, stats?.teacherStats, teacherTimePeriod, getObservationDateFast, isLessonNoteFast]);
-
   // Filter observations by time period for pie chart
   const filteredObservationsForPie = useMemo(() => {
     const list = stats?.allObservations || [];
@@ -1138,6 +1048,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     }
   };
 
+  const handleTeacherClassroomChange = (event) => {
+    setSelectedTeacherClassroomId(event.target.value);
+  };
+
   // Compute Activity Trend count based on selected timePeriod
 
   const activityCount = useMemo(() => {
@@ -1157,14 +1071,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     return list.filter(o => getObservationDateFast(o) >= start).length;
   }, [stats?.allObservations, timePeriod]);
 
-  // Helpers for Teachers tab: sort by first name
-  const getFirstName = (name, email) => {
-    const source = name || email || '';
-    const base = source.includes('@') ? source.split('@')[0] : source;
-    const token = String(base).trim().split(/[\s._-]+/)[0] || '';
-    return token.toLowerCase();
-  };
-
   // Map teacherId -> classroomIds using loaded classrooms
   const teacherToClassroomIds = useMemo(() => {
     const map = new Map();
@@ -1178,113 +1084,128 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     return map;
   }, [classrooms]);
 
-  const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
+  const getTeacherClassroomIds = useCallback(
+    (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set()),
+    [teacherToClassroomIds]
+  );
 
-  const sortedTeacherStats = useMemo(() => {
-    const list = teacherStatsForPeriod || [];
-    return [...list].sort((a, b) =>
-      getFirstName(a.name, a.email).localeCompare(getFirstName(b.name, b.email))
-    );
-  }, [teacherStatsForPeriod]);
+  const selectedTeacherClassroom = useMemo(
+    () => (classrooms || []).find((classroom) => classroom.id === selectedTeacherClassroomId) || null,
+    [classrooms, selectedTeacherClassroomId]
+  );
 
-  const classroomProgramLookup = useMemo(() => {
-    const mapping = { ...programLookup };
-    (classrooms || []).forEach((cls) => {
-      const cid = normalizeClassroomId(cls.id);
-      if (!cid) return;
-      const programId = cls.programId || mapping[cid];
-      if (programId) {
-        mapping[cid] = programId;
-      } else if (!mapping[cid]) {
-        mapping[cid] = 'unassigned';
-      }
-    });
-    return mapping;
-  }, [classrooms, programLookup]);
+  const teachersForSelectedClassroom = useMemo(() => {
+    if (!selectedTeacherClassroomId) return [];
+    const classroom = (classrooms || []).find((c) => c.id === selectedTeacherClassroomId);
+    if (!classroom) return [];
 
-  const teacherStatsForList = useMemo(() => {
-    return [...sortedTeacherStats];
-  }, [sortedTeacherStats]);
+    const teacherIds = Array.isArray(classroom.teacherIds) ? classroom.teacherIds : [];
+    const uniqueTeacherIds = Array.from(new Set(teacherIds));
+    const teacherBaseById = new Map();
 
-  const teacherClassroomGroups = useMemo(() => {
-    const teacherMap = new Map((teacherStatsForList || []).map(t => [t.id, t]));
-    const groups = (classrooms || [])
-      .map(classroom => {
-        const teacherIds = Array.isArray(classroom?.teacherIds) ? classroom.teacherIds : [];
-        const teachers = teacherIds.map(id => teacherMap.get(id)).filter(Boolean);
-        return {
-          id: classroom.id,
-          name: classroom.name || classroom.id,
-          teachers
-        };
-      })
-      .filter(group => group.teachers.length > 0);
-
-    const unassignedTeachers = (teacherStatsForList || []).filter(teacher => {
-      const assigned = getTeacherClassroomIds(teacher.id);
-      return assigned.length === 0;
-    });
-    if (unassignedTeachers.length > 0) {
-      groups.push({
-        id: 'no-classrooms',
-        name: 'No Classrooms',
-        teachers: unassignedTeachers
+    (teachers || []).forEach((teacher) => {
+      if (!teacher?.id) return;
+      teacherBaseById.set(teacher.id, {
+        id: teacher.id,
+        name: teacher.displayName || teacher.email || 'Unknown Teacher',
+        email: teacher.email,
+        status: teacher.status
       });
-    }
-
-    return groups;
-  }, [classrooms, teacherStatsForList, teacherToClassroomIds]);
-
-  const teacherClassroomSections = useMemo(() => {
-    const sectionsMap = new Map();
-    let noClassroomsGroup = null;
-
-    teacherClassroomGroups.forEach((group) => {
-      if (group.id === 'no-classrooms') {
-        noClassroomsGroup = group;
-        return;
-      }
-      const programId = classroomProgramLookup[group.id] || 'unassigned';
-      if (!sectionsMap.has(programId)) sectionsMap.set(programId, []);
-      sectionsMap.get(programId).push(group);
     });
 
-    const orderedProgramIds = Array.from(sectionsMap.keys()).sort((a, b) =>
-      getProgramLabel(a).localeCompare(getProgramLabel(b), undefined, { sensitivity: 'base' })
-    );
+    (stats?.teacherStats || []).forEach((teacher) => {
+      if (!teacher?.id) return;
+      const existing = teacherBaseById.get(teacher.id);
+      teacherBaseById.set(teacher.id, {
+        id: teacher.id,
+        name: teacher.name || teacher.displayName || teacher.email || existing?.name || 'Unknown Teacher',
+        email: teacher.email || existing?.email,
+        status: teacher.status || existing?.status
+      });
+    });
 
-    const sections = orderedProgramIds.map((programId) => {
-      const groups = sectionsMap.get(programId) || [];
-      groups.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+    const days = teacherTimePeriod === '1M' ? 30 : 7;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const classroomByStudent = new Map();
+
+    (students || []).forEach((student) => {
+      if (student?.id && student?.classroomId) {
+        classroomByStudent.set(student.id, student.classroomId);
+      }
+    });
+
+    const countsByTeacher = new Map();
+    const otherNotesByTeacher = new Map();
+    const ensureCounts = (teacherId) => {
+      if (!countsByTeacher.has(teacherId)) {
+        countsByTeacher.set(teacherId, { observationNotes: 0, lessonNotes: 0, total: 0 });
+      }
+      return countsByTeacher.get(teacherId);
+    };
+    const ensureOtherNotes = (teacherId) => {
+      if (!otherNotesByTeacher.has(teacherId)) {
+        otherNotesByTeacher.set(teacherId, 0);
+      }
+      return otherNotesByTeacher.get(teacherId);
+    };
+
+    (stats?.allObservations || []).forEach((obs) => {
+      const obsDate = getObservationDateFast(obs);
+      if (obsDate < cutoff) return;
+      const classroomId = obs?.classroomId || classroomByStudent.get(obs?.studentId);
+      if (!classroomId) return;
+      const teacherId = obs?.createdBy;
+      if (!teacherId) return;
+      if (classroomId === selectedTeacherClassroomId) {
+        const counts = ensureCounts(teacherId);
+        counts.total += 1;
+        if (isLessonNoteFast(obs)) {
+          counts.lessonNotes += 1;
+        } else {
+          counts.observationNotes += 1;
+        }
+      } else {
+        otherNotesByTeacher.set(teacherId, ensureOtherNotes(teacherId) + 1);
+      }
+    });
+
+    const list = uniqueTeacherIds.map((teacherId) => {
+      const base = teacherBaseById.get(teacherId) || { id: teacherId, name: 'Unknown Teacher' };
+      const counts = countsByTeacher.get(teacherId) || { observationNotes: 0, lessonNotes: 0, total: 0 };
+      const otherClassroomCount = getTeacherClassroomIds(teacherId)
+        .filter((classroomId) => classroomId && classroomId !== selectedTeacherClassroomId).length;
+      const otherClassroomNotes = otherNotesByTeacher.get(teacherId) || 0;
+
       return {
-        id: programId,
-        label: getProgramLabel(programId),
-        groups
+        ...base,
+        periodObservations: counts.total,
+        periodObservationNotes: counts.observationNotes,
+        periodLessonNotes: counts.lessonNotes,
+        otherClassroomCount,
+        otherClassroomNotes
       };
     });
 
-    if (noClassroomsGroup) {
-      sections.push({
-        id: 'no-classrooms',
-        label: 'No Classrooms',
-        groups: [noClassroomsGroup]
-      });
-    }
-
-    return sections;
-  }, [teacherClassroomGroups, classroomProgramLookup]);
-
-  const toggleTeacherClassroom = (classroomId) => {
-    setExpandedTeacherClassrooms(prev => {
-      const next = new Set(prev);
-      if (next.has(classroomId)) {
-        next.delete(classroomId);
-      } else {
-        next.add(classroomId);
+    list.sort((a, b) => {
+      if (b.periodObservations !== a.periodObservations) {
+        return b.periodObservations - a.periodObservations;
       }
-      return next;
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
     });
-  };
+
+    return list;
+  }, [
+    selectedTeacherClassroomId,
+    classrooms,
+    teachers,
+    stats?.teacherStats,
+    stats?.allObservations,
+    students,
+    teacherTimePeriod,
+    getObservationDateFast,
+    isLessonNoteFast,
+    getTeacherClassroomIds
+  ]);
 
   // Hard-stop UI if classroom scoping is missing
   if (scopeError) {
@@ -1789,7 +1710,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   };
 
   const classroomPeriodLabel = classroomTimePeriod === '1M' ? 'Notes This Month' : 'Notes This Week';
-  const teacherPeriodLabel = teacherTimePeriod === '1M' ? '30d' : '7d';
+  const teacherPeriodLabel = teacherTimePeriod === '1M' ? 'Last 30 days' : 'Last 7 days';
 
   if (stats.loading) {
     return (
@@ -2117,8 +2038,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               </Box>
             ) : (
             <Box>
-              <Box sx={{ mb: 2 }}>
-              <Box sx={{ mb: 2, maxWidth: 220 }}>
+              <Box sx={{ mb: 2, maxWidth: 320, minWidth: 220 }}>
                 <ToggleButtonGroup
                   value={classroomTimePeriod}
                   exclusive
@@ -2143,8 +2063,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     }
                   }}
                 >
-                  <ToggleButton value="1W">1W</ToggleButton>
-                  <ToggleButton value="1M">1M</ToggleButton>
+                  <ToggleButton value="1W">Last 7 days</ToggleButton>
+                  <ToggleButton value="1M">Last 30 days</ToggleButton>
                 </ToggleButtonGroup>
               </Box>
               {isAdmin && !hideBranchSelector && (
@@ -2223,7 +2143,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   )}
                 </Box>
               )}
-              </Box>
               
               {classroomStatsForPeriod.length > 0 ? (
                 <Box sx={{ width: '100%', minWidth: 0 }}>
@@ -2255,152 +2174,108 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               </Box>
             ) : (
             <Box>
-              <Box sx={{ mb: 2, maxWidth: 220 }}>
-                <ToggleButtonGroup
-                  value={teacherTimePeriod}
-                  exclusive
-                  onChange={handleTeacherTimePeriodChange}
-                  size="small"
-                  fullWidth
-                  sx={{
-                    '& .MuiToggleButton-root': {
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      px: 2,
-                      py: 0.75,
-                      borderColor: '#e2e8f0',
-                      flex: 1,
-                      '&.Mui-selected': {
-                        backgroundColor: '#4f46e5',
-                        color: 'white',
-                        '&:hover': {
-                          backgroundColor: '#4338ca'
+              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                <Box sx={{ maxWidth: 320, minWidth: 220, flex: '1 1 220px' }}>
+                  <ToggleButtonGroup
+                    value={teacherTimePeriod}
+                    exclusive
+                    onChange={handleTeacherTimePeriodChange}
+                    size="small"
+                    fullWidth
+                    sx={{
+                      '& .MuiToggleButton-root': {
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        px: 2,
+                        py: 0.75,
+                        borderColor: '#e2e8f0',
+                        flex: 1,
+                        '&.Mui-selected': {
+                          backgroundColor: '#4f46e5',
+                          color: 'white',
+                          '&:hover': {
+                            backgroundColor: '#4338ca'
+                          }
                         }
                       }
-                    }
-                  }}
-                >
-                  <ToggleButton value="1W">1W</ToggleButton>
-                  <ToggleButton value="1M">1M</ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
-              {teacherStatsForList.length > 0 ? (
-                <Box>
-                  {/* Teacher List */}
-                  <Box sx={{ mb: 3 }}>
-                    {teacherClassroomSections.length > 0 ? (
-                      <Stack spacing={2}>
-                        {teacherClassroomSections.map((section) => (
-                          <Box key={section.id} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                {section.label}
-                              </Typography>
-                              <Divider sx={{ flex: 1 }} />
-                            </Box>
-                            <Stack spacing={1.5}>
-                              {section.groups.map((group) => {
-                                const isExpanded = expandedTeacherClassrooms.has(group.id);
-                                return (
-                                  <Accordion
-                                    key={group.id}
-                                    expanded={isExpanded}
-                                    onChange={() => toggleTeacherClassroom(group.id)}
-                                    disableGutters
-                                    elevation={0}
-                                    sx={{
-                                      border: '1px solid #e2e8f0',
-                                      borderRadius: 2,
-                                      '&:before': { display: 'none' },
-                                      '&.Mui-expanded': {
-                                        borderColor: '#cbd5e1',
-                                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                                      }
-                                    }}
-                                  >
-                                    <AccordionSummary
-                                      expandIcon={<ExpandMore />}
-                                      sx={{
-                                        px: 2,
-                                        py: 1.5,
-                                        '& .MuiAccordionSummary-content': {
-                                          m: 0,
-                                          alignItems: 'center'
-                                        }
-                                      }}
-                                    >
-                                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                                          {group.name}
-                                        </Typography>
-                                        <Chip
-                                          label={`${group.teachers.length} ${group.teachers.length === 1 ? 'teacher' : 'teachers'}`}
-                                          size="small"
-                                          sx={{
-                                            height: 22,
-                                            fontSize: '0.72rem',
-                                            fontWeight: 600,
-                                            backgroundColor: '#f1f5f9',
-                                            color: '#475569'
-                                          }}
-                                        />
-                                      </Stack>
-                                    </AccordionSummary>
-                                    <AccordionDetails sx={{ px: 2, pb: 2 }}>
-                                      <Stack spacing={1.5}>
-                                        {group.teachers.map((teacher) => (
-                                          <Box
-                                            key={teacher.id}
-                                            sx={{
-                                              p: 2,
-                                              backgroundColor: 'white',
-                                              borderRadius: 2,
-                                              border: '1px solid #e2e8f0'
-                                            }}
-                                          >
-                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                  {teacher.name}
-                                                </Typography>
-                                                {teacher.status && teacher.status !== 'active' && (
-                                                  <Chip size="small" color="warning" variant="outlined" label="Inactive" />
-                                                )}
-                                              </Box>
-                                        <Chip
-                                          size="small"
-                                          label={`${teacher.periodObservations ?? 0} ${teacher.periodObservations === 1 ? 'note' : 'notes'} in ${teacherPeriodLabel}`}
-                                          color={(teacher.periodObservations ?? 0) === 0 ? 'error' : 'primary'}
-                                          variant={(teacher.periodObservations ?? 0) === 0 ? 'filled' : 'outlined'}
-                                        />
-                                            </Box>
-
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                        <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
-                                        <Chip size="small" variant="outlined" color="info" label={`Lesson Notes: ${teacher.periodLessonNotes ?? 0}`} />
-                                            </Box>
-                                          </Box>
-                                        ))}
-                                      </Stack>
-                                    </AccordionDetails>
-                                  </Accordion>
-                                );
-                              })}
-                            </Stack>
-                          </Box>
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Alert severity="info">No teacher data available.</Alert>
-                    )}
-                  </Box>
+                    }}
+                  >
+                    <ToggleButton value="1W">Last 7 days</ToggleButton>
+                    <ToggleButton value="1M">Last 30 days</ToggleButton>
+                  </ToggleButtonGroup>
                 </Box>
+                <FormControl size="small" sx={{ minWidth: 240, flex: '1 1 240px' }}>
+                  <InputLabel id="teacher-classroom-select-label">Select a classroom</InputLabel>
+                  <Select
+                    labelId="teacher-classroom-select-label"
+                    value={selectedTeacherClassroomId}
+                    label="Select a classroom"
+                    onChange={handleTeacherClassroomChange}
+                  >
+                    <MenuItem value="" disabled>
+                      Select a classroom
+                    </MenuItem>
+                    {(classrooms || []).map((classroom) => (
+                      <MenuItem key={classroom.id} value={classroom.id}>
+                        {classroom.name || classroom.id}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {!selectedTeacherClassroomId ? (
+                <Alert severity="info">Select a classroom to view teachers.</Alert>
+              ) : (
+                <Box>
+                  {teachersForSelectedClassroom.length > 0 ? (
+                    <Stack spacing={1.5}>
+                      {teachersForSelectedClassroom.map((teacher) => (
+                        <Box
+                          key={teacher.id}
+                          sx={{
+                            p: 2,
+                            backgroundColor: 'white',
+                            borderRadius: 2,
+                            border: '1px solid #e2e8f0'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {teacher.name}
+                              </Typography>
+                              {teacher.status && teacher.status !== 'active' && (
+                                <Chip size="small" color="warning" variant="outlined" label="Inactive" />
+                              )}
+                            </Box>
+                            <Chip
+                              size="small"
+                              label={`Total: ${teacher.periodObservations ?? 0}`}
+                              color={(teacher.periodObservations ?? 0) === 0 ? 'error' : 'primary'}
+                              variant={(teacher.periodObservations ?? 0) === 0 ? 'filled' : 'outlined'}
+                            />
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip size="small" variant="outlined" color="success" label={`Observations: ${teacher.periodObservationNotes ?? 0}`} />
+                            <Chip size="small" variant="outlined" color="info" label={`Lessons: ${teacher.periodLessonNotes ?? 0}`} />
+                          </Box>
+
+                          {teacher.otherClassroomCount > 0 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                              Also contributed <Box component="span" sx={{ fontWeight: 600 }}>{teacher.otherClassroomNotes ?? 0}</Box> {teacher.otherClassroomNotes === 1 ? 'note' : 'notes'} to <Box component="span" sx={{ fontWeight: 600 }}>{teacher.otherClassroomCount}</Box> other classroom{teacher.otherClassroomCount === 1 ? '' : 's'}
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
                   ) : (
-                    <Alert severity="info">
-                      No teacher data available.
-                    </Alert>
+                    <Alert severity="info">No teachers assigned to this classroom.</Alert>
                   )}
-                    </Box>
+                </Box>
+              )}
+            </Box>
                   )
                 )}
               
