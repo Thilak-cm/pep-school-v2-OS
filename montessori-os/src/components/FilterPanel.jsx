@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search, Mic, EditNote, Close, MenuBook } from '@mui/icons-material';
+import { Clear, Search, Mic, EditNote, Close, MenuBook, PermMedia } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -40,8 +40,7 @@ const FilterPanel = ({
   totalCount,
   onFilterChange,
   onClearFilters,
-  onToggleFilters,
-  noteTypeFilter = null
+  onToggleFilters
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
   
@@ -50,12 +49,10 @@ const FilterPanel = ({
     return fuzzySearchTeachers(classroomTeachers, creatorSearch);
   }, [classroomTeachers, creatorSearch]);
 
-  const lockedToLesson = noteTypeFilter === 'lesson';
-  const lockedToTextVoice = noteTypeFilter === 'textVoice';
-  const lockedToMedia = noteTypeFilter === 'media';
-  const voiceActive = !(lockedToLesson || lockedToMedia) && filters.types?.includes('voice');
-  const textActive = !(lockedToLesson || lockedToMedia) && filters.types?.includes('text');
-  const lessonActive = lockedToLesson || filters.types?.includes('lesson');
+  const voiceActive = filters.types?.includes('voice');
+  const textActive = filters.types?.includes('text');
+  const lessonActive = filters.types?.includes('lesson');
+  const mediaActive = filters.types?.includes('media');
   return (
     <Box>
 
@@ -85,7 +82,7 @@ const FilterPanel = ({
             <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  Filter Observations
+                  Filter Notes
                 </Typography>
                 {hasActiveFilters && (
                   <Chip 
@@ -216,9 +213,7 @@ const FilterPanel = ({
                     variant={voiceActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<Mic />}
-                    disabled={lockedToLesson || lockedToMedia}
                     onClick={() => {
-                      if (lockedToLesson || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('voice')
                         ? currentTypes.filter((t) => t !== 'voice')
@@ -260,9 +255,6 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...((lockedToLesson || lockedToMedia) && {
-                        opacity: 0.4,
-                      }),
                     }}
                   >
                     Voice Notes
@@ -272,9 +264,7 @@ const FilterPanel = ({
                     variant={textActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<EditNote />}
-                    disabled={lockedToLesson || lockedToMedia}
                     onClick={() => {
-                      if (lockedToLesson || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('text')
                         ? currentTypes.filter((t) => t !== 'text')
@@ -316,9 +306,6 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...((lockedToLesson || lockedToMedia) && {
-                        opacity: 0.4,
-                      }),
                     }}
                   >
                     Text Notes
@@ -328,9 +315,7 @@ const FilterPanel = ({
                     variant={lessonActive ? 'contained' : 'outlined'}
                     size="small"
                     startIcon={<MenuBook />}
-                    disabled={lockedToTextVoice || lockedToMedia}
                     onClick={() => {
-                      if (lockedToTextVoice || lockedToMedia) return;
                       const currentTypes = filters.types || [];
                       const newTypes = currentTypes.includes('lesson')
                         ? currentTypes.filter((t) => t !== 'lesson')
@@ -372,12 +357,60 @@ const FilterPanel = ({
                           pointerEvents: 'none',
                         },
                       }),
-                      ...((lockedToTextVoice || lockedToMedia) && {
-                        opacity: 0.4,
-                      }),
                     }}
                   >
                     Lesson Notes
+                  </Button>
+
+                  <Button
+                    variant={mediaActive ? 'contained' : 'outlined'}
+                    size="small"
+                    startIcon={<PermMedia />}
+                    onClick={() => {
+                      const currentTypes = filters.types || [];
+                      const newTypes = currentTypes.includes('media')
+                        ? currentTypes.filter((t) => t !== 'media')
+                        : [...currentTypes, 'media'];
+                      onFilterChange('types', newTypes);
+                    }}
+                    sx={{
+                      minWidth: 120,
+                      height: 40,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderWidth: 2,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderWidth: 2,
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      ...(mediaActive && {
+                        backgroundColor: '#0ea5e9',
+                        color: 'white',
+                        '&:hover': {
+                          backgroundColor: '#0284c7',
+                        },
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          pointerEvents: 'none',
+                        },
+                      }),
+                    }}
+                  >
+                    Media
                   </Button>
                 </Box>
                 

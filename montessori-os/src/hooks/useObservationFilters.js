@@ -136,6 +136,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     // State
     showFilters,
     filters,
+    setFilters,
     uniqueCreators,
     filteredObservations,
     hasActiveFilters,
