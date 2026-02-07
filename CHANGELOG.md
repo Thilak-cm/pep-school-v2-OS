@@ -1,5 +1,16 @@
 # Changelog
 
+# 8.3.0 — 2026-02-07
+
+### Added
+- StudentTimeline: unified timeline now shows media uploads inline as text entries with uploader and timestamp.
+- StudentTimeline: note-type chips now mirror Add Note modal icons (text, voice, lesson) with monochrome styling.
+
+### Changed
+- StudentTimeline: removed tabs to show a single grouped timeline (Today / Last 7 Days / Beyond) mixing observations, lesson notes, and media.
+- StudentTimeline: lesson notes render as minimal cards (author, title, optional student comment, date) while keeping the existing expansion dialog.
+- FilterPanel: note type filters now include Media and are no longer locked to tabs.
+
 # 8.2.0 — 2026-02-06
 
 ### Added
