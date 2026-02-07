@@ -12,9 +12,12 @@ import {
   DialogActions,
   Button,
   Chip,
-  Divider
+  Divider,
+  Tabs,
+  Tab,
+  IconButton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline } from '@mui/icons-material';
 import { collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -31,7 +34,7 @@ import {
 import { isSuperAdmin } from '../utils/roleUtils';
 import { canDeleteObservation } from '../utils/observationPermissions';
 import ExportWizard from './ExportWizard';
-import { ref, deleteObject } from 'firebase/storage';
+import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
@@ -50,8 +53,19 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   // Export states
   const [exporting, setExporting] = useState(false);
   const [exportWizardOpen, setExportWizardOpen] = useState(false);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
+  const [mediaUrls, setMediaUrls] = useState({});
+  const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
   const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
   const notifiedFailuresRef = useRef(new Set());
+
+  const toJsDate = (ts) => {
+    if (!ts) return null;
+    if (ts.toDate) return ts.toDate();
+    if (ts.seconds) return new Date(ts.seconds * 1000);
+    return new Date(ts);
+  };
 
   const getTeacherDisplayName = (obs) => (
     obs?.createdByName ||
@@ -116,6 +130,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const visibleObservations = useMemo(() => filteredObservations || [], [filteredObservations]);
 
   const combinedFiltersActive = hasActiveFilters;
+
+  const mediaObservations = useMemo(() => {
+    const filtered = applyFilters(observations, 'media') || [];
+    return filtered.filter((obs) => obs.type === 'media');
+  }, [observations, filters, applyFilters]);
 
   useEffect(() => {
     if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
@@ -227,12 +246,53 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     });
   }, [observations]);
 
+  useEffect(() => {
+    const readyMedia = (mediaObservations || []).filter((obs) =>
+      obs.type === 'media' &&
+      obs.status === 'ready' &&
+      Array.isArray(obs.media) &&
+      obs.media.length > 0 &&
+      obs.media[0]?.storagePath
+    );
+    const missingPaths = readyMedia
+      .map((obs) => obs.media[0].storagePath)
+      .filter((path) => path && !mediaUrls[path]);
+    if (missingPaths.length === 0) return;
+    (async () => {
+      const entries = await Promise.all(missingPaths.map(async (path) => {
+        try {
+          const url = await getDownloadURL(ref(storage, path));
+          return [path, url];
+        } catch (err) {
+          console.error('Failed to fetch media URL', err);
+          return null;
+        }
+      }));
+      const updates = {};
+      entries.forEach((entry) => {
+        if (entry && entry[0] && entry[1]) {
+          updates[entry[0]] = entry[1];
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        setMediaUrls((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+  }, [mediaObservations, mediaUrls]);
+
 
 
   const handleObservationClick = (observation) => {
     if (observation?.type === 'media') return;
     setSelectedObservation(observation);
     setDetailDialogOpen(true);
+  };
+
+  const handleMediaClick = (observation) => {
+    if (!observation) return;
+    const path = observation.media?.[0]?.storagePath;
+    const url = path ? mediaUrls[path] : null;
+    setMediaPreview({ observation, url: url || null });
   };
 
   const handleCloseDialog = () => {
@@ -482,6 +542,27 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             {exporting ? 'Exporting...' : 'Export'}
           </Button>
         </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton
+            aria-label="Open media"
+            title="Media"
+            onClick={() => setMediaDialogOpen(true)}
+            sx={{
+              color: '#0f172a',
+              border: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+              '&:hover': {
+                backgroundColor: '#f8fafc'
+              }
+            }}
+          >
+            <PhotoLibrary />
+          </IconButton>
+        </Box>
       </Box>
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 4, gap: 2, flexDirection: 'column' }}>
@@ -707,6 +788,275 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           userRole={userRole}
           isClassroomContext={false}
         />
+
+      {/* Media Dialog */}
+      <Dialog
+        open={mediaDialogOpen}
+        onClose={() => setMediaDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6">Media</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          <Tabs
+            value={mediaSubTab}
+            onChange={(_, val) => setMediaSubTab(val)}
+            textColor="primary"
+            indicatorColor="primary"
+            variant="fullWidth"
+            sx={{ mb: 2 }}
+          >
+            <Tab value="photos" label="Photos / Videos" />
+            <Tab value="docs" label="Docs" />
+          </Tabs>
+
+          {(() => {
+            const sortedMedia = [...(mediaObservations || [])].sort((a, b) => {
+              const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
+              const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
+              return db - da;
+            });
+            const photosVideos = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() !== 'pdf');
+            const docs = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() === 'pdf');
+            const renderStatusChip = (obs) => {
+              if (obs.status === 'pending_upload') {
+                return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload sx={{ fontSize: 16 }} />} />;
+              }
+              if (obs.status === 'failed') {
+                return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline sx={{ fontSize: 16 }} />} />;
+              }
+              return null;
+            };
+
+            if (mediaSubTab === 'docs') {
+              return docs.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {docs.map((obs) => {
+                    const path = obs.media?.[0]?.storagePath;
+                    const url = path ? mediaUrls[path] : null;
+                    const isReady = obs.status === 'ready' && url;
+                    return (
+                      <Card
+                        key={obs.id}
+                        onClick={() => {
+                          if (isReady) window.open(url, '_blank');
+                        }}
+                        sx={{
+                          cursor: isReady ? 'pointer' : 'default',
+                          '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
+                          p: 1.5
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <InsertDriveFile color="primary" />
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              {obs.pdfTitle || 'PDF'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatTimestamp(obs.observedAt || obs.timestamp)}
+                            </Typography>
+                          </Box>
+                          {renderStatusChip(obs)}
+                          {mediaDeleteAllowed(obs) && (
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedObservation(obs);
+                                setDeleteConfirmOpen(true);
+                              }}
+                              startIcon={<Delete />}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </Box>
+                      </Card>
+                    );
+                  })}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                  No documents yet.
+                </Typography>
+              );
+            }
+
+            return photosVideos.length > 0 ? (
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)' },
+                gap: 1
+              }}>
+                {photosVideos.map((obs) => {
+                  const path = obs.media?.[0]?.storagePath;
+                  const url = path ? mediaUrls[path] : null;
+                  const isPending = obs.status === 'pending_upload';
+                  const isFailed = obs.status === 'failed';
+                  const isReady = obs.status === 'ready' && url;
+                  return (
+                    <Box
+                      key={obs.id}
+                      onClick={() => {
+                        if (isReady) handleMediaClick(obs);
+                      }}
+                      sx={{
+                        cursor: isReady ? 'pointer' : 'default',
+                        '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
+                        position: 'relative',
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                        backgroundColor: '#f8fafc',
+                        aspectRatio: '1 / 1'
+                      }}
+                    >
+                      <Box sx={{ position: 'relative', height: '100%' }}>
+                        {isReady && obs.mediaKind === 'photo' && (
+                          <Box
+                            component="img"
+                            src={url}
+                            alt="Photo"
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        )}
+                        {isReady && obs.mediaKind === 'video' && (
+                          <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Movie color="primary" />
+                          </Box>
+                        )}
+                        {isPending && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              inset: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexDirection: 'column',
+                              gap: 0.5,
+                              backgroundColor: 'rgba(248,250,252,0.85)',
+                            }}
+                          >
+                            <CircularProgress size={20} />
+                            <Typography variant="caption" color="text.secondary">
+                              Uploading
+                            </Typography>
+                          </Box>
+                        )}
+                        {isFailed && (
+                          <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1 }}>
+                            <ErrorOutline color="error" />
+                            <Typography variant="caption" color="error">Upload failed</Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                          {renderStatusChip(obs)}
+                        </Box>
+                        {mediaDeleteAllowed(obs) && (
+                          <IconButton
+                            size="small"
+                            aria-label="Delete media"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedObservation(obs);
+                              setDeleteConfirmOpen(true);
+                            }}
+                            sx={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(255,255,255,0.9)' }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                No photos or videos yet.
+              </Typography>
+            );
+          })()}
+
+          {mediaObservations.length === 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+              No media notes yet.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setMediaDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Media Preview Dialog */}
+      <Dialog
+        open={!!mediaPreview}
+        onClose={() => setMediaPreview(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6">Media</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (
+            <Box
+              component="img"
+              src={mediaPreview.url}
+              alt="Media"
+              sx={{ width: '100%', borderRadius: 2, maxHeight: 420, objectFit: 'contain' }}
+            />
+          )}
+          {mediaPreview?.observation?.mediaKind === 'video' && mediaPreview?.url && (
+            <Box sx={{ width: '100%' }}>
+              <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+            </Box>
+          )}
+          {(!mediaPreview?.url) && (
+            <Typography variant="body2" color="text.secondary">
+              Download URL not ready yet. Please wait for upload to finish.
+            </Typography>
+          )}
+          {mediaPreview?.observation && (
+            <Typography variant="body2" color="text.secondary">
+              Date Captured: {formatTimestamp(mediaPreview.observation.observedAt || mediaPreview.observation.timestamp)}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setMediaPreview(null)}>Close</Button>
+          {mediaPreview?.url && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                window.open(mediaPreview.url, '_blank');
+              }}
+            >
+              Open
+            </Button>
+          )}
+          {mediaPreview?.observation && mediaDeleteAllowed(mediaPreview.observation) && (
+            <Button
+              color="error"
+              variant="contained"
+              startIcon={<Delete />}
+              onClick={() => {
+                setSelectedObservation(mediaPreview.observation);
+                setMediaPreview(null);
+                setDeleteConfirmOpen(true);
+              }}
+            >
+              Delete
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog

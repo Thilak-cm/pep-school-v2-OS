@@ -5,6 +5,7 @@
 ### Added
 - StudentTimeline: unified timeline now shows media uploads inline as text entries with uploader and timestamp.
 - StudentTimeline: note-type chips now mirror Add Note modal icons (text, voice, lesson) with monochrome styling.
+- StudentTimeline: media button opens a dedicated media viewer with Photos/Videos and Docs tabs.
 
 ### Changed
 - StudentTimeline: removed tabs to show a single grouped timeline (Today / Last 7 Days / Beyond) mixing observations, lesson notes, and media.
