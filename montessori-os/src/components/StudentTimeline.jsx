@@ -1112,30 +1112,19 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 2 }}>
             {selectedObservation?.type === 'media'
-              ? 'Delete this media note and remove the attached file from storage?'
+              ? 'Are you sure you want to delete this media?'
               : 'Are you sure you want to delete this observation note?'}
           </Typography>
-          {selectedObservation && (
-            selectedObservation.type === 'media' ? (
-              <Typography variant="body2" color="text.secondary" sx={{ 
-                backgroundColor: '#f8fafc',
-                padding: 2,
-                borderRadius: 2,
-                border: '1px solid #e2e8f0'
-              }}>
-                {selectedObservation.mediaKind ? selectedObservation.mediaKind.toUpperCase() : 'Media'} · {selectedObservation.media?.[0]?.storagePath || 'No file path'}
-              </Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ 
-                fontStyle: 'italic',
-                backgroundColor: '#f8fafc',
-                padding: 2,
-                borderRadius: 2,
-                border: '1px solid #e2e8f0'
-              }}>
-                "{selectedObservation.text?.substring(0, 100)}{selectedObservation.text?.length > 100 ? '...' : ''}"
-              </Typography>
-            )
+          {selectedObservation && selectedObservation.type !== 'media' && (
+            <Typography variant="body2" color="text.secondary" sx={{ 
+              fontStyle: 'italic',
+              backgroundColor: '#f8fafc',
+              padding: 2,
+              borderRadius: 2,
+              border: '1px solid #e2e8f0'
+            }}>
+              "{selectedObservation.text?.substring(0, 100)}{selectedObservation.text?.length > 100 ? '...' : ''}"
+            </Typography>
           )}
           <Typography variant="body2" color="error" sx={{ mt: 2, fontWeight: 'medium' }}>
             This action cannot be undone.

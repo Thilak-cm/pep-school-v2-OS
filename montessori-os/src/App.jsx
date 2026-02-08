@@ -134,6 +134,9 @@ function App() {
         } else if (noteTypeFilter === 'textVoice') {
           setStudentDashboardNoteType('textVoice');
           setScreen('studentDashboard');
+        } else if (noteTypeFilter === 'media') {
+          setTimelineFilter('media');
+          setScreen('timeline');
         } else {
           setStudentDashboardNoteType('textVoice');
           setScreen('studentDashboard');

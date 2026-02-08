@@ -1295,15 +1295,13 @@ function AddNoteModal({
       notify.warning(isPdf ? 'Choose a PDF first.' : 'Choose one or more photos/videos first.');
       return;
     }
+    if (mediaUploading) return;
     if (!selectedStudents || selectedStudents.length === 0) {
       notify.warning('Select at least one student.');
       return;
     }
     setSaving(true);
     setMediaUploading(true);
-    setMediaError('');
-    const successes = [];
-    const uploads = [];
     const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const itemsToUpload = isPdf
       ? [{
@@ -1313,57 +1311,56 @@ function AddNoteModal({
           displayName: pdfDisplayName
         }]
       : mediaItems;
-
-    let failed = null;
-    for (const stuId of selectedStudents) {
-      for (const item of itemsToUpload) {
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          const res = await uploadMediaForStudent(stuId, item, batchId);
-          successes.push(res);
-          uploads.push(res);
-        } catch (err) {
-          failed = err;
-          break;
-        }
-      }
-      if (failed) break;
-    }
-
-    if (failed) {
-      console.error('Upload failed', failed);
-      setMediaError('Upload failed. Please try again.');
-      notify.error(failed?.message || 'Upload failed for one of the files.');
-      await Promise.allSettled(
-        uploads.map(async (entry) => {
-          if (entry?.storagePath) {
-            await deleteObject(ref(storage, entry.storagePath)).catch(() => {});
+    const studentsToUpload = [...selectedStudents];
+    const firstStudentId = studentsToUpload[0];
+    notify.success('Upload started. You can keep working.', {
+      actionLabel: firstStudentId ? 'View Media' : undefined,
+      onUndo: firstStudentId
+        ? () => {
+            try {
+              window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
+                detail: { studentId: firstStudentId, noteTypeFilter: 'media' }
+              }));
+            } catch (_) { /* noop */ }
           }
-          if (entry?.studentId && entry?.mediaId) {
-            await deleteDoc(doc(db, 'students', entry.studentId, 'media', entry.mediaId)).catch(() => {});
-          }
-        })
-      );
-    }
+        : undefined
+    });
     setSaving(false);
     setMediaUploading(false);
-    if (!failed && successes.length > 0) {
-      const firstStudentId = selectedStudents[0];
-      notify.success('Upload started. You can keep working.', {
-        actionLabel: firstStudentId ? 'View Media' : undefined,
-        onUndo: firstStudentId
-          ? () => {
-              try {
-                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                  detail: { studentId: firstStudentId, noteTypeFilter: 'media' }
-                }));
-              } catch (_) { /* noop */ }
-              handleClose();
+    handleClose();
+
+    (async () => {
+      const uploads = [];
+      let failed = null;
+      for (const stuId of studentsToUpload) {
+        for (const item of itemsToUpload) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const res = await uploadMediaForStudent(stuId, item, batchId);
+            uploads.push(res);
+          } catch (err) {
+            failed = err;
+            break;
+          }
+        }
+        if (failed) break;
+      }
+
+      if (failed) {
+        console.error('Upload failed', failed);
+        notify.error('Upload failed. Please try again. Something went wrong.');
+        await Promise.allSettled(
+          uploads.map(async (entry) => {
+            if (entry?.storagePath) {
+              await deleteObject(ref(storage, entry.storagePath)).catch(() => {});
             }
-          : undefined
-      });
-      handleClose();
-    }
+            if (entry?.studentId && entry?.mediaId) {
+              await deleteDoc(doc(db, 'students', entry.studentId, 'media', entry.mediaId)).catch(() => {});
+            }
+          })
+        );
+      }
+    })();
   };
 
   const saveNote = async (coachResult = null) => {
@@ -2027,11 +2024,6 @@ function AddNoteModal({
                                   <Close sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Box>
-                              <Box sx={{ px: 0.5, py: 0.5 }}>
-                                <Typography variant="caption" noWrap title={item.source.originalName || 'File'}>
-                                  {item.source.originalName || 'File'}
-                                </Typography>
-                              </Box>
                             </Box>
                           ))}
                         </Box>
@@ -2099,27 +2091,7 @@ function AddNoteModal({
                   minRows={2}
                 />
 
-                {mediaUploading && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1.5,
-                      p: 1.5,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      backgroundColor: 'background.default'
-                    }}
-                  >
-                    <CircularProgress size={20} />
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Coach Pepper is prepping your media note...
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
+                {null}
               </Box>
 
               <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
