@@ -1355,7 +1355,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       <Box sx={{ width: '100%', minWidth: 0 }}>
         <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={data} margin={{ top: 16, right: 20, left: 0, bottom: 36 }}>
+            <RechartsBarChart data={data} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="name" 
@@ -1418,7 +1418,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
-        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ mt: 0, display: 'flex', justifyContent: 'center' }}>
           <Box
             sx={{
               display: 'flex',
