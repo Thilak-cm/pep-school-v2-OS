@@ -1,5 +1,16 @@
 # Changelog
 
+# 8.3.1 — 2026-02-07
+
+### Added
+- Media upload: new per-student `media` collection with multi-file photo/video uploads, per-file docs, and background upload flow with success/failure notifications.
+- Media timeline: media viewer now reads from the dedicated media collection and opens directly from “View Media” notifications.
+
+### Changed
+- Media delete confirmation: simplified copy and removed storage/path details from the dialog.
+- Media uploader: cleaned up selection UI (no file names in tiles, no extra strip), and removed blocking upload modal.
+- Storage + Firestore rules and media finalize now target `students/{studentId}/media/{mediaId}` paths.
+
 # 8.3.0 — 2026-02-07
 
 ### Added
