@@ -22,7 +22,8 @@ import {
   PhotoLibrary,
   CloudUpload,
   Edit,
-  CheckCircle
+  CheckCircle,
+  Movie
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -327,16 +328,16 @@ function AddNoteModal({
   const isSuperAdminUser = isSuperAdmin(userRole);
 
   // Media note state
-  const [mediaKind, setMediaKind] = useState(null); // 'photo' | 'video' | 'pdf'
-  const [mediaSource, setMediaSource] = useState(null); // { file | blob, size, width?, height?, contentType, extension, originalName }
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
+  const [mediaMode, setMediaMode] = useState(null); // 'photo' | 'pdf'
+  const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl }]
+  const [pdfSource, setPdfSource] = useState(null); // { file, size, contentType, extension, originalName }
   const [mediaTeacherComment, setMediaTeacherComment] = useState('');
   const [mediaUploadProgress, setMediaUploadProgress] = useState({});
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDirty, setMediaDirty] = useState(false);
   const [mediaError, setMediaError] = useState('');
-  const [mediaDisplayName, setMediaDisplayName] = useState('');
-  const [mediaNameEditing, setMediaNameEditing] = useState(false);
+  const [pdfDisplayName, setPdfDisplayName] = useState('');
+  const [pdfNameEditing, setPdfNameEditing] = useState(false);
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfEssence, setPdfEssence] = useState('');
   const [pdfTitleLoading, setPdfTitleLoading] = useState(false);
@@ -719,25 +720,7 @@ function AddNoteModal({
     setTagDialogOpen(false);
     setPendingStudents(null);
     setMultiStudentWarningOpen(false);
-    if (mediaPreviewUrl) {
-      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
-    }
-    setMediaKind(null);
-    setMediaSource(null);
-    setMediaPreviewUrl('');
-    setMediaTeacherComment('');
-    setMediaUploadProgress({});
-    setMediaUploading(false);
-    setMediaDirty(false);
-    setMediaError('');
-    setMediaDisplayName('');
-    setMediaNameEditing(false);
-    setPdfTitle('');
-    setPdfEssence('');
-    setPdfTitleLoading(false);
-    setPdfEssenceLoading(false);
-    setPdfPageCount(null);
-    setPdfExtractedText('');
+    resetMediaState();
     onClose();
   };
 
@@ -775,7 +758,7 @@ function AddNoteModal({
       window.addEventListener('beforeunload', onBeforeUnload);
       return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }
-  }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, mediaDirty, mediaUploading, mediaSource, saving]);
+  }, [open, step, textDirty, voiceDirty, selectedStudents, textData, transcriptionData, mediaDirty, mediaUploading, mediaItems, pdfSource, saving]);
 
   useEffect(() => {
     return () => clearCoachTimers();
@@ -928,20 +911,24 @@ function AddNoteModal({
     setMultiStudentWarningOpen(false);
   };
 
-  const resetMediaState = () => {
-    if (mediaPreviewUrl) {
-      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
+  const revokeMediaPreview = (item) => {
+    if (item?.previewUrl) {
+      try { URL.revokeObjectURL(item.previewUrl); } catch (_) { /* no-op */ }
     }
-    setMediaKind(null);
-    setMediaSource(null);
-    setMediaPreviewUrl('');
+  };
+
+  const resetMediaState = () => {
+    (mediaItems || []).forEach(revokeMediaPreview);
+    setMediaMode(null);
+    setMediaItems([]);
+    setPdfSource(null);
     setMediaTeacherComment('');
     setMediaUploadProgress({});
     setMediaUploading(false);
     setMediaDirty(false);
     setMediaError('');
-    setMediaDisplayName('');
-    setMediaNameEditing(false);
+    setPdfDisplayName('');
+    setPdfNameEditing(false);
     setPdfTitle('');
     setPdfEssence('');
     setPdfTitleLoading(false);
@@ -983,7 +970,7 @@ function AddNoteModal({
   const handleSelectMedia = (kind = null) => {
     resetMediaState();
     setStep(STEP_MEDIA);
-    setMediaKind(kind || 'photo');
+    setMediaMode(kind || 'photo');
   };
 
   const handleVoiceSave = (transcriptionData) => {
@@ -1125,79 +1112,35 @@ function AddNoteModal({
     setPdfEssenceLoading(false);
   };
 
-  const handleMediaFileChosen = async (file) => {
+  const createMediaItemId = () =>
+    `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
+  const handlePdfFileChosen = async (file) => {
     if (!file) return;
     setMediaDirty(true);
     setMediaError('');
     try {
-      if (mediaKind === 'pdf') {
-        if (!(file.type?.includes('pdf') || file.name?.toLowerCase().endsWith('.pdf'))) {
-          notify.error('Please select a PDF file.');
-          return;
-        }
-        setPdfTitle('');
-        setPdfEssence('');
-        setPdfExtractedText('');
-        setPdfPageCount(null);
-        setMediaSource({
-          file,
-          size: file.size,
-          contentType: 'application/pdf',
-          extension: 'pdf',
-          originalName: file.name
-        });
-        setMediaDisplayName(file.name);
-        setMediaNameEditing(false);
-        const { text, pageCount } = await extractPdfTextFromFile(file);
-        setPdfExtractedText(text);
-        setPdfPageCount(pageCount);
-        runPdfSuggestions(text, pageCount, file.name).catch(() => {});
+      if (!(file.type?.includes('pdf') || file.name?.toLowerCase().endsWith('.pdf'))) {
+        notify.error('Please select a PDF file.');
         return;
       }
-
-      // Photo/Video mode
-      if (file.type === 'video/mp4' || file.name?.toLowerCase().endsWith('.mp4')) {
-        if (mediaPreviewUrl) {
-          try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
-        }
-        const previewUrl = URL.createObjectURL(file);
-        setMediaKind('video');
-        setMediaSource({
-          file,
-          size: file.size,
-          contentType: 'video/mp4',
-          extension: 'mp4',
-          originalName: file.name
-        });
-        setMediaDisplayName(file.name);
-        setMediaNameEditing(false);
-        setMediaPreviewUrl(previewUrl);
-        return;
-      }
-
-      if (!file.type?.startsWith('image/')) {
-        notify.error('Please choose an image or mp4 video file.');
-        return;
-      }
-
-      const { blob, width, height } = await convertImageToWebP(file);
-      if (mediaPreviewUrl) {
-        try { URL.revokeObjectURL(mediaPreviewUrl); } catch (_) { /* no-op */ }
-      }
-      const previewUrl = URL.createObjectURL(blob);
-      setMediaKind('photo');
-      setMediaSource({
-        blob,
-        size: blob.size,
-        width,
-        height,
-        contentType: 'image/webp',
-        extension: 'webp',
+      setPdfTitle('');
+      setPdfEssence('');
+      setPdfExtractedText('');
+      setPdfPageCount(null);
+      setPdfSource({
+        file,
+        size: file.size,
+        contentType: 'application/pdf',
+        extension: 'pdf',
         originalName: file.name
       });
-      setMediaDisplayName(file.name);
-      setMediaNameEditing(false);
-      setMediaPreviewUrl(previewUrl);
+      setPdfDisplayName(file.name);
+      setPdfNameEditing(false);
+      const { text, pageCount } = await extractPdfTextFromFile(file);
+      setPdfExtractedText(text);
+      setPdfPageCount(pageCount);
+      runPdfSuggestions(text, pageCount, file.name).catch(() => {});
     } catch (err) {
       console.error('Media selection error', err);
       setMediaError(err?.message || 'Could not process file');
@@ -1205,46 +1148,115 @@ function AddNoteModal({
     }
   };
 
-  const uploadMediaToStorage = (storagePath, source, observationId, studentId) => {
+  const handleMediaFilesChosen = async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setMediaDirty(true);
+    setMediaError('');
+    const nextItems = [];
+    const files = Array.from(fileList);
+
+    for (const file of files) {
+      try {
+        if (file.type === 'video/mp4' || file.name?.toLowerCase().endsWith('.mp4')) {
+          nextItems.push({
+            id: createMediaItemId(),
+            kind: 'video',
+            source: {
+              file,
+              size: file.size,
+              contentType: 'video/mp4',
+              extension: 'mp4',
+              originalName: file.name
+            },
+            previewUrl: ''
+          });
+          continue;
+        }
+
+        if (!file.type?.startsWith('image/')) {
+          notify.error('Please choose images or mp4 videos only.');
+          setMediaError('Please choose images or mp4 videos only.');
+          continue;
+        }
+
+        const { blob, width, height } = await convertImageToWebP(file);
+        const previewUrl = URL.createObjectURL(blob);
+        nextItems.push({
+          id: createMediaItemId(),
+          kind: 'photo',
+          source: {
+            blob,
+            size: blob.size,
+            width,
+            height,
+            contentType: 'image/webp',
+            extension: 'webp',
+            originalName: file.name
+          },
+          previewUrl
+        });
+      } catch (err) {
+        console.error('Media selection error', err);
+        setMediaError(err?.message || 'Could not process file');
+        notify.error(err?.message || 'Could not process file');
+      }
+    }
+
+    if (nextItems.length > 0) {
+      setMediaItems((prev) => [...prev, ...nextItems]);
+    }
+  };
+
+  const handleRemoveMediaItem = (itemId) => {
+    setMediaItems((prev) => {
+      const target = prev.find((item) => item.id === itemId);
+      if (target) revokeMediaPreview(target);
+      return prev.filter((item) => item.id !== itemId);
+    });
+    setMediaDirty(true);
+  };
+
+  const uploadMediaToStorage = (storagePath, source, mediaId, studentId) => {
     const storageRef = ref(storage, storagePath);
     const payload = source.blob || source.file;
     return new Promise((resolve, reject) => {
       const task = uploadBytesResumable(storageRef, payload, {
         contentType: source.contentType,
         customMetadata: {
-          observationId,
+          mediaId,
           studentId
         }
       });
       task.on('state_changed', (snap) => {
         const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: pct }));
+        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: pct }));
       }, async (error) => {
-        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: 0 }));
+        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: 0 }));
         await deleteObject(storageRef).catch(() => {});
         reject(error);
       }, () => {
-        setMediaUploadProgress((prev) => ({ ...prev, [observationId]: 100 }));
+        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: 100 }));
         resolve();
       });
     });
   };
 
-  const uploadMediaForStudent = async (studentId, source) => {
+  const uploadMediaForStudent = async (studentId, item, batchId) => {
     const studentDocRef = doc(db, 'students', studentId);
     const studentSnap = await getDoc(studentDocRef);
     const studentData = studentSnap.data();
-    const obsRef = doc(collection(db, 'students', studentId, 'observations'));
-    const storagePath = `students/${studentId}/observations/${obsRef.id}/media/original.${source.extension}`;
-    const kind = mediaKind === 'video' ? 'video' : (mediaKind === 'pdf' ? 'pdf' : 'photo');
+    const mediaRef = doc(collection(db, 'students', studentId, 'media'));
+    const storagePath = `students/${studentId}/media/${mediaRef.id}/original.${item.source.extension}`;
+    const kind = item.kind;
 
-    const displayName = mediaDisplayName?.trim();
+    const displayName = item.displayName?.trim() || item.source.originalName?.trim();
     const mediaEntry = {
       storagePath,
-      contentType: source.contentType,
-      sizeBytes: source.size || 0,
+      contentType: item.source.contentType,
+      sizeBytes: item.source.size || 0,
       ...(displayName ? { displayName } : {}),
-      ...(source.width ? { width: source.width, height: source.height } : {})
+      ...(item.source.originalName ? { originalName: item.source.originalName } : {}),
+      ...(item.source.width ? { width: item.source.width, height: item.source.height } : {})
     };
 
     const docData = {
@@ -1261,23 +1273,26 @@ function AddNoteModal({
       createdByName: currentUser?.displayName || 'Unknown Teacher',
       createdByEmail: currentUser?.email || 'unknown@email.com',
       ...(mediaTeacherComment?.trim() ? { teacherComment: mediaTeacherComment.trim() } : {}),
+      ...(batchId ? { batchId } : {}),
       ...(kind === 'pdf' && pdfTitle?.trim() ? { pdfTitle: pdfTitle.trim() } : {}),
       ...(kind === 'pdf' && pdfEssence?.trim() ? { essence_text: pdfEssence.trim() } : {}),
     };
 
-    await setDoc(obsRef, docData);
+    await setDoc(mediaRef, docData);
     try {
-      await uploadMediaToStorage(storagePath, source, obsRef.id, studentId);
-      return { observationId: obsRef.id, studentId };
+      await uploadMediaToStorage(storagePath, item.source, mediaRef.id, studentId);
+      return { mediaId: mediaRef.id, studentId, storagePath };
     } catch (err) {
-      await deleteDoc(obsRef).catch(() => {});
+      await deleteDoc(mediaRef).catch(() => {});
       throw err;
     }
   };
 
   const handleCreateMediaNote = async () => {
-    if (!mediaSource) {
-      notify.warning('Choose a photo, video, or PDF first.');
+    const isPdf = mediaMode === 'pdf';
+    const hasMedia = isPdf ? !!pdfSource : mediaItems.length > 0;
+    if (!hasMedia) {
+      notify.warning(isPdf ? 'Choose a PDF first.' : 'Choose one or more photos/videos first.');
       return;
     }
     if (!selectedStudents || selectedStudents.length === 0) {
@@ -1288,20 +1303,51 @@ function AddNoteModal({
     setMediaUploading(true);
     setMediaError('');
     const successes = [];
+    const uploads = [];
+    const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const itemsToUpload = isPdf
+      ? [{
+          id: 'pdf',
+          kind: 'pdf',
+          source: pdfSource,
+          displayName: pdfDisplayName
+        }]
+      : mediaItems;
+
+    let failed = null;
     for (const stuId of selectedStudents) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await uploadMediaForStudent(stuId, mediaSource);
-        successes.push(res);
-      } catch (err) {
-        console.error('Upload failed', err);
-        setMediaError('Upload failed. Please try again.');
-        notify.error(err?.message || 'Upload failed for one of the students.');
+      for (const item of itemsToUpload) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const res = await uploadMediaForStudent(stuId, item, batchId);
+          successes.push(res);
+          uploads.push(res);
+        } catch (err) {
+          failed = err;
+          break;
+        }
       }
+      if (failed) break;
+    }
+
+    if (failed) {
+      console.error('Upload failed', failed);
+      setMediaError('Upload failed. Please try again.');
+      notify.error(failed?.message || 'Upload failed for one of the files.');
+      await Promise.allSettled(
+        uploads.map(async (entry) => {
+          if (entry?.storagePath) {
+            await deleteObject(ref(storage, entry.storagePath)).catch(() => {});
+          }
+          if (entry?.studentId && entry?.mediaId) {
+            await deleteDoc(doc(db, 'students', entry.studentId, 'media', entry.mediaId)).catch(() => {});
+          }
+        })
+      );
     }
     setSaving(false);
     setMediaUploading(false);
-    if (successes.length > 0) {
+    if (!failed && successes.length > 0) {
       const firstStudentId = selectedStudents[0];
       notify.success('Upload started. You can keep working.', {
         actionLabel: firstStudentId ? 'View Media' : undefined,
@@ -1535,24 +1581,8 @@ function AddNoteModal({
     setSnackbarOpen(false);
   };
 
-  const formatBytes = (bytes) => {
-    if (bytes == null) return '';
-    if (bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let value = bytes;
-    let unitIndex = 0;
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex += 1;
-    }
-    const fixed = value >= 10 ? value.toFixed(0) : value.toFixed(1);
-    return `${fixed} ${units[unitIndex]}`;
-  };
-
   const mediaProgressValues = Object.values(mediaUploadProgress || {});
-  const mediaProgressPercent = mediaProgressValues.length
-    ? Math.round(mediaProgressValues.reduce((a, b) => a + b, 0) / mediaProgressValues.length)
-    : 0;
+  void mediaProgressValues;
 
   return (
     <Dialog
@@ -1825,14 +1855,20 @@ function AddNoteModal({
             }}
           >
             <input
-              key={mediaKind}
+              key={mediaMode}
               ref={mediaFileInputRef}
               type="file"
               style={{ display: 'none' }}
-              accept={mediaKind === 'pdf' ? 'application/pdf' : 'image/*,video/mp4'}
+              accept={mediaMode === 'pdf' ? 'application/pdf' : 'image/*,video/mp4'}
+              multiple={mediaMode !== 'pdf'}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleMediaFileChosen(f);
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                if (mediaMode === 'pdf') {
+                  handlePdfFileChosen(files[0]);
+                } else {
+                  handleMediaFilesChosen(files);
+                }
                 e.target.value = '';
               }}
             />
@@ -1841,19 +1877,19 @@ function AddNoteModal({
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
-                      variant={mediaKind === 'pdf' ? 'outlined' : 'contained'}
+                      variant={mediaMode === 'pdf' ? 'outlined' : 'contained'}
                       onClick={() => {
                         resetMediaState();
-                        setMediaKind('photo');
+                        setMediaMode('photo');
                       }}
                     >
                       Photo / Video
                     </Button>
                     <Button
-                      variant={mediaKind === 'pdf' ? 'contained' : 'outlined'}
+                      variant={mediaMode === 'pdf' ? 'contained' : 'outlined'}
                       onClick={() => {
                         resetMediaState();
-                        setMediaKind('pdf');
+                        setMediaMode('pdf');
                       }}
                     >
                       PDF
@@ -1877,111 +1913,20 @@ function AddNoteModal({
                   }}
                   onClick={() => mediaFileInputRef.current?.click()}
                 >
-                  {mediaSource ? (
-                    mediaKind === 'photo' && mediaPreviewUrl ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <Box
-                          component="img"
-                          src={mediaPreviewUrl}
-                          alt="Selected"
-                          sx={{ maxWidth: '100%', maxHeight: 200, borderRadius: 2 }}
-                        />
-                        {(mediaDisplayName || mediaSource.originalName) && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                            {mediaNameEditing ? (
-                              <TextField
-                                size="small"
-                                value={mediaDisplayName}
-                                onChange={(e) => {
-                                  setMediaDisplayName(e.target.value);
-                                  setMediaDirty(true);
-                                }}
-                                onBlur={() => setMediaNameEditing(false)}
-                                onClick={(e) => e.stopPropagation()}
-                                onFocus={(e) => e.stopPropagation()}
-                                autoFocus
-                                sx={{ width: 220 }}
-                              />
-                            ) : (
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {mediaDisplayName || mediaSource.originalName}
-                              </Typography>
-                            )}
-                            <IconButton
-                              size="small"
-                              aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMediaNameEditing((prev) => !prev);
-                              }}
-                            >
-                              {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
-                            </IconButton>
-                          </Box>
-                        )}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary">
-                            Tap to upload another photo/video.
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ) : mediaKind === 'video' ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                          {mediaNameEditing ? (
-                            <TextField
-                              size="small"
-                              value={mediaDisplayName}
-                              onChange={(e) => {
-                                setMediaDisplayName(e.target.value);
-                                setMediaDirty(true);
-                              }}
-                              onBlur={() => setMediaNameEditing(false)}
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={(e) => e.stopPropagation()}
-                              autoFocus
-                              sx={{ width: 220 }}
-                            />
-                          ) : (
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {mediaDisplayName || mediaSource.originalName || 'video.mp4'}
-                            </Typography>
-                          )}
-                          <IconButton
-                            size="small"
-                            aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMediaNameEditing((prev) => !prev);
-                            }}
-                          >
-                            {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
-                          </IconButton>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatBytes(mediaSource.size)}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary">
-                            Tap to upload another photo/video.
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ) : (
+                  {mediaMode === 'pdf' ? (
+                    pdfSource ? (
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                          {mediaNameEditing ? (
+                          {pdfNameEditing ? (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <TextField
                                 size="small"
-                                value={getPdfBaseName(mediaDisplayName || mediaSource.originalName || '')}
+                                value={getPdfBaseName(pdfDisplayName || pdfSource.originalName || '')}
                                 onChange={(e) => {
-                                  setMediaDisplayName(buildPdfName(e.target.value));
+                                  setPdfDisplayName(buildPdfName(e.target.value));
                                   setMediaDirty(true);
                                 }}
-                                onBlur={() => setMediaNameEditing(false)}
+                                onBlur={() => setPdfNameEditing(false)}
                                 onClick={(e) => e.stopPropagation()}
                                 onFocus={(e) => e.stopPropagation()}
                                 autoFocus
@@ -1993,18 +1938,18 @@ function AddNoteModal({
                             </Box>
                           ) : (
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {mediaDisplayName || mediaSource.originalName || 'PDF'}
+                              {pdfDisplayName || pdfSource.originalName || 'PDF'}
                             </Typography>
                           )}
                           <IconButton
                             size="small"
-                            aria-label={mediaNameEditing ? 'Save file name' : 'Edit file name'}
+                            aria-label={pdfNameEditing ? 'Save file name' : 'Edit file name'}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setMediaNameEditing((prev) => !prev);
+                              setPdfNameEditing((prev) => !prev);
                             }}
                           >
-                            {mediaNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
+                            {pdfNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
                           </IconButton>
                         </Box>
                         <Typography variant="caption" color="text.secondary">
@@ -2017,19 +1962,97 @@ function AddNoteModal({
                           </Typography>
                         </Box>
                       </Box>
+                    ) : (
+                      <>
+                        <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          Click to choose a file
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" align="center">
+                          Upload a PDF to get title & summary suggestions.
+                        </Typography>
+                      </>
                     )
                   ) : (
-                    <>
-                      <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        Click to choose a file
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" align="center">
-                        {mediaKind === 'pdf'
-                          ? 'Upload a PDF to get title & summary suggestions.'
-                          : 'Upload photos or videos.'}
-                      </Typography>
-                    </>
+                    mediaItems.length > 0 ? (
+                      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                          {mediaItems.map((item) => (
+                            <Box
+                              key={item.id}
+                              sx={{
+                                borderRadius: 2,
+                                overflow: 'hidden',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                backgroundColor: 'background.paper'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Box
+                                sx={{
+                                  position: 'relative',
+                                  width: '100%',
+                                  aspectRatio: '1 / 1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'background.default'
+                                }}
+                              >
+                                {item.kind === 'photo' && item.previewUrl ? (
+                                  <Box
+                                    component="img"
+                                    src={item.previewUrl}
+                                    alt={item.source.originalName || 'Photo'}
+                                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <Movie color="primary" />
+                                )}
+                                <IconButton
+                                  size="small"
+                                  aria-label="Remove file"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveMediaItem(item.id);
+                                  }}
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 4,
+                                    right: 4,
+                                    backgroundColor: 'background.paper'
+                                  }}
+                                >
+                                  <Close sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Box>
+                              <Box sx={{ px: 0.5, py: 0.5 }}>
+                                <Typography variant="caption" noWrap title={item.source.originalName || 'File'}>
+                                  {item.source.originalName || 'File'}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          ))}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
+                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">
+                            Tap to add more photos/videos.
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <>
+                        <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          Click to choose files
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" align="center">
+                          Upload photos or videos.
+                        </Typography>
+                      </>
+                    )
                   )}
                 </Box>
 
@@ -2039,7 +2062,7 @@ function AddNoteModal({
                   </Alert>
                 )}
 
-                {mediaKind === 'pdf' && (
+                {mediaMode === 'pdf' && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <TextField
                       label="PDF Title"
@@ -2137,7 +2160,12 @@ function AddNoteModal({
               <Button
                 variant="contained"
                 onClick={handleCreateMediaNote}
-                disabled={saving || mediaUploading || !mediaSource || selectedStudents.length === 0}
+                disabled={
+                  saving ||
+                  mediaUploading ||
+                  (mediaMode === 'pdf' ? !pdfSource : mediaItems.length === 0) ||
+                  selectedStudents.length === 0
+                }
               >
                 Create Media Note
               </Button>
@@ -2423,7 +2451,7 @@ function AddNoteModal({
       </Dialog>
       {/* PDF processing dialog */}
       <Dialog
-        open={step === STEP_MEDIA && mediaKind === 'pdf' && (pdfTitleLoading || pdfEssenceLoading)}
+        open={step === STEP_MEDIA && mediaMode === 'pdf' && (pdfTitleLoading || pdfEssenceLoading)}
         maxWidth="xs"
         fullWidth
       >

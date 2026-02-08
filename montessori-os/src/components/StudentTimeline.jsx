@@ -18,7 +18,7 @@ import {
   IconButton
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline } from '@mui/icons-material';
-import { collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -40,6 +40,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
   const [observations, setObservations] = useState([]);
+  const [mediaDocs, setMediaDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -132,18 +133,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const combinedFiltersActive = hasActiveFilters;
 
   const mediaObservations = useMemo(() => {
-    const filtered = applyFilters(observations, 'media') || [];
+    const filtered = applyFilters(mediaDocs, 'media') || [];
     return filtered.filter((obs) => obs.type === 'media');
-  }, [observations, filters, applyFilters]);
+  }, [mediaDocs, filters, applyFilters]);
 
   useEffect(() => {
     if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
       setFilters((prev) => ({ ...prev, types: [] }));
       return;
     }
+    if (noteTypeFilter === 'media') {
+      setFilters((prev) => ({ ...prev, types: [] }));
+      setMediaDialogOpen(true);
+      setMediaSubTab('photos');
+      return;
+    }
     let types = [];
     if (noteTypeFilter === 'lesson') types = ['lesson'];
-    if (noteTypeFilter === 'media') types = ['media'];
     setFilters((prev) => ({ ...prev, types }));
   }, [noteTypeFilter, setFilters]);
 
@@ -190,6 +196,30 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       clearTimeout(timeoutId);
       unsub();
     };
+  }, [student]);
+
+  useEffect(() => {
+    if (!student) return;
+    const studentIdToQuery = student.id;
+    setMediaUrls({});
+    const mediaQuery = query(
+      collection(db, 'students', studentIdToQuery, 'media'),
+      orderBy('observedAt', 'desc'),
+      limit(200)
+    );
+    const unsub = onSnapshot(mediaQuery, (snap) => {
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        parentStudentId: d.ref.parent?.parent?.id,
+        docPath: d.ref.path,
+        ...d.data(),
+      }));
+      setMediaDocs(list);
+    }, (error) => {
+      console.error('Error loading media:', error);
+      setMediaDocs([]);
+    });
+    return () => unsub();
   }, [student]);
 
   // Extract classroom teachers from observations data
@@ -322,7 +352,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           if (obs.type === 'media' && obs.media?.[0]?.storagePath) {
             await deleteObject(ref(storage, obs.media[0].storagePath)).catch(() => {});
           }
-          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
+          const targetCollection = obs.type === 'media' ? 'media' : 'observations';
+          await deleteDoc(doc(db, 'students', parentId, targetCollection, obs.id));
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
           console.error('Error deleting observation:', error);

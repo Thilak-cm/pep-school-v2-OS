@@ -342,7 +342,7 @@ export const extractPdfEssence = functions
 // -------------------------------------------------
 // Storage finalize: media uploads -> Firestore metadata
 // -------------------------------------------------
-const MEDIA_PATH_REGEX = new RegExp("^students/([^/]+)/observations/([^/]+)/media/([^/]+)$");
+const MEDIA_PATH_REGEX = new RegExp("^students/([^/]+)/media/([^/]+)/([^/]+)$");
 const MEDIA_CONFIG = {
   photo: { extension: ".webp", contentType: "image/webp", maxBytes: 2 * 1024 * 1024 },
   pdf: { extension: ".pdf", contentType: "application/pdf" },
@@ -421,15 +421,15 @@ export const mediaFinalize = functions
     const match = MEDIA_PATH_REGEX.exec(filePath);
     if (!match) return;
 
-    const [, studentId, observationId, fileName] = match;
-    const obsRef = db.collection("students").doc(studentId).collection("observations").doc(observationId);
-    const obsSnap = await obsRef.get();
-    if (!obsSnap.exists) {
+    const [, studentId, mediaId, fileName] = match;
+    const mediaRef = db.collection("students").doc(studentId).collection("media").doc(mediaId);
+    const mediaSnap = await mediaRef.get();
+    if (!mediaSnap.exists) {
       await deleteStorageFile(object.bucket, filePath);
       return;
     }
 
-    const data = obsSnap.data() || {};
+    const data = mediaSnap.data() || {};
     if (data.type !== "media") {
       await deleteStorageFile(object.bucket, filePath);
       return;
@@ -438,26 +438,26 @@ export const mediaFinalize = functions
     const mediaKind = data.mediaKind;
     const config = MEDIA_CONFIG[mediaKind];
     if (!config) {
-      await markMediaFailed(obsRef, "unsupported_kind", "Unsupported media type");
+      await markMediaFailed(mediaRef, "unsupported_kind", "Unsupported media type");
       await deleteStorageFile(object.bucket, filePath);
       return;
     }
 
     if (!fileName.endsWith(config.extension) || contentType !== config.contentType) {
-      await markMediaFailed(obsRef, "content_type_mismatch", "Upload must be in the expected format");
+      await markMediaFailed(mediaRef, "content_type_mismatch", "Upload must be in the expected format");
       await deleteStorageFile(object.bucket, filePath);
       return;
     }
 
     if (config.maxBytes && sizeBytes > config.maxBytes) {
-      await markMediaFailed(obsRef, "file_too_large", "Photo exceeds 2MB limit");
+      await markMediaFailed(mediaRef, "file_too_large", "Photo exceeds 2MB limit");
       await deleteStorageFile(object.bucket, filePath);
       return;
     }
 
     const expectedPath = Array.isArray(data.media) && data.media.length > 0 ? data.media[0]?.storagePath : null;
     if (expectedPath && expectedPath !== filePath) {
-      await markMediaFailed(obsRef, "path_mismatch", "Upload path does not match note");
+      await markMediaFailed(mediaRef, "path_mismatch", "Upload path does not match note");
       await deleteStorageFile(object.bucket, filePath);
       return;
     }
@@ -483,7 +483,7 @@ export const mediaFinalize = functions
     }
 
     try {
-      await obsRef.set(
+      await mediaRef.set(
         {
           media: [mediaEntry],
           status: "ready",

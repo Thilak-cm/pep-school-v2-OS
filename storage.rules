@@ -39,9 +39,9 @@ service firebase.storage {
       return firestore.get(/databases/(default)/documents/students/$(studentId)).data.classroomId;
     }
 
-    function mediaDoc(studentId, observationId) {
+    function mediaDoc(studentId, mediaId) {
       return firestore.get(
-        /databases/(default)/documents/students/$(studentId)/observations/$(observationId)
+        /databases/(default)/documents/students/$(studentId)/media/$(mediaId)
       );
     }
 
@@ -80,28 +80,28 @@ service firebase.storage {
       return isTeacher() || managesClassroom(studentClassroomId(studentId));
     }
 
-    match /students/{studentId}/observations/{observationId}/media/{fileName} {
+    match /students/{studentId}/media/{mediaId}/{fileName} {
       allow read: if isSignedIn() &&
-        isMediaDoc(mediaDoc(studentId, observationId)) &&
+        isMediaDoc(mediaDoc(studentId, mediaId)) &&
         canAccessMedia(studentId);
 
       allow create, update: if isSignedIn() &&
-        isMediaDoc(mediaDoc(studentId, observationId)) &&
+        isMediaDoc(mediaDoc(studentId, mediaId)) &&
         canAccessMedia(studentId) &&
-        mediaDoc(studentId, observationId).data.status == 'pending_upload' &&
+        mediaDoc(studentId, mediaId).data.status == 'pending_upload' &&
         allowedContent(
-          mediaDoc(studentId, observationId).data.mediaKind,
+          mediaDoc(studentId, mediaId).data.mediaKind,
           fileName,
           request.resource.contentType
         ) &&
-        sizeAllowed(mediaDoc(studentId, observationId).data.mediaKind, request.resource.size);
+        sizeAllowed(mediaDoc(studentId, mediaId).data.mediaKind, request.resource.size);
 
       allow delete: if isSignedIn() &&
-        isMediaDoc(mediaDoc(studentId, observationId)) &&
+        isMediaDoc(mediaDoc(studentId, mediaId)) &&
         (
           isSuperAdmin() ||
           managesClassroom(studentClassroomId(studentId)) ||
-          (isTeacher() && isAuthor(mediaDoc(studentId, observationId)) && withinDeleteWindow(mediaDoc(studentId, observationId)))
+          (isTeacher() && isAuthor(mediaDoc(studentId, mediaId)) && withinDeleteWindow(mediaDoc(studentId, mediaId)))
         );
     }
 
