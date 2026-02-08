@@ -351,18 +351,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           const parentId = obs.parentStudentId || student.id || obs.studentId;
           const targetCollection = obs.type === 'media' ? 'media' : 'observations';
           const docRef = doc(db, 'students', parentId, targetCollection, obs.id);
+
+          if (obs.type === 'media' && obs.media?.[0]?.storagePath) {
+            const storageDeleteResult = await deleteObject(ref(storage, obs.media[0].storagePath))
+              .then(() => ({ ok: true }))
+              .catch((err) => ({ ok: false, err }));
+
+            if (!storageDeleteResult.ok && storageDeleteResult.err?.code !== 'storage/object-not-found') {
+              throw storageDeleteResult.err;
+            }
+          }
+
           const deleteResult = await deleteDoc(docRef)
             .then(() => ({ ok: true }))
             .catch((err) => ({ ok: false, err }));
 
           if (!deleteResult.ok && deleteResult.err?.code !== 'not-found') {
             throw deleteResult.err;
-          }
-
-          if (obs.type === 'media' && obs.media?.[0]?.storagePath) {
-            deleteObject(ref(storage, obs.media[0].storagePath)).catch((err) => {
-              console.warn('Storage cleanup failed:', err);
-            });
           }
 
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
