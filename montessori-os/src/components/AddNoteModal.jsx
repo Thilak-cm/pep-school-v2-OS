@@ -1068,6 +1068,44 @@ function AddNoteModal({
     }
   };
 
+  const captureVideoThumbnail = async (file) => {
+    const url = URL.createObjectURL(file);
+    try {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = url;
+
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Unable to load video'));
+      });
+
+      const targetTime = Math.min(1, Math.max(0, (video.duration || 0) / 2));
+      await new Promise((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error('Unable to process video'));
+        video.currentTime = targetTime;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 180;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to process video');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const thumbBlob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', 0.8)
+      );
+      if (!thumbBlob) throw new Error('Unable to capture video thumbnail');
+      return URL.createObjectURL(thumbBlob);
+    } finally {
+      try { URL.revokeObjectURL(url); } catch (_) { /* no-op */ }
+    }
+  };
+
   const extractPdfTextFromFile = async (file) => {
     if (pdfjsLib.GlobalWorkerOptions && !pdfWorkerSetupRef.current) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -1157,6 +1195,12 @@ function AddNoteModal({
     for (const file of files) {
       try {
         if (file.type === 'video/mp4' || file.name?.toLowerCase().endsWith('.mp4')) {
+          let previewUrl = '';
+          try {
+            previewUrl = await captureVideoThumbnail(file);
+          } catch (err) {
+            console.warn('Video thumbnail capture failed', err);
+          }
           nextItems.push({
             id: createMediaItemId(),
             kind: 'video',
@@ -1167,7 +1211,7 @@ function AddNoteModal({
               extension: 'mp4',
               originalName: file.name
             },
-            previewUrl: ''
+            previewUrl
           });
           continue;
         }
@@ -1993,11 +2037,11 @@ function AddNoteModal({
                                   backgroundColor: 'background.default'
                                 }}
                               >
-                                {item.kind === 'photo' && item.previewUrl ? (
+                                {item.previewUrl ? (
                                   <Box
                                     component="img"
                                     src={item.previewUrl}
-                                    alt={item.source.originalName || 'Photo'}
+                                    alt={item.source.originalName || (item.kind === 'photo' ? 'Photo' : 'Video')}
                                     sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   />
                                 ) : (
