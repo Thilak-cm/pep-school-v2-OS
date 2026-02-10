@@ -1,5 +1,17 @@
 # Changelog
 
+# 8.3.2 — 2026-02-10
+
+### Added
+- StudentTimeline: media viewer now supports multi-select with a sticky bulk delete bar.
+- StudentTimeline: media entries can show teacher comments beneath the upload summary.
+
+### Changed
+- StudentTimeline: media notes are merged into the main timeline feed (collectionGroup media read).
+- StudentTimeline: media timeline rows now aggregate by `batchId` for cleaner upload summaries.
+- StudentTimeline: media viewer no longer shows per-item delete buttons; delete is available in the expanded view only.
+- StudentTimeline: media upload summaries now read “{Teacher} added X photos + Y videos on {date}”.
+
 # 8.3.1 — 2026-02-07
 
 ### Added
@@ -10,6 +22,7 @@
 - Media delete confirmation: simplified copy and removed storage/path details from the dialog.
 - Media uploader: cleaned up selection UI (no file names in tiles, no extra strip), and removed blocking upload modal.
 - Storage + Firestore rules and media finalize now target `students/{studentId}/media/{mediaId}` paths.
+
 
 # 8.3.0 — 2026-02-07
 
