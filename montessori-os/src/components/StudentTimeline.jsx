@@ -15,7 +15,8 @@ import {
   Divider,
   Tabs,
   Tab,
-  IconButton
+  IconButton,
+  Checkbox
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -58,6 +59,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
   const [mediaUrls, setMediaUrls] = useState({});
   const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
+  const [mediaSelectMode, setMediaSelectMode] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
   const notifiedFailuresRef = useRef(new Set());
 
@@ -74,16 +79,32 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     'Unknown Teacher'
   );
 
+  const formatMediaCountLabel = (count, kind) => {
+    if (count <= 0) return '';
+    const base = kind === 'pdf' ? 'PDF' : kind;
+    const label = count === 1 ? base : `${base}s`;
+    return `${count} ${label}`;
+  };
+
   const buildMediaSummary = (obs) => {
+    const teacher = getTeacherDisplayName(obs);
+    const timestamp = formatTimestamp(obs?.observedAt || obs?.timestamp);
+    if (obs?.mediaKindCounts) {
+      const counts = obs.mediaKindCounts || {};
+      const parts = [];
+      if (counts.photo) parts.push(formatMediaCountLabel(counts.photo, 'photo'));
+      if (counts.video) parts.push(formatMediaCountLabel(counts.video, 'video'));
+      if (counts.pdf) parts.push(formatMediaCountLabel(counts.pdf, 'pdf'));
+      if (counts.file) parts.push(formatMediaCountLabel(counts.file, 'file'));
+      const label = parts.length > 0 ? parts.join(' + ') : 'files';
+      return `${teacher} added ${label} on ${timestamp}.`;
+    }
     const rawCount = Array.isArray(obs?.media) ? obs.media.length : null;
     const count = Number.isFinite(obs?.mediaCount) ? obs.mediaCount : (rawCount ?? 1);
     const rawKind = (obs?.mediaKind || '').toLowerCase();
     const kind = rawKind === 'photo' ? 'photo' : rawKind === 'video' ? 'video' : rawKind === 'pdf' ? 'pdf' : 'file';
-    const label = count === 1 ? kind : `${kind}s`;
-    const verb = count === 1 ? 'was' : 'were';
-    const teacher = getTeacherDisplayName(obs);
-    const timestamp = formatTimestamp(obs?.observedAt || obs?.timestamp);
-    return `${count} ${label} ${verb} uploaded by ${teacher} on ${timestamp}.`;
+    const label = formatMediaCountLabel(count, kind) || `${count} files`;
+    return `${teacher} added ${label} on ${timestamp}.`;
   };
 
   // Derived counts for header summary
@@ -137,6 +158,64 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return filtered.filter((obs) => obs.type === 'media');
   }, [mediaDocs, filters, applyFilters]);
 
+  const timelineItems = useMemo(() => {
+    const items = [];
+    const batches = new Map();
+    (visibleObservations || []).forEach((obs) => {
+      if (obs.type !== 'media' || !obs.batchId) {
+        items.push(obs);
+        return;
+      }
+      const key = obs.batchId;
+      if (!batches.has(key)) {
+        const initialDate = toJsDate(obs.observedAt || obs.timestamp);
+        batches.set(key, {
+          id: `batch-${key}`,
+          type: 'media',
+          batchId: key,
+          createdBy: obs.createdBy,
+          createdByName: obs.createdByName,
+          createdByEmail: obs.createdByEmail,
+          teacherComment: obs.teacherComment || '',
+          observedAt: obs.observedAt || obs.timestamp,
+          timestamp: obs.timestamp,
+          mediaKindCounts: { photo: 0, video: 0, pdf: 0, file: 0 },
+          mediaCount: 0,
+          _observedAtMs: initialDate ? initialDate.getTime() : 0
+        });
+      }
+      const group = batches.get(key);
+      const rawKind = (obs.mediaKind || '').toLowerCase();
+      const kind = rawKind === 'photo' ? 'photo' : rawKind === 'video' ? 'video' : rawKind === 'pdf' ? 'pdf' : 'file';
+      const count = Array.isArray(obs.media) && obs.media.length > 0 ? obs.media.length : 1;
+      group.mediaKindCounts[kind] = (group.mediaKindCounts[kind] || 0) + count;
+      group.mediaCount += count;
+      if (!group.teacherComment && obs.teacherComment) {
+        group.teacherComment = obs.teacherComment;
+      }
+      const obsDate = toJsDate(obs.observedAt || obs.timestamp);
+      const obsMs = obsDate ? obsDate.getTime() : 0;
+      if (obsMs > group._observedAtMs) {
+        group._observedAtMs = obsMs;
+        group.observedAt = obs.observedAt || obs.timestamp;
+        group.timestamp = obs.timestamp;
+      }
+    });
+    batches.forEach((group) => items.push(group));
+    return items.sort((a, b) => {
+      const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
+      const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
+      return db - da;
+    });
+  }, [visibleObservations]);
+
+  const selectedMediaList = useMemo(
+    () => mediaObservations.filter((obs) => selectedMediaIds.has(obs.id)),
+    [mediaObservations, selectedMediaIds]
+  );
+
+  const selectedMediaCount = selectedMediaIds.size;
+
   useEffect(() => {
     if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
       setFilters((prev) => ({ ...prev, types: [] }));
@@ -154,6 +233,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   }, [noteTypeFilter, setFilters]);
 
   useEffect(() => {
+    if (!mediaDialogOpen) {
+      setMediaSelectMode(false);
+      setSelectedMediaIds(new Set());
+      setBulkDeleteOpen(false);
+    }
+  }, [mediaDialogOpen]);
+
+  useEffect(() => {
     if (!student) return;
     
     setLoading(true);
@@ -166,35 +253,75 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     
     const studentIdToQuery = student.id;
     
-    // Query with limit to prevent excessive reads (showing last 100 observations)
-    // Users can load more if needed via pagination in the future
-    const q = query(
-      collectionGroup(db, 'observations'),
+    const baseQueryArgs = [
       where('studentId', '==', studentIdToQuery),
       orderBy('observedAt', 'desc'),
-      limit(100) // Limit to prevent fetching all observations at once
+      limit(100)
+    ];
+
+    const obsQuery = query(
+      collectionGroup(db, 'observations'),
+      ...baseQueryArgs
     );
 
-    // Use onSnapshot for real-time updates (single fetch, not double)
-    const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({
+    const mediaQuery = query(
+      collectionGroup(db, 'media'),
+      ...baseQueryArgs
+    );
+
+    let obsList = [];
+    let mediaList = [];
+    let obsReady = false;
+    let mediaReady = false;
+
+    const mergeAndSet = () => {
+      const combined = [...obsList, ...mediaList].sort((a, b) => {
+        const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
+        const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
+        return db - da;
+      });
+      setObservations(combined.slice(0, 100));
+      setMediaDocs(mediaList);
+      if (obsReady && mediaReady) {
+        setLoading(false);
+        clearTimeout(timeoutId);
+      }
+    };
+
+    const unsubObs = onSnapshot(obsQuery, (snap) => {
+      obsList = snap.docs.map((d) => ({
         id: d.id,
         parentStudentId: d.ref.parent?.parent?.id,
         docPath: d.ref.path,
         ...d.data(),
       }));
-      setObservations(list);
-      setLoading(false);
-      clearTimeout(timeoutId);
+      obsReady = true;
+      mergeAndSet();
     }, (error) => {
       console.error('Error loading observations:', error);
-      setLoading(false);
-      clearTimeout(timeoutId);
+      obsReady = true;
+      mergeAndSet();
+    });
+
+    const unsubMedia = onSnapshot(mediaQuery, (snap) => {
+      mediaList = snap.docs.map((d) => ({
+        id: d.id,
+        parentStudentId: d.ref.parent?.parent?.id,
+        docPath: d.ref.path,
+        ...d.data(),
+      }));
+      mediaReady = true;
+      mergeAndSet();
+    }, (error) => {
+      console.error('Error loading media:', error);
+      mediaReady = true;
+      mergeAndSet();
     });
     
     return () => {
       clearTimeout(timeoutId);
-      unsub();
+      unsubObs();
+      unsubMedia();
     };
   }, [student]);
 
@@ -323,6 +450,62 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     const path = observation.media?.[0]?.storagePath;
     const url = path ? mediaUrls[path] : null;
     setMediaPreview({ observation, url: url || null });
+  };
+
+  const handleToggleMediaSelectMode = () => {
+    setMediaSelectMode((prev) => {
+      const next = !prev;
+      if (!next) setSelectedMediaIds(new Set());
+      return next;
+    });
+  };
+
+  const toggleMediaSelection = (obs) => {
+    if (!obs || !mediaDeleteAllowed(obs)) return;
+    setSelectedMediaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(obs.id)) next.delete(obs.id);
+      else next.add(obs.id);
+      return next;
+    });
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedMediaList.length === 0) {
+      setBulkDeleteOpen(false);
+      return;
+    }
+    setBulkDeleting(true);
+    let deleted = 0;
+    let skipped = 0;
+    try {
+      for (const obs of selectedMediaList) {
+        if (!mediaDeleteAllowed(obs)) {
+          skipped += 1;
+          continue;
+        }
+        const parentId = obs.parentStudentId || student.id || obs.studentId;
+        if (obs.media?.[0]?.storagePath) {
+          await deleteObject(ref(storage, obs.media[0].storagePath)).catch(() => {});
+        }
+        await deleteDoc(doc(db, 'students', parentId, 'media', obs.id));
+        deleted += 1;
+      }
+      if (deleted > 0) {
+        notify.success(`Deleted ${deleted} media item${deleted > 1 ? 's' : ''}.`, { duration: 3000 });
+      }
+      if (skipped > 0) {
+        notify.warning(`Skipped ${skipped} item${skipped > 1 ? 's' : ''} due to permissions.`, { duration: 3000 });
+      }
+    } catch (error) {
+      console.error('Error deleting media items:', error);
+      notify.error('Error deleting media items. Please try again.', { duration: 3500 });
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
+      setSelectedMediaIds(new Set());
+      setMediaSelectMode(false);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -650,7 +833,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               if (ts.seconds) return new Date(ts.seconds * 1000);
               return new Date(ts);
             };
-            (visibleObservations || []).forEach((obs) => {
+            (timelineItems || []).forEach((obs) => {
               let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
               if (d >= today) groups.today.push(obs);
               else if (d >= lastWeek) groups.last7Days.push(obs);
@@ -674,6 +857,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <Typography variant="body2" color="text.secondary">
                       {buildMediaSummary(obs)}
                     </Typography>
+                    {obs.teacherComment && (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          mt: 0.5,
+                          ml: 1.5,
+                          pl: 1.5,
+                          borderLeft: '2px solid #e2e8f0',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        {obs.teacherComment}
+                      </Typography>
+                    )}
                   </Box>
                 );
               }
@@ -844,7 +1042,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         fullWidth
       >
         <DialogTitle>
-          <Typography variant="h6">Media</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+            <Typography variant="h6" component="span">Media</Typography>
+            <Button
+              variant={mediaSelectMode ? 'contained' : 'outlined'}
+              size="small"
+              onClick={handleToggleMediaSelectMode}
+            >
+              {mediaSelectMode ? 'Done' : 'Select'}
+            </Button>
+          </Box>
         </DialogTitle>
         <DialogContent sx={{ pt: 0 }}>
           <Tabs
@@ -884,14 +1091,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     const path = obs.media?.[0]?.storagePath;
                     const url = path ? mediaUrls[path] : null;
                     const isReady = obs.status === 'ready' && url;
+                    const isSelected = selectedMediaIds.has(obs.id);
+                    const canSelect = mediaDeleteAllowed(obs);
                     return (
                       <Card
                         key={obs.id}
                         onClick={() => {
+                          if (mediaSelectMode) {
+                            toggleMediaSelection(obs);
+                            return;
+                          }
                           if (isReady) window.open(url, '_blank');
                         }}
                         sx={{
-                          cursor: isReady ? 'pointer' : 'default',
+                          cursor: mediaSelectMode ? 'pointer' : (isReady ? 'pointer' : 'default'),
                           '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
                           p: 1.5
                         }}
@@ -906,22 +1119,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               {formatTimestamp(obs.observedAt || obs.timestamp)}
                             </Typography>
                           </Box>
-                          {renderStatusChip(obs)}
-                          {mediaDeleteAllowed(obs) && (
-                            <Button
-                              size="small"
-                              color="error"
-                              variant="outlined"
+                          {mediaSelectMode && (
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedObservation(obs);
-                                setDeleteConfirmOpen(true);
+                                toggleMediaSelection(obs);
                               }}
-                              startIcon={<Delete />}
-                            >
-                              Delete
-                            </Button>
+                            />
                           )}
+                          {renderStatusChip(obs)}
+                          {/* Delete only in expanded media view */}
                         </Box>
                       </Card>
                     );
@@ -946,14 +1155,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   const isPending = obs.status === 'pending_upload';
                   const isFailed = obs.status === 'failed';
                   const isReady = obs.status === 'ready' && url;
+                  const isSelected = selectedMediaIds.has(obs.id);
+                  const canSelect = mediaDeleteAllowed(obs);
                   return (
                     <Box
                       key={obs.id}
                       onClick={() => {
+                        if (mediaSelectMode) {
+                          toggleMediaSelection(obs);
+                          return;
+                        }
                         if (isReady) handleMediaClick(obs);
                       }}
                       sx={{
-                        cursor: isReady ? 'pointer' : 'default',
+                        cursor: mediaSelectMode ? 'pointer' : (isReady ? 'pointer' : 'default'),
                         '&:hover': isReady ? { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } : undefined,
                         position: 'relative',
                         borderRadius: 2,
@@ -1004,20 +1219,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
                           {renderStatusChip(obs)}
                         </Box>
-                        {mediaDeleteAllowed(obs) && (
-                          <IconButton
-                            size="small"
-                            aria-label="Delete media"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedObservation(obs);
-                              setDeleteConfirmOpen(true);
-                            }}
-                            sx={{ position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(255,255,255,0.9)' }}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
+                        {mediaSelectMode && (
+                          <Box sx={{ position: 'absolute', top: 6, right: 6 }}>
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMediaSelection(obs);
+                              }}
+                              sx={{
+                                backgroundColor: 'rgba(255,255,255,0.9)',
+                                borderRadius: '50%'
+                              }}
+                            />
+                          </Box>
                         )}
+                        {/* Delete only in expanded media view */}
                       </Box>
                     </Box>
                   );
@@ -1035,9 +1253,81 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               No media notes yet.
             </Typography>
           )}
+
+          {mediaSelectMode && (
+            <Box
+              sx={{
+                position: 'sticky',
+                bottom: 0,
+                mt: 2,
+                pt: 2,
+                pb: 1,
+                backgroundColor: '#ffffff',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {selectedMediaCount} selected
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="outlined" onClick={handleToggleMediaSelectMode}>
+                  Cancel
+                </Button>
+                <Button
+                  color="error"
+                  variant="contained"
+                  startIcon={bulkDeleting ? <CircularProgress size={16} /> : <Delete />}
+                  disabled={selectedMediaCount === 0 || bulkDeleting}
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  Delete
+                </Button>
+              </Box>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button onClick={() => setMediaDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation */}
+      <Dialog
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle component="div">
+          <Typography component="h2" variant="h6" color="error">
+            Delete Selected Media
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Delete {selectedMediaCount} selected item{selectedMediaCount === 1 ? '' : 's'}?
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ fontWeight: 'medium' }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
+          <Button variant="outlined" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkDeleteConfirm}
+            variant="contained"
+            color="error"
+            disabled={bulkDeleting}
+            startIcon={bulkDeleting ? <CircularProgress size={16} /> : <Delete />}
+          >
+            {bulkDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1049,7 +1339,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         fullWidth
       >
         <DialogTitle>
-          <Typography variant="h6">Media</Typography>
+          <Typography variant="h6" component="span">Media</Typography>
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (

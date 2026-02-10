@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 /*
   Global Notification System
@@ -33,6 +33,16 @@ const NotificationContext = createContext(null);
 export function NotificationProvider({ children }) {
   const [items, setItems] = useState([]); // array of notifs (max 4)
   const keyCounter = useRef(0);
+  const postUpdateQueue = useRef([]);
+
+  useEffect(() => {
+    if (postUpdateQueue.current.length === 0) return;
+    const pending = postUpdateQueue.current;
+    postUpdateQueue.current = [];
+    pending.forEach((fn) => {
+      try { fn(); } catch (_) { /* noop */ }
+    });
+  }, [items]);
 
   const removeByKey = useCallback((key, { finalize } = { finalize: false }) => {
     setItems((prev) => {
@@ -40,7 +50,7 @@ export function NotificationProvider({ children }) {
       if (!target) return prev;
       // Call finalize if requested
       if (finalize && typeof target.onFinalize === 'function') {
-        try { target.onFinalize(); } catch (_) { /* noop */ }
+        postUpdateQueue.current.push(target.onFinalize);
       }
       return prev.filter((n) => n.key !== key);
     });
@@ -51,7 +61,7 @@ export function NotificationProvider({ children }) {
       const target = prev.find((n) => n.key === key);
       if (!target) return prev;
       if (typeof target.onUndo === 'function') {
-        try { target.onUndo(); } catch (_) { /* noop */ }
+        postUpdateQueue.current.push(target.onUndo);
       }
       return prev.filter((n) => n.key !== key);
     });
@@ -96,7 +106,7 @@ export function NotificationProvider({ children }) {
       if (next.length >= 4) {
         const oldest = next.shift();
         if (oldest && typeof oldest.onFinalize === 'function') {
-          try { oldest.onFinalize(); } catch (_) { /* noop */ }
+          postUpdateQueue.current.push(oldest.onFinalize);
         }
       }
 
