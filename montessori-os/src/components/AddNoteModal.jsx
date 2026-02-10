@@ -9,7 +9,9 @@ import {
   TextField,
   Snackbar,
   Alert,
-  Chip
+  Chip,
+  InputAdornment,
+  Divider
 } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import {
@@ -23,7 +25,8 @@ import {
   CloudUpload,
   Edit,
   CheckCircle,
-  Movie
+  Movie,
+  Mic
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -331,6 +334,9 @@ function AddNoteModal({
   const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl }]
   const [pdfSource, setPdfSource] = useState(null); // { file, size, contentType, extension, originalName }
   const [mediaTeacherComment, setMediaTeacherComment] = useState('');
+  const [mediaDictationOpen, setMediaDictationOpen] = useState(false);
+  const mediaCommentRef = useRef(null);
+  const [mediaDictationSelection, setMediaDictationSelection] = useState({ start: null, end: null });
   const [mediaUploadProgress, setMediaUploadProgress] = useState({});
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDirty, setMediaDirty] = useState(false);
@@ -922,6 +928,8 @@ function AddNoteModal({
     setMediaItems([]);
     setPdfSource(null);
     setMediaTeacherComment('');
+    setMediaDictationOpen(false);
+    setMediaDictationSelection({ start: null, end: null });
     setMediaUploadProgress({});
     setMediaUploading(false);
     setMediaDirty(false);
@@ -934,6 +942,37 @@ function AddNoteModal({
     setPdfEssenceLoading(false);
     setPdfPageCount(null);
     setPdfExtractedText('');
+  };
+
+  const openMediaDictation = () => {
+    const el = mediaCommentRef.current;
+    const start = el && Number.isInteger(el.selectionStart) ? el.selectionStart : null;
+    const end = el && Number.isInteger(el.selectionEnd) ? el.selectionEnd : null;
+    setMediaDictationSelection({ start, end });
+    setMediaDictationOpen(true);
+  };
+
+  const closeMediaDictation = () => {
+    setMediaDictationOpen(false);
+    setMediaDictationSelection({ start: null, end: null });
+  };
+
+  const handleMediaDictationSave = (transcriptionData) => {
+    const insertText = transcriptionData?.text?.trim();
+    if (!insertText) {
+      closeMediaDictation();
+      return;
+    }
+    const current = mediaTeacherComment || '';
+    let nextValue;
+    if (mediaDictationSelection.start != null && mediaDictationSelection.end != null) {
+      nextValue = current.slice(0, mediaDictationSelection.start) + insertText + current.slice(mediaDictationSelection.end);
+    } else {
+      nextValue = current ? current + ' ' + insertText : insertText;
+    }
+    setMediaTeacherComment(nextValue);
+    setMediaDirty(true);
+    closeMediaDictation();
   };
 
   const getPdfBaseName = (name) => {
@@ -2129,6 +2168,26 @@ function AddNoteModal({
                   fullWidth
                   multiline
                   minRows={2}
+                  inputRef={mediaCommentRef}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="Dictate teacher comment"
+                          onClick={openMediaDictation}
+                          color="primary"
+                          size="small"
+                          sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            bgcolor: 'action.hover'
+                          }}
+                        >
+                          <Mic fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
                 />
 
                 {null}
@@ -2485,6 +2544,38 @@ function AddNoteModal({
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Media teacher comment dictation dialog */}
+      <Dialog
+        open={mediaDictationOpen}
+        onClose={closeMediaDictation}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Dictate teacher comment
+          </Typography>
+          <IconButton aria-label="Close dictation" onClick={closeMediaDictation}>
+            <Close />
+          </IconButton>
+        </Box>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <VoiceRecorder
+            variant="cardless"
+            onSave={handleMediaDictationSave}
+            onNext={closeMediaDictation}
+            autoAdvanceOnSave
+          />
+        </Box>
+      </Dialog>
     </Dialog>
   );
 }
