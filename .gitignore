@@ -46,6 +46,8 @@ jspm_packages/
 # IDE files
 .vscode/
 .idea/
+.cursor/
+.claude/
 *.swp
 *.swo
 
@@ -69,8 +71,13 @@ admin/
 
 test*
 
-iLearn Educational Trust Deed.pdf
+# Non-code files (PDFs, planning docs)
+*.pdf
 config.js
 PEP OS - Lesson Notes.docx
+lesson-notes-implementation-plan.md
+lesson-notes-prd.md
+pep_ai_scoping.md
+prd.md
 
 .runtimeconfig.json

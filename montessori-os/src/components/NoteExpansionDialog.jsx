@@ -216,7 +216,6 @@ function NoteExpansionDialog({
             setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID if doc doesn't exist
           }
         } catch (error) {
-          console.error('Error fetching previous classroom:', error);
           setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID on error
         }
       } else {
@@ -271,7 +270,6 @@ function NoteExpansionDialog({
         });
         setLinkedLessonTitles(nextTitles);
       } catch (error) {
-        console.error('Error loading linked lesson titles:', error);
         if (isActive) {
           const fallback = {};
           (linkedLessonObservationIds || []).forEach((id) => {
@@ -332,7 +330,6 @@ function NoteExpansionDialog({
       });
       setLessonNotes(notes);
     } catch (err) {
-      console.error('Error loading lesson notes for tagging', err);
       setLessonNotesError('Unable to load lesson notes. Try again.');
     } finally {
       setLessonNotesLoading(false);
@@ -386,7 +383,6 @@ function NoteExpansionDialog({
           }
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
-          console.error('Error deleting observation:', error);
           notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -476,7 +472,6 @@ function NoteExpansionDialog({
               linkedObservations: arrayUnion(observation.id),
             });
           } catch (err) {
-            console.error('Error adding backlink to lesson note', err);
           }
         })
       );
@@ -490,7 +485,6 @@ function NoteExpansionDialog({
               linkedObservations: arrayRemove(observation.id),
             });
           } catch (err) {
-            console.error('Error removing backlink from previous lesson note', err);
           }
         })
       );
@@ -501,7 +495,6 @@ function NoteExpansionDialog({
       );
       setTagDialogOpen(false);
     } catch (error) {
-      console.error('Error updating tagged lesson note', error);
       notify.error('Error updating tagged lesson note. Please try again.');
     } finally {
       setLinkSaving(false);
@@ -527,7 +520,6 @@ function NoteExpansionDialog({
       setEditText('');
       notify.success('Note updated successfully');
     } catch (error) {
-      console.error('Error updating observation:', error);
       notify.error('Error saving changes. Please try again.');
     } finally {
       setSaving(false);
@@ -637,7 +629,6 @@ function NoteExpansionDialog({
         },
       });
     } catch (error) {
-      console.error('Error reassigning observation:', error);
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${observation?.id || 'unknown'}` });
     } finally {
       setReassigning(false);

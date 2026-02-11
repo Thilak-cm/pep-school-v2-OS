@@ -224,7 +224,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         branchId: c.branchId || null
       })));
     } catch (e) {
-      console.error('Fetch classrooms error', e);
       setError('Failed to fetch classrooms');
     } finally {
       setLoading(false);
@@ -253,7 +252,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       });
       setBranches(branchesList);
     } catch (e) {
-      console.error('Fetch branches error', e);
       setError('Failed to fetch branches');
     } finally {
       setBranchesLoading(false);
@@ -268,7 +266,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
       return list;
     } catch (e) {
-      console.error(`Fetch ${roleName}s error`, e);
       setError(`Failed to fetch ${roleName}s`);
       return [];
     }
@@ -300,7 +297,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       });
       setStudents(list);
     } catch (e) {
-      console.error('Fetch students error', e);
       setError('Failed to fetch students');
     }
   };
@@ -618,7 +614,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       setStudentEditMode(false);
       notify.success('Student updated successfully');
     } catch (error) {
-      console.error('Error updating student:', error);
       notify.error('Failed to update student: ' + (error.message || 'Unknown error'));
     } finally {
       setStudentSaving(false);
@@ -693,7 +688,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
     } catch (error) {
-      console.error('Delete user error', error);
       notify.error('Failed to delete user: ' + (error.message || 'Unknown error'));
     } finally {
       setDeleteDeleting(false);
@@ -765,14 +759,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             await reverse.commit();
             setClassrooms(updateClassroomsState(removed, added, teacherId));
           } catch (err) {
-            console.error('Undo access update failed', err);
             notify.error('Failed to undo access changes');
           }
         }
       });
       setManageOpen(false);
     } catch (e) {
-      console.error('Manage access save error', e);
       notify.error('Failed to update access');
     } finally {
       setManageSaving(false);
@@ -817,7 +809,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       setDemoteError('');
       await Promise.all([fetchTeachers(), fetchAdmins()]);
     } catch (error) {
-      console.error('Demote classroom admin error', error);
       notify.error(error?.message || 'Failed to demote classroom admin');
     } finally {
       setDemoteSaving(false);
@@ -895,7 +886,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         await handleStudentSubmit();
       }
     } catch (err) {
-      console.error('Add user error', err);
       setError(err?.message || 'Operation failed');
       notify.error(err?.message || 'Operation failed');
     } finally {
@@ -1075,7 +1065,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         await fetchAdmins();
       }
     } catch (err) {
-      console.error('Classroom access update error', err);
       notify.error(err?.message || 'Failed to update classroom access');
     } finally {
       setClassroomDialogSaving(false);

@@ -656,7 +656,6 @@ export const exportStudentTimeline = (
       format
     };
   } catch (error) {
-    console.error('Error exporting student timeline:', error);
     return {
       success: false,
       error: error.message

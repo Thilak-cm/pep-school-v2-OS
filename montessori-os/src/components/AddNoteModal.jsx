@@ -186,7 +186,6 @@ function TextInput({
         latency_ms: dt,
       });
     } catch (e) {
-      console.error('Cleanup error:', e);
       // Do not modify text on error; transparency matters
       trackEvent('polish_error', {
         source: 'text',
@@ -819,7 +818,6 @@ function AddNoteModal({
       });
       setLessonNotes(notes);
     } catch (err) {
-      console.error('Error loading lesson notes for tagging', err);
       setLessonNotesError('Unable to load lesson notes. Try again.');
     } finally {
       setLessonNotesLoading(false);
@@ -1218,7 +1216,6 @@ function AddNoteModal({
       setPdfPageCount(pageCount);
       runPdfSuggestions(text, pageCount, file.name).catch(() => {});
     } catch (err) {
-      console.error('Media selection error', err);
       setMediaError(err?.message || 'Could not process file');
       notify.error(err?.message || 'Could not process file');
     }
@@ -1238,7 +1235,6 @@ function AddNoteModal({
           try {
             previewUrl = await captureVideoThumbnail(file);
           } catch (err) {
-            console.warn('Video thumbnail capture failed', err);
           }
           nextItems.push({
             id: createMediaItemId(),
@@ -1278,7 +1274,6 @@ function AddNoteModal({
           previewUrl
         });
       } catch (err) {
-        console.error('Media selection error', err);
         setMediaError(err?.message || 'Could not process file');
         notify.error(err?.message || 'Could not process file');
       }
@@ -1429,7 +1424,6 @@ function AddNoteModal({
       }
 
       if (failed) {
-        console.error('Upload failed', failed);
         notify.error('Upload failed. Please try again. Something went wrong.');
         await Promise.allSettled(
           uploads.map(async (entry) => {
@@ -1570,7 +1564,6 @@ function AddNoteModal({
             })
           );
         } catch (err) {
-          console.error('Error adding backlink to lesson note', err);
           notify.warning('Note saved, but could not update one or more linked lesson notes.');
         }
       }
@@ -1596,7 +1589,6 @@ function AddNoteModal({
         handleClose();
       }, 1000);
     } catch (err) {
-      console.error('save note error', err);
       notify.error('Error saving note. Please try again.');
     } finally {
       setSaving(false);

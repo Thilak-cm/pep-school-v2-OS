@@ -63,7 +63,6 @@ const StudentStatsPage = ({ student }) => {
           loading: false
         });
       } catch (error) {
-        console.error('Error fetching student observations:', error);
         setStats(prev => ({ ...prev, loading: false }));
       }
     };

@@ -46,7 +46,6 @@ const UpdateNotification = () => {
       setOpen(false);
       // The page will reload automatically when the update is applied
     } catch (error) {
-      console.error('Error applying update:', error);
     }
   };
 

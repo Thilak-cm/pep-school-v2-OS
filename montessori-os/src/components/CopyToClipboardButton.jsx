@@ -27,7 +27,6 @@ export default function CopyToClipboardButton({ text = '', size = 'small', ariaL
       notify.success('Copied to clipboard', { duration: 2000 });
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
-      console.error('Copy failed:', err);
     }
   };
 

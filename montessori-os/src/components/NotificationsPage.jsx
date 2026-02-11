@@ -771,7 +771,6 @@ function NotificationsPage() {
             }).length;
             setNotesSinceGenerated(count);
           } catch (fallbackError) {
-            console.error('Fallback query for notes since snapshot failed:', fallbackError);
             if (active) setNotesSinceGenerated(null);
           }
         } else if (active) {
@@ -1402,7 +1401,6 @@ function NotificationsPage() {
         // Reload the data with force reload
         await loadBaseballCardForStudent(studentId, true);
       } catch (e) {
-        console.error('Regenerate failed', e);
         setRegenError(prev => ({ ...prev, [studentId]: e?.message || 'Failed to regenerate.' }));
       } finally {
         setRegenRunning(prev => ({ ...prev, [studentId]: false }));
@@ -1471,7 +1469,6 @@ function NotificationsPage() {
                             }
                           }));
                         } catch (err) {
-                          console.error('Failed to navigate to student dashboard', err);
                         }
                         setExpandedStudentId(null);
                       }}

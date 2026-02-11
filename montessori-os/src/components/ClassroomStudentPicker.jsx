@@ -221,11 +221,9 @@ function ClassroomStudentPicker({
             aliasList.sort((a, b) => a.name.localeCompare(b.name));
             setAliases(aliasList);
           } catch (err) {
-            console.error('Error loading student aliases:', err);
           }
         }
       } catch (err) {
-        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
@@ -451,7 +449,6 @@ function ClassroomStudentPicker({
         setCleanedOnce(false);
       }
     } catch (e) {
-      console.error('Cleanup error:', e);
     } finally {
       setCleaning(false);
     }
@@ -518,7 +515,6 @@ function ClassroomStudentPicker({
         setVoiceCleanedOnce(false);
       }
     } catch (e) {
-      console.error('Voice cleanup error:', e);
       setVoiceCleanedOnce(false);
     } finally {
       setVoiceCleaning(false);

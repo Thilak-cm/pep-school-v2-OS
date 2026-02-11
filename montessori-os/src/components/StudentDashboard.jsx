@@ -248,8 +248,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to load baseball card config', err);
         setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
       }
     };
@@ -284,7 +282,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         setCardData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
         setSignalsData(signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null);
       } catch (err) {
-        console.error('Error loading baseball card', err);
         if (active) setCardError('Failed to load the baseball card.');
         if (active) setSignalsError('Failed to load student signals.');
       } finally {
@@ -324,7 +321,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
         setNotesLast7Days(count);
       } catch (error) {
-        console.error('Error fetching notes count:', error);
         // If index error, try fallback query without date filter (less efficient but works)
         if (error.code === 'failed-precondition' && error.message?.includes('index')) {
           try {
@@ -346,7 +342,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             }).length;
             setNotesLast7Days(count);
           } catch (fallbackError) {
-            console.error('Fallback query also failed:', fallbackError);
             setNotesLast7Days(null);
           }
         } else {
@@ -394,7 +389,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         if (!active) return;
         setNotesSinceGenerated(observationsSnap.docs.length);
       } catch (error) {
-        console.error('Error fetching notes since snapshot:', error);
         if (error.code === 'failed-precondition' && error.message?.includes('index')) {
           try {
             const fallbackQuery = query(
@@ -412,7 +406,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
             }).length;
             setNotesSinceGenerated(count);
           } catch (fallbackError) {
-            console.error('Fallback query for notes since snapshot failed:', fallbackError);
             if (active) setNotesSinceGenerated(null);
           }
         } else if (active) {

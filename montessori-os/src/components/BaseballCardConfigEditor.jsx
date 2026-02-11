@@ -215,8 +215,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
       const res = await call(payload);
       setPlaygroundResult(res.data);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Baseball card playground failed', err);
       const message = err?.message || 'Failed to run preview.';
       setPlaygroundError(message);
     } finally {
