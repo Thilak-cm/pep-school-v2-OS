@@ -23,7 +23,7 @@ import {
   Backdrop
 } from '@mui/material';
 import { 
-  collection, doc, getDocs, getDoc, query, where, orderBy, limit, writeBatch, serverTimestamp
+  collection, doc, getDocs, getDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -74,8 +74,6 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         cls.sort((a,b) => (a.programId||'').localeCompare(b.programId||'') || (a.name||a.id).localeCompare(b.name||b.id));
         setClassrooms(cls);
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to load classrooms', e);
       } finally {
         setLoading(false);
       }
@@ -98,8 +96,6 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         setStudents(rows);
         setSelectedIds([]);
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to load students', e);
       }
     })();
   }, [sourceClassroomId]);
@@ -190,6 +186,14 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         } catch (e) {
           failures.push({ id: studentId, reason: e?.message || 'error' });
         }
+      }
+
+      // Update denormalized studentCount on source and destination classrooms
+      if (successCount > 0) {
+        const srcRef = doc(db, 'classrooms', sourceClassroomId);
+        const dstRef = doc(db, 'classrooms', destClassroomId);
+        batch.set(srcRef, { studentCount: increment(-successCount), updatedAt: serverTimestamp() }, { merge: true });
+        batch.set(dstRef, { studentCount: increment(successCount), updatedAt: serverTimestamp() }, { merge: true });
       }
 
       await batch.commit();
