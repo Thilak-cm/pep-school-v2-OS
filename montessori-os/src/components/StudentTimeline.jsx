@@ -247,7 +247,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     
     // Add timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      console.warn('Observations loading timeout - forcing loading to false');
       setLoading(false);
     }, 10000); // 10 second timeout
     
@@ -298,7 +297,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       obsReady = true;
       mergeAndSet();
     }, (error) => {
-      console.error('Error loading observations:', error);
       obsReady = true;
       mergeAndSet();
     });
@@ -313,7 +311,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       mediaReady = true;
       mergeAndSet();
     }, (error) => {
-      console.error('Error loading media:', error);
       mediaReady = true;
       mergeAndSet();
     });
@@ -343,7 +340,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       }));
       setMediaDocs(list);
     }, (error) => {
-      console.error('Error loading media:', error);
       setMediaDocs([]);
     });
     return () => unsub();
@@ -421,7 +417,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           const url = await getDownloadURL(ref(storage, path));
           return [path, url];
         } catch (err) {
-          console.error('Failed to fetch media URL', err);
           return null;
         }
       }));
@@ -498,7 +493,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         notify.warning(`Skipped ${skipped} item${skipped > 1 ? 's' : ''} due to permissions.`, { duration: 3000 });
       }
     } catch (error) {
-      console.error('Error deleting media items:', error);
       notify.error('Error deleting media items. Please try again.', { duration: 3500 });
     } finally {
       setBulkDeleting(false);
@@ -555,7 +549,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch (error) {
-          console.error('Error deleting observation:', error);
           notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -661,7 +654,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         },
       });
     } catch (error) {
-      console.error('Error reassigning observation:', error);
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${selectedObservation?.id || 'unknown'}` });
     } finally {
       setReassigning(false);
@@ -726,7 +718,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         });
       }
     } catch (error) {
-      console.error('Export error:', error);
       notify.error('Export failed. Please try again.', {
         id: `export-${student?.id || 'unknown'}-exception`,
         duration: 4000

@@ -133,7 +133,6 @@ function StudentAliasesPage({ currentUser, userRole }) {
         aliasList.sort((a, b) => a.name.localeCompare(b.name));
         setAliases(aliasList);
       } catch (error) {
-        console.error('Failed to load aliases', error);
         notify.error('Unable to load student groups.');
       } finally {
         setLoading(false);
@@ -252,7 +251,6 @@ function StudentAliasesPage({ currentUser, userRole }) {
       setFormOpen(false);
       notify.success('Student group saved.');
     } catch (error) {
-      console.error('Failed to save alias', error);
       notify.error('Unable to save student group.');
     } finally {
       setSaving(false);
@@ -271,7 +269,6 @@ function StudentAliasesPage({ currentUser, userRole }) {
       setDeleteTarget(null);
       notify.success('Student group deleted.');
     } catch (error) {
-      console.error('Failed to delete alias', error);
       notify.error('Unable to delete student group.');
     } finally {
       setSaving(false);

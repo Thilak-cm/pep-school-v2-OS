@@ -25,7 +25,6 @@ class VersionManager {
         // Check for immediate updates
         await this.checkForUpdates();
       } catch (error) {
-        console.error('Service Worker registration failed:', error);
       }
     }
   }
@@ -63,7 +62,6 @@ class VersionManager {
       // Check for updates
       await this.serviceWorker.update();
     } catch (error) {
-      console.error('Error checking for updates:', error);
     }
   }
 
@@ -76,7 +74,6 @@ class VersionManager {
         this.serviceWorker.waiting.postMessage({ type: 'SKIP_WAITING' });
       }
     } catch (error) {
-      console.error('Error applying update:', error);
     }
   }
 

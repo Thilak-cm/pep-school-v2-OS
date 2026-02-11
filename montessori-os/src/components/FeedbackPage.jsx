@@ -83,7 +83,6 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefi
       setUserFeedback(sortedList);
       setLoading(false);
     }, (error) => {
-      console.error('Error loading feedback:', error);
       setLoading(false);
     });
 
@@ -125,7 +124,6 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefi
       // Show success message
       setShowSuccess(true);
     } catch (error) {
-      console.error('Error submitting feedback:', error);
       setError('Failed to submit feedback. Please try again.');
     } finally {
       setSubmitting(false);

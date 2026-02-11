@@ -137,7 +137,6 @@ const getCachedData = (key, dataType) => {
     }
     return parsed.payload;
   } catch (err) {
-    console.warn(`Failed to read ${dataType} cache`, err);
     return null;
   }
 };
@@ -162,10 +161,8 @@ const setCachedData = (key, dataType, payload) => {
       } catch (_) {
         // Ignore secondary failures
       }
-      console.warn('Notifications cache disabled: storage quota exceeded');
       return;
     }
-    console.error(`Failed to write ${dataType} cache`, error);
   }
 };
 
@@ -179,7 +176,6 @@ export const clearNotificationsCache = () => {
       }
     });
   } catch (err) {
-    console.warn('Failed to clear notifications cache', err);
   }
 };
 
@@ -247,7 +243,6 @@ function NotificationsPage() {
           setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
         }
       } catch (err) {
-        console.warn('Failed to load baseball card config', err);
         setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
       }
     };
@@ -300,7 +295,6 @@ function NotificationsPage() {
         setAccessibleClassrooms(teacherClassrooms);
         setAccessLoaded(true);
       } catch (err) {
-        console.warn('Failed to load access scope', err);
         if (active) {
           setCurrentRole(null);
           setAccessibleClassrooms([]);
@@ -388,7 +382,6 @@ function NotificationsPage() {
           ));
         }
       } catch (err) {
-        console.warn('Failed to load performance classroom options', err);
         if (active) {
           setPerformanceClassroomOptions([]);
           setSelectedPerformanceClassroomId('');
@@ -630,7 +623,6 @@ function NotificationsPage() {
         setSignals(filteredSignals);
         setStudentInfo(filteredStudentInfo);
       } catch (err) {
-        console.error('Failed to load signals', err);
         setError('Failed to load notifications.');
       } finally {
         if (active) setLoading(false);
@@ -673,7 +665,6 @@ function NotificationsPage() {
         [studentId]: signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null
       }));
     } catch (err) {
-      console.error(`Error loading baseball card for student ${studentId}`, err);
       setBaseballCardError(prev => ({ ...prev, [studentId]: 'Failed to load the baseball card.' }));
     } finally {
       setBaseballCardLoading(prev => ({ ...prev, [studentId]: false }));
@@ -763,7 +754,6 @@ function NotificationsPage() {
         if (!active) return;
         setNotesSinceGenerated(observationsSnap.docs.length);
       } catch (error) {
-        console.error('Error fetching notes since snapshot:', error);
         if (error.code === 'failed-precondition' && error.message?.includes('index')) {
           try {
             const fallbackQuery = query(

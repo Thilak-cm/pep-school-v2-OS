@@ -98,8 +98,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
         });
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load baseball card config', e);
       notify.error('Failed to load baseball card settings.');
     } finally {
       setLoading(false);
@@ -120,8 +118,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
       });
       setStudents(list);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load students for playground', err);
       notify.error('Failed to load students for playground.');
     } finally {
       setStudentsLoading(false);
@@ -171,8 +167,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
       ]);
       notify.success('Baseball card settings saved.');
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to save baseball card config', e);
       notify.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);

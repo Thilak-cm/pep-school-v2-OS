@@ -198,7 +198,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         setStudentCount(students.length);
         return students;
       } catch (err) {
-        console.error('Error fetching classroom students:', err);
         return [];
       }
     };
@@ -219,7 +218,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           setClassroomTeachers(teachers);
         }
       } catch (err) {
-        console.error('Error fetching classroom teachers:', err);
       }
     };
 
@@ -317,12 +315,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
 
           setClassroomNotes(updatedNotes);
         }, (err) => {
-          console.error('Error in notes listener:', err);
         });
 
         return unsubscribe;
       } catch (err) {
-        console.error('Error setting up notes listener:', err);
         setLoading(false);
       }
     };
@@ -453,8 +449,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           groups.beyond.push(note);
         }
       } catch (error) {
-        console.error('Error processing note date:', error, note);
-        // Put notes with invalid dates in the "beyond" category
         groups.beyond.push(note);
       }
     });
@@ -1469,7 +1463,6 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                 await updateDoc(remainingDoc.ref, { groupId: deleteField() });
               }
             } catch (err) {
-              console.error('Error cleaning up singleton groupId:', err);
             }
           }
 
@@ -1491,7 +1484,6 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
             setDeleteMode(false);
           }
         } catch (error) {
-          console.error('Error deleting observations:', error);
           notify.error('Error deleting note(s). Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -1989,7 +1981,6 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
         
         return noteDate >= lastWeek;
       } catch (error) {
-        console.error('Error processing note date:', error, note);
         return false;
       }
     }).length;

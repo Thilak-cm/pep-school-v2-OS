@@ -31,8 +31,6 @@ async function fetchDoc(key) {
       version: data.version || 1,
     };
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[promptProvider] fetch error', key, e);
     return null;
   }
 }

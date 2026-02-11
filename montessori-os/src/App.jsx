@@ -44,6 +44,7 @@ import UpdateNotification from './components/UpdateNotification';
 import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
 import { isSuperAdmin } from './utils/roleUtils';
+import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
@@ -156,14 +157,10 @@ function App() {
                 setSelectedStudent({ id: studentId, ...data });
               }
             } catch (err) {
-              // eslint-disable-next-line no-console
-              console.warn('Failed to load student details for header:', err);
             }
           })();
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('Navigation event error', err);
       }
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
@@ -206,15 +203,6 @@ function App() {
     clearNotificationsCache();
 
     const validateAccess = async () => {
-      // Domain check - allow multiple domains
-      const allowedDomains = ['@pepschoolv2.com', '@ribbons.education', '@accelschool.in'];
-      const emailLower = user.email.toLowerCase();
-      if (!allowedDomains.some(domain => emailLower.endsWith(domain))) {
-        setUnauthorized(true);
-        setScreen('accessDenied');
-        return;
-      }
-
       try {
         // Look up by UID (authoritative) instead of email query to avoid case/alias issues
         const userRef = doc(db, 'users', user.uid);
@@ -236,12 +224,10 @@ function App() {
               userSnap = await getDoc(userRef);
             }
           } catch (migrateErr) {
-            console.error('[Migration] Failed to migrate pending user:', migrateErr);
             // Continue to check if doc exists (might have been migrated by another process)
             try {
               userSnap = await getDoc(userRef);
             } catch (refetchErr) {
-              console.error('[Migration] Failed to re-fetch user doc:', refetchErr);
               // userSnap remains as the original (non-existent) snapshot
             }
           }
@@ -259,31 +245,12 @@ function App() {
           setScreen('accessDenied');
           return;
         }
-        // Normalize manageableClassrooms to classroom document IDs.
-        // Some older records may store full paths like "classrooms/abc" or doc-ref-ish objects.
-        const normalizeClassroomId = (value) => {
-          if (!value) return null;
-          if (typeof value === 'string') {
-            const parts = String(value).trim().split('/').filter(Boolean);
-            return parts.length ? parts[parts.length - 1] : null;
-          }
-          if (typeof value === 'object') {
-            if (typeof value.id === 'string') return value.id.trim();
-            if (typeof value.path === 'string') {
-              const parts = String(value.path).trim().split('/').filter(Boolean);
-              return parts.length ? parts[parts.length - 1] : null;
-            }
-          }
-          return null;
-        };
-
         const rawManageable = Array.isArray(userDoc.manageableClassrooms) ? userDoc.manageableClassrooms : [];
         const userManageableClassrooms = Array.from(
           new Set(rawManageable.map(normalizeClassroomId).filter(Boolean))
         );
         // Classroom admins must have manageableClassrooms; surface hard failure if missing to avoid silent permission errors
         if (userDoc.role === 'classroomadmin' && userManageableClassrooms.length === 0) {
-          console.error('Classroom admin missing manageableClassrooms');
           alert('Your classroom access is not configured. Please ask a super admin to add manageable classrooms to your account.');
           setUnauthorized(true);
           setScreen('accessDenied');
@@ -296,7 +263,6 @@ function App() {
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
         setScreen('landingPage');
       } catch (err) {
-        console.error('Access validation error', err);
         setUnauthorized(true);
         setScreen('accessDenied');
       }
@@ -321,7 +287,6 @@ function App() {
       clearNotificationsCache();
       await signOut(auth);
     } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

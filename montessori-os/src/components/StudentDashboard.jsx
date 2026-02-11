@@ -184,8 +184,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       await call({ studentId });
       setReloadKey((k) => k + 1);
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Regenerate failed', e);
       setRegenError(e?.message || 'Failed to regenerate.');
     } finally {
       setRegenRunning(false);
@@ -202,8 +200,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         if (!active) return;
         setCurrentRole(snap.exists() ? (snap.data()?.role || null) : null);
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to load user role', err);
       }
     };
     loadRole();

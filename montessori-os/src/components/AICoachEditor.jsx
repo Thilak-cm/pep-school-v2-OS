@@ -101,7 +101,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setError('Coach prompt configuration not found for this program');
         }
       } catch (e) {
-        console.error('Error loading coach prompt:', e);
         setDocState(null);
         setEnabledNudges([]);
         setMaxReturnNudges(1);
@@ -179,7 +178,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
       // Show success notification
       notify.success('Coach prompt configuration saved successfully');
     } catch (e) {
-      console.error('Error updating coach prompt:', e);
       setError('Failed to update coach prompt configuration');
       notify.error('Failed to save coach prompt configuration');
     } finally {

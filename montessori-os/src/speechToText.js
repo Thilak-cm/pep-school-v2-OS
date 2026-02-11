@@ -132,7 +132,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
                 chunkIndex: chunks.length
               });
             } catch (chunkError) {
-              console.error(`Error creating chunk ${chunks.length + 1}:`, chunkError);
               throw new Error(`Failed to create audio chunk: ${chunkError.message}`);
             }
             
@@ -153,21 +152,18 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
           resolve(chunks);
           
         } catch (error) {
-          console.error('Error during audio chunking:', error);
           audioContext.close();
           reject(error);
         }
       };
       
       fileReader.onerror = (error) => {
-        console.error('FileReader error:', error);
         reject(new Error('Failed to read audio file'));
       };
       
       fileReader.readAsArrayBuffer(audioBlob);
       
     } catch (error) {
-      console.error('Error initializing audio chunking:', error);
       reject(error);
     }
   });
@@ -307,7 +303,6 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
             endTime: chunk.endTime
           });
         } catch (error) {
-          console.error(`Error transcribing chunk ${i + 1}:`, error);
           results.push({
             text: `[Transcription error in segment ${i + 1}]`,
             confidence: 0,
@@ -353,8 +348,6 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
       };
       
     } catch (chunkingError) {
-      console.warn('Chunking failed, falling back to single transcription:', chunkingError);
-      
       if (onProgress) onProgress(0, 1, 'Chunking failed, using single transcription...');
       
       // Fallback to single transcription
@@ -368,13 +361,11 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
           fallbackUsed: true
         };
       } catch (fallbackError) {
-        console.error('Fallback transcription also failed:', fallbackError);
         throw new Error(`Both chunked and single transcription failed. Original error: ${chunkingError.message}. Fallback error: ${fallbackError.message}`);
       }
     }
     
   } catch (error) {
-    console.error('Chunked transcription error:', error);
     throw error;
   }
 };
@@ -432,7 +423,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Speech-to-Text API Error:', errorData);
       throw new Error(`Speech-to-Text API error: ${errorData.error?.message || response.statusText}`);
     }
 
@@ -470,7 +460,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     }
 
   } catch (error) {
-    console.error('Transcription error:', error);
     throw error;
   }
 };

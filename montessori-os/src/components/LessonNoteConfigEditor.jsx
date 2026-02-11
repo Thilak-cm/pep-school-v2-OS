@@ -148,8 +148,6 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
           setOriginalDimensions(nextDims);
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Error loading lesson note config', e);
         setError('Failed to load lesson note configuration.');
       } finally {
         setLoading(false);
@@ -341,8 +339,6 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
       setOriginalDimensions({ ...dimensionsByProgram });
       notify.success('Lesson note configuration saved');
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Error saving lesson note config', e);
       setError(e?.message || 'Failed to save lesson note configuration.');
     } finally {
       setSaving(false);

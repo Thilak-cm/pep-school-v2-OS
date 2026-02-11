@@ -59,7 +59,6 @@ const readCachedClassrooms = (key) => {
     }
     return parsed;
   } catch (err) {
-    console.warn('Unable to read classroom cache', err);
     return null;
   }
 };
@@ -75,7 +74,6 @@ const writeCachedClassrooms = (key, payload) => {
       })
     );
   } catch (err) {
-    console.warn('Unable to persist classroom cache', err);
   }
 };
 
@@ -192,7 +190,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
           studentCounts: counts,
         });
       } catch (err) {
-        console.error('Error fetching classrooms', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -231,7 +228,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
         setProgramLookup(classroomProgramMap);
       } catch (err) {
-        console.error('Error fetching program metadata', err);
       }
     };
 
@@ -314,7 +310,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
               classroomNameMap[classroomId] = classroomDoc.data().name || classroomId;
             }
           } catch (err) {
-            console.error(`Error fetching classroom ${classroomId}:`, err);
           }
         });
         await Promise.all(classroomPromises);
@@ -332,7 +327,6 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         });
         setAllStudents(studentsWithNames);
       } catch (err) {
-        console.error('Error fetching all students:', err);
         if (isMounted) {
           setAllStudents([]);
         }

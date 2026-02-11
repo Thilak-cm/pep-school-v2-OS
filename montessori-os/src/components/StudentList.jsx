@@ -57,7 +57,6 @@ function StudentList({ classroom, onSelectStudent }) {
         
         return noteDate >= lastWeek;
       } catch (error) {
-        console.error('Error processing note date:', error, note);
         return false;
       }
     }).length;
@@ -126,7 +125,6 @@ function StudentList({ classroom, onSelectStudent }) {
 
         setClassroomObservations(allObservations);
       } catch (err) {
-        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }

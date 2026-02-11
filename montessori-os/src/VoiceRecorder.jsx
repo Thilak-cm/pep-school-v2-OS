@@ -245,8 +245,6 @@ const VoiceRecorder = ({
       startTimer();
 
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      
       // Handle specific permission errors
       if (error.name === 'NotAllowedError') {
         notify.error('Microphone access denied. Enable mic in browser settings.', { id: 'mic-permission', duration: 4500 });
@@ -275,7 +273,6 @@ const VoiceRecorder = ({
         setIsPaused(true);
         stopTimer();
       } catch (e) {
-        console.error('Pause not supported in this browser:', e);
       }
     }
   };
@@ -288,7 +285,6 @@ const VoiceRecorder = ({
         setPauseReason(null);
         startTimer();
       } catch (e) {
-        console.error('Resume not supported in this browser:', e);
       }
     }
   };
@@ -413,7 +409,6 @@ const VoiceRecorder = ({
         setCleanedOnce(false);
       }
     } catch (e) {
-      console.error('Cleanup error:', e);
       setCleanedOnce(false);
       notify.error('Failed to polish text. Please try again.');
     } finally {
@@ -489,7 +484,6 @@ const VoiceRecorder = ({
       }
       
     } catch (error) {
-      console.error('Transcription failed:', error);
       setTranscriptionError(`Transcription failed: ${error.message}`);
       notify.error('Transcription failed. Please try again.', { id: 'stt-failed', duration: 4000 });
       if (onTranscriptionError) onTranscriptionError(error);

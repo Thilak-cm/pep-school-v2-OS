@@ -169,8 +169,6 @@ function LessonNoteWizard({
           setLessonConfig(null);
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to load lesson note config; falling back to defaults.', e);
         setLessonConfig(null);
       } finally {
         setLessonConfigLoading(false);
@@ -238,7 +236,6 @@ function LessonNoteWizard({
         aliasList.sort((a, b) => a.name.localeCompare(b.name));
         setAliases(aliasList);
       } catch (error) {
-        console.error('Error loading lesson note data', error);
         notify.error('Unable to load classrooms, students, or groups.');
       } finally {
         setLoading(false);
@@ -836,7 +833,6 @@ function LessonNoteWizard({
         onSaved?.();
       }
     } catch (error) {
-      console.error('Error saving lesson note', error);
       notify.error('Unable to save lesson note. Please try again.');
     } finally {
       setSaving(false);

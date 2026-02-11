@@ -153,7 +153,6 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
 
         if (isMounted) setClassrooms(results);
       } catch (err) {
-        console.error('Error loading classrooms for export', err);
         notify.error('Unable to load classrooms right now. Please try again.', {
           id: 'export-classrooms-load-error',
           duration: 4000
@@ -224,7 +223,6 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
 
         if (isMounted) setStudents(sorted);
       } catch (err) {
-        console.error('Error loading students for export', err);
         notify.error('Unable to load students right now. Please try again.', {
           id: 'export-students-load-error',
           duration: 4000
@@ -328,7 +326,6 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
       setExportSubjectLabel(label);
       setExportWizardOpen(true);
     } catch (err) {
-      console.error('Error preparing export', err);
       notify.error('Failed to prepare notes for export. Please try again.', {
         id: 'export-prepare-error',
         duration: 4000
@@ -414,7 +411,6 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
       setExportWizardOpen(false);
       setExportContext(null);
     } catch (err) {
-      console.error('Export error', err);
       notify.error('Failed to export notes. Please try again.', {
         id: 'export-error',
         duration: 4000

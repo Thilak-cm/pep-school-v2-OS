@@ -6,21 +6,6 @@ import { httpsCallable } from 'firebase/functions';
 import { cloudFunctions } from './firebase';
 export const WHISPER_MODEL_INFO = { model: 'whisper-1' };
 
-/**
- * Convert audio blob to MP3 format for OpenAI Whisper API
- * @param {Blob} audioBlob - The audio blob to convert
- * @returns {Promise<Blob>} MP3 format blob
- */
-const convertToMP3 = async (audioBlob) => {
-  // If already MP3, return as is
-  if (audioBlob.type === 'audio/mp3' || audioBlob.type === 'audio/mpeg') {
-    return audioBlob;
-  }
-
-  // For other formats, we'll use the blob directly since OpenAI accepts multiple formats
-  // This avoids complex client-side conversion that could cause issues
-  return audioBlob;
-};
 
 /**
  * Validate if audio blob is suitable for transcription
@@ -54,10 +39,9 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
       throw new Error('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
     }
 
-    const mp3Blob = await convertToMP3(audioBlob);
-    const audioBase64 = await blobToBase64(mp3Blob);
+    const audioBase64 = await blobToBase64(audioBlob);
     const call = httpsCallable(cloudFunctions, 'aiWhisperTranscribe');
-    const resp = await call({ audioBase64, mimeType: mp3Blob.type, languageCode });
+    const resp = await call({ audioBase64, mimeType: audioBlob.type, languageCode });
     const text = String(resp?.data?.text || '').trim();
     const detectedLanguage = resp?.data?.detectedLanguage || undefined;
     const out = { text, languageCode, detectedLanguage };
@@ -71,7 +55,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     return out;
 
   } catch (error) {
-    console.error('OpenAI Whisper transcription error:', error);
     throw error;
   }
 };
@@ -90,10 +73,9 @@ export const translateAudioToEnglish = async (audioBlob) => {
       throw new Error('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
     }
 
-    const mp3Blob = await convertToMP3(audioBlob);
-    const audioBase64 = await blobToBase64(mp3Blob);
+    const audioBase64 = await blobToBase64(audioBlob);
     const call = httpsCallable(cloudFunctions, 'aiWhisperTranslate');
-    const resp = await call({ audioBase64, mimeType: mp3Blob.type });
+    const resp = await call({ audioBase64, mimeType: audioBlob.type });
     const rawLanguage = resp?.data?.detectedLanguage;
     const detectedLanguage = normalizeLanguage(rawLanguage);
     const text = String(resp?.data?.text || '').trim();
@@ -107,7 +89,6 @@ export const translateAudioToEnglish = async (audioBlob) => {
 
     return { text, detectedLanguage: detectedLanguage || rawLanguage, raw: null };
   } catch (error) {
-    console.error('OpenAI Whisper translation error:', error);
     throw error;
   }
 };

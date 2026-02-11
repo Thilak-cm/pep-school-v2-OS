@@ -75,7 +75,6 @@ const getCachedData = (key, dataType) => {
     
     return payload;
   } catch (error) {
-    console.error(`Failed to read ${dataType} cache`, error);
     return null;
   }
 };
@@ -100,10 +99,8 @@ const setCachedData = (key, dataType, payload) => {
       } catch (_) {
         // Ignore secondary failures
       }
-      console.warn('Stats cache disabled: storage quota exceeded');
       return;
     }
-    console.error(`Failed to write ${dataType} cache`, error);
   }
 };
 
@@ -358,8 +355,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               setSelectedBranchId(branchesData[0].id);
             }
           } catch (error) {
-            console.error('Branches query failed:', error);
-            console.error('Error details:', error.message, error.code);
             setBranches([]);
           }
         }
@@ -400,7 +395,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             }
           }
           } catch (error) {
-            console.error('Classrooms query failed:', error);
             classroomsData = [];
           }
         }
@@ -423,7 +417,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             ...doc.data()
           }));
           } catch (error) {
-            console.error('Teachers query failed:', error);
             teachersData = [];
           }
         }
@@ -452,7 +445,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             }));
           }
           } catch (error) {
-            console.error('Students query failed:', error);
             studentsData = [];
           }
         }
@@ -495,10 +487,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               });
             }
           } catch (error) {
-            console.error('Collection group query failed:', error);
             // If it's an index error, show helpful message but don't break the page
             if (error.code === 'failed-precondition' && error.message?.includes('index')) {
-              console.warn('Firestore index required. Please deploy indexes: firebase deploy --only firestore:indexes');
               // Set empty array so page still loads with other data
               allObservations = [];
             } else {
@@ -826,7 +816,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
           setCachedData(baseCacheKey, 'branches', branchesData);
         }
       } catch (error) {
-        console.error('Error fetching stats:', error);
         if (tabIndex === 0) {
           setStats(prev => ({ ...prev, loading: false }));
         }

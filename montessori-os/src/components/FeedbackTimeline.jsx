@@ -106,7 +106,6 @@ function FeedbackTimeline({ currentUser, userRole }) {
       setAllFeedback(feedbackList);
       setLoading(false);
     }, (error) => {
-      console.error('Error loading feedback:', error);
       setLoading(false);
     });
 
@@ -178,7 +177,6 @@ function FeedbackTimeline({ currentUser, userRole }) {
       setEditing(false);
       setSaving(false);
     } catch (error) {
-      console.error('Error updating feedback:', error);
       alert('Error saving changes. Please try again.');
     }
   };

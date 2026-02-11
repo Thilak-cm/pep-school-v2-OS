@@ -104,7 +104,6 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           });
         }
       } catch (err) {
-        console.error('Error loading chat config:', err);
         setError('Failed to load chat configuration.');
       } finally {
         setLoading(false);
@@ -172,7 +171,6 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
 
       notify('Chat configuration saved successfully!', 'success');
     } catch (err) {
-      console.error('Error saving chat config:', err);
       setError('Failed to save chat configuration. Please try again.');
       notify('Failed to save chat configuration.', 'error');
     } finally {
