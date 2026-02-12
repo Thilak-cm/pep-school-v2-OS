@@ -388,6 +388,11 @@ service cloud.firestore {
       }
     }
 
+    // Collection group rule for media (needed for collectionGroup queries)
+    match /{path=**}/media/{mediaId} {
+      allow read: if isPrivilegedAdmin() || isTeacher();
+    }
+
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
     match /{path=**}/ai_summaries/{summaryId} {
       allow read: if isPrivilegedAdmin() || isTeacher();
