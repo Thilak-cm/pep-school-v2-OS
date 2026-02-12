@@ -372,7 +372,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       if (role === 'classroomadmin' && selectedAdminClassrooms.length === 0) errors.classrooms = 'Select at least one classroom';
     } else {
       if (!studentForm.firstName) errors.stuFirstName = 'First name is required';
-      if (!studentForm.branchId) errors.branchId = 'Select a branch';
       if (!studentForm.classroomId) errors.classroomId = 'Select a classroom';
       if (!studentForm.dob) {
         errors.stuDob = 'Date of Birth is required';
@@ -832,8 +831,15 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     return Number.isFinite(n) ? n : null;
   };
 
-  const computeNextIndexForClassroomYear = async (classroomId, classroomCode, year) => {
-    const q = query(collection(db, 'students'), where('classroomId', '==', classroomId));
+  const computeNextIndexForClassroomYear = async (_classroomId, classroomCode, year) => {
+    // Query by document ID prefix so we also see graduated/moved students
+    // whose doc IDs still carry the old classroom code (e.g. 2026-PER-031).
+    const prefix = `${year}-${classroomCode}-`;
+    const q = query(
+      collection(db, 'students'),
+      where(documentId(), '>=', prefix),
+      where(documentId(), '<', prefix + '\uf8ff')
+    );
     const snap = await getDocs(q);
     let maxIndex = 0;
     snap.forEach(d => {
@@ -966,43 +972,49 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     const proceed = async () => {
       const code = classroomCodeFromId(studentForm.classroomId);
       const year = String(new Date().getFullYear());
-      const attempt = async () => {
-        const nextIdx = await computeNextIndexForClassroomYear(studentForm.classroomId, code, year);
-        const sid = formatStudentId(year, code, nextIdx);
+      const MAX_RETRIES = 5;
+      let startIdx = await computeNextIndexForClassroomYear(studentForm.classroomId, code, year);
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const idx = startIdx + attempt;
+        const sid = formatStudentId(year, code, idx);
         const ref = doc(db, 'students', sid);
-        await runTransaction(db, async (tx) => {
-          const s = await tx.get(ref);
-          if (s.exists()) throw new Error('exists');
-          const payload = {
-            studentID: sid,
-            firstName: studentForm.firstName.trim(),
-            lastName: (studentForm.lastName || '').trim(),
-            displayName: `${studentForm.firstName} ${studentForm.lastName || ''}`.trim(),
-            classroomId: studentForm.classroomId,
-            branchId: studentForm.branchId,
-            status: 'active',
-            isActive: true,
-            dateOfBirth: Timestamp.fromDate(new Date(studentForm.dob)),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            createdBy: currentUser?.email || 'ui',
-          };
-          const hasGuardian = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone]
-            .every(v => (v||'').trim() !== '');
-          if (hasGuardian) {
-            payload.guardianName = studentForm.guardianName.trim();
-            payload.guardianRelationship = studentForm.guardianRelationship.trim();
-            payload.guardianPhone = studentForm.guardianPhone.trim();
-          }
-          tx.set(ref, payload);
-          const classroomRef = doc(db, 'classrooms', studentForm.classroomId);
-          tx.set(classroomRef, { studentCount: increment(1), updatedAt: serverTimestamp() }, { merge: true });
-        });
-        return sid;
-      };
-      let createdId;
-      try { createdId = await attempt(); }
-      catch { createdId = await attempt(); }
+        try {
+          await runTransaction(db, async (tx) => {
+            const s = await tx.get(ref);
+            if (s.exists()) throw new Error('exists');
+            const payload = {
+              studentID: sid,
+              firstName: studentForm.firstName.trim(),
+              lastName: (studentForm.lastName || '').trim(),
+              displayName: `${studentForm.firstName} ${studentForm.lastName || ''}`.trim(),
+              classroomId: studentForm.classroomId,
+              branchId: studentForm.branchId,
+              status: 'active',
+              isActive: true,
+              dateOfBirth: Timestamp.fromDate(new Date(studentForm.dob)),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              createdBy: currentUser?.email || 'ui',
+            };
+            const hasGuardian = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone]
+              .every(v => (v||'').trim() !== '');
+            if (hasGuardian) {
+              payload.guardianName = studentForm.guardianName.trim();
+              payload.guardianRelationship = studentForm.guardianRelationship.trim();
+              payload.guardianPhone = studentForm.guardianPhone.trim();
+            }
+            tx.set(ref, payload);
+            const classroomRef = doc(db, 'classrooms', studentForm.classroomId);
+            tx.set(classroomRef, { studentCount: increment(1), updatedAt: serverTimestamp() }, { merge: true });
+          });
+          // Transaction succeeded — break out of the retry loop
+          break;
+        } catch (err) {
+          if (err?.message === 'exists' && attempt < MAX_RETRIES - 1) continue;
+          throw err;
+        }
+      }
       
       notify.success(`Student ${studentForm.firstName} ${studentForm.lastName || ''} has been added to the roster!`);
       const addedClassroomId = studentForm.classroomId;
@@ -1854,7 +1866,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                           <ListItem key={c.id} disablePadding>
                             <ListItemButton
                               dense
-                              onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id }))}
+                              onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id, branchId: c.branchId || '' }))}
                             >
                               <ListItemIcon sx={{ minWidth: 32 }}>
                                 <Checkbox
@@ -1877,81 +1889,26 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
                     )}
                   </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch *</Typography>
-                    {branchesLoading ? (
+                  {studentForm.classroomId && studentForm.branchId && (
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch</Typography>
                       <Box
                         sx={{
-                          backgroundColor: 'white',
-                          p: 2,
+                          backgroundColor: '#f8fafc',
+                          p: 1.5,
                           borderRadius: 1.5,
                           border: '1px solid #e2e8f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1.5,
-                          justifyContent: 'center'
                         }}
                       >
-                        <CircularProgress size={20} sx={{ color: '#4f46e5' }} />
                         <Typography variant="body2" color="text.secondary">
-                          Coach Pepper is fetching branches...
+                          {(() => {
+                            const branch = branches.find(b => b.id === studentForm.branchId);
+                            return branch ? (branch.name || branch.id).toUpperCase() : studentForm.branchId.toUpperCase();
+                          })()}
                         </Typography>
                       </Box>
-                    ) : (
-                      <Box
-                        sx={{
-                          backgroundColor: 'white',
-                          p: 0.75,
-                          borderRadius: 1.5,
-                          border: '1px solid #e2e8f0',
-                          maxHeight: 184,
-                          overflowY: 'auto'
-                        }}
-                      >
-                        {branches.length === 0 ? (
-                          <Box sx={{ p: 2, textAlign: 'center' }}>
-                            <Typography variant="body2" color="text.secondary">
-                              No branches available
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <List dense disablePadding>
-                            {branches.map((branch) => (
-                              <ListItem key={branch.id} disablePadding>
-                                <ListItemButton
-                                  dense
-                                  onClick={() => {
-                                    setStudentForm((p) => ({ ...p, branchId: branch.id }));
-                                    if (validationErrors.branchId) {
-                                      setValidationErrors(prev => ({ ...prev, branchId: '' }));
-                                    }
-                                  }}
-                                >
-                                  <ListItemIcon sx={{ minWidth: 32 }}>
-                                    <Checkbox
-                                      edge="start"
-                                      tabIndex={-1}
-                                      disableRipple
-                                      checked={studentForm.branchId === branch.id}
-                                    />
-                                  </ListItemIcon>
-                                  <ListItemText
-                                    primary={(branch.name || branch.id.charAt(0).toUpperCase() + branch.id.slice(1)).toUpperCase()}
-                                    primaryTypographyProps={{ variant: 'body2' }}
-                                  />
-                                </ListItemButton>
-                              </ListItem>
-                            ))}
-                          </List>
-                        )}
-                      </Box>
-                    )}
-                    {validationErrors.branchId && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
-                        {validationErrors.branchId}
-                      </Typography>
-                    )}
-                  </Grid>
+                    </Grid>
+                  )}
                   <Grid item xs={12}>
                     <TextField
                       type="date"
