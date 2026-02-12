@@ -1,5 +1,16 @@
 # Changelog
 
+# 8.3.3 — 2026-02-11
+
+### Fixed
+- Firestore: added missing collection group rule for `media`, fixing grey images for teachers in student timeline.
+- StudentTimeline: fixed race condition where duplicate `setMediaDocs` calls prevented media text from appearing on first load.
+
+### Changed
+- StudentTimeline: media notes now use primary text color instead of grey for better visibility.
+- StudentTimeline: teacher comments shown with 💬 emoji in timeline and expanded media dialog.
+- Admin scripts: switched from service account JSON to `applicationDefault()` credentials for improved security.
+
 # 8.3.2 — 2026-02-10
 
 ### Added
