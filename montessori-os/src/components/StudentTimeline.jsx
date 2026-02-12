@@ -280,7 +280,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         return db - da;
       });
       setObservations(combined.slice(0, 100));
-      setMediaDocs(mediaList);
       if (obsReady && mediaReady) {
         setLoading(false);
         clearTimeout(timeoutId);
@@ -845,22 +844,12 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               if (obs.type === 'media') {
                 return (
                   <Box key={obs.id} sx={{ px: 1, py: 0.5 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.primary">
                       {buildMediaSummary(obs)}
                     </Typography>
                     {obs.teacherComment && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          mt: 0.5,
-                          ml: 1.5,
-                          pl: 1.5,
-                          borderLeft: '2px solid #e2e8f0',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        {obs.teacherComment}
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        💬 {obs.teacherComment}
                       </Typography>
                     )}
                   </Box>
@@ -1349,6 +1338,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           {(!mediaPreview?.url) && (
             <Typography variant="body2" color="text.secondary">
               Download URL not ready yet. Please wait for upload to finish.
+            </Typography>
+          )}
+          {mediaPreview?.observation?.teacherComment && (
+            <Typography variant="body2" color="text.secondary">
+              💬 {mediaPreview.observation.teacherComment}
             </Typography>
           )}
           {mediaPreview?.observation && (
