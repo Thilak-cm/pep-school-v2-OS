@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Stack, Button, Skeleton, CircularProgress } from '@mui/material';
 import { ErrorOutline } from '@mui/icons-material';
-import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 
 export default function BaseballCardBody({
   cardData,

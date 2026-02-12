@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data preprocessing utilities for raw XLSX files in data/raw.
+Data preprocessing utilities for raw XLSX files in scripts/data/raw.
 
 Implements educators sheet cleaning only:
 - Drop row 1 and column A
@@ -12,8 +12,8 @@ Implements educators sheet cleaning only:
 
 Usage:
   python scripts/data_preprocessing.py \
-    --input-dir data/raw \
-    --output-dir data/processed
+    --input-dir scripts/data/raw \
+    --output-dir scripts/data/processed
 
 Requires:
   - pandas
@@ -143,15 +143,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Preprocess raw XLSX files")
     parser.add_argument(
         "--input-dir",
-        default="data/raw",
+        default="scripts/data/raw",
         type=str,
-        help="Directory containing raw XLSX files (default: data/raw)",
+        help="Directory containing raw XLSX files (default: scripts/data/raw)",
     )
     parser.add_argument(
         "--output-dir",
-        default="data/processed",
+        default="scripts/data/processed",
         type=str,
-        help="Directory to write outputs (default: data/processed)",
+        help="Directory to write outputs (default: scripts/data/processed)",
     )
     return parser
 
@@ -184,5 +184,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 

@@ -9,7 +9,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
-import { COACH_MODEL_DISPLAY } from '../../../config/coachConstants';
+import { COACH_MODEL_DISPLAY } from '../../../scripts/config/coachConstants';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 const SectionCard = ({ title, subtitle, children }) => (

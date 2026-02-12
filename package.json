@@ -1,8 +1,7 @@
 {
-  "name": "montessori-os-seed",
+  "name": "pep-os",
   "version": "1.0.0",
-  "description": "Seed data uploader for Montessori OS Firestore database",
-  "main": "seed.js",
+  "description": "Monorepo root for Montessori OS (app, functions, scripts)",
   "scripts": {
     "deploy": "npx firebase deploy",
     "deploy:functions": "npx firebase deploy --only functions",

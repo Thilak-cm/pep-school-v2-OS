@@ -35,7 +35,7 @@ import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp
 import { httpsCallable } from 'firebase/functions';
 import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
-import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 
 const confettiFall = keyframes`

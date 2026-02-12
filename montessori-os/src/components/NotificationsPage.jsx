@@ -38,7 +38,7 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
-import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import PerformanceSummaryCard from './PerformanceSummaryCard';
 

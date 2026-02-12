@@ -22,7 +22,7 @@ export default defineConfig({
   },
   // PWA-friendly settings
   server: {
-    // Allow importing shared config from repo root (e.g., config/coachConstants.js)
+    // Allow importing shared config from repo root (e.g., scripts/config/coachConstants.js)
     // and its transitive imports (functions/config/*)
     fs: {
       allow: [

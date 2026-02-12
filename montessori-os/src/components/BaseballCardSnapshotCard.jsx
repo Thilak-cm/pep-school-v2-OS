@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Card, CardContent, Stack, Typography, IconButton, Chip } from '@mui/material';
 import { Refresh } from '@mui/icons-material';
-import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
+import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardBody from './BaseballCardBody';
 
 // Utility function to calculate age in "5y3m" format (similar to functions/index.js)

@@ -17,8 +17,8 @@ import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
-import { BASEBALL_CARD_DEFAULTS } from '../../../config/baseballCardConstants';
-import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../config/baseballCardPrompt';
+import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
+import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../scripts/config/baseballCardPrompt';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 

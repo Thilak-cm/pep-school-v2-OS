@@ -633,7 +633,7 @@ Coach nudge UI/UX improvements and validation enhancements.
 
 Coach flow revamp and constants unification.
 
-- Unify Coach model constants across FE/BE via root shim `config/coachConstants.js` re-exporting `functions/config/coachConstants.js`.
+- Unify Coach model constants across FE/BE via root shim `scripts/config/coachConstants.js` re-exporting `functions/config/coachConstants.js`.
 - Vite dev config allows importing from repo root/functions to support shared constants.
 - Fix callable payload: send `noteText` to `aiCoachReview` (was `note_text`).
 - Run Coach on Save for both Text and Voice notes (post-transcription) with timeout-safe fallback to save as-is.
@@ -655,7 +655,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin test run in `AICoachEditor` with formatted cards and a Raw JSON toggle.
 
 ### Changed
-- Consolidated Coach constants; backend imports from `functions/config/coachConstants.js` and frontend from `config/coachConstants.js`.
+- Consolidated Coach constants; backend imports from `functions/config/coachConstants.js` and frontend from `scripts/config/coachConstants.js`.
 - Push script now includes allowedIds in the template for clarity and consistency with the Python playground.
 - Removed verbose debugging logs added during investigation from both frontend editor and `aiCoachReview` implementation.
 
@@ -2104,7 +2104,7 @@ node scripts/admin/wipe-firestore.js users
 
 ### Added
 - Data preprocessing pipeline for educators
-  - `scripts/data_preprocessing.py` cleans raw educators XLSX and writes `data/processed/educators_clean.xlsx`
+  - `scripts/data_preprocessing.py` cleans raw educators XLSX and writes `scripts/data/processed/educators_clean.xlsx`
   - Adds `Role` column (default teacher; admin for specified names)
 - Teacher import utility
   - `scripts/admin/import-hsr-teachers.js` reads cleaned XLSX → JSON preview and optional Firestore upsert
