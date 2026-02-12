@@ -51,6 +51,9 @@ jspm_packages/
 *.swp
 *.swo
 
+# Python cache
+__pycache__/
+
 # OS generated files
 .DS_Store
 .DS_Store?
