@@ -48,6 +48,7 @@ jspm_packages/
 .idea/
 .cursor/
 .claude/
+.codex/
 *.swp
 *.swo
 
