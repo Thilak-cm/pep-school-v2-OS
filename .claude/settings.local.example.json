@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_linear_linear__list_issues",
+      "mcp__plugin_linear_linear__create_issue",
+      "mcp__plugin_linear_linear__update_issue"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

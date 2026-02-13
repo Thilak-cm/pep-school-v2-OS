@@ -47,10 +47,13 @@ jspm_packages/
 .vscode/
 .idea/
 .cursor/
-.claude/
 .codex/
 *.swp
 *.swo
+
+# Share Claude skills/config, but keep local machine permissions private
+.claude/settings.local.json
+.claude/*.local.json
 
 # Python cache
 __pycache__/
