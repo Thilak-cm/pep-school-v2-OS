@@ -49,6 +49,7 @@ import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
 import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
+import { initSaveQueue } from './services/saveQueue';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -108,6 +109,10 @@ function App() {
     setPrefilledFeedback(message || '');
     setScreen('feedback');
   };
+
+  useEffect(() => {
+    initSaveQueue();
+  }, []);
 
   useEffect(() => {
     const handleNavigateToStudentNotes = (e) => {

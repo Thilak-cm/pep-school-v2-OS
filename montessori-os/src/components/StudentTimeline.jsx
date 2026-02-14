@@ -19,7 +19,7 @@ import {
   Checkbox,
   TextField
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, Autorenew } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -43,6 +43,8 @@ import {
 } from '../utils/observationPermissions';
 import ExportWizard from './ExportWizard';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
+import useSaveQueue from '../hooks/useSaveQueue';
+import { retryAllFailedForStudent, retrySaveQueueItem, SAVE_QUEUE_STATUS } from '../services/saveQueue';
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
@@ -75,6 +77,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
   const notifiedFailuresRef = useRef(new Set());
+  const queueItems = useSaveQueue(student?.id || null);
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -291,6 +294,29 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   );
 
   const selectedMediaCount = selectedMediaIds.size;
+  const studentQueueItems = useMemo(
+    () => [...(queueItems || [])].sort((a, b) => b.createdAt - a.createdAt),
+    [queueItems]
+  );
+  const queueCounts = useMemo(() => {
+    const counts = {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0
+    };
+    studentQueueItems.forEach((item) => {
+      if (item.status === SAVE_QUEUE_STATUS.PENDING) counts.pending += 1;
+      else if (item.status === SAVE_QUEUE_STATUS.PROCESSING) counts.processing += 1;
+      else if (item.status === SAVE_QUEUE_STATUS.COMPLETED) counts.completed += 1;
+      else if (item.status === SAVE_QUEUE_STATUS.FAILED) counts.failed += 1;
+    });
+    return counts;
+  }, [studentQueueItems]);
+  const failedQueueItems = useMemo(
+    () => studentQueueItems.filter((item) => item.status === SAVE_QUEUE_STATUS.FAILED),
+    [studentQueueItems]
+  );
 
   useEffect(() => {
     if (!noteTypeFilter || noteTypeFilter === 'textVoice') {
@@ -847,6 +873,45 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }
   };
 
+  const queueStatusMeta = (status) => {
+    if (status === SAVE_QUEUE_STATUS.PENDING) {
+      return { label: 'Pending', color: 'warning' };
+    }
+    if (status === SAVE_QUEUE_STATUS.PROCESSING) {
+      return { label: 'Processing', color: 'info' };
+    }
+    if (status === SAVE_QUEUE_STATUS.COMPLETED) {
+      return { label: 'Completed', color: 'success' };
+    }
+    if (status === SAVE_QUEUE_STATUS.FAILED) {
+      return { label: 'Failed', color: 'error' };
+    }
+    return { label: status || 'Unknown', color: 'default' };
+  };
+
+  const queueItemLabel = (item) => {
+    if (item?.kind === 'lesson') return 'Lesson note save';
+    if (item?.kind === 'media') return 'Media upload';
+    if (item?.kind === 'text_voice') return item?.payload?.noteType === 'text' ? 'Text note save' : 'Voice note save';
+    return item?.title || 'Note save';
+  };
+
+  const handleRetryQueueItem = (itemId) => {
+    if (!itemId) return;
+    const ok = retrySaveQueueItem(itemId);
+    if (ok) {
+      notify.info('Retry queued. Processing will continue in background.', { duration: 2500 });
+    }
+  };
+
+  const handleRetryAllFailedQueueItems = () => {
+    if (!student?.id) return;
+    const retriedCount = retryAllFailedForStudent(student.id);
+    if (retriedCount > 0) {
+      notify.info(`Retrying ${retriedCount} failed save${retriedCount > 1 ? 's' : ''}.`, { duration: 3000 });
+    }
+  };
+
   const previewObservation = mediaPreview?.observation || null;
   const previewCanEdit = canEditObservation(previewObservation, currentUser, userRole);
   const previewCanDelete = canDeleteObservation(previewObservation, currentUser, userRole);
@@ -937,6 +1002,86 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
           </Typography>
+
+          {studentQueueItems.length > 0 && (
+            <Card sx={{ border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+              <CardContent sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Background Saves
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                    {queueCounts.pending > 0 && <Chip size="small" label={`${queueCounts.pending} pending`} color="warning" />}
+                    {queueCounts.processing > 0 && <Chip size="small" label={`${queueCounts.processing} processing`} color="info" />}
+                    {queueCounts.failed > 0 && <Chip size="small" label={`${queueCounts.failed} failed`} color="error" />}
+                    {queueCounts.failed > 0 && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<Autorenew />}
+                        onClick={handleRetryAllFailedQueueItems}
+                      >
+                        Retry All
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {studentQueueItems.slice(0, 6).map((item) => {
+                    const statusMeta = queueStatusMeta(item.status);
+                    return (
+                      <Box
+                        key={item.id}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1,
+                          p: 1,
+                          borderRadius: 1.5,
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {queueItemLabel(item)}
+                          </Typography>
+                          {item.summary ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 360 }} noWrap>
+                              {item.summary}
+                            </Typography>
+                          ) : null}
+                          {item.lastError?.message ? (
+                            <Typography variant="caption" color="error" sx={{ display: 'block', maxWidth: 360 }} noWrap>
+                              {item.lastError.message}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                          <Chip size="small" color={statusMeta.color} label={statusMeta.label} />
+                          {item.status === SAVE_QUEUE_STATUS.FAILED && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleRetryQueueItem(item.id)}
+                            >
+                              Retry
+                            </Button>
+                          )}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                  {failedQueueItems.length === 0 && queueCounts.processing === 0 && queueCounts.pending === 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      All queued saves for this student are complete.
+                    </Typography>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
           {(() => {

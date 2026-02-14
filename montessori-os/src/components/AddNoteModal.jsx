@@ -34,11 +34,10 @@ import VoiceRecorder from '../VoiceRecorder';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
-import { collection, addDoc, serverTimestamp, getDoc, doc, query, where, limit, getDocs, updateDoc, arrayUnion, setDoc, deleteDoc } from 'firebase/firestore';
-import { db, storage, cloudFunctions } from '../firebase';
+import { collection, getDoc, doc, query, where, limit, getDocs } from 'firebase/firestore';
+import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { httpsCallable } from 'firebase/functions';
-import { ref, uploadBytesResumable, deleteObject } from 'firebase/storage';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
@@ -48,6 +47,7 @@ import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import NewFeaturePill from './NewFeaturePill';
+import { enqueueSaveQueueItems } from '../services/saveQueue';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -63,19 +63,9 @@ const confettiFall = keyframes`
 
 const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
-const MEDIA_DOC_PROPAGATION_WAIT_MS = 350;
 const IMAGE_FILE_EXTENSION_RE = /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp)$/i;
 const HEIF_FILE_EXTENSION_RE = /\.(heic|heif)$/i;
 const HEIF_MIME_RE = /^image\/hei(f|c)$/i;
-const RETRYABLE_UPLOAD_ERROR_CODES = new Set([
-  'storage/retry-limit-exceeded',
-  'storage/network-request-failed',
-  'storage/canceled',
-  'storage/unknown',
-  'storage/unauthorized',
-]);
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function ConfettiAnimation() {
   const particles = React.useMemo(() => 
@@ -350,7 +340,6 @@ function AddNoteModal({
   const [mediaDictationOpen, setMediaDictationOpen] = useState(false);
   const mediaCommentRef = useRef(null);
   const [mediaDictationSelection, setMediaDictationSelection] = useState({ start: null, end: null });
-  const [mediaUploadProgress, setMediaUploadProgress] = useState({});
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDirty, setMediaDirty] = useState(false);
   const [mediaError, setMediaError] = useState('');
@@ -942,7 +931,6 @@ function AddNoteModal({
     setMediaTeacherComment('');
     setMediaDictationOpen(false);
     setMediaDictationSelection({ start: null, end: null });
-    setMediaUploadProgress({});
     setMediaUploading(false);
     setMediaDirty(false);
     setMediaError('');
@@ -1053,40 +1041,6 @@ function AddNoteModal({
     setVoiceTranscribing(false);
     // Return to recorder so user can retry
     setStep(STEP_RECORD);
-  };
-
-  const getUploadErrorMessage = (error) => {
-    const code = String(error?.code || '').toLowerCase();
-    const rawMessage = String(error?.message || '').trim();
-    if (
-      rawMessage.toLowerCase().includes('missing classroom') ||
-      rawMessage.toLowerCase().includes('student record not found') ||
-      rawMessage.toLowerCase().includes('session expired')
-    ) {
-      return rawMessage;
-    }
-    if (code === 'permission-denied' || code === 'storage/unauthorized') {
-      return 'Upload permission check is still syncing. Please retry in a few seconds.';
-    }
-    if (code === 'storage/retry-limit-exceeded' || code === 'storage/network-request-failed') {
-      return 'Upload timed out due to network conditions. Please retry on a stable connection.';
-    }
-    if (code === 'storage/quota-exceeded') {
-      return 'Storage quota exceeded. Please contact support.';
-    }
-    if (code === 'storage/canceled') {
-      return 'Upload was interrupted. Please try again.';
-    }
-    if (code === 'storage/invalid-checksum') {
-      return 'Upload integrity check failed. Please re-select the file and retry.';
-    }
-    return rawMessage || 'Upload failed. Please try again.';
-  };
-
-  const shouldRetryUpload = (error, attemptIndex, maxAttempts) => {
-    if (attemptIndex >= maxAttempts - 1) return false;
-    const code = String(error?.code || '').toLowerCase();
-    return RETRYABLE_UPLOAD_ERROR_CODES.has(code);
   };
 
   const isImageFile = (file) => {
@@ -1394,120 +1348,6 @@ function AddNoteModal({
     setMediaDirty(true);
   };
 
-  const uploadMediaToStorage = (storagePath, source, mediaId, studentId) => {
-    const storageRef = ref(storage, storagePath);
-    const payload = source.blob || source.file;
-    return new Promise((resolve, reject) => {
-      const task = uploadBytesResumable(storageRef, payload, {
-        contentType: source.contentType,
-        customMetadata: {
-          mediaId,
-          studentId
-        }
-      });
-      task.on('state_changed', (snap) => {
-        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: pct }));
-      }, async (error) => {
-        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: 0 }));
-        await deleteObject(storageRef).catch(() => {});
-        reject(error);
-      }, () => {
-        setMediaUploadProgress((prev) => ({ ...prev, [mediaId]: 100 }));
-        resolve();
-      });
-    });
-  };
-
-  const uploadMediaToStorageWithRetry = async (storagePath, source, mediaId, studentId) => {
-    const maxAttempts = 6;
-    let lastError = null;
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      try {
-        // Storage rules check Firestore media doc state. A small backoff on retry helps
-        // when writes are committed but not yet visible to cross-service rule reads.
-        // eslint-disable-next-line no-await-in-loop
-        await uploadMediaToStorage(storagePath, source, mediaId, studentId);
-        return;
-      } catch (err) {
-        lastError = err;
-        if (!shouldRetryUpload(err, attempt, maxAttempts)) break;
-        const baseDelayMs = Math.min(3500, 450 * (2 ** attempt));
-        const jitterMs = Math.floor(Math.random() * 150);
-        // eslint-disable-next-line no-await-in-loop
-        await sleep(baseDelayMs + jitterMs);
-      }
-    }
-    throw lastError;
-  };
-
-  const uploadMediaForStudent = async (studentId, item, batchId) => {
-    if (!currentUser?.uid) {
-      throw new Error('Your session expired. Please sign in again and retry.');
-    }
-    const studentDocRef = doc(db, 'students', studentId);
-    const studentSnap = await getDoc(studentDocRef);
-    if (!studentSnap.exists()) {
-      throw new Error('Student record not found. Please refresh and retry.');
-    }
-    const studentData = studentSnap.data();
-    const classroomId = studentData?.classroomId;
-    if (!classroomId) {
-      throw new Error('Student is missing classroom assignment. Please ask an admin to update the student profile.');
-    }
-    const mediaRef = doc(collection(db, 'students', studentId, 'media'));
-    const storagePath = `students/${studentId}/media/${mediaRef.id}/original.${item.source.extension}`;
-    const kind = item.kind;
-
-    const displayName = item.displayName?.trim() || item.source.originalName?.trim();
-    const mediaEntry = {
-      storagePath,
-      contentType: item.source.contentType,
-      sizeBytes: item.source.size || 0,
-      ...(displayName ? { displayName } : {}),
-      ...(item.source.originalName ? { originalName: item.source.originalName } : {}),
-      ...(item.source.width ? { width: item.source.width, height: item.source.height } : {})
-    };
-    const itemTeacherComment = String(item?.teacherComment || '').trim();
-
-    const docData = {
-      studentId,
-      classroomId,
-      type: 'media',
-      mediaKind: kind,
-      status: 'pending_upload',
-      media: [mediaEntry],
-      observedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: currentUser?.uid || 'unknown',
-      createdByName: currentUser?.displayName || 'Unknown Teacher',
-      createdByEmail: currentUser?.email || 'unknown@email.com',
-      ...(itemTeacherComment ? { teacherComment: itemTeacherComment } : {}),
-      ...(batchId ? { batchId } : {}),
-      ...(kind === 'pdf' && pdfTitle?.trim() ? { pdfTitle: pdfTitle.trim() } : {}),
-      ...(kind === 'pdf' && pdfEssence?.trim() ? { essence_text: pdfEssence.trim() } : {}),
-    };
-
-    await setDoc(mediaRef, docData);
-    // Allow Storage rules to observe the Firestore media doc before upload starts.
-    await sleep(MEDIA_DOC_PROPAGATION_WAIT_MS);
-    try {
-      await uploadMediaToStorageWithRetry(storagePath, item.source, mediaRef.id, studentId);
-      return { mediaId: mediaRef.id, studentId, storagePath };
-    } catch (err) {
-      await updateDoc(mediaRef, {
-        status: 'failed',
-        errorCode: String(err?.code || 'upload_failed').toLowerCase(),
-        errorMessage: String(err?.message || 'Upload failed'),
-        updatedAt: serverTimestamp(),
-      }).catch(async () => {
-        await deleteDoc(mediaRef).catch(() => {});
-      });
-      throw err;
-    }
-  };
-
   const handleCreateMediaNote = async () => {
     const isPdf = mediaMode === 'pdf';
     const hasMedia = isPdf ? !!pdfSource : mediaItems.length > 0;
@@ -1520,8 +1360,14 @@ function AddNoteModal({
       notify.warning('Select at least one student.');
       return;
     }
+    if (!currentUser?.uid) {
+      notify.error('Your session expired. Please sign in again and retry.');
+      return;
+    }
+
     setSaving(true);
     setMediaUploading(true);
+
     const batchId = `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const itemsToUpload = isPdf
       ? [{
@@ -1533,8 +1379,48 @@ function AddNoteModal({
         }]
       : mediaItems;
     const studentsToUpload = [...selectedStudents];
+
+    const queueEntries = [];
+    studentsToUpload.forEach((studentId) => {
+      itemsToUpload.forEach((item) => {
+        if (!item?.source) return;
+        const mediaLabel = item.kind === 'pdf' ? 'PDF upload' : item.kind === 'video' ? 'Video upload' : 'Photo upload';
+        queueEntries.push({
+          kind: 'media',
+          studentId,
+          groupId: batchId,
+          title: mediaLabel,
+          summary: item.source?.originalName || '',
+          persistent: false,
+          maxAttempts: 2,
+          payload: {
+            studentId,
+            mediaKind: item.kind,
+            source: item.source,
+            displayName: item.displayName || '',
+            teacherComment: item.teacherComment || '',
+            batchId,
+            pdfTitle: item.kind === 'pdf' ? String(pdfTitle || '').trim() : '',
+            pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
+            createdBy: currentUser.uid,
+            createdByName: currentUser?.displayName || 'Unknown Teacher',
+            createdByEmail: currentUser?.email || 'unknown@email.com',
+          }
+        });
+      });
+    });
+
+    if (queueEntries.length === 0) {
+      setSaving(false);
+      setMediaUploading(false);
+      notify.error('No media items were queued. Please re-select files and retry.');
+      return;
+    }
+
+    enqueueSaveQueueItems(queueEntries);
+
     const firstStudentId = studentsToUpload[0];
-    notify.success('Upload started. You can keep working.', {
+    notify.success('Media save queued. Upload continues in background.', {
       actionLabel: firstStudentId ? 'View Media' : undefined,
       onUndo: firstStudentId
         ? () => {
@@ -1546,49 +1432,10 @@ function AddNoteModal({
           }
         : undefined
     });
+
     setSaving(false);
     setMediaUploading(false);
     handleClose();
-
-    (async () => {
-      const uploads = [];
-      let failed = null;
-      for (const stuId of studentsToUpload) {
-        for (const item of itemsToUpload) {
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            const res = await uploadMediaForStudent(stuId, item, batchId);
-            uploads.push(res);
-          } catch (err) {
-            failed = err;
-            break;
-          }
-        }
-        if (failed) break;
-      }
-
-      if (failed) {
-        const errorMessage = getUploadErrorMessage(failed);
-        console.error('[media] upload failed', {
-          code: failed?.code || 'unknown',
-          message: failed?.message || String(failed),
-          userId: currentUser?.uid || null,
-          studentCount: studentsToUpload.length,
-          itemCount: itemsToUpload.length,
-        });
-        notify.error(errorMessage, { duration: 5000 });
-        await Promise.allSettled(
-          uploads.map(async (entry) => {
-            if (entry?.storagePath) {
-              await deleteObject(ref(storage, entry.storagePath)).catch(() => {});
-            }
-            if (entry?.studentId && entry?.mediaId) {
-              await deleteDoc(doc(db, 'students', entry.studentId, 'media', entry.mediaId)).catch(() => {});
-            }
-          })
-        );
-      }
-    })();
   };
 
   const saveNote = async (coachResult = null) => {
@@ -1597,8 +1444,13 @@ function AddNoteModal({
       notify.warning('No note data available. Please try again.');
       return;
     }
-    if (!noteData.text) {
-      await saveNote(null);
+    const textToSave = String(coachResult?.updated_text || noteData.text || '').trim();
+    if (!textToSave) {
+      notify.warning('Please add note content before saving.');
+      return;
+    }
+    if (!currentUser?.uid) {
+      notify.error('Your session expired. Please sign in again and retry.');
       return;
     }
 
@@ -1617,112 +1469,59 @@ function AddNoteModal({
 
     try {
       setSaving(true);
-      // Generate groupId for multi-student notes (matching lesson notes pattern)
-      const groupId = selectedStudents.length > 1 
+      const groupId = selectedStudents.length > 1
         ? `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
         : undefined;
-      
-      const newObservationIds = [];
 
-      const promises = selectedStudents.map(async (stuId) => {
-        // Get student data to find classroomId
-        const studentDocRef = doc(db, 'students', stuId);
-        const studentDocSnap = await getDoc(studentDocRef);
-        const studentData = studentDocSnap.data();
-
-        // Prefer exact text from the user’s Apply in the Coach dialog; otherwise save original
-        let textToSave = coachResult?.updated_text || noteData.text;
-
-        const observationData = {
-          // Identity
-          studentId: stuId,
-          classroomId: studentData?.classroomId || 'unknown',
-
-          // Content
-          type: transcriptionData ? 'voice' : 'text',
-          text: textToSave,
-
-          // Timestamps
-          observedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-
-          // Creator
-          createdBy: currentUser?.uid || 'unknown',
-          createdByName: currentUser?.displayName || 'Unknown Teacher',
-          createdByEmail: currentUser?.email || 'unknown@email.com',
-          
-          // Group ID for multi-student notes
-          ...(groupId ? { groupId } : {}),
-          ...(canTagLesson ? { linkedLessonObservationId: taggedLessonIds } : {}),
-        };
-
-        // Voice-specific fields (only add if defined to avoid Firestore 'undefined' errors)
-        if (transcriptionData) {
-          if (typeof transcriptionData.duration === 'number') {
-            observationData.durationSec = transcriptionData.duration;
-          }
-          if (typeof transcriptionData.sttConfidence === 'number') {
-            observationData.sttConfidence = transcriptionData.sttConfidence;
-          }
-          // Save detected language from transcription (if available)
-          if (transcriptionData.detectedLanguage != null && transcriptionData.detectedLanguage !== '') {
-            observationData.detectedLanguage = transcriptionData.detectedLanguage;
-          }
-          // Drop alternatives/spoken language/provider per schema simplification
-        }
-
-        // Coach structured fields - wrap according to DATA_STRUCTURE.md
-        // Save coach object if coach was invoked (whether nudges shown or selections made)
-        if (coachResult && coachResult.coachData) {
-          observationData.coach = {
+      const coachPayload = coachResult?.coachData
+        ? {
             status: coachResult.coachData.status || 'ok',
             reason: coachResult.coachData.reason || 'none',
-            // Record nudges shown in PRD sort order
-            nudgesShown: coachResult.coachData.nudgesShown || []
-          };
-          // Add selections if any were made
-          if (coachResult.selections && Object.keys(coachResult.selections).length > 0) {
-            observationData.coach.selections = coachResult.selections;
+            nudgesShown: coachResult.coachData.nudgesShown || [],
+            ...(coachResult?.selections && Object.keys(coachResult.selections).length > 0
+              ? { selections: coachResult.selections }
+              : {}),
           }
-        }
+        : null;
 
-        // No default spoken language for text notes
+      const queueEntries = selectedStudents.map((studentId) => ({
+        kind: 'text_voice',
+        studentId,
+        groupId: groupId || null,
+        title: transcriptionData ? 'Voice note save' : 'Text note save',
+        summary: textToSave.slice(0, 120),
+        payload: {
+          studentId,
+          noteType: transcriptionData ? 'voice' : 'text',
+          text: textToSave,
+          createdBy: currentUser.uid,
+          createdByName: currentUser?.displayName || 'Unknown Teacher',
+          createdByEmail: currentUser?.email || 'unknown@email.com',
+          ...(groupId ? { groupId } : {}),
+          ...(canTagLesson ? { linkedLessonObservationId: taggedLessonIds } : {}),
+          ...(canTagLesson && taggedLessonIds.length > 0 ? { lessonBacklinkIds: taggedLessonIds } : {}),
+          ...(transcriptionData && typeof transcriptionData.duration === 'number'
+            ? { durationSec: transcriptionData.duration }
+            : {}),
+          ...(transcriptionData && typeof transcriptionData.sttConfidence === 'number'
+            ? { sttConfidence: transcriptionData.sttConfidence }
+            : {}),
+          ...(transcriptionData && transcriptionData.detectedLanguage != null && transcriptionData.detectedLanguage !== ''
+            ? { detectedLanguage: transcriptionData.detectedLanguage }
+            : {}),
+          ...(coachPayload ? { coach: coachPayload } : {}),
+        },
+      }));
 
-        // Prune undefined values defensively before writing to Firestore
-        const cleanedObservationData = Object.fromEntries(
-          Object.entries(observationData).filter(([, value]) => value !== undefined)
-        );
-
-        // Debug log for troubleshooting schema issues
-        console.debug('[save] observation payload', cleanedObservationData);
-
-        // Write to per-student subcollection
-        const docRef = await addDoc(collection(db, 'students', stuId, 'observations'), cleanedObservationData);
-        newObservationIds.push({ studentId: stuId, observationId: docRef.id });
-      });
-      await Promise.all(promises);
-
-      // Backlink: add this observation to each lesson note's linkedObservations (single student only)
-      if (canTagLesson && taggedLessonIds.length > 0 && newObservationIds.length === 1) {
-        const { studentId: backlinkStudentId, observationId } = newObservationIds[0];
-        try {
-          await Promise.all(
-            taggedLessonIds.map(async (lessonId) => {
-              const lessonRef = doc(db, 'students', backlinkStudentId, 'observations', lessonId);
-              await updateDoc(lessonRef, {
-                linkedObservations: arrayUnion(observationId)
-              });
-            })
-          );
-        } catch (err) {
-          notify.warning('Note saved, but could not update one or more linked lesson notes.');
-        }
+      if (queueEntries.length === 0) {
+        notify.warning('Select at least one student.');
+        return;
       }
 
-      // Success notification with quick navigation to the student's Notes page
-      const firstStudentId = selectedStudents && selectedStudents.length > 0 ? selectedStudents[0] : null;
-      notify.success('Note created successfully!', {
+      enqueueSaveQueueItems(queueEntries);
+
+      const firstStudentId = selectedStudents.length > 0 ? selectedStudents[0] : null;
+      notify.success('Note queued. Saving continues in the background.', {
         actionLabel: firstStudentId ? 'View Note' : undefined,
         onUndo: firstStudentId
           ? () => {
@@ -1731,17 +1530,12 @@ function AddNoteModal({
                   detail: { studentId: firstStudentId, noteTypeFilter: 'textVoice' }
                 }));
               } catch (_) { /* noop */ }
-              // Close modal immediately if user chooses to view
-              handleClose();
             }
           : undefined,
       });
-      // Close modal after a short delay to show the success message
-      setTimeout(() => {
-        handleClose();
-      }, 1000);
+      handleClose();
     } catch (err) {
-      notify.error('Error saving note. Please try again.');
+      notify.error('Unable to queue note save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -1803,9 +1597,6 @@ function AddNoteModal({
     }
     setSnackbarOpen(false);
   };
-
-  const mediaProgressValues = Object.values(mediaUploadProgress || {});
-  void mediaProgressValues;
 
   return (
     <Dialog

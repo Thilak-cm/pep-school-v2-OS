@@ -38,7 +38,6 @@ import {
   getDoc,
   query,
   where,
-  writeBatch,
   doc,
   serverTimestamp,
   updateDoc
@@ -47,6 +46,7 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
 import VoiceRecorder from '../VoiceRecorder';
+import { enqueueSaveQueueItems } from '../services/saveQueue';
 import {
   LESSON_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
@@ -777,9 +777,8 @@ function LessonNoteWizard({
         setIsDirty(false);
         onSaved?.({ observationId: obsId, studentId });
       } else {
-        const batch = writeBatch(db);
         const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
-        selectedStudents.forEach((studentId) => {
+        const queueEntries = selectedStudents.map((studentId) => {
           const ratings = {};
           dimensionList.forEach((dimension) => {
             const overrideValue = studentOverrides[studentId]?.dimensions?.[dimension];
@@ -787,39 +786,36 @@ function LessonNoteWizard({
             ratings[dimension] = overrideValue || baseValue;
           });
 
-          const payload = {
+          return {
+            kind: 'lesson',
             studentId,
-            classroomId: context.classroomId,
-            type: 'lesson',
-            lessonTitle: context.lessonTitle.trim(),
-            lessonDescription: context.lessonDescription.trim() || null,
-            groupComment: context.groupComment.trim() || null,
-            programId: selectedClassroom?.programId || null,
-            dimensionOrder: dimensionList,
-            ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
-            ratings,
-            studentComment: studentOverrides[studentId]?.comment?.trim() || null,
-            attendanceStatus: 'present',
-            lessonMode,
-            ...(groupId ? { groupId } : {}),
-            createdBy: currentUser?.uid || 'unknown',
-            createdByName: currentUser?.displayName || 'Unknown Teacher',
-            createdByEmail: currentUser?.email || 'unknown@email.com',
-            observedAt: serverTimestamp(),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
+            groupId: groupId || null,
+            title: 'Lesson note save',
+            summary: context.lessonTitle.trim(),
+            payload: {
+              studentId,
+              classroomId: context.classroomId,
+              lessonTitle: context.lessonTitle.trim(),
+              lessonDescription: context.lessonDescription.trim() || null,
+              groupComment: context.groupComment.trim() || null,
+              programId: selectedClassroom?.programId || null,
+              dimensionOrder: dimensionList,
+              ...(showDefaults ? { groupDefaults: effectiveDefaults } : {}),
+              ratings,
+              studentComment: studentOverrides[studentId]?.comment?.trim() || null,
+              attendanceStatus: 'present',
+              lessonMode,
+              ...(groupId ? { groupId } : {}),
+              createdBy: currentUser?.uid || 'unknown',
+              createdByName: currentUser?.displayName || 'Unknown Teacher',
+              createdByEmail: currentUser?.email || 'unknown@email.com',
+            }
           };
-
-          const cleaned = Object.fromEntries(
-            Object.entries(payload).filter(([, value]) => value !== undefined && value !== null)
-          );
-
-          const docRef = doc(collection(db, 'students', studentId, 'observations'));
-          batch.set(docRef, cleaned);
         });
-        await batch.commit();
+
+        enqueueSaveQueueItems(queueEntries);
         const firstStudentId = selectedStudents[0];
-        notify.success(`Lesson note saved for ${selectedStudents.length} students.`, {
+        notify.success(`Lesson note queued for ${selectedStudents.length} students.`, {
           actionLabel: firstStudentId ? 'View Note' : undefined,
           onUndo: firstStudentId
             ? () => {
