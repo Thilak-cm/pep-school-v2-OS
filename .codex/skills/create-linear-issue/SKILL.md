@@ -33,6 +33,7 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 1. Clarify the request
 - Ask focused follow-up questions until ambiguity is low.
 - Always confirm priority: Urgent, High, Normal, or Low.
+- Set assignee to `me` by default (current authenticated Linear user) unless the user explicitly requests a different assignee.
 - For bugs: capture reproducible steps, expected behavior, actual behavior, and environment details.
 - For features: capture who benefits, desired behavior, constraints, and edge cases.
 
@@ -47,7 +48,7 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 
 4. Create in Linear
 - Create the issue only after explicit user approval.
-- Set team, priority, labels, and state as confirmed with the user.
+- Set team, assignee, priority, labels, and state as confirmed with the user.
 - Return the created issue identifier and URL.
 
 ## Issue Template
@@ -78,6 +79,7 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 - Team: Pep school v2 os
 - Title: imperative and concise, ideally under 60 characters
 - State: Todo by default; use Backlog when the work is not ready to start
+- Assignee: `me` by default
 - Labels: Bug, Feature, Improvement based on issue type
 - Priority: always ask and confirm before creation
 - Context source: always start from `pep-os-overview.md`, then matching deep dives when available
@@ -88,3 +90,4 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 - Confirm state and label if the issue type is ambiguous.
 - If related issues exist, call them out and suggest linking.
 - Ask permission only for generating/updating deep dives, not for reading existing overview/deep-dive files.
+- While editing issues, update assignee when requested; otherwise keep existing assignee (or set to `me` if unassigned).
