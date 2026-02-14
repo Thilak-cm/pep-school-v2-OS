@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-02-13T10:34:51.859Z
-App version: 8.3.3
+Generated: 2026-02-14T23:55:35.549Z
+App version: 8.5.0
 
 ## App Snapshot
 
@@ -136,25 +136,23 @@ App version: 8.3.3
 
 ## Recent Changes
 
+### 8.5.0 (2026-02-14)
+- Background save completion notifications: users now get a final “saved” toast when queued note/media/lesson saves finish processing.
+- Save UX now prioritizes instant workflow continuation: submit actions show an in-progress notification and immediately close/return so teachers can start the next capture without waiting.
+- StudentTimeline no longer shows the queue status/retry card; save progress is communicated through notifications only.
+
+### 8.4.1 (2026-02-14)
+- Storage rules: unblocked classroomadmin media access (read, upload, delete) by eliminating a third cross-service `firestore.get()` lookup (`studentClassroomId`) that exceeded the Storage rules evaluation budget, causing blanket 403s. Classroom scoping is now deferred to Firestore rules.
+
+### 8.4.0 (2026-02-14)
+- StudentTimeline: inline media thumbnail carousel in the main timeline feed for media notes, including photo/video previews and horizontal swipe/scroll browsing.
+- StudentTimeline: tapping a timeline media thumbnail now opens the media directly in fullscreen preview.
+- StudentTimeline: “Swipe to browse” helper text now appears only for media groups with 4 or more items.
+
 ### 8.3.3 (2026-02-11)
 - Firestore: added missing collection group rule for `media`, fixing grey images for teachers in student timeline.
 - StudentTimeline: fixed race condition where duplicate `setMediaDocs` calls prevented media text from appearing on first load.
 - StudentTimeline: media notes now use primary text color instead of grey for better visibility.
-
-### 8.3.2 (2026-02-10)
-- StudentTimeline: media viewer now supports multi-select with a sticky bulk delete bar.
-- StudentTimeline: media entries can show teacher comments beneath the upload summary.
-- StudentTimeline: media notes are merged into the main timeline feed (collectionGroup media read).
-
-### 8.3.1 (2026-02-07)
-- Media upload: new per-student `media` collection with multi-file photo/video uploads, per-file docs, and background upload flow with success/failure notifications.
-- Media timeline: media viewer now reads from the dedicated media collection and opens directly from “View Media” notifications.
-- Media delete confirmation: simplified copy and removed storage/path details from the dialog.
-
-### 8.3.0 (2026-02-07)
-- StudentTimeline: unified timeline now shows media uploads inline as text entries with uploader and timestamp.
-- StudentTimeline: note-type chips now mirror Add Note modal icons (text, voice, lesson) with monochrome styling.
-- StudentTimeline: media button opens a dedicated media viewer with Photos/Videos and Docs tabs.
 
 ## Deep Dive Pointers
 
