@@ -1,5 +1,10 @@
 # Changelog
 
+# 8.4.1 — 2026-02-14
+
+### Fixed
+- Storage rules: unblocked classroomadmin media access (read, upload, delete) by eliminating a third cross-service `firestore.get()` lookup (`studentClassroomId`) that exceeded the Storage rules evaluation budget, causing blanket 403s. Classroom scoping is now deferred to Firestore rules.
+
 # 8.4.0 — 2026-02-14
 
 ### Added
