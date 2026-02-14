@@ -266,9 +266,38 @@ service cloud.firestore {
             resource.data.teacherId == request.auth.uid;
         }
 
-        function withinMediaDeleteWindow() {
+        function withinAuthorActionWindow() {
           return resource.data.createdAt is timestamp &&
-            request.time < resource.data.createdAt + duration.value(24, 'h');
+            request.time < resource.data.createdAt + duration.value(48, 'h');
+        }
+
+        function authorCanEditObservation() {
+          return isTeacher() &&
+            isAuthor() &&
+            withinAuthorActionWindow() &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'text',
+              'editCount',
+              'updatedAt',
+              'lastEditedBy',
+              'lastEditedAt',
+              'linkedLessonObservationId',
+              'linkedObservations',
+              'classroomId',
+              'lessonTitle',
+              'lessonDescription',
+              'groupComment',
+              'programId',
+              'dimensionOrder',
+              'groupDefaults',
+              'ratings',
+              'studentComment',
+              'lessonMode'
+            ]) &&
+            request.resource.data.type == resource.data.type &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            request.resource.data.createdAt == resource.data.createdAt &&
+            request.resource.data.studentId == resource.data.studentId;
         }
 
         // Allow reading observations for both admins and teachers
@@ -283,35 +312,14 @@ service cloud.firestore {
               isAllowedNonMediaObservationType(request.resource.data))
           );
         
-        // Updates: allow admins, or allow creators to update limited metadata fields
-        allow update: if adminCanAccessObservation() || (
-          isTeacher() &&
-          !isMedia(resource.data) &&
-          (
-            // Author-only updates with restricted field changes
-            resource.data.createdBy == request.auth.uid ||
-            resource.data.teacherId == request.auth.uid
-          ) &&
-          // Only allow non-destructive metadata changes (e.g., edit metadata)
-          request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            'updatedAt',
-            'lastEditedBy',
-            'lastEditedAt',
-            'linkedObservations' // allow authors to tag/untag their own lesson notes
-          ])
-        );
+        // Updates: admins can update all notes; authors can update their own notes within 48h.
+        allow update: if adminCanAccessObservation() || authorCanEditObservation();
 
-        // Allow delete by admins OR by the author (to enable reassign by author)
+        // Allow delete by admins OR by the author within 48h.
         allow delete: if adminCanAccessObservation() || (
-          isTeacher() && (
-            // Support both current 'createdBy' and legacy 'teacherId'
-            (resource.data.createdBy == request.auth.uid ||
-             resource.data.teacherId == request.auth.uid) &&
-            (
-              !isMedia(resource.data) ||
-              withinMediaDeleteWindow()
-            )
-          )
+          isTeacher() &&
+          isAuthor() &&
+          withinAuthorActionWindow()
         );
       }
 
@@ -379,17 +387,36 @@ service cloud.firestore {
             resource.data.teacherId == request.auth.uid;
         }
 
-        function withinMediaDeleteWindow() {
+        function withinAuthorActionWindow() {
           return resource.data.createdAt is timestamp &&
-            request.time < resource.data.createdAt + duration.value(24, 'h');
+            request.time < resource.data.createdAt + duration.value(48, 'h');
+        }
+
+        function authorCanEditMedia() {
+          return isTeacher() &&
+            isAuthor() &&
+            withinAuthorActionWindow() &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'teacherComment',
+              'updatedAt',
+              'lastEditedBy',
+              'lastEditedAt'
+            ]) &&
+            request.resource.data.type == resource.data.type &&
+            request.resource.data.mediaKind == resource.data.mediaKind &&
+            request.resource.data.media == resource.data.media &&
+            request.resource.data.studentId == resource.data.studentId &&
+            request.resource.data.classroomId == resource.data.classroomId &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            request.resource.data.createdAt == resource.data.createdAt;
         }
 
         allow read: if adminCanAccessMedia() || isTeacher();
         allow create: if (adminCanAccessMedia() || isTeacher()) &&
           validMediaCreatePayload(request.resource.data);
-        allow update: if false;
+        allow update: if adminCanAccessMedia() || authorCanEditMedia();
         allow delete: if adminCanAccessMedia() || (
-          isTeacher() && isAuthor() && withinMediaDeleteWindow()
+          isTeacher() && isAuthor() && withinAuthorActionWindow()
         );
       }
     }

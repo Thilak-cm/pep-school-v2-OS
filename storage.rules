@@ -56,7 +56,7 @@ service firebase.storage {
 
     function withinDeleteWindow(doc) {
       return doc.data.createdAt is timestamp &&
-        request.time < doc.data.createdAt + duration.value(24, 'h');
+        request.time < doc.data.createdAt + duration.value(48, 'h');
     }
 
     function allowedContent(mediaKind, fileName, contentType) {
