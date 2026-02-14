@@ -6,7 +6,8 @@
     "deploy": "npx firebase deploy",
     "deploy:functions": "npx firebase deploy --only functions",
     "deploy:hosting": "npx firebase deploy --only hosting",
-    "deploy:firestore": "npx firebase deploy --only firestore:rules,firestore:indexes"
+    "deploy:firestore": "npx firebase deploy --only firestore:rules,firestore:indexes",
+    "export:student-dob-audit": "node scripts/admin/export-dob-audit-csv.js"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.10.1",

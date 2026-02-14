@@ -265,6 +265,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     if (!student) return;
     
     setLoading(true);
+    setMediaUrls({});
     
     // Add timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
@@ -272,21 +273,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }, 10000); // 10 second timeout
     
     const studentIdToQuery = student.id;
-    
-    const baseQueryArgs = [
-      where('studentId', '==', studentIdToQuery),
-      orderBy('observedAt', 'desc'),
-      limit(100)
-    ];
 
     const obsQuery = query(
       collectionGroup(db, 'observations'),
-      ...baseQueryArgs
+      where('studentId', '==', studentIdToQuery),
+      orderBy('observedAt', 'desc'),
+      limit(100)
     );
 
     const mediaQuery = query(
-      collectionGroup(db, 'media'),
-      ...baseQueryArgs
+      collection(db, 'students', studentIdToQuery, 'media'),
+      orderBy('observedAt', 'desc'),
+      limit(200)
     );
 
     let obsList = [];
@@ -316,21 +314,25 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       }));
       obsReady = true;
       mergeAndSet();
-    }, (error) => {
+    }, () => {
       obsReady = true;
       mergeAndSet();
     });
 
     const unsubMedia = onSnapshot(mediaQuery, (snap) => {
-      mediaList = snap.docs.map((d) => ({
+      const list = snap.docs.map((d) => ({
         id: d.id,
         parentStudentId: d.ref.parent?.parent?.id,
         docPath: d.ref.path,
         ...d.data(),
       }));
+      mediaList = list;
+      setMediaDocs(list);
       mediaReady = true;
       mergeAndSet();
-    }, (error) => {
+    }, () => {
+      mediaList = [];
+      setMediaDocs([]);
       mediaReady = true;
       mergeAndSet();
     });
@@ -340,29 +342,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       unsubObs();
       unsubMedia();
     };
-  }, [student]);
-
-  useEffect(() => {
-    if (!student) return;
-    const studentIdToQuery = student.id;
-    setMediaUrls({});
-    const mediaQuery = query(
-      collection(db, 'students', studentIdToQuery, 'media'),
-      orderBy('observedAt', 'desc'),
-      limit(200)
-    );
-    const unsub = onSnapshot(mediaQuery, (snap) => {
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        parentStudentId: d.ref.parent?.parent?.id,
-        docPath: d.ref.path,
-        ...d.data(),
-      }));
-      setMediaDocs(list);
-    }, (error) => {
-      setMediaDocs([]);
-    });
-    return () => unsub();
   }, [student]);
 
   // Extract classroom teachers from observations data
