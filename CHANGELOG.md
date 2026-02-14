@@ -1,5 +1,14 @@
 # Changelog
 
+# 8.5.0 — 2026-02-14
+
+### Added
+- Background save completion notifications: users now get a final “saved” toast when queued note/media/lesson saves finish processing.
+
+### Changed
+- Save UX now prioritizes instant workflow continuation: submit actions show an in-progress notification and immediately close/return so teachers can start the next capture without waiting.
+- StudentTimeline no longer shows the queue status/retry card; save progress is communicated through notifications only.
+
 # 8.4.1 — 2026-02-14
 
 ### Fixed
