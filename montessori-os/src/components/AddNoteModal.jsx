@@ -63,6 +63,10 @@ const confettiFall = keyframes`
 
 const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const MEDIA_DOC_PROPAGATION_WAIT_MS = 350;
+const IMAGE_FILE_EXTENSION_RE = /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp)$/i;
+const HEIF_FILE_EXTENSION_RE = /\.(heic|heif)$/i;
+const HEIF_MIME_RE = /^image\/hei(f|c)$/i;
 const RETRYABLE_UPLOAD_ERROR_CODES = new Set([
   'storage/retry-limit-exceeded',
   'storage/network-request-failed',
@@ -1062,7 +1066,7 @@ function AddNoteModal({
       return rawMessage;
     }
     if (code === 'permission-denied' || code === 'storage/unauthorized') {
-      return 'Upload permission denied for this account/student. Please refresh and try again.';
+      return 'Upload permission check is still syncing. Please retry in a few seconds.';
     }
     if (code === 'storage/retry-limit-exceeded' || code === 'storage/network-request-failed') {
       return 'Upload timed out due to network conditions. Please retry on a stable connection.';
@@ -1083,6 +1087,12 @@ function AddNoteModal({
     if (attemptIndex >= maxAttempts - 1) return false;
     const code = String(error?.code || '').toLowerCase();
     return RETRYABLE_UPLOAD_ERROR_CODES.has(code);
+  };
+
+  const isImageFile = (file) => {
+    const type = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || '').toLowerCase();
+    return type.startsWith('image/') || IMAGE_FILE_EXTENSION_RE.test(name);
   };
 
   const loadImageForCompression = async (file, objectUrl) => {
@@ -1333,7 +1343,7 @@ function AddNoteModal({
           continue;
         }
 
-        if (!file.type?.startsWith('image/')) {
+        if (!isImageFile(file)) {
           notify.error('Please choose images or mp4 videos only.');
           setMediaError('Please choose images or mp4 videos only.');
           continue;
@@ -1401,7 +1411,7 @@ function AddNoteModal({
   };
 
   const uploadMediaToStorageWithRetry = async (storagePath, source, mediaId, studentId) => {
-    const maxAttempts = 3;
+    const maxAttempts = 6;
     let lastError = null;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
@@ -1413,8 +1423,10 @@ function AddNoteModal({
       } catch (err) {
         lastError = err;
         if (!shouldRetryUpload(err, attempt, maxAttempts)) break;
+        const baseDelayMs = Math.min(3500, 450 * (2 ** attempt));
+        const jitterMs = Math.floor(Math.random() * 150);
         // eslint-disable-next-line no-await-in-loop
-        await sleep((attempt + 1) * 450);
+        await sleep(baseDelayMs + jitterMs);
       }
     }
     throw lastError;
@@ -1468,11 +1480,20 @@ function AddNoteModal({
     };
 
     await setDoc(mediaRef, docData);
+    // Allow Storage rules to observe the Firestore media doc before upload starts.
+    await sleep(MEDIA_DOC_PROPAGATION_WAIT_MS);
     try {
       await uploadMediaToStorageWithRetry(storagePath, item.source, mediaRef.id, studentId);
       return { mediaId: mediaRef.id, studentId, storagePath };
     } catch (err) {
-      await deleteDoc(mediaRef).catch(() => {});
+      await updateDoc(mediaRef, {
+        status: 'failed',
+        errorCode: String(err?.code || 'upload_failed').toLowerCase(),
+        errorMessage: String(err?.message || 'Upload failed'),
+        updatedAt: serverTimestamp(),
+      }).catch(async () => {
+        await deleteDoc(mediaRef).catch(() => {});
+      });
       throw err;
     }
   };

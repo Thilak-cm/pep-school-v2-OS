@@ -1,5 +1,22 @@
 # Changelog
 
+# 8.4.0 — 2026-02-14
+
+### Added
+- StudentTimeline: inline media thumbnail carousel in the main timeline feed for media notes, including photo/video previews and horizontal swipe/scroll browsing.
+- StudentTimeline: tapping a timeline media thumbnail now opens the media directly in fullscreen preview.
+
+### Changed
+- StudentTimeline: “Swipe to browse” helper text now appears only for media groups with 4 or more items.
+- StudentTimeline: media URL prefetch now resolves all media items in a note/group instead of only the first file.
+- AddNoteModal: broadened image detection to support extension-based matching (including HEIC/HEIF) in addition to MIME checks.
+- AddNoteModal: media uploads now retry with longer exponential backoff and jitter to better handle transient storage rule propagation/network timing.
+- AddNoteModal: permission-related upload failure messaging now points users to retry shortly while checks sync.
+
+### Fixed
+- StudentTimeline: media notes now reliably load on first timeline open by unifying media reads to the student-scoped `students/{studentId}/media` source and removing duplicate listener desync.
+- AddNoteModal: failed uploads now persist failed media state (`status: failed`, error code/message) instead of silently deleting the media doc, improving timeline status visibility.
+
 # 8.3.3 — 2026-02-11
 
 ### Fixed

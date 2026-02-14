@@ -18,7 +18,7 @@ import {
   IconButton,
   Checkbox
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -78,6 +78,37 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     obs?.createdBy ||
     'Unknown Teacher'
   );
+
+  const normalizeMediaKind = (kind, contentType = '') => {
+    const rawKind = String(kind || '').toLowerCase();
+    if (rawKind === 'photo' || rawKind === 'video' || rawKind === 'pdf') return rawKind;
+    const rawType = String(contentType || '').toLowerCase();
+    if (rawType.startsWith('image/')) return 'photo';
+    if (rawType.startsWith('video/')) return 'video';
+    if (rawType === 'application/pdf') return 'pdf';
+    return 'file';
+  };
+
+  const buildMediaItemsForObservation = (obs) => {
+    if (!obs || obs.type !== 'media') return [];
+    const entries = Array.isArray(obs.media) && obs.media.length > 0 ? obs.media : [{}];
+    const itemObservedAt = obs.observedAt || obs.timestamp;
+    const itemObservedAtDate = toJsDate(itemObservedAt);
+    const observedAtMs = itemObservedAtDate ? itemObservedAtDate.getTime() : 0;
+    return entries.map((entry, index) => ({
+      id: `${obs.id}-${index}`,
+      mediaDocId: obs.id,
+      mediaIndex: index,
+      storagePath: entry?.storagePath || null,
+      mediaKind: normalizeMediaKind(obs.mediaKind, entry?.contentType),
+      status: obs.status || 'ready',
+      observedAt: itemObservedAt,
+      timestamp: obs.timestamp,
+      observedAtMs,
+      teacherComment: obs.teacherComment || '',
+      sourceObservation: obs,
+    }));
+  };
 
   const formatMediaCountLabel = (count, kind) => {
     if (count <= 0) return '';
@@ -183,8 +214,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     const items = [];
     const batches = new Map();
     (visibleObservations || []).forEach((obs) => {
-      if (obs.type !== 'media' || !obs.batchId) {
+      if (obs.type !== 'media') {
         items.push(obs);
+        return;
+      }
+      const mediaItems = buildMediaItemsForObservation(obs);
+      if (!obs.batchId) {
+        items.push({
+          ...obs,
+          mediaItems,
+          mediaCount: mediaItems.length || obs.mediaCount || 0,
+        });
         return;
       }
       const key = obs.batchId;
@@ -202,15 +242,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           timestamp: obs.timestamp,
           mediaKindCounts: { photo: 0, video: 0, pdf: 0, file: 0 },
           mediaCount: 0,
+          mediaItems: [],
           _observedAtMs: initialDate ? initialDate.getTime() : 0
         });
       }
       const group = batches.get(key);
-      const rawKind = (obs.mediaKind || '').toLowerCase();
-      const kind = rawKind === 'photo' ? 'photo' : rawKind === 'video' ? 'video' : rawKind === 'pdf' ? 'pdf' : 'file';
-      const count = Array.isArray(obs.media) && obs.media.length > 0 ? obs.media.length : 1;
-      group.mediaKindCounts[kind] = (group.mediaKindCounts[kind] || 0) + count;
-      group.mediaCount += count;
+      mediaItems.forEach((item) => {
+        const kind = normalizeMediaKind(item.mediaKind);
+        group.mediaKindCounts[kind] = (group.mediaKindCounts[kind] || 0) + 1;
+        group.mediaCount += 1;
+        group.mediaItems.push(item);
+      });
       if (!group.teacherComment && obs.teacherComment) {
         group.teacherComment = obs.teacherComment;
       }
@@ -222,7 +264,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.timestamp = obs.timestamp;
       }
     });
-    batches.forEach((group) => items.push(group));
+    batches.forEach((group) => {
+      group.mediaItems = (group.mediaItems || []).sort((a, b) => {
+        const byObservedAt = (b.observedAtMs || 0) - (a.observedAtMs || 0);
+        if (byObservedAt !== 0) return byObservedAt;
+        return (a.mediaIndex || 0) - (b.mediaIndex || 0);
+      });
+      items.push(group);
+    });
     return items.sort((a, b) => {
       const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
       const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
@@ -399,16 +448,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   }, [observations]);
 
   useEffect(() => {
-    const readyMedia = (mediaObservations || []).filter((obs) =>
-      obs.type === 'media' &&
-      obs.status === 'ready' &&
-      Array.isArray(obs.media) &&
-      obs.media.length > 0 &&
-      obs.media[0]?.storagePath
-    );
-    const missingPaths = readyMedia
-      .map((obs) => obs.media[0].storagePath)
-      .filter((path) => path && !mediaUrls[path]);
+    const readyMediaPaths = [];
+    (mediaObservations || []).forEach((obs) => {
+      if (obs.type !== 'media' || obs.status !== 'ready' || !Array.isArray(obs.media)) return;
+      obs.media.forEach((entry) => {
+        const path = entry?.storagePath;
+        if (path) readyMediaPaths.push(path);
+      });
+    });
+    const missingPaths = Array.from(new Set(readyMediaPaths)).filter((path) => path && !mediaUrls[path]);
     if (missingPaths.length === 0) return;
     (async () => {
       const entries = await Promise.all(missingPaths.map(async (path) => {
@@ -440,10 +488,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   };
 
   const handleMediaClick = (observation) => {
-    if (!observation) return;
-    const path = observation.media?.[0]?.storagePath;
+    const firstItem = buildMediaItemsForObservation(observation)[0] || null;
+    const sourceObservation = firstItem?.sourceObservation || observation;
+    if (!sourceObservation) return;
+    const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
     const url = path ? mediaUrls[path] : null;
-    setMediaPreview({ observation, url: url || null });
+    setMediaPreview({
+      observation: {
+        ...sourceObservation,
+        mediaKind: firstItem?.mediaKind || sourceObservation.mediaKind,
+        status: firstItem?.status || sourceObservation.status,
+        media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation.media) ? sourceObservation.media : []),
+      },
+      url: url || null,
+      fullscreen: false,
+    });
   };
 
   const handleToggleMediaSelectMode = () => {
@@ -842,17 +901,202 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
             const renderTimelineItem = (obs) => {
               if (obs.type === 'media') {
+                const mediaItems = Array.isArray(obs.mediaItems) && obs.mediaItems.length > 0
+                  ? obs.mediaItems
+                  : buildMediaItemsForObservation(obs);
+                const openMediaItemPreview = (item) => {
+                  const sourceObservation = item?.sourceObservation || obs;
+                  const path = item?.storagePath || sourceObservation?.media?.[0]?.storagePath;
+                  const url = path ? mediaUrls[path] : null;
+                  setMediaPreview({
+                    observation: {
+                      ...sourceObservation,
+                      mediaKind: item?.mediaKind || sourceObservation?.mediaKind,
+                      status: item?.status || sourceObservation?.status,
+                      observedAt: item?.observedAt || sourceObservation?.observedAt,
+                      timestamp: item?.timestamp || sourceObservation?.timestamp,
+                      teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
+                      media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
+                    },
+                    url: url || null,
+                    fullscreen: true,
+                  });
+                };
                 return (
-                  <Box key={obs.id} sx={{ px: 1, py: 0.5 }}>
-                    <Typography variant="body2" color="text.primary">
+                  <Card key={obs.id} sx={{ ...cardSx, cursor: 'default' }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                        <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
+                          👩‍🏫
+                        </span>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                          {getTeacherDisplayName(obs)}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                       {buildMediaSummary(obs)}
-                    </Typography>
-                    {obs.teacherComment && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        💬 {obs.teacherComment}
                       </Typography>
-                    )}
-                  </Box>
+                      {obs.teacherComment && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                          💬 {obs.teacherComment}
+                        </Typography>
+                      )}
+
+                      {mediaItems.length > 0 && (
+                        <>
+                          {mediaItems.length >= 4 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                              Swipe to browse {mediaItems.length} items
+                            </Typography>
+                          )}
+                          <Box
+                            sx={{
+                              mt: 1,
+                              display: 'flex',
+                              gap: 1,
+                              overflowX: 'auto',
+                              pb: 0.5,
+                              scrollSnapType: 'x mandatory',
+                              '&::-webkit-scrollbar': {
+                                height: 6,
+                              },
+                              '&::-webkit-scrollbar-thumb': {
+                                backgroundColor: '#cbd5e1',
+                                borderRadius: 999,
+                              },
+                            }}
+                          >
+                            {mediaItems.map((item) => {
+                              const path = item.storagePath;
+                              const url = path ? mediaUrls[path] : null;
+                              const isFailed = item.status === 'failed';
+                              const isReady = item.status === 'ready' && !!url;
+                              const isPending = !isFailed && !isReady;
+                              const isPhoto = item.mediaKind === 'photo';
+                              const isVideo = item.mediaKind === 'video';
+                              return (
+                                <Box
+                                  key={item.id}
+                                  onClick={() => openMediaItemPreview(item)}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      openMediaItemPreview(item);
+                                    }
+                                  }}
+                                  aria-label={`Open ${isVideo ? 'video' : isPhoto ? 'photo' : 'media'} in fullscreen`}
+                                  sx={{
+                                    width: { xs: 126, sm: 140 },
+                                    minWidth: { xs: 126, sm: 140 },
+                                    aspectRatio: '1 / 1',
+                                    borderRadius: 2,
+                                    overflow: 'hidden',
+                                    border: '1px solid #dbe4ee',
+                                    position: 'relative',
+                                    backgroundColor: '#f8fafc',
+                                    flexShrink: 0,
+                                    scrollSnapAlign: 'start',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {isReady && isPhoto && (
+                                    <Box
+                                      component="img"
+                                      src={url}
+                                      alt="Media thumbnail"
+                                      sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                  )}
+
+                                  {isReady && isVideo && (
+                                    <>
+                                      <video
+                                        src={url}
+                                        muted
+                                        playsInline
+                                        preload="metadata"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                      />
+                                      <Box
+                                        sx={{
+                                          position: 'absolute',
+                                          inset: 0,
+                                          backgroundColor: 'rgba(15, 23, 42, 0.18)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }}
+                                      >
+                                        <PlayCircleFilled sx={{ color: '#ffffff', fontSize: 34 }} />
+                                      </Box>
+                                    </>
+                                  )}
+
+                                  {(isPending || isFailed || (!isPhoto && !isVideo)) && (
+                                    <Box
+                                      sx={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexDirection: 'column',
+                                        gap: 0.5,
+                                        backgroundColor: isFailed ? '#fee2e2' : '#f1f5f9',
+                                      }}
+                                    >
+                                      {isFailed ? (
+                                        <ErrorOutline color="error" />
+                                      ) : isVideo ? (
+                                        <Movie color="primary" />
+                                      ) : (
+                                        <PhotoLibrary color="primary" />
+                                      )}
+                                      <Typography
+                                        variant="caption"
+                                        color={isFailed ? 'error' : 'text.secondary'}
+                                        sx={{ fontWeight: 600 }}
+                                      >
+                                        {isFailed ? 'Failed' : isPending ? 'Preparing' : 'Media'}
+                                      </Typography>
+                                    </Box>
+                                  )}
+
+                                  <Box sx={{ position: 'absolute', top: 6, left: 6 }}>
+                                    {item.status === 'pending_upload' && (
+                                      <Chip
+                                        size="small"
+                                        label="Pending"
+                                        color="warning"
+                                        icon={<CloudUpload sx={{ fontSize: 14 }} />}
+                                      />
+                                    )}
+                                    {item.status === 'failed' && (
+                                      <Chip
+                                        size="small"
+                                        label="Failed"
+                                        color="error"
+                                        icon={<ErrorOutline sx={{ fontSize: 14 }} />}
+                                      />
+                                    )}
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </>
+                      )}
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                        <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTimestamp(obs.observedAt || obs.timestamp)}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
                 );
               }
 
@@ -1315,8 +1559,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       <Dialog
         open={!!mediaPreview}
         onClose={() => setMediaPreview(null)}
-        maxWidth="sm"
-        fullWidth
+        fullScreen={!!mediaPreview?.fullscreen}
+        maxWidth={mediaPreview?.fullscreen ? false : 'sm'}
+        fullWidth={!mediaPreview?.fullscreen}
       >
         <DialogTitle>
           <Typography variant="h6" component="span">Media</Typography>
