@@ -1001,13 +1001,6 @@ function AddNoteModal({
     setStep(STEP_RECORD);
   };
 
-  const handleSelectText = () => {
-    setVoiceTranscribing(false);
-    setVoiceDirty(false);
-    setTranscriptionData(null);
-    setStep(STEP_TEXT_INPUT);
-  };
-
   const handleSelectLesson = () => {
     handleClose();
     if (onOpenLessonNotePage) onOpenLessonNotePage();
@@ -1905,9 +1898,11 @@ function AddNoteModal({
                 width: '100%'
               }}
             >
-              {/* Only two types for now: Text and Voice */}
-              {/* Text Note (active) */}
+              {/* Available note types for creation */}
+              {/* Text Note (disabled) */}
               <Box
+                aria-label="Text note unavailable"
+                aria-disabled="true"
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1916,27 +1911,23 @@ function AddNoteModal({
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': { 
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #4f46e5'
-                  }
+                  cursor: 'not-allowed',
+                  backgroundColor: '#f8fafc',
+                  opacity: 0.7,
+                  pointerEvents: 'none'
                 }}
-                onClick={handleSelectText}
-                aria-label="Add text note"
               >
-                <TextFields sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <TextFields sx={{ fontSize: 32, color: '#94a3b8' }} />
                 <Box>
-                  <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                  <Typography variant="body1" sx={{ color: '#64748b' }}>
                     Text Note
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Write text note
+                    No longer in use. Please use voice notes for richer and quicker observations!
                   </Typography>
                 </Box>
               </Box>
-              {/* Voice Note (active) */}
+              {/* Voice Note */}
               <Box
                 sx={{
                   display: 'flex',

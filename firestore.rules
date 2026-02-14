@@ -257,6 +257,10 @@ service cloud.firestore {
             data.observedAt is timestamp;
         }
 
+        function isAllowedNonMediaObservationType(data) {
+          return data.type in ['voice', 'lesson'];
+        }
+
         function isAuthor() {
           return resource.data.createdBy == request.auth.uid ||
             resource.data.teacherId == request.auth.uid;
@@ -273,8 +277,10 @@ service cloud.firestore {
         // Allow creating observations for both admins and teachers
         allow create: if (adminCanAccessObservation() || isTeacher()) &&
           (
-            !isMedia(request.resource.data) ||
-            validMediaCreatePayload(request.resource.data)
+            (isMedia(request.resource.data) &&
+              validMediaCreatePayload(request.resource.data)) ||
+            (!isMedia(request.resource.data) &&
+              isAllowedNonMediaObservationType(request.resource.data))
           );
         
         // Updates: allow admins, or allow creators to update limited metadata fields
