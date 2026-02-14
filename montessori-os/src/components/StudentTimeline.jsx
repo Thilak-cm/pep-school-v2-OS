@@ -107,6 +107,27 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return `${teacher} added ${label} on ${timestamp}.`;
   };
 
+  const getMediaFailureMessage = (obs) => {
+    const code = String(obs?.errorCode || '').toLowerCase();
+    const rawMessage = String(obs?.errorMessage || '').trim();
+    if (code === 'content_type_mismatch') {
+      return 'Media upload failed due to file format mismatch. Please re-upload the file.';
+    }
+    if (code === 'file_too_large') {
+      return 'Media upload failed because the photo exceeded the size limit.';
+    }
+    if (code === 'path_mismatch') {
+      return 'Media upload failed due to an internal upload mismatch. Please try again.';
+    }
+    if (code === 'unsupported_kind') {
+      return 'Media upload failed because this media type is not supported.';
+    }
+    if (rawMessage) {
+      return `Media upload failed: ${rawMessage}`;
+    }
+    return 'Media upload failed. Please try again.';
+  };
+
   // Derived counts for header summary
   const { totalNotes, notesLast7Days } = useMemo(() => {
     const total = observations?.length || 0;
@@ -385,7 +406,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     (observations || []).forEach((obs) => {
       if (obs.type === 'media' && obs.status === 'failed' && !notifiedFailuresRef.current.has(obs.id)) {
         notifiedFailuresRef.current.add(obs.id);
-        notify.error('Media upload failed. Please try again.', {
+        notify.error(getMediaFailureMessage(obs), {
           actionLabel: mediaDeleteAllowed(obs) ? 'Delete' : undefined,
           onUndo: mediaDeleteAllowed(obs)
             ? () => {

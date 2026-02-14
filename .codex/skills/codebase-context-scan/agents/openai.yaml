@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codebase Context Scan"
+  short_description: "Generate the high-level Pep OS overview"
+  default_prompt: "Refresh the Pep OS high-level codebase overview markdown for release-ready issue drafting context."

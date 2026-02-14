@@ -47,7 +47,9 @@ jspm_packages/
 .vscode/
 .idea/
 .cursor/
-.codex/
+.codex/*
+!.codex/skills/
+!.codex/skills/**
 *.swp
 *.swo
 

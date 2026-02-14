@@ -62,6 +62,16 @@ const confettiFall = keyframes`
 `;
 
 const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const RETRYABLE_UPLOAD_ERROR_CODES = new Set([
+  'storage/retry-limit-exceeded',
+  'storage/network-request-failed',
+  'storage/canceled',
+  'storage/unknown',
+  'storage/unauthorized',
+]);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function ConfettiAnimation() {
   const particles = React.useMemo(() => 
@@ -1048,16 +1058,81 @@ function AddNoteModal({
     setStep(STEP_RECORD);
   };
 
+  const getUploadErrorMessage = (error) => {
+    const code = String(error?.code || '').toLowerCase();
+    const rawMessage = String(error?.message || '').trim();
+    if (
+      rawMessage.toLowerCase().includes('missing classroom') ||
+      rawMessage.toLowerCase().includes('student record not found') ||
+      rawMessage.toLowerCase().includes('session expired')
+    ) {
+      return rawMessage;
+    }
+    if (code === 'permission-denied' || code === 'storage/unauthorized') {
+      return 'Upload permission denied for this account/student. Please refresh and try again.';
+    }
+    if (code === 'storage/retry-limit-exceeded' || code === 'storage/network-request-failed') {
+      return 'Upload timed out due to network conditions. Please retry on a stable connection.';
+    }
+    if (code === 'storage/quota-exceeded') {
+      return 'Storage quota exceeded. Please contact support.';
+    }
+    if (code === 'storage/canceled') {
+      return 'Upload was interrupted. Please try again.';
+    }
+    if (code === 'storage/invalid-checksum') {
+      return 'Upload integrity check failed. Please re-select the file and retry.';
+    }
+    return rawMessage || 'Upload failed. Please try again.';
+  };
+
+  const shouldRetryUpload = (error, attemptIndex, maxAttempts) => {
+    if (attemptIndex >= maxAttempts - 1) return false;
+    const code = String(error?.code || '').toLowerCase();
+    return RETRYABLE_UPLOAD_ERROR_CODES.has(code);
+  };
+
+  const loadImageForCompression = async (file, objectUrl) => {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        return {
+          width: bitmap.width || 0,
+          height: bitmap.height || 0,
+          draw: (ctx, w, h) => ctx.drawImage(bitmap, 0, 0, w, h),
+          dispose: () => bitmap.close?.(),
+        };
+      } catch {
+        // Fallback to HTMLImageElement decoding when ImageBitmap is unavailable.
+      }
+    }
+
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Unable to load image for compression'));
+      img.src = objectUrl;
+    });
+
+    return {
+      width: image.naturalWidth || image.width || 0,
+      height: image.naturalHeight || image.height || 0,
+      draw: (ctx, w, h) => ctx.drawImage(image, 0, 0, w, h),
+      dispose: () => {},
+    };
+  };
+
   const convertImageToWebP = async (file) => {
     const url = URL.createObjectURL(file);
+    let imageSource = null;
     try {
-      const img = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = reject;
-        image.src = url;
-      });
-      const maxBytes = 2 * 1024 * 1024;
+      imageSource = await loadImageForCompression(file, url);
+      const initialWidth = Number(imageSource?.width || 0);
+      const initialHeight = Number(imageSource?.height || 0);
+      if (!initialWidth || !initialHeight) {
+        throw new Error('Unable to process image dimensions');
+      }
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Unable to process image');
@@ -1065,12 +1140,14 @@ function AddNoteModal({
       const renderToBlob = async (w, h, q) => {
         canvas.width = w;
         canvas.height = h;
-        ctx.drawImage(img, 0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
+        imageSource.draw(ctx, w, h);
         return new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', q));
       };
 
       const maxDim = 1600;
-      let { width, height } = img;
+      let width = initialWidth;
+      let height = initialHeight;
       if (width > maxDim || height > maxDim) {
         const scale = Math.min(maxDim / width, maxDim / height);
         width = Math.round(width * scale);
@@ -1079,28 +1156,40 @@ function AddNoteModal({
 
       let quality = 0.82;
       let blob = await renderToBlob(width, height, quality);
-      while (blob && blob.size > maxBytes && quality > 0.4) {
+      while (blob && blob.size > MAX_PHOTO_BYTES && quality > 0.22) {
         quality -= 0.08;
         blob = await renderToBlob(width, height, quality);
       }
 
-      while (blob && blob.size > maxBytes && (width > 1024 || height > 1024)) {
-        width = Math.round(width * 0.85);
-        height = Math.round(height * 0.85);
-        quality = Math.min(quality, 0.65);
+      while (blob && blob.size > MAX_PHOTO_BYTES && (width > 640 || height > 640)) {
+        width = Math.max(640, Math.round(width * 0.82));
+        height = Math.max(640, Math.round(height * 0.82));
+        quality = Math.min(quality, 0.6);
         blob = await renderToBlob(width, height, quality);
-        while (blob && blob.size > maxBytes && quality > 0.3) {
+        while (blob && blob.size > MAX_PHOTO_BYTES && quality > 0.18) {
           quality -= 0.07;
           blob = await renderToBlob(width, height, quality);
         }
       }
 
+      while (blob && blob.size > MAX_PHOTO_BYTES && (width > 320 || height > 320)) {
+        width = Math.max(320, Math.round(width * 0.78));
+        height = Math.max(320, Math.round(height * 0.78));
+        quality = Math.min(quality, 0.48);
+        blob = await renderToBlob(width, height, quality);
+      }
+
       if (!blob) throw new Error('Unable to compress image');
-      if (blob.size > maxBytes) {
-        throw new Error('Photo is still above 2MB after compression. Try a smaller photo.');
+      if (blob.size > MAX_PHOTO_BYTES) {
+        throw new Error('Photo is still above 2MB after compression. Try another photo.');
       }
       return { blob, width, height };
     } finally {
+      try {
+        imageSource?.dispose?.();
+      } catch {
+        // Ignore cleanup failures.
+      }
       URL.revokeObjectURL(url);
     }
   };
@@ -1318,10 +1407,40 @@ function AddNoteModal({
     });
   };
 
+  const uploadMediaToStorageWithRetry = async (storagePath, source, mediaId, studentId) => {
+    const maxAttempts = 3;
+    let lastError = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        // Storage rules check Firestore media doc state. A small backoff on retry helps
+        // when writes are committed but not yet visible to cross-service rule reads.
+        // eslint-disable-next-line no-await-in-loop
+        await uploadMediaToStorage(storagePath, source, mediaId, studentId);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (!shouldRetryUpload(err, attempt, maxAttempts)) break;
+        // eslint-disable-next-line no-await-in-loop
+        await sleep((attempt + 1) * 450);
+      }
+    }
+    throw lastError;
+  };
+
   const uploadMediaForStudent = async (studentId, item, batchId) => {
+    if (!currentUser?.uid) {
+      throw new Error('Your session expired. Please sign in again and retry.');
+    }
     const studentDocRef = doc(db, 'students', studentId);
     const studentSnap = await getDoc(studentDocRef);
+    if (!studentSnap.exists()) {
+      throw new Error('Student record not found. Please refresh and retry.');
+    }
     const studentData = studentSnap.data();
+    const classroomId = studentData?.classroomId;
+    if (!classroomId) {
+      throw new Error('Student is missing classroom assignment. Please ask an admin to update the student profile.');
+    }
     const mediaRef = doc(collection(db, 'students', studentId, 'media'));
     const storagePath = `students/${studentId}/media/${mediaRef.id}/original.${item.source.extension}`;
     const kind = item.kind;
@@ -1338,7 +1457,7 @@ function AddNoteModal({
 
     const docData = {
       studentId,
-      classroomId: studentData?.classroomId || 'unknown',
+      classroomId,
       type: 'media',
       mediaKind: kind,
       status: 'pending_upload',
@@ -1357,7 +1476,7 @@ function AddNoteModal({
 
     await setDoc(mediaRef, docData);
     try {
-      await uploadMediaToStorage(storagePath, item.source, mediaRef.id, studentId);
+      await uploadMediaToStorageWithRetry(storagePath, item.source, mediaRef.id, studentId);
       return { mediaId: mediaRef.id, studentId, storagePath };
     } catch (err) {
       await deleteDoc(mediaRef).catch(() => {});
@@ -1424,7 +1543,15 @@ function AddNoteModal({
       }
 
       if (failed) {
-        notify.error('Upload failed. Please try again. Something went wrong.');
+        const errorMessage = getUploadErrorMessage(failed);
+        console.error('[media] upload failed', {
+          code: failed?.code || 'unknown',
+          message: failed?.message || String(failed),
+          userId: currentUser?.uid || null,
+          studentCount: studentsToUpload.length,
+          itemCount: itemsToUpload.length,
+        });
+        notify.error(errorMessage, { duration: 5000 });
         await Promise.allSettled(
           uploads.map(async (entry) => {
             if (entry?.storagePath) {

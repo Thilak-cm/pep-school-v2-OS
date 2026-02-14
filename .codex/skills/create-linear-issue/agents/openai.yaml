@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Linear Issue"
+  short_description: "Draft context-aware Linear issues"
+  default_prompt: "Create a context-aware Linear issue for Pep school v2 os: use the overview first, then matching deep-dive artifacts before clarifying."
