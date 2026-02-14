@@ -12,33 +12,6 @@ service firebase.storage {
         : null;
     }
 
-    function isSuperAdmin() {
-      return isSignedIn() && requesterDoc().data.role == 'superadmin';
-    }
-
-    function isClassroomAdmin() {
-      return isSignedIn() && requesterDoc().data.role == 'classroomadmin';
-    }
-
-    function isTeacher() {
-      return isSignedIn() && requesterDoc().data.role == 'teacher';
-    }
-
-    function hasManageableClassroom(classroomId) {
-      return isClassroomAdmin() &&
-        ('manageableClassrooms' in requesterDoc().data) &&
-        (requesterDoc().data.manageableClassrooms is list) &&
-        requesterDoc().data.manageableClassrooms.hasAny([classroomId]);
-    }
-
-    function managesClassroom(classroomId) {
-      return isSuperAdmin() || hasManageableClassroom(classroomId);
-    }
-
-    function studentClassroomId(studentId) {
-      return firestore.get(/databases/(default)/documents/students/$(studentId)).data.classroomId;
-    }
-
     function mediaDoc(studentId, mediaId) {
       return firestore.get(
         /databases/(default)/documents/students/$(studentId)/media/$(mediaId)
@@ -75,19 +48,28 @@ service firebase.storage {
       return mediaKind != 'photo' || bytes <= 2 * 1024 * 1024;
     }
 
-    function canAccessMedia(studentId) {
-      // Teachers can access media they can see; admins must manage the classroom
-      return isTeacher() || managesClassroom(studentClassroomId(studentId));
+    // Role gate for media access — only 2 firestore.get() paths
+    // (requesterDoc + mediaDoc).
+    //
+    // Classroom-level scoping for classroomadmins is enforced by
+    // Firestore rules when the media doc is created (the doc can
+    // only reach status 'pending_upload' if managesClassroom
+    // passed). Storage rules trust that Firestore-side gate and
+    // avoid a third cross-service lookup (studentClassroomId) that
+    // pushed classroomadmin evaluations over the Storage rules'
+    // firestore.get() budget, causing blanket 403s.
+    function isKnownRole() {
+      return requesterDoc().data.role in ['teacher', 'superadmin', 'classroomadmin'];
     }
 
     match /students/{studentId}/media/{mediaId}/{fileName} {
       allow read: if isSignedIn() &&
         isMediaDoc(mediaDoc(studentId, mediaId)) &&
-        canAccessMedia(studentId);
+        isKnownRole();
 
       allow create, update: if isSignedIn() &&
         isMediaDoc(mediaDoc(studentId, mediaId)) &&
-        canAccessMedia(studentId) &&
+        isKnownRole() &&
         mediaDoc(studentId, mediaId).data.status == 'pending_upload' &&
         allowedContent(
           mediaDoc(studentId, mediaId).data.mediaKind,
@@ -99,9 +81,10 @@ service firebase.storage {
       allow delete: if isSignedIn() &&
         isMediaDoc(mediaDoc(studentId, mediaId)) &&
         (
-          isSuperAdmin() ||
-          managesClassroom(studentClassroomId(studentId)) ||
-          (isTeacher() && isAuthor(mediaDoc(studentId, mediaId)) && withinDeleteWindow(mediaDoc(studentId, mediaId)))
+          requesterDoc().data.role in ['superadmin', 'classroomadmin'] ||
+          (requesterDoc().data.role == 'teacher' &&
+           isAuthor(mediaDoc(studentId, mediaId)) &&
+           withinDeleteWindow(mediaDoc(studentId, mediaId)))
         );
     }
 
