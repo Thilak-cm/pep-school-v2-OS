@@ -43,6 +43,7 @@ import AddNoteModal from './components/AddNoteModal';
 import UpdateNotification from './components/UpdateNotification';
 import { NotificationProvider } from './notifications/NotificationContext.jsx';
 import NotificationStack from './notifications/NotificationStack.jsx';
+import SaveQueueNotificationBridge from './notifications/SaveQueueNotificationBridge.jsx';
 import { isSuperAdmin } from './utils/roleUtils';
 import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import SettingsPage from './components/SettingsPage.jsx';
@@ -498,6 +499,7 @@ function App() {
         >
           <NotificationProvider>
             <NotificationStack />
+            <SaveQueueNotificationBridge />
           {/* Loading State */}
           {loading && (
             <Box

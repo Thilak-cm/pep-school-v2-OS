@@ -778,6 +778,7 @@ function LessonNoteWizard({
         onSaved?.({ observationId: obsId, studentId });
       } else {
         const groupId = lessonMode === 'group' ? buildGroupId() : undefined;
+        const queueGroupId = `lesson_save_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
         const queueEntries = selectedStudents.map((studentId) => {
           const ratings = {};
           dimensionList.forEach((dimension) => {
@@ -789,7 +790,7 @@ function LessonNoteWizard({
           return {
             kind: 'lesson',
             studentId,
-            groupId: groupId || null,
+            groupId: queueGroupId,
             title: 'Lesson note save',
             summary: context.lessonTitle.trim(),
             payload: {
@@ -814,16 +815,8 @@ function LessonNoteWizard({
         });
 
         enqueueSaveQueueItems(queueEntries);
-        const firstStudentId = selectedStudents[0];
-        notify.success(`Lesson note queued for ${selectedStudents.length} students.`, {
-          actionLabel: firstStudentId ? 'View Note' : undefined,
-          onUndo: firstStudentId
-            ? () => {
-                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                  detail: { studentId: firstStudentId, noteTypeFilter: 'lesson' }
-                }));
-              }
-            : undefined
+        notify.info('Saving lesson note in progress. You can start a new workflow immediately.', {
+          duration: 3000,
         });
         setIsDirty(false);
         onSaved?.();

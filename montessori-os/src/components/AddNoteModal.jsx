@@ -66,6 +66,22 @@ const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 const IMAGE_FILE_EXTENSION_RE = /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp)$/i;
 const HEIF_FILE_EXTENSION_RE = /\.(heic|heif)$/i;
 const HEIF_MIME_RE = /^image\/hei(f|c)$/i;
+const POLISH_BUTTON_SX = {
+  textTransform: 'none',
+  backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+  color: 'white',
+  boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
+  '&:hover': {
+    backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+    boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
+  },
+  '&.Mui-disabled': {
+    backgroundImage: 'none',
+    backgroundColor: '#e2e8f0',
+    color: '#64748b',
+    boxShadow: 'none'
+  }
+};
 
 function ConfettiAnimation() {
   const particles = React.useMemo(() => 
@@ -260,22 +276,7 @@ function TextInput({
             onClick={handleCleanUp}
             disabled={!text.trim() || cleaning || cleanedOnce}
             startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-            sx={{
-              textTransform: 'none',
-              backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
-              color: 'white',
-              boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
-              '&:hover': {
-                backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
-                boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
-              },
-              '&.Mui-disabled': {
-                backgroundImage: 'none',
-                backgroundColor: '#e2e8f0',
-                color: '#64748b',
-                boxShadow: 'none'
-              }
-            }}
+            sx={POLISH_BUTTON_SX}
           >
             {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
           </Button>
@@ -337,6 +338,12 @@ function AddNoteModal({
   const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl, teacherComment }]
   const [pdfSource, setPdfSource] = useState(null); // { file, size, contentType, extension, originalName }
   const [mediaTeacherComment, setMediaTeacherComment] = useState(''); // PDF comment only
+  const [mediaItemCommentCleaning, setMediaItemCommentCleaning] = useState({});
+  const [mediaItemCommentCleanedOnce, setMediaItemCommentCleanedOnce] = useState({});
+  const [mediaItemCommentPrevText, setMediaItemCommentPrevText] = useState({});
+  const [mediaPdfCommentCleaning, setMediaPdfCommentCleaning] = useState(false);
+  const [mediaPdfCommentCleanedOnce, setMediaPdfCommentCleanedOnce] = useState(false);
+  const [mediaPdfCommentPrevText, setMediaPdfCommentPrevText] = useState('');
   const [mediaDictationOpen, setMediaDictationOpen] = useState(false);
   const mediaCommentRef = useRef(null);
   const [mediaDictationSelection, setMediaDictationSelection] = useState({ start: null, end: null });
@@ -923,12 +930,44 @@ function AddNoteModal({
     }
   };
 
+  const clearMediaItemPolishState = (itemId) => {
+    setMediaItemCommentCleaning((prev) => {
+      if (!(itemId in prev)) return prev;
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    setMediaItemCommentCleanedOnce((prev) => {
+      if (!(itemId in prev)) return prev;
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    setMediaItemCommentPrevText((prev) => {
+      if (!(itemId in prev)) return prev;
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  };
+
+  const handleMediaTeacherCommentChange = (value) => {
+    setMediaTeacherComment(value);
+    setMediaDirty(true);
+  };
+
   const resetMediaState = () => {
     (mediaItems || []).forEach(revokeMediaPreview);
     setMediaMode(null);
     setMediaItems([]);
     setPdfSource(null);
     setMediaTeacherComment('');
+    setMediaItemCommentCleaning({});
+    setMediaItemCommentCleanedOnce({});
+    setMediaItemCommentPrevText({});
+    setMediaPdfCommentCleaning(false);
+    setMediaPdfCommentCleanedOnce(false);
+    setMediaPdfCommentPrevText('');
     setMediaDictationOpen(false);
     setMediaDictationSelection({ start: null, end: null });
     setMediaUploading(false);
@@ -970,8 +1009,7 @@ function AddNoteModal({
     } else {
       nextValue = current ? current + ' ' + insertText : insertText;
     }
-    setMediaTeacherComment(nextValue);
-    setMediaDirty(true);
+    handleMediaTeacherCommentChange(nextValue);
     closeMediaDictation();
   };
 
@@ -1338,6 +1376,7 @@ function AddNoteModal({
       if (target) revokeMediaPreview(target);
       return prev.filter((item) => item.id !== itemId);
     });
+    clearMediaItemPolishState(itemId);
     setMediaDirty(true);
   };
 
@@ -1346,6 +1385,112 @@ function AddNoteModal({
       item.id === itemId ? { ...item, teacherComment: value } : item
     )));
     setMediaDirty(true);
+  };
+
+  const handlePolishMediaItemComment = async (itemId) => {
+    const item = mediaItems.find((entry) => entry.id === itemId);
+    const currentComment = String(item?.teacherComment || '');
+    if (!item || !currentComment.trim() || mediaItemCommentCleaning[itemId] || mediaItemCommentCleanedOnce[itemId]) {
+      return;
+    }
+    try {
+      trackEvent('polish_click', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaItemComment',
+        length_bucket: lengthBucket(currentComment.length),
+      });
+
+      const t0 = performance.now();
+      setMediaItemCommentCleaning((prev) => ({ ...prev, [itemId]: true }));
+      setMediaItemCommentPrevText((prev) => ({ ...prev, [itemId]: currentComment }));
+      const refined = await cleanUpText(currentComment).catch(() => null);
+      if (refined) {
+        handleMediaItemCommentChange(itemId, String(refined).trim());
+        setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [itemId]: true }));
+      } else {
+        setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [itemId]: false }));
+      }
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaItemComment',
+        length_bucket: lengthBucket(currentComment.length),
+        latency_ms: dt,
+      });
+    } catch (_) {
+      trackEvent('polish_error', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaItemComment',
+        length_bucket: lengthBucket(currentComment.length),
+        error: 'cleanup_failed',
+      });
+    } finally {
+      setMediaItemCommentCleaning((prev) => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const handleUndoPolishMediaItemComment = (itemId) => {
+    const previousText = mediaItemCommentPrevText[itemId];
+    if (!previousText) return;
+    handleMediaItemCommentChange(itemId, previousText);
+    setMediaItemCommentPrevText((prev) => ({ ...prev, [itemId]: '' }));
+    setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [itemId]: false }));
+    trackEvent('polish_undo', {
+      source: 'media_comment',
+      component: 'AddNoteModal.MediaItemComment',
+      length_bucket: lengthBucket(previousText.length),
+    });
+  };
+
+  const handlePolishMediaPdfComment = async () => {
+    const currentComment = String(mediaTeacherComment || '');
+    if (!currentComment.trim() || mediaPdfCommentCleaning || mediaPdfCommentCleanedOnce) return;
+    try {
+      trackEvent('polish_click', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaPdfComment',
+        length_bucket: lengthBucket(currentComment.length),
+      });
+
+      const t0 = performance.now();
+      setMediaPdfCommentCleaning(true);
+      setMediaPdfCommentPrevText(currentComment);
+      const refined = await cleanUpText(currentComment).catch(() => null);
+      if (refined) {
+        handleMediaTeacherCommentChange(String(refined).trim());
+        setMediaPdfCommentCleanedOnce(true);
+      } else {
+        setMediaPdfCommentCleanedOnce(false);
+      }
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaPdfComment',
+        length_bucket: lengthBucket(currentComment.length),
+        latency_ms: dt,
+      });
+    } catch (_) {
+      trackEvent('polish_error', {
+        source: 'media_comment',
+        component: 'AddNoteModal.MediaPdfComment',
+        length_bucket: lengthBucket(currentComment.length),
+        error: 'cleanup_failed',
+      });
+    } finally {
+      setMediaPdfCommentCleaning(false);
+    }
+  };
+
+  const handleUndoPolishMediaPdfComment = () => {
+    if (!mediaPdfCommentPrevText) return;
+    handleMediaTeacherCommentChange(mediaPdfCommentPrevText);
+    setMediaPdfCommentPrevText('');
+    setMediaPdfCommentCleanedOnce(false);
+    trackEvent('polish_undo', {
+      source: 'media_comment',
+      component: 'AddNoteModal.MediaPdfComment',
+      length_bucket: lengthBucket(mediaPdfCommentPrevText.length),
+    });
   };
 
   const handleCreateMediaNote = async () => {
@@ -1413,24 +1558,14 @@ function AddNoteModal({
     if (queueEntries.length === 0) {
       setSaving(false);
       setMediaUploading(false);
-      notify.error('No media items were queued. Please re-select files and retry.');
+      notify.error('No media items were selected. Please re-select files and retry.');
       return;
     }
 
     enqueueSaveQueueItems(queueEntries);
 
-    const firstStudentId = studentsToUpload[0];
-    notify.success('Media save queued. Upload continues in background.', {
-      actionLabel: firstStudentId ? 'View Media' : undefined,
-      onUndo: firstStudentId
-        ? () => {
-            try {
-              window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                detail: { studentId: firstStudentId, noteTypeFilter: 'media' }
-              }));
-            } catch (_) { /* noop */ }
-          }
-        : undefined
+    notify.info('Saving media note in progress. You can start a new workflow immediately.', {
+      duration: 3000,
     });
 
     setSaving(false);
@@ -1520,22 +1655,12 @@ function AddNoteModal({
 
       enqueueSaveQueueItems(queueEntries);
 
-      const firstStudentId = selectedStudents.length > 0 ? selectedStudents[0] : null;
-      notify.success('Note queued. Saving continues in the background.', {
-        actionLabel: firstStudentId ? 'View Note' : undefined,
-        onUndo: firstStudentId
-          ? () => {
-              try {
-                window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-                  detail: { studentId: firstStudentId, noteTypeFilter: 'textVoice' }
-                }));
-              } catch (_) { /* noop */ }
-            }
-          : undefined,
+      notify.info('Saving your note... You may continue your work', {
+        duration: 3000,
       });
       handleClose();
     } catch (err) {
-      notify.error('Unable to queue note save. Please try again.');
+      notify.error('Unable to start note save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -2046,6 +2171,34 @@ function AddNoteModal({
                                   minRows={2}
                                   placeholder="Add context for this file"
                                 />
+                                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Button
+                                    variant="contained"
+                                    onClick={() => handlePolishMediaItemComment(item.id)}
+                                    disabled={
+                                      !String(item.teacherComment || '').trim() ||
+                                      !!mediaItemCommentCleaning[item.id] ||
+                                      !!mediaItemCommentCleanedOnce[item.id]
+                                    }
+                                    startIcon={mediaItemCommentCleaning[item.id]
+                                      ? <CircularProgress size={16} color="inherit" />
+                                      : <AutoFixHigh />}
+                                    sx={{ ...POLISH_BUTTON_SX, py: 0.5 }}
+                                  >
+                                    {mediaItemCommentCleanedOnce[item.id]
+                                      ? 'Polished'
+                                      : (mediaItemCommentCleaning[item.id] ? 'Polishing…' : 'Polish with AI')}
+                                  </Button>
+                                  {mediaItemCommentCleanedOnce[item.id] && mediaItemCommentPrevText[item.id] && (
+                                    <Button
+                                      variant="text"
+                                      onClick={() => handleUndoPolishMediaItemComment(item.id)}
+                                      sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
+                                    >
+                                      Undo
+                                    </Button>
+                                  )}
+                                </Box>
                               </Box>
                             </Box>
                           ))}
@@ -2102,10 +2255,7 @@ function AddNoteModal({
                     <TextField
                       label="Teacher comment (optional)"
                       value={mediaTeacherComment}
-                      onChange={(e) => {
-                        setMediaTeacherComment(e.target.value);
-                        setMediaDirty(true);
-                      }}
+                      onChange={(e) => handleMediaTeacherCommentChange(e.target.value)}
                       fullWidth
                       multiline
                       minRows={2}
@@ -2130,6 +2280,26 @@ function AddNoteModal({
                         )
                       }}
                     />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        onClick={handlePolishMediaPdfComment}
+                        disabled={!mediaTeacherComment.trim() || mediaPdfCommentCleaning || mediaPdfCommentCleanedOnce}
+                        startIcon={mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
+                        sx={POLISH_BUTTON_SX}
+                      >
+                        {mediaPdfCommentCleanedOnce ? 'Polished' : (mediaPdfCommentCleaning ? 'Polishing…' : 'Polish with AI')}
+                      </Button>
+                      {mediaPdfCommentCleanedOnce && mediaPdfCommentPrevText && (
+                        <Button
+                          variant="text"
+                          onClick={handleUndoPolishMediaPdfComment}
+                          sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
+                        >
+                          Undo
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 )}
 
