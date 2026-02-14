@@ -16,10 +16,11 @@ import {
   Tabs,
   Tab,
   IconButton,
-  Checkbox
+  Checkbox,
+  TextField
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -32,8 +33,14 @@ import {
   executeExportJob,
   NOTE_KIND
 } from '../utils/export';
-import { isSuperAdmin } from '../utils/roleUtils';
-import { canDeleteObservation } from '../utils/observationPermissions';
+import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
+import {
+  AUTHOR_ACTION_EXPIRED_MESSAGE,
+  canDeleteObservation,
+  canEditObservation,
+  isAuthorActionExpired,
+  isObservationAuthor,
+} from '../utils/observationPermissions';
 import ExportWizard from './ExportWizard';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
 
@@ -59,6 +66,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
   const [mediaUrls, setMediaUrls] = useState({});
   const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
+  const [mediaEditMode, setMediaEditMode] = useState(false);
+  const [mediaEditComment, setMediaEditComment] = useState('');
+  const [mediaEditSaving, setMediaEditSaving] = useState(false);
   const [mediaSelectMode, setMediaSelectMode] = useState(false);
   const [selectedMediaIds, setSelectedMediaIds] = useState(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -237,7 +247,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           createdBy: obs.createdBy,
           createdByName: obs.createdByName,
           createdByEmail: obs.createdByEmail,
-          teacherComment: obs.teacherComment || '',
           observedAt: obs.observedAt || obs.timestamp,
           timestamp: obs.timestamp,
           mediaKindCounts: { photo: 0, video: 0, pdf: 0, file: 0 },
@@ -253,9 +262,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
-      if (!group.teacherComment && obs.teacherComment) {
-        group.teacherComment = obs.teacherComment;
-      }
       const obsDate = toJsDate(obs.observedAt || obs.timestamp);
       const obsMs = obsDate ? obsDate.getTime() : 0;
       if (obsMs > group._observedAtMs) {
@@ -309,6 +315,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       setBulkDeleteOpen(false);
     }
   }, [mediaDialogOpen]);
+
+  useEffect(() => {
+    if (!mediaPreview?.observation) {
+      setMediaEditMode(false);
+      setMediaEditComment('');
+      setMediaEditSaving(false);
+      return;
+    }
+    setMediaEditMode(false);
+    setMediaEditComment(mediaPreview.observation.teacherComment || '');
+    setMediaEditSaving(false);
+  }, [mediaPreview]);
 
   useEffect(() => {
     if (!student) return;
@@ -479,6 +497,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     })();
   }, [mediaObservations, mediaUrls]);
 
+  const canManageObservationActions = (obs) =>
+    isAdminRole(userRole) || isObservationAuthor(obs, currentUser);
+
+  const getPermissionErrorMessage = (obs) => (
+    isAuthorActionExpired(obs, currentUser, userRole)
+      ? AUTHOR_ACTION_EXPIRED_MESSAGE
+      : 'You are not allowed to modify this note.'
+  );
 
 
   const handleObservationClick = (observation) => {
@@ -503,6 +529,42 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       url: url || null,
       fullscreen: false,
     });
+  };
+
+  const handleSaveMediaComment = async () => {
+    const previewObs = mediaPreview?.observation;
+    if (!previewObs) return;
+    if (!canEditObservation(previewObs, currentUser, userRole)) {
+      notify.error(getPermissionErrorMessage(previewObs));
+      return;
+    }
+    try {
+      setMediaEditSaving(true);
+      const parentId = previewObs.parentStudentId || student.id || previewObs.studentId;
+      const nextComment = (mediaEditComment || '').trim();
+      await updateDoc(doc(db, 'students', parentId, 'media', previewObs.id), {
+        teacherComment: nextComment,
+        updatedAt: serverTimestamp(),
+        lastEditedBy: currentUser?.uid || null,
+        lastEditedAt: serverTimestamp(),
+      });
+      setMediaPreview((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          observation: {
+            ...prev.observation,
+            teacherComment: nextComment,
+          },
+        };
+      });
+      setMediaEditMode(false);
+      notify.success('Media comment updated.', { duration: 2500 });
+    } catch (error) {
+      notify.error('Error updating media comment. Please try again.', { duration: 3500 });
+    } finally {
+      setMediaEditSaving(false);
+    }
   };
 
   const handleToggleMediaSelectMode = () => {
@@ -568,7 +630,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const handleDeleteConfirm = async () => {
     if (!selectedObservation) return;
     if (!canDeleteObservation(selectedObservation, currentUser, userRole)) {
-      notify.error('You are not allowed to delete this note.');
+      notify.error(getPermissionErrorMessage(selectedObservation));
       return;
     }
     const obs = selectedObservation;
@@ -785,6 +847,12 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }
   };
 
+  const previewObservation = mediaPreview?.observation || null;
+  const previewCanEdit = canEditObservation(previewObservation, currentUser, userRole);
+  const previewCanDelete = canDeleteObservation(previewObservation, currentUser, userRole);
+  const previewActionExpired = isAuthorActionExpired(previewObservation, currentUser, userRole);
+  const previewCanManage = canManageObservationActions(previewObservation);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
       {/* Header */}
@@ -936,7 +1004,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                       {buildMediaSummary(obs)}
                       </Typography>
-                      {obs.teacherComment && (
+                      {!obs.batchId && obs.teacherComment && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                           💬 {obs.teacherComment}
                         </Typography>
@@ -977,111 +1045,131 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               return (
                                 <Box
                                   key={item.id}
-                                  onClick={() => openMediaItemPreview(item)}
-                                  role="button"
-                                  tabIndex={0}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      openMediaItemPreview(item);
-                                    }
-                                  }}
-                                  aria-label={`Open ${isVideo ? 'video' : isPhoto ? 'photo' : 'media'} in fullscreen`}
                                   sx={{
                                     width: { xs: 126, sm: 140 },
                                     minWidth: { xs: 126, sm: 140 },
-                                    aspectRatio: '1 / 1',
-                                    borderRadius: 2,
-                                    overflow: 'hidden',
-                                    border: '1px solid #dbe4ee',
-                                    position: 'relative',
-                                    backgroundColor: '#f8fafc',
                                     flexShrink: 0,
                                     scrollSnapAlign: 'start',
-                                    cursor: 'pointer',
                                   }}
                                 >
-                                  {isReady && isPhoto && (
-                                    <Box
-                                      component="img"
-                                      src={url}
-                                      alt="Media thumbnail"
-                                      sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    />
-                                  )}
-
-                                  {isReady && isVideo && (
-                                    <>
-                                      <video
+                                  <Box
+                                    onClick={() => openMediaItemPreview(item)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        openMediaItemPreview(item);
+                                      }
+                                    }}
+                                    aria-label={`Open ${isVideo ? 'video' : isPhoto ? 'photo' : 'media'} in fullscreen`}
+                                    sx={{
+                                      aspectRatio: '1 / 1',
+                                      borderRadius: 2,
+                                      overflow: 'hidden',
+                                      border: '1px solid #dbe4ee',
+                                      position: 'relative',
+                                      backgroundColor: '#f8fafc',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {isReady && isPhoto && (
+                                      <Box
+                                        component="img"
                                         src={url}
-                                        muted
-                                        playsInline
-                                        preload="metadata"
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                        alt="Media thumbnail"
+                                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                       />
+                                    )}
+
+                                    {isReady && isVideo && (
+                                      <>
+                                        <video
+                                          src={url}
+                                          muted
+                                          playsInline
+                                          preload="metadata"
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                        />
+                                        <Box
+                                          sx={{
+                                            position: 'absolute',
+                                            inset: 0,
+                                            backgroundColor: 'rgba(15, 23, 42, 0.18)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                          }}
+                                        >
+                                          <PlayCircleFilled sx={{ color: '#ffffff', fontSize: 34 }} />
+                                        </Box>
+                                      </>
+                                    )}
+
+                                    {(isPending || isFailed || (!isPhoto && !isVideo)) && (
                                       <Box
                                         sx={{
                                           position: 'absolute',
                                           inset: 0,
-                                          backgroundColor: 'rgba(15, 23, 42, 0.18)',
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
+                                          flexDirection: 'column',
+                                          gap: 0.5,
+                                          backgroundColor: isFailed ? '#fee2e2' : '#f1f5f9',
                                         }}
                                       >
-                                        <PlayCircleFilled sx={{ color: '#ffffff', fontSize: 34 }} />
+                                        {isFailed ? (
+                                          <ErrorOutline color="error" />
+                                        ) : isVideo ? (
+                                          <Movie color="primary" />
+                                        ) : (
+                                          <PhotoLibrary color="primary" />
+                                        )}
+                                        <Typography
+                                          variant="caption"
+                                          color={isFailed ? 'error' : 'text.secondary'}
+                                          sx={{ fontWeight: 600 }}
+                                        >
+                                          {isFailed ? 'Failed' : isPending ? 'Preparing' : 'Media'}
+                                        </Typography>
                                       </Box>
-                                    </>
-                                  )}
+                                    )}
 
-                                  {(isPending || isFailed || (!isPhoto && !isVideo)) && (
-                                    <Box
+                                    <Box sx={{ position: 'absolute', top: 6, left: 6 }}>
+                                      {item.status === 'pending_upload' && (
+                                        <Chip
+                                          size="small"
+                                          label="Pending"
+                                          color="warning"
+                                          icon={<CloudUpload sx={{ fontSize: 14 }} />}
+                                        />
+                                      )}
+                                      {item.status === 'failed' && (
+                                        <Chip
+                                          size="small"
+                                          label="Failed"
+                                          color="error"
+                                          icon={<ErrorOutline sx={{ fontSize: 14 }} />}
+                                        />
+                                      )}
+                                    </Box>
+                                  </Box>
+                                  {item.teacherComment && (
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
                                       sx={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexDirection: 'column',
-                                        gap: 0.5,
-                                        backgroundColor: isFailed ? '#fee2e2' : '#f1f5f9',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        mt: 0.5,
                                       }}
                                     >
-                                      {isFailed ? (
-                                        <ErrorOutline color="error" />
-                                      ) : isVideo ? (
-                                        <Movie color="primary" />
-                                      ) : (
-                                        <PhotoLibrary color="primary" />
-                                      )}
-                                      <Typography
-                                        variant="caption"
-                                        color={isFailed ? 'error' : 'text.secondary'}
-                                        sx={{ fontWeight: 600 }}
-                                      >
-                                        {isFailed ? 'Failed' : isPending ? 'Preparing' : 'Media'}
-                                      </Typography>
-                                    </Box>
+                                      💬 {item.teacherComment}
+                                    </Typography>
                                   )}
-
-                                  <Box sx={{ position: 'absolute', top: 6, left: 6 }}>
-                                    {item.status === 'pending_upload' && (
-                                      <Chip
-                                        size="small"
-                                        label="Pending"
-                                        color="warning"
-                                        icon={<CloudUpload sx={{ fontSize: 14 }} />}
-                                      />
-                                    )}
-                                    {item.status === 'failed' && (
-                                      <Chip
-                                        size="small"
-                                        label="Failed"
-                                        color="error"
-                                        icon={<ErrorOutline sx={{ fontSize: 14 }} />}
-                                      />
-                                    )}
-                                  </Box>
                                 </Box>
                               );
                             })}
@@ -1585,14 +1673,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               Download URL not ready yet. Please wait for upload to finish.
             </Typography>
           )}
-          {mediaPreview?.observation?.teacherComment && (
+          {mediaEditMode ? (
+            <TextField
+              label="Teacher comment"
+              value={mediaEditComment}
+              onChange={(e) => setMediaEditComment(e.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+              disabled={mediaEditSaving}
+            />
+          ) : (
             <Typography variant="body2" color="text.secondary">
-              💬 {mediaPreview.observation.teacherComment}
+              {mediaPreview?.observation?.teacherComment
+                ? `💬 ${mediaPreview.observation.teacherComment}`
+                : 'No comment added.'}
             </Typography>
           )}
           {mediaPreview?.observation && (
             <Typography variant="body2" color="text.secondary">
               Date Captured: {formatTimestamp(mediaPreview.observation.observedAt || mediaPreview.observation.timestamp)}
+            </Typography>
+          )}
+          {previewActionExpired && (
+            <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic' }}>
+              {AUTHOR_ACTION_EXPIRED_MESSAGE}
             </Typography>
           )}
         </DialogContent>
@@ -1608,12 +1713,49 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               Open
             </Button>
           )}
-          {mediaPreview?.observation && mediaDeleteAllowed(mediaPreview.observation) && (
+          {previewCanManage && !mediaEditMode && (
+            <Button
+              variant="outlined"
+              disabled={!previewCanEdit}
+              onClick={() => {
+                if (!previewCanEdit) return;
+                setMediaEditMode(true);
+                setMediaEditComment(previewObservation?.teacherComment || '');
+              }}
+            >
+              Edit
+            </Button>
+          )}
+          {mediaEditMode && (
+            <Button
+              variant="contained"
+              onClick={handleSaveMediaComment}
+              disabled={mediaEditSaving || !previewCanEdit}
+              startIcon={mediaEditSaving ? <CircularProgress size={16} /> : null}
+            >
+              {mediaEditSaving ? 'Saving...' : 'Save'}
+            </Button>
+          )}
+          {mediaEditMode && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setMediaEditMode(false);
+                setMediaEditComment(previewObservation?.teacherComment || '');
+              }}
+              disabled={mediaEditSaving}
+            >
+              Cancel Edit
+            </Button>
+          )}
+          {previewCanManage && !mediaEditMode && (
             <Button
               color="error"
               variant="contained"
               startIcon={<Delete />}
+              disabled={!previewCanDelete}
               onClick={() => {
+                if (!previewCanDelete) return;
                 setSelectedObservation(mediaPreview.observation);
                 setMediaPreview(null);
                 setDeleteConfirmOpen(true);

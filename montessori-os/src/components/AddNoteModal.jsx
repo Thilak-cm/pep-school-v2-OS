@@ -344,9 +344,9 @@ function AddNoteModal({
 
   // Media note state
   const [mediaMode, setMediaMode] = useState(null); // 'photo' | 'pdf'
-  const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl }]
+  const [mediaItems, setMediaItems] = useState([]); // [{ id, kind, source, previewUrl, teacherComment }]
   const [pdfSource, setPdfSource] = useState(null); // { file, size, contentType, extension, originalName }
-  const [mediaTeacherComment, setMediaTeacherComment] = useState('');
+  const [mediaTeacherComment, setMediaTeacherComment] = useState(''); // PDF comment only
   const [mediaDictationOpen, setMediaDictationOpen] = useState(false);
   const mediaCommentRef = useRef(null);
   const [mediaDictationSelection, setMediaDictationSelection] = useState({ start: null, end: null });
@@ -1338,7 +1338,8 @@ function AddNoteModal({
               extension: 'mp4',
               originalName: file.name
             },
-            previewUrl
+            previewUrl,
+            teacherComment: ''
           });
           continue;
         }
@@ -1363,7 +1364,8 @@ function AddNoteModal({
             extension: 'webp',
             originalName: file.name
           },
-          previewUrl
+          previewUrl,
+          teacherComment: ''
         });
       } catch (err) {
         setMediaError(err?.message || 'Could not process file');
@@ -1382,6 +1384,13 @@ function AddNoteModal({
       if (target) revokeMediaPreview(target);
       return prev.filter((item) => item.id !== itemId);
     });
+    setMediaDirty(true);
+  };
+
+  const handleMediaItemCommentChange = (itemId, value) => {
+    setMediaItems((prev) => prev.map((item) => (
+      item.id === itemId ? { ...item, teacherComment: value } : item
+    )));
     setMediaDirty(true);
   };
 
@@ -1459,6 +1468,7 @@ function AddNoteModal({
       ...(item.source.originalName ? { originalName: item.source.originalName } : {}),
       ...(item.source.width ? { width: item.source.width, height: item.source.height } : {})
     };
+    const itemTeacherComment = String(item?.teacherComment || '').trim();
 
     const docData = {
       studentId,
@@ -1473,7 +1483,7 @@ function AddNoteModal({
       createdBy: currentUser?.uid || 'unknown',
       createdByName: currentUser?.displayName || 'Unknown Teacher',
       createdByEmail: currentUser?.email || 'unknown@email.com',
-      ...(mediaTeacherComment?.trim() ? { teacherComment: mediaTeacherComment.trim() } : {}),
+      ...(itemTeacherComment ? { teacherComment: itemTeacherComment } : {}),
       ...(batchId ? { batchId } : {}),
       ...(kind === 'pdf' && pdfTitle?.trim() ? { pdfTitle: pdfTitle.trim() } : {}),
       ...(kind === 'pdf' && pdfEssence?.trim() ? { essence_text: pdfEssence.trim() } : {}),
@@ -1518,7 +1528,8 @@ function AddNoteModal({
           id: 'pdf',
           kind: 'pdf',
           source: pdfSource,
-          displayName: pdfDisplayName
+          displayName: pdfDisplayName,
+          teacherComment: mediaTeacherComment
         }]
       : mediaItems;
     const studentsToUpload = [...selectedStudents];
@@ -2183,16 +2194,16 @@ function AddNoteModal({
                   ) : (
                     mediaItems.length > 0 ? (
                       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1 }}>
                           {mediaItems.map((item) => (
                             <Box
                               key={item.id}
                               sx={{
                                 borderRadius: 2,
-                                overflow: 'hidden',
                                 border: '1px solid',
                                 borderColor: 'divider',
-                                backgroundColor: 'background.paper'
+                                backgroundColor: 'background.paper',
+                                overflow: 'hidden',
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -2233,6 +2244,17 @@ function AddNoteModal({
                                 >
                                   <Close sx={{ fontSize: 16 }} />
                                 </IconButton>
+                              </Box>
+                              <Box sx={{ p: 1 }}>
+                                <TextField
+                                  label="Comment (optional)"
+                                  value={item.teacherComment || ''}
+                                  onChange={(e) => handleMediaItemCommentChange(item.id, e.target.value)}
+                                  fullWidth
+                                  multiline
+                                  minRows={2}
+                                  placeholder="Add context for this file"
+                                />
                               </Box>
                             </Box>
                           ))}
@@ -2286,40 +2308,39 @@ function AddNoteModal({
                       multiline
                       minRows={3}
                     />
+                    <TextField
+                      label="Teacher comment (optional)"
+                      value={mediaTeacherComment}
+                      onChange={(e) => {
+                        setMediaTeacherComment(e.target.value);
+                        setMediaDirty(true);
+                      }}
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      inputRef={mediaCommentRef}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label="Dictate teacher comment"
+                              onClick={openMediaDictation}
+                              color="primary"
+                              size="small"
+                              sx={{
+                                border: 1,
+                                borderColor: 'divider',
+                                bgcolor: 'action.hover'
+                              }}
+                            >
+                              <Mic fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                    />
                   </Box>
                 )}
-
-                <TextField
-                  label="Teacher comment (optional)"
-                  value={mediaTeacherComment}
-                  onChange={(e) => {
-                    setMediaTeacherComment(e.target.value);
-                    setMediaDirty(true);
-                  }}
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  inputRef={mediaCommentRef}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="Dictate teacher comment"
-                          onClick={openMediaDictation}
-                          color="primary"
-                          size="small"
-                          sx={{
-                            border: 1,
-                            borderColor: 'divider',
-                            bgcolor: 'action.hover'
-                          }}
-                        >
-                          <Mic fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    )
-                  }}
-                />
 
                 {null}
               </Box>

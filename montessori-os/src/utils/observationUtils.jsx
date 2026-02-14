@@ -39,10 +39,10 @@ export const getCreatorName = (observation) => {
 /**
  * Check if observation can be edited within time limit
  * @param {Object} observation - Observation object
- * @param {number} timeLimitHours - Time limit in hours (default 24)
+ * @param {number} timeLimitHours - Time limit in hours (default 48)
  * @returns {boolean} Whether observation can be edited
  */
-export const isWithinEditTimeLimit = (observation, timeLimitHours = 24) => {
+export const isWithinEditTimeLimit = (observation, timeLimitHours = 48) => {
   if (!observation.timestamp) return false;
   
   const obsDate = observation.timestamp.toDate ? 

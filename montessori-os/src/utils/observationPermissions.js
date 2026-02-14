@@ -1,5 +1,36 @@
 import { isAdminRole } from './roleUtils';
 
+export const AUTHOR_ACTION_WINDOW_HOURS = 48;
+export const AUTHOR_ACTION_EXPIRED_MESSAGE = 'Editing permissions expired. Ask admins.';
+
+const toObservationDate = (observation) => {
+  const ts = observation?.createdAt || observation?.observedAt || observation?.timestamp;
+  if (!ts) return null;
+  if (ts.toDate) return ts.toDate();
+  if (ts.seconds) return new Date(ts.seconds * 1000);
+  const parsed = new Date(ts);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export const isObservationAuthor = (observation, currentUser) => {
+  if (!currentUser || !observation) return false;
+  return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
+};
+
+export const isWithinAuthorActionWindow = (
+  observation,
+  timeLimitHours = AUTHOR_ACTION_WINDOW_HOURS
+) => {
+  const createdAt = toObservationDate(observation);
+  if (!createdAt) return false;
+  return (Date.now() - createdAt.getTime()) <= timeLimitHours * 60 * 60 * 1000;
+};
+
+export const isAuthorActionExpired = (observation, currentUser, userRole) => {
+  if (!observation || !currentUser || isAdminRole(userRole)) return false;
+  return isObservationAuthor(observation, currentUser) && !isWithinAuthorActionWindow(observation);
+};
+
 /**
  * Check if user can delete an observation
  * @param {Object} observation - Observation object
@@ -10,17 +41,7 @@ import { isAdminRole } from './roleUtils';
 export const canDeleteObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
   if (isAdminRole(userRole)) return true;
-  const isAuthor = observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
-  if (!isAuthor) return false;
-  if (observation.type === 'media') {
-    const ts = observation.createdAt || observation.observedAt || observation.timestamp;
-    const createdAt = ts?.toDate
-      ? ts.toDate()
-      : (ts?.seconds ? new Date(ts.seconds * 1000) : (ts ? new Date(ts) : null));
-    if (!createdAt) return false;
-    return (Date.now() - createdAt.getTime()) <= 24 * 60 * 60 * 1000;
-  }
-  return true;
+  return isObservationAuthor(observation, currentUser) && isWithinAuthorActionWindow(observation);
 };
 
 /**
@@ -32,7 +53,8 @@ export const canDeleteObservation = (observation, currentUser, userRole) => {
  */
 export const canEditObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
-  return isAdminRole(userRole);
+  if (isAdminRole(userRole)) return true;
+  return isObservationAuthor(observation, currentUser) && isWithinAuthorActionWindow(observation);
 };
 
 /**
@@ -44,8 +66,8 @@ export const canEditObservation = (observation, currentUser, userRole) => {
  */
 export const canReassignObservation = (observation, currentUser, userRole) => {
   if (!currentUser || !observation) return false;
-  // Only the creator can reassign notes (both teachers and admins)
-  return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
+  if (isAdminRole(userRole)) return true;
+  return isObservationAuthor(observation, currentUser) && isWithinAuthorActionWindow(observation);
 };
 
 /**
@@ -62,7 +84,7 @@ export const canViewObservation = (observation, currentUser, userRole) => {
   if (isAdminRole(userRole)) return true;
   
   // Teachers can view observations they created
-  if (observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid) return true;
+  if (isObservationAuthor(observation, currentUser)) return true;
   
   // Teachers can view public observations (not private)
   if (!observation.isPrivate) return true;
@@ -84,7 +106,7 @@ export const canStarObservation = (observation, currentUser, userRole) => {
   if (isAdminRole(userRole)) return true;
   
   // Teachers can star observations they created
-  return observation.createdBy === currentUser.uid || observation.teacherId === currentUser.uid;
+  return isObservationAuthor(observation, currentUser);
 };
 
 /**

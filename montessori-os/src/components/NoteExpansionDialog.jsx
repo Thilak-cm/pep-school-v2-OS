@@ -49,7 +49,14 @@ import {
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
-import { canDeleteObservation, canEditObservation, canReassignObservation } from '../utils/observationPermissions';
+import {
+  AUTHOR_ACTION_EXPIRED_MESSAGE,
+  canDeleteObservation,
+  canEditObservation,
+  canReassignObservation,
+  isAuthorActionExpired,
+  isObservationAuthor,
+} from '../utils/observationPermissions';
 import { isAdminRole } from '../utils/roleUtils';
 import ClassroomStudentPicker from './ClassroomStudentPicker';
 import { 
@@ -121,6 +128,16 @@ function NoteExpansionDialog({
   const [linkSaving, setLinkSaving] = useState(false);
 
   const isLessonObservation = observation?.type === 'lesson';
+  const canEditCurrentObservation = canEditObservation(observation, currentUser, userRole);
+  const canDeleteCurrentObservation = canDeleteObservation(observation, currentUser, userRole);
+  const canReassignCurrentObservation = canReassignObservation(observation, currentUser, userRole);
+  const isCurrentObservationAuthor = isObservationAuthor(observation, currentUser);
+  const authorActionsExpired = isAuthorActionExpired(observation, currentUser, userRole);
+  const canManageAuthorActions = isAdminRole(userRole) || isCurrentObservationAuthor;
+
+  const getPermissionErrorMessage = () => (
+    authorActionsExpired ? AUTHOR_ACTION_EXPIRED_MESSAGE : 'You do not have permission to modify this note.'
+  );
 
   const renderLessonDetail = () => {
     if (!observation) return null;
@@ -338,6 +355,10 @@ function NoteExpansionDialog({
 
   const handleOpenTagDialogFromView = async () => {
     if (!observation || isLessonObservation) return;
+    if (!canEditCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
+      return;
+    }
     const studentId = observation.parentStudentId || observation.studentId;
     if (!studentId) {
       notify.info('Unable to edit tagged lesson: missing student.');
@@ -358,6 +379,10 @@ function NoteExpansionDialog({
   };
 
   const handleDeleteClick = () => {
+    if (!canDeleteCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
+      return;
+    }
     // Show delete confirmation
     if (window.confirm('Are you sure you want to delete this observation note? This action cannot be undone.')) {
       handleDeleteConfirm();
@@ -366,6 +391,10 @@ function NoteExpansionDialog({
 
   const handleDeleteConfirm = async () => {
     if (!observation) return;
+    if (!canDeleteCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
+      return;
+    }
     setDeleting(false);
     const obs = observation;
     handleCloseDialog();
@@ -395,6 +424,10 @@ function NoteExpansionDialog({
   };
 
   const handleEditClick = () => {
+    if (!canEditCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
+      return;
+    }
     if (observation) {
       setEditText(observation.text || '');
       setEditing(true);
@@ -403,8 +436,8 @@ function NoteExpansionDialog({
 
   const handleEditLessonNavigate = () => {
     if (!observation || observation.type !== 'lesson') return;
-    if (!canEditObservation(observation, currentUser, userRole)) {
-      notify.error('You can only edit lesson notes you created.');
+    if (!canEditCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
       return;
     }
     const targetStudentId = observation.parentStudentId || observation.studentId || student?.id;
@@ -503,6 +536,10 @@ function NoteExpansionDialog({
 
   const handleEditSave = async () => {
     if (!observation || observation.type === 'lesson' || !editText.trim()) return;
+    if (!canEditCurrentObservation) {
+      notify.error(getPermissionErrorMessage());
+      return;
+    }
 
     try {
       setSaving(true);
@@ -687,10 +724,11 @@ function NoteExpansionDialog({
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {isAdminRole(userRole) && !isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
+              {!isLessonObservation && canManageAuthorActions && (
                 <IconButton
                   aria-label="Edit note"
                   onClick={handleEditClick}
+                  disabled={!canEditCurrentObservation}
                   sx={{
                     color: 'text.secondary',
                     '&:hover': {
@@ -810,9 +848,6 @@ function NoteExpansionDialog({
                     </Typography>
                   )}
                 </Box>
-                {isAdminRole(userRole) && canEditObservation(observation, currentUser, userRole) && (
-                  <></>
-                )}
               </Box>
             )}
 
@@ -903,7 +938,7 @@ function NoteExpansionDialog({
             </Box>
           </Box>
         </DialogContent>
-        {(editing || canDeleteObservation(observation, currentUser, userRole) || canReassignObservation(observation, currentUser, userRole)) && (
+        {(editing || canManageAuthorActions || canReassignCurrentObservation) && (
           <DialogActions sx={{ px: 3, pb: 3, gap: 2, flexDirection: 'column', alignItems: 'stretch' }}>
             {editing ? (
               <>
@@ -928,7 +963,12 @@ function NoteExpansionDialog({
               </>
             ) : (
               <>
-                {!isLessonObservation && canEditObservation(observation, currentUser, userRole) && (
+                {authorActionsExpired && (
+                  <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic', textAlign: 'center' }}>
+                    {AUTHOR_ACTION_EXPIRED_MESSAGE}
+                  </Typography>
+                )}
+                {!isLessonObservation && canManageAuthorActions && (
                   <Button
                     onClick={handleOpenTagDialogFromView}
                     variant="outlined"
@@ -936,12 +976,12 @@ function NoteExpansionDialog({
                     startIcon={<Link />}
                     fullWidth
                     sx={{ borderRadius: 2, justifyContent: 'center' }}
-                    disabled={linkSaving}
+                    disabled={linkSaving || !canEditCurrentObservation}
                   >
                     Edit tagged lesson notes
                   </Button>
                 )}
-                {canReassignObservation(observation, currentUser, userRole) && (
+                {canReassignCurrentObservation && (
                   <Button 
                     onClick={handleReassignClick} 
                     variant="outlined" 
@@ -953,25 +993,27 @@ function NoteExpansionDialog({
                     Reassign
                   </Button>
                 )}
-                {isLessonObservation && canEditObservation(observation, currentUser, userRole) && observation.createdBy === currentUser?.uid && (
+                {isLessonObservation && canManageAuthorActions && (
                   <Button
                     onClick={handleEditLessonNavigate}
                     variant="outlined"
                     color="primary"
                     startIcon={<Edit />}
                     fullWidth
+                    disabled={!canEditCurrentObservation}
                     sx={{ borderRadius: 2, justifyContent: 'center' }}
                   >
                     Edit
                   </Button>
                 )}
-                {canDeleteObservation(observation, currentUser, userRole) && (
+                {canManageAuthorActions && (
                   <Button 
                     onClick={handleDeleteClick} 
                     variant="outlined" 
                     color="error"
                     startIcon={<Delete />}
                     fullWidth
+                    disabled={!canDeleteCurrentObservation}
                     sx={{ borderRadius: 2, justifyContent: 'center' }}
                   >
                     Delete
