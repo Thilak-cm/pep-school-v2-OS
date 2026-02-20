@@ -1847,34 +1847,6 @@ function AddNoteModal({
               }}
             >
               {/* Available note types for creation */}
-              {/* Text Note (disabled) */}
-              <Box
-                aria-label="Text note unavailable"
-                aria-disabled="true"
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 2,
-                  p: 2,
-                  width: '100%',
-                  cursor: 'not-allowed',
-                  backgroundColor: '#f8fafc',
-                  opacity: 0.7,
-                  pointerEvents: 'none'
-                }}
-              >
-                <TextFields sx={{ fontSize: 32, color: '#94a3b8' }} />
-                <Box>
-                  <Typography variant="body1" sx={{ color: '#64748b' }}>
-                    Text Note
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    No longer in use. Please use voice notes for richer and quicker observations!
-                  </Typography>
-                </Box>
-              </Box>
               {/* Voice Note */}
               <Box
                 sx={{
@@ -1966,7 +1938,6 @@ function AddNoteModal({
                     <Typography variant="body1" sx={{ color: '#1e293b' }}>
                       Media Note
                     </Typography>
-                    <NewFeaturePill label="New" />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
                     Attach photos, videos, or PDFs
