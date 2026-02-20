@@ -78,7 +78,9 @@ montessori-os/dist/
 # admin scripts
 admin/
 
-test*
+# Temporary test output/data (but keep actual test files)
+test-data/
+test-output/
 
 # Non-code files (PDFs, planning docs)
 *.pdf

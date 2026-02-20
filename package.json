@@ -2,11 +2,15 @@
   "name": "pep-os",
   "version": "1.0.0",
   "description": "Monorepo root for Montessori OS (app, functions, scripts)",
+  "type": "module",
   "scripts": {
     "deploy": "npx firebase deploy",
     "deploy:functions": "npx firebase deploy --only functions",
     "deploy:hosting": "npx firebase deploy --only hosting",
     "deploy:firestore": "npx firebase deploy --only firestore:rules,firestore:indexes",
+    "test:security": "node --test tests/security/*.test.js",
+    "test:security:firestore": "node --test tests/security/firestore.rules.test.js",
+    "test:security:storage": "node --test tests/security/storage.rules.test.js",
     "export:student-dob-audit": "node scripts/admin/export-dob-audit-csv.js"
   },
   "dependencies": {

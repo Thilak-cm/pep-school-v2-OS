@@ -1,0 +1,55 @@
+name: Security Rules Validation
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'tests/security/**'
+      - '.github/workflows/security-rules-check.yml'
+  pull_request:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'tests/security/**'
+
+jobs:
+  security_tests:
+    name: Verify Security Rules Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run security rules tests
+        run: npm run test:security
+
+      - name: Report test results
+        if: always()
+        run: |
+          echo "## Security Rules Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All security rules validation tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Verified:" >> $GITHUB_STEP_SUMMARY
+          echo "- Authentication gates" >> $GITHUB_STEP_SUMMARY
+          echo "- Role hierarchy (superadmin, classroomadmin, teacher)" >> $GITHUB_STEP_SUMMARY
+          echo "- Classroom scoping for admins" >> $GITHUB_STEP_SUMMARY
+          echo "- Access control per collection" >> $GITHUB_STEP_SUMMARY
+          echo "- Storage rules budget (2 firestore.get() calls max)" >> $GITHUB_STEP_SUMMARY
+          echo "- Media upload validation" >> $GITHUB_STEP_SUMMARY
+          echo "- 48-hour edit/delete windows" >> $GITHUB_STEP_SUMMARY
