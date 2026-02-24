@@ -41,8 +41,14 @@ import {
   isAuthorActionExpired,
   isObservationAuthor,
 } from '../utils/observationPermissions';
+import {
+  planMissingMediaUrlPaths,
+  fetchMediaUrlsWithConcurrency,
+} from '../utils/mediaUrlBatching';
 import ExportWizard from './ExportWizard';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
+
+const MEDIA_URL_FETCH_CONCURRENCY = 6;
 
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
@@ -75,6 +81,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
   const notifiedFailuresRef = useRef(new Set());
+  const mediaUrlsRef = useRef({});
+  const mediaUrlInFlightPathsRef = useRef(new Set());
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -466,6 +474,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   }, [observations]);
 
   useEffect(() => {
+    mediaUrlsRef.current = mediaUrls;
+  }, [mediaUrls]);
+
+  useEffect(() => {
     const readyMediaPaths = [];
     (mediaObservations || []).forEach((obs) => {
       if (obs.type !== 'media' || obs.status !== 'ready' || !Array.isArray(obs.media)) return;
@@ -474,28 +486,41 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         if (path) readyMediaPaths.push(path);
       });
     });
-    const missingPaths = Array.from(new Set(readyMediaPaths)).filter((path) => path && !mediaUrls[path]);
+    const missingPaths = planMissingMediaUrlPaths(readyMediaPaths, {
+      mediaUrls: mediaUrlsRef.current,
+      inFlightPaths: mediaUrlInFlightPathsRef.current,
+    });
     if (missingPaths.length === 0) return;
+    missingPaths.forEach((path) => mediaUrlInFlightPathsRef.current.add(path));
+    let cancelled = false;
     (async () => {
-      const entries = await Promise.all(missingPaths.map(async (path) => {
-        try {
-          const url = await getDownloadURL(ref(storage, path));
-          return [path, url];
-        } catch (err) {
-          return null;
+      try {
+        const updates = await fetchMediaUrlsWithConcurrency(
+          missingPaths,
+          async (path) => getDownloadURL(ref(storage, path)),
+          {
+            concurrency: MEDIA_URL_FETCH_CONCURRENCY,
+            onError: ({ path, error }) => {
+              console.warn('StudentTimeline: failed to load media URL', { path, error });
+            },
+          },
+        );
+
+        if (!cancelled && Object.keys(updates).length > 0) {
+          setMediaUrls((prev) => {
+            const next = { ...prev, ...updates };
+            mediaUrlsRef.current = next;
+            return next;
+          });
         }
-      }));
-      const updates = {};
-      entries.forEach((entry) => {
-        if (entry && entry[0] && entry[1]) {
-          updates[entry[0]] = entry[1];
-        }
-      });
-      if (Object.keys(updates).length > 0) {
-        setMediaUrls((prev) => ({ ...prev, ...updates }));
+      } finally {
+        missingPaths.forEach((path) => mediaUrlInFlightPathsRef.current.delete(path));
       }
     })();
-  }, [mediaObservations, mediaUrls]);
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaObservations]);
 
   const canManageObservationActions = (obs) =>
     isAdminRole(userRole) || isObservationAuthor(obs, currentUser);
