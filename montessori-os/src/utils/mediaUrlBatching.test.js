@@ -71,6 +71,40 @@ test('fetchMediaUrlsWithConcurrency keeps successes when some fetches fail', asy
   assert.deepEqual(failures, [['bad-1', 'boom:bad-1']]);
 });
 
+test('fetchMediaUrlsWithConcurrency can report successes before the full batch finishes', async () => {
+  const onSuccessCalls = [];
+  let finished = false;
+
+  const runPromise = fetchMediaUrlsWithConcurrency(
+    ['fast', 'slow'],
+    async (path) => {
+      if (path === 'slow') {
+        await delay(25);
+      } else {
+        await delay(5);
+      }
+      return `url:${path}`;
+    },
+    {
+      concurrency: 2,
+      onSuccess: ({ path, url }) => onSuccessCalls.push([path, url]),
+    },
+  ).then(() => {
+    finished = true;
+  });
+
+  await delay(12);
+  assert.equal(finished, false);
+  assert.deepEqual(onSuccessCalls, [['fast', 'url:fast']]);
+
+  await runPromise;
+  assert.equal(finished, true);
+  assert.deepEqual(onSuccessCalls, [
+    ['fast', 'url:fast'],
+    ['slow', 'url:slow'],
+  ]);
+});
+
 test('fetchMediaUrlsWithConcurrency handles empty input and invalid concurrency', async () => {
   const noPaths = await fetchMediaUrlsWithConcurrency([], async () => 'unused', {
     concurrency: 0,

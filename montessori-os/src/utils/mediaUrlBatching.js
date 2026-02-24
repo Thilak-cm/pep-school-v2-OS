@@ -19,7 +19,7 @@ export function planMissingMediaUrlPaths(
 export async function fetchMediaUrlsWithConcurrency(
   paths,
   fetchUrl,
-  { concurrency = 6, onError } = {},
+  { concurrency = 6, onError, onSuccess } = {},
 ) {
   const safePaths = Array.isArray(paths) ? paths.filter(Boolean) : [];
   if (safePaths.length === 0) return {};
@@ -45,6 +45,9 @@ export async function fetchMediaUrlsWithConcurrency(
         const url = await fetchUrl(path);
         if (url) {
           updates[path] = url;
+          if (typeof onSuccess === 'function') {
+            onSuccess({ path, url });
+          }
         }
       } catch (error) {
         if (typeof onError === 'function') {

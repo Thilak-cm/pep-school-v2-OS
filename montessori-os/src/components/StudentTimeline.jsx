@@ -81,6 +81,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const mediaDeleteAllowed = (obs) => canDeleteObservation(obs, currentUser, userRole);
   const notifiedFailuresRef = useRef(new Set());
+  const isMountedRef = useRef(true);
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightPathsRef = useRef(new Set());
 
@@ -474,6 +475,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   }, [observations]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     mediaUrlsRef.current = mediaUrls;
   }, [mediaUrls]);
 
@@ -492,34 +500,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     });
     if (missingPaths.length === 0) return;
     missingPaths.forEach((path) => mediaUrlInFlightPathsRef.current.add(path));
-    let cancelled = false;
     (async () => {
       try {
-        const updates = await fetchMediaUrlsWithConcurrency(
+        await fetchMediaUrlsWithConcurrency(
           missingPaths,
           async (path) => getDownloadURL(ref(storage, path)),
           {
             concurrency: MEDIA_URL_FETCH_CONCURRENCY,
+            onSuccess: ({ path, url }) => {
+              if (!isMountedRef.current) return;
+              setMediaUrls((prev) => {
+                if (prev[path] === url) return prev;
+                const next = { ...prev, [path]: url };
+                mediaUrlsRef.current = next;
+                return next;
+              });
+            },
             onError: ({ path, error }) => {
               console.warn('StudentTimeline: failed to load media URL', { path, error });
             },
           },
         );
-
-        if (!cancelled && Object.keys(updates).length > 0) {
-          setMediaUrls((prev) => {
-            const next = { ...prev, ...updates };
-            mediaUrlsRef.current = next;
-            return next;
-          });
-        }
       } finally {
         missingPaths.forEach((path) => mediaUrlInFlightPathsRef.current.delete(path));
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [mediaObservations]);
 
   const canManageObservationActions = (obs) =>
@@ -1146,6 +1151,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                       >
                                         {isFailed ? (
                                           <ErrorOutline color="error" />
+                                        ) : isPending ? (
+                                          <CircularProgress size={18} thickness={5} />
                                         ) : isVideo ? (
                                           <Movie color="primary" />
                                         ) : (
@@ -1156,7 +1163,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           color={isFailed ? 'error' : 'text.secondary'}
                                           sx={{ fontWeight: 600 }}
                                         >
-                                          {isFailed ? 'Failed' : isPending ? 'Preparing' : 'Media'}
+                                          {isFailed ? 'Failed' : isPending ? 'Loading' : 'Media'}
                                         </Typography>
                                       </Box>
                                     )}
