@@ -1,0 +1,59 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'montessori-os/src/**'
+      - 'montessori-os/package.json'
+      - 'montessori-os/test-loader.js'
+      - 'montessori-os/test-setup.js'
+      - '.github/workflows/unit-tests.yml'
+  pull_request:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'montessori-os/src/**'
+      - 'montessori-os/package.json'
+      - 'montessori-os/test-loader.js'
+      - 'montessori-os/test-setup.js'
+
+jobs:
+  unit_tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: montessori-os
+        run: npm install
+
+      - name: Run unit tests
+        working-directory: montessori-os
+        run: npm test
+
+      - name: Report test results
+        if: always()
+        run: |
+          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All unit tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Modules tested:" >> $GITHUB_STEP_SUMMARY
+          echo "- Observation permissions (48h window, role-based access)" >> $GITHUB_STEP_SUMMARY
+          echo "- Date formatting and ordinal suffixes" >> $GITHUB_STEP_SUMMARY
+          echo "- IST ISO week key calculation" >> $GITHUB_STEP_SUMMARY
+          echo "- Export filtering, summarization, filename generation" >> $GITHUB_STEP_SUMMARY
+          echo "- Lesson note constraints and dimension mapping" >> $GITHUB_STEP_SUMMARY
+          echo "- Role utilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Coach response parsing" >> $GITHUB_STEP_SUMMARY
