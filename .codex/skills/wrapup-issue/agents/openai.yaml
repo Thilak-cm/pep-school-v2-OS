@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wrap Up Issue"
+  short_description: "Audit, commit, Linear sync, merge to dev, and clean up branch"
+  default_prompt: "Run the wrapup-issue workflow: audit the diff using session context, create detailed commits via git-commit-writer, update the Linear issue to In Review, merge the feature branch into dev, push dev to origin, and clean up the branch with explicit approval gates for risky steps."
