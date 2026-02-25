@@ -20,7 +20,7 @@ import {
   TextField
 } from '@mui/material';
 import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -714,107 +714,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const handleDeleteCancel = () => {
     setDeleteConfirmOpen(false);
   };
-
-
-
-
-
-
-
-  // Reassignment handlers
-
-
-  const handleReassignCancel = () => {
-    setReassignDialogOpen(false);
-    setReassignSelectedStudents([]);
-  };
-
-  const handleReassignStudentsChange = (studentIds) => {
-    setReassignSelectedStudents(studentIds);
-  };
-
-  const handleReassignNext = () => {
-    if (reassignSelectedStudents.length === 1) {
-      const selectedStudentId = reassignSelectedStudents[0];
-      
-      // Prevent reassigning to the same student
-      if (selectedStudentId === student.id) {
-      notify.warning('Cannot reassign to the same student.', { duration: 2500, id: 'reassign-same' });
-        return;
-      }
-      
-      setReassignDialogOpen(false);
-      setReassignConfirmOpen(true);
-    }
-  };
-
-  const handleConfirmReassign = async () => {
-    if (!selectedObservation || reassignSelectedStudents.length !== 1) return;
-
-    try {
-      setReassigning(true);
-      const newStudentId = reassignSelectedStudents[0];
-      const oldParentId = selectedObservation.parentStudentId || student.id;
-      const srcRef = doc(db, 'students', oldParentId, 'observations', selectedObservation.id);
-      const srcSnap = await getDoc(srcRef);
-      if (!srcSnap.exists()) throw new Error('Source observation not found');
-
-      const srcData = srcSnap.data() || {};
-      // Fetch target student's classroomId to keep denorm consistent
-      let targetClassroomId = srcData.classroomId;
-      let targetStudentName = '';
-      try {
-        const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
-        const tData = targetStuSnap.data() || {};
-        targetClassroomId = tData?.classroomId || targetClassroomId;
-        targetStudentName = tData.name || tData.displayName || [tData.firstName, tData.lastName].filter(Boolean).join(' ');
-      } catch (_) { /* noop */ }
-
-      const destRef = doc(db, 'students', newStudentId, 'observations', selectedObservation.id);
-      const newData = {
-        ...srcData,
-        studentId: newStudentId,
-        classroomId: targetClassroomId,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: currentUser.uid,
-        lastEditedAt: serverTimestamp(),
-      };
-      await setDoc(destRef, newData);
-      await deleteDoc(srcRef);
-
-      // Close all dialogs
-      setReassignConfirmOpen(false);
-      setDetailDialogOpen(false);
-      setSelectedObservation(null);
-      setReassignSelectedStudents([]);
-      // Show success with quick jump to the new student's Notes page
-      notify.success(targetStudentName ? `Note reassigned to ${targetStudentName}` : 'Note reassigned', {
-        duration: 6000,
-        id: `reassign-${selectedObservation.id}`,
-        actionLabel: 'View Note',
-        onUndo: () => {
-          try {
-            window.dispatchEvent(new CustomEvent('navigateToStudentNotes', {
-              detail: {
-                studentId: newStudentId,
-                noteTypeFilter: selectedObservation?.type === 'lesson' ? 'lesson' : 'textVoice'
-              }
-            }));
-          } catch (_) { /* noop */ }
-        },
-      });
-    } catch (error) {
-      notify.error('Error reassigning note. Please try again.', { id: `reassign-${selectedObservation?.id || 'unknown'}` });
-    } finally {
-      setReassigning(false);
-    }
-  };
-
-  const handleCancelReassign = () => {
-    setReassignConfirmOpen(false);
-    setReassignSelectedStudents([]);
-  };
-
   const exportableObservations = useMemo(
     () => applyFilters(observations.filter((o) => o.type !== 'media'), null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
