@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 function ymdTodayIST() {
   // Use local date as string (admins are in IST). Keep simple.
@@ -74,6 +75,7 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         cls.sort((a,b) => (a.programId||'').localeCompare(b.programId||'') || (a.name||a.id).localeCompare(b.name||b.id));
         setClassrooms(cls);
       } catch (e) {
+        reportCaughtError(e, 'GraduateStudentsPage', 'swallow-only try/catch at L77');
       } finally {
         setLoading(false);
       }
@@ -96,6 +98,7 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         setStudents(rows);
         setSelectedIds([]);
       } catch (e) {
+        reportCaughtError(e, 'GraduateStudentsPage', 'swallow-only try/catch at L99');
       }
     })();
   }, [sourceClassroomId]);

@@ -48,6 +48,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import NewFeaturePill from './NewFeaturePill';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -782,14 +783,18 @@ function AddNoteModal({
     try {
       const c = voiceControlsRef.current;
       if (c && typeof c.pauseIfRecording === 'function') c.pauseIfRecording();
-    } catch (_) { /* no-op */ }
+    } catch (_) {
+      reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L786');
+    }
   };
 
   const cancelVoiceIfNeeded = () => {
     try {
       const c = voiceControlsRef.current;
       if (c && typeof c.cancelRecording === 'function') c.cancelRecording();
-    } catch (_) { /* no-op */ }
+    } catch (_) {
+      reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L793');
+    }
   };
 
   const toDate = (ts) => {
@@ -875,7 +880,9 @@ function AddNoteModal({
       try {
         const st = voiceControlsRef.current.getState();
         shouldShowVoicePaused = !!st?.isRecording;
-      } catch (_) { /* no-op */ }
+      } catch (_) {
+        reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L879');
+      }
     }
     if (shouldShowVoicePaused) {
       try {
@@ -884,7 +891,9 @@ function AddNoteModal({
         } else {
           pauseVoiceIfRecording();
         }
-      } catch (_) { /* no-op */ }
+      } catch (_) {
+        reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L888');
+      }
     }
     setConfirmOpen(true);
   };
@@ -926,7 +935,9 @@ function AddNoteModal({
 
   const revokeMediaPreview = (item) => {
     if (item?.previewUrl) {
-      try { URL.revokeObjectURL(item.previewUrl); } catch (_) { /* no-op */ }
+      try { URL.revokeObjectURL(item.previewUrl); } catch (_) {
+        reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L930');
+      }
     }
   };
 
@@ -1223,7 +1234,9 @@ function AddNoteModal({
       if (!thumbBlob) throw new Error('Unable to capture video thumbnail');
       return URL.createObjectURL(thumbBlob);
     } finally {
-      try { URL.revokeObjectURL(url); } catch (_) { /* no-op */ }
+      try { URL.revokeObjectURL(url); } catch (_) {
+        reportCaughtError(_, 'AddNoteModal', 'swallow-only try/catch at L1227');
+      }
     }
   };
 
@@ -1298,7 +1311,7 @@ function AddNoteModal({
       const { text, pageCount } = await extractPdfTextFromFile(file);
       setPdfExtractedText(text);
       setPdfPageCount(pageCount);
-      runPdfSuggestions(text, pageCount, file.name).catch(() => {});
+      runPdfSuggestions(text, pageCount, file.name).catch((error) => { reportCaughtError(error, 'AddNoteModal', 'empty promise catch at L1314'); });
     } catch (err) {
       setMediaError(err?.message || 'Could not process file');
       notify.error(err?.message || 'Could not process file');
@@ -1319,6 +1332,7 @@ function AddNoteModal({
           try {
             previewUrl = await captureVideoThumbnail(file);
           } catch (err) {
+            reportCaughtError(err, 'AddNoteModal', 'swallow-only try/catch at L1322');
           }
           nextItems.push({
             id: createMediaItemId(),

@@ -57,6 +57,7 @@ import {
   LESSON_RATING_COLORS,
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
   const dimensions = getLessonDimensions(note);
@@ -218,6 +219,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           setClassroomTeachers(teachers);
         }
       } catch (err) {
+        reportCaughtError(err, 'ClassroomTimeline', 'swallow-only try/catch at L221');
       }
     };
 
@@ -1463,6 +1465,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                 await updateDoc(remainingDoc.ref, { groupId: deleteField() });
               }
             } catch (err) {
+              reportCaughtError(err, 'ClassroomTimeline', 'swallow-only try/catch at L1466');
             }
           }
 

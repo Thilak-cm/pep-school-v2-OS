@@ -41,6 +41,7 @@ import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import PerformanceSummaryCard from './PerformanceSummaryCard';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -159,7 +160,7 @@ const setCachedData = (key, dataType, payload) => {
           }
         });
       } catch (_) {
-        // Ignore secondary failures
+        reportCaughtError(_, 'NotificationsPage', 'swallow-only try/catch at L162');
       }
       return;
     }
@@ -176,6 +177,7 @@ export const clearNotificationsCache = () => {
       }
     });
   } catch (err) {
+    reportCaughtError(err, 'NotificationsPage', 'swallow-only try/catch at L179');
   }
 };
 
@@ -1469,6 +1471,7 @@ function NotificationsPage() {
                             }
                           }));
                         } catch (err) {
+                          reportCaughtError(err, 'NotificationsPage', 'swallow-only try/catch at L1472');
                         }
                         setExpandedStudentId(null);
                       }}

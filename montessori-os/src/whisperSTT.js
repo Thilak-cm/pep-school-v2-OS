@@ -4,6 +4,7 @@
 import { trackEvent, lengthBucket } from './utils/analytics';
 import { httpsCallable } from 'firebase/functions';
 import { cloudFunctions } from './firebase';
+import { reportCaughtError } from './utils/reportCaughtError.js';
 export const WHISPER_MODEL_INFO = { model: 'whisper-1' };
 
 
@@ -51,7 +52,9 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
         detected_language: detectedLanguage || 'unknown',
         text_len: lengthBucket(text.length)
       });
-    } catch (_) {}
+    } catch (_) {
+      reportCaughtError(_, 'whisperSTT', 'swallow-only try/catch at L55');
+    }
     return out;
 
   } catch (error) {
@@ -85,7 +88,9 @@ export const translateAudioToEnglish = async (audioBlob) => {
         detected_language: detectedLanguage || rawLanguage || 'unknown',
         text_len: lengthBucket(text.length)
       });
-    } catch (_) {}
+    } catch (_) {
+      reportCaughtError(_, 'whisperSTT', 'swallow-only try/catch at L89');
+    }
 
     return { text, detectedLanguage: detectedLanguage || rawLanguage, raw: null };
   } catch (error) {

@@ -47,6 +47,7 @@ import {
 } from '../utils/mediaUrlBatching';
 import ExportWizard from './ExportWizard';
 import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
 
@@ -631,7 +632,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         }
         const parentId = obs.parentStudentId || student.id || obs.studentId;
         if (obs.media?.[0]?.storagePath) {
-          await deleteObject(ref(storage, obs.media[0].storagePath)).catch(() => {});
+          await deleteObject(ref(storage, obs.media[0].storagePath)).catch((error) => { reportCaughtError(error, 'StudentTimeline', 'empty promise catch at L635'); });
         }
         await deleteDoc(doc(db, 'students', parentId, 'media', obs.id));
         deleted += 1;

@@ -40,6 +40,7 @@ import {
 } from '@mui/icons-material';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
+import { reportCaughtError } from './utils/reportCaughtError.js';
 // MenuItem no longer needed (language selection removed)
 
 const VoiceRecorder = ({
@@ -168,7 +169,9 @@ const VoiceRecorder = ({
             } else {
               resetRecording();
             }
-          } catch (_) { /* no-op */ }
+          } catch (_) {
+            reportCaughtError(_, 'VoiceRecorder', 'swallow-only try/catch at L172');
+          }
         },
       });
     }
@@ -212,7 +215,9 @@ const VoiceRecorder = ({
       // Handle stop event
       mediaRecorderRef.current.onstop = () => {
         // Always stop all audio tracks
-        try { stream.getTracks().forEach(track => track.stop()); } catch (_) {}
+        try { stream.getTracks().forEach(track => track.stop()); } catch (_) {
+          reportCaughtError(_, 'VoiceRecorder', 'swallow-only try/catch at L216');
+        }
 
         // If discarding, skip blob creation and transcription
         if (discardRef.current) {
@@ -273,6 +278,7 @@ const VoiceRecorder = ({
         setIsPaused(true);
         stopTimer();
       } catch (e) {
+        reportCaughtError(e, 'VoiceRecorder', 'swallow-only try/catch at L276');
       }
     }
   };
@@ -285,6 +291,7 @@ const VoiceRecorder = ({
         setPauseReason(null);
         startTimer();
       } catch (e) {
+        reportCaughtError(e, 'VoiceRecorder', 'swallow-only try/catch at L288');
       }
     }
   };

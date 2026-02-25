@@ -29,6 +29,7 @@ import {
   documentId
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -1057,10 +1058,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         setClassroomDialogSelection([]);
         try {
           await fetchTeachers();
-        } catch (_) {}
+        } catch (_) {
+          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at L1061');
+        }
         try {
           await fetchAdmins();
-        } catch (_) {}
+        } catch (_) {
+          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at L1064');
+        }
       } else {
         await createAuthUserAndProfile({
           email: classroomDialogTarget.email,

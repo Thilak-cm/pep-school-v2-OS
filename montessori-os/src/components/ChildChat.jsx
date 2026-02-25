@@ -35,6 +35,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions, auth } from '../firebase';
 import CopyToClipboardButton from './CopyToClipboardButton';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 // Basic markdown formatting function
 const formatMessage = (text) => {
@@ -641,7 +642,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         }
       );
     } catch (err) {
-      // If index doesn't exist, skip real-time updates for chats
+      reportCaughtError(err, 'ChildChat', 'swallow-only try/catch at L644');
     }
 
     chatsUnsubscribeRef.current = unsubscribe;
@@ -875,7 +876,9 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
         }
-      } catch (e) {}
+      } catch (e) {
+        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L879');
+      }
       mediaRecorderRef.current = null;
     }
     
@@ -884,14 +887,18 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close();
         }
-      } catch (e) {}
+      } catch (e) {
+        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L888');
+      }
       audioContextRef.current = null;
     }
     
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach(track => track.stop());
-      } catch (e) {}
+      } catch (e) {
+        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L895');
+      }
       streamRef.current = null;
     }
     
@@ -964,7 +971,9 @@ function ChildChat({ student, startInLandingPage = false }) {
               track.stop();
             }
           });
-        } catch (e) {}
+        } catch (e) {
+          reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L968');
+        }
 
         if (!audioChunksRef.current || audioChunksRef.current.length === 0) {
           setError('Recording failed: No audio data captured. Please try again.');
@@ -1016,7 +1025,9 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (!animationFrameRef.current) {
           updateWaveform();
         }
-      } catch (audioError) {}
+      } catch (audioError) {
+        reportCaughtError(audioError, 'ChildChat', 'swallow-only try/catch at L1020');
+      }
 
       startTimer();
 
@@ -1063,7 +1074,9 @@ function ChildChat({ student, startInLandingPage = false }) {
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
-      } catch (e) {}
+      } catch (e) {
+        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L1067');
+      }
     }
   };
 
@@ -1077,7 +1090,9 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (!animationFrameRef.current) {
           updateWaveform();
         }
-      } catch (e) {}
+      } catch (e) {
+        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L1081');
+      }
     }
   };
 
@@ -1401,19 +1416,25 @@ function ChildChat({ student, startInLandingPage = false }) {
           if (mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
           }
-        } catch (_) {}
+        } catch (_) {
+          reportCaughtError(_, 'ChildChat', 'swallow-only try/catch at L1405');
+        }
       }
       if (audioContextRef.current) {
         try {
           if (audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close();
           }
-        } catch (_) {}
+        } catch (_) {
+          reportCaughtError(_, 'ChildChat', 'swallow-only try/catch at L1412');
+        }
       }
       if (streamRef.current) {
         try {
           streamRef.current.getTracks().forEach(track => track.stop());
-        } catch (_) {}
+        } catch (_) {
+          reportCaughtError(_, 'ChildChat', 'swallow-only try/catch at L1417');
+        }
       }
     };
   }, []);

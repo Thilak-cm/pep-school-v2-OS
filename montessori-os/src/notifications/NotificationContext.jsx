@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 /*
   Global Notification System
@@ -40,7 +41,9 @@ export function NotificationProvider({ children }) {
     const pending = postUpdateQueue.current;
     postUpdateQueue.current = [];
     pending.forEach((fn) => {
-      try { fn(); } catch (_) { /* noop */ }
+      try { fn(); } catch (_) {
+        reportCaughtError(_, 'NotificationContext', 'swallow-only try/catch at L44');
+      }
     });
   }, [items]);
 

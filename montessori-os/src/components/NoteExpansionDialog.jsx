@@ -65,6 +65,7 @@ import {
   LESSON_RATING_COLORS,
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 function NoteExpansionDialog({ 
   open, 
@@ -328,7 +329,7 @@ function NoteExpansionDialog({
             sdata.name ||
             [sdata.firstName, sdata.lastName].filter(Boolean).join(' ');
         } catch (_) {
-          /* noop */
+          reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L331');
         }
       }
       setTagStudentName(name || '');
@@ -451,7 +452,9 @@ function NoteExpansionDialog({
           returnScreen: isClassroomContext ? 'classroomTimeline' : 'timeline',
         }
       }));
-    } catch (_) { /* noop */ }
+    } catch (_) {
+      reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L455');
+    }
     handleCloseDialog();
   };
 
@@ -462,7 +465,9 @@ function NoteExpansionDialog({
         detail: { studentId: student.id, noteTypeFilter: 'lesson', noteId: lessonObservationId }
       }));
       onClose?.();
-    } catch (_) { /* no-op */ }
+    } catch (_) {
+      reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L466');
+    }
   };
 
   const handleSelectLessonTagFromView = async (nextIds) => {
@@ -505,6 +510,7 @@ function NoteExpansionDialog({
               linkedObservations: arrayUnion(observation.id),
             });
           } catch (err) {
+            reportCaughtError(err, 'NoteExpansionDialog', 'swallow-only try/catch at L508');
           }
         })
       );
@@ -518,6 +524,7 @@ function NoteExpansionDialog({
               linkedObservations: arrayRemove(observation.id),
             });
           } catch (err) {
+            reportCaughtError(err, 'NoteExpansionDialog', 'swallow-only try/catch at L521');
           }
         })
       );
@@ -632,7 +639,9 @@ function NoteExpansionDialog({
       try {
         const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
         targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
-      } catch (_) { /* noop */ }
+      } catch (_) {
+        reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L636');
+      }
 
       const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
       const newData = {
@@ -662,7 +671,9 @@ function NoteExpansionDialog({
                 noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice'
               }
             }));
-          } catch (_) { /* noop */ }
+          } catch (_) {
+            reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L666');
+          }
         },
       });
     } catch (error) {
@@ -687,7 +698,9 @@ function NoteExpansionDialog({
             noteTypeFilter: observation?.type === 'lesson' ? 'lesson' : 'textVoice'
           }
         }));
-      } catch (_) { /* noop */ }
+      } catch (_) {
+        reportCaughtError(_, 'NoteExpansionDialog', 'swallow-only try/catch at L691');
+      }
       handleCloseDialog();
     } else if (onNavigateToStudent && student) {
       // Fallback for environments without the global handler
