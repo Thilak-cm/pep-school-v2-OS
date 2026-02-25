@@ -407,6 +407,7 @@ const deriveMediaPayload = async (payload, item) => {
     ...(payload.batchId ? { batchId: payload.batchId } : {}),
     ...(kind === 'pdf' && payload.pdfTitle ? { pdfTitle: payload.pdfTitle } : {}),
     ...(kind === 'pdf' && payload.pdfEssence ? { essence_text: payload.pdfEssence } : {}),
+    ...(kind === 'photo' && payload.photoAnalysis ? { photoAnalysis: payload.photoAnalysis } : {}),
   };
 
   await setDoc(mediaRef, docData);

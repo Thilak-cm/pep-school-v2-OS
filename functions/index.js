@@ -236,6 +236,8 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: "gpt-4o-mini", temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: "gpt-4o-mini", temperature: 0.35, max_tokens: 220 };
+const PHOTO_VLM_MODEL = { model: "gpt-4o-mini", temperature: 0.3, max_tokens: 400 };
+const PHOTO_VLM_FALLBACK_PROMPT = "You are an educator's assistant analyzing classroom photos for Montessori teachers. The student's age is provided — frame every observation relative to what is developmentally expected at that age. Describe what you observe in 2–4 clear sentences: what activity or material is being used, whether the engagement and skill level are age-appropriate, and any notable developmental observations. End with one brief suggested action point. Keep language warm, professional, and free of jargon. No bullets, no markdown.";
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 async function runChatCompletion(messages, modelInfo) {
@@ -337,6 +339,55 @@ export const extractPdfEssence = functions
     );
 
     return { essence_text: essence.trim() };
+  });
+
+// -------------------------------------------------
+// VLM: Photo analysis for media notes
+// -------------------------------------------------
+export const analyzePhotoVLM = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const imageBase64 = String(data?.imageBase64 || "").trim();
+    if (!imageBase64) {
+      throw new functions.https.HttpsError("invalid-argument", "imageBase64 is required");
+    }
+    const contentType = String(data?.contentType || "image/webp").trim();
+    const studentAge = String(data?.studentAge || "").trim();
+
+    // Fetch prompt from Firestore, fall back to hardcoded default
+    let systemPrompt = PHOTO_VLM_FALLBACK_PROMPT;
+    try {
+      const promptDoc = await db.collection("ai_prompts").doc("photo_vlm").get();
+      if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
+        systemPrompt = promptDoc.data().systemPrompt;
+      }
+    } catch (err) {
+      console.warn("[analyzePhotoVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
+    }
+
+    const userText = studentAge
+      ? `Analyze this classroom photo. The student is ${studentAge}.`
+      : "Analyze this classroom photo.";
+
+    const description = await runChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText },
+            { type: "image_url", image_url: { url: `data:${contentType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      PHOTO_VLM_MODEL
+    );
+
+    return { description: description.trim() };
   });
 
 // -------------------------------------------------
