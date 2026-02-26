@@ -212,4 +212,12 @@ export const ACCESS_CONTROL_SPEC = [
     criticality: 'important',
     pattern: /allow\s+delete:[\s\S]*?requesterDoc\s*\(\s*\)\.data\.role\s*==\s*['\"]teacher['\"]\s*&&[\s\S]*?isAuthor[\s\S]*?withinDeleteWindow/,
   },
+
+  {
+    name: 'Storage classroomadmin delete scoped to managed classrooms',
+    description: 'classroomadmin can only delete media if manageableClassrooms contains the media classroomId',
+    file: 'storage',
+    criticality: 'critical',
+    pattern: /allow\s+delete:[\s\S]*?role\s*==\s*['\"]classroomadmin['\"]\s*&&[\s\S]*?manageableClassrooms[\s\S]*?hasAny/,
+  },
 ];

@@ -194,21 +194,39 @@ test('Storage Rules - Default deny rule exists', () => {
   );
 });
 
-test('Storage Rules - Classroom scoping deferred to Firestore (design pattern)', () => {
-  // This is a design pattern check: verify the comment exists
-  // explaining why classroom scoping is NOT done in storage rules
-  const hasComment = rulesContent.includes('managesClassroom');
+test('Storage Rules - Classroomadmin delete scoped to managed classrooms', () => {
+  // Find the media match rule
+  const mediaMatch = rulesContent.match(
+    /match\s+\/students\/\{studentId\}\/media\/\{mediaId\}\/\{fileName\}[\s\S]*?(?=match\s+\/|$)/
+  )?.[0];
+  assert.ok(mediaMatch, 'Media storage rule not found');
 
-  // If no explicit classroom scoping in storage rules, verify mediaDoc is trusted
-  if (!hasComment) {
-    assert.ok(
-      rulesContent.includes('mediaDoc') && rulesContent.includes('pending_upload'),
-      `
-      Classroom scoping pattern check:
-      Storage rules should NOT include managesClassroom (would violate budget).
-      Instead, they trust the Firestore-gated media doc status.
-      Verify this design is intentional.
-      `
-    );
-  }
+  // Delete rule should exist
+  const deleteRule = mediaMatch.match(/allow\s+delete:[\s\S]*?;/)?.[0];
+  assert.ok(deleteRule, 'Media delete rule missing');
+
+  // Classroomadmin delete MUST check manageableClassrooms against media classroomId
+  assert.ok(
+    deleteRule.includes('classroomadmin') && deleteRule.includes('manageableClassrooms'),
+    `
+    CRITICAL: Classroomadmin delete rule is NOT scoped to managed classrooms.
+    The delete rule must check requesterDoc().data.manageableClassrooms.hasAny(...)
+    against the media doc's classroomId to prevent cross-classroom deletion.
+    `
+  );
+
+  // Superadmin should still have unrestricted delete (no manageableClassrooms check)
+  assert.ok(
+    deleteRule.includes('superadmin'),
+    'Delete rule should still allow superadmin unrestricted delete'
+  );
+
+  // Classroomadmin and superadmin must be SEPARATE branches (not grouped together)
+  assert.ok(
+    !deleteRule.match(/role\s*in\s*\[\s*['"]superadmin['"]\s*,\s*['"]classroomadmin['"]\s*\]/),
+    `
+    Classroomadmin and superadmin must NOT be grouped in the same role-in check.
+    Superadmin gets unrestricted delete, classroomadmin must be scoped.
+    `
+  );
 });
