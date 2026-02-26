@@ -1,6 +1,6 @@
 ---
 name: wrapup-issue
-description: "Audit diffs, run tests, commit via git-commit-writer, push feature branch, open PR against dev, and move Linear issue to In Review. Use when coding is done and you want to ship a PR for review."
+description: "Audit diffs, run tests, commit, push feature branch, open PR against dev, and move Linear issue to In Review. Use when coding is done and you want to ship a PR for review."
 ---
 
 # Wrap Up Issue
@@ -13,7 +13,7 @@ This skill bundles the `wrapup-issue` flow after `implement-issue` in this order
 
 1. Audit the code diff using session context (review mindset)
 2. Run available tests and linting
-3. Write commit(s) using `git-commit-writer`
+3. Commit changes
 4. Push the feature branch and open a PR against `dev`
 5. Update the Linear issue and move it to `In Review`
 
@@ -21,7 +21,6 @@ This skill bundles the `wrapup-issue` flow after `implement-issue` in this order
 
 - You already finished implementation and validation for a Linear issue
 - You want a consistent wrap-up workflow (audit -> test -> commit -> PR -> Linear)
-- You want to avoid terse or low-context commit messages
 - You are working in the Pep OS repo with a feature branch targeting `dev`
 
 ## Prerequisites
@@ -35,7 +34,6 @@ This skill bundles the `wrapup-issue` flow after `implement-issue` in this order
 - Use session context to understand issue scope, expected behavior, and verification already performed
 - Review the diff with a code-review mindset before committing (find bugs/regressions, not just style)
 - Prefer committing only the changes related to the current issue
-- Use `git-commit-writer` for commit creation (do not hand-write a one-line commit)
 - Run available tests/linting and do not proceed with failing tests unless user accepts the risk
 - Push the feature branch and open a PR against `dev` (do NOT merge or touch `dev`)
 - Update Linear with truthful test/manual verification status, then move issue to `In Review`
@@ -87,19 +85,17 @@ Audit the current work before any new commit.
 - If tests fail: report failures, fix if possible, re-run
 - Do not proceed past this phase with failing tests unless user explicitly accepts the risk
 
-### Phase 3: Commit Using `git-commit-writer` (Required)
-
-Use the `git-commit-writer` skill for all commits in this phase.
+### Phase 3: Commit (Required)
 
 1. Prepare commit scope
 - Confirm the working tree only contains issue-related changes
 - If unrelated changes exist, ask whether to split/stash/leave them out
 - Stage the intended files
 
-2. Invoke `git-commit-writer`
-- Use session context + staged diff
-- Require a multi-line commit message with touched-file notes and Claude signoff
+2. Create commit(s)
+- Write a clear commit message referencing the issue ID (e.g., `feat: add voice upload retry (PEP-123)`)
 - If changes naturally split into multiple commits, create multiple commits
+- Include `Co-Authored-By: Claude` signoff
 
 3. Post-commit check
 - Show commit hashes and subjects
@@ -162,7 +158,7 @@ Ask for explicit approval at these points unless the user has already clearly re
 
 1. Diff was audited against the current task/issue context
 2. Available tests/linting passed (or user accepted the risk)
-3. Commit(s) were created via `git-commit-writer` with detailed multi-line messages
+3. Commit(s) were created with clear messages referencing the issue ID
 4. Feature branch was pushed to `origin`
 5. PR was opened against `dev` with a detailed body
 6. Linear issue was commented and moved to `In Review`
