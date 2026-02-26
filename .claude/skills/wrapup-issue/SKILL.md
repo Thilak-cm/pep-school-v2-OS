@@ -11,7 +11,7 @@ Standardize the workflow after coding is complete so Claude does not stop at "co
 
 This skill bundles the `wrapup-issue` flow after `implement-issue` in this order:
 
-1. Audit the code diff using session context (review mindset)
+1. Fetch the Linear issue and audit the diff against it (nothing more, nothing less)
 2. Run available tests and linting
 3. Commit changes
 4. Push the feature branch and open a PR against `dev`
@@ -31,8 +31,8 @@ This skill bundles the `wrapup-issue` flow after `implement-issue` in this order
 
 ## Default Behavior
 
-- Use session context to understand issue scope, expected behavior, and verification already performed
-- Review the diff with a code-review mindset before committing (find bugs/regressions, not just style)
+- Fetch the Linear issue and use it as the source of truth for what the diff should contain
+- Audit the diff against the issue: flag missing criteria (under-delivery) and unjustified changes (scope creep)
 - Prefer committing only the changes related to the current issue
 - Run available tests/linting and do not proceed with failing tests unless user accepts the risk
 - Push the feature branch and open a PR against `dev` (do NOT merge or touch `dev`)
@@ -40,35 +40,39 @@ This skill bundles the `wrapup-issue` flow after `implement-issue` in this order
 
 ## Workflow
 
-### Phase 1: Diff-Based Audit (Required)
+### Phase 1: Fetch Linear Issue + Scope Audit (Required)
 
-Audit the current work before any new commit.
+Read the Linear issue and audit the diff against it. The issue is the source of truth — the code should solve exactly what it describes, nothing more, nothing less.
 
-1. Gather audit context
-- Read the session context for:
-  - selected issue ID / title
-  - intended behavior and tradeoffs
-  - tests run / manual verification done
-  - known limitations or follow-up items
-- Inspect git state and branch:
-  - `git branch --show-current`
-  - `git status --short`
-  - `git log --oneline --decorate --max-count=10`
+1. Identify and fetch the Linear issue
+- Determine the issue ID from: session context, branch name (e.g., `PEP-123-slug`), or ask the user
+- Call `get_issue` with `includeRelations=true` to fetch full details
+- Extract: title, description, acceptance criteria, labels
 
-2. Audit the change set (diff-based)
-- Review the uncommitted diff and/or branch commits against `dev`
-- Focus on:
+2. Inspect git state
+- `git branch --show-current`
+- `git status --short`
+- `git diff` (unstaged) and/or `git diff dev...HEAD` (branch commits)
+- `git log --oneline --decorate --max-count=10`
+
+3. Audit the diff against the issue
+- Walk through each acceptance criterion from the issue and verify the diff addresses it
+- Flag any acceptance criteria NOT addressed by the diff (under-delivery)
+- Flag any changes in the diff NOT justified by the issue (scope creep)
+- Also check for:
   - correctness bugs
   - regression risk
-  - missing tests for changed behavior
   - unsafe error handling / silent failures
   - accidental debug code
-  - performance regressions
 - If issues are found, fix them before proceeding
 
-3. Audit output
-- Report findings first (severity ordered), then brief summary
-- If no findings, state that explicitly and note residual risk / test gaps
+4. Audit output
+- Report the issue-vs-diff alignment first:
+  - **Covered:** criteria addressed by the diff
+  - **Missing:** criteria not addressed (under-delivery)
+  - **Extra:** changes not justified by the issue (scope creep)
+- Then report any code quality findings (severity ordered)
+- If everything aligns cleanly, state that explicitly
 
 ### Phase 2: Run Tests (Required)
 
@@ -156,7 +160,7 @@ Ask for explicit approval at these points unless the user has already clearly re
 
 ## Success Criteria
 
-1. Diff was audited against the current task/issue context
+1. Linear issue was fetched and diff was audited against its acceptance criteria (no under-delivery, no scope creep)
 2. Available tests/linting passed (or user accepted the risk)
 3. Commit(s) were created with clear messages referencing the issue ID
 4. Feature branch was pushed to `origin`
