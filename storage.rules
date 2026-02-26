@@ -51,13 +51,14 @@ service firebase.storage {
     // Role gate for media access — only 2 firestore.get() paths
     // (requesterDoc + mediaDoc).
     //
-    // Classroom-level scoping for classroomadmins is enforced by
-    // Firestore rules when the media doc is created (the doc can
-    // only reach status 'pending_upload' if managesClassroom
-    // passed). Storage rules trust that Firestore-side gate and
-    // avoid a third cross-service lookup (studentClassroomId) that
-    // pushed classroomadmin evaluations over the Storage rules'
-    // firestore.get() budget, causing blanket 403s.
+    // Classroom-level scoping for classroomadmin reads/uploads is
+    // enforced by Firestore rules at media doc creation (the doc
+    // can only reach 'pending_upload' if managesClassroom passed).
+    //
+    // For deletes, classroomadmin scoping is enforced directly by
+    // checking requesterDoc().data.manageableClassrooms against
+    // mediaDoc().data.classroomId — no extra firestore.get() needed
+    // since both documents are already in the 2-path budget.
     function isKnownRole() {
       return requesterDoc().data.role in ['teacher', 'superadmin', 'classroomadmin'];
     }
@@ -81,7 +82,11 @@ service firebase.storage {
       allow delete: if isSignedIn() &&
         isMediaDoc(mediaDoc(studentId, mediaId)) &&
         (
-          requesterDoc().data.role in ['superadmin', 'classroomadmin'] ||
+          requesterDoc().data.role == 'superadmin' ||
+          (requesterDoc().data.role == 'classroomadmin' &&
+           requesterDoc().data.manageableClassrooms.hasAny(
+             [mediaDoc(studentId, mediaId).data.classroomId]
+           )) ||
           (requesterDoc().data.role == 'teacher' &&
            isAuthor(mediaDoc(studentId, mediaId)) &&
            withinDeleteWindow(mediaDoc(studentId, mediaId)))
