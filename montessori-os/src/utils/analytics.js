@@ -22,7 +22,7 @@ async function ensureAnalytics() {
       const supported = await isSupported();
       if (!supported) return null;
       return getAnalytics(app);
-    } catch (e) {
+    } catch (_e) {
       // Most commonly due to ad/script blockers
       return null;
     }

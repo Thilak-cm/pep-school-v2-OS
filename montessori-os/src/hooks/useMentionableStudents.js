@@ -88,7 +88,7 @@ export default function useMentionableStudents({ currentUser, userRole }) {
 
         list.sort((a, b) => a.fullName.localeCompare(b.fullName));
         if (mounted) setStudents(list);
-      } catch (err) {
+      } catch (_err) {
         if (mounted) setError('Unable to load students for mentions.');
       } finally {
         if (mounted) setLoading(false);

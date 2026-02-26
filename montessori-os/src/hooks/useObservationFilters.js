@@ -99,6 +99,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
   };
 
   // Apply filters to observations
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const filteredObservations = useMemo(() => applyFilters(observations, noteTypeFilter), [observations, filters, noteTypeFilter]);
 
   // Check if any filters are active
