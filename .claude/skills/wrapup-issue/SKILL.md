@@ -7,7 +7,7 @@ description: "Audit diffs, run tests, commit via git-commit-writer, push feature
 
 ## Goal
 
-Standardize the workflow after coding is complete so Codex does not stop at "code works locally" and does not write low-signal commits or forget Linear / test / PR steps.
+Standardize the workflow after coding is complete so Claude does not stop at "code works locally" and does not write low-signal commits or forget Linear / test / PR steps.
 
 This skill bundles the `wrapup-issue` flow after `implement-issue` in this order:
 
@@ -98,7 +98,7 @@ Use the `git-commit-writer` skill for all commits in this phase.
 
 2. Invoke `git-commit-writer`
 - Use session context + staged diff
-- Require a multi-line commit message with touched-file notes and Codex signoff
+- Require a multi-line commit message with touched-file notes and Claude signoff
 - If changes naturally split into multiple commits, create multiple commits
 
 3. Post-commit check
