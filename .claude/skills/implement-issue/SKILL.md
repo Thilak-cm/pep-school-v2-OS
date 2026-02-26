@@ -204,16 +204,17 @@ Get explicit user approval before making any code changes.
 8. If "no": Ask what needs revision, go back to Phase 3
 9. If "yes": Proceed to Phase 6 with finalized path
 
-**GUARDRAIL:** Do not modify any files until plan is approved and the implementation path is explicitly finalized with the user.
+**GUARDRAIL:** Do not modify any files until plan is approved, the implementation path is explicitly finalized with the user, and a new feature branch has been created for the issue.
 
 ## Phase 6: Implementation (TDD Approach)
 
 Execute the approved plan using Test-Driven Development.
 
 **Steps:**
-1. Create git branch (if not already on feature branch):
+1. Create a new git feature branch (mandatory) before any file edits:
    - Branch name: `{issue-id}-{slug}` (e.g., `PEP-123-fix-voice-upload`)
    - Check current branch: `git branch --show-current`
+   - Do NOT make any file edits on `dev`, `main`, or a reused branch from another task
    - Stash uncommitted changes if needed
 
 2. **Write tests FIRST** (for each acceptance criterion):
@@ -338,9 +339,15 @@ Update Linear issue with implementation progress and test results.
 - Do NOT complete if any tests are failing
 - These are hard stops—enforce strictly
 
+**GUARDRAIL: Feature Branch First**
+- ALWAYS create a new feature branch for the selected issue before making any file edits (tests or implementation)
+- Do NOT edit files on `dev`, `main`, or on a reused branch
+- If branch creation is blocked, STOP and resolve branch setup before any edits
+
 **GUARDRAIL: No Pre-Plan Changes**
 - Do NOT modify any files until plan is approved
-- This prevents rework and misalignment
+- Do NOT create/edit tests or implementation files until after plan approval AND branch creation
+- This prevents rework, misalignment, and accidental edits on the wrong branch
 
 **GUARDRAIL: No Unilateral Path Selection**
 - Do NOT silently choose among materially different implementation paths
