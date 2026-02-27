@@ -1,10 +1,13 @@
-# Claude Skill Onboarding (Linear Issue Creation)
+# Claude Skill Onboarding
 
-This repo shares a Claude skill for creating Linear issues:
+This repo shares Claude skills for Linear issue management:
 
-- Skill command: `/create-linear-issue`
-- Skill file: `.claude/skills/create-linear-issue/SKILL.md`
-- Goal: clarify -> draft -> review -> create in Linear
+- `/create-linear-issue` — Deep single-issue creation with clarification, context loading, and full templates
+  - Skill file: `.claude/skills/create-linear-issue/SKILL.md`
+  - Goal: clarify -> draft -> review -> create in Linear
+- `/draft-linear-issues` — Batch-triage meeting notes into lightweight Backlog issues
+  - Skill file: `.claude/skills/draft-linear-issues/SKILL.md`
+  - Goal: paste notes -> extract items -> walk through one-at-a-time -> create Backlog issues
 
 ## What Is Shared vs Local
 

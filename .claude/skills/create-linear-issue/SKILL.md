@@ -84,6 +84,21 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 - Labels: Bug, Feature, Improvement based on issue type
 - Priority: always ask and confirm before creation
 - Context source: always start from `pep-os-overview.md`, then matching deep dives when available
+- MoM refinement: preserve original MoM context and upgrade state from Backlog to Todo
+
+## Refining Draft-Sourced Issues
+
+When invoked to refine an existing issue (e.g., user says "refine PEP-42" or "add detail to PEP-42"):
+
+1. Fetch the issue via `get_issue`.
+2. Check the description for a `Source: Meeting Notes —` marker (created by `/draft-linear-issues`).
+3. If the marker is present:
+   - Preserve the original context snippet under a **"### MoM Reference"** subsection in the final description.
+   - Load deep-dive reports now (which `/draft-linear-issues` skipped for speed).
+   - Expand the description using the full issue template (Summary, Feature/Bug Details, Acceptance Criteria, Context, Out of Scope).
+   - After refinement is approved, move state from **Backlog to Todo**.
+   - Confirm/adjust priority with the user.
+4. If no marker is found, proceed with the standard workflow above.
 
 ## Guardrails
 
@@ -92,3 +107,4 @@ Create issues that a developer or agent can implement without follow-up clarifyi
 - If related issues exist, call them out and suggest linking.
 - Ask permission only for generating/updating deep dives, not for reading existing overview/deep-dive files.
 - While editing issues, update assignee when requested; otherwise keep existing assignee (or set to `me` if unassigned).
+- When refining a draft-sourced issue, do not discard the original MoM context snippet.

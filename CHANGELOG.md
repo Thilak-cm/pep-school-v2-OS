@@ -1,5 +1,13 @@
 # Changelog
 
+# 8.5.2 — 2026-02-27
+
+### Added
+- New `/draft-linear-issues` skill: batch-triage meeting notes into lightweight Linear Backlog issues with one-at-a-time Create/Skip/Edit walk-through.
+
+### Changed
+- `/create-linear-issue` now detects and refines draft-sourced issues (preserves meeting context, loads deep-dives, upgrades Backlog → Todo).
+
 # 8.5.1 — 2026-02-27
 
 ### Fixed
