@@ -166,3 +166,8 @@ Ask for explicit approval at these points unless the user has already clearly re
 4. Feature branch was pushed to `origin`
 5. PR was opened against `dev` with a detailed body
 6. Linear issue was commented and moved to `In Review`
+
+## Next Step
+
+> After wrapup is complete, bump the app version and update the changelog.
+> Run `/version-update` to handle this automatically.
