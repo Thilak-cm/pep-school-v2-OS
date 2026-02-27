@@ -1,5 +1,24 @@
 # Changelog
 
+# 8.5.1 — 2026-02-27
+
+### Fixed
+- Lint: eliminated all ESLint errors across the frontend (313 errors → 0).
+- Security: scoped classroomadmin media deletion to managed classrooms only (PEP-24).
+- Timeline: batched media URL requests for faster StudentTimeline loads (PEP-29).
+- Timeline: rendered media thumbnails progressively instead of blocking on all URLs (PEP-29).
+- Error handling: surfaced silent catches in observation save paths (PEP-26).
+
+### Changed
+- Refactored out dead reassignment handlers in StudentTimeline (PEP-25).
+- Split `/wrapup-issue` skill into separate wrapup and `/merge-issue` skills.
+- `/wrapup-issue` now audits the diff against the Linear issue for under-delivery and scope creep.
+- `/wrapup-issue` now nudges the user to run `/version-update` after completion.
+- CI: test workflows now run on pushes to any branch, not just `dev`.
+
+### Added
+- New `/version-update` skill: automates version bump, changelog generation, commit, and push.
+
 # 8.5.0 — 2026-02-14
 
 ### Added
