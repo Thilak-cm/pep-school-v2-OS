@@ -24,8 +24,7 @@ class VersionManager {
         
         // Check for immediate updates
         await this.checkForUpdates();
-      } catch (error) {
-      }
+      } catch { /* ignored */ }
     }
   }
 
@@ -61,8 +60,7 @@ class VersionManager {
 
       // Check for updates
       await this.serviceWorker.update();
-    } catch (error) {
-    }
+    } catch { /* ignored */ }
   }
 
   async applyUpdate() {
@@ -73,8 +71,7 @@ class VersionManager {
       if (this.serviceWorker.waiting) {
         this.serviceWorker.waiting.postMessage({ type: 'SKIP_WAITING' });
       }
-    } catch (error) {
-    }
+    } catch { /* ignored */ }
   }
 
   notifyUpdateAvailable() {

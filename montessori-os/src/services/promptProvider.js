@@ -30,7 +30,7 @@ async function fetchDoc(key) {
       contextPrompt: data.contextPrompt || '',
       version: data.version || 1,
     };
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }

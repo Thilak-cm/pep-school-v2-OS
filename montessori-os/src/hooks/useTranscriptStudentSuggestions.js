@@ -18,7 +18,7 @@ export default function useTranscriptStudentSuggestions(transcript, students) {
     });
 
     const tokens = String(transcript)
-      .split(/[\s,.;:!?()\[\]{}<>"]/)
+      .split(/[\s,.;:!?()[\]{}<>"]/)
       .map((t) => t.trim())
       .filter((t) => t.length > 1);
 

@@ -1578,8 +1578,8 @@ function AddNoteModal({
 
     enqueueSaveQueueItems(queueEntries);
 
-    notify.info('Saving media note in progress. You can start a new workflow immediately.', {
-      duration: 3000,
+    notify.success('Media saving in the background — you may continue your work', {
+      duration: 4000,
     });
 
     setSaving(false);
@@ -1669,8 +1669,8 @@ function AddNoteModal({
 
       enqueueSaveQueueItems(queueEntries);
 
-      notify.info('Saving your note... You may continue your work', {
-        duration: 3000,
+      notify.success('Note saving in the background — you may continue your work', {
+        duration: 4000,
       });
       handleClose();
     } catch (err) {

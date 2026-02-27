@@ -227,16 +227,6 @@ const deriveBaseName = (title) => {
   return trimmed || String(title).trim() || 'Observations';
 };
 
-const formatProgramLabel = (programId) => {
-  if (!programId) return null;
-  const normalized = String(programId).toLowerCase();
-  if (normalized.includes('toddler')) return 'Toddler';
-  if (normalized.includes('primary')) return 'Primary';
-  if (normalized.includes('elementary')) return 'Elementary';
-  if (normalized.includes('adolescent')) return 'Adolescent';
-  return titleCase(programId);
-};
-
 const formatLessonRatings = (observation = {}) => {
   const dims = getLessonDimensions(observation);
   if (!dims || !dims.length) return null;

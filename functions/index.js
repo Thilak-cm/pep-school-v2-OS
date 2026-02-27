@@ -498,6 +498,29 @@ export const mediaFinalize = functions
     }
   });
 
+// -------------------------------------------------
+// Firestore onDelete: clean up storage when a media doc is removed
+// -------------------------------------------------
+export const mediaCleanup = functions
+  .region("asia-south1")
+  .firestore.document("students/{studentId}/media/{mediaId}")
+  .onDelete(async (snap) => {
+    const data = snap.data() || {};
+    const storagePath =
+      Array.isArray(data.media) && data.media.length > 0
+        ? data.media[0]?.storagePath
+        : null;
+    if (!storagePath) return;
+
+    try {
+      await storage.bucket().file(storagePath).delete();
+    } catch (err) {
+      if (err?.code !== 404) {
+        console.error("[mediaCleanup] delete file error", err);
+      }
+    }
+  });
+
 // Callable: Update basic profile fields for existing users (no role change)
 export const updateUserProfileIfExists = functions
   .region("asia-south1")

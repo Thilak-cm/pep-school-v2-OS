@@ -20,9 +20,8 @@ export default function NotificationBanner({
   item,
   onFinalize,
   onUndo,
-  onClose,
 }) {
-  const { variant = 'info', message, duration = 6000, actionLabel = 'Undo', ariaLive } = item;
+  const { variant = 'info', message, duration = 6000, ariaLive } = item;
   const Icon = variantIcon[variant] || InfoIcon;
   const timerRef = useRef(null);
   const [exiting, setExiting] = useState(false);

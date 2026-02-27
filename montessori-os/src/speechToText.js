@@ -13,18 +13,6 @@ const OVERLAP_MS = 1000; // 1 second overlap to avoid cutting words
  * @param {Blob} audioBlob - The audio blob to convert
  * @returns {Promise<string>} Base64 encoded audio data
  */
-const audioBlobToBase64 = async (audioBlob) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64String = reader.result.split(',')[1]; // Remove data URL prefix
-      resolve(base64String);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(audioBlob);
-  });
-};
-
 /**
  * Convert audio blob to base64 string for Google Speech API
  * @param {Blob} audioBlob - The audio blob to convert
@@ -157,7 +145,7 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
         }
       };
       
-      fileReader.onerror = (error) => {
+      fileReader.onerror = () => {
         reject(new Error('Failed to read audio file'));
       };
       
@@ -175,35 +163,6 @@ export const chunkAudioBlob = async (audioBlob, durationMs = CHUNK_DURATION_MS, 
  * @param {string} mimeType - The MIME type for the output blob
  * @returns {Promise<Blob>} The audio blob
  */
-const audioBufferToBlob = async (audioBuffer, mimeType) => {
-  return new Promise((resolve) => {
-    // Create an offline audio context to render the buffer
-    const offlineContext = new OfflineAudioContext(
-      audioBuffer.numberOfChannels,
-      audioBuffer.length,
-      audioBuffer.sampleRate
-    );
-    
-    // Create a buffer source
-    const source = offlineContext.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(offlineContext.destination);
-    source.start();
-    
-    // Render the audio
-    offlineContext.startRendering().then((renderedBuffer) => {
-      // Convert the rendered buffer to a blob
-      const length = renderedBuffer.length;
-      const sampleRate = renderedBuffer.sampleRate;
-      const channels = renderedBuffer.numberOfChannels;
-      
-      // Create a WAV file (this is more reliable than trying to recreate the original format)
-      const wavBlob = audioBufferToWavBlob(renderedBuffer);
-      resolve(wavBlob);
-    });
-  });
-};
-
 /**
  * Convert AudioBuffer to WAV format Blob
  * @param {AudioBuffer} audioBuffer - The audio buffer to convert
@@ -265,7 +224,6 @@ const audioBufferToWavBlob = (audioBuffer) => {
  * @returns {Promise<Object>} Transcribed text with metadata
  */
 export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-US', maxChunkDuration = CHUNK_DURATION_MS, onProgress = null) => {
-  try {
     // Check if we need to chunk the audio
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const arrayBuffer = await audioBlob.arrayBuffer();
@@ -349,7 +307,7 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
       
     } catch (chunkingError) {
       if (onProgress) onProgress(0, 1, 'Chunking failed, using single transcription...');
-      
+
       // Fallback to single transcription
       try {
         const fallbackResult = await transcribeAudio(audioBlob, languageCode);
@@ -364,10 +322,6 @@ export const transcribeAudioWithChunking = async (audioBlob, languageCode = 'en-
         throw new Error(`Both chunked and single transcription failed. Original error: ${chunkingError.message}. Fallback error: ${fallbackError.message}`);
       }
     }
-    
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -381,86 +335,81 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     throw new Error('Google Speech-to-Text API key not configured. Please set VITE_GOOGLE_SPEECH_TO_TEXT_API_KEY in your .env file.');
   }
 
-  try {
-    // Convert audio blob to base64
-    const audioContent = await audioBlobToBase64ForGoogle(audioBlob);
-    
-    // Determine encoding based on blob type
-    let encoding = 'WEBM_OPUS';
-    if (audioBlob.type === 'audio/wav') {
-      encoding = 'LINEAR16';
-    } else if (audioBlob.type.includes('webm')) {
-      encoding = 'WEBM_OPUS';
-    } else if (audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')) {
-      encoding = 'MP3';
+  // Convert audio blob to base64
+  const audioContent = await audioBlobToBase64ForGoogle(audioBlob);
+
+  // Determine encoding based on blob type
+  let encoding = 'WEBM_OPUS';
+  if (audioBlob.type === 'audio/wav') {
+    encoding = 'LINEAR16';
+  } else if (audioBlob.type.includes('webm')) {
+    encoding = 'WEBM_OPUS';
+  } else if (audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')) {
+    encoding = 'MP3';
+  }
+
+  // Prepare request payload
+  const requestBody = {
+    config: {
+      encoding: encoding,
+      languageCode: languageCode,
+      enableAutomaticPunctuation: true,
+      enableWordTimeOffsets: false,
+      enableWordConfidence: false,
+      model: 'latest_long', // Better for longer audio
+      useEnhanced: true, // Enhanced models for better accuracy
+      sampleRateHertz: 48000, // Standard sample rate for WAV
+    },
+    audio: {
+      content: audioContent
     }
-    
-    // Prepare request payload
-    const requestBody = {
-      config: {
-        encoding: encoding,
-        languageCode: languageCode,
-        enableAutomaticPunctuation: true,
-        enableWordTimeOffsets: false,
-        enableWordConfidence: false,
-        model: 'latest_long', // Better for longer audio
-        useEnhanced: true, // Enhanced models for better accuracy
-        sampleRateHertz: 48000, // Standard sample rate for WAV
-      },
-      audio: {
-        content: audioContent
-      }
+  };
+
+  // Make API request
+  const response = await fetch(`${SPEECH_TO_TEXT_ENDPOINT}?key=${SPEECH_TO_TEXT_API_KEY}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Speech-to-Text API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const result = await response.json();
+
+  // Extract transcribed text and metadata
+  if (result.results && result.results.length > 0) {
+    const transcript = result.results
+      .map(result => result.alternatives?.[0]?.transcript)
+      .filter(Boolean)
+      .join(' ');
+
+    // Get confidence scores
+    const confidenceScores = result.results
+      .map(result => result.alternatives?.[0]?.confidence)
+      .filter(score => score !== undefined);
+
+    const avgConfidence = confidenceScores.length > 0
+      ? confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length
+      : null;
+
+    return {
+      text: transcript.trim(),
+      confidence: avgConfidence,
+      alternatives: result.results.map(r => r.alternatives?.[0]).filter(Boolean),
+      languageCode: languageCode
     };
-
-    // Make API request
-    const response = await fetch(`${SPEECH_TO_TEXT_ENDPOINT}?key=${SPEECH_TO_TEXT_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Speech-to-Text API error: ${errorData.error?.message || response.statusText}`);
-    }
-
-    const result = await response.json();
-
-    // Extract transcribed text and metadata
-    if (result.results && result.results.length > 0) {
-      const transcript = result.results
-        .map(result => result.alternatives?.[0]?.transcript)
-        .filter(Boolean)
-        .join(' ');
-      
-      // Get confidence scores
-      const confidenceScores = result.results
-        .map(result => result.alternatives?.[0]?.confidence)
-        .filter(score => score !== undefined);
-      
-      const avgConfidence = confidenceScores.length > 0 
-        ? confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length 
-        : null;
-
-      return {
-        text: transcript.trim(),
-        confidence: avgConfidence,
-        alternatives: result.results.map(r => r.alternatives?.[0]).filter(Boolean),
-        languageCode: languageCode
-      };
-    } else {
-      return {
-        text: '', // No speech detected
-        confidence: null,
-        alternatives: [],
-        languageCode: languageCode
-      };
-    }
-
-  } catch (error) {
-    throw error;
+  } else {
+    return {
+      text: '', // No speech detected
+      confidence: null,
+      alternatives: [],
+      languageCode: languageCode
+    };
   }
 };
 
