@@ -142,6 +142,7 @@ export function NotificationProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useNotificationContext() {
   const ctx = useContext(NotificationContext);
   if (!ctx) throw new Error('useNotificationContext must be used within NotificationProvider');

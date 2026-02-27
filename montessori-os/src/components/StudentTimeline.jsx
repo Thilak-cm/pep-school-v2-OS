@@ -46,8 +46,7 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import ExportWizard from './ExportWizard';
-import { ref, getDownloadURL, deleteObject } from 'firebase/storage';
-import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { ref, getDownloadURL } from 'firebase/storage';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
 
@@ -631,9 +630,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           continue;
         }
         const parentId = obs.parentStudentId || student.id || obs.studentId;
-        if (obs.media?.[0]?.storagePath) {
-          await deleteObject(ref(storage, obs.media[0].storagePath)).catch((error) => { reportCaughtError(error, 'StudentTimeline', 'empty promise catch at L635'); });
-        }
         await deleteDoc(doc(db, 'students', parentId, 'media', obs.id));
         deleted += 1;
       }
@@ -680,15 +676,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           const targetCollection = obs.type === 'media' ? 'media' : 'observations';
           const docRef = doc(db, 'students', parentId, targetCollection, obs.id);
 
-          if (obs.type === 'media' && obs.media?.[0]?.storagePath) {
-            const storageDeleteResult = await deleteObject(ref(storage, obs.media[0].storagePath))
-              .then(() => ({ ok: true }))
-              .catch((err) => ({ ok: false, err }));
-
-            if (!storageDeleteResult.ok && storageDeleteResult.err?.code !== 'storage/object-not-found') {
-              throw storageDeleteResult.err;
-            }
-          }
+          // Storage file cleanup is handled server-side by the mediaCleanup
+          // Cloud Function trigger — no client-side deleteObject needed.
 
           const deleteResult = await deleteDoc(docRef)
             .then(() => ({ ok: true }))

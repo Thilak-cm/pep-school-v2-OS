@@ -33,8 +33,6 @@ export const validateAudioForTranscription = (audioBlob) => {
  * @returns {Promise<Object>} Transcribed text with metadata
  */
 export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
-
-  try {
     // Validate audio file
     if (!validateAudioForTranscription(audioBlob)) {
       throw new Error('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
@@ -56,10 +54,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
       reportCaughtError(_, 'whisperSTT', 'swallow-only try/catch at L55');
     }
     return out;
-
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -70,8 +64,6 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
  * @returns {Promise<{ text: string, detectedLanguage?: string, raw?: any }>}
  */
 export const translateAudioToEnglish = async (audioBlob) => {
-
-  try {
     if (!validateAudioForTranscription(audioBlob)) {
       throw new Error('Audio file is not suitable for transcription. File size must be under ~9.5MB.');
     }
@@ -93,9 +85,6 @@ export const translateAudioToEnglish = async (audioBlob) => {
     }
 
     return { text, detectedLanguage: detectedLanguage || rawLanguage, raw: null };
-  } catch (error) {
-    throw error;
-  }
 };
 
 function normalizeLanguage(value) {

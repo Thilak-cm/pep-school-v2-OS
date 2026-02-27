@@ -815,8 +815,8 @@ function LessonNoteWizard({
         });
 
         enqueueSaveQueueItems(queueEntries);
-        notify.info('Saving lesson note in progress. You can start a new workflow immediately.', {
-          duration: 3000,
+        notify.success('Lesson note saving in the background — you may continue your work', {
+          duration: 4000,
         });
         setIsDirty(false);
         onSaved?.();

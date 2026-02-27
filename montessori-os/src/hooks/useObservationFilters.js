@@ -110,7 +110,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       (filters.creators && filters.creators.length > 0) ||
       (filters.types && filters.types.length > 0)
     );
-  }, [filters, noteTypeFilter]);
+  }, [filters]);
 
   // Filter handlers
   const handleFilterChange = (filterType, value) => {
