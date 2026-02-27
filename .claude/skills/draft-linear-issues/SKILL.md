@@ -8,7 +8,7 @@ user_invocable: true
 
 ## Goal
 
-Batch-triage meeting notes into lightweight Backlog issues. Extract action items, decisions, bugs, and follow-ups, then walk through each one for quick Create/Skip/Edit before writing to Linear. Any issue can later be promoted via `/create-linear-issue`.
+Batch-triage meeting notes into lightweight Backlog issues. Extract action items, decisions, bugs, and follow-ups, then walk through each one for quick Create/Skip/Edit before writing to Linear. Any issue can later be refined via `/refine-linear-issue`.
 
 ## Principles
 
@@ -20,7 +20,7 @@ Batch-triage meeting notes into lightweight Backlog issues. Extract action items
 
 ## Context Loading
 
-Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference. Do **not** load deep-dives — that is `/create-linear-issue`'s job during refinement.
+Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference. Do **not** load deep-dives — that is `/refine-linear-issue`'s job during refinement.
 
 ## Workflow
 
@@ -74,9 +74,9 @@ Found {N} items from "{meeting_title}" ({meeting_date}):
 Ask the user: "Remove any items by number, or proceed to walk-through?"
 
 Handle edge cases:
-- **No items found:** Offer to retry with different parsing, or suggest `/create-linear-issue` for a single issue.
+- **No items found:** Offer to retry with different parsing, or suggest creating a single issue manually in Linear.
 - **15+ items:** Offer to show top 10 by priority or group by area first.
-- **Non-meeting text detected** (no actionable signals found): Flag it and suggest the user paste actual meeting notes or use `/create-linear-issue` instead.
+- **Non-meeting text detected** (no actionable signals found): Flag it and suggest the user paste actual meeting notes.
 
 ### Phase 5 — One-at-a-Time Walk
 
@@ -139,7 +139,7 @@ Skipped:
   - Revisit coach prompt wording
   - ...
 
-Tip: Run /create-linear-issue on any of these to add full detail.
+Tip: Run /refine-linear-issue on any of these to add full detail.
 ```
 
 ## Guardrails
@@ -149,5 +149,5 @@ Tip: Run /create-linear-issue on any of these to add full detail.
 - Always use Backlog state — never Todo (these are unrefined).
 - Do not load deep-dive references — speed is the priority.
 - Max 30 items per session. If more are extracted, warn and truncate.
-- Preserve the `Source: Meeting Notes — ...` marker in every description for downstream detection by `/create-linear-issue`.
-- When refining an existing draft-sourced issue, direct the user to `/create-linear-issue` instead.
+- Preserve the `Source: Meeting Notes — ...` marker in every description for downstream detection by `/refine-linear-issue`.
+- When refining an existing draft-sourced issue, direct the user to `/refine-linear-issue` instead.

@@ -2,18 +2,19 @@
 
 This repo shares Claude skills for Linear issue management:
 
-- `/create-linear-issue` — Deep single-issue creation with clarification, context loading, and full templates
-  - Skill file: `.claude/skills/create-linear-issue/SKILL.md`
-  - Goal: clarify -> draft -> review -> create in Linear
 - `/draft-linear-issues` — Batch-triage meeting notes into lightweight Backlog issues
   - Skill file: `.claude/skills/draft-linear-issues/SKILL.md`
   - Goal: paste notes -> extract items -> walk through one-at-a-time -> create Backlog issues
+- `/refine-linear-issue` — Refine an existing issue with full context, clarifying questions, and polished descriptions
+  - Skill file: `.claude/skills/refine-linear-issue/SKILL.md`
+  - Goal: fetch issue -> load context -> clarify -> draft refined description -> review -> update in Linear
 
 ## What Is Shared vs Local
 
 Shared in git:
 
-- `.claude/skills/create-linear-issue/SKILL.md`
+- `.claude/skills/refine-linear-issue/SKILL.md`
+- `.claude/skills/draft-linear-issues/SKILL.md`
 - `.claude/settings.json` (non-sensitive project defaults)
 - `.claude/README.md` (this guide)
 
@@ -37,28 +38,29 @@ Shared template:
    - Workspace access is active.
    - Team access includes `Pep school v2 os`.
 6. Run a smoke test prompt in Claude:
-   - `Use /create-linear-issue to create a feature request draft for adding a parent monthly summary page.`
+   - `Use /draft-linear-issues to triage meeting notes into Backlog issues.`
 7. Verify behavior:
-   - Claude asks clarifying questions first.
-   - Claude shows a draft before creating anything.
-   - Claude asks for explicit approval before issue creation.
+   - Claude extracts action items from the notes.
+   - Claude walks through each item one-at-a-time.
+   - Claude asks for explicit approval before creating each issue.
 
-## Meeting Demo Flow
+## Refinement Demo Flow
 
-1. Start with a real request from the founder.
-2. Trigger `/create-linear-issue`.
+1. Create some Backlog issues via `/draft-linear-issues`.
+2. Pick one to refine: `/refine-linear-issue PEP-42`.
 3. Answer clarifying questions.
-4. Review the generated draft together.
-5. Approve creation and confirm:
+4. Review the refined draft together.
+5. Approve the update and confirm:
    - title is concise
    - priority is correct
    - team is `Pep school v2 os`
    - labels/state are correct
-6. Open the created Linear issue link and confirm quality.
+   - state moved from Backlog to Todo
+6. Open the updated Linear issue link and confirm quality.
 
 ## Expected Output Quality
 
-Each issue should include:
+Each refined issue should include:
 
 - Summary (what and why)
 - Feature details or bug details (whichever applies)
@@ -70,11 +72,14 @@ If acceptance criteria grows too large (more than 3 major checks), split into mu
 
 ## Troubleshooting
 
-- `/create-linear-issue` not available:
+- `/refine-linear-issue` not available:
   - Re-open Claude in the repo root.
-  - Check that `.claude/skills/create-linear-issue/SKILL.md` exists.
-- Claude cannot create Linear issues:
+  - Check that `.claude/skills/refine-linear-issue/SKILL.md` exists.
+- `/draft-linear-issues` not available:
+  - Re-open Claude in the repo root.
+  - Check that `.claude/skills/draft-linear-issues/SKILL.md` exists.
+- Claude cannot create/update Linear issues:
   - Reconnect Linear integration.
   - Confirm team membership and issue creation permissions.
 - Wrong team or status in draft:
-  - Correct it before approval; creation should happen only after explicit confirmation.
+  - Correct it before approval; updates should happen only after explicit confirmation.
