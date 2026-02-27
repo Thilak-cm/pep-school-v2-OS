@@ -1,5 +1,14 @@
 # Changelog
 
+# 8.5.3 — 2026-02-27
+
+### Added
+- New `/refine-linear-issue` skill: refine existing Linear issues with full context loading, clarifying questions, and polished descriptions.
+
+### Changed
+- Replaced `/create-linear-issue` with `/refine-linear-issue` (creation handled by `/draft-linear-issues`, refinement is now a dedicated skill).
+- Updated `/draft-linear-issues` references to point to `/refine-linear-issue`.
+
 # 8.5.2 — 2026-02-27
 
 ### Added
