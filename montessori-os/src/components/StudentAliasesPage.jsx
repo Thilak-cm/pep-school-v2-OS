@@ -132,7 +132,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
         }));
         aliasList.sort((a, b) => a.name.localeCompare(b.name));
         setAliases(aliasList);
-      } catch (error) {
+      } catch {
         notify.error('Unable to load student groups.');
       } finally {
         setLoading(false);
@@ -250,7 +250,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
       setSelectedClassroomId('');
       setFormOpen(false);
       notify.success('Student group saved.');
-    } catch (error) {
+    } catch {
       notify.error('Unable to save student group.');
     } finally {
       setSaving(false);
@@ -268,7 +268,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
       setAliases((prev) => prev.filter((alias) => alias.id !== deleteTarget.id));
       setDeleteTarget(null);
       notify.success('Student group deleted.');
-    } catch (error) {
+    } catch {
       notify.error('Unable to delete student group.');
     } finally {
       setSaving(false);

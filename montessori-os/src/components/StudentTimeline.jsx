@@ -59,7 +59,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   // Note: All note expansion functionality is now handled by NoteExpansionDialog component
   
   // Classroom teachers for creator filter
@@ -227,7 +226,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const mediaObservations = useMemo(() => {
     const filtered = applyFilters(mediaDocs, 'media') || [];
     return filtered.filter((obs) => obs.type === 'media');
-  }, [mediaDocs, filters, applyFilters]);
+  }, [mediaDocs, applyFilters]);
 
   const timelineItems = useMemo(() => {
     const items = [];
@@ -292,7 +291,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
       return db - da;
     });
-  }, [visibleObservations]);
+  }, [visibleObservations, buildMediaItemsForObservation]);
 
   const selectedMediaList = useMemo(
     () => mediaObservations.filter((obs) => selectedMediaIds.has(obs.id)),
@@ -472,7 +471,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         });
       }
     });
-  }, [observations]);
+  }, [observations, mediaDeleteAllowed, notify]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -590,7 +589,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       });
       setMediaEditMode(false);
       notify.success('Media comment updated.', { duration: 2500 });
-    } catch (error) {
+    } catch (_error) {
       notify.error('Error updating media comment. Please try again.', { duration: 3500 });
     } finally {
       setMediaEditSaving(false);
@@ -639,7 +638,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       if (skipped > 0) {
         notify.warning(`Skipped ${skipped} item${skipped > 1 ? 's' : ''} due to permissions.`, { duration: 3000 });
       }
-    } catch (error) {
+    } catch {
       notify.error('Error deleting media items. Please try again.', { duration: 3500 });
     } finally {
       setBulkDeleting(false);
@@ -688,7 +687,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           }
 
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
-        } catch (error) {
+        } catch {
           notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -756,7 +755,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           duration: 4000
         });
       }
-    } catch (error) {
+    } catch {
       notify.error('Export failed. Please try again.', {
         id: `export-${student?.id || 'unknown'}-exception`,
         duration: 4000
@@ -1730,23 +1729,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button 
-            onClick={handleDeleteCancel} 
-            variant="outlined" 
+          <Button
+            onClick={handleDeleteCancel}
+            variant="outlined"
             sx={{ flex: 1 }}
-            disabled={deleting}
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            variant="contained" 
+          <Button
+            onClick={handleDeleteConfirm}
+            variant="contained"
             color="error"
             sx={{ flex: 1 }}
-            disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
+            startIcon={<Delete />}
           >
-            {deleting ? 'Deleting...' : 'Delete'}
+            Delete
           </Button>
         </DialogActions>
       </Dialog>

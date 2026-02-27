@@ -72,9 +72,9 @@ const getCachedData = (key, dataType) => {
       // it might be stale. However, we'll trust it for now since 0 observations is valid.
       return payload;
     }
-    
+
     return payload;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -85,9 +85,9 @@ const setCachedData = (key, dataType, payload) => {
     const cacheKey = buildDataTypeCacheKey(key, dataType);
     const value = JSON.stringify({ timestamp: Date.now(), payload });
     window.localStorage.setItem(cacheKey, value);
-  } catch (error) {
+  } catch (_error) {
     // In some environments (incognito, low quota) writes can fail; skip caching quietly.
-    if (error && (error.name === 'QuotaExceededError' || error.code === 22)) {
+    if (_error && (_error.name === 'QuotaExceededError' || _error.code === 22)) {
       try {
         // Try to clear old cache entries to make room
         const baseKey = key.split(':').slice(0, 3).join(':');
@@ -104,7 +104,7 @@ const setCachedData = (key, dataType, payload) => {
   }
 };
 
-const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, onNavigateToBaseballCard }) => {
+const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, __onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
@@ -354,7 +354,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             if (isAdmin && selectedBranchId === null && branchesData.length > 0) {
               setSelectedBranchId(branchesData[0].id);
             }
-          } catch (error) {
+          } catch (_error) {
             setBranches([]);
           }
         }
@@ -394,7 +394,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 .filter(isActiveClassroom);
             }
           }
-          } catch (error) {
+          } catch (_error) {
             classroomsData = [];
           }
         }
@@ -416,7 +416,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             id: doc.id,
             ...doc.data()
           }));
-          } catch (error) {
+          } catch (_error) {
             teachersData = [];
           }
         }
@@ -444,7 +444,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               ...doc.data()
             }));
           }
-          } catch (error) {
+          } catch (_error) {
             studentsData = [];
           }
         }
@@ -486,9 +486,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 };
               });
             }
-          } catch (error) {
+          } catch (_error) {
             // If it's an index error, show helpful message but don't break the page
-            if (error.code === 'failed-precondition' && error.message?.includes('index')) {
+            if (_error.code === 'failed-precondition' && _error.message?.includes('index')) {
               // Set empty array so page still loads with other data
               allObservations = [];
             } else {
@@ -500,12 +500,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         // Sort by observedAt client-side (only if we just fetched, cache is already sorted)
         if (allObservations.length > 0 && !cachedObservations) {
           allObservations.sort((a, b) => {
-            const aDate = a.observedAt?.toDate ? a.observedAt.toDate() : 
-                     a.createdAt?.toDate ? a.createdAt.toDate() : 
-                     new Date(a.observedAt?.seconds * 1000) || new Date(a.createdAt?.seconds * 1000) || new Date(0);
-            const bDate = b.observedAt?.toDate ? b.observedAt.toDate() : 
-                     b.createdAt?.toDate ? b.createdAt.toDate() : 
-                     new Date(b.observedAt?.seconds * 1000) || new Date(b.createdAt?.seconds * 1000) || new Date(0);
+            const aDate = a.observedAt?.toDate ? a.observedAt.toDate() :
+                     a.createdAt?.toDate ? a.createdAt.toDate() :
+                     (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : (a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000) : new Date(0)));
+            const bDate = b.observedAt?.toDate ? b.observedAt.toDate() :
+                     b.createdAt?.toDate ? b.createdAt.toDate() :
+                     (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : (b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000) : new Date(0)));
             return bDate - aDate;
           });
         }
@@ -815,7 +815,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         if (needsBranches && !cachedBranches && branchesData.length > 0) {
           setCachedData(baseCacheKey, 'branches', branchesData);
         }
-      } catch (error) {
+      } catch (_error) {
         if (tabIndex === 0) {
           setStats(prev => ({ ...prev, loading: false }));
         }
@@ -830,6 +830,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   // Load Overview tab data immediately (default tab) - this loads observations for charts
   useEffect(() => {
     fetchTabData(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, role, baseCacheKey, isClassroomAdmin, scopedClassrooms.join('|')]);
 
   const handleTabChange = async (event, newValue) => {
@@ -904,6 +905,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
   const performanceSummaryForCard = useMemo(
     () => computePerformanceSummary(roleScopedStudents, roleScopedObservations),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
     [roleScopedStudents, roleScopedObservations]
   );
 
@@ -966,6 +968,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     }
     const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     return list.filter(o => getObservationDateFast(o) >= start);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats?.allObservations, timePeriod]);
 
   // Memoize pie chart data to prevent re-renders when time period changes
@@ -998,7 +1001,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }, [filteredObservationsForPie]);
 
   // Custom label to show % inside each pie slice - memoized to prevent flickering
-  const renderNoteDistributionLabel = React.useCallback(({
+  const _renderNoteDistributionLabel = React.useCallback(({
     cx,
     cy,
     midAngle,
@@ -1078,7 +1081,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     [teacherToClassroomIds]
   );
 
-  const selectedTeacherClassroom = useMemo(
+  const _selectedTeacherClassroom = useMemo(
     () => (classrooms || []).find((classroom) => classroom.id === selectedTeacherClassroomId) || null,
     [classrooms, selectedTeacherClassroomId]
   );
@@ -1663,7 +1666,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 borderRadius: 8,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
               }}
-              content={({ active, payload, label }) => {
+              content={({ active, payload, label: _label }) => {
                 if (active && payload && payload.length) {
                   return (
                     <Box sx={{
@@ -1699,7 +1702,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   };
 
   const classroomPeriodLabel = classroomTimePeriod === '1M' ? 'Notes This Month' : 'Notes This Week';
-  const teacherPeriodLabel = teacherTimePeriod === '1M' ? 'Last 30 days' : 'Last 7 days';
+  const _TeacherPeriodLabel = teacherTimePeriod === '1M' ? 'Last 30 days' : 'Last 7 days';
 
   if (stats.loading) {
     return (

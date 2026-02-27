@@ -57,7 +57,7 @@ const confettiFallSmall = keyframes`
 
 const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
 
-function ConfettiAnimation({ count = 50, small = false }) {
+function ConfettiAnimation({ count = 50 }) {
   const particles = React.useMemo(
     () =>
       Array.from({ length: count }, (_, i) => {
@@ -137,7 +137,7 @@ const getCachedData = (key, dataType) => {
       return null;
     }
     return parsed.payload;
-  } catch (err) {
+  } catch {
     return null;
   }
 };
@@ -168,6 +168,7 @@ const setCachedData = (key, dataType, payload) => {
 };
 
 // Clear all notifications cache (for logout/login invalidation)
+// eslint-disable-next-line react-refresh/only-export-components
 export const clearNotificationsCache = () => {
   if (typeof window === 'undefined' || !window?.localStorage) return;
   try {
@@ -176,8 +177,8 @@ export const clearNotificationsCache = () => {
         window.localStorage.removeItem(k);
       }
     });
-  } catch (err) {
-    reportCaughtError(err, 'NotificationsPage', 'swallow-only try/catch at L179');
+  } catch (_err) {
+    reportCaughtError(_err, 'NotificationsPage', 'swallow-only try/catch at L179');
   }
 };
 
@@ -244,7 +245,7 @@ function NotificationsPage() {
         } else {
           setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
         }
-      } catch (err) {
+      } catch {
         setBaseballCardConfig({ ...BASEBALL_CARD_DEFAULTS });
       }
     };
@@ -296,7 +297,7 @@ function NotificationsPage() {
 
         setAccessibleClassrooms(teacherClassrooms);
         setAccessLoaded(true);
-      } catch (err) {
+      } catch {
         if (active) {
           setCurrentRole(null);
           setAccessibleClassrooms([]);
@@ -321,7 +322,7 @@ function NotificationsPage() {
           ...prev,
           [expandedStudentId]: data.dateOfBirth || data.dob || null
         }));
-      } catch (err) {
+      } catch {
         if (!active) return;
         setStudentDobMap(prev => ({
           ...prev,
@@ -383,7 +384,7 @@ function NotificationsPage() {
             prev && options.some((option) => option.id === prev) ? prev : ''
           ));
         }
-      } catch (err) {
+      } catch {
         if (active) {
           setPerformanceClassroomOptions([]);
           setSelectedPerformanceClassroomId('');
@@ -591,7 +592,7 @@ function NotificationsPage() {
             const s = sSnap.data() || {};
             const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
             return [sid, { name: label, classroomId: s.classroomId || '' }];
-          } catch (e) {
+          } catch {
             return [sid, { name: sid, classroomId: '' }];
           }
         }));
@@ -624,7 +625,7 @@ function NotificationsPage() {
 
         setSignals(filteredSignals);
         setStudentInfo(filteredStudentInfo);
-      } catch (err) {
+      } catch {
         setError('Failed to load notifications.');
       } finally {
         if (active) setLoading(false);
@@ -666,7 +667,7 @@ function NotificationsPage() {
         ...prev,
         [studentId]: signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null
       }));
-    } catch (err) {
+    } catch {
       setBaseballCardError(prev => ({ ...prev, [studentId]: 'Failed to load the baseball card.' }));
     } finally {
       setBaseballCardLoading(prev => ({ ...prev, [studentId]: false }));
@@ -772,7 +773,7 @@ function NotificationsPage() {
               return obsDate && obsDate > generatedAtDate;
             }).length;
             setNotesSinceGenerated(count);
-          } catch (fallbackError) {
+          } catch {
             if (active) setNotesSinceGenerated(null);
           }
         } else if (active) {

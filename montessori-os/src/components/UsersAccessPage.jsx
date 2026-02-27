@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, TextField, Button, Grid, Alert, CircularProgress, Chip, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, Tabs, Tab, Card, CardContent, CardActionArea, Avatar,
@@ -99,7 +99,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   // Shared state
   const [classrooms, setClassrooms] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [branchesLoading, setBranchesLoading] = useState(true);
+  const [_branchesLoading, setBranchesLoading] = useState(true);
   const [teachers, setTeachers] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -121,7 +121,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [_success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [userLoading, setUserLoading] = useState(true);
   const [classroomDialogOpen, setClassroomDialogOpen] = useState(false);
@@ -144,6 +144,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     if (externalView && externalView !== view) {
       setView(externalView);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalView]);
 
   // Admin gate + classrooms
@@ -190,6 +191,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       if (manageTab === 'superadmins' && canManageAdmins && superAdmins.length === 0) fetchSuperAdmins();
       if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, superAdmins.length, students.length]);
 
   // ============================================================================
@@ -224,7 +226,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         teacherIds: c.teacherIds || [],
         branchId: c.branchId || null
       })));
-    } catch (e) {
+    } catch (_e) {
       setError('Failed to fetch classrooms');
     } finally {
       setLoading(false);
@@ -252,7 +254,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         return (a.name || a.id).localeCompare(b.name || b.id);
       });
       setBranches(branchesList);
-    } catch (e) {
+    } catch (_e) {
       setError('Failed to fetch branches');
     } finally {
       setBranchesLoading(false);
@@ -266,7 +268,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
       list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
       return list;
-    } catch (e) {
+    } catch (_e) {
       setError(`Failed to fetch ${roleName}s`);
       return [];
     }
@@ -297,7 +299,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         return String(an).localeCompare(String(bn));
       });
       setStudents(list);
-    } catch (e) {
+    } catch (_e) {
       setError('Failed to fetch students');
     }
   };
@@ -317,7 +319,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     return mapping;
   }, [classrooms]);
 
-  const getTeacherClassroomIds = (teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set());
+  const getTeacherClassroomIds = useCallback((teacherId) => Array.from(teacherToClassroomIds.get(teacherId) || new Set()), [teacherToClassroomIds]);
 
   // Group classrooms by branch for easier visual digestion
   const classroomsByBranch = useMemo(() => {
@@ -333,7 +335,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     });
     
     // Sort classrooms within each branch
-    grouped.forEach((classrooms, branchId) => {
+    grouped.forEach((classrooms, _branchId) => {
       classrooms.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
     });
     
@@ -380,7 +382,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         const dobDate = new Date(studentForm.dob);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const maxDate = new Date(today);
         const minDate = new Date(today);
         minDate.setFullYear(today.getFullYear() - 120);
         
@@ -424,7 +425,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [infoOpen, setInfoOpen] = useState(false);
   const [infoTitle, setInfoTitle] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
-  const openInfo = (title, message = 'Property edit functionality coming soon!') => {
+  const _openInfo = (title, message = 'Property edit functionality coming soon!') => {
     setInfoTitle(title);
     setInfoMessage(message);
     setInfoOpen(true);
@@ -758,13 +759,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             removed.forEach(cid => reverse.update(doc(db, 'classrooms', cid), { teacherIds: arrayUnion(teacherId) }));
             await reverse.commit();
             setClassrooms(updateClassroomsState(removed, added, teacherId));
-          } catch (err) {
+          } catch (_err) {
             notify.error('Failed to undo access changes');
           }
         }
       });
       setManageOpen(false);
-    } catch (e) {
+    } catch (_e) {
       notify.error('Failed to update access');
     } finally {
       setManageSaving(false);
@@ -938,7 +939,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             if (role === 'teacher') await fetchTeachers();
             if (role === 'teacher') await fetchClassrooms();
             if (role === 'classroomadmin') await fetchAdmins();
-          } catch {}
+          } catch { /* ignored */ }
         }
       );
     } else if (data.ok) {
@@ -953,7 +954,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         if (role === 'teacher') await fetchTeachers();
         if (role === 'teacher') await fetchClassrooms();
         if (role === 'classroomadmin') await fetchAdmins();
-      } catch {}
+      } catch { /* ignored */ }
     } else {
       throw new Error('Failed to create user');
     }

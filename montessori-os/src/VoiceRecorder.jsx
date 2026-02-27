@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
-import { transcribeAudio, translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
-import { db } from './firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
 import { cleanUpText } from './textCleanup';
 import {
   Box,
@@ -58,7 +56,7 @@ const VoiceRecorder = ({
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [_isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [transcriptionData, setTranscriptionData] = useState(null);
@@ -71,8 +69,8 @@ const VoiceRecorder = ({
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
-  const [originalTranscription, setOriginalTranscription] = useState('');
-  
+  const [_originalTranscription, setOriginalTranscription] = useState('');
+
   // Polish with AI state
   const [cleaning, setCleaning] = useState(false);
   const [cleanedOnce, setCleanedOnce] = useState(false);
@@ -83,7 +81,6 @@ const VoiceRecorder = ({
   // Language selection removed to reduce clicks
 
   const mediaRecorderRef = useRef(null);
-  const audioRef = useRef(null);
   const timerRef = useRef(null);
   const audioChunksRef = useRef([]);
   const discardRef = useRef(false); // when true, discard audio on stop
@@ -296,21 +293,6 @@ const VoiceRecorder = ({
     }
   };
 
-  const playAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsPlaying(false);
-    }
-  };
-
   const resetRecording = () => {
     autoAdvanceRef.current = false;
     setAudioBlob(null);
@@ -415,7 +397,7 @@ const VoiceRecorder = ({
       } else {
         setCleanedOnce(false);
       }
-    } catch (e) {
+    } catch (_e) {
       setCleanedOnce(false);
       notify.error('Failed to polish text. Please try again.');
     } finally {

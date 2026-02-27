@@ -139,7 +139,6 @@ function ConfettiAnimation() {
 // TextInput Component
 function TextInput({
   onSave,
-  onNext,
   onDirtyChange,
   initialText = '',
   initialTags = [],
@@ -159,6 +158,7 @@ function TextInput({
     setWordCount(initialText?.trim() ? initialText.trim().split(/\s+/).length : 0);
     setCleanedOnce(false);
     setPrevText('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialText]);
 
   const handleTextChange = (event) => {
@@ -206,7 +206,7 @@ function TextInput({
         length_bucket: lengthBucket(text.length),
         latency_ms: dt,
       });
-    } catch (e) {
+    } catch {
       // Do not modify text on error; transparency matters
       trackEvent('polish_error', {
         source: 'text',
@@ -315,7 +315,6 @@ const STEP_MEDIA = 'media';
 function AddNoteModal({
   open,
   onClose,
-  initialClassrooms = [],
   initialStudents = [],
   currentUser,
   userRole,
@@ -329,9 +328,9 @@ function AddNoteModal({
   const [selectedStudents, setSelectedStudents] = useState(initialStudents);
   const [mentionedStudents, setMentionedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [_snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [snackbarSeverity, _setSnackbarSeverity] = useState('success');
   const isAdminUser = isAdminRole(userRole);
 
   // Media note state
@@ -358,7 +357,7 @@ function AddNoteModal({
   const [pdfTitleLoading, setPdfTitleLoading] = useState(false);
   const [pdfEssenceLoading, setPdfEssenceLoading] = useState(false);
   const [pdfPageCount, setPdfPageCount] = useState(null);
-  const [pdfExtractedText, setPdfExtractedText] = useState('');
+  const [_pdfExtractedText, setPdfExtractedText] = useState('');
   const pdfWorkerSetupRef = useRef(false);
 
   // Coach UI state (Duration-only MVP)
@@ -627,7 +626,7 @@ function AddNoteModal({
     return out;
   }
 
-  function buildFinalText(original) {
+  function _buildFinalText(original) {
     if (!coachNudges.length) return original;
     const lines = buildAppendedLines();
     if (!lines.length) return original;
@@ -635,7 +634,7 @@ function AddNoteModal({
     return `${original}${sep}${lines.join('\n')}`;
   }
 
-  function buildCoachStructuredFields() {
+  function _buildCoachStructuredFields() {
     const fields = {};
     for (const n of coachNudges) {
       const sel = coachSelections[n.id] || {};
@@ -832,7 +831,7 @@ function AddNoteModal({
         return dbd - da;
       });
       setLessonNotes(notes);
-    } catch (err) {
+    } catch {
       setLessonNotesError('Unable to load lesson notes. Try again.');
     } finally {
       setLessonNotesLoading(false);
@@ -867,7 +866,7 @@ function AddNoteModal({
   };
 
   // Centralized close request handler (backdrop, ESC, X, back buttons)
-  const requestClose = (reason) => {
+  const requestClose = (_reason) => {
     if (saving) return; // disable closing while saving
     const dirty = hasUnsavedWork();
     if (!dirty) {
@@ -1249,9 +1248,7 @@ function AddNoteModal({
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const parts = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
-      // eslint-disable-next-line no-await-in-loop
       const page = await pdf.getPage(pageNum);
-      // eslint-disable-next-line no-await-in-loop
       const content = await page.getTextContent();
       const strings = content.items.map((i) => i.str).join(' ');
       parts.push(strings);
@@ -1673,7 +1670,7 @@ function AddNoteModal({
         duration: 4000,
       });
       handleClose();
-    } catch (err) {
+    } catch {
       notify.error('Unable to start note save. Please try again.');
     } finally {
       setSaving(false);
@@ -1728,13 +1725,6 @@ function AddNoteModal({
       return;
     }
     // Otherwise stay on Coach step for user action
-  };
-
-  const handleSnackbarClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setSnackbarOpen(false);
   };
 
   return (

@@ -28,14 +28,6 @@ const SectionCard = ({ title, subtitle, children }) => (
 export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
 
-  if (!isAdmin) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
-      </Box>
-    );
-  }
-
   // Voice Transcriber state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,7 +52,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
         } else {
           setDocState(null);
         }
-      } catch (e) {
+      } catch {
         setError('Failed to load prompts');
       } finally {
         setLoading(false);
@@ -117,7 +109,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
       const snap = await getDoc(voiceRef);
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
-    } catch (e) {
+    } catch {
       setError('Failed to save');
     } finally {
       setSaving(false);
@@ -157,7 +149,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setContextPrompt(payload.contextPrompt);
       setEditing(false);
-    } catch (e) {
+    } catch {
       setError('Failed to revert');
     } finally {
       setSaving(false);

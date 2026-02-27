@@ -22,8 +22,8 @@ import {
   ToggleButtonGroup,
   Backdrop
 } from '@mui/material';
-import { 
-  collection, doc, getDocs, getDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, increment
+import {
+  collection, doc, getDocs, getDoc, query, where, limit, writeBatch, serverTimestamp, increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -49,7 +49,7 @@ function addOneDay(dateStr) {
   return `${yy}-${mm}-${dd}`;
 }
 
-export default function GraduateStudentsPage({ currentUser, userRole }) {
+export default function GraduateStudentsPage({ _currentUser, _userRole }) {
   const notify = useNotify();
   const [loading, setLoading] = useState(true);
   const [classrooms, setClassrooms] = useState([]);
@@ -140,7 +140,9 @@ export default function GraduateStudentsPage({ currentUser, userRole }) {
         const destRef = doc(db, 'classrooms', destClassroomId);
         const destSnap = await getDoc(destRef);
         if (destSnap.exists()) destBranchId = destSnap.data()?.branchId || null;
-      } catch {}
+      } catch {
+        /* ignored */
+      }
 
       const batch = writeBatch(db);
       const failures = [];

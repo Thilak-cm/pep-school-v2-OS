@@ -71,7 +71,7 @@ function ClassroomStudentPicker({
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
-  const [originalText, setOriginalText] = useState('');
+  const [_originalText, setOriginalText] = useState('');
   const [voiceEditing, setVoiceEditing] = useState(false);
   const [editableVoiceText, setEditableVoiceText] = useState('');
   const [originalVoiceText, setOriginalVoiceText] = useState('');
@@ -220,11 +220,9 @@ function ClassroomStudentPicker({
             }));
             aliasList.sort((a, b) => a.name.localeCompare(b.name));
             setAliases(aliasList);
-          } catch (err) {
-          }
+          } catch { /* ignored */ }
         }
-      } catch (err) {
-      } finally {
+      } catch { /* ignored */ } finally {
         setLoading(false);
       }
     };
@@ -448,8 +446,7 @@ function ClassroomStudentPicker({
         // No change if cleanup failed
         setCleanedOnce(false);
       }
-    } catch (e) {
-    } finally {
+    } catch { /* ignored */ } finally {
       setCleaning(false);
     }
   };
@@ -514,7 +511,7 @@ function ClassroomStudentPicker({
       } else {
         setVoiceCleanedOnce(false);
       }
-    } catch (e) {
+    } catch {
       setVoiceCleanedOnce(false);
     } finally {
       setVoiceCleaning(false);

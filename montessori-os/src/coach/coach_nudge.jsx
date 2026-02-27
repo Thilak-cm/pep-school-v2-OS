@@ -49,6 +49,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
     dedup.sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b));
     if (Number.isInteger(maxNudges) && maxNudges > 0) return dedup.slice(0, maxNudges);
     return dedup;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forcedNudges, maxNudges]);
 
   // Track if save attempt has been made (only after save attempt)

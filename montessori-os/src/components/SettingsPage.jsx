@@ -26,7 +26,7 @@ import {
 import VersionBadge from './VersionBadge';
 import { isSuperAdmin } from '../utils/roleUtils';
 
-function SettingsPage({ currentUser, userRole, onNavigate, onSignOut }) {
+function SettingsPage({ _currentUser, userRole, onNavigate, onSignOut }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const isSuperAdminUser = isSuperAdmin(userRole);
 

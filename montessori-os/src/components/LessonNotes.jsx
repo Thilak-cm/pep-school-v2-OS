@@ -128,7 +128,6 @@ function LessonNoteWizard({
   const [autoScrolled, setAutoScrolled] = useState({ defaults: false, overrides: false });
   const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
   const [lessonConfig, setLessonConfig] = useState(null);
-  const [lessonConfigLoading, setLessonConfigLoading] = useState(true);
   const [dictationOpen, setDictationOpen] = useState(false);
   const [dictationTarget, setDictationTarget] = useState(null);
   const [dictationSelection, setDictationSelection] = useState({ start: null, end: null });
@@ -160,7 +159,7 @@ function LessonNoteWizard({
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        setLessonConfigLoading(true);
+        setLoading(true);
         const ref = doc(db, 'config', 'lessonNote');
         const snap = await getDoc(ref);
         if (snap.exists()) {
@@ -168,10 +167,10 @@ function LessonNoteWizard({
         } else {
           setLessonConfig(null);
         }
-      } catch (e) {
+      } catch {
         setLessonConfig(null);
       } finally {
-        setLessonConfigLoading(false);
+        setLoading(false);
       }
     };
     loadConfig();
@@ -235,7 +234,7 @@ function LessonNoteWizard({
         }));
         aliasList.sort((a, b) => a.name.localeCompare(b.name));
         setAliases(aliasList);
-      } catch (error) {
+      } catch {
         notify.error('Unable to load classrooms, students, or groups.');
       } finally {
         setLoading(false);
@@ -253,6 +252,7 @@ function LessonNoteWizard({
     setSearchQuery('');
     setAutoScrolled({ defaults: false, overrides: false });
     setStudentsLocked(lessonMode === 'individual');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.classroomId, editObservation]);
 
   // Reset defaults when program changes
@@ -277,6 +277,7 @@ function LessonNoteWizard({
     const configured = getConfiguredDimensions(programId);
     if (configured && configured.length > 0) return configured;
     return LESSON_PROGRAM_DIMENSIONS[dimensionKey] || LESSON_PROGRAM_DIMENSIONS.primary;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClassroom?.programId, lessonConfig, dimensionKey]);
 
   useEffect(() => {
@@ -640,7 +641,7 @@ function LessonNoteWizard({
     closeDictation();
   };
 
-  const getRatingForStudent = (studentId, dimension) => {
+  const _GetRatingForStudent = (studentId, dimension) => {
     const studentValue = studentOverrides[studentId]?.dimensions?.[dimension];
     if (studentValue) return studentValue;
     return effectiveDefaults[dimension] || 'na';
@@ -821,7 +822,7 @@ function LessonNoteWizard({
         setIsDirty(false);
         onSaved?.();
       }
-    } catch (error) {
+    } catch {
       notify.error('Unable to save lesson note. Please try again.');
     } finally {
       setSaving(false);

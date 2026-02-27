@@ -36,11 +36,10 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
   });
 
   const [prompt, setPrompt] = useState({
-    title: 'Coach Pepper’s summary',
+    title: "Coach Pepper's summary",
     description: 'Last six weeks baseball card summary',
     systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
   });
-  const [editingConfig, setEditingConfig] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -97,7 +96,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
           systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
         });
       }
-    } catch (e) {
+    } catch {
       notify.error('Failed to load baseball card settings.');
     } finally {
       setLoading(false);
@@ -117,7 +116,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
         return nameA.localeCompare(nameB);
       });
       setStudents(list);
-    } catch (err) {
+    } catch {
       notify.error('Failed to load students for playground.');
     } finally {
       setStudentsLoading(false);
@@ -158,22 +157,22 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
           updatedAt: new Date(),
         }, { merge: true }),
         setDoc(doc(db, 'ai_prompts', 'baseball_card'), {
-          title: prompt.title || 'Coach Pepper’s summary',
+          title: prompt.title || "Coach Pepper's summary",
           description: prompt.description || '',
-          systemPrompt: prompt.systemPrompt || DEFAULT_PROMPT,
+          systemPrompt: prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK,
           updatedBy: currentUser?.uid || null,
           updatedAt: new Date(),
         }, { merge: true })
       ]);
       notify.success('Baseball card settings saved.');
-    } catch (e) {
+    } catch {
       notify.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleResetDefaults = () => {
+  const _HandleResetDefaults = () => {
     setConfig({ ...BASEBALL_CARD_DEFAULTS });
     setPrompt((prev) => ({
       ...prev,

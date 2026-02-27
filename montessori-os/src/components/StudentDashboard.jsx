@@ -123,7 +123,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
   const [currentRole, setCurrentRole] = useState(null);
   const [signalsLoading, setSignalsLoading] = useState(true);
-  const [signalsError, setSignalsError] = useState('');
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
@@ -199,7 +198,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         const snap = await getDoc(doc(db, 'users', uid));
         if (!active) return;
         setCurrentRole(snap.exists() ? (snap.data()?.role || null) : null);
-      } catch (err) {
+      } catch {
+        /* ignored */
       }
     };
     loadRole();
@@ -218,7 +218,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         if (!active) return;
         const data = snap.exists() ? (snap.data() || {}) : {};
         setStudentDob(data.dateOfBirth || data.dob || null);
-      } catch (err) {
+      } catch {
         if (!active) return;
         setStudentDob(null);
       }
@@ -247,7 +247,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         } else {
           setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
         }
-      } catch (err) {
+      } catch {
         setCardConfig({ ...BASEBALL_CARD_DEFAULTS });
       }
     };
@@ -263,7 +263,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       setCardError('');
       setCardLoading(false);
       setSignalsData(null);
-      setSignalsError('');
       setSignalsLoading(false);
       return () => { active = false; };
     }
@@ -271,7 +270,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     setCardLoading(true);
     setCardError('');
     setSignalsLoading(true);
-    setSignalsError('');
 
     const fetchCard = async () => {
       try {
@@ -281,9 +279,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         if (!active) return;
         setCardData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
         setSignalsData(signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null);
-      } catch (err) {
+      } catch {
         if (active) setCardError('Failed to load the baseball card.');
-        if (active) setSignalsError('Failed to load student signals.');
       } finally {
         if (active) setCardLoading(false);
         if (active) setSignalsLoading(false);
@@ -341,7 +338,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
               return obsDate && obsDate >= sevenDaysAgo;
             }).length;
             setNotesLast7Days(count);
-          } catch (fallbackError) {
+          } catch {
             setNotesLast7Days(null);
           }
         } else {
@@ -405,7 +402,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
               return obsDate && obsDate > generatedAtDate;
             }).length;
             setNotesSinceGenerated(count);
-          } catch (fallbackError) {
+          } catch {
             if (active) setNotesSinceGenerated(null);
           }
         } else if (active) {
@@ -610,7 +607,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     // Ensure fade updates if viewport changes (e.g., device rotation)
     window.addEventListener('resize', updateScrollFade);
     return () => window.removeEventListener('resize', updateScrollFade);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardLoading, cardError, cardData, isSuperAdmin]);
 
   useEffect(() => {
@@ -810,8 +806,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                 </Typography>
                 {coverageGaps.length > 0 ? (
                   <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                    {coverageGaps.map((gap, idx) => (
-                      <Chip key={`missing-domain-${idx}`} label={gap} size="small" variant="outlined" />
+                    {coverageGaps.map((gap) => (
+                      <Chip key={gap} label={gap} size="small" variant="outlined" />
                     ))}
                   </Stack>
                 ) : (

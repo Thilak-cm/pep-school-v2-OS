@@ -10,44 +10,45 @@ function clamp01(x) {
 function isString(x) { return typeof x === 'string'; }
 function isObject(x) { return x && typeof x === 'object' && !Array.isArray(x); }
 
-function sanitizeMetadataById(id, metadata) {
-  const out = {};
-  if (!isObject(metadata)) return out;
-  switch (id) {
-    case NUDGE_IDS.DURATION: {
-      const v = metadata.duration_range;
-      if (CHIPS[NUDGE_IDS.DURATION].includes(v)) out.duration_range = v;
-      break;
-    }
-    case NUDGE_IDS.MODALITY: {
-      const v = metadata.modality;
-      if (CHIPS[NUDGE_IDS.MODALITY].includes(v)) out.modality = v;
-      break;
-    }
-    case NUDGE_IDS.INDEPENDENCE: {
-      const v = metadata.independence;
-      if (CHIPS[NUDGE_IDS.INDEPENDENCE].includes(v)) out.independence = v;
-      break;
-    }
-    case NUDGE_IDS.EVIDENCE: {
-      if (Number.isInteger(metadata.evidence_attempts) && metadata.evidence_attempts >= 0) {
-        out.evidence_attempts = metadata.evidence_attempts;
-      }
-      if (Number.isInteger(metadata.evidence_correct) && metadata.evidence_correct >= 0) {
-        out.evidence_correct = metadata.evidence_correct;
-      }
-      if (isString(metadata.evidence_quote)) {
-        out.evidence_quote = metadata.evidence_quote;
-      }
-      break;
-    }
-    case NUDGE_IDS.SUBJECTIVE: {
-      if (isString(metadata.objective_line)) out.objective_line = metadata.objective_line;
-      break;
-    }
-  }
-  return out;
-}
+// Unused - reserved for future metadata sanitization needs
+// function sanitizeMetadataById(id, metadata) {
+//   const out = {};
+//   if (!isObject(metadata)) return out;
+//   switch (id) {
+//     case NUDGE_IDS.DURATION: {
+//       const v = metadata.duration_range;
+//       if (CHIPS[NUDGE_IDS.DURATION].includes(v)) out.duration_range = v;
+//       break;
+//     }
+//     case NUDGE_IDS.MODALITY: {
+//       const v = metadata.modality;
+//       if (CHIPS[NUDGE_IDS.MODALITY].includes(v)) out.modality = v;
+//       break;
+//     }
+//     case NUDGE_IDS.INDEPENDENCE: {
+//       const v = metadata.independence;
+//       if (CHIPS[NUDGE_IDS.INDEPENDENCE].includes(v)) out.independence = v;
+//       break;
+//     }
+//     case NUDGE_IDS.EVIDENCE: {
+//       if (Number.isInteger(metadata.evidence_attempts) && metadata.evidence_attempts >= 0) {
+//         out.evidence_attempts = metadata.evidence_attempts;
+//       }
+//       if (Number.isInteger(metadata.evidence_correct) && metadata.evidence_correct >= 0) {
+//         out.evidence_correct = metadata.evidence_correct;
+//       }
+//       if (isString(metadata.evidence_quote)) {
+//         out.evidence_quote = metadata.evidence_quote;
+//       }
+//       break;
+//     }
+//     case NUDGE_IDS.SUBJECTIVE: {
+//       if (isString(metadata.objective_line)) out.objective_line = metadata.objective_line;
+//       break;
+//     }
+//   }
+//   return out;
+// }
 
 function sanitizeNudge(n) {
   if (!isObject(n)) return null;

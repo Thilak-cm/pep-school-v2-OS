@@ -20,7 +20,7 @@ function delay(ms, signal) {
   });
 }
 
-export async function reviewNote(noteText, context = {}, opts = {}) {
+export async function reviewNote(noteText, _context = {}, opts = {}) {
   const { signal } = opts;
   // Simulate latency 200–900ms
   await delay(200 + Math.floor(Math.random() * 700), signal);
