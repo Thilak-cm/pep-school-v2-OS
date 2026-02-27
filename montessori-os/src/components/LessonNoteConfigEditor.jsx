@@ -52,7 +52,7 @@ const TAB_SX = {
   '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' }
 };
 
-const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
+const LessonNoteConfigEditor = ({ userRole }) => {
   const notify = useNotify();
   const isAdmin = isSuperAdmin(userRole);
 
@@ -147,7 +147,7 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
           setOriginalTitles({ ...titlesByProgram });
           setOriginalDimensions(nextDims);
         }
-      } catch (e) {
+      } catch {
         setError('Failed to load lesson note configuration.');
       } finally {
         setLoading(false);
@@ -196,11 +196,6 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
     });
   };
 
-  const removeTitleAt = (index) => {
-    const programId = activeProgram;
-    updateTitles(programId, (list) => list.filter((_, idx) => idx !== index));
-  };
-
   const addDimension = () => {
     const programId = activeProgram;
     updateDimensions(programId, (list) => [...list, '']);
@@ -228,14 +223,6 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
     });
   };
 
-  const removeDimensionAt = (index) => {
-    const programId = activeProgram;
-    updateDimensions(programId, (list) => {
-      if (list.length <= 1) return list;
-      return list.filter((_, idx) => idx !== index);
-    });
-  };
-
   const hasUnsavedChanges = useMemo(() => {
     if (!originalTitles || !originalDimensions) return false;
     const serialize = (obj) => JSON.stringify(obj);
@@ -253,7 +240,8 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
     const q = titleSearch.trim().toLowerCase();
     if (!q) return currentTitles;
     return currentTitles.filter((t) => String(t).toLowerCase().includes(q));
-  }, [currentTitles, titleSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titlesByProgram, activeProgram, titleSearch]);
 
   const openDeleteDialog = (type, index, label, programId) => {
     setDeleteDialog({
@@ -276,7 +264,7 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
   };
 
   const handleConfirmDelete = () => {
-    const { type, index, programId, label } = deleteDialog;
+    const { type, index, programId, label: _label } = deleteDialog;
     if (index == null || !programId || !type) {
       handleCloseDeleteDialog();
       return;
@@ -338,8 +326,8 @@ const LessonNoteConfigEditor = ({ currentUser, userRole }) => {
       setOriginalTitles({ ...titlesByProgram });
       setOriginalDimensions({ ...dimensionsByProgram });
       notify.success('Lesson note configuration saved');
-    } catch (e) {
-      setError(e?.message || 'Failed to save lesson note configuration.');
+    } catch (_e) {
+      setError(_e?.message || 'Failed to save lesson note configuration.');
     } finally {
       setSaving(false);
     }

@@ -30,7 +30,7 @@ import {
   Chat,
   History
 } from '@mui/icons-material';
-import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isAdminRole } from '../utils/roleUtils';
 
@@ -82,7 +82,7 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefi
       
       setUserFeedback(sortedList);
       setLoading(false);
-    }, (error) => {
+    }, () => {
       setLoading(false);
     });
 
@@ -123,7 +123,7 @@ function FeedbackPage({ currentUser, userRole, onNavigateToAdminDashboard, prefi
       
       // Show success message
       setShowSuccess(true);
-    } catch (error) {
+    } catch {
       setError('Failed to submit feedback. Please try again.');
     } finally {
       setSubmitting(false);

@@ -105,11 +105,12 @@ function FeedbackTimeline({ currentUser, userRole }) {
       }));
       setAllFeedback(feedbackList);
       setLoading(false);
-    }, (error) => {
+    }, () => {
       setLoading(false);
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Use fuzzy search for better feedback matching
@@ -173,10 +174,10 @@ function FeedbackTimeline({ currentUser, userRole }) {
       };
 
       await updateDoc(doc(db, 'feedback', selectedFeedback.id), updateData);
-      
+
       setEditing(false);
       setSaving(false);
-    } catch (error) {
+    } catch {
       alert('Error saving changes. Please try again.');
     }
   };

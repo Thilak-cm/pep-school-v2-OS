@@ -1,5 +1,5 @@
 // ClassroomTimeline.jsx
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -132,24 +132,18 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
 };
 
 
-function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
   const [classroomStudents, setClassroomStudents] = useState([]);
-  const [studentCount, setStudentCount] = useState(0);
   const [classroomTeachers, setClassroomTeachers] = useState([]);
-  const [showMoreNotes, setShowMoreNotes] = useState(false);
   const [displayedNotesCount, setDisplayedNotesCount] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const [notesReloadToken, setNotesReloadToken] = useState(0);
-
-  const refreshNotes = useCallback(() => {
-    setNotesReloadToken((prev) => prev + 1);
-  }, []);
+  const [notesReloadToken] = useState(0);
 
   useEffect(() => {
     if (showSearch && searchInputRef.current) {
@@ -157,12 +151,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [showSearch]);
-  
-  // Note expansion states
-  const [selectedNote, setSelectedNote] = useState(null);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [selectedGroupedNote, setSelectedGroupedNote] = useState(null);
-  const [groupedNoteDialogOpen, setGroupedNoteDialogOpen] = useState(false);
+
   const isClassroomAdmin = userRole === 'classroomadmin';
   const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms : []) : [];
   const scopedClassroomsKey = scopedClassrooms.join('|');
@@ -174,7 +163,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       setClassroomNotes([]);
       setClassroomStudents([]);
       setClassroomTeachers([]);
-      setStudentCount(0);
       setLoading(false);
       return;
     }
@@ -196,9 +184,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           ...doc.data()
         }));
         setClassroomStudents(students);
-        setStudentCount(students.length);
         return students;
-      } catch (err) {
+      } catch {
         return [];
       }
     };
@@ -218,8 +205,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           const teachers = (await Promise.all(teacherPromises)).filter(Boolean);
           setClassroomTeachers(teachers);
         }
-      } catch (err) {
-        reportCaughtError(err, 'ClassroomTimeline', 'swallow-only try/catch at L221');
+      } catch (_err) {
+        reportCaughtError(_err, 'ClassroomTimeline', 'swallow-only try/catch at L221');
       }
     };
 
@@ -316,11 +303,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           });
 
           setClassroomNotes(updatedNotes);
-        }, (err) => {
+        }, () => {
+          /* ignored */
         });
 
         return unsubscribe;
-      } catch (err) {
+      } catch {
         setLoading(false);
       }
     };
@@ -375,7 +363,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   // Calculate container width for swipe feedback
   const containerWidthRef = useRef(null);
   const containerWidth = containerWidthRef.current?.offsetWidth || 0;
-  
+
   // Calculate transform based on active tab and swipe delta
   const getTransform = () => {
     if (!isDragging || !containerWidth) {
@@ -387,122 +375,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     const dxPercent = (dx / containerWidth) * 100;
     return `translateX(${baseOffset + dxPercent}%)`;
   };
-
-  if (!classroom) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Alert severity="info">Select a classroom to view its timeline.</Alert>
-      </Box>
-    );
-  }
-
-  if (!hasClassroomAccess) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Alert severity="warning">You do not have access to this classroom. Please choose one within your allowed classrooms.</Alert>
-      </Box>
-    );
-  }
-
-  // Group notes by time periods
-  const groupedNotes = useMemo(() => {
-    if (!classroomNotes || classroomNotes.length === 0) {
-      return {
-        today: [],
-        last7Days: [],
-        beyond: []
-      };
-    }
-    
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const groups = {
-      today: [],
-      last7Days: [],
-      beyond: []
-    };
-    
-    classroomNotes.forEach(note => {
-      try {
-        let noteDate;
-        if (note.observedAt?.toDate) {
-          noteDate = note.observedAt.toDate();
-        } else if (note.observedAt?.seconds) {
-          noteDate = new Date(note.observedAt.seconds * 1000);
-        } else if (note.observedAt) {
-          noteDate = new Date(note.observedAt);
-        } else if (note.timestamp?.toDate) {
-          noteDate = note.timestamp.toDate();
-        } else if (note.timestamp?.seconds) {
-          noteDate = new Date(note.timestamp.seconds * 1000);
-        } else if (note.timestamp) {
-          noteDate = new Date(note.timestamp);
-        } else {
-          noteDate = new Date(0); // fallback
-        }
-        
-        if (noteDate >= today) {
-          groups.today.push(note);
-        } else if (noteDate >= lastWeek) {
-          groups.last7Days.push(note);
-        } else {
-          groups.beyond.push(note);
-        }
-      } catch (error) {
-        groups.beyond.push(note);
-      }
-    });
-    
-    return groups;
-  }, [classroomNotes]);
-
-  // Get student name for a note
-  const getStudentName = (note) => {
-    const student = classroomStudents.find(s => s.id === note.studentId);
-    return student?.displayName || student?.firstName || 'Unknown Student';
-  };
-
-  // Handle show more notes
-  const handleShowMore = () => {
-    setDisplayedNotesCount(prev => prev + 10);
-    setShowMoreNotes(true);
-  };
-
-  // Handle note click to expand
-  const handleNoteClick = (note) => {
-    setSelectedNote(note);
-    setDetailDialogOpen(true);
-  };
-
-  // Handle grouped note click
-  const handleGroupedNoteClick = (groupedNote) => {
-    setSelectedGroupedNote(groupedNote);
-    setGroupedNoteDialogOpen(true);
-  };
-
-  // Handle close dialog
-  const handleCloseDialog = () => {
-    setDetailDialogOpen(false);
-    setSelectedNote(null);
-  };
-
-  // Handle close grouped note dialog
-  const handleCloseGroupedDialog = () => {
-    setGroupedNoteDialogOpen(false);
-    setSelectedGroupedNote(null);
-  };
-
-  // Get notes to display (with pagination)
-  const notesToDisplay = useMemo(() => {
-    const allNotes = [
-      ...groupedNotes.today,
-      ...groupedNotes.last7Days,
-      ...groupedNotes.beyond
-    ];
-    return allNotes.slice(0, displayedNotesCount);
-  }, [groupedNotes, displayedNotesCount]);
 
   // Filter students based on search query
   const filteredStudents = useMemo(() => {
@@ -663,7 +535,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         else if (noteDate >= lastWeek) groups.last7Days.push(noteItem);
         else groups.beyond.push(noteItem);
         count++;
-      } catch (e) {
+      } catch {
         groups.beyond.push({ ...note, isGrouped: false });
         count++;
       }
@@ -682,6 +554,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return map;
   }, [classroomNotes]);
 
+  // Get student name for a note
+  const getStudentName = (note) => {
+    const student = classroomStudents.find(s => s.id === note.studentId);
+    return student?.displayName || student?.firstName || 'Unknown Student';
+  };
+
+  // Handle note click to expand
+  const handleNoteClick = () => {
+    // Note expansion dialog functionality removed
+  };
 
   if (loading) {
     return (
@@ -933,8 +815,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.groupId}
                           groupedNote={item}
                           classroomStudents={classroomStudents}
-                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNoteClick={() => { /* grouped note dialog removed */ }}
                           onNavigateToStudent={onNavigateToStudent}
+                          lessonTitleById={lessonTitleById}
                         />
                       );
                     } else {
@@ -943,6 +826,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.id}
                           note={item}
                           studentName={getStudentName(item)}
+                          lessonTitleById={lessonTitleById}
                           onStudentClick={() => {
                             const student = classroomStudents.find(s => s.id === item.studentId);
                             if (student) onNavigateToStudent(student);
@@ -971,8 +855,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.groupId}
                           groupedNote={item}
                           classroomStudents={classroomStudents}
-                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNoteClick={() => { /* grouped note dialog removed */ }}
                           onNavigateToStudent={onNavigateToStudent}
+                          lessonTitleById={lessonTitleById}
                         />
                       );
                     } else {
@@ -981,6 +866,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.id}
                           note={item}
                           studentName={getStudentName(item)}
+                          lessonTitleById={lessonTitleById}
                           onStudentClick={() => {
                             const student = classroomStudents.find(s => s.id === item.studentId);
                             if (student) onNavigateToStudent(student);
@@ -1009,8 +895,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.groupId}
                           groupedNote={item}
                           classroomStudents={classroomStudents}
-                          onNoteClick={() => handleGroupedNoteClick(item)}
+                          onNoteClick={() => { /* grouped note dialog removed */ }}
                           onNavigateToStudent={onNavigateToStudent}
+                          lessonTitleById={lessonTitleById}
                         />
                       );
                     } else {
@@ -1019,6 +906,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                           key={item.id}
                           note={item}
                           studentName={getStudentName(item)}
+                          lessonTitleById={lessonTitleById}
                           onStudentClick={() => {
                             const student = classroomStudents.find(s => s.id === item.studentId);
                             if (student) onNavigateToStudent(student);
@@ -1036,7 +924,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 <Box sx={{ textAlign: 'center', pt: 2 }}>
                   <Button
                     variant="outlined"
-                    onClick={handleShowMore}
+                    onClick={() => setDisplayedNotesCount(prev => prev + 10)}
                     startIcon={<ExpandMore />}
                     sx={{ textTransform: 'none' }}
                   >
@@ -1088,41 +976,12 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           </Box>
         </Box>
       </Box>
-      
-      {/* Note Expansion Dialog */}
-      <NoteExpansionDialog
-        open={detailDialogOpen}
-        onClose={handleCloseDialog}
-        observation={selectedNote}
-        student={selectedNote && classroomStudents.length > 0 ? 
-          classroomStudents.find(s => s.id === selectedNote.studentId) : null
-        }
-        currentUser={currentUser}
-        userRole={userRole}
-        onNavigateToStudent={onNavigateToStudent}
-        isClassroomContext={true}
-        onNotesChanged={refreshNotes}
-      />
-
-      {/* Grouped Note Dialog */}
-      {selectedGroupedNote && (
-        <GroupedNoteDialog
-          open={groupedNoteDialogOpen}
-          onClose={handleCloseGroupedDialog}
-          groupedNote={selectedGroupedNote}
-          classroomStudents={classroomStudents}
-          currentUser={currentUser}
-          userRole={userRole}
-          onNavigateToStudent={onNavigateToStudent}
-          onNotesChanged={refreshNotes}
-        />
-      )}
     </Box>
   );
 }
 
 // GroupedNoteCard component for displaying multi-student notes
-function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNavigateToStudent }) {
+function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNavigateToStudent, lessonTitleById }) {
   const note = groupedNote.representativeNote;
   const noteTypeInfo = {
     type: getObservationTypeText(note.type),
@@ -1354,7 +1213,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
 }
 
 // GroupedNoteDialog component for displaying multi-student note details
-function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, currentUser, userRole, onNavigateToStudent, onNotesChanged }) {
+function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, userRole, onNavigateToStudent, onNotesChanged }) {
   const notify = useNotify();
   const note = groupedNote.representativeNote;
   const isLesson = note.type === 'lesson';
@@ -1464,8 +1323,8 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
                 const remainingDoc = remainingSnap.docs[0];
                 await updateDoc(remainingDoc.ref, { groupId: deleteField() });
               }
-            } catch (err) {
-              reportCaughtError(err, 'ClassroomTimeline', 'swallow-only try/catch at L1466');
+            } catch (_err) {
+              reportCaughtError(_err, 'ClassroomTimeline', 'swallow-only try/catch at L1466');
             }
           }
 
@@ -1486,7 +1345,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
             setSelectedStudentIds(new Set());
             setDeleteMode(false);
           }
-        } catch (error) {
+        } catch {
           notify.error('Error deleting note(s). Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -1857,7 +1716,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, curr
 }
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
-function ClassroomNoteCard({ note, studentName, onStudentClick, onNoteClick }) {
+function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick }) {
   const noteTypeInfo = {
     type: getObservationTypeText(note.type),
     icon: getObservationTypeIcon(note.type)
@@ -1983,12 +1842,12 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
         }
         
         return noteDate >= lastWeek;
-      } catch (error) {
+      } catch {
         return false;
       }
     }).length;
   };
-  
+
   // Format note count display with proper grammar
   const formatNoteCounts = (total, last7Days) => {
     const totalText = `${total} note${total !== 1 ? 's' : ''} overall`;

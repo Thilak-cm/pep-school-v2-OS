@@ -27,13 +27,6 @@ const SectionCard = ({ title, subtitle, children }) => (
 
 export default function AITextCleanupEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
-  if (!isAdmin) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
-      </Box>
-    );
-  }
 
   // Text Summarizer state
   const [loading, setLoading] = useState(true);
@@ -68,7 +61,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         } else {
           setDocState(null);
         }
-      } catch (e) {
+      } catch {
         setError('Failed to load prompts');
       } finally {
         setLoading(false);
@@ -130,7 +123,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       const snap = await getDoc(textRef);
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
-    } catch (e) {
+    } catch {
       setError('Failed to save');
     } finally {
       setSaving(false);
@@ -173,7 +166,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       setSystemPrompt(payload.systemPrompt);
       setUserPrompt(payload.userPrompt);
       setEditing(false);
-    } catch (e) {
+    } catch {
       setError('Failed to revert');
     } finally {
       setSaving(false);
@@ -191,8 +184,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       setTesting(true);
       const out = await cleanUpText(testInput, { tone: testTone });
       setTestOutput(out);
-    } catch (e) {
-      setTestError(e?.message || 'Failed to run');
+    } catch (_e) {
+      setTestError(_e?.message || 'Failed to run');
     } finally {
       setTesting(false);
     }

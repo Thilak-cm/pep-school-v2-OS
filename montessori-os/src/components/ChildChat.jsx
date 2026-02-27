@@ -438,7 +438,6 @@ function ChildChat({ student, startInLandingPage = false }) {
   const [deletingChatId, setDeletingChatId] = useState(null);
   const [devMode, setDevMode] = useState(true); // Default ON - excludes observations from context
   const [bufferStage, setBufferStage] = useState(null); // 'creating' | 'preparing' | 'thinking' | null
-  const [tempChatId, setTempChatId] = useState(null);
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
 
   // Voice recording state
@@ -525,7 +524,7 @@ function ChildChat({ student, startInLandingPage = false }) {
             orderBy('createdAt', 'desc')
           );
           snapshot = await getDocs(q);
-        } catch (indexError) {
+        } catch {
           // Fallback: fetch all and filter/sort in memory
           const allSnapshot = await getDocs(chatsRef);
           snapshot = allSnapshot;
@@ -579,7 +578,7 @@ function ChildChat({ student, startInLandingPage = false }) {
         } else if (!hasManuallySelectedChatRef.current) {
           setSelectedChatId(null);
         }
-      } catch (err) {
+      } catch {
         setError('Failed to load chats. Please try again.');
       } finally {
         setChatsLoading(false);
@@ -638,11 +637,12 @@ function ChildChat({ student, startInLandingPage = false }) {
             }
           }
         },
-        (err) => {
+        () => {
+          /* ignored */
         }
       );
-    } catch (err) {
-      reportCaughtError(err, 'ChildChat', 'swallow-only try/catch at L644');
+    } catch (_err) {
+      reportCaughtError(_err, 'ChildChat', 'swallow-only try/catch at L644');
     }
 
     chatsUnsubscribeRef.current = unsubscribe;
@@ -712,7 +712,6 @@ function ChildChat({ student, startInLandingPage = false }) {
             // messagesList from Firestore doesn't include temp messages, so this replaces them
             clearStageProgression();
             setIsFirstMessageFlow(false);
-            setTempChatId(null);
           }
 
           setMessages(messagesList);
@@ -740,7 +739,7 @@ function ChildChat({ student, startInLandingPage = false }) {
             scrollToBottom();
           }, 100);
         },
-        (err) => {
+        () => {
           setError('Failed to load messages. Please try again.');
           setMessagesLoading(false);
           setAssistantPending(false);
@@ -748,7 +747,7 @@ function ChildChat({ student, startInLandingPage = false }) {
       );
 
       messagesUnsubscribeRef.current = unsubscribe;
-    } catch (err) {
+    } catch {
       setError('Failed to load messages. Please try again.');
       setMessagesLoading(false);
     }
@@ -876,8 +875,8 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
         }
-      } catch (e) {
-        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L879');
+      } catch (_e) {
+        reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L879');
       }
       mediaRecorderRef.current = null;
     }
@@ -887,8 +886,8 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close();
         }
-      } catch (e) {
-        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L888');
+      } catch (_e) {
+        reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L888');
       }
       audioContextRef.current = null;
     }
@@ -896,8 +895,8 @@ function ChildChat({ student, startInLandingPage = false }) {
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach(track => track.stop());
-      } catch (e) {
-        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L895');
+      } catch (_e) {
+        reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L895');
       }
       streamRef.current = null;
     }
@@ -971,8 +970,8 @@ function ChildChat({ student, startInLandingPage = false }) {
               track.stop();
             }
           });
-        } catch (e) {
-          reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L968');
+        } catch (_e) {
+          reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L968');
         }
 
         if (!audioChunksRef.current || audioChunksRef.current.length === 0) {
@@ -1025,8 +1024,8 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (!animationFrameRef.current) {
           updateWaveform();
         }
-      } catch (audioError) {
-        reportCaughtError(audioError, 'ChildChat', 'swallow-only try/catch at L1020');
+      } catch (_audioError) {
+        reportCaughtError(_audioError, 'ChildChat', 'swallow-only try/catch at L1020');
       }
 
       startTimer();
@@ -1056,7 +1055,7 @@ function ChildChat({ student, startInLandingPage = false }) {
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
-      } catch (error) {
+      } catch {
         setError('Error stopping recording. Please try again.');
         resetRecordingState();
       }
@@ -1074,8 +1073,8 @@ function ChildChat({ student, startInLandingPage = false }) {
           cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = null;
         }
-      } catch (e) {
-        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L1067');
+      } catch (_e) {
+        reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L1067');
       }
     }
   };
@@ -1090,8 +1089,8 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (!animationFrameRef.current) {
           updateWaveform();
         }
-      } catch (e) {
-        reportCaughtError(e, 'ChildChat', 'swallow-only try/catch at L1081');
+      } catch (_e) {
+        reportCaughtError(_e, 'ChildChat', 'swallow-only try/catch at L1081');
       }
     }
   };
@@ -1188,7 +1187,6 @@ function ChildChat({ student, startInLandingPage = false }) {
     // For first message flow: create optimistic chat
     if (isFirstMessage) {
       localTempChatId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setTempChatId(localTempChatId);
       setIsFirstMessageFlow(true);
       setSelectedChatId(localTempChatId); // Switch to chat view immediately
       startStageProgression(); // Start stage progression
@@ -1232,7 +1230,6 @@ function ChildChat({ student, startInLandingPage = false }) {
         if (isFirstMessageFlow && responseData.chatId !== localTempChatId) {
           // Update from temp to real chatId
           setSelectedChatId(responseData.chatId);
-          setTempChatId(null);
           // Don't clear isFirstMessageFlow yet - wait for real messages to arrive
         } else if (!isFirstMessageFlow && responseData.chatId !== selectedChatId) {
           setSelectedChatId(responseData.chatId);
@@ -1263,7 +1260,6 @@ function ChildChat({ student, startInLandingPage = false }) {
         lastPendingUserTimestampRef.current = null;
         // Return to landing page
         setSelectedChatId(null);
-        setTempChatId(null);
         setIsFirstMessageFlow(false);
       } else {
         // For existing chats: remove temp message (existing behavior)
@@ -1330,7 +1326,7 @@ function ChildChat({ student, startInLandingPage = false }) {
       setEditDialogOpen(false);
       setEditingChatId(null);
       setEditingChatName('');
-    } catch (err) {
+    } catch {
       setError('Failed to update chat name. Please try again.');
     }
   };
@@ -1368,7 +1364,7 @@ function ChildChat({ student, startInLandingPage = false }) {
       
       setDeleteConfirmOpen(false);
       setDeletingChatId(null);
-    } catch (err) {
+    } catch {
       setError('Failed to delete chat. Please try again.');
       setDeleteConfirmOpen(false);
       setDeletingChatId(null);

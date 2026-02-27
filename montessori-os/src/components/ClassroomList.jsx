@@ -58,7 +58,7 @@ const readCachedClassrooms = (key) => {
       return null;
     }
     return parsed;
-  } catch (err) {
+  } catch {
     return null;
   }
 };
@@ -73,7 +73,8 @@ const writeCachedClassrooms = (key, payload) => {
         timestamp: Date.now(),
       })
     );
-  } catch (err) {
+  } catch {
+    /* ignored */
   }
 };
 
@@ -189,7 +190,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
           classrooms: classroomsToShow,
           studentCounts: counts,
         });
-      } catch (err) {
+      } catch {
+        /* ignored */
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -227,7 +229,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         });
 
         setProgramLookup(classroomProgramMap);
-      } catch (err) {
+      } catch {
+        /* ignored */
       }
     };
 
@@ -309,7 +312,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
             if (classroomDoc.exists()) {
               classroomNameMap[classroomId] = classroomDoc.data().name || classroomId;
             }
-          } catch (err) {
+          } catch {
+            /* ignored */
           }
         });
         await Promise.all(classroomPromises);
@@ -326,7 +330,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
           };
         });
         setAllStudents(studentsWithNames);
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setAllStudents([]);
         }

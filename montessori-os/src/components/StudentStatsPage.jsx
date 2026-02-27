@@ -62,7 +62,7 @@ const StudentStatsPage = ({ student }) => {
           textNotes: textNotes.length,
           loading: false
         });
-      } catch (error) {
+      } catch {
         setStats(prev => ({ ...prev, loading: false }));
       }
     };
@@ -218,6 +218,7 @@ const StudentStatsPage = ({ student }) => {
 
   const activityData = useMemo(() => {
     return generateActivityData(stats.allObservations, timePeriod);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats.allObservations, timePeriod]);
 
   const activityCount = useMemo(() => {
@@ -390,7 +391,7 @@ const StudentStatsPage = ({ student }) => {
                           borderRadius: 8,
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }}
-                        content={({ active, payload, label }) => {
+                        content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             return (
                               <Box sx={{
@@ -449,7 +450,7 @@ const StudentStatsPage = ({ student }) => {
                       labelLine={false}
                       isAnimationActive={false}
                     >
-                      {pieChartData.map((entry, index) => (
+                      {pieChartData.map((entry) => (
                         <Cell 
                           key={`cell-${entry.name}-${entry.value}`}
                           fill={entry.color}

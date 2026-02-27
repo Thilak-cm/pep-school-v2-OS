@@ -32,14 +32,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
   const notify = useNotify();
 
-  if (!isAdmin) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
-      </Box>
-    );
-  }
-
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -100,7 +92,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalCoachEnabled(false);
           setError('Coach prompt configuration not found for this program');
         }
-      } catch (e) {
+      } catch {
         setDocState(null);
         setEnabledNudges([]);
         setMaxReturnNudges(1);
@@ -177,7 +169,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
       
       // Show success notification
       notify.success('Coach prompt configuration saved successfully');
-    } catch (e) {
+    } catch {
       setError('Failed to update coach prompt configuration');
       notify.error('Failed to save coach prompt configuration');
     } finally {
@@ -272,7 +264,6 @@ export default function AICoachEditor({ currentUser, userRole }) {
     );
   }
 
-  const disabledNudges = ALL_NUDGES.filter(n => !enabledNudges.includes(n));
   // Count based on original/saved enabled nudges, not current working state
   const enabledNudgeBlocksCount = originalEnabledNudges.filter(n => docState?.nudgeBlocks?.[n]).length;
 

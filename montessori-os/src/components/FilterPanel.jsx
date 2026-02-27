@@ -33,7 +33,7 @@ import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 const FilterPanel = ({
   showFilters,
   filters,
-  uniqueCreators = [],
+  _uniqueCreators = [],
   classroomTeachers = [],
   hasActiveFilters,
   filteredCount,

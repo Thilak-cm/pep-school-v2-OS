@@ -27,7 +27,7 @@ import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import BaseballCardConfigEditor from "./components/BaseballCardConfigEditor.jsx";
-import app, { db, cloudFunctions } from "./firebase";
+import { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
@@ -61,7 +61,7 @@ function App() {
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [unauthorized, setUnauthorized] = useState(false);
+  const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState(null);
   const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
@@ -76,11 +76,6 @@ function App() {
 
   const isTeacher = role === 'teacher';
   const isSuperAdminUser = isSuperAdmin(role);
-
-  const openTimeline = (filter = null) => {
-    setTimelineFilter(filter);
-    setScreen('timeline');
-  };
 
   const openLessonNotesScreen = () => {
     setLessonNotesReturnScreen(screen);
@@ -162,12 +157,10 @@ function App() {
                 const data = snap.data() || {};
                 setSelectedStudent({ id: studentId, ...data });
               }
-            } catch (err) {
-            }
+            } catch { /* ignored */ }
           })();
         }
-      } catch (err) {
-      }
+      } catch { /* ignored */ }
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
     return () => window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
@@ -229,11 +222,11 @@ function App() {
               // Migration didn't happen, but no error - re-fetch to be sure
               userSnap = await getDoc(userRef);
             }
-          } catch (migrateErr) {
+          } catch (_migrateErr) {
             // Continue to check if doc exists (might have been migrated by another process)
             try {
               userSnap = await getDoc(userRef);
-            } catch (refetchErr) {
+            } catch (_refetchErr) {
               // userSnap remains as the original (non-existent) snapshot
             }
           }
@@ -268,8 +261,7 @@ function App() {
         setUserProperty('role', userDoc.role);
         // Allow both 'teacher' and 'other' to proceed to app; finer gating handled by rules/UI
         setScreen('landingPage');
-      } catch (err) {
-        setUnauthorized(true);
+      } catch (_err) {
         setScreen('accessDenied');
       }
     };
@@ -292,8 +284,7 @@ function App() {
       // Clear notifications cache on logout
       clearNotificationsCache();
       await signOut(auth);
-    } catch (error) {
-    }
+    } catch { /* ignored */ }
   };
 
   // Derive a readable student name for headers and UI
@@ -308,14 +299,6 @@ function App() {
       composedName ||
       'Student'
     );
-  };
-
-  // Extract student's first name for dashboard title
-  const getStudentFirstName = (studentLike) => {
-    if (!studentLike) return 'Student';
-    if (studentLike?.firstName) return studentLike.firstName;
-    const name = studentLike?.name || studentLike?.displayName || [studentLike?.firstName, studentLike?.lastName].filter(Boolean).join(' ');
-    return (name || 'Student').split(' ')[0];
   };
 
   // Determine page title

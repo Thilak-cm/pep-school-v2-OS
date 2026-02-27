@@ -1,5 +1,5 @@
 // StudentList.jsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -54,9 +54,9 @@ function StudentList({ classroom, onSelectStudent }) {
         } else {
           noteDate = new Date(0);
         }
-        
+
         return noteDate >= lastWeek;
-      } catch (error) {
+      } catch {
         return false;
       }
     }).length;
@@ -124,7 +124,8 @@ function StudentList({ classroom, onSelectStudent }) {
         });
 
         setClassroomObservations(allObservations);
-      } catch (err) {
+      } catch {
+        /* ignored */
       } finally {
         setLoading(false);
       }

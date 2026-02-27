@@ -82,21 +82,8 @@ function NoteExpansionDialog({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  
-  // Map short codes to human-friendly names
-  const languageName = (code) => {
-    if (!code) return null;
-    const v = String(code).toLowerCase();
-    const base = v.includes('-') ? v.split('-')[0] : v;
-    const map = { en: 'English', hi: 'Hindi', ta: 'Tamil', kn: 'Kannada', te: 'Telugu' };
-    if (map[base]) return map[base];
-    if (['english','hindi','tamil','kannada','telugu'].includes(base)) {
-      return base.charAt(0).toUpperCase() + base.slice(1);
-    }
-    return code;
-  };
-  
+  const [_deleting, setDeleting] = useState(false);
+
   // Reassignment states
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [reassignConfirmOpen, setReassignConfirmOpen] = useState(false);
@@ -233,7 +220,7 @@ function NoteExpansionDialog({
           } else {
             setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID if doc doesn't exist
           }
-        } catch (error) {
+        } catch {
           setPreviousClassroomName(normalizedNoteClassroomId); // Fallback to ID on error
         }
       } else {
@@ -287,7 +274,7 @@ function NoteExpansionDialog({
           }
         });
         setLinkedLessonTitles(nextTitles);
-      } catch (error) {
+      } catch {
         if (isActive) {
           const fallback = {};
           (linkedLessonObservationIds || []).forEach((id) => {
@@ -347,7 +334,7 @@ function NoteExpansionDialog({
         return db - da;
       });
       setLessonNotes(notes);
-    } catch (err) {
+    } catch {
       setLessonNotesError('Unable to load lesson notes. Try again.');
     } finally {
       setLessonNotesLoading(false);
@@ -412,7 +399,7 @@ function NoteExpansionDialog({
             onNotesChanged();
           }
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
-        } catch (error) {
+        } catch {
           notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 });
         }
       },
@@ -509,8 +496,8 @@ function NoteExpansionDialog({
             await updateDoc(lessonRef, {
               linkedObservations: arrayUnion(observation.id),
             });
-          } catch (err) {
-            reportCaughtError(err, 'NoteExpansionDialog', 'swallow-only try/catch at L508');
+          } catch (_err) {
+            reportCaughtError(_err, 'NoteExpansionDialog', 'swallow-only try/catch at L508');
           }
         })
       );
@@ -523,8 +510,8 @@ function NoteExpansionDialog({
             await updateDoc(lessonRef, {
               linkedObservations: arrayRemove(observation.id),
             });
-          } catch (err) {
-            reportCaughtError(err, 'NoteExpansionDialog', 'swallow-only try/catch at L521');
+          } catch (_err) {
+            reportCaughtError(_err, 'NoteExpansionDialog', 'swallow-only try/catch at L521');
           }
         })
       );
@@ -534,7 +521,7 @@ function NoteExpansionDialog({
         desiredIds.length > 0 ? 'Tagged lesson notes updated' : 'Tagged lesson notes cleared'
       );
       setTagDialogOpen(false);
-    } catch (error) {
+    } catch {
       notify.error('Error updating tagged lesson note. Please try again.');
     } finally {
       setLinkSaving(false);
@@ -563,7 +550,7 @@ function NoteExpansionDialog({
       setEditing(false);
       setEditText('');
       notify.success('Note updated successfully');
-    } catch (error) {
+    } catch {
       notify.error('Error saving changes. Please try again.');
     } finally {
       setSaving(false);
@@ -676,7 +663,7 @@ function NoteExpansionDialog({
           }
         },
       });
-    } catch (error) {
+    } catch {
       notify.error('Error reassigning note. Please try again.', { id: `reassign-${observation?.id || 'unknown'}` });
     } finally {
       setReassigning(false);

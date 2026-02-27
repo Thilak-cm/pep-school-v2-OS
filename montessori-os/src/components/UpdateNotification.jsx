@@ -45,8 +45,7 @@ const UpdateNotification = () => {
       await versionManager.applyUpdate();
       setOpen(false);
       // The page will reload automatically when the update is applied
-    } catch (error) {
-    }
+    } catch { /* ignored */ }
   };
 
   const handleRefresh = () => {

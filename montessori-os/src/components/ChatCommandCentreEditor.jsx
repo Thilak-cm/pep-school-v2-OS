@@ -24,18 +24,9 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
   const notify = useNotify();
 
-  if (!isAdmin) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" color="error">Access denied. Super admins only.</Typography>
-      </Box>
-    );
-  }
-
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [docState, setDocState] = useState(null);
   const [programId, setProgramId] = useState('toddler');
   const [saving, setSaving] = useState(false);
 
@@ -66,8 +57,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         const snap = await getDoc(chatRef);
         if (snap.exists()) {
           const data = snap.data() || {};
-          setDocState(data);
-          
+
           // Set state from Firestore data
           setModel(data.model || CHAT_MODEL_INFO.model);
           setTemperature(Number.isFinite(data.temperature) ? data.temperature : CHAT_MODEL_INFO.temperature);
@@ -86,7 +76,6 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           });
         } else {
           // Document doesn't exist, use defaults
-          setDocState(null);
           setModel(CHAT_MODEL_INFO.model);
           setTemperature(CHAT_MODEL_INFO.temperature);
           setMaxTokens(CHAT_MODEL_INFO.max_tokens);
@@ -103,7 +92,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
             systemPrompt: CHAT_SYSTEM_PROMPT,
           });
         }
-      } catch (err) {
+      } catch {
         setError('Failed to load chat configuration.');
       } finally {
         setLoading(false);
@@ -156,8 +145,6 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
       // Reload to get updated document
       const snap = await getDoc(chatRef);
       if (snap.exists()) {
-        const updatedData = snap.data();
-        setDocState({ id: snap.id, ...updatedData });
         // Update original values to mark as saved
         setOriginalState({
           model,
@@ -169,10 +156,10 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         });
       }
 
-      notify('Chat configuration saved successfully!', 'success');
-    } catch (err) {
+      notify.success('Chat configuration saved successfully!');
+    } catch {
       setError('Failed to save chat configuration. Please try again.');
-      notify('Failed to save chat configuration.', 'error');
+      notify.error('Failed to save chat configuration.');
     } finally {
       setSaving(false);
     }
@@ -188,6 +175,14 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
     setObservationLimit(originalState.observationLimit);
     setSystemPrompt(originalState.systemPrompt);
   };
+
+  if (!isAdmin) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="error">Access denied. Super admins only.</Alert>
+      </Box>
+    );
+  }
 
   if (loading) {
     return (
