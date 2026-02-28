@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refine Linear Issue"
+  short_description: "Refine existing Linear issues with full context"
+  default_prompt: "Refine a Linear issue for Pep school v2 os: fetch the issue, load overview context, then clarify until implementation-ready."

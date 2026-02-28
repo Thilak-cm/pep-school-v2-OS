@@ -14,11 +14,6 @@ const defaultOutputPath = path.join(
   repoRoot,
   ".claude/skills/codebase-context-scan/references/pep-os-overview.md",
 );
-const deepDiveRoot = path.join(
-  repoRoot,
-  ".claude/skills/codebase-context-deep-dive/references/deep-dives",
-);
-
 const AREA_DEFINITIONS = [
   {
     tag: "observation-capture",
@@ -365,17 +360,6 @@ async function buildOverview() {
     grouped.get(areaTag).push(component);
   }
 
-  const deepPointers = [];
-  for (const area of AREA_DEFINITIONS) {
-    const reportRelPath = `.claude/skills/codebase-context-deep-dive/references/deep-dives/${area.tag}.md`;
-    const reportAbsPath = path.join(repoRoot, reportRelPath);
-    deepPointers.push({
-      tag: area.tag,
-      relPath: reportRelPath,
-      status: (await exists(reportAbsPath)) ? "present" : "missing",
-    });
-  }
-
   const now = new Date().toISOString();
   const appVersion = appPackage.version;
   const reactVersion = shortVersion(appPackage.dependencies.react);
@@ -458,15 +442,6 @@ async function buildOverview() {
     lines.push(toMarkdownList(release.bullets));
     lines.push("");
   }
-
-  lines.push("## Deep Dive Pointers");
-  lines.push("");
-  lines.push("| area_tag | report_path | status |");
-  lines.push("| --- | --- | --- |");
-  for (const pointer of deepPointers) {
-    lines.push(`| ${pointer.tag} | \`${pointer.relPath}\` | ${pointer.status} |`);
-  }
-  lines.push("");
 
   return `${lines.join("\n")}\n`;
 }

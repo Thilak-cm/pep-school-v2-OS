@@ -1,0 +1,4 @@
+interface:
+  display_name: "Draft Linear Issues"
+  short_description: "Parse meeting notes and batch-create Linear issues"
+  default_prompt: "Parse meeting notes and create Linear issues: extract action items, decisions, bugs, and follow-ups, then walk through each one for triage into Backlog issues."

@@ -1,31 +1,32 @@
 ---
 name: merge-issue
-description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, and move Linear issue to Done. Use after PR review is complete and you're ready to land the change."
+description: "Merge a reviewed PR into dev via gh pr merge, clean up local and remote branches, move Linear issue to Done, and prompt for codebase overview refresh. Use after CI passes on a PR opened by /review-issue."
 ---
 
 # Merge Issue
 
 ## Goal
 
-Handle the post-review landing workflow: merge the PR, clean up branches, and close out the Linear issue. This is the counterpart to `wrapup-issue` which handles everything up to opening the PR.
+Land a reviewed PR into `dev`, clean up branches, close out the Linear issue, and keep the codebase overview fresh. This is the final step after `/review-issue` opens a PR and CI passes.
 
 This skill covers:
 
-1. Pre-merge checks (PR status, CI, review comments)
+1. Pre-merge checks (CI status, unresolved comments)
 2. Merge the PR via `gh pr merge`
 3. Local branch cleanup (checkout dev, pull, delete feature branch)
 4. Update the Linear issue and move it to `Done`
+5. Prompt to refresh the codebase overview
 
 ## When to Use
 
-- A PR opened by `wrapup-issue` has been reviewed and approved
+- A PR opened by `/review-issue` has passed CI
 - You want to land the change into `dev` with proper cleanup
 - You want Linear to reflect the completed state
 
 ## Prerequisites
 
 - An open PR exists for the current feature branch targeting `dev`
-- The PR has been reviewed (or the user is ready to merge without review)
+- CI checks have passed (this skill enforces this)
 - You know which Linear issue this work belongs to (from session context, branch name, or PR description)
 
 ## Workflow
@@ -36,10 +37,22 @@ This skill covers:
 - Prefer the current branch's open PR via `gh pr list --head <branch>`
 - If multiple PRs or unclear, ask the user which PR to merge
 
-2. Check PR status via `gh pr view`
+2. **Check CI status via `gh pr checks`**
+- **Block** if any checks are **failing** — report which checks failed and stop
+- **Block** if any checks are **pending** — report and ask user whether to wait or proceed
+- Only proceed when all checks are passing
+
+3. Check for unresolved review comments via `gh pr view`
 - **Block** if there are unresolved review comments — report them and stop
-- **Block** if CI checks are failing — report which checks failed and stop
-- Report status to user before proceeding
+
+4. Report full status to user before proceeding:
+   ```
+   PR #42: feat: add report generation (PEP-60)
+   CI: ✅ all checks passing
+   Comments: ✅ none unresolved
+   Target: dev
+   Ready to merge.
+   ```
 
 ### Phase 2: Merge PR (High Risk — Approval Gate)
 
@@ -83,10 +96,24 @@ This skill covers:
   - merge confirmation
   - final commit range on `dev`
   - PR URL
+  - version number (if version was bumped in the PR)
 
 3. Move issue state
 - Move the issue to `Done`
 - Do not change assignee unless the user asks
+
+### Phase 5: Codebase Overview Refresh (Prompt)
+
+The codebase just changed. The high-level overview may be stale.
+
+1. Ask the user:
+   ```
+   Codebase has changed after merging PEP-{id}. Refresh the overview?
+   Options: Yes, run /codebase-context-scan | Skip for now
+   ```
+
+2. If yes: invoke the `codebase-context-scan` skill
+3. If skip: no action (user can run it later)
 
 ## Human Approval Gates (Do Not Skip)
 
@@ -97,7 +124,8 @@ Ask for explicit approval at these points:
 
 ## Guardrails
 
-- Do not merge if PR has unresolved review comments or failing CI checks
+- **Do not merge if CI checks are failing or pending** — this is the primary safety gate
+- Do not merge if PR has unresolved review comments
 - Do not delete local branch until merge + pull are confirmed successful
 - Do not update the wrong Linear issue
 - Do not move to `Done` if merge actually failed
@@ -105,7 +133,9 @@ Ask for explicit approval at these points:
 
 ## Success Criteria
 
-1. PR was merged into `dev` via `gh pr merge`
-2. Local dev branch is up to date with the merged changes
-3. Local feature branch was deleted
-4. Linear issue was commented and moved to `Done`
+1. CI checks confirmed passing before merge
+2. PR was merged into `dev` via `gh pr merge`
+3. Local dev branch is up to date with the merged changes
+4. Local feature branch was deleted
+5. Linear issue was commented and moved to `Done`
+6. User was prompted to refresh codebase overview

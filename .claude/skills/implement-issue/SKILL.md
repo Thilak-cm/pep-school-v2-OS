@@ -21,7 +21,7 @@ Bridge the gap between Linear issue creation and implementation. This skill auto
 The skill follows a 7-phase workflow:
 
 1. **Issue Selection** - Interactively filter and select a Linear issue
-2. **Context Loading** - Auto-load codebase overview + area-specific deep-dives
+2. **Context Loading** - Auto-load codebase overview, staleness check, optional explore
 3. **Plan Generation** - Generate technical execution plan with file paths, test specs, and implementation path options
 4. **Test Discovery** - Auto-detect related tests and establish baseline
 5. **Plan Approval** - User reviews tradeoffs, iterates on plan, and approves a final implementation path before implementation
@@ -52,13 +52,22 @@ Start by selecting which Linear issue to work on. Use interactive filtering to n
 
 ## Phase 2: Context Loading
 
-Auto-load high-level overview + area-specific deep-dives based on issue labels and keywords.
+Auto-load high-level overview, check for staleness, and spawn Explore subagent when deeper context is needed.
 
 **Steps:**
 1. Read `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
    - Extract Area Map for reference
 
-2. Infer relevant area tags from issue:
+2. **Check overview staleness**
+   - Read `Generated:` timestamp from line 3 of `pep-os-overview.md`
+   - Count commits since: `git log --oneline --after="{date}" | wc -l`
+   - Calculate days elapsed
+   - If 5+ commits OR 7+ days old: warn user, ask "Refresh with /codebase-context-scan?" via AskUserQuestion (yes/skip)
+   - If yes: invoke codebase-context-scan, re-read overview
+   - If skip: proceed with stale overview
+   - If neither threshold met: proceed silently
+
+3. Infer relevant area tags from issue:
    - Use issue labels first (e.g., "observation-capture" → "observation-capture" area)
    - Fall back to keyword matching on title/description
    - Area mapping examples:
@@ -67,17 +76,15 @@ Auto-load high-level overview + area-specific deep-dives based on issue labels a
      - "permission", "role", "admin" → "auth-and-access"
      - "firebase", "rules", "security" → "firebase-infrastructure"
 
-3. Load matching deep-dive reports from `.claude/skills/codebase-context-deep-dive/references/deep-dives/{area_tag}.md`
-   - Load all matching area reports (typically 1-2 areas)
-   - If deep-dives don't exist, ask permission to generate up to 2 areas
+4. If the overview context is insufficient for the inferred areas, spawn an **Explore subagent** (`subagent_type: Explore`) to gather deeper context on the relevant files and patterns. The Explore agent should focus on files listed in the Area Map for the inferred tags.
 
-4. Extract requirements from issue:
+5. Extract requirements from issue:
    - Parse issue description for user story, acceptance criteria
    - For bugs: Steps to reproduce, expected vs actual behavior
 
 **Output:**
 - Inferred area tags
-- Loaded context (overview + deep-dives)
+- Loaded context (overview + explore context)
 - Parsed requirements and acceptance criteria
 
 ## Phase 3: Plan Generation
@@ -87,7 +94,7 @@ Create a technical execution plan with specific file paths, test specifications,
 **Steps:**
 1. Analyze requirements + context:
    - Map each acceptance criterion to code changes
-   - Identify files to modify (from deep-dive reports and overview)
+   - Identify files to modify (from overview and explore context)
    - Consider constraints (e.g., Firebase Storage rules, role-based access)
    - Review related/blocking issues for additional context
    - Identify 2-3 viable implementation paths when reasonable (or explain why only one is viable)
@@ -144,7 +151,7 @@ Create a technical execution plan with specific file paths, test specifications,
 [Step-by-step technical approach - TDD style: write tests first, then implementation]
 
 ## Related Context
-- [Reference deep-dive sections that informed this plan]
+- [Reference overview sections or explore findings that informed this plan]
 - [Any architectural constraints or patterns to follow]
 
 ## Verification Checklist
@@ -292,26 +299,20 @@ Update Linear issue with implementation progress and test results.
 - ✅ All {N} tests passing
 - ✅ No regressions in existing tests
 
-**Ready for Review**
+**Ready for independent review**
 ```
 
 3. Call `create_comment` with composed comment
 
-4. Update issue state to "In Review":
-   - Call `update_issue` with `state: "In Review"`
-   - This signals implementation is complete
+4. Do NOT change the issue state — `/review-issue` will move it to "In Review" after independent audit passes.
 
-**Output:** Linear issue updated with progress, tests passing, ready for review
+**Output:** Linear issue updated with implementation progress. Issue stays in current state.
 
 ## Edge Cases & Guardrails
 
 **Edge Case: Issue has no labels**
 - Use keyword matching on title/description to infer area tags
 - If ambiguous, ask user to specify relevant area(s)
-
-**Edge Case: No deep-dives exist**
-- Ask user for permission to generate up to 2 deep-dives
-- Use `codebase-context-deep-dive` skill to generate missing deep-dives
 
 **Edge Case: Plan seems too broad**
 - Suggest splitting into multiple issues
@@ -394,7 +395,7 @@ git log --oneline -5             # Show recent commits
 The implementation is complete when:
 
 1. ✅ Issue selected interactively with filters
-2. ✅ Relevant codebase context auto-loaded (overview + deep-dives)
+2. ✅ Relevant codebase context auto-loaded (overview + explore context)
 3. ✅ Technical execution plan generated with specific file paths and test specs
 4. ✅ Existing related tests auto-detected with baseline results
 5. ✅ Tradeoffs across implementation paths discussed with the user
@@ -404,7 +405,16 @@ The implementation is complete when:
 9. ✅ All tests passing (new + existing, no regressions)
 10. ✅ Implementation executed following approved plan
 11. ✅ Linear issue updated with branch, commits, and test results
-12. ✅ Issue state moved to "In Review"
+12. ✅ Linear issue updated (state NOT changed — that's `/review-issue`'s job)
+
+## Next Step
+
+> Implementation is done. Now clear your context and run an independent review:
+>
+> 1. Run `/clear` to wipe the implementation context (the branch stays checked out)
+> 2. Run `/review-issue` — it will auto-detect the issue from the branch name and audit the diff with fresh eyes
+>
+> This ensures the code review is independent — no implementation bias carrying over.
 
 ## Important Notes
 

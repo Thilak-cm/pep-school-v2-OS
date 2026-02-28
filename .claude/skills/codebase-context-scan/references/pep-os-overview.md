@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-02-14T23:56:20.693Z
-App version: 8.5.0
+Generated: 2026-02-28T22:54:29.598Z
+App version: 9.1.0
 
 ## App Snapshot
 
@@ -44,8 +44,8 @@ App version: 8.5.0
 - `montessori-os/src/components/MentionTextArea.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 9
-- Components: `ClassroomList`, `ClassroomTimeline`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentList`, `StudentStatsPage`, `StudentTimeline`
+- Count: 10
+- Components: `ClassroomList`, `ClassroomTimeline`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentList`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -92,8 +92,8 @@ App version: 8.5.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 11
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 13
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -136,32 +136,23 @@ App version: 8.5.0
 
 ## Recent Changes
 
-### 8.5.0 (2026-02-14)
-- Background save completion notifications: users now get a final “saved” toast when queued note/media/lesson saves finish processing.
-- Save UX now prioritizes instant workflow continuation: submit actions show an in-progress notification and immediately close/return so teachers can start the next capture without waiting.
-- StudentTimeline no longer shows the queue status/retry card; save progress is communicated through notifications only.
+### 9.1.0 (2026-02-28)
+- "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
+- Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
+- In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
 
-### 8.4.1 (2026-02-14)
-- Storage rules: unblocked classroomadmin media access (read, upload, delete) by eliminating a third cross-service `firestore.get()` lookup (`studentClassroomId`) that exceeded the Storage rules evaluation budget, causing blanket 403s. Classroom scoping is now deferred to Firestore rules.
+### 9.0.0 (2026-02-27)
+- AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
+- Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
+- Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
 
-### 8.4.0 (2026-02-14)
-- StudentTimeline: inline media thumbnail carousel in the main timeline feed for media notes, including photo/video previews and horizontal swipe/scroll browsing.
-- StudentTimeline: tapping a timeline media thumbnail now opens the media directly in fullscreen preview.
-- StudentTimeline: “Swipe to browse” helper text now appears only for media groups with 4 or more items.
+### 8.6.0 (2026-02-28)
+- Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
+- Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
+- New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
 
-### 8.3.3 (2026-02-11)
-- Firestore: added missing collection group rule for `media`, fixing grey images for teachers in student timeline.
-- StudentTimeline: fixed race condition where duplicate `setMediaDocs` calls prevented media text from appearing on first load.
-- StudentTimeline: media notes now use primary text color instead of grey for better visibility.
-
-## Deep Dive Pointers
-
-| area_tag | report_path | status |
-| --- | --- | --- |
-| observation-capture | `.claude/skills/codebase-context-deep-dive/references/deep-dives/observation-capture.md` | present |
-| timelines-and-media | `.claude/skills/codebase-context-deep-dive/references/deep-dives/timelines-and-media.md` | present |
-| analytics-and-notifications | `.claude/skills/codebase-context-deep-dive/references/deep-dives/analytics-and-notifications.md` | missing |
-| ai-tools-and-chat | `.claude/skills/codebase-context-deep-dive/references/deep-dives/ai-tools-and-chat.md` | missing |
-| admin-and-access | `.claude/skills/codebase-context-deep-dive/references/deep-dives/admin-and-access.md` | missing |
-| settings-feedback-shell | `.claude/skills/codebase-context-deep-dive/references/deep-dives/settings-feedback-shell.md` | missing |
+### 8.5.3 (2026-02-27)
+- New `/refine-linear-issue` skill: refine existing Linear issues with full context loading, clarifying questions, and polished descriptions.
+- Replaced `/create-linear-issue` with `/refine-linear-issue` (creation handled by `/draft-linear-issues`, refinement is now a dedicated skill).
+- Updated `/draft-linear-issues` references to point to `/refine-linear-issue`.
 

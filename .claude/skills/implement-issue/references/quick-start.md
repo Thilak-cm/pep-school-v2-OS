@@ -4,7 +4,7 @@
 
 The `implement-issue` skill bridges the gap from Linear issue creation to implementation by:
 1. Helping you select which Linear issue to work on
-2. Auto-loading relevant codebase context and deep-dives
+2. Auto-loading relevant codebase context and explore findings
 3. Generating a technical execution plan with specific file paths
 4. Discovering existing tests and establishing baseline
 5. Getting your approval before any code changes
@@ -51,7 +51,7 @@ You then select which issue to work on from the filtered results.
 The skill automatically:
 - ✅ Reads the Pep OS codebase overview
 - ✅ Infers relevant area tags from your issue's labels
-- ✅ Loads area-specific deep-dive reports
+- ✅ Spawns Explore subagent for deeper context when needed
 - ✅ Extracts requirements and acceptance criteria from Linear
 
 No action needed—this happens automatically.
