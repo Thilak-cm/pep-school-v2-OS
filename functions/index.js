@@ -20,6 +20,8 @@ import {
 } from "./writingSnapshot.helpers.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
+import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY } from "./config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId } from "./utils/reportHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -3528,4 +3530,398 @@ export const childChat = functions
       const errorMessage = err?.message || "An unexpected error occurred.";
       throw new functions.https.HttpsError("internal", errorMessage);
     }
+  });
+
+// -----------------------------------------------
+// Parent Report Generation
+// -----------------------------------------------
+
+const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
+const reportPromptCache = {};
+
+async function getReportPrompt(programId, { forceRefresh = false } = {}) {
+  const docId = getReportPromptDocId(programId);
+  if (!docId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      `Unsupported program for report generation: ${programId}`,
+    );
+  }
+
+  const cached = reportPromptCache[docId];
+  if (!forceRefresh && cached?.data && (Date.now() - cached.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("ai_prompts").doc(docId).get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      `Report prompt not found for program: ${programId}. Seed it via scripts/admin/seed-report-prompts.mjs`,
+    );
+  }
+
+  const data = snap.data() || {};
+  const prompt = {
+    systemPrompt: String(data.systemPrompt || ""),
+    title: String(data.title || ""),
+    description: String(data.description || ""),
+    version: Number.isFinite(data.version) ? data.version : 1,
+  };
+
+  if (!prompt.systemPrompt) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Report prompt for ${programId} has empty systemPrompt`,
+    );
+  }
+
+  reportPromptCache[docId] = { data: prompt, ts: Date.now() };
+  return prompt;
+}
+
+function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
+  const notesMap = new Map();
+  const studentObsRef = db.collection("students").doc(studentId).collection("observations");
+
+  const collect = async (field) => {
+    try {
+      const snap = await studentObsRef
+        .where(field, ">=", startDate)
+        .where(field, "<=", endDate)
+        .get();
+      snap.docs.forEach((d) => {
+        notesMap.set(d.id, { id: d.id, ...d.data() });
+      });
+    } catch (err) {
+      console.warn(`[report] query failed for field ${field} student ${studentId}:`, err);
+    }
+  };
+
+  return (async () => {
+    await collect("observedAt");
+    await collect("createdAt");
+    await collect("timestamp");
+
+    const notes = Array.from(notesMap.values()).filter((n) => {
+      const ts = chooseObservationTimestamp(n);
+      return ts && ts >= startDate && ts <= endDate;
+    });
+
+    notes.sort((a, b) => {
+      const ta = chooseObservationTimestamp(a);
+      const tb = chooseObservationTimestamp(b);
+      return (ta?.getTime() || 0) - (tb?.getTime() || 0);
+    });
+
+    return notes;
+  })();
+}
+
+async function getStudentWithProgram(studentId) {
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
+  }
+  const studentData = studentSnap.data() || {};
+  const classroomId = studentData.classroomId;
+
+  let programId = null;
+  if (classroomId) {
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    if (classroomSnap.exists) {
+      programId = classroomSnap.data()?.programId || null;
+    }
+  }
+
+  const fallbackName = [studentData.firstName, studentData.lastName].filter(Boolean).join(" ").trim();
+  const studentName = studentData.displayName || studentData.name || fallbackName || "Unknown student";
+  const dob = formatDobForContext(studentData.dob);
+  const age = calculateAgeFromDob(studentData.dob);
+
+  return { studentName, dob, age, programId, classroomId };
+}
+
+const REPORT_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object with exactly this structure:
+{
+  "reportText": "<the full report narrative as a single string, using \\n for line breaks and ## for section headers>",
+  "sentimentScore": <integer 1-5>,
+  "areaBalanceScore": <integer 1-5>,
+  "missingInputFlags": ["<flag1>", "<flag2>"]
+}
+
+The reportText should contain the complete parent-facing report following the prompt instructions above.
+The sentimentScore and areaBalanceScore should follow the scoring rubrics in the prompt.
+The missingInputFlags should list any areas where inputs were missing.
+Output ONLY the JSON object, nothing else.`;
+
+async function callReportGeneration(notes, prompt, studentContext, dateRange) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const safeContext = {
+    studentName: studentContext?.studentName || "Unknown student",
+    dob: studentContext?.dob || "dob unavailable in context",
+    age: studentContext?.age || "age unavailable",
+  };
+
+  const systemContent = prompt.systemPrompt + REPORT_JSON_WRAPPER;
+
+  const startStr = dateRange.start instanceof Date
+    ? dateRange.start.toISOString().split("T")[0]
+    : String(dateRange.start);
+  const endStr = dateRange.end instanceof Date
+    ? dateRange.end.toISOString().split("T")[0]
+    : String(dateRange.end);
+
+  const userContent = [
+    `Generate the Educator Summary report for the period ${startStr} to ${endStr}.`,
+    "",
+    `Student: ${JSON.stringify(safeContext)}`,
+    "",
+    `Notes (${notes.length} observations, JSON array):`,
+    JSON.stringify(notes),
+  ].join("\n");
+
+  const body = {
+    model: REPORT_DEFAULTS.model,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ],
+    temperature: REPORT_DEFAULTS.temperature,
+    max_tokens: REPORT_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[report] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[report] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  return parseReportResponse(rawContent);
+}
+
+async function writeReportDoc(studentId, payload) {
+  const docId = `report_${Date.now()}`;
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(docId);
+  await ref.set(payload);
+  return docId;
+}
+
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId }) {
+  const studentInfo = await getStudentWithProgram(studentId);
+  if (!studentInfo.programId) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Student ${studentId} has no associated program. Check classroom assignment.`,
+    );
+  }
+
+  const prompt = await getReportPrompt(studentInfo.programId);
+
+  const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
+  const endDate = dateRangeEnd ? new Date(dateRangeEnd) : new Date();
+
+  const notes = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
+
+  if (!notes.length) {
+    const payload = {
+      reportText: "",
+      sentimentScore: null,
+      areaBalanceScore: null,
+      missingInputFlags: ["No observations found in date range"],
+      noteCount: 0,
+      dateRangeStart: startDate,
+      dateRangeEnd: endDate,
+      programId: studentInfo.programId,
+      model: REPORT_DEFAULTS.model,
+      generatedAt: new Date(),
+      generatedBy: requesterId,
+      status: "no_notes",
+      sourceNoteIds: [],
+    };
+    const docId = await writeReportDoc(studentId, payload);
+    return { studentId, status: "no_notes", docId, payload };
+  }
+
+  const formatted = notes.map(formatObservationForPrompt);
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate });
+  const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
+
+  const payload = {
+    reportText: aiResult.reportText,
+    sentimentScore: aiResult.sentimentScore,
+    areaBalanceScore: aiResult.areaBalanceScore,
+    missingInputFlags: aiResult.missingInputFlags,
+    noteCount: formatted.length,
+    dateRangeStart: startDate,
+    dateRangeEnd: endDate,
+    programId: studentInfo.programId,
+    model: REPORT_DEFAULTS.model,
+    generatedAt: new Date(),
+    generatedBy: requesterId,
+    status: "ok",
+    sourceNoteIds,
+  };
+
+  const docId = await writeReportDoc(studentId, payload);
+  return { studentId, status: "ok", docId, payload };
+}
+
+async function checkReportPermission(uid, studentId) {
+  const requesterSnap = await db.collection("users").doc(uid).get();
+  if (!requesterSnap.exists) {
+    throw new functions.https.HttpsError("permission-denied", "User not found");
+  }
+  const requester = requesterSnap.data();
+  const role = requester.role;
+
+  if (role === "superadmin") return;
+
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
+  }
+  const classroomId = studentSnap.data()?.classroomId;
+
+  if (role === "classroomadmin" || role === "admin") {
+    const manageable = requester.manageableClassrooms || [];
+    const classroomSnap = classroomId ? await db.collection("classrooms").doc(classroomId).get() : null;
+    const programId = classroomSnap?.data()?.programId;
+    if (programId && manageable.includes(programId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's program");
+  }
+
+  if (role === "teacher") {
+    const assignedClassrooms = requester.assignedClassrooms || [];
+    if (classroomId && assignedClassrooms.includes(classroomId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Teacher is not assigned to this student's classroom");
+  }
+
+  throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
+}
+
+export const generateStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    await checkReportPermission(context.auth.uid, studentId);
+
+    const result = await runSingleReport({
+      studentId,
+      dateRangeStart: data?.dateRangeStart || null,
+      dateRangeEnd: data?.dateRangeEnd || null,
+      requesterId: context.auth.uid,
+    });
+
+    return {
+      status: result.status,
+      docId: result.docId,
+      studentId: result.studentId,
+      noteCount: result.payload.noteCount,
+      sentimentScore: result.payload.sentimentScore,
+      areaBalanceScore: result.payload.areaBalanceScore,
+      missingInputFlags: result.payload.missingInputFlags,
+      reportText: result.payload.reportText,
+      generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const generateClassroomReports = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const classroomId = String(data?.classroomId || "").trim();
+    if (!classroomId) {
+      throw new functions.https.HttpsError("invalid-argument", "classroomId is required");
+    }
+
+    // Resolve student IDs
+    let studentIds = Array.isArray(data?.studentIds) ? data.studentIds : [];
+    if (!studentIds.length) {
+      const studentsSnap = await db.collection("students")
+        .where("classroomId", "==", classroomId)
+        .where("isActive", "==", true)
+        .get();
+      studentIds = studentsSnap.docs.map((d) => d.id);
+    }
+
+    if (!studentIds.length) {
+      return { status: "no_students", completed: 0, failed: 0, results: [] };
+    }
+
+    // Check permission for the first student (all are in the same classroom)
+    await checkReportPermission(context.auth.uid, studentIds[0]);
+
+    const results = [];
+    await runWithConcurrency(studentIds, async (studentId) => {
+      try {
+        const result = await runSingleReport({
+          studentId,
+          dateRangeStart: data?.dateRangeStart || null,
+          dateRangeEnd: data?.dateRangeEnd || null,
+          requesterId: context.auth.uid,
+        });
+        results.push({
+          studentId,
+          status: result.status,
+          docId: result.docId,
+          noteCount: result.payload.noteCount,
+          sentimentScore: result.payload.sentimentScore,
+          areaBalanceScore: result.payload.areaBalanceScore,
+        });
+      } catch (err) {
+        console.error(`[report] bulk generation failed for student ${studentId}:`, err);
+        results.push({
+          studentId,
+          status: "error",
+          error: err?.message || "Unknown error",
+        });
+      }
+    }, REPORT_BULK_CONCURRENCY);
+
+    const completed = results.filter((r) => r.status === "ok" || r.status === "no_notes").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
+    return { status: "ok", completed, failed, total: studentIds.length, results };
   });

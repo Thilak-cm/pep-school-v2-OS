@@ -48,7 +48,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
             fontSize: '1.1rem'
           }}
         >
-          v8.7.0
+          v9.0.0
         </Typography>
       </Box>
     );
@@ -80,15 +80,15 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
         },
       }}
     >
-      <Typography 
-        variant="caption" 
-        component="span" 
-        sx={{ 
+      <Typography
+        variant="caption"
+        component="span"
+        sx={{
           fontWeight: 600,
           fontSize: 'inherit'
         }}
       >
-        v8.7.0
+        v9.0.0
       </Typography>
     </Box>
   );

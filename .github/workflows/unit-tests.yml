@@ -7,6 +7,10 @@ on:
       - 'montessori-os/package.json'
       - 'montessori-os/test-loader.js'
       - 'montessori-os/test-setup.js'
+      - 'functions/utils/**'
+      - 'functions/config/**'
+      - 'functions/test/**'
+      - 'functions/index.js'
       - '.github/workflows/unit-tests.yml'
   pull_request:
     branches:
@@ -17,10 +21,14 @@ on:
       - 'montessori-os/package.json'
       - 'montessori-os/test-loader.js'
       - 'montessori-os/test-setup.js'
+      - 'functions/utils/**'
+      - 'functions/config/**'
+      - 'functions/test/**'
+      - 'functions/index.js'
 
 jobs:
-  unit_tests:
-    name: Run Unit Tests
+  frontend_tests:
+    name: Frontend Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -40,17 +48,26 @@ jobs:
         working-directory: montessori-os
         run: npm test
 
-      - name: Report test results
-        if: always()
+  functions_tests:
+    name: Functions Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm install
+
+      - name: Run unit tests
+        working-directory: functions
+        shell: bash
         run: |
-          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All unit tests passed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Modules tested:" >> $GITHUB_STEP_SUMMARY
-          echo "- Observation permissions (48h window, role-based access)" >> $GITHUB_STEP_SUMMARY
-          echo "- Date formatting and ordinal suffixes" >> $GITHUB_STEP_SUMMARY
-          echo "- IST ISO week key calculation" >> $GITHUB_STEP_SUMMARY
-          echo "- Export filtering, summarization, filename generation" >> $GITHUB_STEP_SUMMARY
-          echo "- Lesson note constraints and dimension mapping" >> $GITHUB_STEP_SUMMARY
-          echo "- Role utilities" >> $GITHUB_STEP_SUMMARY
-          echo "- Coach response parsing" >> $GITHUB_STEP_SUMMARY
+          shopt -s globstar
+          node --test test/**/*.test.mjs
