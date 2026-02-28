@@ -1,7 +1,7 @@
 {
   "name": "montessori-os",
   "private": true,
-  "version": "8.5.3",
+  "version": "9.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
