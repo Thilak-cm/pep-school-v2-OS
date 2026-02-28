@@ -80,10 +80,10 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
         },
       }}
     >
-      <Typography 
-        variant="caption" 
-        component="span" 
-        sx={{ 
+      <Typography
+        variant="caption"
+        component="span"
+        sx={{
           fontWeight: 600,
           fontSize: 'inherit'
         }}

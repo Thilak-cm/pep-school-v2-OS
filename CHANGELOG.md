@@ -9,6 +9,11 @@
 - Bulk report generation with concurrency control and per-student progress tracking
 - Report helper utilities with 15 unit tests (date range, response parsing, prompt resolution)
 - Prompt seeding script for `ai_prompts` collection (`seed-report-prompts.mjs`)
+- Monthly writing snapshot async job: scheduled Cloud Function aggregates `handwritten=true` media notes per student and runs bundled VLM analysis for developmental writing insights (PEP-47)
+- On-demand `regenerateWritingSnapshotForStudent` callable for teachers/admins to refresh a student's writing snapshot mid-month (PEP-47)
+- Superadmin-only `previewWritingSnapshot` callable for dry-run testing (PEP-47)
+- IST month-key utilities (`getIstMonthKey`, `getMonthWindowDates`) with 10 tests (PEP-47)
+- Pure writing snapshot helpers (`filterWritingSamples`, `formatWritingSampleLabel`, `determineSnapshotStatus`, `parseWritingSnapshotResponse`) with 23 tests (PEP-47)
 
 # 8.6.0 — 2026-02-28
 
