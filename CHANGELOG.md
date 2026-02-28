@@ -1,5 +1,17 @@
 # Changelog
 
+# 8.6.0 — 2026-02-28
+
+### Added
+- Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
+- Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
+- New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
+- Extracted `buildMediaDocData` utility for testable media doc construction with 6 new tests.
+
+### Changed
+- Replaced `analyzePhotoVLM` Cloud Function with `detectHandwritingVLM` — drops general image analysis in favor of focused handwriting detection (PEP-43).
+- Removed all `photoAnalysis` / "Image Analysis" references from AddNoteModal, StudentTimeline, and data schema (PEP-43).
+
 # 8.5.3 — 2026-02-27
 
 ### Added
