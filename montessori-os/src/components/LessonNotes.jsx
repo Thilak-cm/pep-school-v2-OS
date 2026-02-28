@@ -138,6 +138,9 @@ function LessonNoteWizard({
   const [descriptionCleaning, setDescriptionCleaning] = useState(false);
   const [descriptionCleanedOnce, setDescriptionCleanedOnce] = useState(false);
   const [descriptionPrevText, setDescriptionPrevText] = useState('');
+  const [groupCommentCleaning, setGroupCommentCleaning] = useState(false);
+  const [groupCommentCleanedOnce, setGroupCommentCleanedOnce] = useState(false);
+  const [groupCommentPrevText, setGroupCommentPrevText] = useState('');
   const initialPrefillDoneRef = useRef(false);
   const editPrefillDoneRef = useRef(false);
   const inputRefs = useRef({
@@ -675,6 +678,7 @@ function LessonNoteWizard({
         latency_ms: dt,
       });
     } catch {
+      notify.error('Unable to polish text. Please try again.');
       trackEvent('polish_error', {
         source: 'lesson_description',
         component: 'LessonNotes.ShortDescription',
@@ -695,6 +699,57 @@ function LessonNoteWizard({
       source: 'lesson_description',
       component: 'LessonNotes.ShortDescription',
       length_bucket: lengthBucket(descriptionPrevText.length),
+    });
+  };
+
+  const handlePolishGroupComment = async () => {
+    const text = context.groupComment || '';
+    if (!text.trim() || groupCommentCleaning || groupCommentCleanedOnce) return;
+    try {
+      setGroupCommentCleaning(true);
+      trackEvent('polish_click', {
+        source: 'lesson_group_comment',
+        component: 'LessonNotes.GroupComment',
+        length_bucket: lengthBucket(text.length),
+      });
+      const t0 = performance.now();
+      const cleaned = await cleanUpText(text);
+      if (cleaned && cleaned !== text) {
+        setGroupCommentPrevText(text);
+        setContextField('groupComment', cleaned);
+        setGroupCommentCleanedOnce(true);
+      } else {
+        setGroupCommentCleanedOnce(false);
+      }
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'lesson_group_comment',
+        component: 'LessonNotes.GroupComment',
+        length_bucket: lengthBucket(text.length),
+        latency_ms: dt,
+      });
+    } catch {
+      notify.error('Unable to polish text. Please try again.');
+      trackEvent('polish_error', {
+        source: 'lesson_group_comment',
+        component: 'LessonNotes.GroupComment',
+        length_bucket: lengthBucket(text.length),
+        error: 'cleanup_failed',
+      });
+    } finally {
+      setGroupCommentCleaning(false);
+    }
+  };
+
+  const handleUndoPolishGroupComment = () => {
+    if (!groupCommentPrevText) return;
+    setContextField('groupComment', groupCommentPrevText);
+    setGroupCommentPrevText('');
+    setGroupCommentCleanedOnce(false);
+    trackEvent('polish_undo', {
+      source: 'lesson_group_comment',
+      component: 'LessonNotes.GroupComment',
+      length_bucket: lengthBucket(groupCommentPrevText.length),
     });
   };
 
@@ -1104,20 +1159,7 @@ function LessonNoteWizard({
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <IconButton
-                      aria-label="Dictate short description"
-                      onClick={() => openDictationFor({ field: 'lessonDescription' })}
-                      color="primary"
-                      size="small"
-                      sx={{
-                        border: 1,
-                        borderColor: 'divider',
-                        bgcolor: 'action.hover'
-                      }}
-                    >
-                      <Mic fontSize="small" />
-                    </IconButton>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Tooltip
                       title="Add text first to polish with AI"
                       disableHoverListener={!!context.lessonDescription.trim()}
@@ -1140,6 +1182,19 @@ function LessonNoteWizard({
                         </IconButton>
                       </span>
                     </Tooltip>
+                    <IconButton
+                      aria-label="Dictate short description"
+                      onClick={() => openDictationFor({ field: 'lessonDescription' })}
+                      color="primary"
+                      size="small"
+                      sx={{
+                        border: 1,
+                        borderColor: 'divider',
+                        bgcolor: 'action.hover'
+                      }}
+                    >
+                      <Mic fontSize="small" />
+                    </IconButton>
                   </Box>
                 </InputAdornment>
               )
@@ -1155,38 +1210,79 @@ function LessonNoteWizard({
             </Button>
           )}
           {lessonMode === 'group' && (
-            <TextField
-              fullWidth
-              label="Group Comment (optional)"
-              multiline
-              minRows={2}
-              placeholder="Add a note that appears for every student (optional)"
-              helperText="Optional note that appears for every student"
-              value={context.groupComment}
-              onChange={(e) => setContextField('groupComment', e.target.value)}
-              inputRef={(el) => {
-                inputRefs.current.groupComment = el;
-              }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="Dictate group comment"
-                      onClick={() => openDictationFor({ field: 'groupComment' })}
-                    color="primary"
-                    size="small"
-                    sx={{
-                      border: 1,
-                      borderColor: 'divider',
-                      bgcolor: 'action.hover'
-                    }}
-                    >
-                      <Mic fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
+            <>
+              <TextField
+                fullWidth
+                label="Group Comment (optional)"
+                multiline
+                minRows={2}
+                placeholder="Add a note that appears for every student (optional)"
+                helperText="Optional note that appears for every student"
+                value={context.groupComment}
+                onChange={(e) => {
+                  setContextField('groupComment', e.target.value);
+                  if (groupCommentCleanedOnce) {
+                    setGroupCommentCleanedOnce(false);
+                    setGroupCommentPrevText('');
+                  }
+                }}
+                inputRef={(el) => {
+                  inputRefs.current.groupComment = el;
+                }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip
+                          title="Add text first to polish with AI"
+                          disableHoverListener={!!context.groupComment.trim()}
+                          disableFocusListener={!!context.groupComment.trim()}
+                        >
+                          <span>
+                            <IconButton
+                              aria-label="Polish group comment with AI"
+                              onClick={handlePolishGroupComment}
+                              disabled={!context.groupComment.trim() || groupCommentCleaning || groupCommentCleanedOnce}
+                              size="small"
+                              sx={{
+                                border: 1,
+                                borderColor: 'divider',
+                                bgcolor: 'action.hover',
+                                color: groupCommentCleanedOnce ? '#059669' : groupCommentCleaning ? '#7c3aed' : !context.groupComment.trim() ? 'text.disabled' : '#7c3aed'
+                              }}
+                            >
+                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <IconButton
+                          aria-label="Dictate group comment"
+                          onClick={() => openDictationFor({ field: 'groupComment' })}
+                          color="primary"
+                          size="small"
+                          sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            bgcolor: 'action.hover'
+                          }}
+                        >
+                          <Mic fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </InputAdornment>
+                  )
+                }}
+              />
+              {groupCommentCleanedOnce && groupCommentPrevText && (
+                <Button
+                  variant="text"
+                  onClick={handleUndoPolishGroupComment}
+                  sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+                >
+                  Undo polish
+                </Button>
+              )}
+            </>
           )}
 
           <TextField

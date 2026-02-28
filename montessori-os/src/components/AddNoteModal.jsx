@@ -2193,20 +2193,7 @@ function AddNoteModal({
                                   InputProps={{
                                     endAdornment: (
                                       <InputAdornment position="end">
-                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                          <IconButton
-                                            aria-label={`Dictate comment for file`}
-                                            onClick={() => openMediaItemDictation(item.id)}
-                                            color="primary"
-                                            size="small"
-                                            sx={{
-                                              border: 1,
-                                              borderColor: 'divider',
-                                              bgcolor: 'action.hover'
-                                            }}
-                                          >
-                                            <Mic fontSize="small" />
-                                          </IconButton>
+                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
                                           <Tooltip
                                             title="Add text first to polish with AI"
                                             disableHoverListener={!!String(item.teacherComment || '').trim()}
@@ -2233,6 +2220,19 @@ function AddNoteModal({
                                               </IconButton>
                                             </span>
                                           </Tooltip>
+                                          <IconButton
+                                            aria-label={`Dictate comment for file`}
+                                            onClick={() => openMediaItemDictation(item.id)}
+                                            color="primary"
+                                            size="small"
+                                            sx={{
+                                              border: 1,
+                                              borderColor: 'divider',
+                                              bgcolor: 'action.hover'
+                                            }}
+                                          >
+                                            <Mic fontSize="small" />
+                                          </IconButton>
                                         </Box>
                                       </InputAdornment>
                                     )
@@ -2317,20 +2317,7 @@ function AddNoteModal({
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              <IconButton
-                                aria-label="Dictate teacher comment"
-                                onClick={openMediaDictation}
-                                color="primary"
-                                size="small"
-                                sx={{
-                                  border: 1,
-                                  borderColor: 'divider',
-                                  bgcolor: 'action.hover'
-                                }}
-                              >
-                                <Mic fontSize="small" />
-                              </IconButton>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
                               <Tooltip
                                 title="Add text first to polish with AI"
                                 disableHoverListener={!!mediaTeacherComment.trim()}
@@ -2353,6 +2340,19 @@ function AddNoteModal({
                                   </IconButton>
                                 </span>
                               </Tooltip>
+                              <IconButton
+                                aria-label="Dictate teacher comment"
+                                onClick={openMediaDictation}
+                                color="primary"
+                                size="small"
+                                sx={{
+                                  border: 1,
+                                  borderColor: 'divider',
+                                  bgcolor: 'action.hover'
+                                }}
+                              >
+                                <Mic fontSize="small" />
+                              </IconButton>
                             </Box>
                           </InputAdornment>
                         )
