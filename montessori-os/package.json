@@ -1,7 +1,7 @@
 {
   "name": "montessori-os",
   "private": true,
-  "version": "8.6.0",
+  "version": "9.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --import ./test-setup.js --test"
+    "test": "node --import ./test-setup.js --test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -34,6 +35,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.2.0",
+    "typescript": "^5.9.3",
     "vite": "^6.0.0"
   }
 }

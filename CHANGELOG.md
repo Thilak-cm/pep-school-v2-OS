@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.0.0 — 2026-02-27
+
+### Added
+- AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
+- Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
+- Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
+- Bulk report generation with concurrency control and per-student progress tracking
+- Report helper utilities with 15 unit tests (date range, response parsing, prompt resolution)
+- Prompt seeding script for `ai_prompts` collection (`seed-report-prompts.mjs`)
+
 # 8.6.0 — 2026-02-28
 
 ### Added
