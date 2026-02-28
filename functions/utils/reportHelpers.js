@@ -55,3 +55,131 @@ export function getReportPromptDocId(programId) {
   if (!programId || typeof programId !== "string") return null;
   return REPORT_PROMPT_DOCS[programId] || null;
 }
+
+/**
+ * Escape a CSV field: wrap in quotes if it contains commas, quotes, or newlines.
+ */
+function escapeCsvField(value) {
+  const str = value == null ? "" : String(value);
+  if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+    return `"${str.replace(/"/g, "\"\"")}"`;
+  }
+  return str;
+}
+
+/**
+ * Format a single CSV row for the summary CSV.
+ * Columns: Child Name, Generation Date, Sentiment Score, Area Balance Score, Missing Input Flags, Google Doc Link
+ */
+export function formatCsvRow({ studentName, generatedAt, sentimentScore, areaBalanceScore, missingInputFlags, docLink }) {
+  const flags = Array.isArray(missingInputFlags) ? missingInputFlags.join("; ") : "";
+  return [
+    escapeCsvField(studentName),
+    escapeCsvField(generatedAt),
+    sentimentScore != null ? String(sentimentScore) : "",
+    areaBalanceScore != null ? String(areaBalanceScore) : "",
+    escapeCsvField(flags),
+    escapeCsvField(docLink),
+  ].join(",");
+}
+
+/**
+ * Parse CSV content into headers and rows.
+ * Handles quoted fields containing commas.
+ */
+export function parseCsv(content) {
+  if (!content || !content.trim()) return { headers: [], rows: [] };
+
+  const lines = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    if (ch === "\"") {
+      inQuotes = !inQuotes;
+      current += ch;
+    } else if (ch === "\n" && !inQuotes) {
+      lines.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) lines.push(current);
+
+  if (!lines.length) return { headers: [], rows: [] };
+
+  const parseLine = (line) => {
+    const fields = [];
+    let field = "";
+    let quoted = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === "\"") {
+        if (quoted && line[i + 1] === "\"") {
+          field += "\"";
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (ch === "," && !quoted) {
+        fields.push(field);
+        field = "";
+      } else {
+        field += ch;
+      }
+    }
+    fields.push(field);
+    return fields;
+  };
+
+  const headers = parseLine(lines[0]);
+  const rows = lines.slice(1).filter((l) => l.trim()).map(parseLine);
+
+  return { headers, rows };
+}
+
+/**
+ * Serialize headers and rows back to CSV string.
+ */
+export function serializeCsv(headers, rows) {
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(row.join(","));
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Update CSV content: replace existing row for studentName, or append new row.
+ * If existing CSV is empty, creates new CSV with headers.
+ */
+export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
+  if (!existingCsv || !existingCsv.trim()) {
+    return csvHeaders.join(",") + "\n" + newRow;
+  }
+
+  const { headers, rows } = parseCsv(existingCsv);
+  const nameColIdx = headers.findIndex((h) =>
+    h.toLowerCase().includes("child name") || h.toLowerCase().includes("student name"),
+  );
+
+  const newFields = parseCsv(csvHeaders.join(",") + "\n" + newRow).rows[0];
+
+  if (nameColIdx >= 0) {
+    const existingIdx = rows.findIndex((r) =>
+      r[nameColIdx]?.trim().toLowerCase() === studentName.trim().toLowerCase(),
+    );
+    if (existingIdx >= 0) {
+      rows[existingIdx] = newFields;
+    } else {
+      rows.push(newFields);
+    }
+  } else {
+    rows.push(newFields);
+  }
+
+  return serializeCsv(headers.length ? headers : csvHeaders, rows);
+}

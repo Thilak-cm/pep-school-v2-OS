@@ -24,6 +24,7 @@ import {
   CheckBox as CheckBoxIcon,
   SelectAll,
   Close,
+  CloudUpload as ExportIcon,
 } from '@mui/icons-material';
 import { collection, collectionGroup, getDocs, query, where, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -52,6 +53,10 @@ function StudentList({ classroom, onSelectStudent }) {
 
   // Single report preview (from bulk results)
   const [previewReport, setPreviewReport] = useState(null);
+
+  // Bulk export to Drive state
+  const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkExportDone, setBulkExportDone] = useState(false);
 
   const getStudentName = (s) =>
     s?.name || s?.displayName || [s?.firstName, s?.lastName].filter(Boolean).join(' ') || 'Unnamed Student';
@@ -234,6 +239,43 @@ function StudentList({ classroom, onSelectStudent }) {
     }
   };
 
+  const handleBulkExportToDrive = async () => {
+    if (!classroom?.id || !bulkResults?.results?.length) return;
+    const successResults = bulkResults.results
+      .filter((r) => r.status === 'ok' && r.docId)
+      .map((r) => ({ studentId: r.studentId, docId: r.docId }));
+    if (!successResults.length) return;
+
+    try {
+      setBulkExporting(true);
+      setBulkError('');
+      trackEvent('bulk_export_start', {
+        classroomId: classroom.id,
+        count: successResults.length,
+      }).catch(() => {});
+
+      const call = httpsCallable(cloudFunctions, 'exportClassroomReportsToDrive');
+      await call({
+        classroomId: classroom.id,
+        reportResults: successResults,
+      });
+
+      setBulkExportDone(true);
+      trackEvent('bulk_export_success', {
+        classroomId: classroom.id,
+        count: successResults.length,
+      }).catch(() => {});
+    } catch (e) {
+      setBulkError(e?.message || 'Failed to export reports to Drive.');
+      trackEvent('bulk_export_error', {
+        classroomId: classroom.id,
+        error: e?.message,
+      }).catch(() => {});
+    } finally {
+      setBulkExporting(false);
+    }
+  };
+
   // Use fuzzy search for better matching
   const visibleStudents = fuzzySearchStudents(students, searchQuery);
   const allSelected = visibleStudents.length > 0 && selectedIds.size === visibleStudents.length;
@@ -325,14 +367,38 @@ function StudentList({ classroom, onSelectStudent }) {
 
       {/* Bulk results summary */}
       {bulkResults && !bulkGenerating && (
-        <Alert
-          severity={bulkResults.failed > 0 ? 'warning' : 'success'}
-          onClose={() => setBulkResults(null)}
-          sx={{ borderRadius: 2 }}
-        >
-          {bulkResults.completed} of {bulkResults.total} reports generated successfully
-          {bulkResults.failed > 0 && `. ${bulkResults.failed} failed.`}
-        </Alert>
+        <Stack spacing={1}>
+          <Alert
+            severity={bulkResults.failed > 0 ? 'warning' : 'success'}
+            onClose={() => { setBulkResults(null); setBulkExportDone(false); }}
+            sx={{ borderRadius: 2 }}
+          >
+            {bulkResults.completed} of {bulkResults.total} reports generated successfully
+            {bulkResults.failed > 0 && `. ${bulkResults.failed} failed.`}
+          </Alert>
+          {bulkResults.completed > 0 && !bulkExportDone && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<ExportIcon />}
+              onClick={handleBulkExportToDrive}
+              disabled={bulkExporting}
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                alignSelf: 'flex-start',
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              }}
+            >
+              {bulkExporting ? 'Exporting to Drive…' : 'Export All to Drive'}
+            </Button>
+          )}
+          {bulkExportDone && (
+            <Alert severity="success" sx={{ borderRadius: 2 }}>
+              Reports exported to Google Drive successfully.
+            </Alert>
+          )}
+        </Stack>
       )}
 
       {bulkError && (

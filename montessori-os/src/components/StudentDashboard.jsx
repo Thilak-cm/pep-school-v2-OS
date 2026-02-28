@@ -147,6 +147,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [reportError, setReportError] = useState('');
+  const [reportExporting, setReportExporting] = useState(false);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -215,6 +216,23 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
       setReportGenerating(false);
+    }
+  };
+
+  const handleExportToDrive = async () => {
+    if (!reportData?.docId || !studentId) return;
+    try {
+      setReportExporting(true);
+      trackEvent('report_export_start', { studentId }).catch(() => {});
+      const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
+      const result = await call({ studentId, reportDocId: reportData.docId });
+      setReportData((prev) => ({ ...prev, driveDocLink: result.data.driveDocLink }));
+      trackEvent('report_export_success', { studentId }).catch(() => {});
+    } catch (e) {
+      setReportError(e?.message || 'Failed to export to Drive.');
+      trackEvent('report_export_error', { studentId, error: e?.message }).catch(() => {});
+    } finally {
+      setReportExporting(false);
     }
   };
 
@@ -915,6 +933,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         generatedAt={reportData?.generatedAt || null}
         studentLabel={studentLabel}
         noteCount={reportData?.noteCount ?? null}
+        onExportToDrive={reportData?.docId ? handleExportToDrive : null}
+        exporting={reportExporting}
+        driveDocLink={reportData?.driveDocLink || null}
       />
 
       {reportError && (

@@ -11,7 +11,7 @@ import {
   IconButton,
   Divider,
 } from '@mui/material';
-import { Close, Description as ReportIcon } from '@mui/icons-material';
+import { Close, Description as ReportIcon, CloudUpload as ExportIcon } from '@mui/icons-material';
 import { parseReportSections, renderSectionContent } from '../utils/reportUtils';
 
 export default function ReportPreviewDialog({
@@ -22,6 +22,9 @@ export default function ReportPreviewDialog({
   generatedAt = null,
   studentLabel = 'Student',
   noteCount = null,
+  onExportToDrive = null,
+  exporting = false,
+  driveDocLink = null,
 }) {
   const sections = useMemo(() => parseReportSections(reportText), [reportText]);
 
@@ -158,13 +161,43 @@ export default function ReportPreviewDialog({
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
         <Button
           onClick={onClose}
           sx={{ textTransform: 'none', color: '#475569' }}
         >
           Close
         </Button>
+        {onExportToDrive && (
+          driveDocLink ? (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ExportIcon />}
+              href={driveDocLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ textTransform: 'none', borderRadius: 2 }}
+            >
+              Open in Drive
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<ExportIcon />}
+              onClick={onExportToDrive}
+              disabled={exporting || !reportText}
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              }}
+            >
+              {exporting ? 'Exporting…' : 'Export to Drive'}
+            </Button>
+          )
+        )}
       </DialogActions>
     </Dialog>
   );

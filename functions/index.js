@@ -20,8 +20,16 @@ import {
 } from "./writingSnapshot.helpers.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
-import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId } from "./utils/reportHelpers.js";
+import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, formatCsvRow, updateCsvContent } from "./utils/reportHelpers.js";
+import {
+  getDriveClients,
+  getOrCreateClassroomFolder,
+  countExistingReportDocs,
+  createReportDoc,
+  downloadCsvContent,
+  updateDriveSummaryCsv,
+} from "./utils/driveHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -3924,4 +3932,200 @@ export const generateClassroomReports = functions
     const failed = results.filter((r) => r.status === "error").length;
 
     return { status: "ok", completed, failed, total: studentIds.length, results };
+  });
+
+// ─── Google Drive Export ────────────────────────────────────────────────────
+
+/**
+ * Export a single student report to Google Drive as a Google Doc.
+ * Creates classroom folder if needed, creates doc, updates summary CSV.
+ */
+export const exportReportToDrive = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    const reportDocId = String(data?.reportDocId || "").trim();
+    if (!studentId || !reportDocId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "studentId and reportDocId are required",
+      );
+    }
+
+    // Permission check (same as report generation)
+    await checkReportPermission(context.auth.uid, studentId);
+
+    // Load the report from Firestore
+    const reportRef = db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc(reportDocId);
+    const reportSnap = await reportRef.get();
+    if (!reportSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Report not found");
+    }
+    const report = reportSnap.data();
+
+    if (!report.reportText) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Report has no content to export",
+      );
+    }
+
+    // Get student + classroom info
+    const studentSnap = await db.collection("students").doc(studentId).get();
+    const studentData = studentSnap.data();
+    const studentName = studentData?.name || "Unknown Student";
+    const classroomId = studentData?.classroomId;
+
+    if (!classroomId) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Student has no classroom assignment",
+      );
+    }
+
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    const classroomData = classroomSnap.data();
+    const classroomName = classroomData?.name || "Unknown Classroom";
+    const programId = classroomData?.programId || "";
+
+    // Get or create Drive folder
+    const { drive, docs } = await getDriveClients();
+
+    let folderId = classroomData?.driveFolderId;
+    if (!folderId) {
+      folderId = await getOrCreateClassroomFolder(drive, classroomName, programId);
+      // Store folderId on classroom doc for future use
+      await db.collection("classrooms").doc(classroomId).update({ driveFolderId: folderId });
+    }
+
+    // Count existing report docs to determine version
+    const existingCount = await countExistingReportDocs(drive, folderId, studentName);
+
+    // Create the Google Doc
+    const { docId: driveDocId, docLink } = await createReportDoc(
+      drive, docs, folderId, studentName, report.reportText, existingCount,
+    );
+
+    // Update summary CSV
+    const csvRow = formatCsvRow({
+      studentName,
+      generatedAt: report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+      sentimentScore: report.sentimentScore,
+      areaBalanceScore: report.areaBalanceScore,
+      missingInputFlags: report.missingInputFlags || [],
+      docLink,
+    });
+
+    const existingCsv = await downloadCsvContent(drive, folderId);
+    const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+    await updateDriveSummaryCsv(drive, folderId, newCsv);
+
+    // Store Drive doc link on the report doc
+    await reportRef.update({ driveDocId, driveDocLink: docLink });
+
+    return {
+      status: "ok",
+      driveDocId,
+      driveDocLink: docLink,
+      studentName,
+    };
+  });
+
+/**
+ * Export multiple student reports to Google Drive after bulk generation.
+ * Reuses the classroom folder, creates one doc per student, updates CSV.
+ */
+export const exportClassroomReportsToDrive = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const classroomId = String(data?.classroomId || "").trim();
+    if (!classroomId) {
+      throw new functions.https.HttpsError("invalid-argument", "classroomId is required");
+    }
+
+    // reportResults: array of { studentId, docId } from bulk generation
+    const reportResults = Array.isArray(data?.reportResults) ? data.reportResults : [];
+    if (!reportResults.length) {
+      return { status: "no_reports", completed: 0, failed: 0, results: [] };
+    }
+
+    // Permission check via first student
+    await checkReportPermission(context.auth.uid, reportResults[0].studentId);
+
+    // Load classroom info
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    const classroomData = classroomSnap.data();
+    const classroomName = classroomData?.name || "Unknown Classroom";
+    const programId = classroomData?.programId || "";
+
+    const { drive, docs } = await getDriveClients();
+
+    // Get or create Drive folder
+    let folderId = classroomData?.driveFolderId;
+    if (!folderId) {
+      folderId = await getOrCreateClassroomFolder(drive, classroomName, programId);
+      await db.collection("classrooms").doc(classroomId).update({ driveFolderId: folderId });
+    }
+
+    // Download existing CSV once
+    let currentCsv = await downloadCsvContent(drive, folderId);
+
+    const results = [];
+    await runWithConcurrency(reportResults, async ({ studentId, docId }) => {
+      try {
+        const reportSnap = await db.collection("students").doc(studentId)
+          .collection("ai_summaries").doc(docId).get();
+        if (!reportSnap.exists || !reportSnap.data().reportText) {
+          results.push({ studentId, status: "skipped", reason: "no_content" });
+          return;
+        }
+        const report = reportSnap.data();
+
+        const studentSnap = await db.collection("students").doc(studentId).get();
+        const studentName = studentSnap.data()?.name || "Unknown Student";
+
+        const existingCount = await countExistingReportDocs(drive, folderId, studentName);
+        const { docId: driveDocId, docLink } = await createReportDoc(
+          drive, docs, folderId, studentName, report.reportText, existingCount,
+        );
+
+        // Update report doc with Drive link
+        await reportSnap.ref.update({ driveDocId, driveDocLink: docLink });
+
+        // Update CSV content (sequential to avoid race conditions)
+        const csvRow = formatCsvRow({
+          studentName,
+          generatedAt: report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+          sentimentScore: report.sentimentScore,
+          areaBalanceScore: report.areaBalanceScore,
+          missingInputFlags: report.missingInputFlags || [],
+          docLink,
+        });
+        currentCsv = updateCsvContent(currentCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+
+        results.push({ studentId, status: "ok", driveDocId, driveDocLink: docLink });
+      } catch (err) {
+        console.error(`[drive-export] failed for student ${studentId}:`, err);
+        results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+    }, REPORT_BULK_CONCURRENCY);
+
+    // Upload final CSV once
+    await updateDriveSummaryCsv(drive, folderId, currentCsv);
+
+    const completed = results.filter((r) => r.status === "ok").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
+    return { status: "ok", completed, failed, total: reportResults.length, results };
   });

@@ -145,7 +145,10 @@ interface Classroom {
   
   // Server-maintained summary
   studentCount: number;          // count of active students
-  
+
+  // Google Drive export (PEP-61)
+  driveFolderId?: string;        // Google Drive folder ID for report exports (set on first export)
+
   // Metadata
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time

@@ -18,3 +18,17 @@ export const REPORT_PROMPT_DOCS = {
 
 // Concurrency limit for bulk report generation
 export const REPORT_BULK_CONCURRENCY = 5;
+
+// Google Drive export constants
+export const DRIVE_CONSTANTS = {
+  sharedDriveId: "0ANF5MPbc7nZEUk9PVA",
+  csvFilename: "Report Summary.csv",
+  csvHeaders: [
+    "Child Name",
+    "Generation Date",
+    "Sentiment Score",
+    "Area Balance Score",
+    "Missing Input Flags",
+    "Google Doc Link",
+  ],
+};
