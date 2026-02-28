@@ -4,7 +4,7 @@ import { getAuth } from "firebase/auth";
 import { GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -27,6 +27,13 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 // Explicitly pin region to Mumbai (asia-south1)
 const cloudFunctions = getFunctions(app, 'asia-south1');
+
+// Connect Cloud Functions to emulator when running locally.
+// Auth/Firestore/Storage stay on production so you have real data and real login.
+// To enable: run `npx firebase emulators:start --only functions` from project root.
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== 'false') {
+  connectFunctionsEmulator(cloudFunctions, 'localhost', 5001);
+}
 
 export { auth, provider, db, storage, cloudFunctions, app };
 export default app;
