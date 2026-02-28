@@ -21,7 +21,8 @@ import {
   ListItemText,
   ListItemIcon,
   Stack,
-  Autocomplete
+  Autocomplete,
+  Tooltip
 } from '@mui/material';
 import {
   ExpandMore,
@@ -30,7 +31,8 @@ import {
   Person,
   Search,
   Mic,
-  Close
+  Close,
+  AutoFixHigh
 } from '@mui/icons-material';
 import {
   collection,
@@ -47,6 +49,8 @@ import useNotify from '../notifications/useNotify';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
 import VoiceRecorder from '../VoiceRecorder';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
+import { cleanUpText } from '../textCleanup';
+import { trackEvent, lengthBucket } from '../utils/analytics';
 import {
   LESSON_PROGRAM_DIMENSIONS,
   LESSON_RATING_OPTIONS,
@@ -131,6 +135,9 @@ function LessonNoteWizard({
   const [dictationOpen, setDictationOpen] = useState(false);
   const [dictationTarget, setDictationTarget] = useState(null);
   const [dictationSelection, setDictationSelection] = useState({ start: null, end: null });
+  const [descriptionCleaning, setDescriptionCleaning] = useState(false);
+  const [descriptionCleanedOnce, setDescriptionCleanedOnce] = useState(false);
+  const [descriptionPrevText, setDescriptionPrevText] = useState('');
   const initialPrefillDoneRef = useRef(false);
   const editPrefillDoneRef = useRef(false);
   const inputRefs = useRef({
@@ -641,6 +648,56 @@ function LessonNoteWizard({
     closeDictation();
   };
 
+  const handlePolishDescription = async () => {
+    const text = context.lessonDescription || '';
+    if (!text.trim() || descriptionCleaning || descriptionCleanedOnce) return;
+    try {
+      setDescriptionCleaning(true);
+      trackEvent('polish_click', {
+        source: 'lesson_description',
+        component: 'LessonNotes.ShortDescription',
+        length_bucket: lengthBucket(text.length),
+      });
+      const t0 = performance.now();
+      const cleaned = await cleanUpText(text);
+      if (cleaned && cleaned !== text) {
+        setDescriptionPrevText(text);
+        setContextField('lessonDescription', cleaned);
+        setDescriptionCleanedOnce(true);
+      } else {
+        setDescriptionCleanedOnce(false);
+      }
+      const dt = Math.round(performance.now() - t0);
+      trackEvent('polish_success', {
+        source: 'lesson_description',
+        component: 'LessonNotes.ShortDescription',
+        length_bucket: lengthBucket(text.length),
+        latency_ms: dt,
+      });
+    } catch {
+      trackEvent('polish_error', {
+        source: 'lesson_description',
+        component: 'LessonNotes.ShortDescription',
+        length_bucket: lengthBucket(text.length),
+        error: 'cleanup_failed',
+      });
+    } finally {
+      setDescriptionCleaning(false);
+    }
+  };
+
+  const handleUndoPolishDescription = () => {
+    if (!descriptionPrevText) return;
+    setContextField('lessonDescription', descriptionPrevText);
+    setDescriptionPrevText('');
+    setDescriptionCleanedOnce(false);
+    trackEvent('polish_undo', {
+      source: 'lesson_description',
+      component: 'LessonNotes.ShortDescription',
+      length_bucket: lengthBucket(descriptionPrevText.length),
+    });
+  };
+
   const _GetRatingForStudent = (studentId, dimension) => {
     const studentValue = studentOverrides[studentId]?.dimensions?.[dimension];
     if (studentValue) return studentValue;
@@ -1034,30 +1091,69 @@ function LessonNoteWizard({
             minRows={2}
             placeholder="Add a short description (optional)"
             value={context.lessonDescription}
-            onChange={(e) => setContextField('lessonDescription', e.target.value)}
+            onChange={(e) => {
+              setContextField('lessonDescription', e.target.value);
+              if (descriptionCleanedOnce) {
+                setDescriptionCleanedOnce(false);
+                setDescriptionPrevText('');
+              }
+            }}
             inputRef={(el) => {
               inputRefs.current.lessonDescription = el;
             }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    aria-label="Dictate short description"
-                    onClick={() => openDictationFor({ field: 'lessonDescription' })}
-                    color="primary"
-                    size="small"
-                    sx={{
-                      border: 1,
-                      borderColor: 'divider',
-                      bgcolor: 'action.hover'
-                    }}
-                  >
-                    <Mic fontSize="small" />
-                  </IconButton>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <IconButton
+                      aria-label="Dictate short description"
+                      onClick={() => openDictationFor({ field: 'lessonDescription' })}
+                      color="primary"
+                      size="small"
+                      sx={{
+                        border: 1,
+                        borderColor: 'divider',
+                        bgcolor: 'action.hover'
+                      }}
+                    >
+                      <Mic fontSize="small" />
+                    </IconButton>
+                    <Tooltip
+                      title="Add text first to polish with AI"
+                      disableHoverListener={!!context.lessonDescription.trim()}
+                      disableFocusListener={!!context.lessonDescription.trim()}
+                    >
+                      <span>
+                        <IconButton
+                          aria-label="Polish short description with AI"
+                          onClick={handlePolishDescription}
+                          disabled={!context.lessonDescription.trim() || descriptionCleaning || descriptionCleanedOnce}
+                          size="small"
+                          sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            bgcolor: 'action.hover',
+                            color: descriptionCleanedOnce ? '#059669' : descriptionCleaning ? '#7c3aed' : !context.lessonDescription.trim() ? 'text.disabled' : '#7c3aed'
+                          }}
+                        >
+                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
                 </InputAdornment>
               )
             }}
           />
+          {descriptionCleanedOnce && descriptionPrevText && (
+            <Button
+              variant="text"
+              onClick={handleUndoPolishDescription}
+              sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+            >
+              Undo polish
+            </Button>
+          )}
           {lessonMode === 'group' && (
             <TextField
               fullWidth

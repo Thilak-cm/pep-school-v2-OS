@@ -11,7 +11,8 @@ import {
   Alert,
   Chip,
   InputAdornment,
-  Divider
+  Divider,
+  Tooltip
 } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import {
@@ -347,6 +348,10 @@ function AddNoteModal({
   const [mediaDictationOpen, setMediaDictationOpen] = useState(false);
   const mediaCommentRef = useRef(null);
   const [mediaDictationSelection, setMediaDictationSelection] = useState({ start: null, end: null });
+  const [mediaItemDictationOpen, setMediaItemDictationOpen] = useState(false);
+  const [mediaItemDictationTarget, setMediaItemDictationTarget] = useState(null);
+  const [mediaItemDictationSelection, setMediaItemDictationSelection] = useState({ start: null, end: null });
+  const mediaItemCommentRefs = useRef({});
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDirty, setMediaDirty] = useState(false);
   const [mediaError, setMediaError] = useState('');
@@ -1453,6 +1458,39 @@ function AddNoteModal({
     });
   };
 
+  const openMediaItemDictation = (itemId) => {
+    const el = mediaItemCommentRefs.current[itemId];
+    const start = el && Number.isInteger(el.selectionStart) ? el.selectionStart : null;
+    const end = el && Number.isInteger(el.selectionEnd) ? el.selectionEnd : null;
+    setMediaItemDictationSelection({ start, end });
+    setMediaItemDictationTarget(itemId);
+    setMediaItemDictationOpen(true);
+  };
+
+  const closeMediaItemDictation = () => {
+    setMediaItemDictationOpen(false);
+    setMediaItemDictationTarget(null);
+    setMediaItemDictationSelection({ start: null, end: null });
+  };
+
+  const handleMediaItemDictationSave = (transcriptionData) => {
+    const insertText = transcriptionData?.text?.trim();
+    if (!insertText || !mediaItemDictationTarget) {
+      closeMediaItemDictation();
+      return;
+    }
+    const item = mediaItems.find((entry) => entry.id === mediaItemDictationTarget);
+    const current = item?.teacherComment || '';
+    let nextValue;
+    if (mediaItemDictationSelection.start != null && mediaItemDictationSelection.end != null) {
+      nextValue = current.slice(0, mediaItemDictationSelection.start) + insertText + current.slice(mediaItemDictationSelection.end);
+    } else {
+      nextValue = current ? current + ' ' + insertText : insertText;
+    }
+    handleMediaItemCommentChange(mediaItemDictationTarget, nextValue);
+    closeMediaItemDictation();
+  };
+
   const handlePolishMediaPdfComment = async () => {
     const currentComment = String(mediaTeacherComment || '');
     if (!currentComment.trim() || mediaPdfCommentCleaning || mediaPdfCommentCleanedOnce) return;
@@ -2140,40 +2178,75 @@ function AddNoteModal({
                                 <TextField
                                   label="Comment (optional)"
                                   value={item.teacherComment || ''}
-                                  onChange={(e) => handleMediaItemCommentChange(item.id, e.target.value)}
+                                  onChange={(e) => {
+                                    handleMediaItemCommentChange(item.id, e.target.value);
+                                    if (mediaItemCommentCleanedOnce[item.id]) {
+                                      setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [item.id]: false }));
+                                      setMediaItemCommentPrevText((prev) => ({ ...prev, [item.id]: '' }));
+                                    }
+                                  }}
                                   fullWidth
                                   multiline
                                   minRows={2}
                                   placeholder="Add context for this file"
+                                  inputRef={(el) => { mediaItemCommentRefs.current[item.id] = el; }}
+                                  InputProps={{
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                          <IconButton
+                                            aria-label={`Dictate comment for file`}
+                                            onClick={() => openMediaItemDictation(item.id)}
+                                            color="primary"
+                                            size="small"
+                                            sx={{
+                                              border: 1,
+                                              borderColor: 'divider',
+                                              bgcolor: 'action.hover'
+                                            }}
+                                          >
+                                            <Mic fontSize="small" />
+                                          </IconButton>
+                                          <Tooltip
+                                            title="Add text first to polish with AI"
+                                            disableHoverListener={!!String(item.teacherComment || '').trim()}
+                                            disableFocusListener={!!String(item.teacherComment || '').trim()}
+                                          >
+                                            <span>
+                                              <IconButton
+                                                aria-label="Polish comment with AI"
+                                                onClick={() => handlePolishMediaItemComment(item.id)}
+                                                disabled={
+                                                  !String(item.teacherComment || '').trim() ||
+                                                  !!mediaItemCommentCleaning[item.id] ||
+                                                  !!mediaItemCommentCleanedOnce[item.id]
+                                                }
+                                                size="small"
+                                                sx={{
+                                                  border: 1,
+                                                  borderColor: 'divider',
+                                                  bgcolor: 'action.hover',
+                                                  color: mediaItemCommentCleanedOnce[item.id] ? '#059669' : mediaItemCommentCleaning[item.id] ? '#7c3aed' : !String(item.teacherComment || '').trim() ? 'text.disabled' : '#7c3aed'
+                                                }}
+                                              >
+                                                {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                                              </IconButton>
+                                            </span>
+                                          </Tooltip>
+                                        </Box>
+                                      </InputAdornment>
+                                    )
+                                  }}
                                 />
-                                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {mediaItemCommentCleanedOnce[item.id] && mediaItemCommentPrevText[item.id] && (
                                   <Button
-                                    variant="contained"
-                                    onClick={() => handlePolishMediaItemComment(item.id)}
-                                    disabled={
-                                      !String(item.teacherComment || '').trim() ||
-                                      !!mediaItemCommentCleaning[item.id] ||
-                                      !!mediaItemCommentCleanedOnce[item.id]
-                                    }
-                                    startIcon={mediaItemCommentCleaning[item.id]
-                                      ? <CircularProgress size={16} color="inherit" />
-                                      : <AutoFixHigh />}
-                                    sx={{ ...POLISH_BUTTON_SX, py: 0.5 }}
+                                    variant="text"
+                                    onClick={() => handleUndoPolishMediaItemComment(item.id)}
+                                    sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -0.5 }}
                                   >
-                                    {mediaItemCommentCleanedOnce[item.id]
-                                      ? 'Polished'
-                                      : (mediaItemCommentCleaning[item.id] ? 'Polishing…' : 'Polish with AI')}
+                                    Undo polish
                                   </Button>
-                                  {mediaItemCommentCleanedOnce[item.id] && mediaItemCommentPrevText[item.id] && (
-                                    <Button
-                                      variant="text"
-                                      onClick={() => handleUndoPolishMediaItemComment(item.id)}
-                                      sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
-                                    >
-                                      Undo
-                                    </Button>
-                                  )}
-                                </Box>
+                                )}
                               </Box>
                             </Box>
                           ))}
@@ -2230,7 +2303,13 @@ function AddNoteModal({
                     <TextField
                       label="Teacher comment (optional)"
                       value={mediaTeacherComment}
-                      onChange={(e) => handleMediaTeacherCommentChange(e.target.value)}
+                      onChange={(e) => {
+                        handleMediaTeacherCommentChange(e.target.value);
+                        if (mediaPdfCommentCleanedOnce) {
+                          setMediaPdfCommentCleanedOnce(false);
+                          setMediaPdfCommentPrevText('');
+                        }
+                      }}
                       fullWidth
                       multiline
                       minRows={2}
@@ -2238,43 +2317,56 @@ function AddNoteModal({
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
-                            <IconButton
-                              aria-label="Dictate teacher comment"
-                              onClick={openMediaDictation}
-                              color="primary"
-                              size="small"
-                              sx={{
-                                border: 1,
-                                borderColor: 'divider',
-                                bgcolor: 'action.hover'
-                              }}
-                            >
-                              <Mic fontSize="small" />
-                            </IconButton>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <IconButton
+                                aria-label="Dictate teacher comment"
+                                onClick={openMediaDictation}
+                                color="primary"
+                                size="small"
+                                sx={{
+                                  border: 1,
+                                  borderColor: 'divider',
+                                  bgcolor: 'action.hover'
+                                }}
+                              >
+                                <Mic fontSize="small" />
+                              </IconButton>
+                              <Tooltip
+                                title="Add text first to polish with AI"
+                                disableHoverListener={!!mediaTeacherComment.trim()}
+                                disableFocusListener={!!mediaTeacherComment.trim()}
+                              >
+                                <span>
+                                  <IconButton
+                                    aria-label="Polish teacher comment with AI"
+                                    onClick={handlePolishMediaPdfComment}
+                                    disabled={!mediaTeacherComment.trim() || mediaPdfCommentCleaning || mediaPdfCommentCleanedOnce}
+                                    size="small"
+                                    sx={{
+                                      border: 1,
+                                      borderColor: 'divider',
+                                      bgcolor: 'action.hover',
+                                      color: mediaPdfCommentCleanedOnce ? '#059669' : mediaPdfCommentCleaning ? '#7c3aed' : !mediaTeacherComment.trim() ? 'text.disabled' : '#7c3aed'
+                                    }}
+                                  >
+                                    {mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Box>
                           </InputAdornment>
                         )
                       }}
                     />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {mediaPdfCommentCleanedOnce && mediaPdfCommentPrevText && (
                       <Button
-                        variant="contained"
-                        onClick={handlePolishMediaPdfComment}
-                        disabled={!mediaTeacherComment.trim() || mediaPdfCommentCleaning || mediaPdfCommentCleanedOnce}
-                        startIcon={mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
-                        sx={POLISH_BUTTON_SX}
+                        variant="text"
+                        onClick={handleUndoPolishMediaPdfComment}
+                        sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
                       >
-                        {mediaPdfCommentCleanedOnce ? 'Polished' : (mediaPdfCommentCleaning ? 'Polishing…' : 'Polish with AI')}
+                        Undo polish
                       </Button>
-                      {mediaPdfCommentCleanedOnce && mediaPdfCommentPrevText && (
-                        <Button
-                          variant="text"
-                          onClick={handleUndoPolishMediaPdfComment}
-                          sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1 }}
-                        >
-                          Undo
-                        </Button>
-                      )}
-                    </Box>
+                    )}
                   </Box>
                 )}
 
@@ -2660,6 +2752,38 @@ function AddNoteModal({
             variant="cardless"
             onSave={handleMediaDictationSave}
             onNext={closeMediaDictation}
+            autoAdvanceOnSave
+          />
+        </Box>
+      </Dialog>
+
+      {/* Media item comment dictation dialog (photo/video per-item) */}
+      <Dialog
+        open={mediaItemDictationOpen}
+        onClose={closeMediaItemDictation}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Dictate file comment
+          </Typography>
+          <IconButton aria-label="Close dictation" onClick={closeMediaItemDictation}>
+            <Close />
+          </IconButton>
+        </Box>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <VoiceRecorder
+            variant="cardless"
+            onSave={handleMediaItemDictationSave}
+            onNext={closeMediaItemDictation}
             autoAdvanceOnSave
           />
         </Box>
