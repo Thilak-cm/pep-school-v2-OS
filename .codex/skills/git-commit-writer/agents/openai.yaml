@@ -1,4 +1,0 @@
-interface:
-  display_name: "Git Commit Writer"
-  short_description: "Write detailed multi-line git commits with Codex signoff"
-  default_prompt: "Write and create an industry-standard git commit for the current task using session context and staged changes, include touched file summaries, and add a Codex signoff trailer."

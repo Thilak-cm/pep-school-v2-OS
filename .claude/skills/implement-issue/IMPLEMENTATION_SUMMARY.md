@@ -54,7 +54,7 @@ The **`implement-issue` skill** has been successfully created and is now availab
 ### Phase 2: Context Loading
 - Auto-load Pep OS codebase overview
 - Infer area tags from issue labels and keywords
-- Auto-load matching deep-dive reports (up to 2 areas)
+- Spawn Explore subagent when deeper context needed
 - Parse requirements and acceptance criteria
 
 ### Phase 3: Plan Generation
@@ -116,7 +116,7 @@ The **`implement-issue` skill** has been successfully created and is now availab
 ### ✅ Automatic Context Loading
 - High-level codebase overview auto-loaded
 - Area tags inferred from issue labels/keywords
-- Relevant deep-dive reports auto-loaded
+- Explore subagent spawned for deeper context when needed
 - No manual context gathering needed
 
 ### ✅ Linear Integration
@@ -135,7 +135,6 @@ The **`implement-issue` skill** has been successfully created and is now availab
 
 ### ✅ Edge Case Handling
 - Issues with no labels → keyword matching
-- No deep-dives exist → ask permission to generate
 - Plan too broad → suggest splitting
 - Already in progress → warn user
 - No existing tests → create new test files
@@ -144,7 +143,7 @@ The **`implement-issue` skill** has been successfully created and is now availab
 ## Success Criteria Met
 
 ✅ User can interactively select Linear issue with filters
-✅ Relevant codebase context auto-loaded (overview + deep-dives)
+✅ Relevant codebase context auto-loaded (overview + explore context)
 ✅ Technical execution plan generated with file paths AND test specs
 ✅ Existing related tests auto-detected with baseline results
 ✅ User approves plan before any code changes
@@ -238,7 +237,7 @@ Total: ~1,720 lines of documentation and configuration
 
 ### Uses Existing Context Skills
 - **`codebase-context-scan`**: Auto-loads pep-os-overview.md
-- **`codebase-context-deep-dive`**: References area-specific deep-dives
+- **Explore subagent**: Provides deeper context when overview is insufficient
 
 ### Uses Linear MCP Tools
 - `list_issues` - Filter and display issues

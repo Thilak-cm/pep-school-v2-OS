@@ -20,7 +20,7 @@ Batch-triage meeting notes into lightweight Backlog issues. Extract action items
 
 ## Context Loading
 
-Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference. Do **not** load deep-dives — that is `/refine-linear-issue`'s job during refinement.
+Silently read `.claude/skills/codebase-context-scan/references/pep-os-overview.md` for Area Map inference.
 
 ## Workflow
 
@@ -147,7 +147,6 @@ Tip: Run /refine-linear-issue on any of these to add full detail.
 - Never create an issue without showing the item to the user first.
 - Always walk through items one-at-a-time — no batch-create.
 - Always use Backlog state — never Todo (these are unrefined).
-- Do not load deep-dive references — speed is the priority.
 - Max 30 items per session. If more are extracted, warn and truncate.
 - Preserve the `Source: Meeting Notes — ...` marker in every description for downstream detection by `/refine-linear-issue`.
 - When refining an existing draft-sourced issue, direct the user to `/refine-linear-issue` instead.

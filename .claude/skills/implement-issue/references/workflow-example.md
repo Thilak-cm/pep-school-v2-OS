@@ -63,8 +63,7 @@ Selection: 1  or  PEP-156
 
 ✓ Loaded: Pep OS Overview (Area Map)
 ✓ Inferred area tags: observation-capture, voice-processing
-✓ Loaded: deep-dives/observation-capture.md
-✓ Loaded: deep-dives/voice-processing.md
+✓ Spawned Explore subagent for observation-capture, voice-processing areas
 ✓ Found related issues: PEP-145, PEP-132
 
 Issue Details:
@@ -157,8 +156,8 @@ progress indicators for longer audio, and user-friendly error recovery with retr
 2. Ensure backward compatibility with existing code
 
 ## Related Context
-- See deep-dives/observation-capture.md: Voice Note Recording & Transcription section
-- See deep-dives/voice-processing.md: OpenAI Whisper Integration & Error Handling
+- See overview: Observation Capture area — Voice Note Recording & Transcription
+- See explore context: OpenAI Whisper Integration & Error Handling
 - Related issue PEP-145 discusses duration limits (consider together)
 
 ## Verification Checklist

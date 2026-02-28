@@ -38,7 +38,7 @@ spec:
     Error Handling:
     - If test coverage is incomplete, BLOCK and require user to add tests
     - If baseline tests fail, warn user and ask how to proceed
-    - If deep-dives are missing, ask permission to generate them
+    - If context is insufficient, spawn Explore subagent for deeper context
     - If issue is too broad, suggest splitting into multiple issues
 
     Tools Available:

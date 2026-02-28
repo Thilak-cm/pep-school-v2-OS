@@ -32,7 +32,7 @@ The generated file must be:
 - Path: `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
 - Deterministic section order
 - Optimized for issue drafting context (not implementation roadmaps)
-- The source of truth for `area_tag` values used by deep dives
+- The source of truth for `area_tag` values used by other skills
 
 ## Guardrails
 

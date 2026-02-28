@@ -29,10 +29,7 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 2. Load the high-level overview without asking for permission:
    - `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
 3. Infer likely `area_tag` values from the issue using the overview `## Area Map`.
-4. Auto-load matching deep-dive report(s) if they exist:
-   - `.claude/skills/codebase-context-deep-dive/references/deep-dives/<area_tag>.md`
-5. If context is still insufficient, ask the user for permission to generate/update deep-dive report(s) via the deep-dive skill.
-   - Max deep-dive refinement rounds per issue: 2.
+4. If the overview context is insufficient for refining the issue, spawn an Explore subagent to gather deeper context on the relevant areas.
 6. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
 
 ## Workflow
@@ -47,7 +44,7 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 ### 2. Clarify & Extract Intent
 
 - Ask focused follow-up questions until ambiguity is low.
-- Leverage loaded context (overview + deep dives) to ask smart, specific questions — not generic ones.
+- Leverage loaded context (overview + explore findings) to ask smart, specific questions — not generic ones.
 - For bugs: capture reproducible steps, expected behavior, actual behavior, and environment details.
 - For features: capture who benefits, desired behavior, constraints, and edge cases.
 - Confirm or adjust priority: Urgent, High, Normal, or Low.
@@ -106,14 +103,14 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 - Assignee: keep existing assignee; set to `me` if currently unassigned
 - Labels: Bug, Feature, Improvement based on issue type
 - Priority: always confirm before updating
-- Context source: always start from `pep-os-overview.md`, then matching deep dives when available
+- Context source: always start from `pep-os-overview.md`, then Explore subagent when deeper context needed
 
 ## Guardrails
 
 - Do not update the Linear issue before showing a draft and receiving explicit approval.
 - Confirm state and label if the issue type is ambiguous.
 - If related issues exist, call them out and suggest linking.
-- Ask permission only for generating/updating deep dives, not for reading existing overview/deep-dive files.
+- Auto-read overview without asking; spawn Explore subagent when deeper context is needed.
 - Keep existing assignee unless the user explicitly requests a change; set to `me` if unassigned.
 - Never discard the original MoM context snippet from draft-sourced issues.
 - If the issue identifier is invalid or not found, inform the user and ask for a correct one.
