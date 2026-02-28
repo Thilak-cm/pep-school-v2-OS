@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../firebase';
+import { buildMediaDocData } from '../utils/mediaDocBuilder';
 
 const STORAGE_KEY = 'pep_save_queue_v1';
 const STORAGE_VERSION = 1;
@@ -375,39 +376,15 @@ const deriveMediaPayload = async (payload, item) => {
   const mediaId = payload.mediaId || `media_${item.id}`;
   const mediaRef = doc(db, 'students', studentId, 'media', mediaId);
   const storagePath = `students/${studentId}/media/${mediaId}/original.${payload.source.extension}`;
-  const kind = payload.mediaKind || 'photo';
-  const itemTeacherComment = String(payload.teacherComment || '').trim();
-  const displayName = String(payload.displayName || payload.source.originalName || '').trim();
-  const mediaEntry = {
-    storagePath,
-    contentType: payload.source.contentType,
-    sizeBytes: payload.source.size || 0,
-    ...(displayName ? { displayName } : {}),
-    ...(payload.source.originalName ? { originalName: payload.source.originalName } : {}),
-    ...(payload.source.width ? { width: payload.source.width, height: payload.source.height } : {}),
-  };
 
   await deleteDoc(mediaRef).catch(() => {});
   await deleteObject(ref(storage, storagePath)).catch(() => {});
 
   const docData = {
-    studentId,
-    classroomId,
-    type: 'media',
-    mediaKind: kind,
-    status: 'pending_upload',
-    media: [mediaEntry],
+    ...buildMediaDocData({ ...payload, studentId, classroomId }, mediaId, storagePath),
     observedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    createdBy: payload.createdBy || 'unknown',
-    createdByName: payload.createdByName || 'Unknown Teacher',
-    createdByEmail: payload.createdByEmail || 'unknown@email.com',
-    ...(itemTeacherComment ? { teacherComment: itemTeacherComment } : {}),
-    ...(payload.batchId ? { batchId: payload.batchId } : {}),
-    ...(kind === 'pdf' && payload.pdfTitle ? { pdfTitle: payload.pdfTitle } : {}),
-    ...(kind === 'pdf' && payload.pdfEssence ? { essence_text: payload.pdfEssence } : {}),
-    ...(kind === 'photo' && payload.photoAnalysis ? { photoAnalysis: payload.photoAnalysis } : {}),
   };
 
   await setDoc(mediaRef, docData);

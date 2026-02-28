@@ -10,6 +10,8 @@ import {
   Snackbar,
   Alert,
   Chip,
+  ToggleButton,
+  ToggleButtonGroup,
   InputAdornment,
   Divider
 } from '@mui/material';
@@ -27,7 +29,9 @@ import {
   Edit,
   CheckCircle,
   Movie,
-  Mic
+  Mic,
+  Brush,
+  ContentCopy
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -360,9 +364,8 @@ function AddNoteModal({
   const [pdfPageCount, setPdfPageCount] = useState(null);
   const [_pdfExtractedText, setPdfExtractedText] = useState('');
   const pdfWorkerSetupRef = useRef(false);
-  const [photoAnalysisLoading, setPhotoAnalysisLoading] = useState(false);
-  const photoAnalysisStudentRef = useRef(null);
-  const photoAnalysisFailedRef = useRef(new Set());
+  const [handwritingDetectionLoading, setHandwritingDetectionLoading] = useState(false);
+  const handwritingDetectionFailedRef = useRef(new Set());
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -717,29 +720,19 @@ function AddNoteModal({
     }
   }, [textData, transcriptionData, selectedStudents]);
 
-  // Auto-trigger VLM photo analysis once both photos and a student are selected
+  // Auto-trigger VLM handwriting detection once photos are added
   useEffect(() => {
     if (step !== STEP_MEDIA || mediaMode !== 'photo') return;
-    if (selectedStudents.length === 0 || photoAnalysisLoading) return;
-    const targetStudent = selectedStudents[0];
+    if (handwritingDetectionLoading) return;
 
-    // If student changed since last analysis, clear previous results
-    if (photoAnalysisStudentRef.current && photoAnalysisStudentRef.current !== targetStudent) {
-      photoAnalysisStudentRef.current = null;
-      photoAnalysisFailedRef.current = new Set();
-      setMediaItems((prev) => prev.map((it) => it.kind === 'photo' ? { ...it, photoAnalysis: undefined } : it));
-      return; // will re-trigger with cleared items
-    }
+    const undetected = mediaItems.filter((it) => it.kind === 'photo' && it.handwritten === undefined && !handwritingDetectionFailedRef.current.has(it.id));
+    if (undetected.length === 0) return;
 
-    const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.photoAnalysis && !photoAnalysisFailedRef.current.has(it.id));
-    if (unanalyzed.length === 0) return;
-
-    photoAnalysisStudentRef.current = targetStudent;
-    runPhotoAnalysis(unanalyzed, targetStudent).catch((error) => {
-      reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runPhotoAnalysis');
+    runHandwritingDetection(undetected).catch((error) => {
+      reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runHandwritingDetection');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, mediaMode, selectedStudents, mediaItems, photoAnalysisLoading]);
+  }, [step, mediaMode, mediaItems, handwritingDetectionLoading]);
 
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
@@ -1316,42 +1309,18 @@ function AddNoteModal({
       reader.readAsDataURL(blob);
     });
 
-  const runPhotoAnalysis = async (items, studentId) => {
+  const runHandwritingDetection = async (items) => {
     const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
     if (photoItems.length === 0) return;
-    setPhotoAnalysisLoading(true);
+    setHandwritingDetectionLoading(true);
 
-    // Fetch student DOB for age context
-    let studentAge = '';
-    try {
-      const stuDoc = await getDoc(doc(db, 'students', studentId));
-      const dob = stuDoc.data()?.dateOfBirth || stuDoc.data()?.dob;
-      if (dob) {
-        let dobDate = typeof dob?.toDate === 'function' ? dob.toDate()
-          : typeof dob?.seconds === 'number' ? new Date(dob.seconds * 1000)
-          : dob instanceof Date ? dob
-          : typeof dob === 'string' ? new Date(dob)
-          : null;
-        if (dobDate && !isNaN(dobDate.getTime())) {
-          const now = new Date();
-          let years = now.getFullYear() - dobDate.getFullYear();
-          let months = now.getMonth() - dobDate.getMonth();
-          if (now.getDate() < dobDate.getDate()) months--;
-          if (months < 0) { years--; months += 12; }
-          studentAge = years > 0
-            ? `${years} year${years !== 1 ? 's' : ''}${months > 0 ? ` and ${months} month${months !== 1 ? 's' : ''}` : ''} old`
-            : `${months} month${months !== 1 ? 's' : ''} old`;
-        }
-      }
-    } catch (err) { reportCaughtError(err, 'AddNoteModal', 'non-critical: failed to fetch student DOB for VLM age context'); }
-
-    const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
+    const vlmFn = httpsCallable(cloudFunctions, 'detectHandwritingVLM');
     const results = await Promise.allSettled(
       photoItems.map(async (item) => {
         try {
           const imageBase64 = await blobToBase64(item.source.blob);
-          const res = await vlmFn({ imageBase64, contentType: item.source.contentType || 'image/webp', studentAge });
-          return { itemId: item.id, description: res.data?.description || '' };
+          const res = await vlmFn({ imageBase64, contentType: item.source.contentType || 'image/webp' });
+          return { itemId: item.id, handwritten: res.data?.handwritten === true };
         } catch (err) {
           err.itemId = item.id;
           throw err;
@@ -1360,17 +1329,17 @@ function AddNoteModal({
     );
     const updates = {};
     results.forEach((r) => {
-      if (r.status === 'fulfilled' && r.value.description) {
-        updates[r.value.itemId] = r.value.description;
+      if (r.status === 'fulfilled') {
+        updates[r.value.itemId] = r.value.handwritten;
       } else if (r.status === 'rejected') {
-        photoAnalysisFailedRef.current.add(r.reason?.itemId);
+        handwritingDetectionFailedRef.current.add(r.reason?.itemId);
       }
     });
-    setMediaItems((prev) => prev.map((it) => (updates[it.id] ? { ...it, photoAnalysis: updates[it.id] } : it)));
+    setMediaItems((prev) => prev.map((it) => (it.id in updates ? { ...it, handwritten: updates[it.id] } : it)));
     if (Object.keys(updates).length < photoItems.length) {
-      notify.warning('Could not analyze some photos automatically.');
+      notify.warning('Could not detect handwriting for some photos.');
     }
-    setPhotoAnalysisLoading(false);
+    setHandwritingDetectionLoading(false);
   };
 
   const createMediaItemId = () =>
@@ -1491,9 +1460,9 @@ function AddNoteModal({
     setMediaDirty(true);
   };
 
-  const handleMediaItemAnalysisChange = (itemId, value) => {
+  const handleToggleCopied = (itemId) => {
     setMediaItems((prev) => prev.map((item) => (
-      item.id === itemId ? { ...item, photoAnalysis: value } : item
+      item.id === itemId ? { ...item, copied: !item.copied } : item
     )));
     setMediaDirty(true);
   };
@@ -1658,7 +1627,7 @@ function AddNoteModal({
             batchId,
             pdfTitle: item.kind === 'pdf' ? String(pdfTitle || '').trim() : '',
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
-            photoAnalysis: item.kind === 'photo' ? String(item.photoAnalysis || '').trim() : '',
+            ...(item.kind === 'photo' ? { copied: item.copied === true, handwritten: item.handwritten === true } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -2238,51 +2207,62 @@ function AddNoteModal({
                                 </IconButton>
                               </Box>
                               <Box sx={{ p: 1 }}>
-                                {item.photoAnalysis ? (
-                                  <TextField
-                                    label={
-                                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed' }} />
-                                        Image Analysis
-                                      </Box>
-                                    }
-                                    value={item.photoAnalysis}
-                                    onChange={(e) => handleMediaItemAnalysisChange(item.id, e.target.value)}
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    sx={{
-                                      mb: 1,
-                                      '& .MuiInputBase-root': {
-                                        backgroundColor: '#f0fdf4',
-                                      },
-                                    }}
-                                  />
-                                ) : (
-                                  <Box sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1.5,
-                                    p: 2,
-                                    mb: 1,
-                                    borderRadius: 2,
-                                    backgroundColor: photoAnalysisLoading ? '#faf5ff' : '#f5f0ff',
-                                    border: '1px dashed #c4b5fd',
-                                  }}>
-                                    {photoAnalysisLoading ? (
-                                      <CircularProgress size={18} sx={{ color: '#7c3aed', flexShrink: 0 }} />
-                                    ) : (
-                                      <AutoAwesome sx={{ fontSize: 20, color: '#7c3aed', flexShrink: 0 }} />
-                                    )}
-                                    <Typography variant="body2" sx={{ color: '#5b21b6' }}>
-                                      {selectedStudents.length === 0
-                                        ? photoAnalysisLoading
-                                          ? 'Coach Pepper is analyzing...'
-                                          : 'Coach Pepper just needs student selection to run Image Analysis now!'
-                                        : photoAnalysisLoading
-                                          ? 'Coach Pepper is analyzing...'
-                                          : ''}
-                                    </Typography>
+                                {item.kind === 'photo' && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                                    <ToggleButtonGroup
+                                      value={item.copied ? 'copied' : 'original'}
+                                      exclusive
+                                      onChange={() => handleToggleCopied(item.id)}
+                                      size="small"
+                                      sx={{
+                                        height: 30,
+                                        '& .MuiToggleButton-root': {
+                                          textTransform: 'none',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 600,
+                                          px: 1.2,
+                                          py: 0,
+                                          gap: 0.5,
+                                          border: '1px solid',
+                                          borderColor: 'divider',
+                                          '&.Mui-selected': {
+                                            color: '#fff',
+                                          },
+                                        },
+                                      }}
+                                    >
+                                      <ToggleButton
+                                        value="original"
+                                        sx={{
+                                          borderRadius: '16px 0 0 16px !important',
+                                          '&.Mui-selected': {
+                                            bgcolor: 'success.main',
+                                            '&:hover': { bgcolor: 'success.dark' },
+                                          },
+                                        }}
+                                      >
+                                        <Brush sx={{ fontSize: 14 }} />
+                                        Own work
+                                      </ToggleButton>
+                                      <ToggleButton
+                                        value="copied"
+                                        sx={{
+                                          borderRadius: '0 16px 16px 0 !important',
+                                          '&.Mui-selected': {
+                                            bgcolor: 'warning.main',
+                                            '&:hover': { bgcolor: 'warning.dark' },
+                                          },
+                                        }}
+                                      >
+                                        <ContentCopy sx={{ fontSize: 14 }} />
+                                        Copied
+                                      </ToggleButton>
+                                    </ToggleButtonGroup>
+                                    {handwritingDetectionLoading && item.handwritten === undefined ? (
+                                      <CircularProgress size={14} sx={{ color: '#7c3aed' }} />
+                                    ) : item.handwritten === true ? (
+                                      <Chip label="Handwritten" size="small" color="info" variant="outlined" />
+                                    ) : null}
                                   </Box>
                                 )}
                                 <TextField
@@ -2347,24 +2327,6 @@ function AddNoteModal({
                   )}
                 </Box>
 
-                {mediaMode === 'photo' && mediaItems.length === 0 && (
-                  <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                    p: 2,
-                    borderRadius: 2,
-                    backgroundColor: '#f5f0ff',
-                    border: '1px dashed #c4b5fd',
-                  }}>
-                    <AutoAwesome sx={{ fontSize: 20, color: '#7c3aed', flexShrink: 0 }} />
-                    <Typography variant="body2" sx={{ color: '#5b21b6' }}>
-                      {selectedStudents.length === 0
-                        ? 'Coach Pepper needs a student and image to run Image Analysis'
-                        : 'Coach Pepper just needs an image to run Image Analysis now!'}
-                    </Typography>
-                  </Box>
-                )}
 
                 {mediaError && (
                   <Alert severity="error" onClose={() => setMediaError('')}>

@@ -1593,21 +1593,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               Download URL not ready yet. Please wait for upload to finish.
             </Typography>
           )}
-          {mediaPreview?.observation?.photoAnalysis && (
-            <Typography
-              variant="body2"
-              sx={{
-                p: 1.5,
-                borderRadius: 1,
-                backgroundColor: '#f0fdf4',
-                color: '#166534',
-                fontSize: '0.85rem',
-                lineHeight: 1.5,
-              }}
-            >
-              {mediaPreview.observation.photoAnalysis}
-            </Typography>
-          )}
           {mediaEditMode ? (
             <TextField
               label="Teacher comment"

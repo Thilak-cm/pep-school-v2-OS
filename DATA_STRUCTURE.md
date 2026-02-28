@@ -307,10 +307,12 @@ interface MediaDoc {
   // Teacher annotations
   teacherComment?: string;       // optional free-text caption
 
+  // Per-image metadata (photos only)
+  copied?: boolean;              // Teacher-set: true if student work is copied (default false)
+  handwritten?: boolean;         // VLM-inferred: true if image contains handwriting (default false)
+                                 // Set by Cloud Function `detectHandwritingVLM`
+
   // AI features
-  photoAnalysis?: string;        // VLM-generated observation text (photos only)
-                                 // Set by Cloud Function `analyzePhoto`, editable by teacher
-                                 // Future: consumed by baseball card generation
   pdfTitle?: string;             // AI-extracted title (PDFs only)
   essence_text?: string;         // AI-extracted essence summary (PDFs only)
 
@@ -329,7 +331,8 @@ interface MediaDoc {
 Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
-- `photoAnalysis` is populated by the `analyzePhoto` Cloud Function when a photo and student are selected. Teachers can edit the AI output before saving. This field is stored on the media doc and will be consumed by the baseball card generation system in a future update.
+- `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
+- `handwritten` is a VLM-inferred boolean per photo (default `false`). Set automatically by the `detectHandwritingVLM` Cloud Function after photo upload. Both fields feed into the monthly writing snapshot job.
 
 ---
 
