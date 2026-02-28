@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.1.0 — 2026-02-28
+
+### Added
+- "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
+- Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
+- In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
+- Bulk-select mode on StudentList: checkboxes, select all/deselect, batch report generation with progress indicator (PEP-60)
+- Report utility functions with 17 unit tests: date range calculation, markdown section parsing, sub-heading splitting (PEP-60)
+- Firebase Functions emulator auto-connect in dev mode for local Cloud Function testing
+
 # 9.0.0 — 2026-02-27
 
 ### Added
