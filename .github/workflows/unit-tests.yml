@@ -67,4 +67,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: functions
-        run: node --test test/**/*.test.mjs
+        shell: bash
+        run: |
+          shopt -s globstar
+          node --test test/**/*.test.mjs
