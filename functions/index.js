@@ -238,6 +238,8 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: "gpt-4o-mini", temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: "gpt-4o-mini", temperature: 0.35, max_tokens: 220 };
+const HANDWRITING_VLM_MODEL = { model: "gpt-4o-mini", temperature: 0.1, max_tokens: 10 };
+const HANDWRITING_VLM_FALLBACK_PROMPT = "You are a classroom image classifier. Your only job is to determine whether the image contains handwriting (letters, numbers, or words written by hand). Respond with exactly one word: YES or NO.";
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 async function runChatCompletion(messages, modelInfo) {
@@ -339,6 +341,50 @@ export const extractPdfEssence = functions
     );
 
     return { essence_text: essence.trim() };
+  });
+
+// -------------------------------------------------
+// VLM: Handwriting detection for media notes (PEP-43)
+// -------------------------------------------------
+export const detectHandwritingVLM = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const imageBase64 = String(data?.imageBase64 || "").trim();
+    if (!imageBase64) {
+      throw new functions.https.HttpsError("invalid-argument", "imageBase64 is required");
+    }
+    const contentType = String(data?.contentType || "image/webp").trim();
+
+    let systemPrompt = HANDWRITING_VLM_FALLBACK_PROMPT;
+    try {
+      const promptDoc = await db.collection("ai_prompts").doc("handwriting_vlm").get();
+      if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
+        systemPrompt = promptDoc.data().systemPrompt;
+      }
+    } catch (err) {
+      console.warn("[detectHandwritingVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
+    }
+
+    const answer = await runChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Does this image contain handwriting?" },
+            { type: "image_url", image_url: { url: `data:${contentType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      HANDWRITING_VLM_MODEL
+    );
+
+    const handwritten = /^yes$/i.test(answer.trim());
+    return { handwritten };
   });
 
 // -------------------------------------------------
