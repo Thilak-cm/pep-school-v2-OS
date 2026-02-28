@@ -9,6 +9,15 @@ import { defineSecret } from "firebase-functions/params";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
+import { WRITING_SNAPSHOT_DEFAULTS } from "./config/writingSnapshotConstants.js";
+import { WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK } from "./config/writingSnapshotPrompt.js";
+import { getIstMonthKey, getMonthWindowDates } from "./utils/monthKey.js";
+import {
+  filterWritingSamples,
+  formatWritingSampleLabel,
+  determineSnapshotStatus,
+  parseWritingSnapshotResponse,
+} from "./writingSnapshot.helpers.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 
@@ -1976,6 +1985,405 @@ export const generateBaseballCards = functions
     });
 
     console.log("[baseballCard] generation run complete");
+    return null;
+  });
+
+// -------------------------------------------------
+// Monthly Writing Snapshot (PEP-47)
+// -------------------------------------------------
+
+const WRITING_SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
+let writingSnapshotConfigCache = { data: null, ts: 0 };
+let writingSnapshotPromptCache = { data: null, ts: 0 };
+
+async function getWritingSnapshotConfigServer({ forceRefresh = false } = {}) {
+  if (!forceRefresh && writingSnapshotConfigCache.data && (Date.now() - writingSnapshotConfigCache.ts < WRITING_SNAPSHOT_CACHE_TTL_MS)) {
+    return writingSnapshotConfigCache.data;
+  }
+  try {
+    const snap = await db.collection("config").doc("writing_snapshot").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      model: data.model || WRITING_SNAPSHOT_DEFAULTS.model,
+      temperature: Number.isFinite(data.temperature) ? data.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
+      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
+      minSamples: Number.isFinite(data.minSamples) ? data.minSamples : WRITING_SNAPSHOT_DEFAULTS.minSamples,
+      timezone: data.timezone || WRITING_SNAPSHOT_DEFAULTS.timezone,
+    };
+    writingSnapshotConfigCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[writingSnapshot] config fetch failed, using defaults:", err);
+    const out = { ...WRITING_SNAPSHOT_DEFAULTS };
+    writingSnapshotConfigCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function getWritingSnapshotPrompt({ forceRefresh = false } = {}) {
+  if (!forceRefresh && writingSnapshotPromptCache.data && (Date.now() - writingSnapshotPromptCache.ts < WRITING_SNAPSHOT_CACHE_TTL_MS)) {
+    return writingSnapshotPromptCache.data;
+  }
+  try {
+    const snap = await db.collection("ai_prompts").doc("writing_snapshot").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      systemPrompt: data.systemPrompt || WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK,
+      version: data.version || 1,
+    };
+    writingSnapshotPromptCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[writingSnapshot] prompt fetch failed, using fallback:", err);
+    const out = { systemPrompt: WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK, version: 1 };
+    writingSnapshotPromptCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function fetchStudentWritingSamples(studentId, monthKey) {
+  const { start, end } = getMonthWindowDates(monthKey);
+  const mediaSnap = await db.collection("students").doc(studentId).collection("media")
+    .where("handwritten", "==", true)
+    .where("mediaKind", "==", "photo")
+    .where("observedAt", ">=", start)
+    .where("observedAt", "<", end)
+    .get();
+
+  const docs = mediaSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return filterWritingSamples(docs, start, end);
+}
+
+async function downloadImageAsBase64(storagePath) {
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  return buffer.toString("base64");
+}
+
+async function callWritingSnapshotVLM(samples, config, prompt, studentContext, monthKey) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const copiedCount = samples.filter((s) => s.copied === true).length;
+  const originalCount = samples.length - copiedCount;
+
+  const renderedSystem = (prompt.systemPrompt || WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK)
+    .replace("<STUDENT_NAME>", studentContext.studentName)
+    .replace("<STUDENT_AGE>", studentContext.age)
+    .replace("<MONTH_LABEL>", monthKey)
+    .replace("<SAMPLE_COUNT>", String(samples.length))
+    .replace("<ORIGINAL_COUNT>", String(originalCount))
+    .replace("<COPIED_COUNT>", String(copiedCount));
+
+  // Build multi-image user message: text label + image for each sample
+  const userContent = [];
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    const label = formatWritingSampleLabel(sample, i + 1);
+    userContent.push({ type: "text", text: label });
+
+    const storagePath = Array.isArray(sample.media) && sample.media.length > 0
+      ? sample.media[0]?.storagePath
+      : null;
+    if (storagePath) {
+      try {
+        const base64 = await downloadImageAsBase64(storagePath);
+        const contentType = sample.media[0]?.contentType || "image/webp";
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${contentType};base64,${base64}` },
+        });
+      } catch (err) {
+        console.warn(`[writingSnapshot] failed to download image for sample ${sample.id}:`, err?.message);
+        userContent.push({ type: "text", text: `(Image ${i + 1} could not be loaded)` });
+      }
+    }
+  }
+
+  userContent.push({
+    type: "text",
+    text: "Analyze these writing samples and respond with the JSON assessment.",
+  });
+
+  const body = {
+    model: config.model || WRITING_SNAPSHOT_DEFAULTS.model,
+    messages: [
+      { role: "system", content: renderedSystem },
+      { role: "user", content: userContent },
+    ],
+    temperature: Number.isFinite(config.temperature) ? config.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[writingSnapshot] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[writingSnapshot] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  const parsed = parseWritingSnapshotResponse(rawContent);
+  return { ...parsed, rawContent, copiedCount, originalCount };
+}
+
+async function writeWritingSnapshotDoc(studentId, payload) {
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("writing_snapshot");
+  await ref.set(payload);
+}
+
+async function runWritingSnapshots({
+  studentIds,
+  config,
+  prompt,
+  monthKey,
+  dryRun = false,
+  collectResults = false,
+  concurrency = 12,
+}) {
+  const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
+  if (!dryRun) {
+    console.log(`[writingSnapshot] running for ${ids.length} student(s), month=${monthKey}`);
+  }
+  const results = [];
+
+  await runWithConcurrency(ids, async (studentId) => {
+    try {
+      const samples = await fetchStudentWritingSamples(studentId, monthKey);
+      const status = determineSnapshotStatus(samples.length, config.minSamples);
+
+      if (status !== "ok") {
+        const payload = {
+          analysis: "",
+          stage: null,
+          strengths: [],
+          areasForGrowth: [],
+          sampleCount: samples.length,
+          copiedCount: samples.filter((s) => s.copied === true).length,
+          originalCount: samples.filter((s) => s.copied !== true).length,
+          monthKey,
+          timezone: config.timezone,
+          model: config.model,
+          temperature: config.temperature,
+          generatedAt: new Date(),
+          status,
+          sourceMediaIds: samples.map((s) => s.id),
+        };
+        if (dryRun && collectResults) {
+          results.push({ studentId, status, payload });
+        } else if (!dryRun) {
+          await writeWritingSnapshotDoc(studentId, payload);
+        }
+        return;
+      }
+
+      const studentContext = await getStudentContext(studentId);
+      const aiResult = await callWritingSnapshotVLM(samples, config, prompt, studentContext, monthKey);
+
+      const payload = {
+        analysis: aiResult.analysis,
+        stage: aiResult.stage,
+        strengths: aiResult.strengths,
+        areasForGrowth: aiResult.areasForGrowth,
+        sampleCount: samples.length,
+        copiedCount: aiResult.copiedCount,
+        originalCount: aiResult.originalCount,
+        monthKey,
+        timezone: config.timezone,
+        model: config.model,
+        temperature: config.temperature,
+        generatedAt: new Date(),
+        status: "ok",
+        sourceMediaIds: samples.map((s) => s.id),
+        rawContent: aiResult.rawContent,
+      };
+
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "ok", payload });
+      } else if (!dryRun) {
+        await writeWritingSnapshotDoc(studentId, payload);
+      }
+    } catch (err) {
+      console.error(`[writingSnapshot] run failed for student ${studentId}`, err);
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+    }
+  }, concurrency);
+
+  return results;
+}
+
+export const previewWritingSnapshot = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can preview writing snapshots");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getWritingSnapshotConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getWritingSnapshotPrompt({ forceRefresh: !!data?.forceRefresh });
+    const monthKey = typeof data?.monthKey === "string" && /^\d{4}-\d{2}$/.test(data.monthKey)
+      ? data.monthKey
+      : getIstMonthKey();
+
+    const mergedConfig = {
+      model: data?.config?.model || baseConfig.model,
+      temperature: Number.isFinite(Number(data?.config?.temperature))
+        ? Number(data.config.temperature)
+        : baseConfig.temperature,
+      max_tokens: Number.isFinite(Number(data?.config?.max_tokens))
+        ? Number(data.config.max_tokens)
+        : baseConfig.max_tokens,
+      minSamples: baseConfig.minSamples,
+      timezone: baseConfig.timezone,
+    };
+
+    const systemPrompt = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
+      ? data.systemPrompt
+      : basePrompt.systemPrompt;
+    const promptPayload = { ...basePrompt, systemPrompt };
+
+    const results = await runWritingSnapshots({
+      studentIds: [studentId],
+      config: mergedConfig,
+      prompt: promptPayload,
+      monthKey,
+      dryRun: true,
+      collectResults: true,
+      concurrency: 1,
+    });
+
+    const result = results?.[0];
+    if (!result) {
+      throw new functions.https.HttpsError("internal", "No result returned");
+    }
+    if (result.status === "error") {
+      throw new functions.https.HttpsError("internal", result.error || "Failed to generate writing snapshot preview");
+    }
+
+    return {
+      status: result.status,
+      sampleCount: result.payload?.sampleCount ?? 0,
+      monthKey,
+      usedConfig: mergedConfig,
+      analysis: result.payload?.analysis,
+      stage: result.payload?.stage,
+      strengths: result.payload?.strengths,
+      areasForGrowth: result.payload?.areasForGrowth,
+      rawContent: result.payload?.rawContent,
+      generatedAt: result.payload?.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const regenerateWritingSnapshotForStudent = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || (requesterRole !== "superadmin" && requesterRole !== "classroomadmin" && requesterRole !== "teacher")) {
+      throw new functions.https.HttpsError("permission-denied", "Authenticated users can regenerate writing snapshots");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getWritingSnapshotConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getWritingSnapshotPrompt({ forceRefresh: !!data?.forceRefresh });
+    const monthKey = typeof data?.monthKey === "string" && /^\d{4}-\d{2}$/.test(data.monthKey)
+      ? data.monthKey
+      : getIstMonthKey();
+
+    await runWritingSnapshots({
+      studentIds: [studentId],
+      config: baseConfig,
+      prompt: basePrompt,
+      monthKey,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 1,
+    });
+
+    return {
+      status: "ok",
+      studentId,
+      monthKey,
+      regeneratedAt: new Date().toISOString(),
+    };
+  });
+
+export const generateWritingSnapshots = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .pubsub.schedule("0 1 1 * *")
+  .timeZone(WRITING_SNAPSHOT_DEFAULTS.timezone)
+  .onRun(async () => {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      console.error("[writingSnapshot] OpenAI key not configured");
+      return null;
+    }
+
+    const config = await getWritingSnapshotConfigServer();
+    const prompt = await getWritingSnapshotPrompt();
+
+    // Generate snapshot for the previous month
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+    const monthKey = getIstMonthKey(lastMonth);
+
+    console.log(`[writingSnapshot] generating for active students, month=${monthKey}`);
+
+    await runWritingSnapshots({
+      config,
+      prompt,
+      monthKey,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 12,
+    });
+
+    console.log("[writingSnapshot] generation run complete");
     return null;
   });
 
