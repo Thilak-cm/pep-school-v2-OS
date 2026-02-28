@@ -21,6 +21,7 @@
 - `classrooms/{classroomId}`
 - `students/{studentId}`
 - `students/{studentId}/observations/{observationId}`  // collection group: `observations`
+- `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
 - `feedback/{feedbackId}`
 - `ai_prompts/{docId}`
  - `config/{docId}`
@@ -209,7 +210,8 @@ Guidance
 Subcollections
 - `placements/{placementId}` – classroom history per student (see above).
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
-- `ai_summaries/baseball_card` – latest “Coach Pepper’s summary” (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
+- `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
+- `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
 
 ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
@@ -278,6 +280,59 @@ Backfill (one-time)
 - For each student that has a `classroomId` and no placements:
   - Create placements/`2020-01-01__<classroomId>` with `{ startDate: '2020-01-01', endDate: null }`.
   - Do NOT add `currentPlacement` to the student; `classroomId` remains the source of truth for current.
+
+---
+
+## 📎 Media (`/students/{studentId}/media/{mediaId}`)
+Per-student uploaded files (photos, videos, PDFs). One media doc per file per student; multi-student uploads fan out like observations.
+
+```typescript
+interface MediaDoc {
+  studentId: string;             // must equal parent {studentId}
+  classroomId: string;           // denorm; equals student's classroomId
+  type: 'media';                 // constant
+  mediaKind: 'photo' | 'video' | 'pdf';
+  status: 'pending_upload' | 'uploaded' | 'error';
+
+  media: Array<{
+    storagePath: string;         // e.g., "students/{studentId}/media/{mediaId}/original.webp"
+    contentType: string;         // MIME type
+    sizeBytes: number;
+    displayName?: string;
+    originalName?: string;
+    width?: number;              // photos only
+    height?: number;             // photos only
+  }>;
+
+  // Teacher annotations
+  teacherComment?: string;       // optional free-text caption
+
+  // Per-image metadata (photos only)
+  copied?: boolean;              // Teacher-set: true if student work is copied (default false)
+  handwritten?: boolean;         // VLM-inferred: true if image contains handwriting (default false)
+                                 // Set by Cloud Function `detectHandwritingVLM`
+
+  // AI features
+  pdfTitle?: string;             // AI-extracted title (PDFs only)
+  essence_text?: string;         // AI-extracted essence summary (PDFs only)
+
+  batchId?: string;              // shared across multi-file uploads in one session
+
+  // Timestamps & creator
+  observedAt: Timestamp;         // server time
+  createdAt: Timestamp;          // server time
+  updatedAt: Timestamp;          // server time
+  createdBy: string;             // uid
+  createdByName: string;
+  createdByEmail: string;
+}
+```
+
+Notes
+- Media ID format: `media_<itemId>` where `itemId` is generated client-side.
+- Photos are converted to WebP client-side before upload.
+- `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
+- `handwritten` is a VLM-inferred boolean per photo (default `false`). Set automatically by the `detectHandwritingVLM` Cloud Function after photo upload. Both fields feed into the monthly writing snapshot job.
 
 ---
 
