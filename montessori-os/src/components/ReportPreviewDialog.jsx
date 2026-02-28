@@ -12,7 +12,7 @@ import {
   Divider,
 } from '@mui/material';
 import { Close, Description as ReportIcon } from '@mui/icons-material';
-import { parseReportSections } from '../utils/reportUtils';
+import { parseReportSections, renderSectionContent } from '../utils/reportUtils';
 
 export default function ReportPreviewDialog({
   open,
@@ -105,35 +105,55 @@ export default function ReportPreviewDialog({
               No report content available.
             </Typography>
           ) : (
-            sections.map((section, idx) => (
-              <Box key={idx}>
-                {idx > 0 && section.heading && <Divider sx={{ mb: 1.5 }} />}
-                {section.heading && (
-                  <Typography
-                    variant="subtitle1"
-                    sx={{
-                      fontWeight: 700,
-                      color: '#1e293b',
-                      mb: 0.75,
-                    }}
-                  >
-                    {section.heading}
-                  </Typography>
-                )}
-                {section.content.trim() && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: '#334155',
-                      lineHeight: 1.7,
-                      whiteSpace: 'pre-wrap',
-                    }}
-                  >
-                    {section.content.trim()}
-                  </Typography>
-                )}
-              </Box>
-            ))
+            sections.map((section, idx) => {
+              const blocks = renderSectionContent(section.content);
+              return (
+                <Box key={idx}>
+                  {idx > 0 && section.heading && <Divider sx={{ mb: 1.5 }} />}
+                  {section.heading && (
+                    <Typography
+                      variant="subtitle1"
+                      sx={{
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        mb: 0.75,
+                      }}
+                    >
+                      {section.heading}
+                    </Typography>
+                  )}
+                  {blocks.map((block, bIdx) => (
+                    <Box key={bIdx} sx={{ mb: block.subheading ? 1 : 0 }}>
+                      {block.subheading && (
+                        <Typography
+                          variant="subtitle2"
+                          sx={{
+                            fontWeight: 600,
+                            color: '#475569',
+                            mt: bIdx > 0 ? 1.5 : 0,
+                            mb: 0.5,
+                          }}
+                        >
+                          {block.subheading}
+                        </Typography>
+                      )}
+                      {block.text.trim() && (
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: '#334155',
+                            lineHeight: 1.7,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {block.text.trim()}
+                        </Typography>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              );
+            })
           )}
         </Stack>
       </DialogContent>

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDefaultReportDateRange, parseReportSections } from './reportUtils.js';
+import { getDefaultReportDateRange, parseReportSections, renderSectionContent } from './reportUtils.js';
 
 describe('getDefaultReportDateRange', () => {
   it('returns Nov 1 of previous year when current month is before November', () => {
@@ -108,5 +108,47 @@ describe('parseReportSections', () => {
     assert.equal(sections[0].heading, 'Main Section');
     assert.ok(sections[0].content.includes('### Subsection'));
     assert.ok(sections[0].content.includes('More content.'));
+  });
+});
+
+describe('renderSectionContent', () => {
+  it('splits content on ### sub-headings', () => {
+    const content = `### Science\nGood progress.\n### Math\nNeeds work.`;
+    const blocks = renderSectionContent(content);
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].subheading, 'Science');
+    assert.ok(blocks[0].text.includes('Good progress.'));
+    assert.equal(blocks[1].subheading, 'Math');
+    assert.ok(blocks[1].text.includes('Needs work.'));
+  });
+
+  it('handles content before first sub-heading', () => {
+    const content = `Intro text.\n### Section\nBody.`;
+    const blocks = renderSectionContent(content);
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].subheading, null);
+    assert.ok(blocks[0].text.includes('Intro text.'));
+    assert.equal(blocks[1].subheading, 'Section');
+  });
+
+  it('handles #### headings too', () => {
+    const content = `#### Deep Heading\nSome text.`;
+    const blocks = renderSectionContent(content);
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0].subheading, 'Deep Heading');
+    assert.ok(blocks[0].text.includes('Some text.'));
+  });
+
+  it('returns empty array for empty/null content', () => {
+    assert.deepEqual(renderSectionContent(''), []);
+    assert.deepEqual(renderSectionContent(null), []);
+    assert.deepEqual(renderSectionContent(undefined), []);
+  });
+
+  it('returns single block with null subheading for plain text', () => {
+    const blocks = renderSectionContent('Just a paragraph.');
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0].subheading, null);
+    assert.ok(blocks[0].text.includes('Just a paragraph.'));
   });
 });

@@ -49,3 +49,38 @@ export function parseReportSections(markdown) {
 
   return sections;
 }
+
+/**
+ * Parse section content into blocks, splitting on ### sub-headings.
+ * Returns array of { subheading: string|null, text: string }.
+ */
+export function renderSectionContent(content) {
+  if (!content || !content.trim()) return [];
+
+  const lines = content.split('\n');
+  const blocks = [];
+  let currentSubheading = null;
+  let currentText = [];
+  let hasAny = false;
+
+  for (const line of lines) {
+    const subMatch = line.match(/^###+ (.+)$/);
+    if (subMatch) {
+      if (hasAny) {
+        blocks.push({ subheading: currentSubheading, text: currentText.join('\n') });
+      }
+      currentSubheading = subMatch[1].trim();
+      currentText = [];
+      hasAny = true;
+    } else {
+      currentText.push(line);
+      if (!hasAny) hasAny = true;
+    }
+  }
+
+  if (hasAny) {
+    blocks.push({ subheading: currentSubheading, text: currentText.join('\n') });
+  }
+
+  return blocks;
+}
