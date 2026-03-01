@@ -1,5 +1,14 @@
 # Changelog
 
+# 9.2.0 — 2026-02-28
+
+### Added
+- Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
+- Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
+- Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
+- Report versioning: re-exports create "Progress Report v2", "v3", etc. while preserving prior docs (PEP-61)
+- Drive helper utilities with 15 unit tests: folder creation, doc versioning, CSV parsing/serialization (PEP-61)
+
 # 9.1.0 — 2026-02-28
 
 ### Added
