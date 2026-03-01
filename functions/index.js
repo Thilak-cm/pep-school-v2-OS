@@ -4036,22 +4036,32 @@ export const exportReportToDrive = functions
       existingCount, generatedAtIso,
     );
 
-    // Update summary CSV at shared drive root
-    const csvRow = formatCsvRow({
-      studentName,
-      branch: branchName,
-      program: programName,
-      classroom: classroomName,
-      generatedAt: generatedAtIso,
-      sentimentScore: report.sentimentScore,
-      areaBalanceScore: report.areaBalanceScore,
-      missingInputFlags: report.missingInputFlags || [],
-      docLink,
-    });
+    // Update summary CSV in classroom folder
+    // Note: Single-student CSV update is not atomic across concurrent exports.
+    // If two concurrent exports occur for different students in the same classroom,
+    // the CSV update could race. Since we now use per-classroom CSVs (lower contention),
+    // and the Drive doc creation is the critical path, we treat CSV updates as
+    // best-effort supplementary data. If the CSV update fails, we log a warning
+    // but do not block the export.
+    try {
+      const csvRow = formatCsvRow({
+        studentName,
+        branch: branchName,
+        program: programName,
+        classroom: classroomName,
+        generatedAt: generatedAtIso,
+        sentimentScore: report.sentimentScore,
+        areaBalanceScore: report.areaBalanceScore,
+        missingInputFlags: report.missingInputFlags || [],
+        docLink,
+      });
 
-    const existingCsv = await downloadCsvContent(drive, DRIVE_CONSTANTS.sharedDriveId);
-    const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
-    await updateDriveSummaryCsv(drive, DRIVE_CONSTANTS.sharedDriveId, newCsv);
+      const existingCsv = await downloadCsvContent(drive, classroomFolderId);
+      const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+      await updateDriveSummaryCsv(drive, classroomFolderId, newCsv);
+    } catch (csvError) {
+      console.warn("[drive-export] CSV update failed (non-blocking):", csvError);
+    }
 
     // Store Drive doc link on the report doc
     await reportRef.update({ driveDocId, driveDocLink: docLink });
@@ -4120,8 +4130,8 @@ export const exportClassroomReportsToDrive = functions
       });
     }
 
-    // Download existing CSV from shared drive root once
-    let currentCsv = await downloadCsvContent(drive, DRIVE_CONSTANTS.sharedDriveId);
+    // Download existing CSV from classroom folder once
+    let currentCsv = await downloadCsvContent(drive, classroomFolderId);
 
     const results = [];
     await runWithConcurrency(reportResults, async ({ studentId, docId }) => {
@@ -4135,7 +4145,14 @@ export const exportClassroomReportsToDrive = functions
         const report = reportSnap.data();
 
         const studentSnap = await db.collection("students").doc(studentId).get();
-        const studentName = resolveStudentName(studentSnap.data());
+        const studentData = studentSnap.data();
+        const studentName = resolveStudentName(studentData);
+
+        // Validate student belongs to this classroom (prevent malicious client from mixing students)
+        if (studentData?.classroomId !== classroomId) {
+          results.push({ studentId, status: "skipped", reason: "wrong_classroom" });
+          return;
+        }
 
         // Create student subfolder inside classroom folder
         const studentFolderId = await getOrCreateFolder(
@@ -4173,8 +4190,8 @@ export const exportClassroomReportsToDrive = functions
       }
     }, REPORT_BULK_CONCURRENCY);
 
-    // Upload final CSV to shared drive root once
-    await updateDriveSummaryCsv(drive, DRIVE_CONSTANTS.sharedDriveId, currentCsv);
+    // Upload final CSV to classroom folder once
+    await updateDriveSummaryCsv(drive, classroomFolderId, currentCsv);
 
     const completed = results.filter((r) => r.status === "ok").length;
     const failed = results.filter((r) => r.status === "error").length;

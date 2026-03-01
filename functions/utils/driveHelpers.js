@@ -63,6 +63,7 @@ export async function getOrCreateFolder(drive, parentId, folderName) {
     corpora: "drive",
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
+    pageSize: 1,
     fields: "files(id, name)",
   });
 
@@ -107,6 +108,7 @@ export async function countExistingReportDocs(drive, folderId, studentName) {
     q: `name contains '${namePattern.replace(/'/g, "\\'")}' and '${folderId}' in parents and mimeType = 'application/vnd.google-apps.document' and trashed = false`,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
+    pageSize: 100,
     fields: "files(id)",
   });
   return search.data.files?.length || 0;
@@ -151,7 +153,7 @@ export async function createReportDoc(
 /**
  * Convert report markdown to Google Docs API batchUpdate requests.
  * Handles ## headings (h2), ### headings (h3), and body paragraphs.
- * Inserts content in reverse order since Docs API inserts at index positions.
+ * Builds Docs API requests to insert formatted content at sequential indices.
  */
 export function buildDocInsertRequests(markdown) {
   if (!markdown || !markdown.trim()) return [];
@@ -216,6 +218,7 @@ export async function updateDriveSummaryCsv(drive, folderId, newCsvContent) {
     q: `name = '${csvName}' and '${folderId}' in parents and trashed = false`,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
+    pageSize: 1,
     fields: "files(id)",
   });
 
@@ -262,6 +265,7 @@ export async function downloadCsvContent(drive, folderId) {
     q: `name = '${csvName}' and '${folderId}' in parents and trashed = false`,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
+    pageSize: 1,
     fields: "files(id)",
   });
 

@@ -170,7 +170,7 @@ export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
 
   const { headers, rows } = parseCsv(existingCsv);
   const nameColIdx = headers.findIndex((h) =>
-    h.toLowerCase().includes("child name") || h.toLowerCase().includes("student name"),
+    h.trim().toLowerCase() === "child name",
   );
 
   const newFields = parseCsv(csvHeaders.join(",") + "\n" + newRow).rows[0];

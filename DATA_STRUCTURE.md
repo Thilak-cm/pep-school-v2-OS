@@ -215,6 +215,7 @@ Subcollections
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
+- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Shape: `{ reportText: string, sentimentScore?: number, areaBalanceScore?: number, missingInputFlags?: string[], startDate: Timestamp, endDate: Timestamp, generatedAt: Timestamp, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive via the `exportReportToDrive` or `exportClassroomReportsToDrive` Cloud Functions.
 
 ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
