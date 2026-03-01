@@ -1,80 +1,101 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildClassroomFolderName,
+  resolveStudentName,
+  capitalize,
   buildReportDocTitle,
 } from "../utils/driveHelpers.js";
 
-describe("buildClassroomFolderName", () => {
-  it("combines classroom name and program", () => {
+describe("resolveStudentName", () => {
+  it("returns displayName when present", () => {
     assert.equal(
-      buildClassroomFolderName("Room 3", "adolescent"),
-      "Room 3 — Adolescent",
+      resolveStudentName({ displayName: "Aakash Mehta", firstName: "Aakash", lastName: "Mehta" }),
+      "Aakash Mehta",
     );
   });
 
-  it("capitalises program name", () => {
+  it("falls back to name when displayName is missing", () => {
     assert.equal(
-      buildClassroomFolderName("Sunrise", "elementary"),
-      "Sunrise — Elementary",
+      resolveStudentName({ name: "Priya Sharma" }),
+      "Priya Sharma",
     );
   });
 
-  it("handles missing program gracefully", () => {
+  it("falls back to firstName + lastName when others are missing", () => {
     assert.equal(
-      buildClassroomFolderName("Room 3", null),
-      "Room 3",
+      resolveStudentName({ firstName: "Aakash", lastName: "Mehta" }),
+      "Aakash Mehta",
     );
   });
 
-  it("handles missing program as empty string", () => {
+  it("uses firstName alone when lastName is missing", () => {
     assert.equal(
-      buildClassroomFolderName("Room 3", ""),
-      "Room 3",
+      resolveStudentName({ firstName: "Aakash" }),
+      "Aakash",
     );
   });
 
-  it("trims whitespace from inputs", () => {
-    assert.equal(
-      buildClassroomFolderName("  Room 3  ", " adolescent "),
-      "Room 3 — Adolescent",
-    );
+  it("returns Unknown Student for null/undefined", () => {
+    assert.equal(resolveStudentName(null), "Unknown Student");
+    assert.equal(resolveStudentName(undefined), "Unknown Student");
+  });
+
+  it("returns Unknown Student when all name fields are empty", () => {
+    assert.equal(resolveStudentName({}), "Unknown Student");
+  });
+});
+
+describe("capitalize", () => {
+  it("capitalizes first letter", () => {
+    assert.equal(capitalize("adolescent"), "Adolescent");
+  });
+
+  it("handles already capitalized", () => {
+    assert.equal(capitalize("HSR"), "HSR");
+  });
+
+  it("trims whitespace", () => {
+    assert.equal(capitalize("  primary  "), "Primary");
+  });
+
+  it("handles empty/null", () => {
+    assert.equal(capitalize(""), "");
+    assert.equal(capitalize(null), "");
   });
 });
 
 describe("buildReportDocTitle", () => {
-  it("returns base title for first report (count=0)", () => {
+  it("includes date for first report (count=0)", () => {
     assert.equal(
-      buildReportDocTitle("Aakash Mehta", 0),
-      "Aakash Mehta — Progress Report",
+      buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z", 0),
+      "Aakash Mehta — Progress Report (2026-02-28)",
     );
   });
 
-  it("returns base title for count=1 (no version suffix for first)", () => {
+  it("includes version and date for subsequent reports", () => {
     assert.equal(
-      buildReportDocTitle("Aakash Mehta", 1),
-      "Aakash Mehta — Progress Report v2",
+      buildReportDocTitle("Aakash Mehta", "2026-03-15T10:00:00.000Z", 1),
+      "Aakash Mehta — Progress Report v2 (2026-03-15)",
     );
   });
 
-  it("returns versioned title for subsequent reports", () => {
+  it("handles higher version counts", () => {
     assert.equal(
-      buildReportDocTitle("Priya Sharma", 3),
-      "Priya Sharma — Progress Report v4",
+      buildReportDocTitle("Priya Sharma", "2026-06-01T00:00:00.000Z", 3),
+      "Priya Sharma — Progress Report v4 (2026-06-01)",
     );
   });
 
-  it("handles count=0 as default when not provided", () => {
-    assert.equal(
-      buildReportDocTitle("Aakash Mehta"),
-      "Aakash Mehta — Progress Report",
-    );
+  it("uses current date when generatedAt is null", () => {
+    const title = buildReportDocTitle("Aakash Mehta", null);
+    const todayStr = new Date().toISOString().split("T")[0];
+    assert.equal(title, `Aakash Mehta — Progress Report (${todayStr})`);
   });
 
   it("trims student name", () => {
     assert.equal(
-      buildReportDocTitle("  Aakash Mehta  ", 0),
-      "Aakash Mehta — Progress Report",
+      buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z", 0),
+      "Aakash Mehta — Progress Report (2026-02-28)",
     );
   });
 });

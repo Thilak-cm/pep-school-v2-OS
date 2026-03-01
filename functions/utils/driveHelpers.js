@@ -2,30 +2,42 @@ import { google } from "googleapis";
 import { DRIVE_CONSTANTS } from "../config/reportConstants.js";
 
 /**
- * Build a human-readable folder name for a classroom's Drive folder.
+ * Resolve a student document's display name.
+ * Checks displayName, name, then firstName+lastName fallback.
  */
-export function buildClassroomFolderName(classroomName, programId) {
-  const name = (classroomName || "").trim();
-  const program = (programId || "").trim();
-  if (!program) return name;
-  return `${name} — ${program.charAt(0).toUpperCase() + program.slice(1)}`;
+export function resolveStudentName(studentData) {
+  if (!studentData) return "Unknown Student";
+  const fallback = [studentData.firstName, studentData.lastName]
+    .filter(Boolean).join(" ").trim();
+  return studentData.displayName || studentData.name || fallback || "Unknown Student";
 }
 
 /**
- * Build the Google Doc title for a student report.
- * First report: "Name — Progress Report"
- * Subsequent: "Name — Progress Report v2", v3, etc.
+ * Capitalize the first letter of a string.
  */
-export function buildReportDocTitle(studentName, existingDocCount = 0) {
+export function capitalize(str) {
+  const s = (str || "").trim();
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Build the Google Doc title for a student report, including generation date.
+ * First report:  "Name — Progress Report (2026-02-28)"
+ * Subsequent:    "Name — Progress Report v2 (2026-02-28)"
+ */
+export function buildReportDocTitle(studentName, generatedAt, existingDocCount = 0) {
   const name = (studentName || "").trim();
+  const date = generatedAt ? new Date(generatedAt) : new Date();
+  const dateStr = date.toISOString().split("T")[0];
   const base = `${name} — Progress Report`;
-  if (existingDocCount <= 0) return base;
-  return `${base} v${existingDocCount + 1}`;
+  if (existingDocCount <= 0) return `${base} (${dateStr})`;
+  return `${base} v${existingDocCount + 1} (${dateStr})`;
 }
 
 /**
  * Get authenticated Google API clients using Application Default Credentials.
- * Cloud Functions automatically provide credentials for the Firebase Admin SDK
+ * Cloud Functions automatically provide credentials for the runtime
  * service account at runtime.
  */
 export async function getDriveClients() {
@@ -41,15 +53,12 @@ export async function getDriveClients() {
 }
 
 /**
- * Find or create a classroom subfolder inside the shared Drive.
- * Returns the folder ID.
+ * Generic: find or create a subfolder within a parent folder
+ * inside the shared Drive. Returns the folder ID.
  */
-export async function getOrCreateClassroomFolder(drive, classroomName, programId) {
-  const folderName = buildClassroomFolderName(classroomName, programId);
-
-  // Search for existing folder by name in the shared Drive
+export async function getOrCreateFolder(drive, parentId, folderName) {
   const search = await drive.files.list({
-    q: `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    q: `name = '${folderName.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     driveId: DRIVE_CONSTANTS.sharedDriveId,
     corpora: "drive",
     includeItemsFromAllDrives: true,
@@ -61,18 +70,32 @@ export async function getOrCreateClassroomFolder(drive, classroomName, programId
     return search.data.files[0].id;
   }
 
-  // Create new folder
   const folder = await drive.files.create({
     requestBody: {
       name: folderName,
       mimeType: "application/vnd.google-apps.folder",
-      parents: [DRIVE_CONSTANTS.sharedDriveId],
+      parents: [parentId],
     },
     supportsAllDrives: true,
     fields: "id",
   });
 
   return folder.data.id;
+}
+
+/**
+ * Create the full folder hierarchy:
+ *   Shared Drive root → Branch → Program → Classroom
+ * Returns the classroom folder ID.
+ */
+export async function getOrCreateClassroomFolder(drive, branchName, programName, classroomName) {
+  const branchFolderId = await getOrCreateFolder(
+    drive, DRIVE_CONSTANTS.sharedDriveId, branchName,
+  );
+  const programFolderId = await getOrCreateFolder(
+    drive, branchFolderId, programName,
+  );
+  return getOrCreateFolder(drive, programFolderId, classroomName);
 }
 
 /**
@@ -93,8 +116,10 @@ export async function countExistingReportDocs(drive, folderId, studentName) {
  * Create a Google Doc with the report content in the specified folder.
  * Returns { docId, docLink }.
  */
-export async function createReportDoc(drive, docs, folderId, studentName, reportMarkdown, existingDocCount) {
-  const title = buildReportDocTitle(studentName, existingDocCount);
+export async function createReportDoc(
+  drive, docs, folderId, studentName, reportMarkdown, existingDocCount, generatedAt,
+) {
+  const title = buildReportDocTitle(studentName, generatedAt, existingDocCount);
 
   // Create blank doc in the folder
   const file = await drive.files.create({
@@ -180,7 +205,7 @@ export function buildDocInsertRequests(markdown) {
 }
 
 /**
- * Find or upload the summary CSV in a classroom folder.
+ * Find or upload the summary CSV in a folder.
  * Downloads existing CSV content, applies updates, re-uploads.
  */
 export async function updateDriveSummaryCsv(drive, folderId, newCsvContent) {

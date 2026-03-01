@@ -145,9 +145,12 @@ describe("getReportPromptDocId", () => {
 });
 
 describe("formatCsvRow", () => {
-  it("formats a complete row with all fields", () => {
+  it("formats a complete row with all fields including branch/program/classroom", () => {
     const row = formatCsvRow({
       studentName: "Aakash Mehta",
+      branch: "HSR",
+      program: "Adolescent",
+      classroom: "All Stars",
       generatedAt: "2026-02-28T10:30:00.000Z",
       sentimentScore: 4,
       areaBalanceScore: 3,
@@ -156,11 +159,11 @@ describe("formatCsvRow", () => {
     });
     assert.equal(
       row,
-      "Aakash Mehta,2026-02-28T10:30:00.000Z,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
+      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
     );
   });
 
-  it("handles null scores", () => {
+  it("handles null scores and missing branch/program/classroom", () => {
     const row = formatCsvRow({
       studentName: "Priya Sharma",
       generatedAt: "2026-02-28T10:30:00.000Z",
@@ -171,13 +174,16 @@ describe("formatCsvRow", () => {
     });
     assert.equal(
       row,
-      "Priya Sharma,2026-02-28T10:30:00.000Z,,,,https://docs.google.com/document/d/xyz",
+      "Priya Sharma,,,,2026-02-28T10:30:00.000Z,,,,https://docs.google.com/document/d/xyz",
     );
   });
 
   it("joins multiple flags with semicolons", () => {
     const row = formatCsvRow({
       studentName: "Aakash Mehta",
+      branch: "HSR",
+      program: "Adolescent",
+      classroom: "All Stars",
       generatedAt: "2026-02-28T10:30:00.000Z",
       sentimentScore: 3,
       areaBalanceScore: 2,
@@ -190,6 +196,9 @@ describe("formatCsvRow", () => {
   it("quotes student name containing commas", () => {
     const row = formatCsvRow({
       studentName: "Mehta, Aakash",
+      branch: "HSR",
+      program: "Adolescent",
+      classroom: "All Stars",
       generatedAt: "2026-02-28T10:30:00.000Z",
       sentimentScore: 4,
       areaBalanceScore: 3,
@@ -202,17 +211,18 @@ describe("formatCsvRow", () => {
 
 describe("parseCsv", () => {
   it("parses CSV with header and data rows", () => {
-    const csv = "Child Name,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
     const { headers, rows } = parseCsv(csv);
-    assert.equal(headers.length, 6);
+    assert.equal(headers.length, 9);
     assert.equal(rows.length, 1);
     assert.equal(rows[0][0], "Aakash Mehta");
+    assert.equal(rows[0][1], "HSR");
   });
 
   it("returns empty rows for header-only CSV", () => {
-    const csv = "Child Name,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link";
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link";
     const { headers, rows } = parseCsv(csv);
-    assert.equal(headers.length, 6);
+    assert.equal(headers.length, 9);
     assert.equal(rows.length, 0);
   });
 
@@ -248,6 +258,9 @@ describe("serializeCsv", () => {
 describe("updateCsvContent", () => {
   const CSV_HEADERS = [
     "Child Name",
+    "Branch",
+    "Program",
+    "Classroom",
     "Generation Date",
     "Sentiment Score",
     "Area Balance Score",
@@ -256,7 +269,7 @@ describe("updateCsvContent", () => {
   ];
 
   it("creates new CSV with headers when existing is empty", () => {
-    const newRow = "Aakash Mehta,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
     const result = updateCsvContent("", newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2);
@@ -265,8 +278,8 @@ describe("updateCsvContent", () => {
   });
 
   it("appends row for a new student", () => {
-    const existing = "Child Name,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Priya Sharma,2026-02-28T11:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
     const result = updateCsvContent(existing, newRow, "Priya Sharma", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 3);
@@ -274,8 +287,8 @@ describe("updateCsvContent", () => {
   });
 
   it("updates existing row for same student", () => {
-    const existing = "Child Name,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Aakash Mehta,2026-02-28T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
     const result = updateCsvContent(existing, newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2); // header + 1 data row (updated, not appended)

@@ -149,7 +149,7 @@ export default function ReportGenerateDialog({
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
               <CircularProgress size={18} />
               <Typography variant="body2" sx={{ color: '#4f46e5', fontWeight: 600 }}>
-                Generating report{isBulk ? 's' : ''}...
+                Coach Pepper is reviewing and preparing your report{isBulk ? 's' : ''}-- hang tight!
               </Typography>
             </Stack>
           )}

@@ -22,9 +22,12 @@ export const REPORT_BULK_CONCURRENCY = 5;
 // Google Drive export constants
 export const DRIVE_CONSTANTS = {
   sharedDriveId: "0ANF5MPbc7nZEUk9PVA",
-  csvFilename: "Report Summary.csv",
+  csvFilename: "Report Consolidation Summary.csv",
   csvHeaders: [
     "Child Name",
+    "Branch",
+    "Program",
+    "Classroom",
     "Generation Date",
     "Sentiment Score",
     "Area Balance Score",

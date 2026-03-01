@@ -69,12 +69,19 @@ function escapeCsvField(value) {
 
 /**
  * Format a single CSV row for the summary CSV.
- * Columns: Child Name, Generation Date, Sentiment Score, Area Balance Score, Missing Input Flags, Google Doc Link
+ * Columns: Child Name, Branch, Program, Classroom, Generation Date,
+ *          Sentiment Score, Area Balance Score, Missing Input Flags, Google Doc Link
  */
-export function formatCsvRow({ studentName, generatedAt, sentimentScore, areaBalanceScore, missingInputFlags, docLink }) {
+export function formatCsvRow({
+  studentName, branch, program, classroom,
+  generatedAt, sentimentScore, areaBalanceScore, missingInputFlags, docLink,
+}) {
   const flags = Array.isArray(missingInputFlags) ? missingInputFlags.join("; ") : "";
   return [
     escapeCsvField(studentName),
+    escapeCsvField(branch || ""),
+    escapeCsvField(program || ""),
+    escapeCsvField(classroom || ""),
     escapeCsvField(generatedAt),
     sentimentScore != null ? String(sentimentScore) : "",
     areaBalanceScore != null ? String(areaBalanceScore) : "",

@@ -25,10 +25,13 @@ import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, formatC
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
+  getOrCreateFolder,
   countExistingReportDocs,
   createReportDoc,
   downloadCsvContent,
   updateDriveSummaryCsv,
+  resolveStudentName,
+  capitalize,
 } from "./utils/driveHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
@@ -3979,7 +3982,7 @@ export const exportReportToDrive = functions
     // Get student + classroom info
     const studentSnap = await db.collection("students").doc(studentId).get();
     const studentData = studentSnap.data();
-    const studentName = studentData?.name || "Unknown Student";
+    const studentName = resolveStudentName(studentData);
     const classroomId = studentData?.classroomId;
 
     if (!classroomId) {
@@ -3993,38 +3996,62 @@ export const exportReportToDrive = functions
     const classroomData = classroomSnap.data();
     const classroomName = classroomData?.name || "Unknown Classroom";
     const programId = classroomData?.programId || "";
+    const branchId = classroomData?.branchId || "";
 
-    // Get or create Drive folder
+    // Resolve branch display name
+    let branchName = capitalize(branchId);
+    if (branchId) {
+      const branchSnap = await db.collection("branches").doc(branchId).get();
+      if (branchSnap.exists) {
+        branchName = branchSnap.data()?.name || capitalize(branchId);
+      }
+    }
+    const programName = capitalize(programId);
+
+    // Get or create Drive folder hierarchy: Branch → Program → Classroom
     const { drive, docs } = await getDriveClients();
 
-    let folderId = classroomData?.driveFolderId;
-    if (!folderId) {
-      folderId = await getOrCreateClassroomFolder(drive, classroomName, programId);
-      // Store folderId on classroom doc for future use
-      await db.collection("classrooms").doc(classroomId).update({ driveFolderId: folderId });
+    let classroomFolderId = classroomData?.driveFolderId;
+    if (!classroomFolderId) {
+      classroomFolderId = await getOrCreateClassroomFolder(
+        drive, branchName, programName, classroomName,
+      );
+      await db.collection("classrooms").doc(classroomId).update({
+        driveFolderId: classroomFolderId,
+      });
     }
 
-    // Count existing report docs to determine version
-    const existingCount = await countExistingReportDocs(drive, folderId, studentName);
-
-    // Create the Google Doc
-    const { docId: driveDocId, docLink } = await createReportDoc(
-      drive, docs, folderId, studentName, report.reportText, existingCount,
+    // Create student subfolder inside classroom folder
+    const studentFolderId = await getOrCreateFolder(
+      drive, classroomFolderId, studentName,
     );
 
-    // Update summary CSV
+    // Count existing report docs to determine version
+    const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
+    const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+
+    // Create the Google Doc in student folder
+    const { docId: driveDocId, docLink } = await createReportDoc(
+      drive, docs, studentFolderId, studentName, report.reportText,
+      existingCount, generatedAtIso,
+    );
+
+    // Update summary CSV at shared drive root
     const csvRow = formatCsvRow({
       studentName,
-      generatedAt: report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+      branch: branchName,
+      program: programName,
+      classroom: classroomName,
+      generatedAt: generatedAtIso,
       sentimentScore: report.sentimentScore,
       areaBalanceScore: report.areaBalanceScore,
       missingInputFlags: report.missingInputFlags || [],
       docLink,
     });
 
-    const existingCsv = await downloadCsvContent(drive, folderId);
+    const existingCsv = await downloadCsvContent(drive, DRIVE_CONSTANTS.sharedDriveId);
     const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
-    await updateDriveSummaryCsv(drive, folderId, newCsv);
+    await updateDriveSummaryCsv(drive, DRIVE_CONSTANTS.sharedDriveId, newCsv);
 
     // Store Drive doc link on the report doc
     await reportRef.update({ driveDocId, driveDocLink: docLink });
@@ -4068,18 +4095,33 @@ export const exportClassroomReportsToDrive = functions
     const classroomData = classroomSnap.data();
     const classroomName = classroomData?.name || "Unknown Classroom";
     const programId = classroomData?.programId || "";
+    const branchId = classroomData?.branchId || "";
+
+    // Resolve branch display name
+    let branchName = capitalize(branchId);
+    if (branchId) {
+      const branchSnap = await db.collection("branches").doc(branchId).get();
+      if (branchSnap.exists) {
+        branchName = branchSnap.data()?.name || capitalize(branchId);
+      }
+    }
+    const programName = capitalize(programId);
 
     const { drive, docs } = await getDriveClients();
 
-    // Get or create Drive folder
-    let folderId = classroomData?.driveFolderId;
-    if (!folderId) {
-      folderId = await getOrCreateClassroomFolder(drive, classroomName, programId);
-      await db.collection("classrooms").doc(classroomId).update({ driveFolderId: folderId });
+    // Get or create Drive folder hierarchy: Branch → Program → Classroom
+    let classroomFolderId = classroomData?.driveFolderId;
+    if (!classroomFolderId) {
+      classroomFolderId = await getOrCreateClassroomFolder(
+        drive, branchName, programName, classroomName,
+      );
+      await db.collection("classrooms").doc(classroomId).update({
+        driveFolderId: classroomFolderId,
+      });
     }
 
-    // Download existing CSV once
-    let currentCsv = await downloadCsvContent(drive, folderId);
+    // Download existing CSV from shared drive root once
+    let currentCsv = await downloadCsvContent(drive, DRIVE_CONSTANTS.sharedDriveId);
 
     const results = [];
     await runWithConcurrency(reportResults, async ({ studentId, docId }) => {
@@ -4093,11 +4135,18 @@ export const exportClassroomReportsToDrive = functions
         const report = reportSnap.data();
 
         const studentSnap = await db.collection("students").doc(studentId).get();
-        const studentName = studentSnap.data()?.name || "Unknown Student";
+        const studentName = resolveStudentName(studentSnap.data());
 
-        const existingCount = await countExistingReportDocs(drive, folderId, studentName);
+        // Create student subfolder inside classroom folder
+        const studentFolderId = await getOrCreateFolder(
+          drive, classroomFolderId, studentName,
+        );
+
+        const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
+        const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
         const { docId: driveDocId, docLink } = await createReportDoc(
-          drive, docs, folderId, studentName, report.reportText, existingCount,
+          drive, docs, studentFolderId, studentName, report.reportText,
+          existingCount, generatedAtIso,
         );
 
         // Update report doc with Drive link
@@ -4106,7 +4155,10 @@ export const exportClassroomReportsToDrive = functions
         // Update CSV content (sequential to avoid race conditions)
         const csvRow = formatCsvRow({
           studentName,
-          generatedAt: report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
+          branch: branchName,
+          program: programName,
+          classroom: classroomName,
+          generatedAt: generatedAtIso,
           sentimentScore: report.sentimentScore,
           areaBalanceScore: report.areaBalanceScore,
           missingInputFlags: report.missingInputFlags || [],
@@ -4121,8 +4173,8 @@ export const exportClassroomReportsToDrive = functions
       }
     }, REPORT_BULK_CONCURRENCY);
 
-    // Upload final CSV once
-    await updateDriveSummaryCsv(drive, folderId, currentCsv);
+    // Upload final CSV to shared drive root once
+    await updateDriveSummaryCsv(drive, DRIVE_CONSTANTS.sharedDriveId, currentCsv);
 
     const completed = results.filter((r) => r.status === "ok").length;
     const failed = results.filter((r) => r.status === "error").length;
