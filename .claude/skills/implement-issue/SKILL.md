@@ -76,7 +76,14 @@ Auto-load high-level overview, check for staleness, and spawn Explore subagent w
      - "permission", "role", "admin" → "auth-and-access"
      - "firebase", "rules", "security" → "firebase-infrastructure"
 
-4. If the overview context is insufficient for the inferred areas, spawn an **Explore subagent** (`subagent_type: Explore`) to gather deeper context on the relevant files and patterns. The Explore agent should focus on files listed in the Area Map for the inferred tags.
+4. If the overview context is insufficient for the inferred areas, spawn the **codebase-explorer agent** (`.claude/agents/codebase-explorer.md`) to gather deeper context on the relevant files and patterns.
+
+   **Data to pass to the codebase-explorer agent:**
+   - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 1)
+   - `target_areas`: The inferred area tags from step 3
+   - `issue_context`: Issue title + key requirements/acceptance criteria
+   - `exploration_focus`: `"implementation"` (find patterns to follow, reusable code, data flow, hook APIs, prop contracts)
+   - `specific_files`: Any files explicitly mentioned in the issue description
 
 5. Extract requirements from issue:
    - Parse issue description for user story, acceptance criteria
@@ -84,7 +91,7 @@ Auto-load high-level overview, check for staleness, and spawn Explore subagent w
 
 **Output:**
 - Inferred area tags
-- Loaded context (overview + explore context)
+- Loaded context (overview + codebase-explorer summary)
 - Parsed requirements and acceptance criteria
 
 ## Phase 3: Plan Generation

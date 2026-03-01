@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-02-28T22:54:29.598Z
-App version: 9.1.0
+Generated: 2026-03-01T01:05:00.479Z
+App version: 9.2.0
 
 ## App Snapshot
 
@@ -136,6 +136,11 @@ App version: 9.1.0
 
 ## Recent Changes
 
+### 9.2.0 (2026-02-28)
+- Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
+- Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
+- Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
+
 ### 9.1.0 (2026-02-28)
 - "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
 - Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
@@ -150,9 +155,4 @@ App version: 9.1.0
 - Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
 - Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
 - New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
-
-### 8.5.3 (2026-02-27)
-- New `/refine-linear-issue` skill: refine existing Linear issues with full context loading, clarifying questions, and polished descriptions.
-- Replaced `/create-linear-issue` with `/refine-linear-issue` (creation handled by `/draft-linear-issues`, refinement is now a dedicated skill).
-- Updated `/draft-linear-issues` references to point to `/refine-linear-issue`.
 

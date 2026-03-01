@@ -69,38 +69,20 @@ Gather everything the audit agent will need. The orchestrator does this directly
 
    If none apply, skip the Explore agent — the overview + diff is sufficient context.
 
-### Phase 1b: Explore Subagent (Conditional)
+### Phase 1b: Codebase Explorer Agent (Conditional)
 
 Only if Phase 1 determined exploration is needed.
 
-**Spawn a Task with `subagent_type: Explore`:**
+**Spawn the `codebase-explorer` agent (`.claude/agents/codebase-explorer.md`).**
 
-```
-Prompt template:
-───────────────
-I need you to explore the Pep OS codebase to understand the areas touched by a code diff.
+**Data to pass to the codebase-explorer agent:**
+- `overview_content`: The full text of `pep-os-overview.md` (already loaded in Phase 1)
+- `target_areas`: Inferred from the diff — map modified files back to area tags using the Area Map
+- `issue_context`: Issue title + acceptance criteria from Phase 1
+- `exploration_focus`: `"review"` (find conventions to check against, constraints to verify, neighboring code for pattern comparison)
+- `specific_files`: The file paths from `git diff --stat` output
 
-The diff modifies these files:
-{diff_stat_output}
-
-For each modified file:
-1. Read the file and understand its role
-2. Identify what calls/imports it and what it calls/imports
-3. Note any patterns it follows (state management, error handling, naming)
-4. Flag any constraints (e.g., Storage rules have a 2 firestore.get() budget)
-
-Also check:
-- Are there related test files for the modified files?
-- Do the modified files follow consistent patterns with their neighbors?
-
-Return a concise summary (under 200 lines) organized by file, focusing on:
-- What each file does and its key dependencies
-- Patterns and conventions it follows
-- Constraints that a reviewer should know about
-───────────────
-```
-
-**Output:** An explore summary to pass to the audit agent alongside the overview.
+**Output:** A structured exploration summary to pass to the audit agent alongside the overview.
 
 ### Phase 2: Audit Subagent
 
