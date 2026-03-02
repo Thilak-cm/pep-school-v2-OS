@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.3.0 — 2026-03-01
+
+### Added
+- Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
+- Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
+- `buildReportList` utility with 7 unit tests for Firestore doc normalization and sorting (PEP-64)
+
+### Changed
+- Report generation moved out of Weekly Snapshot card into its own Reports page (PEP-64)
+
 # 9.2.0 — 2026-02-28
 
 ### Added

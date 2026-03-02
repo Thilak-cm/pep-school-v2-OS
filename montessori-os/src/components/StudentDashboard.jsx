@@ -29,8 +29,7 @@ import {
   InfoOutlined,
   Refresh,
   FlagRounded,
-  CheckCircle,
-  Description as ReportIcon
+  CheckCircle
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -38,8 +37,7 @@ import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
-import ReportGenerateDialog from './ReportGenerateDialog';
-import ReportPreviewDialog from './ReportPreviewDialog';
+import ReportsCard from './ReportsCard';
 
 const confettiFall = keyframes`
   0% {
@@ -118,7 +116,7 @@ function ConfettiAnimation({ count = 50, small = false }) {
     </Box>
   );
 }
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, initialNoteType = 'textVoice' }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
@@ -140,14 +138,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
   const coverageConfettiTimerRef = useRef(null);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
-
-  // Report generation state
-  const [reportGenerateOpen, setReportGenerateOpen] = useState(false);
-  const [reportGenerating, setReportGenerating] = useState(false);
-  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
-  const [reportData, setReportData] = useState(null);
-  const [reportError, setReportError] = useState('');
-  const [reportExporting, setReportExporting] = useState(false);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -199,67 +189,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       setRegenRunning(false);
     }
   };
-
-  const handleGenerateReport = async ({ dateRangeStart, dateRangeEnd }) => {
-    try {
-      setReportError('');
-      setReportGenerating(true);
-      trackEvent('report_generate_start', { studentId }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'generateStudentReport');
-      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
-      setReportData(result.data);
-      setReportGenerateOpen(false);
-      setReportPreviewOpen(true);
-      trackEvent('report_generate_success', { studentId }).catch(() => {});
-    } catch (e) {
-      setReportError(e?.message || 'Failed to generate report.');
-      trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
-    } finally {
-      setReportGenerating(false);
-    }
-  };
-
-  const handleExportToDrive = async () => {
-    if (!reportData?.docId || !studentId) return;
-    try {
-      setReportExporting(true);
-      trackEvent('report_export_start', { studentId }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
-      const result = await call({ studentId, reportDocId: reportData.docId });
-      setReportData((prev) => ({ ...prev, driveDocLink: result.data.driveDocLink }));
-      trackEvent('report_export_success', { studentId }).catch(() => {});
-    } catch (e) {
-      setReportError(e?.message || 'Failed to export to Drive.');
-      trackEvent('report_export_error', { studentId, error: e?.message }).catch(() => {});
-    } finally {
-      setReportExporting(false);
-    }
-  };
-
-  // Load the latest existing report for this student
-  useEffect(() => {
-    let active = true;
-    if (!studentId) return;
-    const loadLatestReport = async () => {
-      try {
-        const reportsQuery = query(
-          collectionGroup(db, 'ai_summaries'),
-          where('studentId', '==', studentId),
-          where('type', '==', 'report'),
-          orderBy('generatedAt', 'desc'),
-          limit(1)
-        );
-        const snap = await getDocs(reportsQuery);
-        if (!active || snap.empty) return;
-        const doc = snap.docs[0];
-        setReportData({ id: doc.id, ...doc.data() });
-      } catch {
-        // Silently fail — report loading is optional
-      }
-    };
-    loadLatestReport();
-    return () => { active = false; };
-  }, [studentId]);
 
   useEffect(() => {
     let active = true;
@@ -695,31 +624,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         noteCount={cardNoteCount}
         windowDays={cardWindowDays}
         coverage={renderCoverageRow()}
-        topRightActions={
-          <>
-            <Tooltip title="Generate parent report" arrow>
-              <IconButton
-                onClick={() => setReportGenerateOpen(true)}
-                disabled={reportGenerating || !studentId}
-                sx={{
-                  width: 40,
-                  height: 40,
-                  border: '1px solid #86efac',
-                  color: '#059669',
-                  backgroundColor: 'rgba(5, 150, 105, 0.06)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(5, 150, 105, 0.12)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                  }
-                }}
-                aria-label="Generate parent report"
-              >
-                <ReportIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-            {getSeverityChip()}
-          </>
-        }
+        topRightActions={getSeverityChip()}
         onRegenerateClick={isSuperAdmin ? () => setRegenDialogOpen(true) : null}
         regenDisabled={regenRunning || !studentId}
         cardData={cardData}
@@ -917,50 +822,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      <ReportGenerateDialog
-        open={reportGenerateOpen}
-        onClose={() => setReportGenerateOpen(false)}
-        onGenerate={handleGenerateReport}
-        generating={reportGenerating}
-        studentLabel={studentLabel}
-      />
-
-      <ReportPreviewDialog
-        open={reportPreviewOpen}
-        onClose={() => setReportPreviewOpen(false)}
-        reportText={reportData?.reportText || ''}
-        missingInputFlags={reportData?.missingInputFlags || []}
-        generatedAt={reportData?.generatedAt || null}
-        studentLabel={studentLabel}
-        noteCount={reportData?.noteCount ?? null}
-        onExportToDrive={reportData?.docId ? handleExportToDrive : null}
-        exporting={reportExporting}
-        driveDocLink={reportData?.driveDocLink || null}
-      />
-
-      {reportError && (
-        <Alert severity="error" onClose={() => setReportError('')} sx={{ borderRadius: 2 }}>
-          {reportError}
-        </Alert>
-      )}
-
-      {reportData?.reportText && !reportPreviewOpen && (
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<ReportIcon />}
-          onClick={() => setReportPreviewOpen(true)}
-          sx={{
-            textTransform: 'none',
-            borderRadius: 2,
-            borderColor: '#a5b4fc',
-            color: '#4f46e5',
-            '&:hover': { borderColor: '#6366f1', backgroundColor: 'rgba(79, 70, 229, 0.06)' }
-          }}
-        >
-          View latest report
-        </Button>
-      )}
+      <ReportsCard studentId={studentId} onClick={onOpenReports} />
 
       <Card
         sx={{
