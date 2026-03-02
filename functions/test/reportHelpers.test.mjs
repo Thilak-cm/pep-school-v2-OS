@@ -8,6 +8,7 @@ import {
   parseCsv,
   serializeCsv,
   updateCsvContent,
+  removeCsvRow,
 } from "../utils/reportHelpers.js";
 
 describe("getDefaultDateRange", () => {
@@ -294,5 +295,55 @@ describe("updateCsvContent", () => {
     assert.equal(lines.length, 2); // header + 1 data row (updated, not appended)
     assert.ok(lines[1].includes("def")); // new doc link
     assert.ok(!lines[1].includes("abc")); // old doc link gone
+  });
+});
+
+describe("removeCsvRow", () => {
+  const CSV_HEADERS = [
+    "Child Name",
+    "Branch",
+    "Program",
+    "Classroom",
+    "Generation Date",
+    "Sentiment Score",
+    "Area Balance Score",
+    "Missing Input Flags",
+    "Google Doc Link",
+  ];
+
+  it("removes row matching student name", () => {
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc\nPriya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const result = removeCsvRow(csv, "Aakash Mehta", CSV_HEADERS);
+    const { rows } = parseCsv(result);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][0], "Priya Sharma");
+  });
+
+  it("returns header-only CSV when last row is removed", () => {
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const result = removeCsvRow(csv, "Aakash Mehta", CSV_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 9);
+    assert.equal(rows.length, 0);
+  });
+
+  it("returns CSV unchanged when student name not found", () => {
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const result = removeCsvRow(csv, "Unknown Student", CSV_HEADERS);
+    const { rows } = parseCsv(result);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][0], "Aakash Mehta");
+  });
+
+  it("returns empty string for empty CSV input", () => {
+    const result = removeCsvRow("", "Aakash Mehta", CSV_HEADERS);
+    assert.equal(result, "");
+  });
+
+  it("matches student name case-insensitively", () => {
+    const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const result = removeCsvRow(csv, "aakash mehta", CSV_HEADERS);
+    const { rows } = parseCsv(result);
+    assert.equal(rows.length, 0);
   });
 });
