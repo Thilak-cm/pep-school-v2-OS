@@ -12,17 +12,24 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   Description as ReportIcon,
   Visibility as ViewIcon,
   Add as AddIcon,
+  DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import { collection, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
 import { trackEvent } from '../utils/analytics';
+import { isSuperAdmin } from '../utils/roleUtils';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
 
@@ -36,7 +43,7 @@ function formatReportDate(date) {
   }).format(date);
 }
 
-export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
+export default function ReportsPage({ studentId, studentLabel = 'Student', userRole }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,6 +58,11 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
 
   // Export state
   const [exporting, setExporting] = useState(false);
+
+  // Delete state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load all past reports from subcollection
   useEffect(() => {
@@ -135,6 +147,28 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
   const handleViewReport = (report) => {
     setSelectedReport(report);
     setPreviewOpen(true);
+  };
+
+  const handleDeleteClick = (report) => {
+    setReportToDelete(report);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!reportToDelete?.id || !studentId) return;
+    try {
+      setDeleting(true);
+      setDeleteConfirmOpen(false);
+      trackEvent('report_deleted', { studentId, reportDocId: reportToDelete.id }).catch(() => {});
+      const call = httpsCallable(cloudFunctions, 'deleteStudentReport');
+      await call({ studentId, reportDocId: reportToDelete.id });
+      setReports((prev) => prev.filter((r) => r.id !== reportToDelete.id));
+    } catch (e) {
+      setError(e?.message || 'Failed to delete report.');
+    } finally {
+      setDeleting(false);
+      setReportToDelete(null);
+    }
   };
 
   return (
@@ -222,6 +256,17 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
                 >
                   <ViewIcon fontSize="small" />
                 </IconButton>
+                {isSuperAdmin(userRole) && (
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteClick(report)}
+                    disabled={deleting}
+                    sx={{ color: '#ef4444', ml: 0.5 }}
+                    aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                )}
               </ListItemSecondaryAction>
             </ListItem>
           ))}
@@ -249,6 +294,24 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
         exporting={exporting}
         driveDocLink={selectedReport?.driveDocLink || null}
       />
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+      >
+        <DialogTitle>Delete Report</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will delete the report and trash the Google Drive copy if exported. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

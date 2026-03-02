@@ -21,7 +21,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, formatCsvRow, updateCsvContent } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -32,6 +32,7 @@ import {
   updateDriveSummaryCsv,
   resolveStudentName,
   capitalize,
+  trashDriveFile,
 } from "./utils/driveHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
@@ -4197,4 +4198,69 @@ export const exportClassroomReportsToDrive = functions
     const failed = results.filter((r) => r.status === "error").length;
 
     return { status: "ok", completed, failed, total: reportResults.length, results };
+  });
+
+// ── Delete a student report (superadmin only) ──────────────────────────
+export const deleteStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    const reportDocId = String(data?.reportDocId || "").trim();
+    if (!studentId || !reportDocId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId and reportDocId are required");
+    }
+
+    // Superadmin-only access
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can delete reports");
+    }
+
+    // Load report doc
+    const reportRef = db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc(reportDocId);
+    const reportSnap = await reportRef.get();
+    if (!reportSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Report not found");
+    }
+    const reportData = reportSnap.data();
+
+    // If report was exported to Drive, trash the doc and update CSV
+    if (reportData.driveDocId) {
+      try {
+        const { drive } = await getDriveClients();
+
+        // Trash the Google Doc (recoverable for 30 days)
+        await trashDriveFile(drive, reportData.driveDocId);
+
+        // Remove student row from classroom CSV
+        const studentSnap = await db.collection("students").doc(studentId).get();
+        const classroomId = studentSnap.data()?.classroomId;
+        if (classroomId) {
+          const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+          const driveFolderId = classroomSnap.data()?.driveFolderId;
+          if (driveFolderId) {
+            const studentName = resolveStudentName(studentSnap.data());
+            const existingCsv = await downloadCsvContent(drive, driveFolderId);
+            if (existingCsv) {
+              const updatedCsv = removeCsvRow(existingCsv, studentName, DRIVE_CONSTANTS.csvHeaders);
+              await updateDriveSummaryCsv(drive, driveFolderId, updatedCsv);
+            }
+          }
+        }
+      } catch (driveErr) {
+        console.error("[delete-report] Drive cleanup failed:", driveErr);
+        // Continue with Firestore deletion even if Drive cleanup fails
+      }
+    }
+
+    // Delete Firestore doc
+    await reportRef.delete();
+
+    return { status: "ok", deletedDocId: reportDocId };
   });

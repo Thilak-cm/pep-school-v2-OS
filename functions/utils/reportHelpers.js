@@ -160,6 +160,27 @@ export function serializeCsv(headers, rows) {
 }
 
 /**
+ * Remove a student's row from CSV content by name.
+ * Returns the updated CSV string, or empty string if input is empty.
+ */
+export function removeCsvRow(existingCsv, studentName, csvHeaders) {
+  if (!existingCsv || !existingCsv.trim()) return "";
+
+  const { headers, rows } = parseCsv(existingCsv);
+  const nameColIdx = headers.findIndex((h) =>
+    h.trim().toLowerCase() === "child name",
+  );
+
+  if (nameColIdx < 0) return existingCsv;
+
+  const filtered = rows.filter((r) =>
+    r[nameColIdx]?.trim().toLowerCase() !== studentName.trim().toLowerCase(),
+  );
+
+  return serializeCsv(headers.length ? headers : csvHeaders, filtered);
+}
+
+/**
  * Update CSV content: replace existing row for studentName, or append new row.
  * If existing CSV is empty, creates new CSV with headers.
  */
