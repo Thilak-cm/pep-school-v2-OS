@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import useNotify from '../notifications/useNotify';
 import {
   Box,
   Typography,
@@ -44,6 +45,7 @@ function formatReportDate(date) {
 }
 
 export default function ReportsPage({ studentId, studentLabel = 'Student', userRole }) {
+  const notify = useNotify();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -163,8 +165,9 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
       const call = httpsCallable(cloudFunctions, 'deleteStudentReport');
       await call({ studentId, reportDocId: reportToDelete.id });
       setReports((prev) => prev.filter((r) => r.id !== reportToDelete.id));
+      notify.success('Report deleted');
     } catch (e) {
-      setError(e?.message || 'Failed to delete report.');
+      notify.error(e?.message || 'Failed to delete report.');
     } finally {
       setDeleting(false);
       setReportToDelete(null);
