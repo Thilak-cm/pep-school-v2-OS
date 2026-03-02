@@ -210,6 +210,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
                   </Stack>
                 }
                 primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: '#1e293b' }}
+                secondaryTypographyProps={{ component: 'div' }}
               />
               <ListItemSecondaryAction>
                 <IconButton
