@@ -103,6 +103,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student' }) {
       setPreviewOpen(true);
       trackEvent('report_generate_success', { studentId }).catch(() => {});
     } catch (e) {
+      setGenerateOpen(false);
       setError(e?.message || 'Failed to generate report.');
       trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
