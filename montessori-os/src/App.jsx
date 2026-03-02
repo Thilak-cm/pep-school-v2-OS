@@ -16,6 +16,7 @@ import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentStatsPage from "./components/StudentStatsPage";
 import ChildChat from "./components/ChildChat";
+import ReportsPage from "./components/ReportsPage";
 import LessonNotesPage from "./components/LessonNotesPage";
 import StudentAliasesPage from "./components/StudentAliasesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
@@ -342,6 +343,9 @@ function App() {
   else if (screen === 'childChat') {
     pageTitle = 'Chat with Coach Pepper';
   }
+  else if (screen === 'studentReports') {
+    pageTitle = `${getStudentDisplayName(selectedStudent)}'s Reports`;
+  }
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -366,6 +370,8 @@ function App() {
       case 'timeline':
         return () => setScreen('studentDashboard');
       case 'childChat':
+        return () => setScreen('studentDashboard');
+      case 'studentReports':
         return () => setScreen('studentDashboard');
       case 'profile':
         return () => setScreen('settings');
@@ -711,6 +717,14 @@ function App() {
                       onOpenChat={() => {
                         setScreen('childChat');
                       }}
+                      onOpenReports={() => setScreen('studentReports')}
+                    />
+                  )}
+
+                  {screen === 'studentReports' && (
+                    <ReportsPage
+                      studentId={selectedStudent?.id || selectedStudent?.uid}
+                      studentLabel={getStudentDisplayName(selectedStudent)}
                     />
                   )}
 
@@ -938,7 +952,8 @@ function App() {
                   (
                     screen === 'timeline' ||
                     screen === 'studentDashboard' ||
-                    screen === 'studentStats'
+                    screen === 'studentStats' ||
+                    screen === 'studentReports'
                   )
                     ? [selectedStudent.id]
                     : []

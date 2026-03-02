@@ -116,7 +116,7 @@ function ConfettiAnimation({ count = 50, small = false }) {
     </Box>
   );
 }
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, initialNoteType = 'textVoice' }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
@@ -822,7 +822,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      <ReportsCard studentId={studentId} studentLabel={studentLabel} />
+      <ReportsCard studentId={studentId} onClick={onOpenReports} />
 
       <Card
         sx={{

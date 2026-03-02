@@ -1,156 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   Box,
   Card,
+  CardActionArea,
   CardContent,
   Typography,
   Avatar,
-  Button,
-  Stack,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  CircularProgress,
-  Alert,
-  Chip,
 } from '@mui/material';
 import {
   Description as ReportIcon,
-  Visibility as ViewIcon,
-  Add as AddIcon,
+  ArrowForward,
 } from '@mui/icons-material';
-import { collection, getDocs } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
-import { buildReportList } from '../utils/reportUtils';
 import { trackEvent } from '../utils/analytics';
-import ReportGenerateDialog from './ReportGenerateDialog';
-import ReportPreviewDialog from './ReportPreviewDialog';
 
-function formatReportDate(date) {
-  if (!date) return 'Unknown date';
-  return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Kolkata',
-  }).format(date);
-}
-
-export default function ReportsCard({ studentId, studentLabel = 'Student' }) {
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // Generate dialog state
-  const [generateOpen, setGenerateOpen] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
-  // Preview dialog state
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [selectedReport, setSelectedReport] = useState(null);
-
-  // Export state
-  const [exporting, setExporting] = useState(false);
-
-  // Load all past reports from subcollection
-  useEffect(() => {
-    if (!studentId) {
-      setReports([]);
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-    const loadReports = async () => {
-      try {
-        setLoading(true);
-        const ref = collection(db, 'students', studentId, 'ai_summaries');
-        const snap = await getDocs(ref);
-        if (!active) return;
-        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setReports(buildReportList(docs));
-      } catch {
-        if (active) setError('Failed to load reports.');
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    loadReports();
-    return () => { active = false; };
-  }, [studentId]);
-
-  const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
-    try {
-      setError('');
-      setGenerating(true);
-      trackEvent('report_generate_start', { studentId }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'generateStudentReport');
-      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
-      const newReport = {
-        id: result.data.docId,
-        generatedAt: result.data.generatedAt ? new Date(result.data.generatedAt) : new Date(),
-        noteCount: result.data.noteCount ?? null,
-        reportText: result.data.reportText || '',
-        status: result.data.status || null,
-        missingInputFlags: result.data.missingInputFlags || [],
-        sentimentScore: result.data.sentimentScore ?? null,
-        areaBalanceScore: result.data.areaBalanceScore ?? null,
-        driveDocLink: null,
-      };
-      setReports((prev) => [newReport, ...prev]);
-      setSelectedReport(newReport);
-      setGenerateOpen(false);
-      setPreviewOpen(true);
-      trackEvent('report_generate_success', { studentId }).catch(() => {});
-    } catch (e) {
-      setError(e?.message || 'Failed to generate report.');
-      trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleExportToDrive = async () => {
-    if (!selectedReport?.id || !studentId) return;
-    try {
-      setExporting(true);
-      trackEvent('report_export_start', { studentId }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
-      const result = await call({ studentId, reportDocId: selectedReport.id });
-      const link = result.data.driveDocLink;
-      setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
-      setReports((prev) =>
-        prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
-      );
-      trackEvent('report_export_success', { studentId }).catch(() => {});
-    } catch (e) {
-      setError(e?.message || 'Failed to export to Drive.');
-      trackEvent('report_export_error', { studentId, error: e?.message }).catch(() => {});
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleViewReport = (report) => {
-    setSelectedReport(report);
-    setPreviewOpen(true);
-  };
-
+export default function ReportsCard({ studentId, onClick }) {
   return (
-    <>
-      <Card
-        sx={{
-          borderRadius: 2,
-          border: '1px solid #e2e8f0',
-          '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' },
-          transition: 'all 0.2s ease-in-out',
+    <Card
+      sx={{
+        borderRadius: 2,
+        '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' },
+        transition: 'all 0.2s ease-in-out',
+      }}
+    >
+      <CardActionArea
+        onClick={() => {
+          trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {});
+          onClick?.();
         }}
+        sx={{ p: 0 }}
       >
         <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: reports.length > 0 ? 2 : 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
               <Avatar sx={{ bgcolor: '#059669', width: 48, height: 48 }}>
                 <ReportIcon />
@@ -160,104 +40,14 @@ export default function ReportsCard({ studentId, studentLabel = 'Student' }) {
                   Reports
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
-                  {loading ? 'Loading...' : `${reports.length} report${reports.length !== 1 ? 's' : ''} generated`}
+                  View and generate student reports
                 </Typography>
               </Box>
             </Box>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => setGenerateOpen(true)}
-              disabled={generating || !studentId}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #047857 0%, #065f46 100%)',
-                },
-              }}
-            >
-              Generate
-            </Button>
+            <ArrowForward sx={{ color: '#94a3b8' }} />
           </Box>
-
-          {error && (
-            <Alert severity="error" onClose={() => setError('')} sx={{ borderRadius: 2, mb: 1.5 }}>
-              {error}
-            </Alert>
-          )}
-
-          {loading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} />
-            </Box>
-          )}
-
-          {!loading && reports.length > 0 && (
-            <List disablePadding sx={{ mx: -1 }}>
-              {reports.map((report) => (
-                <ListItem
-                  key={report.id}
-                  sx={{
-                    borderRadius: 1.5,
-                    '&:hover': { backgroundColor: 'rgba(5, 150, 105, 0.04)' },
-                    py: 0.75,
-                  }}
-                >
-                  <ListItemText
-                    primary={formatReportDate(report.generatedAt)}
-                    secondary={
-                      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
-                        {report.noteCount != null && (
-                          <Chip label={`${report.noteCount} notes`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                        )}
-                        {report.status === 'no_notes' && (
-                          <Chip label="No notes" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                        )}
-                      </Stack>
-                    }
-                    primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: '#1e293b' }}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleViewReport(report)}
-                      sx={{ color: '#4f46e5' }}
-                      aria-label={`View report from ${formatReportDate(report.generatedAt)}`}
-                    >
-                      <ViewIcon fontSize="small" />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          )}
         </CardContent>
-      </Card>
-
-      <ReportGenerateDialog
-        open={generateOpen}
-        onClose={() => setGenerateOpen(false)}
-        onGenerate={handleGenerate}
-        generating={generating}
-        studentLabel={studentLabel}
-      />
-
-      <ReportPreviewDialog
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        reportText={selectedReport?.reportText || ''}
-        missingInputFlags={selectedReport?.missingInputFlags || []}
-        generatedAt={selectedReport?.generatedAt || null}
-        studentLabel={studentLabel}
-        noteCount={selectedReport?.noteCount ?? null}
-        onExportToDrive={selectedReport?.id ? handleExportToDrive : null}
-        exporting={exporting}
-        driveDocLink={selectedReport?.driveDocLink || null}
-      />
-    </>
+      </CardActionArea>
+    </Card>
   );
 }
