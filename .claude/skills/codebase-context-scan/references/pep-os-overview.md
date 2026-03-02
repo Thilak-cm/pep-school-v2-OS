@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-01T01:05:00.479Z
-App version: 9.2.0
+Generated: 2026-03-02T03:38:16.850Z
+App version: 9.3.0
 
 ## App Snapshot
 
@@ -92,8 +92,8 @@ App version: 9.2.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 13
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 15
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -136,6 +136,11 @@ App version: 9.2.0
 
 ## Recent Changes
 
+### 9.3.0 (2026-03-01)
+- Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
+- Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
+- `buildReportList` utility with 7 unit tests for Firestore doc normalization and sorting (PEP-64)
+
 ### 9.2.0 (2026-02-28)
 - Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
 - Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
@@ -150,9 +155,4 @@ App version: 9.2.0
 - AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
 - Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
 - Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
-
-### 8.6.0 (2026-02-28)
-- Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
-- Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
-- New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
 
