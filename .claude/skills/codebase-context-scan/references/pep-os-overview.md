@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-02T03:38:16.850Z
-App version: 9.3.0
+Generated: 2026-03-02T04:34:19.560Z
+App version: 9.3.1
 
 ## App Snapshot
 
@@ -92,8 +92,8 @@ App version: 9.3.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 15
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 16
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -136,6 +136,11 @@ App version: 9.3.0
 
 ## Recent Changes
 
+### 9.3.1 (2026-03-01)
+- Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
+- `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
+- `removeCsvRow` helper with 5 unit tests and `trashDriveFile` Drive helper (PEP-66)
+
 ### 9.3.0 (2026-03-01)
 - Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
 - Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
@@ -150,9 +155,4 @@ App version: 9.3.0
 - "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
 - Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
 - In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
-
-### 9.0.0 (2026-02-27)
-- AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
-- Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
-- Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
 
