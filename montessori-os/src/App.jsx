@@ -725,6 +725,7 @@ function App() {
                     <ReportsPage
                       studentId={selectedStudent?.id || selectedStudent?.uid}
                       studentLabel={getStudentDisplayName(selectedStudent)}
+                      userRole={role}
                     />
                   )}
 

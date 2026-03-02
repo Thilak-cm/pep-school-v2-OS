@@ -1,5 +1,13 @@
 # Changelog
 
+# 9.3.1 — 2026-03-01
+
+### Added
+- Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
+- `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
+- `removeCsvRow` helper with 5 unit tests and `trashDriveFile` Drive helper (PEP-66)
+- Toast notifications on report deletion success/failure (PEP-66)
+
 # 9.3.0 — 2026-03-01
 
 ### Added

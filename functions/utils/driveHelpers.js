@@ -280,3 +280,14 @@ export async function downloadCsvContent(drive, folderId) {
 
   return typeof response.data === "string" ? response.data : "";
 }
+
+/**
+ * Trash a file on Google Drive (recoverable for 30 days).
+ */
+export async function trashDriveFile(drive, fileId) {
+  await drive.files.update({
+    fileId,
+    requestBody: { trashed: true },
+    supportsAllDrives: true,
+  });
+}
