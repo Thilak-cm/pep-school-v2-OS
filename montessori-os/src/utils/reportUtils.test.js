@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { getDefaultReportDateRange, parseReportSections, renderSectionContent } from './reportUtils.js';
 
@@ -150,5 +150,91 @@ describe('renderSectionContent', () => {
     assert.equal(blocks.length, 1);
     assert.equal(blocks[0].subheading, null);
     assert.ok(blocks[0].text.includes('Just a paragraph.'));
+  });
+});
+
+describe('buildReportList', () => {
+  // Lazy import so test file loads even before the function exists
+  let buildReportList;
+  before(async () => {
+    ({ buildReportList } = await import('./reportUtils.js'));
+  });
+
+  it('returns empty array for empty input', () => {
+    assert.deepEqual(buildReportList([]), []);
+  });
+
+  it('returns empty array for null/undefined', () => {
+    assert.deepEqual(buildReportList(null), []);
+    assert.deepEqual(buildReportList(undefined), []);
+  });
+
+  it('filters out non-report docs (baseball_card, signals)', () => {
+    const docs = [
+      { id: 'baseball_card', generatedAt: new Date('2026-01-15') },
+      { id: 'signals', status: 'ok' },
+      { id: 'report_1700000000000', generatedAt: new Date('2026-01-20'), reportText: 'Report content' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, 'report_1700000000000');
+  });
+
+  it('sorts reports by generatedAt descending (newest first)', () => {
+    const docs = [
+      { id: 'report_1000', generatedAt: new Date('2026-01-10'), reportText: 'Old' },
+      { id: 'report_3000', generatedAt: new Date('2026-03-01'), reportText: 'Newest' },
+      { id: 'report_2000', generatedAt: new Date('2026-02-15'), reportText: 'Middle' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].id, 'report_3000');
+    assert.equal(result[1].id, 'report_2000');
+    assert.equal(result[2].id, 'report_1000');
+  });
+
+  it('extracts key fields from each report doc', () => {
+    const docs = [
+      {
+        id: 'report_123',
+        generatedAt: new Date('2026-02-20T10:00:00Z'),
+        dateRangeStart: new Date('2025-11-01'),
+        dateRangeEnd: new Date('2026-02-20'),
+        noteCount: 42,
+        reportText: 'Report body here',
+        status: 'ok',
+        docId: 'report_123',
+      },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 1);
+    const r = result[0];
+    assert.equal(r.id, 'report_123');
+    assert.equal(r.noteCount, 42);
+    assert.equal(r.reportText, 'Report body here');
+    assert.equal(r.status, 'ok');
+    assert.ok(r.generatedAt instanceof Date);
+  });
+
+  it('handles missing generatedAt gracefully (sorts to end)', () => {
+    const docs = [
+      { id: 'report_a', generatedAt: null, reportText: 'No date' },
+      { id: 'report_b', generatedAt: new Date('2026-02-01'), reportText: 'Has date' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].id, 'report_b');
+    assert.equal(result[1].id, 'report_a');
+  });
+
+  it('handles Firestore Timestamp-like objects with toDate()', () => {
+    const fakeTimestamp = { toDate: () => new Date('2026-01-15T08:00:00Z') };
+    const docs = [
+      { id: 'report_ts', generatedAt: fakeTimestamp, reportText: 'Timestamp test' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result.length, 1);
+    assert.ok(result[0].generatedAt instanceof Date);
+    assert.equal(result[0].generatedAt.toISOString(), '2026-01-15T08:00:00.000Z');
   });
 });
