@@ -387,8 +387,9 @@ function App() {
         return () => setScreen('settings');
       case 'configLessonNotes':
       case 'configAiTools':
-      case 'bulkUpload':
         return () => setScreen('config');
+      case 'bulkUpload':
+        return () => setScreen('settings');
       case 'baseballCardConfig':
         return () => setScreen('configAiTools');
       case 'aiTextEditor':
@@ -447,6 +448,8 @@ function App() {
       setScreen('studentAliases');
     } else if (path === '/config') {
       if (isSuperAdminUser) setScreen('config');
+    } else if (path === '/bulkUpload') {
+      if (isSuperAdminUser) setScreen('bulkUpload');
     }
   };
 
@@ -866,7 +869,6 @@ function App() {
                       userRole={role}
                       onOpenLessonNoteConfig={() => setScreen('configLessonNotes')}
                       onOpenAiTools={() => setScreen('configAiTools')}
-                      onOpenBulkUpload={() => setScreen('bulkUpload')}
                     />
                   )}
 

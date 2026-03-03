@@ -21,7 +21,8 @@ import {
   Group,
   Feedback,
   Logout,
-  Tune
+  Tune,
+  UploadFile
 } from '@mui/icons-material';
 import VersionBadge from './VersionBadge';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -51,11 +52,18 @@ function SettingsPage({ _currentUser, userRole, onNavigate, onSignOut }) {
       icon: <Feedback />,
       action: () => onNavigate('/feedback')
     },
-    ...(isSuperAdminUser ? [{
-      text: 'Configurations',
-      icon: <Tune />,
-      action: () => onNavigate('/config')
-    }] : [])
+    ...(isSuperAdminUser ? [
+      {
+        text: 'Configurations',
+        icon: <Tune />,
+        action: () => onNavigate('/config')
+      },
+      {
+        text: 'Bulk Upload',
+        icon: <UploadFile />,
+        action: () => onNavigate('/bulkUpload')
+      }
+    ] : [])
   ];
 
   const handleLogout = () => {
