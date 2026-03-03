@@ -1,4 +1,4 @@
-import { REPORT_PROMPT_DOCS } from "../config/reportConstants.js";
+import { REPORT_PROMPT_DOCS, REPORT_DEFAULTS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
@@ -54,6 +54,20 @@ function clampScore(value) {
 export function getReportPromptDocId(programId) {
   if (!programId || typeof programId !== "string") return null;
   return REPORT_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Merge a Firestore config doc's data with REPORT_DEFAULTS.
+ * Returns only the known config keys (model, temperature, max_tokens, timezone).
+ */
+export function mergeReportConfig(docData, defaults = REPORT_DEFAULTS) {
+  const d = docData || {};
+  return {
+    model: d.model || defaults.model,
+    temperature: Number.isFinite(d.temperature) ? d.temperature : defaults.temperature,
+    max_tokens: Number.isFinite(d.max_tokens) ? d.max_tokens : defaults.max_tokens,
+    timezone: d.timezone || defaults.timezone,
+  };
 }
 
 /**

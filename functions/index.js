@@ -21,7 +21,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -3551,6 +3551,27 @@ export const childChat = functions
 const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
 const reportPromptCache = {};
 
+const REPORT_CONFIG_DOC = "report_generation";
+let reportConfigCache = { data: null, ts: 0 };
+
+async function getReportConfig({ forceRefresh = false } = {}) {
+  if (!forceRefresh && reportConfigCache.data && (Date.now() - reportConfigCache.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
+    return reportConfigCache.data;
+  }
+  try {
+    const snap = await db.collection("config").doc(REPORT_CONFIG_DOC).get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = mergeReportConfig(data, REPORT_DEFAULTS);
+    reportConfigCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[report] config fetch failed, using defaults:", err);
+    const out = mergeReportConfig(null, REPORT_DEFAULTS);
+    reportConfigCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
 async function getReportPrompt(programId, { forceRefresh = false } = {}) {
   const docId = getReportPromptDocId(programId);
   if (!docId) {
@@ -3669,7 +3690,7 @@ The sentimentScore and areaBalanceScore should follow the scoring rubrics in the
 The missingInputFlags should list any areas where inputs were missing.
 Output ONLY the JSON object, nothing else.`;
 
-async function callReportGeneration(notes, prompt, studentContext, dateRange) {
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
   const openAiKey = getOpenAiKey();
   if (!openAiKey) {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
@@ -3700,13 +3721,13 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange) {
   ].join("\n");
 
   const body = {
-    model: REPORT_DEFAULTS.model,
+    model: config.model || REPORT_DEFAULTS.model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: REPORT_DEFAULTS.temperature,
-    max_tokens: REPORT_DEFAULTS.max_tokens,
+    temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
   };
 
@@ -3747,7 +3768,7 @@ async function writeReportDoc(studentId, payload) {
   return docId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, configOverrides, promptOverride, dryRun = false }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -3756,7 +3777,14 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     );
   }
 
-  const prompt = await getReportPrompt(studentInfo.programId);
+  const baseConfig = await getReportConfig();
+  const config = configOverrides
+    ? mergeReportConfig(configOverrides, baseConfig)
+    : baseConfig;
+
+  const prompt = promptOverride
+    ? { ...await getReportPrompt(studentInfo.programId), systemPrompt: promptOverride }
+    : await getReportPrompt(studentInfo.programId);
 
   const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
   const endDate = dateRangeEnd ? new Date(dateRangeEnd) : new Date();
@@ -3773,18 +3801,21 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
       programId: studentInfo.programId,
-      model: REPORT_DEFAULTS.model,
+      model: config.model,
       generatedAt: new Date(),
       generatedBy: requesterId,
       status: "no_notes",
       sourceNoteIds: [],
     };
-    const docId = await writeReportDoc(studentId, payload);
-    return { studentId, status: "no_notes", docId, payload };
+    if (!dryRun) {
+      const docId = await writeReportDoc(studentId, payload);
+      return { studentId, status: "no_notes", docId, payload };
+    }
+    return { studentId, status: "no_notes", payload };
   }
 
   const formatted = notes.map(formatObservationForPrompt);
-  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate });
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config);
   const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
 
   const payload = {
@@ -3796,15 +3827,18 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     dateRangeStart: startDate,
     dateRangeEnd: endDate,
     programId: studentInfo.programId,
-    model: REPORT_DEFAULTS.model,
+    model: config.model,
     generatedAt: new Date(),
     generatedBy: requesterId,
     status: "ok",
     sourceNoteIds,
   };
 
-  const docId = await writeReportDoc(studentId, payload);
-  return { studentId, status: "ok", docId, payload };
+  if (!dryRun) {
+    const docId = await writeReportDoc(studentId, payload);
+    return { studentId, status: "ok", docId, payload };
+  }
+  return { studentId, status: "ok", payload };
 }
 
 async function checkReportPermission(uid, studentId) {
@@ -3871,6 +3905,55 @@ export const generateStudentReport = functions
       areaBalanceScore: result.payload.areaBalanceScore,
       missingInputFlags: result.payload.missingInputFlags,
       reportText: result.payload.reportText,
+      generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const previewStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can preview reports");
+    }
+
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const result = await runSingleReport({
+      studentId,
+      dateRangeStart: data?.dateRangeStart || null,
+      dateRangeEnd: data?.dateRangeEnd || null,
+      requesterId: context.auth.uid,
+      configOverrides: data?.config || null,
+      promptOverride: typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
+        ? data.systemPrompt
+        : null,
+      dryRun: true,
+    });
+
+    return {
+      status: result.status,
+      studentId: result.studentId,
+      noteCount: result.payload.noteCount,
+      sentimentScore: result.payload.sentimentScore,
+      areaBalanceScore: result.payload.areaBalanceScore,
+      missingInputFlags: result.payload.missingInputFlags,
+      reportText: result.payload.reportText,
+      model: result.payload.model,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
     };
   });

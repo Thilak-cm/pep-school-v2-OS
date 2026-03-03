@@ -28,6 +28,7 @@ import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import BaseballCardConfigEditor from "./components/BaseballCardConfigEditor.jsx";
+import ReportGenConfigEditor from "./components/ReportGenConfigEditor.jsx";
 import { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
@@ -330,6 +331,7 @@ function App() {
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'chatCommandCentre') pageTitle = 'Chat Command Centre';
+  else if (screen === 'reportGenConfig') pageTitle = 'Report Generation Config';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
   else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
@@ -393,6 +395,8 @@ function App() {
       case 'aiCoachEditor':
         return () => setScreen('configAiTools');
       case 'chatCommandCentre':
+        return () => setScreen('configAiTools');
+      case 'reportGenConfig':
         return () => setScreen('configAiTools');
       case 'studentAliases':
         return () => setScreen('landingPage');
@@ -877,6 +881,7 @@ function App() {
                       onOpenCoachEditor={() => setScreen('aiCoachEditor')}
                       onOpenBaseballCardConfig={() => setScreen('baseballCardConfig')}
                       onOpenChatCommandCentre={() => setScreen('chatCommandCentre')}
+                      onOpenReportGenConfig={() => setScreen('reportGenConfig')}
                     />
                   )}
 
@@ -898,6 +903,10 @@ function App() {
 
                   {screen === 'chatCommandCentre' && (
                     <ChatCommandCentreEditor currentUser={user} userRole={role} />
+                  )}
+
+                  {screen === 'reportGenConfig' && (
+                    <ReportGenConfigEditor currentUser={user} userRole={role} />
                   )}
 
                   {screen === 'accessDenied' && (
@@ -931,6 +940,7 @@ function App() {
                 screen !== 'configAiTools' &&
                 screen !== 'chatCommandCentre' &&
                 screen !== 'baseballCardConfig' &&
+                screen !== 'reportGenConfig' &&
                 screen !== 'notifications' && (
                 <AddNoteFab 
                   showLabel 

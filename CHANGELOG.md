@@ -1,5 +1,16 @@
 # Changelog
 
+# 9.4.0 — 2026-03-02
+
+### Added
+- Report Generation config page: model settings (model, temperature, max tokens, timezone) read/write to `/config/report_generation` Firestore doc (PEP-67)
+- Per-program prompt editor with template variable chips and edit/preview toggle for adolescent and elementary programs (PEP-67)
+- Report playground: select a student, override config values, preview report output without saving via `previewStudentReport` Cloud Function (PEP-67)
+- `mergeReportConfig` helper with 36 unit tests covering config merge chain, prompt overrides, and input validation (PEP-67)
+
+### Changed
+- `generateStudentReport` Cloud Function reads model settings from Firestore config doc instead of hardcoded defaults (PEP-67)
+
 # 9.3.1 — 2026-03-01
 
 ### Added
