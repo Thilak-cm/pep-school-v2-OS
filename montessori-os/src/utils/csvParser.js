@@ -26,6 +26,7 @@ export function parseCSV(csvText) {
     .filter((e) => e.type !== 'FieldMismatch')
     .map((e) => `Row ${e.row + 1}: ${e.message}`);
 
+  // Normalize type column to lowercase
   const rows = result.data.map((row) => ({
     ...row,
     type: row.type ? row.type.toLowerCase() : row.type,
