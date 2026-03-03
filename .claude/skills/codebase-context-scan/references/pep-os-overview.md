@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-02T04:34:19.560Z
-App version: 9.3.1
+Generated: 2026-03-03T02:27:54.882Z
+App version: 9.4.0
 
 ## App Snapshot
 
@@ -80,13 +80,14 @@ App version: 9.3.1
 - `montessori-os/src/components/ChildChat.jsx`
 
 ### Admin and Access (`admin-and-access`)
-- Count: 7
-- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`
+- Count: 8
+- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`
 - Representative paths:
 - `montessori-os/src/AccessDenied.jsx`
 - `montessori-os/src/components/BaseballCardConfigEditor.jsx`
 - `montessori-os/src/components/ConfigHomePage.jsx`
 - `montessori-os/src/components/GraduateStudentsPage.jsx`
+- `montessori-os/src/components/ReportGenConfigEditor.jsx`
 - `montessori-os/src/SignIn.jsx`
 - `montessori-os/src/components/StudentAliasesPage.jsx`
 - `montessori-os/src/components/UsersAccessPage.jsx`
@@ -136,6 +137,11 @@ App version: 9.3.1
 
 ## Recent Changes
 
+### 9.4.0 (2026-03-02)
+- Report Generation config page: model settings (model, temperature, max tokens, timezone) read/write to `/config/report_generation` Firestore doc (PEP-67)
+- Per-program prompt editor with template variable chips and edit/preview toggle for adolescent and elementary programs (PEP-67)
+- Report playground: select a student, override config values, preview report output without saving via `previewStudentReport` Cloud Function (PEP-67)
+
 ### 9.3.1 (2026-03-01)
 - Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
 - `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
@@ -150,9 +156,4 @@ App version: 9.3.1
 - Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
 - Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
 - Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
-
-### 9.1.0 (2026-02-28)
-- "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
-- Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
-- In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
 
