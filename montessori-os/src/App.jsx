@@ -749,6 +749,7 @@ function App() {
                     <ChildChat
                       student={selectedStudent}
                       startInLandingPage={true}
+                      currentRole={role}
                     />
                   )}
 

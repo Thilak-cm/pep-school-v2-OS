@@ -196,7 +196,6 @@ function NotificationsPage() {
   const [performanceClassroomOptions, setPerformanceClassroomOptions] = useState([]);
   const [selectedPerformanceClassroomId, setSelectedPerformanceClassroomId] = useState('');
   const weekKey = getIstIsoWeekKey();
-  const isSuperAdmin = currentRole === 'superadmin';
 
   // Baseball card expansion state
   const [expandedStudentId, setExpandedStudentId] = useState(null);
@@ -723,7 +722,7 @@ function NotificationsPage() {
   useEffect(() => {
     let active = true;
     const fetchNotesSinceGenerated = async () => {
-      if (!isSuperAdmin || !regenDialogOpen || !expandedStudentId) {
+      if (!regenDialogOpen || !expandedStudentId) {
         if (active) {
           setNotesSinceGenerated(null);
           setNotesSinceGeneratedLoading(false);
@@ -786,7 +785,7 @@ function NotificationsPage() {
 
     fetchNotesSinceGenerated();
     return () => { active = false; };
-  }, [expandedStudentId, baseballCardData, isSuperAdmin, regenDialogOpen]);
+  }, [expandedStudentId, baseballCardData, regenDialogOpen]);
 
   const isLoading = !accessLoaded || loading;
 
@@ -1443,7 +1442,7 @@ function NotificationsPage() {
                 windowDays={cardWindowDays}
                 coverage={renderCoverageRow(studentId)}
                 topRightActions={getSeverityChip(studentId)}
-                onRegenerateClick={isSuperAdmin ? () => setRegenDialogOpen(true) : null}
+                onRegenerateClick={() => setRegenDialogOpen(true)}
                 regenDisabled={regenRunning[studentId] || !studentId}
                 cardData={cardData}
                 cardLoading={cardLoading}
@@ -1492,7 +1491,7 @@ function NotificationsPage() {
                 )}
               />
 
-              {isSuperAdmin && regenError[studentId] && (
+              {regenError[studentId] && (
                 <Typography variant="body2" color="error">
                   {regenError[studentId]}
                 </Typography>
@@ -1502,7 +1501,7 @@ function NotificationsPage() {
         </Dialog>
 
         <Dialog
-          open={regenDialogOpen && isSuperAdmin}
+          open={regenDialogOpen}
           onClose={() => setRegenDialogOpen(false)}
           maxWidth="xs"
           fullWidth
