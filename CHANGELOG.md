@@ -1,5 +1,22 @@
 # Changelog
 
+# 9.6.0 — 2026-03-03
+
+### Added
+- CSV bulk upload for historical lessons and observations (superadmin-only, on Settings page) (PEP-45)
+- Fuzzy student name matching with supervised review step for CSV imports (PEP-45)
+- Duplicate detection with warnings for bulk-uploaded records (PEP-45)
+- Coach Pepper chat access for teachers (PEP-53)
+- Baseball card regeneration for all user roles (PEP-50)
+- Lesson note tagging opened to all users (PEP-51)
+
+### Changed
+- Firestore rules now allow 'text' observation type for CSV-imported observations (PEP-45)
+- Bulk upload moved from Config page to Settings page (PEP-45)
+
+### Fixed
+- CSV type column normalized to lowercase for reliable routing (PEP-45)
+
 # 9.4.0 — 2026-03-02
 
 ### Added
