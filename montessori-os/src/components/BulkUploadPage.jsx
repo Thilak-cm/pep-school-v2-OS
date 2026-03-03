@@ -363,7 +363,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                   </TableRow>
                   <TableRow>
                     <TableCell><code>date</code></TableCell>
-                    <TableCell>YYYY-MM-DD (blank defaults to Jan 10, 2026)</TableCell>
+                    <TableCell>DD-MM-YYYY (blank defaults to Jan 10, 2026)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell><code>content</code></TableCell>

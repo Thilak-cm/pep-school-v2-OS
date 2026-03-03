@@ -86,14 +86,30 @@ export function extractUniqueNames(rows) {
 }
 
 /**
- * Fill missing dates with the default placeholder date.
+ * Convert a DD-MM-YYYY date string to YYYY-MM-DD.
+ * Returns the input unchanged if it doesn't match DD-MM-YYYY.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+export function normalizeDateDMY(dateStr) {
+  if (!dateStr) return '';
+  const match = dateStr.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (!match) return dateStr;
+  const [, dd, mm, yyyy] = match;
+  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+}
+
+/**
+ * Fill missing dates with the default placeholder date and normalize DD-MM-YYYY to ISO.
  * Returns a new array (does not mutate input).
  * @param {object[]} rows - parsed rows
  * @returns {object[]}
  */
 export function applyDefaultDate(rows) {
-  return rows.map((row) => ({
-    ...row,
-    date: row.date && row.date.trim() ? row.date : DEFAULT_PLACEHOLDER_DATE,
-  }));
+  return rows.map((row) => {
+    if (!row.date || !row.date.trim()) {
+      return { ...row, date: DEFAULT_PLACEHOLDER_DATE };
+    }
+    return { ...row, date: normalizeDateDMY(row.date) };
+  });
 }
