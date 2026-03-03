@@ -822,7 +822,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      <ReportsCard studentId={studentId} onClick={onOpenReports} />
+      {currentRole === 'superadmin' && <ReportsCard studentId={studentId} onClick={onOpenReports} />}
 
       <Card
         sx={{
