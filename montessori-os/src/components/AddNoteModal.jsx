@@ -46,7 +46,7 @@ import { httpsCallable } from 'firebase/functions';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import { isAdminRole } from '../utils/roleUtils';
+
 import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
@@ -336,7 +336,7 @@ function AddNoteModal({
   const [_snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, _setSnackbarSeverity] = useState('success');
-  const isAdminUser = isAdminRole(userRole);
+
 
   // Media note state
   const [mediaMode, setMediaMode] = useState(null); // 'photo' | 'pdf'
@@ -870,7 +870,6 @@ function AddNoteModal({
   };
 
   const handleTagButtonClick = () => {
-    if (!isAdminUser) return;
     if (!selectedStudents || selectedStudents.length === 0) {
       notify.info('Select a student first to tag a lesson note.');
       return;
@@ -1678,8 +1677,7 @@ function AddNoteModal({
     const canTagLesson = (
       selectedStudents.length === 1 &&
       normalizedSelectedLessonIds.length > 0 &&
-      selectedLessonObjects.length === normalizedSelectedLessonIds.length &&
-      (isAdminUser || selectedLessonObjects.every((n) => n.createdBy && n.createdBy === currentUser?.uid))
+      selectedLessonObjects.length === normalizedSelectedLessonIds.length
     );
     const taggedLessonIds = canTagLesson ? normalizedSelectedLessonIds : [];
 
@@ -2569,15 +2567,13 @@ function AddNoteModal({
                 </Box>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {isAdminUser && (
-                  <Button
-                    variant="outlined"
-                    onClick={handleTagButtonClick}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    Tag Lesson Note
-                  </Button>
-                )}
+                <Button
+                  variant="outlined"
+                  onClick={handleTagButtonClick}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Tag Lesson Note
+                </Button>
                 <Button
                   variant="contained"
                   disabled={saving || selectedStudents.length === 0}
