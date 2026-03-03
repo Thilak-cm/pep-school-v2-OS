@@ -357,7 +357,7 @@ function App() {
     
     switch (screen) {
       case 'classroomList':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'graduateStudents':
         return () => {
           setScreen('addUser');
@@ -382,7 +382,7 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'config':
         return () => setScreen('settings');
       case 'configLessonNotes':
@@ -403,22 +403,26 @@ function App() {
       case 'reportGenConfig':
         return () => setScreen('configAiTools');
       case 'studentAliases':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'settings':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'notifications':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'lessonNotes':
-        return () => setScreen(lessonNotesReturnScreen || 'landingPage');
+        return () => {
+          const target = lessonNotesReturnScreen || 'landingPage';
+          if (target === 'landingPage') setSelectedStudent(null);
+          setScreen(target);
+        };
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
-          return () => setScreen('landingPage');
+          return () => { setSelectedStudent(null); setScreen('landingPage'); };
         } else {
           return () => setUsersAccessView('home');
         }
       case 'feedbackTimeline':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       default:
         return null;
     }
@@ -454,6 +458,7 @@ function App() {
   };
 
   const handleHome = () => {
+    setSelectedStudent(null);
     setScreen('landingPage');
   };
 
