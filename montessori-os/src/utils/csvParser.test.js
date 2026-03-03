@@ -53,6 +53,15 @@ observation,Aarav Kumar,15-01-2026,"Worked on fractions, multiplication, and div
   assert.equal(rows[0].content, 'Worked on fractions, multiplication, and division');
 });
 
+test('parseCSV normalizes type column to lowercase', () => {
+  const csv = `type,student_name,date,content
+Lesson,Aarav,15-01-2026,Fractions
+OBSERVATION,Priya,16-01-2026,Bead work`;
+  const { rows } = parseCSV(csv);
+  assert.equal(rows[0].type, 'lesson');
+  assert.equal(rows[1].type, 'observation');
+});
+
 test('parseCSV returns errors for malformed CSV', () => {
   const csv = '';
   const { rows, errors } = parseCSV(csv);

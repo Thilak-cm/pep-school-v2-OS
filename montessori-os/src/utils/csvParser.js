@@ -26,7 +26,12 @@ export function parseCSV(csvText) {
     .filter((e) => e.type !== 'FieldMismatch')
     .map((e) => `Row ${e.row + 1}: ${e.message}`);
 
-  return { rows: result.data, errors };
+  const rows = result.data.map((row) => ({
+    ...row,
+    type: row.type ? row.type.toLowerCase() : row.type,
+  }));
+
+  return { rows, errors };
 }
 
 /**
