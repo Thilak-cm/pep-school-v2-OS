@@ -509,6 +509,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                             size="small"
                             options={allStudents}
                             getOptionLabel={(s) => s.displayName || `${s.firstName} ${s.lastName}`}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
                             onChange={(_, val) => val && handleEditSelect(idx, val)}
                             renderInput={(params) => <TextField {...params} placeholder="Search student..." autoFocus />}
                             sx={{ minWidth: 220 }}

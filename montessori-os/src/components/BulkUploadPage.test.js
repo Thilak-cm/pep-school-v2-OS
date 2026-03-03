@@ -74,7 +74,7 @@ test('buildObservationDoc creates correct text observation structure', () => {
   assert.equal(doc.studentId, 's1');
   assert.equal(doc.classroomId, 'c1');
   assert.equal(doc.branchId, 'b1');
-  assert.equal(doc.type, 'text');
+  assert.equal(doc.type, 'voice');
   assert.equal(doc.text, 'Worked independently on bead material');
   assert.equal(doc.createdBy, 'admin1');
   assert.equal(doc.createdByName, 'Admin User');
