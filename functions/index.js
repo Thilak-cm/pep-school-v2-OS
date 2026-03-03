@@ -1903,8 +1903,8 @@ export const regenerateBaseballCardForStudent = functions
 
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
     const requesterRole = requesterSnap.data()?.role;
-    if (!requesterSnap.exists || requesterRole !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Only super admins can regenerate baseball cards");
+    if (!requesterSnap.exists || !["superadmin", "classroomadmin", "teacher"].includes(requesterRole)) {
+      throw new functions.https.HttpsError("permission-denied", "You do not have permission to regenerate baseball cards");
     }
 
     const openAiKey = getOpenAiKey();
@@ -3140,7 +3140,7 @@ async function verifyAuthToken(req) {
   }
 
   const userRole = userDoc.data()?.role;
-  if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+  if (!["superadmin", "classroomadmin", "teacher"].includes(userRole)) {
     throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
   }
 
@@ -3392,7 +3392,7 @@ export const childChat = functions
     }
 
     const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+    if (!["superadmin", "classroomadmin", "teacher"].includes(userRole)) {
       throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
     }
 

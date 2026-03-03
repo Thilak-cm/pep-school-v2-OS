@@ -9,13 +9,8 @@ import {
   CircularProgress,
   Dialog,
   Button,
-  Paper,
-  ListItemIcon,
-  ListItemText
 } from '@mui/material';
 import { Close } from '@mui/icons-material';
-import { isAdminRole } from '../utils/roleUtils';
-
 function LessonNoteTagDialog({
   open,
   onClose,
@@ -26,8 +21,6 @@ function LessonNoteTagDialog({
   onLessonNotesErrorClear,
   lessonSearch,
   onLessonSearchChange,
-  currentUser,
-  userRole,
   selectedLessonIds = [],
   onSelectionChange,
   saving = false,
@@ -126,7 +119,7 @@ function LessonNoteTagDialog({
             <CircularProgress size={24} />
           </Box>
         ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 280, overflowY: 'auto' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: '50vh', overflowY: 'auto', mx: -0.5, px: 0.5 }}>
             {(() => {
               const searchLower = lessonSearch.trim().toLowerCase();
               const filtered = lessonNotes.filter((n) => {
@@ -134,54 +127,57 @@ function LessonNoteTagDialog({
                 const title = (n.lessonTitle || '').toLowerCase();
                 return title.includes(searchLower);
               });
-              const limited = filtered.slice(0, 3);
-              if (limited.length === 0) {
+              if (filtered.length === 0) {
                 return (
                   <Typography variant="body2" color="text.secondary">
                     No lesson notes found.
                   </Typography>
                 );
               }
-              return limited.map((note) => {
-                const canTag = isAdminRole(userRole) || (note.createdBy && currentUser?.uid === note.createdBy);
-                const disabled = !canTag || saving;
+              return filtered.map((note) => {
+                const disabled = saving;
                 const checked = effectiveSelectedIds.includes(note.id);
                 const handleClick = () => handleRowClick(note, disabled);
                 return (
-                  <Paper
+                  <Box
                     key={note.id}
-                    variant="outlined"
-                    sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: 1.5,
+                      opacity: disabled ? 0.6 : 1,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      backgroundColor: checked ? '#eef2ff' : 'transparent',
+                      border: '1px solid',
+                      borderColor: checked ? '#818cf8' : 'transparent',
+                      '&:hover': {
+                        backgroundColor: checked ? '#eef2ff' : '#f8fafc',
+                      },
+                      transition: 'all 0.15s ease',
+                    }}
+                    onClick={handleClick}
                   >
-                    <Box
+                    <Checkbox
+                      size="small"
+                      checked={checked}
+                      disabled={disabled}
                       sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        px: 1.5,
-                        py: 1,
-                        opacity: disabled ? 0.6 : 1,
-                        backgroundColor: disabled ? '#f8fafc' : 'white',
-                        cursor: disabled ? 'not-allowed' : 'pointer'
+                        p: 0.5,
+                        color: '#cbd5e1',
+                        '&.Mui-checked': { color: '#4f46e5' },
                       }}
-                      onClick={handleClick}
-                    >
-                      <ListItemIcon sx={{ minWidth: 32 }}>
-                        <Checkbox
-                          checked={checked}
-                          disabled={disabled}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleClick();
-                          }}
-                        />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={note.lessonTitle || 'Lesson Note'}
-                        primaryTypographyProps={{ fontWeight: 600, color: '#1e293b' }}
-                      />
-                    </Box>
-                  </Paper>
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClick();
+                      }}
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                      {note.lessonTitle || 'Lesson Note'}
+                    </Typography>
+                  </Box>
                 );
               });
             })()}

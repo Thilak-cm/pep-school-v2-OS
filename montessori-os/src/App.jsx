@@ -51,6 +51,7 @@ import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
+import BulkUploadPage from './components/BulkUploadPage.jsx';
 import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
 import { initSaveQueue } from './services/saveQueue';
 
@@ -59,7 +60,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig' | 'bulkUpload'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -326,6 +327,7 @@ function App() {
   else if (screen === 'config') pageTitle = 'Configurations';
   else if (screen === 'configLessonNotes') pageTitle = 'Lesson Notes Config';
   else if (screen === 'configAiTools') pageTitle = 'AI Tools';
+  else if (screen === 'bulkUpload') pageTitle = 'Bulk Upload';
   else if (screen === 'baseballCardConfig') pageTitle = 'Baseball Card Config';
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
@@ -355,7 +357,7 @@ function App() {
     
     switch (screen) {
       case 'classroomList':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'graduateStudents':
         return () => {
           setScreen('addUser');
@@ -380,12 +382,14 @@ function App() {
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'config':
         return () => setScreen('settings');
       case 'configLessonNotes':
       case 'configAiTools':
         return () => setScreen('config');
+      case 'bulkUpload':
+        return () => setScreen('settings');
       case 'baseballCardConfig':
         return () => setScreen('configAiTools');
       case 'aiTextEditor':
@@ -399,22 +403,26 @@ function App() {
       case 'reportGenConfig':
         return () => setScreen('configAiTools');
       case 'studentAliases':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'settings':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'notifications':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'lessonNotes':
-        return () => setScreen(lessonNotesReturnScreen || 'landingPage');
+        return () => {
+          const target = lessonNotesReturnScreen || 'landingPage';
+          if (target === 'landingPage') setSelectedStudent(null);
+          setScreen(target);
+        };
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
-          return () => setScreen('landingPage');
+          return () => { setSelectedStudent(null); setScreen('landingPage'); };
         } else {
           return () => setUsersAccessView('home');
         }
       case 'feedbackTimeline':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       default:
         return null;
     }
@@ -444,10 +452,13 @@ function App() {
       setScreen('studentAliases');
     } else if (path === '/config') {
       if (isSuperAdminUser) setScreen('config');
+    } else if (path === '/bulkUpload') {
+      if (isSuperAdminUser) setScreen('bulkUpload');
     }
   };
 
   const handleHome = () => {
+    setSelectedStudent(null);
     setScreen('landingPage');
   };
 
@@ -743,6 +754,7 @@ function App() {
                     <ChildChat
                       student={selectedStudent}
                       startInLandingPage={true}
+                      currentRole={role}
                     />
                   )}
 
@@ -873,6 +885,13 @@ function App() {
                     />
                   )}
 
+                  {screen === 'bulkUpload' && (
+                    <BulkUploadPage
+                      currentUser={user}
+                      userRole={role}
+                    />
+                  )}
+
                   {screen === 'configAiTools' && (
                     <AIHomePage
                       userRole={role}
@@ -941,6 +960,7 @@ function App() {
                 screen !== 'chatCommandCentre' &&
                 screen !== 'baseballCardConfig' &&
                 screen !== 'reportGenConfig' &&
+                screen !== 'bulkUpload' &&
                 screen !== 'notifications' && (
                 <AddNoteFab 
                   showLabel 
