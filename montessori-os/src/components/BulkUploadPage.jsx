@@ -343,10 +343,35 @@ export default function BulkUploadPage({ currentUser, userRole }) {
         <Card>
           <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Typography variant="h6">Upload CSV File</Typography>
-            <Typography variant="body2" color="text.secondary">
-              CSV format: <code>type, student_name, date, content</code>. Type must be
-              &quot;lesson&quot; or &quot;observation&quot;. Dates can be left empty (defaults to Jan 10, 2026).
-            </Typography>
+
+            <TableContainer component={Paper} variant="outlined" sx={{ maxWidth: 520 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Column</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Values</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell><code>type</code></TableCell>
+                    <TableCell><code>lesson</code> or <code>observation</code></TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><code>student_name</code></TableCell>
+                    <TableCell>Student full name</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><code>date</code></TableCell>
+                    <TableCell>YYYY-MM-DD (blank defaults to Jan 10, 2026)</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell><code>content</code></TableCell>
+                    <TableCell>Lesson name or observation narrative</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <FormControl size="small" sx={{ minWidth: 180 }}>
