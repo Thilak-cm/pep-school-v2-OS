@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codebase Context Deep Dive"
-  short_description: "Generate scoped area deep-dive reports"
-  default_prompt: "Generate or refresh deep-dive context for selected Pep OS area tags from the overview map."

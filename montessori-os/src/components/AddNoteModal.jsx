@@ -10,6 +10,8 @@ import {
   Snackbar,
   Alert,
   Chip,
+  ToggleButton,
+  ToggleButtonGroup,
   InputAdornment,
   Divider,
   Tooltip
@@ -20,6 +22,7 @@ import {
   KeyboardVoice,
   TextFields,
   AutoFixHigh,
+  AutoAwesome,
   ArrowBack,
   MenuBook,
   PhotoLibrary,
@@ -27,7 +30,9 @@ import {
   Edit,
   CheckCircle,
   Movie,
-  Mic
+  Mic,
+  Brush,
+  ContentCopy
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -42,7 +47,7 @@ import { httpsCallable } from 'firebase/functions';
 import { makeCoachRequest, parseCoachResponse } from '../coach/coachIO.js';
 import { NUDGE_IDS, CHIPS } from '../coach/constants';
 import CoachNudge from '../coach/coach_nudge';
-import { isAdminRole } from '../utils/roleUtils';
+
 import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
@@ -332,7 +337,7 @@ function AddNoteModal({
   const [_snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, _setSnackbarSeverity] = useState('success');
-  const isAdminUser = isAdminRole(userRole);
+
 
   // Media note state
   const [mediaMode, setMediaMode] = useState(null); // 'photo' | 'pdf'
@@ -364,6 +369,8 @@ function AddNoteModal({
   const [pdfPageCount, setPdfPageCount] = useState(null);
   const [_pdfExtractedText, setPdfExtractedText] = useState('');
   const pdfWorkerSetupRef = useRef(false);
+  const [handwritingDetectionLoading, setHandwritingDetectionLoading] = useState(false);
+  const handwritingDetectionFailedRef = useRef(new Set());
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -718,6 +725,20 @@ function AddNoteModal({
     }
   }, [textData, transcriptionData, selectedStudents]);
 
+  // Auto-trigger VLM handwriting detection once photos are added
+  useEffect(() => {
+    if (step !== STEP_MEDIA || mediaMode !== 'photo') return;
+    if (handwritingDetectionLoading) return;
+
+    const undetected = mediaItems.filter((it) => it.kind === 'photo' && it.handwritten === undefined && !handwritingDetectionFailedRef.current.has(it.id));
+    if (undetected.length === 0) return;
+
+    runHandwritingDetection(undetected).catch((error) => {
+      reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runHandwritingDetection');
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, mediaMode, mediaItems, handwritingDetectionLoading]);
+
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
     coachRequestIdRef.current += 1;
@@ -854,7 +875,6 @@ function AddNoteModal({
   };
 
   const handleTagButtonClick = () => {
-    if (!isAdminUser) return;
     if (!selectedStudents || selectedStudents.length === 0) {
       notify.info('Select a student first to tag a lesson note.');
       return;
@@ -1285,6 +1305,47 @@ function AddNoteModal({
     setPdfEssenceLoading(false);
   };
 
+  const blobToBase64 = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  const runHandwritingDetection = async (items) => {
+    const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
+    if (photoItems.length === 0) return;
+    setHandwritingDetectionLoading(true);
+
+    const vlmFn = httpsCallable(cloudFunctions, 'detectHandwritingVLM');
+    const results = await Promise.allSettled(
+      photoItems.map(async (item) => {
+        try {
+          const imageBase64 = await blobToBase64(item.source.blob);
+          const res = await vlmFn({ imageBase64, contentType: item.source.contentType || 'image/webp' });
+          return { itemId: item.id, handwritten: res.data?.handwritten === true };
+        } catch (err) {
+          err.itemId = item.id;
+          throw err;
+        }
+      })
+    );
+    const updates = {};
+    results.forEach((r) => {
+      if (r.status === 'fulfilled') {
+        updates[r.value.itemId] = r.value.handwritten;
+      } else if (r.status === 'rejected') {
+        handwritingDetectionFailedRef.current.add(r.reason?.itemId);
+      }
+    });
+    setMediaItems((prev) => prev.map((it) => (it.id in updates ? { ...it, handwritten: updates[it.id] } : it)));
+    if (Object.keys(updates).length < photoItems.length) {
+      notify.warning('Could not detect handwriting for some photos.');
+    }
+    setHandwritingDetectionLoading(false);
+  };
+
   const createMediaItemId = () =>
     `media_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
@@ -1399,6 +1460,13 @@ function AddNoteModal({
   const handleMediaItemCommentChange = (itemId, value) => {
     setMediaItems((prev) => prev.map((item) => (
       item.id === itemId ? { ...item, teacherComment: value } : item
+    )));
+    setMediaDirty(true);
+  };
+
+  const handleToggleCopied = (itemId) => {
+    setMediaItems((prev) => prev.map((item) => (
+      item.id === itemId ? { ...item, copied: !item.copied } : item
     )));
     setMediaDirty(true);
   };
@@ -1596,6 +1664,7 @@ function AddNoteModal({
             batchId,
             pdfTitle: item.kind === 'pdf' ? String(pdfTitle || '').trim() : '',
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
+            ...(item.kind === 'photo' ? { copied: item.copied === true, handwritten: item.handwritten === true } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -1646,8 +1715,7 @@ function AddNoteModal({
     const canTagLesson = (
       selectedStudents.length === 1 &&
       normalizedSelectedLessonIds.length > 0 &&
-      selectedLessonObjects.length === normalizedSelectedLessonIds.length &&
-      (isAdminUser || selectedLessonObjects.every((n) => n.createdBy && n.createdBy === currentUser?.uid))
+      selectedLessonObjects.length === normalizedSelectedLessonIds.length
     );
     const taggedLessonIds = canTagLesson ? normalizedSelectedLessonIds : [];
 
@@ -2175,6 +2243,64 @@ function AddNoteModal({
                                 </IconButton>
                               </Box>
                               <Box sx={{ p: 1 }}>
+                                {item.kind === 'photo' && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                                    <ToggleButtonGroup
+                                      value={item.copied ? 'copied' : 'original'}
+                                      exclusive
+                                      onChange={() => handleToggleCopied(item.id)}
+                                      size="small"
+                                      sx={{
+                                        height: 30,
+                                        '& .MuiToggleButton-root': {
+                                          textTransform: 'none',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 600,
+                                          px: 1.2,
+                                          py: 0,
+                                          gap: 0.5,
+                                          border: '1px solid',
+                                          borderColor: 'divider',
+                                          '&.Mui-selected': {
+                                            color: '#fff',
+                                          },
+                                        },
+                                      }}
+                                    >
+                                      <ToggleButton
+                                        value="original"
+                                        sx={{
+                                          borderRadius: '16px 0 0 16px !important',
+                                          '&.Mui-selected': {
+                                            bgcolor: 'success.main',
+                                            '&:hover': { bgcolor: 'success.dark' },
+                                          },
+                                        }}
+                                      >
+                                        <Brush sx={{ fontSize: 14 }} />
+                                        Own work
+                                      </ToggleButton>
+                                      <ToggleButton
+                                        value="copied"
+                                        sx={{
+                                          borderRadius: '0 16px 16px 0 !important',
+                                          '&.Mui-selected': {
+                                            bgcolor: 'warning.main',
+                                            '&:hover': { bgcolor: 'warning.dark' },
+                                          },
+                                        }}
+                                      >
+                                        <ContentCopy sx={{ fontSize: 14 }} />
+                                        Copied
+                                      </ToggleButton>
+                                    </ToggleButtonGroup>
+                                    {handwritingDetectionLoading && item.handwritten === undefined ? (
+                                      <CircularProgress size={14} sx={{ color: '#7c3aed' }} />
+                                    ) : item.handwritten === true ? (
+                                      <Chip label="Handwritten" size="small" color="info" variant="outlined" />
+                                    ) : null}
+                                  </Box>
+                                )}
                                 <TextField
                                   label="Comment (optional)"
                                   value={item.teacherComment || ''}
@@ -2271,6 +2397,7 @@ function AddNoteModal({
                     )
                   )}
                 </Box>
+
 
                 {mediaError && (
                   <Alert severity="error" onClose={() => setMediaError('')}>
@@ -2532,15 +2659,13 @@ function AddNoteModal({
                 </Box>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {isAdminUser && (
-                  <Button
-                    variant="outlined"
-                    onClick={handleTagButtonClick}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    Tag Lesson Note
-                  </Button>
-                )}
+                <Button
+                  variant="outlined"
+                  onClick={handleTagButtonClick}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Tag Lesson Note
+                </Button>
                 <Button
                   variant="contained"
                   disabled={saving || selectedStudents.length === 0}
@@ -2716,7 +2841,7 @@ function AddNoteModal({
           </Typography>
         </Box>
       </Dialog>
-      <Snackbar 
+      <Snackbar
         open={false}
         onClose={() => {}}
       >

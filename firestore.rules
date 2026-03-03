@@ -184,15 +184,15 @@ service cloud.firestore {
         allow create, update, delete: if isSuperAdmin();
       }
 
-      // Chats subcollection - admin only
+      // Chats subcollection - all authenticated roles
       match /chats/{chatId} {
-        allow read: if isPrivilegedAdmin();
-        allow create, update, delete: if isPrivilegedAdmin();
-        
+        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow create, update, delete: if isPrivilegedAdmin() || isTeacher();
+
         // Messages subcollection within chats
         match /messages/{messageId} {
-          allow read: if isPrivilegedAdmin();
-          allow create: if isPrivilegedAdmin();
+          allow read: if isPrivilegedAdmin() || isTeacher();
+          allow create: if isPrivilegedAdmin() || isTeacher();
           // Messages are immutable - no updates or deletes allowed
           allow update, delete: if false;
         }
@@ -258,7 +258,7 @@ service cloud.firestore {
         }
 
         function isAllowedNonMediaObservationType(data) {
-          return data.type in ['voice', 'lesson'];
+          return data.type in ['text', 'voice', 'lesson'];
         }
 
         function isAuthor() {

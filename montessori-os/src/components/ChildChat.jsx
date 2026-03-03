@@ -51,8 +51,9 @@ const formatMessage = (text) => {
   const flushList = () => {
     if (listItems.length > 0) {
       const ListComponent = listType === 'ol' ? 'ol' : 'ul';
+      const listStyleType = listType === 'ol' ? 'decimal' : 'disc';
       formatted.push(
-        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1 }}>
+        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1, listStyle: listStyleType }}>
           {listItems}
         </Box>
       );
@@ -91,6 +92,8 @@ const formatMessage = (text) => {
           {formatInlineMarkdown(content)}
         </Box>
       );
+    } else if (!trimmed && inList) {
+      // Skip blank lines inside a list — don't flush yet
     } else {
       // Flush any pending list
       flushList();
@@ -419,7 +422,7 @@ const AssistantBubble = ({ message, formatTimestamp }) => (
   </Box>
 );
 
-function ChildChat({ student, startInLandingPage = false }) {
+function ChildChat({ student, startInLandingPage = false, currentRole }) {
   // State
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
@@ -436,7 +439,7 @@ function ChildChat({ student, startInLandingPage = false }) {
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingChatName, setEditingChatName] = useState('');
   const [deletingChatId, setDeletingChatId] = useState(null);
-  const [devMode, setDevMode] = useState(true); // Default ON - excludes observations from context
+  const [devMode, setDevMode] = useState(false); // Default OFF - includes observations in context
   const [bufferStage, setBufferStage] = useState(null); // 'creating' | 'preparing' | 'thinking' | null
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
 
@@ -1745,48 +1748,50 @@ function ChildChat({ student, startInLandingPage = false }) {
           </Box>
         </ClickAwayListener>
         
-        {/* Dev Mode Toggle - Positioned below dropdown */}
-        <Tooltip title={devMode ? 'Dev Mode: ON (observations excluded)' : 'Dev Mode: OFF (observations included)'} arrow>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 0.5,
-              mt: 0.5,
-              px: 2,
-            }}
-          >
-            <Typography
-              variant="caption"
+        {/* Dev Mode Toggle - Superadmin only */}
+        {currentRole === 'superadmin' && (
+          <Tooltip title={devMode ? 'Dev Mode: ON (observations excluded)' : 'Dev Mode: OFF (observations included)'} arrow>
+            <Box
               sx={{
-                fontSize: '0.7rem',
-                color: 'text.secondary',
-                fontWeight: 500,
-                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 0.5,
+                mt: 0.5,
+                px: 2,
               }}
             >
-              Dev Mode
-            </Typography>
-            <Switch
-              checked={devMode}
-              onChange={(e) => setDevMode(e.target.checked)}
-              size="small"
-              sx={{
-                '& .MuiSwitch-thumb': {
-                  width: 16,
-                  height: 16,
-                },
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: 'primary.main',
-                },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                  backgroundColor: 'primary.main',
-                },
-              }}
-            />
-          </Box>
-        </Tooltip>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.7rem',
+                  color: 'text.secondary',
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Dev Mode
+              </Typography>
+              <Switch
+                checked={devMode}
+                onChange={(e) => setDevMode(e.target.checked)}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-thumb': {
+                    width: 16,
+                    height: 16,
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: 'primary.main',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: 'primary.main',
+                  },
+                }}
+              />
+            </Box>
+          </Tooltip>
+        )}
       </Box>
 
       {/* Messages Area */}

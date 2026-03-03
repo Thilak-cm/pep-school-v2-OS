@@ -18,7 +18,7 @@ Bridge the gap between Linear issue creation and implementation. This skill auto
 
 ## Workflow Overview
 
-The skill follows a 7-phase workflow:
+The skill follows an 8-phase workflow:
 
 1. **Issue Selection** - Interactively filter and select a Linear issue
 2. **Context Loading** - Auto-load codebase overview, staleness check, optional explore
@@ -27,6 +27,7 @@ The skill follows a 7-phase workflow:
 5. **Plan Approval** - User reviews tradeoffs, iterates on plan, and approves a final implementation path before implementation
 6. **Implementation** - Execute plan using TDD (write tests first, then code)
 7. **Linear Sync** - Update Linear issue with branch, commits, and test results
+8. **Manual Verification** - User manually verifies the e2e flow before moving to review
 
 ## Phase 1: Issue Selection
 
@@ -315,6 +316,31 @@ Update Linear issue with implementation progress and test results.
 
 **Output:** Linear issue updated with implementation progress. Issue stays in current state.
 
+## Phase 8: Manual Verification Gate
+
+Require the user to manually verify the implementation before moving to review.
+
+**Steps:**
+1. Present a verification prompt that strongly encourages manual testing:
+   - Start the dev server if not running (`npm run dev` in `montessori-os/`)
+   - Walk through the feature/fix end-to-end in the browser
+   - Check both the happy path and edge cases
+
+2. Provide a tailored checklist based on the change type:
+   - **UI changes:** Visual appearance, responsiveness, interaction states, loading/error states
+   - **Data changes:** Data persists correctly, Firestore documents created/updated as expected
+   - **Role/permission changes:** Test with different roles (teacher, classroomadmin, superadmin)
+   - **API/Cloud Function changes:** Verify function triggers correctly, check Firebase console logs
+   - **Bug fixes:** Confirm the original bug no longer reproduces
+
+3. Ask user to confirm verification using AskUserQuestion:
+   - Question: "Have you manually verified the e2e flow of this feature?"
+   - Options: "Yes, verified and working" / "Found issues (describe)"
+   - If "Found issues": Address the issues, re-run tests, then ask again
+   - If "Yes": Proceed to Next Step
+
+**GUARDRAIL:** Do NOT suggest `/clear` + `/review-issue` until the user explicitly confirms manual verification is complete.
+
 ## Edge Cases & Guardrails
 
 **Edge Case: Issue has no labels**
@@ -413,15 +439,20 @@ The implementation is complete when:
 10. ✅ Implementation executed following approved plan
 11. ✅ Linear issue updated with branch, commits, and test results
 12. ✅ Linear issue updated (state NOT changed — that's `/review-issue`'s job)
+13. ✅ User has manually verified the e2e flow and confirmed it works
 
 ## Next Step
 
-> Implementation is done. Now clear your context and run an independent review:
+> **After the user has confirmed manual verification in Phase 8:**
+>
+> Implementation is done and manually verified. Now clear your context and run an independent review:
 >
 > 1. Run `/clear` to wipe the implementation context (the branch stays checked out)
 > 2. Run `/review-issue` — it will auto-detect the issue from the branch name and audit the diff with fresh eyes
 >
 > This ensures the code review is independent — no implementation bias carrying over.
+>
+> **Do NOT present this section until Phase 8 is complete and the user has explicitly confirmed "Yes, verified and working".**
 
 ## Important Notes
 

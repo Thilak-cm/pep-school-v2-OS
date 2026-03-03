@@ -40,6 +40,10 @@ jspm_packages/
 .env
 .env.backup
 
+# Firebase Functions secrets for emulator
+.secret.local
+*.secret.local
+
 # Firebase Hosting cache
 .firebase/hosting.*.cache
 

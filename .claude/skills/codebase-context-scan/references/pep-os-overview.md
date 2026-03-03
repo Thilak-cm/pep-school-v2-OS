@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-01T01:05:00.479Z
-App version: 9.2.0
+Generated: 2026-03-03T02:27:54.882Z
+App version: 9.4.0
 
 ## App Snapshot
 
@@ -80,20 +80,21 @@ App version: 9.2.0
 - `montessori-os/src/components/ChildChat.jsx`
 
 ### Admin and Access (`admin-and-access`)
-- Count: 7
-- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`
+- Count: 8
+- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`
 - Representative paths:
 - `montessori-os/src/AccessDenied.jsx`
 - `montessori-os/src/components/BaseballCardConfigEditor.jsx`
 - `montessori-os/src/components/ConfigHomePage.jsx`
 - `montessori-os/src/components/GraduateStudentsPage.jsx`
+- `montessori-os/src/components/ReportGenConfigEditor.jsx`
 - `montessori-os/src/SignIn.jsx`
 - `montessori-os/src/components/StudentAliasesPage.jsx`
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 13
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 16
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -136,23 +137,23 @@ App version: 9.2.0
 
 ## Recent Changes
 
+### 9.4.0 (2026-03-02)
+- Report Generation config page: model settings (model, temperature, max tokens, timezone) read/write to `/config/report_generation` Firestore doc (PEP-67)
+- Per-program prompt editor with template variable chips and edit/preview toggle for adolescent and elementary programs (PEP-67)
+- Report playground: select a student, override config values, preview report output without saving via `previewStudentReport` Cloud Function (PEP-67)
+
+### 9.3.1 (2026-03-01)
+- Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
+- `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
+- `removeCsvRow` helper with 5 unit tests and `trashDriveFile` Drive helper (PEP-66)
+
+### 9.3.0 (2026-03-01)
+- Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
+- Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
+- `buildReportList` utility with 7 unit tests for Firestore doc normalization and sorting (PEP-64)
+
 ### 9.2.0 (2026-02-28)
 - Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
 - Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
 - Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
-
-### 9.1.0 (2026-02-28)
-- "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
-- Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
-- In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
-
-### 9.0.0 (2026-02-27)
-- AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
-- Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
-- Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
-
-### 8.6.0 (2026-02-28)
-- Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
-- Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
-- New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
 

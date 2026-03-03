@@ -1,5 +1,114 @@
 # Changelog
 
+# 9.6.0 — 2026-03-03
+
+### Added
+- CSV bulk upload for historical lessons and observations (superadmin-only, on Settings page) (PEP-45)
+- Fuzzy student name matching with supervised review step for CSV imports (PEP-45)
+- Duplicate detection with warnings for bulk-uploaded records (PEP-45)
+- Coach Pepper chat access for teachers (PEP-53)
+- Baseball card regeneration for all user roles (PEP-50)
+- Lesson note tagging opened to all users (PEP-51)
+
+### Changed
+- Firestore rules now allow 'text' observation type for CSV-imported observations (PEP-45)
+- Bulk upload moved from Config page to Settings page (PEP-45)
+
+### Fixed
+- CSV type column normalized to lowercase for reliable routing (PEP-45)
+
+# 9.4.0 — 2026-03-02
+
+### Added
+- Report Generation config page: model settings (model, temperature, max tokens, timezone) read/write to `/config/report_generation` Firestore doc (PEP-67)
+- Per-program prompt editor with template variable chips and edit/preview toggle for adolescent and elementary programs (PEP-67)
+- Report playground: select a student, override config values, preview report output without saving via `previewStudentReport` Cloud Function (PEP-67)
+- `mergeReportConfig` helper with 36 unit tests covering config merge chain, prompt overrides, and input validation (PEP-67)
+
+### Changed
+- `generateStudentReport` Cloud Function reads model settings from Firestore config doc instead of hardcoded defaults (PEP-67)
+
+# 9.3.1 — 2026-03-01
+
+### Added
+- Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
+- `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
+- `removeCsvRow` helper with 5 unit tests and `trashDriveFile` Drive helper (PEP-66)
+- Toast notifications on report deletion success/failure (PEP-66)
+
+# 9.3.0 — 2026-03-01
+
+### Added
+- Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
+- Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
+- `buildReportList` utility with 7 unit tests for Firestore doc normalization and sorting (PEP-64)
+
+### Changed
+- Report generation moved out of Weekly Snapshot card into its own Reports page (PEP-64)
+
+# 9.2.0 — 2026-02-28
+
+### Added
+- Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
+- Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
+- Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
+- Report versioning: re-exports create "Progress Report v2", "v3", etc. while preserving prior docs (PEP-61)
+- Drive helper utilities with 15 unit tests: folder creation, doc versioning, CSV parsing/serialization (PEP-61)
+
+# 9.1.0 — 2026-02-28
+
+### Added
+- "Generate Report" button on Student Dashboard for triggering AI parent report generation (PEP-60)
+- Date range picker dialog with dd/mm/yyyy Indian format and Nov 1 academic year default (PEP-60)
+- In-app report preview dialog with ## section headings and ### sub-heading rendering (PEP-60)
+- Bulk-select mode on StudentList: checkboxes, select all/deselect, batch report generation with progress indicator (PEP-60)
+- Report utility functions with 17 unit tests: date range calculation, markdown section parsing, sub-heading splitting (PEP-60)
+- Firebase Functions emulator auto-connect in dev mode for local Cloud Function testing
+
+# 9.0.0 — 2026-02-27
+
+### Added
+- AI report generation pipeline: `generateStudentReport` and `generateClassroomReports` Cloud Functions for GPT-4o parent-facing progress reports (PEP-59)
+- Program-specific report prompts: Adolescent (v7.1) and Elementary (v2.1) with structured scoring (sentiment balance, area balance, missing input flags)
+- Date-range-scoped observation fetching for report generation (academic year default: Nov 1 → now)
+- Bulk report generation with concurrency control and per-student progress tracking
+- Report helper utilities with 15 unit tests (date range, response parsing, prompt resolution)
+- Prompt seeding script for `ai_prompts` collection (`seed-report-prompts.mjs`)
+- Monthly writing snapshot async job: scheduled Cloud Function aggregates `handwritten=true` media notes per student and runs bundled VLM analysis for developmental writing insights (PEP-47)
+- On-demand `regenerateWritingSnapshotForStudent` callable for teachers/admins to refresh a student's writing snapshot mid-month (PEP-47)
+- Superadmin-only `previewWritingSnapshot` callable for dry-run testing (PEP-47)
+- IST month-key utilities (`getIstMonthKey`, `getMonthWindowDates`) with 10 tests (PEP-47)
+- Pure writing snapshot helpers (`filterWritingSamples`, `formatWritingSampleLabel`, `determineSnapshotStatus`, `parseWritingSnapshotResponse`) with 23 tests (PEP-47)
+
+# 8.6.0 — 2026-02-28
+
+### Added
+- Per-image `copied` boolean field on media notes with inline MUI Switch toggle per photo thumbnail (PEP-43).
+- Per-image `handwritten` boolean field auto-detected via VLM on photo upload (PEP-43).
+- New `detectHandwritingVLM` Cloud Function using gpt-4o-mini vision for focused handwriting YES/NO inference (PEP-43).
+- Extracted `buildMediaDocData` utility for testable media doc construction with 6 new tests.
+
+### Changed
+- Replaced `analyzePhotoVLM` Cloud Function with `detectHandwritingVLM` — drops general image analysis in favor of focused handwriting detection (PEP-43).
+- Removed all `photoAnalysis` / "Image Analysis" references from AddNoteModal, StudentTimeline, and data schema (PEP-43).
+
+# 8.5.3 — 2026-02-27
+
+### Added
+- New `/refine-linear-issue` skill: refine existing Linear issues with full context loading, clarifying questions, and polished descriptions.
+
+### Changed
+- Replaced `/create-linear-issue` with `/refine-linear-issue` (creation handled by `/draft-linear-issues`, refinement is now a dedicated skill).
+- Updated `/draft-linear-issues` references to point to `/refine-linear-issue`.
+
+# 8.5.2 — 2026-02-27
+
+### Added
+- New `/draft-linear-issues` skill: batch-triage meeting notes into lightweight Linear Backlog issues with one-at-a-time Create/Skip/Edit walk-through.
+
+### Changed
+- `/create-linear-issue` now detects and refines draft-sourced issues (preserves meeting context, loads deep-dives, upgrades Backlog → Todo).
+
 # 8.5.1 — 2026-02-27
 
 ### Fixed

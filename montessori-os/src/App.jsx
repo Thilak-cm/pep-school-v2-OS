@@ -16,6 +16,7 @@ import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentStatsPage from "./components/StudentStatsPage";
 import ChildChat from "./components/ChildChat";
+import ReportsPage from "./components/ReportsPage";
 import LessonNotesPage from "./components/LessonNotesPage";
 import StudentAliasesPage from "./components/StudentAliasesPage";
 import ClassroomTimeline from "./components/ClassroomTimeline";
@@ -27,6 +28,7 @@ import FeedbackTimeline from "./components/FeedbackTimeline";
 import UsersAccessPage from "./components/UsersAccessPage";
 import ReviewClassroomNotes from "./components/ReviewClassroomNotes";
 import BaseballCardConfigEditor from "./components/BaseballCardConfigEditor.jsx";
+import ReportGenConfigEditor from "./components/ReportGenConfigEditor.jsx";
 import { db, cloudFunctions } from "./firebase";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc } from "firebase/firestore";
@@ -49,6 +51,7 @@ import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
+import BulkUploadPage from './components/BulkUploadPage.jsx';
 import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
 import { initSaveQueue } from './services/saveQueue';
 
@@ -57,7 +60,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig' | 'bulkUpload'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -324,11 +327,13 @@ function App() {
   else if (screen === 'config') pageTitle = 'Configurations';
   else if (screen === 'configLessonNotes') pageTitle = 'Lesson Notes Config';
   else if (screen === 'configAiTools') pageTitle = 'AI Tools';
+  else if (screen === 'bulkUpload') pageTitle = 'Bulk Upload';
   else if (screen === 'baseballCardConfig') pageTitle = 'Baseball Card Config';
   else if (screen === 'aiTextEditor') pageTitle = 'Text Cleanup Editor';
   else if (screen === 'aiVoiceEditor') pageTitle = 'Voice Transcriber Editor';
   else if (screen === 'aiCoachEditor') pageTitle = 'Coach Editor';
   else if (screen === 'chatCommandCentre') pageTitle = 'Chat Command Centre';
+  else if (screen === 'reportGenConfig') pageTitle = 'Report Generation Config';
   else if (screen === 'graduateStudents') pageTitle = 'Graduate Students';
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
   else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
@@ -342,6 +347,9 @@ function App() {
   else if (screen === 'childChat') {
     pageTitle = 'Chat with Coach Pepper';
   }
+  else if (screen === 'studentReports') {
+    pageTitle = `${getStudentDisplayName(selectedStudent)}'s Reports`;
+  }
 
   // Determine back navigation for header
   const getBackNavigation = () => {
@@ -349,7 +357,7 @@ function App() {
     
     switch (screen) {
       case 'classroomList':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'graduateStudents':
         return () => {
           setScreen('addUser');
@@ -367,17 +375,21 @@ function App() {
         return () => setScreen('studentDashboard');
       case 'childChat':
         return () => setScreen('studentDashboard');
+      case 'studentReports':
+        return () => setScreen('studentDashboard');
       case 'profile':
         return () => setScreen('settings');
       case 'stats':
       case 'feedback':
       case 'classroomNotesReview':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'config':
         return () => setScreen('settings');
       case 'configLessonNotes':
       case 'configAiTools':
         return () => setScreen('config');
+      case 'bulkUpload':
+        return () => setScreen('settings');
       case 'baseballCardConfig':
         return () => setScreen('configAiTools');
       case 'aiTextEditor':
@@ -388,23 +400,29 @@ function App() {
         return () => setScreen('configAiTools');
       case 'chatCommandCentre':
         return () => setScreen('configAiTools');
+      case 'reportGenConfig':
+        return () => setScreen('configAiTools');
       case 'studentAliases':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'settings':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'notifications':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'lessonNotes':
-        return () => setScreen(lessonNotesReturnScreen || 'landingPage');
+        return () => {
+          const target = lessonNotesReturnScreen || 'landingPage';
+          if (target === 'landingPage') setSelectedStudent(null);
+          setScreen(target);
+        };
       case 'addUser':
         // Handle UsersAccessPage internal navigation
         if (usersAccessView === 'home') {
-          return () => setScreen('landingPage');
+          return () => { setSelectedStudent(null); setScreen('landingPage'); };
         } else {
           return () => setUsersAccessView('home');
         }
       case 'feedbackTimeline':
-        return () => setScreen('landingPage');
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
       default:
         return null;
     }
@@ -434,10 +452,13 @@ function App() {
       setScreen('studentAliases');
     } else if (path === '/config') {
       if (isSuperAdminUser) setScreen('config');
+    } else if (path === '/bulkUpload') {
+      if (isSuperAdminUser) setScreen('bulkUpload');
     }
   };
 
   const handleHome = () => {
+    setSelectedStudent(null);
     setScreen('landingPage');
   };
 
@@ -711,6 +732,15 @@ function App() {
                       onOpenChat={() => {
                         setScreen('childChat');
                       }}
+                      onOpenReports={() => setScreen('studentReports')}
+                    />
+                  )}
+
+                  {screen === 'studentReports' && (
+                    <ReportsPage
+                      studentId={selectedStudent?.id || selectedStudent?.uid}
+                      studentLabel={getStudentDisplayName(selectedStudent)}
+                      userRole={role}
                     />
                   )}
 
@@ -724,6 +754,7 @@ function App() {
                     <ChildChat
                       student={selectedStudent}
                       startInLandingPage={true}
+                      currentRole={role}
                     />
                   )}
 
@@ -854,6 +885,13 @@ function App() {
                     />
                   )}
 
+                  {screen === 'bulkUpload' && (
+                    <BulkUploadPage
+                      currentUser={user}
+                      userRole={role}
+                    />
+                  )}
+
                   {screen === 'configAiTools' && (
                     <AIHomePage
                       userRole={role}
@@ -862,6 +900,7 @@ function App() {
                       onOpenCoachEditor={() => setScreen('aiCoachEditor')}
                       onOpenBaseballCardConfig={() => setScreen('baseballCardConfig')}
                       onOpenChatCommandCentre={() => setScreen('chatCommandCentre')}
+                      onOpenReportGenConfig={() => setScreen('reportGenConfig')}
                     />
                   )}
 
@@ -883,6 +922,10 @@ function App() {
 
                   {screen === 'chatCommandCentre' && (
                     <ChatCommandCentreEditor currentUser={user} userRole={role} />
+                  )}
+
+                  {screen === 'reportGenConfig' && (
+                    <ReportGenConfigEditor currentUser={user} userRole={role} />
                   )}
 
                   {screen === 'accessDenied' && (
@@ -916,6 +959,8 @@ function App() {
                 screen !== 'configAiTools' &&
                 screen !== 'chatCommandCentre' &&
                 screen !== 'baseballCardConfig' &&
+                screen !== 'reportGenConfig' &&
+                screen !== 'bulkUpload' &&
                 screen !== 'notifications' && (
                 <AddNoteFab 
                   showLabel 
@@ -938,7 +983,8 @@ function App() {
                   (
                     screen === 'timeline' ||
                     screen === 'studentDashboard' ||
-                    screen === 'studentStats'
+                    screen === 'studentStats' ||
+                    screen === 'studentReports'
                   )
                     ? [selectedStudent.id]
                     : []

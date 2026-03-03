@@ -37,6 +37,8 @@ import { db, auth, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
+import NewFeaturePill from './NewFeaturePill';
+import ReportsCard from './ReportsCard';
 
 const confettiFall = keyframes`
   0% {
@@ -115,13 +117,13 @@ function ConfettiAnimation({ count = 50, small = false }) {
     </Box>
   );
 }
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, initialNoteType = 'textVoice' }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
   const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
-  const [currentRole, setCurrentRole] = useState(null);
+  const [_currentRole, setCurrentRole] = useState(null);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
@@ -144,7 +146,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   };
 
   const studentId = student?.id || student?.uid || null;
-  const isSuperAdmin = currentRole === 'superadmin';
   const studentForCard = student ? { ...student, dateOfBirth: studentDob } : null;
 
   const toDate = (value) => {
@@ -353,7 +354,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   useEffect(() => {
     let active = true;
     const fetchNotesSinceGenerated = async () => {
-      if (!isSuperAdmin || !regenDialogOpen || !studentId) {
+      if (!regenDialogOpen || !studentId) {
         if (active) {
           setNotesSinceGenerated(null);
           setNotesSinceGeneratedLoading(false);
@@ -415,7 +416,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
 
     fetchNotesSinceGenerated();
     return () => { active = false; };
-  }, [studentId, cardData?.generatedAt, isSuperAdmin, regenDialogOpen]);
+  }, [studentId, cardData?.generatedAt, regenDialogOpen]);
 
   const cardWindowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
   const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
@@ -607,7 +608,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     // Ensure fade updates if viewport changes (e.g., device rotation)
     window.addEventListener('resize', updateScrollFade);
     return () => window.removeEventListener('resize', updateScrollFade);
-  }, [cardLoading, cardError, cardData, isSuperAdmin]);
+  }, [cardLoading, cardError, cardData]);
 
   useEffect(() => {
     return () => {
@@ -624,7 +625,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         windowDays={cardWindowDays}
         coverage={renderCoverageRow()}
         topRightActions={getSeverityChip()}
-        onRegenerateClick={isSuperAdmin ? () => setRegenDialogOpen(true) : null}
+        onRegenerateClick={() => setRegenDialogOpen(true)}
         regenDisabled={regenRunning || !studentId}
         cardData={cardData}
         cardLoading={cardLoading}
@@ -821,6 +822,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
+      {currentRole === 'superadmin' && <ReportsCard studentId={studentId} onClick={onOpenReports} />}
+
       <Card
         sx={{
           borderRadius: 2,
@@ -856,9 +859,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
       </CardActionArea>
     </Card>
 
-    {/* AI Chat Card - Admin Only */}
-    {isSuperAdmin && (
-      <Card
+    {/* AI Chat Card */}
+    <Card
         sx={{
           borderRadius: 2,
           '&:hover': {
@@ -882,9 +884,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                   <ChatIcon />
                 </Avatar>
                 <Box>
-                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                    Chat with Coach Pepper
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                      Chat with Coach Pepper
+                    </Typography>
+                    <NewFeaturePill label="New" showIcon={false} />
+                  </Box>
                   <Typography variant="body2" sx={{ color: '#64748b' }}>
                     Ask questions about {getStudentName(student)}'s development
                   </Typography>
@@ -895,7 +900,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
           </CardContent>
         </CardActionArea>
       </Card>
-    )}
 
     <Card
       sx={{

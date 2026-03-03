@@ -9,8 +9,31 @@ import { defineSecret } from "firebase-functions/params";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
+import { WRITING_SNAPSHOT_DEFAULTS } from "./config/writingSnapshotConstants.js";
+import { WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK } from "./config/writingSnapshotPrompt.js";
+import { getIstMonthKey, getMonthWindowDates } from "./utils/monthKey.js";
+import {
+  filterWritingSamples,
+  formatWritingSampleLabel,
+  determineSnapshotStatus,
+  parseWritingSnapshotResponse,
+} from "./writingSnapshot.helpers.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
+import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
+import {
+  getDriveClients,
+  getOrCreateClassroomFolder,
+  getOrCreateFolder,
+  countExistingReportDocs,
+  createReportDoc,
+  downloadCsvContent,
+  updateDriveSummaryCsv,
+  resolveStudentName,
+  capitalize,
+  trashDriveFile,
+} from "./utils/driveHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -236,6 +259,8 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: "gpt-4o-mini", temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: "gpt-4o-mini", temperature: 0.35, max_tokens: 220 };
+const HANDWRITING_VLM_MODEL = { model: "gpt-4o-mini", temperature: 0.1, max_tokens: 10 };
+const HANDWRITING_VLM_FALLBACK_PROMPT = "You are a classroom image classifier. Your only job is to determine whether the image contains handwriting (letters, numbers, or words written by hand). Respond with exactly one word: YES or NO.";
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 async function runChatCompletion(messages, modelInfo) {
@@ -337,6 +362,50 @@ export const extractPdfEssence = functions
     );
 
     return { essence_text: essence.trim() };
+  });
+
+// -------------------------------------------------
+// VLM: Handwriting detection for media notes (PEP-43)
+// -------------------------------------------------
+export const detectHandwritingVLM = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+    const imageBase64 = String(data?.imageBase64 || "").trim();
+    if (!imageBase64) {
+      throw new functions.https.HttpsError("invalid-argument", "imageBase64 is required");
+    }
+    const contentType = String(data?.contentType || "image/webp").trim();
+
+    let systemPrompt = HANDWRITING_VLM_FALLBACK_PROMPT;
+    try {
+      const promptDoc = await db.collection("ai_prompts").doc("handwriting_vlm").get();
+      if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
+        systemPrompt = promptDoc.data().systemPrompt;
+      }
+    } catch (err) {
+      console.warn("[detectHandwritingVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
+    }
+
+    const answer = await runChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Does this image contain handwriting?" },
+            { type: "image_url", image_url: { url: `data:${contentType};base64,${imageBase64}` } },
+          ],
+        },
+      ],
+      HANDWRITING_VLM_MODEL
+    );
+
+    const handwritten = /^yes$/i.test(answer.trim());
+    return { handwritten };
   });
 
 // -------------------------------------------------
@@ -1834,8 +1903,8 @@ export const regenerateBaseballCardForStudent = functions
 
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
     const requesterRole = requesterSnap.data()?.role;
-    if (!requesterSnap.exists || requesterRole !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Only super admins can regenerate baseball cards");
+    if (!requesterSnap.exists || !["superadmin", "classroomadmin", "teacher"].includes(requesterRole)) {
+      throw new functions.https.HttpsError("permission-denied", "You do not have permission to regenerate baseball cards");
     }
 
     const openAiKey = getOpenAiKey();
@@ -1930,6 +1999,405 @@ export const generateBaseballCards = functions
     });
 
     console.log("[baseballCard] generation run complete");
+    return null;
+  });
+
+// -------------------------------------------------
+// Monthly Writing Snapshot (PEP-47)
+// -------------------------------------------------
+
+const WRITING_SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
+let writingSnapshotConfigCache = { data: null, ts: 0 };
+let writingSnapshotPromptCache = { data: null, ts: 0 };
+
+async function getWritingSnapshotConfigServer({ forceRefresh = false } = {}) {
+  if (!forceRefresh && writingSnapshotConfigCache.data && (Date.now() - writingSnapshotConfigCache.ts < WRITING_SNAPSHOT_CACHE_TTL_MS)) {
+    return writingSnapshotConfigCache.data;
+  }
+  try {
+    const snap = await db.collection("config").doc("writing_snapshot").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      model: data.model || WRITING_SNAPSHOT_DEFAULTS.model,
+      temperature: Number.isFinite(data.temperature) ? data.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
+      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
+      minSamples: Number.isFinite(data.minSamples) ? data.minSamples : WRITING_SNAPSHOT_DEFAULTS.minSamples,
+      timezone: data.timezone || WRITING_SNAPSHOT_DEFAULTS.timezone,
+    };
+    writingSnapshotConfigCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[writingSnapshot] config fetch failed, using defaults:", err);
+    const out = { ...WRITING_SNAPSHOT_DEFAULTS };
+    writingSnapshotConfigCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function getWritingSnapshotPrompt({ forceRefresh = false } = {}) {
+  if (!forceRefresh && writingSnapshotPromptCache.data && (Date.now() - writingSnapshotPromptCache.ts < WRITING_SNAPSHOT_CACHE_TTL_MS)) {
+    return writingSnapshotPromptCache.data;
+  }
+  try {
+    const snap = await db.collection("ai_prompts").doc("writing_snapshot").get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = {
+      systemPrompt: data.systemPrompt || WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK,
+      version: data.version || 1,
+    };
+    writingSnapshotPromptCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[writingSnapshot] prompt fetch failed, using fallback:", err);
+    const out = { systemPrompt: WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK, version: 1 };
+    writingSnapshotPromptCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function fetchStudentWritingSamples(studentId, monthKey) {
+  const { start, end } = getMonthWindowDates(monthKey);
+  const mediaSnap = await db.collection("students").doc(studentId).collection("media")
+    .where("handwritten", "==", true)
+    .where("mediaKind", "==", "photo")
+    .where("observedAt", ">=", start)
+    .where("observedAt", "<", end)
+    .get();
+
+  const docs = mediaSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return filterWritingSamples(docs, start, end);
+}
+
+async function downloadImageAsBase64(storagePath) {
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  return buffer.toString("base64");
+}
+
+async function callWritingSnapshotVLM(samples, config, prompt, studentContext, monthKey) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const copiedCount = samples.filter((s) => s.copied === true).length;
+  const originalCount = samples.length - copiedCount;
+
+  const renderedSystem = (prompt.systemPrompt || WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK)
+    .replace("<STUDENT_NAME>", studentContext.studentName)
+    .replace("<STUDENT_AGE>", studentContext.age)
+    .replace("<MONTH_LABEL>", monthKey)
+    .replace("<SAMPLE_COUNT>", String(samples.length))
+    .replace("<ORIGINAL_COUNT>", String(originalCount))
+    .replace("<COPIED_COUNT>", String(copiedCount));
+
+  // Build multi-image user message: text label + image for each sample
+  const userContent = [];
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    const label = formatWritingSampleLabel(sample, i + 1);
+    userContent.push({ type: "text", text: label });
+
+    const storagePath = Array.isArray(sample.media) && sample.media.length > 0
+      ? sample.media[0]?.storagePath
+      : null;
+    if (storagePath) {
+      try {
+        const base64 = await downloadImageAsBase64(storagePath);
+        const contentType = sample.media[0]?.contentType || "image/webp";
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${contentType};base64,${base64}` },
+        });
+      } catch (err) {
+        console.warn(`[writingSnapshot] failed to download image for sample ${sample.id}:`, err?.message);
+        userContent.push({ type: "text", text: `(Image ${i + 1} could not be loaded)` });
+      }
+    }
+  }
+
+  userContent.push({
+    type: "text",
+    text: "Analyze these writing samples and respond with the JSON assessment.",
+  });
+
+  const body = {
+    model: config.model || WRITING_SNAPSHOT_DEFAULTS.model,
+    messages: [
+      { role: "system", content: renderedSystem },
+      { role: "user", content: userContent },
+    ],
+    temperature: Number.isFinite(config.temperature) ? config.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[writingSnapshot] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[writingSnapshot] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  const parsed = parseWritingSnapshotResponse(rawContent);
+  return { ...parsed, rawContent, copiedCount, originalCount };
+}
+
+async function writeWritingSnapshotDoc(studentId, payload) {
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("writing_snapshot");
+  await ref.set(payload);
+}
+
+async function runWritingSnapshots({
+  studentIds,
+  config,
+  prompt,
+  monthKey,
+  dryRun = false,
+  collectResults = false,
+  concurrency = 12,
+}) {
+  const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
+  if (!dryRun) {
+    console.log(`[writingSnapshot] running for ${ids.length} student(s), month=${monthKey}`);
+  }
+  const results = [];
+
+  await runWithConcurrency(ids, async (studentId) => {
+    try {
+      const samples = await fetchStudentWritingSamples(studentId, monthKey);
+      const status = determineSnapshotStatus(samples.length, config.minSamples);
+
+      if (status !== "ok") {
+        const payload = {
+          analysis: "",
+          stage: null,
+          strengths: [],
+          areasForGrowth: [],
+          sampleCount: samples.length,
+          copiedCount: samples.filter((s) => s.copied === true).length,
+          originalCount: samples.filter((s) => s.copied !== true).length,
+          monthKey,
+          timezone: config.timezone,
+          model: config.model,
+          temperature: config.temperature,
+          generatedAt: new Date(),
+          status,
+          sourceMediaIds: samples.map((s) => s.id),
+        };
+        if (dryRun && collectResults) {
+          results.push({ studentId, status, payload });
+        } else if (!dryRun) {
+          await writeWritingSnapshotDoc(studentId, payload);
+        }
+        return;
+      }
+
+      const studentContext = await getStudentContext(studentId);
+      const aiResult = await callWritingSnapshotVLM(samples, config, prompt, studentContext, monthKey);
+
+      const payload = {
+        analysis: aiResult.analysis,
+        stage: aiResult.stage,
+        strengths: aiResult.strengths,
+        areasForGrowth: aiResult.areasForGrowth,
+        sampleCount: samples.length,
+        copiedCount: aiResult.copiedCount,
+        originalCount: aiResult.originalCount,
+        monthKey,
+        timezone: config.timezone,
+        model: config.model,
+        temperature: config.temperature,
+        generatedAt: new Date(),
+        status: "ok",
+        sourceMediaIds: samples.map((s) => s.id),
+        rawContent: aiResult.rawContent,
+      };
+
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "ok", payload });
+      } else if (!dryRun) {
+        await writeWritingSnapshotDoc(studentId, payload);
+      }
+    } catch (err) {
+      console.error(`[writingSnapshot] run failed for student ${studentId}`, err);
+      if (dryRun && collectResults) {
+        results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+    }
+  }, concurrency);
+
+  return results;
+}
+
+export const previewWritingSnapshot = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can preview writing snapshots");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getWritingSnapshotConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getWritingSnapshotPrompt({ forceRefresh: !!data?.forceRefresh });
+    const monthKey = typeof data?.monthKey === "string" && /^\d{4}-\d{2}$/.test(data.monthKey)
+      ? data.monthKey
+      : getIstMonthKey();
+
+    const mergedConfig = {
+      model: data?.config?.model || baseConfig.model,
+      temperature: Number.isFinite(Number(data?.config?.temperature))
+        ? Number(data.config.temperature)
+        : baseConfig.temperature,
+      max_tokens: Number.isFinite(Number(data?.config?.max_tokens))
+        ? Number(data.config.max_tokens)
+        : baseConfig.max_tokens,
+      minSamples: baseConfig.minSamples,
+      timezone: baseConfig.timezone,
+    };
+
+    const systemPrompt = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
+      ? data.systemPrompt
+      : basePrompt.systemPrompt;
+    const promptPayload = { ...basePrompt, systemPrompt };
+
+    const results = await runWritingSnapshots({
+      studentIds: [studentId],
+      config: mergedConfig,
+      prompt: promptPayload,
+      monthKey,
+      dryRun: true,
+      collectResults: true,
+      concurrency: 1,
+    });
+
+    const result = results?.[0];
+    if (!result) {
+      throw new functions.https.HttpsError("internal", "No result returned");
+    }
+    if (result.status === "error") {
+      throw new functions.https.HttpsError("internal", result.error || "Failed to generate writing snapshot preview");
+    }
+
+    return {
+      status: result.status,
+      sampleCount: result.payload?.sampleCount ?? 0,
+      monthKey,
+      usedConfig: mergedConfig,
+      analysis: result.payload?.analysis,
+      stage: result.payload?.stage,
+      strengths: result.payload?.strengths,
+      areasForGrowth: result.payload?.areasForGrowth,
+      rawContent: result.payload?.rawContent,
+      generatedAt: result.payload?.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const regenerateWritingSnapshotForStudent = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || (requesterRole !== "superadmin" && requesterRole !== "classroomadmin" && requesterRole !== "teacher")) {
+      throw new functions.https.HttpsError("permission-denied", "Authenticated users can regenerate writing snapshots");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const baseConfig = await getWritingSnapshotConfigServer({ forceRefresh: !!data?.forceRefresh });
+    const basePrompt = await getWritingSnapshotPrompt({ forceRefresh: !!data?.forceRefresh });
+    const monthKey = typeof data?.monthKey === "string" && /^\d{4}-\d{2}$/.test(data.monthKey)
+      ? data.monthKey
+      : getIstMonthKey();
+
+    await runWritingSnapshots({
+      studentIds: [studentId],
+      config: baseConfig,
+      prompt: basePrompt,
+      monthKey,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 1,
+    });
+
+    return {
+      status: "ok",
+      studentId,
+      monthKey,
+      regeneratedAt: new Date().toISOString(),
+    };
+  });
+
+export const generateWritingSnapshots = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .pubsub.schedule("0 1 1 * *")
+  .timeZone(WRITING_SNAPSHOT_DEFAULTS.timezone)
+  .onRun(async () => {
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      console.error("[writingSnapshot] OpenAI key not configured");
+      return null;
+    }
+
+    const config = await getWritingSnapshotConfigServer();
+    const prompt = await getWritingSnapshotPrompt();
+
+    // Generate snapshot for the previous month
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+    const monthKey = getIstMonthKey(lastMonth);
+
+    console.log(`[writingSnapshot] generating for active students, month=${monthKey}`);
+
+    await runWritingSnapshots({
+      config,
+      prompt,
+      monthKey,
+      dryRun: false,
+      collectResults: false,
+      concurrency: 12,
+    });
+
+    console.log("[writingSnapshot] generation run complete");
     return null;
   });
 
@@ -2672,7 +3140,7 @@ async function verifyAuthToken(req) {
   }
 
   const userRole = userDoc.data()?.role;
-  if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+  if (!["superadmin", "classroomadmin", "teacher"].includes(userRole)) {
     throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
   }
 
@@ -2924,7 +3392,7 @@ export const childChat = functions
     }
 
     const userRole = userDoc.data()?.role;
-    if (userRole !== "superadmin" && userRole !== "classroomadmin") {
+    if (!["superadmin", "classroomadmin", "teacher"].includes(userRole)) {
       throw new functions.https.HttpsError("permission-denied", "You don't have permission to access this chat.");
     }
 
@@ -3074,4 +3542,808 @@ export const childChat = functions
       const errorMessage = err?.message || "An unexpected error occurred.";
       throw new functions.https.HttpsError("internal", errorMessage);
     }
+  });
+
+// -----------------------------------------------
+// Parent Report Generation
+// -----------------------------------------------
+
+const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
+const reportPromptCache = {};
+
+const REPORT_CONFIG_DOC = "report_generation";
+let reportConfigCache = { data: null, ts: 0 };
+
+async function getReportConfig({ forceRefresh = false } = {}) {
+  if (!forceRefresh && reportConfigCache.data && (Date.now() - reportConfigCache.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
+    return reportConfigCache.data;
+  }
+  try {
+    const snap = await db.collection("config").doc(REPORT_CONFIG_DOC).get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const out = mergeReportConfig(data, REPORT_DEFAULTS);
+    reportConfigCache = { data: out, ts: Date.now() };
+    return out;
+  } catch (err) {
+    console.warn("[report] config fetch failed, using defaults:", err);
+    const out = mergeReportConfig(null, REPORT_DEFAULTS);
+    reportConfigCache = { data: out, ts: Date.now() };
+    return out;
+  }
+}
+
+async function getReportPrompt(programId, { forceRefresh = false } = {}) {
+  const docId = getReportPromptDocId(programId);
+  if (!docId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      `Unsupported program for report generation: ${programId}`,
+    );
+  }
+
+  const cached = reportPromptCache[docId];
+  if (!forceRefresh && cached?.data && (Date.now() - cached.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("ai_prompts").doc(docId).get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      `Report prompt not found for program: ${programId}. Seed it via scripts/admin/seed-report-prompts.mjs`,
+    );
+  }
+
+  const data = snap.data() || {};
+  const prompt = {
+    systemPrompt: String(data.systemPrompt || ""),
+    title: String(data.title || ""),
+    description: String(data.description || ""),
+    version: Number.isFinite(data.version) ? data.version : 1,
+  };
+
+  if (!prompt.systemPrompt) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Report prompt for ${programId} has empty systemPrompt`,
+    );
+  }
+
+  reportPromptCache[docId] = { data: prompt, ts: Date.now() };
+  return prompt;
+}
+
+function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
+  const notesMap = new Map();
+  const studentObsRef = db.collection("students").doc(studentId).collection("observations");
+
+  const collect = async (field) => {
+    try {
+      const snap = await studentObsRef
+        .where(field, ">=", startDate)
+        .where(field, "<=", endDate)
+        .get();
+      snap.docs.forEach((d) => {
+        notesMap.set(d.id, { id: d.id, ...d.data() });
+      });
+    } catch (err) {
+      console.warn(`[report] query failed for field ${field} student ${studentId}:`, err);
+    }
+  };
+
+  return (async () => {
+    await collect("observedAt");
+    await collect("createdAt");
+    await collect("timestamp");
+
+    const notes = Array.from(notesMap.values()).filter((n) => {
+      const ts = chooseObservationTimestamp(n);
+      return ts && ts >= startDate && ts <= endDate;
+    });
+
+    notes.sort((a, b) => {
+      const ta = chooseObservationTimestamp(a);
+      const tb = chooseObservationTimestamp(b);
+      return (ta?.getTime() || 0) - (tb?.getTime() || 0);
+    });
+
+    return notes;
+  })();
+}
+
+async function getStudentWithProgram(studentId) {
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
+  }
+  const studentData = studentSnap.data() || {};
+  const classroomId = studentData.classroomId;
+
+  let programId = null;
+  if (classroomId) {
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    if (classroomSnap.exists) {
+      programId = classroomSnap.data()?.programId || null;
+    }
+  }
+
+  const fallbackName = [studentData.firstName, studentData.lastName].filter(Boolean).join(" ").trim();
+  const studentName = studentData.displayName || studentData.name || fallbackName || "Unknown student";
+  const dob = formatDobForContext(studentData.dob);
+  const age = calculateAgeFromDob(studentData.dob);
+
+  return { studentName, dob, age, programId, classroomId };
+}
+
+const REPORT_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object with exactly this structure:
+{
+  "reportText": "<the full report narrative as a single string, using \\n for line breaks and ## for section headers>",
+  "sentimentScore": <integer 1-5>,
+  "areaBalanceScore": <integer 1-5>,
+  "missingInputFlags": ["<flag1>", "<flag2>"]
+}
+
+The reportText should contain the complete parent-facing report following the prompt instructions above.
+The sentimentScore and areaBalanceScore should follow the scoring rubrics in the prompt.
+The missingInputFlags should list any areas where inputs were missing.
+Output ONLY the JSON object, nothing else.`;
+
+async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const safeContext = {
+    studentName: studentContext?.studentName || "Unknown student",
+    dob: studentContext?.dob || "dob unavailable in context",
+    age: studentContext?.age || "age unavailable",
+  };
+
+  const systemContent = prompt.systemPrompt + REPORT_JSON_WRAPPER;
+
+  const startStr = dateRange.start instanceof Date
+    ? dateRange.start.toISOString().split("T")[0]
+    : String(dateRange.start);
+  const endStr = dateRange.end instanceof Date
+    ? dateRange.end.toISOString().split("T")[0]
+    : String(dateRange.end);
+
+  const userContent = [
+    `Generate the Educator Summary report for the period ${startStr} to ${endStr}.`,
+    "",
+    `Student: ${JSON.stringify(safeContext)}`,
+    "",
+    `Notes (${notes.length} observations, JSON array):`,
+    JSON.stringify(notes),
+  ].join("\n");
+
+  const body = {
+    model: config.model || REPORT_DEFAULTS.model,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ],
+    temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  };
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[report] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[report] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  return parseReportResponse(rawContent);
+}
+
+async function writeReportDoc(studentId, payload) {
+  const docId = `report_${Date.now()}`;
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(docId);
+  await ref.set(payload);
+  return docId;
+}
+
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, configOverrides, promptOverride, dryRun = false }) {
+  const studentInfo = await getStudentWithProgram(studentId);
+  if (!studentInfo.programId) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Student ${studentId} has no associated program. Check classroom assignment.`,
+    );
+  }
+
+  const baseConfig = await getReportConfig();
+  const config = configOverrides
+    ? mergeReportConfig(configOverrides, baseConfig)
+    : baseConfig;
+
+  const prompt = promptOverride
+    ? { ...await getReportPrompt(studentInfo.programId), systemPrompt: promptOverride }
+    : await getReportPrompt(studentInfo.programId);
+
+  const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
+  const endDate = dateRangeEnd ? new Date(dateRangeEnd) : new Date();
+
+  const notes = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
+
+  if (!notes.length) {
+    const payload = {
+      reportText: "",
+      sentimentScore: null,
+      areaBalanceScore: null,
+      missingInputFlags: ["No observations found in date range"],
+      noteCount: 0,
+      dateRangeStart: startDate,
+      dateRangeEnd: endDate,
+      programId: studentInfo.programId,
+      model: config.model,
+      generatedAt: new Date(),
+      generatedBy: requesterId,
+      status: "no_notes",
+      sourceNoteIds: [],
+    };
+    if (!dryRun) {
+      const docId = await writeReportDoc(studentId, payload);
+      return { studentId, status: "no_notes", docId, payload };
+    }
+    return { studentId, status: "no_notes", payload };
+  }
+
+  const formatted = notes.map(formatObservationForPrompt);
+  const aiResult = await callReportGeneration(formatted, prompt, studentInfo, { start: startDate, end: endDate }, config);
+  const sourceNoteIds = notes.map((n) => n.id).filter(Boolean);
+
+  const payload = {
+    reportText: aiResult.reportText,
+    sentimentScore: aiResult.sentimentScore,
+    areaBalanceScore: aiResult.areaBalanceScore,
+    missingInputFlags: aiResult.missingInputFlags,
+    noteCount: formatted.length,
+    dateRangeStart: startDate,
+    dateRangeEnd: endDate,
+    programId: studentInfo.programId,
+    model: config.model,
+    generatedAt: new Date(),
+    generatedBy: requesterId,
+    status: "ok",
+    sourceNoteIds,
+  };
+
+  if (!dryRun) {
+    const docId = await writeReportDoc(studentId, payload);
+    return { studentId, status: "ok", docId, payload };
+  }
+  return { studentId, status: "ok", payload };
+}
+
+async function checkReportPermission(uid, studentId) {
+  const requesterSnap = await db.collection("users").doc(uid).get();
+  if (!requesterSnap.exists) {
+    throw new functions.https.HttpsError("permission-denied", "User not found");
+  }
+  const requester = requesterSnap.data();
+  const role = requester.role;
+
+  if (role === "superadmin") return;
+
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
+  }
+  const classroomId = studentSnap.data()?.classroomId;
+
+  if (role === "classroomadmin" || role === "admin") {
+    const manageable = requester.manageableClassrooms || [];
+    const classroomSnap = classroomId ? await db.collection("classrooms").doc(classroomId).get() : null;
+    const programId = classroomSnap?.data()?.programId;
+    if (programId && manageable.includes(programId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's program");
+  }
+
+  if (role === "teacher") {
+    const assignedClassrooms = requester.assignedClassrooms || [];
+    if (classroomId && assignedClassrooms.includes(classroomId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Teacher is not assigned to this student's classroom");
+  }
+
+  throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
+}
+
+export const generateStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    await checkReportPermission(context.auth.uid, studentId);
+
+    const result = await runSingleReport({
+      studentId,
+      dateRangeStart: data?.dateRangeStart || null,
+      dateRangeEnd: data?.dateRangeEnd || null,
+      requesterId: context.auth.uid,
+    });
+
+    return {
+      status: result.status,
+      docId: result.docId,
+      studentId: result.studentId,
+      noteCount: result.payload.noteCount,
+      sentimentScore: result.payload.sentimentScore,
+      areaBalanceScore: result.payload.areaBalanceScore,
+      missingInputFlags: result.payload.missingInputFlags,
+      reportText: result.payload.reportText,
+      generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const previewStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || requesterRole !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only super admins can preview reports");
+    }
+
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const result = await runSingleReport({
+      studentId,
+      dateRangeStart: data?.dateRangeStart || null,
+      dateRangeEnd: data?.dateRangeEnd || null,
+      requesterId: context.auth.uid,
+      configOverrides: data?.config || null,
+      promptOverride: typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
+        ? data.systemPrompt
+        : null,
+      dryRun: true,
+    });
+
+    return {
+      status: result.status,
+      studentId: result.studentId,
+      noteCount: result.payload.noteCount,
+      sentimentScore: result.payload.sentimentScore,
+      areaBalanceScore: result.payload.areaBalanceScore,
+      missingInputFlags: result.payload.missingInputFlags,
+      reportText: result.payload.reportText,
+      model: result.payload.model,
+      generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+    };
+  });
+
+export const generateClassroomReports = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const classroomId = String(data?.classroomId || "").trim();
+    if (!classroomId) {
+      throw new functions.https.HttpsError("invalid-argument", "classroomId is required");
+    }
+
+    // Resolve student IDs
+    let studentIds = Array.isArray(data?.studentIds) ? data.studentIds : [];
+    if (!studentIds.length) {
+      const studentsSnap = await db.collection("students")
+        .where("classroomId", "==", classroomId)
+        .where("isActive", "==", true)
+        .get();
+      studentIds = studentsSnap.docs.map((d) => d.id);
+    }
+
+    if (!studentIds.length) {
+      return { status: "no_students", completed: 0, failed: 0, results: [] };
+    }
+
+    // Check permission for the first student (all are in the same classroom)
+    await checkReportPermission(context.auth.uid, studentIds[0]);
+
+    const results = [];
+    await runWithConcurrency(studentIds, async (studentId) => {
+      try {
+        const result = await runSingleReport({
+          studentId,
+          dateRangeStart: data?.dateRangeStart || null,
+          dateRangeEnd: data?.dateRangeEnd || null,
+          requesterId: context.auth.uid,
+        });
+        results.push({
+          studentId,
+          status: result.status,
+          docId: result.docId,
+          noteCount: result.payload.noteCount,
+          sentimentScore: result.payload.sentimentScore,
+          areaBalanceScore: result.payload.areaBalanceScore,
+        });
+      } catch (err) {
+        console.error(`[report] bulk generation failed for student ${studentId}:`, err);
+        results.push({
+          studentId,
+          status: "error",
+          error: err?.message || "Unknown error",
+        });
+      }
+    }, REPORT_BULK_CONCURRENCY);
+
+    const completed = results.filter((r) => r.status === "ok" || r.status === "no_notes").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
+    return { status: "ok", completed, failed, total: studentIds.length, results };
+  });
+
+// ─── Google Drive Export ────────────────────────────────────────────────────
+
+/**
+ * Export a single student report to Google Drive as a Google Doc.
+ * Creates classroom folder if needed, creates doc, updates summary CSV.
+ */
+export const exportReportToDrive = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    const reportDocId = String(data?.reportDocId || "").trim();
+    if (!studentId || !reportDocId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "studentId and reportDocId are required",
+      );
+    }
+
+    // Permission check (same as report generation)
+    await checkReportPermission(context.auth.uid, studentId);
+
+    // Load the report from Firestore
+    const reportRef = db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc(reportDocId);
+    const reportSnap = await reportRef.get();
+    if (!reportSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Report not found");
+    }
+    const report = reportSnap.data();
+
+    if (!report.reportText) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Report has no content to export",
+      );
+    }
+
+    // Get student + classroom info
+    const studentSnap = await db.collection("students").doc(studentId).get();
+    const studentData = studentSnap.data();
+    const studentName = resolveStudentName(studentData);
+    const classroomId = studentData?.classroomId;
+
+    if (!classroomId) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Student has no classroom assignment",
+      );
+    }
+
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    const classroomData = classroomSnap.data();
+    const classroomName = classroomData?.name || "Unknown Classroom";
+    const programId = classroomData?.programId || "";
+    const branchId = classroomData?.branchId || "";
+
+    // Resolve branch display name
+    let branchName = capitalize(branchId);
+    if (branchId) {
+      const branchSnap = await db.collection("branches").doc(branchId).get();
+      if (branchSnap.exists) {
+        branchName = branchSnap.data()?.name || capitalize(branchId);
+      }
+    }
+    const programName = capitalize(programId);
+
+    // Get or create Drive folder hierarchy: Branch → Program → Classroom
+    const { drive, docs } = await getDriveClients();
+
+    let classroomFolderId = classroomData?.driveFolderId;
+    if (!classroomFolderId) {
+      classroomFolderId = await getOrCreateClassroomFolder(
+        drive, branchName, programName, classroomName,
+      );
+      await db.collection("classrooms").doc(classroomId).update({
+        driveFolderId: classroomFolderId,
+      });
+    }
+
+    // Create student subfolder inside classroom folder
+    const studentFolderId = await getOrCreateFolder(
+      drive, classroomFolderId, studentName,
+    );
+
+    // Count existing report docs to determine version
+    const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
+    const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+
+    // Create the Google Doc in student folder
+    const { docId: driveDocId, docLink } = await createReportDoc(
+      drive, docs, studentFolderId, studentName, report.reportText,
+      existingCount, generatedAtIso,
+    );
+
+    // Update summary CSV in classroom folder
+    // Note: Single-student CSV update is not atomic across concurrent exports.
+    // If two concurrent exports occur for different students in the same classroom,
+    // the CSV update could race. Since we now use per-classroom CSVs (lower contention),
+    // and the Drive doc creation is the critical path, we treat CSV updates as
+    // best-effort supplementary data. If the CSV update fails, we log a warning
+    // but do not block the export.
+    try {
+      const csvRow = formatCsvRow({
+        studentName,
+        branch: branchName,
+        program: programName,
+        classroom: classroomName,
+        generatedAt: generatedAtIso,
+        sentimentScore: report.sentimentScore,
+        areaBalanceScore: report.areaBalanceScore,
+        missingInputFlags: report.missingInputFlags || [],
+        docLink,
+      });
+
+      const existingCsv = await downloadCsvContent(drive, classroomFolderId);
+      const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+      await updateDriveSummaryCsv(drive, classroomFolderId, newCsv);
+    } catch (csvError) {
+      console.warn("[drive-export] CSV update failed (non-blocking):", csvError);
+    }
+
+    // Store Drive doc link on the report doc
+    await reportRef.update({ driveDocId, driveDocLink: docLink });
+
+    return {
+      status: "ok",
+      driveDocId,
+      driveDocLink: docLink,
+      studentName,
+    };
+  });
+
+/**
+ * Export multiple student reports to Google Drive after bulk generation.
+ * Reuses the classroom folder, creates one doc per student, updates CSV.
+ */
+export const exportClassroomReportsToDrive = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const classroomId = String(data?.classroomId || "").trim();
+    if (!classroomId) {
+      throw new functions.https.HttpsError("invalid-argument", "classroomId is required");
+    }
+
+    // reportResults: array of { studentId, docId } from bulk generation
+    const reportResults = Array.isArray(data?.reportResults) ? data.reportResults : [];
+    if (!reportResults.length) {
+      return { status: "no_reports", completed: 0, failed: 0, results: [] };
+    }
+
+    // Permission check via first student
+    await checkReportPermission(context.auth.uid, reportResults[0].studentId);
+
+    // Load classroom info
+    const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+    const classroomData = classroomSnap.data();
+    const classroomName = classroomData?.name || "Unknown Classroom";
+    const programId = classroomData?.programId || "";
+    const branchId = classroomData?.branchId || "";
+
+    // Resolve branch display name
+    let branchName = capitalize(branchId);
+    if (branchId) {
+      const branchSnap = await db.collection("branches").doc(branchId).get();
+      if (branchSnap.exists) {
+        branchName = branchSnap.data()?.name || capitalize(branchId);
+      }
+    }
+    const programName = capitalize(programId);
+
+    const { drive, docs } = await getDriveClients();
+
+    // Get or create Drive folder hierarchy: Branch → Program → Classroom
+    let classroomFolderId = classroomData?.driveFolderId;
+    if (!classroomFolderId) {
+      classroomFolderId = await getOrCreateClassroomFolder(
+        drive, branchName, programName, classroomName,
+      );
+      await db.collection("classrooms").doc(classroomId).update({
+        driveFolderId: classroomFolderId,
+      });
+    }
+
+    // Download existing CSV from classroom folder once
+    let currentCsv = await downloadCsvContent(drive, classroomFolderId);
+
+    const results = [];
+    await runWithConcurrency(reportResults, async ({ studentId, docId }) => {
+      try {
+        const reportSnap = await db.collection("students").doc(studentId)
+          .collection("ai_summaries").doc(docId).get();
+        if (!reportSnap.exists || !reportSnap.data().reportText) {
+          results.push({ studentId, status: "skipped", reason: "no_content" });
+          return;
+        }
+        const report = reportSnap.data();
+
+        const studentSnap = await db.collection("students").doc(studentId).get();
+        const studentData = studentSnap.data();
+        const studentName = resolveStudentName(studentData);
+
+        // Validate student belongs to this classroom (prevent malicious client from mixing students)
+        if (studentData?.classroomId !== classroomId) {
+          results.push({ studentId, status: "skipped", reason: "wrong_classroom" });
+          return;
+        }
+
+        // Create student subfolder inside classroom folder
+        const studentFolderId = await getOrCreateFolder(
+          drive, classroomFolderId, studentName,
+        );
+
+        const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
+        const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+        const { docId: driveDocId, docLink } = await createReportDoc(
+          drive, docs, studentFolderId, studentName, report.reportText,
+          existingCount, generatedAtIso,
+        );
+
+        // Update report doc with Drive link
+        await reportSnap.ref.update({ driveDocId, driveDocLink: docLink });
+
+        // Update CSV content (sequential to avoid race conditions)
+        const csvRow = formatCsvRow({
+          studentName,
+          branch: branchName,
+          program: programName,
+          classroom: classroomName,
+          generatedAt: generatedAtIso,
+          sentimentScore: report.sentimentScore,
+          areaBalanceScore: report.areaBalanceScore,
+          missingInputFlags: report.missingInputFlags || [],
+          docLink,
+        });
+        currentCsv = updateCsvContent(currentCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+
+        results.push({ studentId, status: "ok", driveDocId, driveDocLink: docLink });
+      } catch (err) {
+        console.error(`[drive-export] failed for student ${studentId}:`, err);
+        results.push({ studentId, status: "error", error: err?.message || "Unknown error" });
+      }
+    }, REPORT_BULK_CONCURRENCY);
+
+    // Upload final CSV to classroom folder once
+    await updateDriveSummaryCsv(drive, classroomFolderId, currentCsv);
+
+    const completed = results.filter((r) => r.status === "ok").length;
+    const failed = results.filter((r) => r.status === "error").length;
+
+    return { status: "ok", completed, failed, total: reportResults.length, results };
+  });
+
+// ── Delete a student report (superadmin only) ──────────────────────────
+export const deleteStudentReport = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    const reportDocId = String(data?.reportDocId || "").trim();
+    if (!studentId || !reportDocId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId and reportDocId are required");
+    }
+
+    // Superadmin-only access
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can delete reports");
+    }
+
+    // Load report doc
+    const reportRef = db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc(reportDocId);
+    const reportSnap = await reportRef.get();
+    if (!reportSnap.exists) {
+      throw new functions.https.HttpsError("not-found", "Report not found");
+    }
+    const reportData = reportSnap.data();
+
+    // If report was exported to Drive, trash the doc and update CSV
+    if (reportData.driveDocId) {
+      try {
+        const { drive } = await getDriveClients();
+
+        // Trash the Google Doc (recoverable for 30 days)
+        await trashDriveFile(drive, reportData.driveDocId);
+
+        // Remove student row from classroom CSV
+        const studentSnap = await db.collection("students").doc(studentId).get();
+        const classroomId = studentSnap.data()?.classroomId;
+        if (classroomId) {
+          const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+          const driveFolderId = classroomSnap.data()?.driveFolderId;
+          if (driveFolderId) {
+            const studentName = resolveStudentName(studentSnap.data());
+            const existingCsv = await downloadCsvContent(drive, driveFolderId);
+            if (existingCsv) {
+              const updatedCsv = removeCsvRow(existingCsv, studentName, DRIVE_CONSTANTS.csvHeaders);
+              await updateDriveSummaryCsv(drive, driveFolderId, updatedCsv);
+            }
+          }
+        }
+      } catch (driveErr) {
+        console.error("[delete-report] Drive cleanup failed:", driveErr);
+        // Continue with Firestore deletion even if Drive cleanup fails
+      }
+    }
+
+    // Delete Firestore doc
+    await reportRef.delete();
+
+    return { status: "ok", deletedDocId: reportDocId };
   });
