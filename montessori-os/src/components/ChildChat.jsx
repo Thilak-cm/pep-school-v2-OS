@@ -51,8 +51,9 @@ const formatMessage = (text) => {
   const flushList = () => {
     if (listItems.length > 0) {
       const ListComponent = listType === 'ol' ? 'ol' : 'ul';
+      const listStyleType = listType === 'ol' ? 'decimal' : 'disc';
       formatted.push(
-        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1 }}>
+        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1, listStyle: listStyleType }}>
           {listItems}
         </Box>
       );
@@ -91,6 +92,8 @@ const formatMessage = (text) => {
           {formatInlineMarkdown(content)}
         </Box>
       );
+    } else if (!trimmed && inList) {
+      // Skip blank lines inside a list — don't flush yet
     } else {
       // Flush any pending list
       flushList();
