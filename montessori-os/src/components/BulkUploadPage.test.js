@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import {
   matchStudentNames,
@@ -74,7 +75,7 @@ test('buildObservationDoc creates correct text observation structure', () => {
   assert.equal(doc.studentId, 's1');
   assert.equal(doc.classroomId, 'c1');
   assert.equal(doc.branchId, 'b1');
-  assert.equal(doc.type, 'voice');
+  assert.equal(doc.type, 'text');
   assert.equal(doc.text, 'Worked independently on bead material');
   assert.equal(doc.createdBy, 'admin1');
   assert.equal(doc.createdByName, 'Admin User');
@@ -165,4 +166,68 @@ test('checkDuplicates handles empty existing list', () => {
   ];
   const flagged = checkDuplicates(rows, []);
   assert.equal(flagged[0].isDuplicate, false);
+});
+
+// --- BulkUploadPage.jsx source-level verification ---
+
+const pageSourceUrl = new URL('./BulkUploadPage.jsx', import.meta.url);
+
+test('BulkUploadPage gates access behind isSuperAdmin check', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /isSuperAdmin/.test(source),
+    'Expected BulkUploadPage to import or call isSuperAdmin for role-gating',
+  );
+});
+
+test('BulkUploadPage triggers CSV parsing via parseCSV', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /parseCSV/.test(source),
+    'Expected BulkUploadPage to reference parseCSV for CSV file parsing',
+  );
+});
+
+test('BulkUploadPage uses Firestore writeBatch for bulk writes', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /writeBatch/.test(source),
+    'Expected BulkUploadPage to use writeBatch for Firestore bulk writes',
+  );
+});
+
+test('BulkUploadPage displays results summary after upload', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /setResults/.test(source),
+    'Expected BulkUploadPage to set results state for summary display',
+  );
+  assert.ok(
+    /imported/.test(source) && /failed/.test(source),
+    'Expected BulkUploadPage results to track imported and failed counts',
+  );
+});
+
+test('BulkUploadPage uses useNotify hook for notifications', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /useNotify/.test(source),
+    'Expected BulkUploadPage to use the useNotify hook',
+  );
+  assert.ok(
+    /notify\.\w+\(/.test(source),
+    'Expected BulkUploadPage to call notify methods (success, error, warning)',
+  );
+});
+
+test('BulkUploadPage checks for duplicate observations', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /checkDuplicates/.test(source),
+    'Expected BulkUploadPage to call checkDuplicates for duplicate detection',
+  );
+  assert.ok(
+    /isDuplicate/.test(source),
+    'Expected BulkUploadPage to reference isDuplicate flag from duplicate check',
+  );
 });

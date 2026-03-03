@@ -237,12 +237,13 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       }));
     } catch {
       // Non-critical — proceed without duplicate detection
+      notify.warning('Could not check for duplicates — proceeding without duplicate detection.');
     }
 
     const flagged = checkDuplicates(mapped, existingObs);
     setReviewRows(flagged);
     setActiveStep(2);
-  }, [matchResults, parsedRows]);
+  }, [matchResults, parsedRows, notify]);
 
   // --- Step 2: Upload ---
   const duplicateCount = useMemo(() => reviewRows.filter((r) => r.isDuplicate).length, [reviewRows]);
@@ -263,7 +264,8 @@ export default function BulkUploadPage({ currentUser, userRole }) {
         const batch = writeBatch(db);
 
         for (const row of chunk) {
-          const obsId = `bulk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+          const idPrefix = row.type === 'lesson' ? 'lesson_bulk' : 'obs_bulk';
+          const obsId = `${idPrefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
           const ref = doc(db, 'students', row.studentId, 'observations', obsId);
 
           let data;

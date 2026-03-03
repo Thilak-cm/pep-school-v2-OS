@@ -69,7 +69,7 @@ export function buildObservationDoc({ studentId, classroomId, branchId, text, da
     studentId,
     classroomId,
     branchId: branchId || null,
-    type: 'voice',
+    type: 'text',
     text,
     observedAt,
     createdAt: now,
