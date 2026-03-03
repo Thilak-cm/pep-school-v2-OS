@@ -159,6 +159,8 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       const matches = matchStudentNames(uniqueNames, students, filter);
       setMatchResults(matches);
       setActiveStep(1);
+      const highCount = matches.filter((m) => m.confidence === CONFIDENCE.HIGH).length;
+      notify.success(`Found ${students.length} students. ${highCount}/${matches.length} names matched with high confidence.`);
     } catch (err) {
       notify.error('Failed to load students: ' + (err.message || ''));
     }
@@ -308,15 +310,21 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       notify.error(`Upload failed after ${imported} rows: ${err.message || 'Unknown error'}`);
     }
 
-    setResults({
+    const resultData = {
       imported,
       failed,
       duplicatesAllowed: duplicateCount,
       skipped: matchResults.filter((m) => m.rejected).length,
       total: parsedRows.length,
-    });
+    };
+    setResults(resultData);
     setUploading(false);
     setActiveStep(3);
+    if (failed === 0) {
+      notify.success(`${imported} rows imported successfully!`);
+    } else {
+      notify.warning(`${imported} imported, ${failed} failed.`);
+    }
   }, [reviewRows, currentUser, duplicateCount, matchResults, parsedRows, notify]);
 
   // --- Render ---
