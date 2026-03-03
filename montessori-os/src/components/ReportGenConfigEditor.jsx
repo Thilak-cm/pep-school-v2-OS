@@ -35,10 +35,9 @@ function extractTemplateVars(text) {
 
 function renderPromptWithChips(text) {
   if (!text) return null;
-  const regex = /(<[A-Z_]+>)/g;
-  const parts = text.split(regex);
+  const parts = text.split(/(<[A-Z_]+>)/g);
   return parts.map((part, idx) => {
-    if (regex.test(part)) {
+    if (/^<[A-Z_]+>$/.test(part)) {
       return (
         <Chip
           key={idx}
