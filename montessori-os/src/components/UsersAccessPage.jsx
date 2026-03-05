@@ -1063,10 +1063,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       setClassroomDialogSaving(true);
       if (classroomDialogMode === 'promote') {
         // AC4: Route promote through server-side validation
+        // Fall back to displayName parts when firstName is missing (migrated users)
+        const nameParts = (classroomDialogTarget.displayName || '').split(' ');
+        const firstName = classroomDialogTarget.firstName || nameParts[0] || classroomDialogTarget.email?.split('@')[0] || '';
+        const lastName = classroomDialogTarget.lastName || nameParts.slice(1).join(' ') || '';
         await createAuthUserAndProfile({
           email: classroomDialogTarget.email,
-          firstName: classroomDialogTarget.firstName || '',
-          lastName: classroomDialogTarget.lastName || '',
+          firstName,
+          lastName,
           role: 'classroomadmin',
           manageableClassrooms: classroomDialogSelection,
           updateIfExists: true,
@@ -1086,10 +1090,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at promote-refresh-admins');
         }
       } else {
+        // Fall back to displayName parts when firstName is missing (migrated users)
+        const editNameParts = (classroomDialogTarget.displayName || '').split(' ');
+        const editFirstName = classroomDialogTarget.firstName || editNameParts[0] || classroomDialogTarget.email?.split('@')[0] || '';
+        const editLastName = classroomDialogTarget.lastName || editNameParts.slice(1).join(' ') || '';
         await createAuthUserAndProfile({
           email: classroomDialogTarget.email,
-          firstName: classroomDialogTarget.firstName || '',
-          lastName: classroomDialogTarget.lastName || '',
+          firstName: editFirstName,
+          lastName: editLastName,
           role: 'classroomadmin',
           manageableClassrooms: classroomDialogSelection,
           updateIfExists: true,
