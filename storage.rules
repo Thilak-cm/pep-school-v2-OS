@@ -93,6 +93,10 @@ service firebase.storage {
         );
     }
 
+    match /assets/{allPaths=**} {
+      allow read: if true; // Public branding assets
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

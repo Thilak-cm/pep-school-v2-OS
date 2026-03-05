@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { DRIVE_CONSTANTS } from "../config/reportConstants.js";
+import { DRIVE_CONSTANTS, REPORT_BRANDING } from "../config/reportConstants.js";
 
 /**
  * Resolve a student document's display name.
@@ -115,15 +115,51 @@ export async function countExistingReportDocs(drive, folderId, studentName) {
 }
 
 /**
- * Create a Google Doc with the report content in the specified folder.
+ * Build Docs API requests to insert a right-aligned image into a
+ * header, footer, or other segment. Each segment has its own index space
+ * starting at 0.
+ */
+export function buildSegmentImageRequests(segmentId, imageUri, width, height) {
+  return [
+    {
+      insertInlineImage: {
+        location: { segmentId, index: 0 },
+        uri: imageUri,
+        objectSize: {
+          width: { magnitude: width, unit: "PT" },
+          height: { magnitude: height, unit: "PT" },
+        },
+      },
+    },
+    {
+      updateParagraphStyle: {
+        range: { segmentId, startIndex: 0, endIndex: 1 },
+        paragraphStyle: { alignment: "END" },
+        fields: "alignment",
+      },
+    },
+  ];
+}
+
+/**
+ * Create a Google Doc with branded report content in the specified folder.
+ *
+ * Multi-step process:
+ *   1. Create blank doc
+ *   2. Set up headers/footers (different first-page header enabled)
+ *   3. Read doc to discover header/footer segment IDs
+ *   4. Insert body content + header/footer images in one batch
+ *
  * Returns { docId, docLink }.
  */
 export async function createReportDoc(
-  drive, docs, folderId, studentName, reportMarkdown, existingDocCount, generatedAt,
+  drive, docs, folderId, studentName, reportMarkdown,
+  existingDocCount, generatedAt, metadata = {},
 ) {
+  const { assets, dimensions } = REPORT_BRANDING;
   const title = buildReportDocTitle(studentName, generatedAt, existingDocCount);
 
-  // Create blank doc in the folder
+  // 1. Create blank doc in the folder
   const file = await drive.files.create({
     requestBody: {
       name: title,
@@ -137,8 +173,74 @@ export async function createReportDoc(
   const docId = file.data.id;
   const docLink = file.data.webViewLink;
 
-  // Build Docs API requests to insert formatted content
-  const requests = buildDocInsertRequests(reportMarkdown);
+  // 2. Set up document structure: enable different first-page header,
+  //    create default header + footer
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: {
+      requests: [
+        {
+          updateDocumentStyle: {
+            documentStyle: { useFirstPageHeaderFooter: true },
+            fields: "useFirstPageHeaderFooter",
+          },
+        },
+        { createHeader: { type: "DEFAULT", sectionBreakLocation: { index: 0 } } },
+        { createFooter: { type: "DEFAULT", sectionBreakLocation: { index: 0 } } },
+      ],
+    },
+  });
+
+  // 3. Read doc to discover all header/footer segment IDs
+  const doc = await docs.documents.get({ documentId: docId });
+  const docStyle = doc.data.documentStyle || {};
+
+  // 4. Build all content requests (body + header/footer images)
+  const requests = buildDocInsertRequests(reportMarkdown, {
+    studentName,
+    programName: metadata.programName,
+    academicYear: metadata.academicYear,
+  });
+
+  // Default header: small decoration on all non-first pages
+  if (docStyle.defaultHeaderId) {
+    requests.push(...buildSegmentImageRequests(
+      docStyle.defaultHeaderId,
+      assets.headerDefaultUrl,
+      dimensions.headerDefaultPt.width,
+      dimensions.headerDefaultPt.height,
+    ));
+  }
+
+  // First-page header: large decoration
+  if (docStyle.firstPageHeaderId) {
+    requests.push(...buildSegmentImageRequests(
+      docStyle.firstPageHeaderId,
+      assets.headerFirstPageUrl,
+      dimensions.headerFirstPagePt.width,
+      dimensions.headerFirstPagePt.height,
+    ));
+  }
+
+  // Default footer: footer pattern on all non-first pages
+  if (docStyle.defaultFooterId) {
+    requests.push(...buildSegmentImageRequests(
+      docStyle.defaultFooterId,
+      assets.footerUrl,
+      dimensions.footerPt.width,
+      dimensions.footerPt.height,
+    ));
+  }
+
+  // First-page footer: same footer pattern
+  if (docStyle.firstPageFooterId) {
+    requests.push(...buildSegmentImageRequests(
+      docStyle.firstPageFooterId,
+      assets.footerUrl,
+      dimensions.footerPt.width,
+      dimensions.footerPt.height,
+    ));
+  }
 
   if (requests.length) {
     await docs.documents.batchUpdate({
@@ -152,55 +254,146 @@ export async function createReportDoc(
 
 /**
  * Convert report markdown to Google Docs API batchUpdate requests.
- * Handles ## headings (h2), ### headings (h3), and body paragraphs.
- * Builds Docs API requests to insert formatted content at sequential indices.
+ * Produces a branded document with logo, student name, subtitle,
+ * styled body (headings + justified paragraphs), and footer image.
+ *
+ * @param {string} markdown - Report content in markdown format
+ * @param {Object} metadata - { studentName, programName, academicYear }
+ * @returns {Array} Google Docs API batchUpdate requests
  */
-export function buildDocInsertRequests(markdown) {
-  if (!markdown || !markdown.trim()) return [];
+export function buildDocInsertRequests(markdown, metadata = {}) {
+  const { assets, colors, fonts, dimensions } = REPORT_BRANDING;
+  const studentName = metadata.studentName || "";
+  const programName = metadata.programName || "";
+  const academicYear = metadata.academicYear || "";
 
-  const lines = markdown.split("\n");
-  const segments = [];
-
-  for (const line of lines) {
-    const h2Match = line.match(/^## (.+)$/);
-    const h3Match = line.match(/^###+ (.+)$/);
-
-    if (h2Match) {
-      segments.push({ text: h2Match[1] + "\n", style: "HEADING_2" });
-    } else if (h3Match) {
-      segments.push({ text: h3Match[1] + "\n", style: "HEADING_3" });
-    } else {
-      segments.push({ text: line + "\n", style: "NORMAL_TEXT" });
-    }
-  }
-
-  // Build requests: insert text at index 1 (after the default empty paragraph),
-  // then apply paragraph styles
   const requests = [];
-  let currentIndex = 1;
+  let idx = 1;
 
-  for (const segment of segments) {
+  // Helper: insert text and return the range { start, end }
+  const insertText = (text) => {
+    const start = idx;
+    requests.push({ insertText: { location: { index: idx }, text } });
+    idx += text.length;
+    return { start, end: idx };
+  };
+
+  // Helper: style a text range
+  const styleText = (range, style) => {
     requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: segment.text,
+      updateTextStyle: {
+        range: { startIndex: range.start, endIndex: range.end },
+        textStyle: style,
+        fields: Object.keys(style).join(","),
       },
     });
+  };
 
-    if (segment.style !== "NORMAL_TEXT") {
-      requests.push({
-        updateParagraphStyle: {
-          range: {
-            startIndex: currentIndex,
-            endIndex: currentIndex + segment.text.length,
-          },
-          paragraphStyle: { namedStyleType: segment.style },
-          fields: "namedStyleType",
+  // Helper: style a paragraph range
+  const styleParagraph = (range, style, fields) => {
+    requests.push({
+      updateParagraphStyle: {
+        range: { startIndex: range.start, endIndex: range.end },
+        paragraphStyle: style,
+        fields,
+      },
+    });
+  };
+
+  // Helper: insert inline image and advance index by 1
+  const insertImage = (uri, width, height) => {
+    const start = idx;
+    requests.push({
+      insertInlineImage: {
+        location: { index: idx },
+        uri,
+        objectSize: {
+          width: { magnitude: width, unit: "PT" },
+          height: { magnitude: height, unit: "PT" },
         },
-      });
-    }
+      },
+    });
+    idx += 1; // inline image occupies 1 index
+    return { start, end: idx };
+  };
 
-    currentIndex += segment.text.length;
+  // ── 1. Logo ──
+  insertImage(assets.logoUrl, dimensions.logoPt.width, dimensions.logoPt.height);
+  insertText("\n");
+
+  // ── 2. Student Name ──
+  if (studentName) {
+    const nameRange = insertText(studentName + "\n");
+    styleText(nameRange, {
+      bold: true,
+      fontSize: { magnitude: fonts.studentNameSize, unit: "PT" },
+      weightedFontFamily: { fontFamily: fonts.heading },
+      foregroundColor: { color: { rgbColor: colors.studentName } },
+    });
+  }
+
+  // ── 3. Subtitle ──
+  const subtitleParts = [programName ? `${programName} Program` : "", "Educator Summary", "Term 1", academicYear ? `AY ${academicYear}` : ""].filter(Boolean);
+  const subtitleText = subtitleParts.join(" | ");
+  if (subtitleText) {
+    const subRange = insertText(subtitleText + "\n");
+    styleText(subRange, {
+      bold: true,
+      fontSize: { magnitude: fonts.subtitleSize, unit: "PT" },
+      weightedFontFamily: { fontFamily: fonts.heading },
+      foregroundColor: { color: { rgbColor: colors.subtitle } },
+    });
+  }
+
+  // ── 4. Blank separator ──
+  insertText("\n");
+
+  // ── 5. Body content ──
+  if (markdown && markdown.trim()) {
+    const lines = markdown.split("\n");
+
+    for (const line of lines) {
+      const h2Match = line.match(/^## (.+)$/);
+      const h3Match = line.match(/^###+ (.+)$/);
+
+      if (h2Match) {
+        const range = insertText(h2Match[1] + "\n");
+        styleText(range, {
+          bold: true,
+          fontSize: { magnitude: fonts.headingSize, unit: "PT" },
+          weightedFontFamily: { fontFamily: fonts.heading },
+          foregroundColor: { color: { rgbColor: colors.heading } },
+        });
+        styleParagraph(range, { spaceAbove: { magnitude: 18, unit: "PT" } }, "spaceAbove");
+      } else if (h3Match) {
+        const range = insertText(h3Match[1] + "\n");
+        styleText(range, {
+          bold: true,
+          fontSize: { magnitude: 12, unit: "PT" },
+          weightedFontFamily: { fontFamily: fonts.heading },
+          foregroundColor: { color: { rgbColor: colors.heading } },
+        });
+        styleParagraph(range, { spaceAbove: { magnitude: 12, unit: "PT" } }, "spaceAbove");
+      } else if (line.trim()) {
+        const range = insertText(line + "\n");
+        styleText(range, {
+          fontSize: { magnitude: fonts.bodySize, unit: "PT" },
+          weightedFontFamily: { fontFamily: fonts.body },
+        });
+        styleParagraph(
+          range,
+          {
+            alignment: "JUSTIFIED",
+            spaceAbove: { magnitude: 6, unit: "PT" },
+            spaceBelow: { magnitude: 6, unit: "PT" },
+          },
+          "alignment,spaceAbove,spaceBelow",
+        );
+      } else {
+        // Empty line → paragraph break
+        insertText("\n");
+      }
+    }
   }
 
   return requests;

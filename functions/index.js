@@ -21,7 +21,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, getAcademicYear, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -4136,11 +4136,12 @@ export const exportReportToDrive = functions
     // Count existing report docs to determine version
     const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
     const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+    const academicYear = getAcademicYear(report.generatedAt?.toDate?.() || new Date());
 
     // Create the Google Doc in student folder
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
-      existingCount, generatedAtIso,
+      existingCount, generatedAtIso, { programName, academicYear },
     );
 
     // Update summary CSV in classroom folder
@@ -4268,9 +4269,10 @@ export const exportClassroomReportsToDrive = functions
 
         const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
         const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+        const academicYear = getAcademicYear(report.generatedAt?.toDate?.() || new Date());
         const { docId: driveDocId, docLink } = await createReportDoc(
           drive, docs, studentFolderId, studentName, report.reportText,
-          existingCount, generatedAtIso,
+          existingCount, generatedAtIso, { programName, academicYear },
         );
 
         // Update report doc with Drive link

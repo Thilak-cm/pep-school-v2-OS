@@ -14,6 +14,18 @@ export function getDefaultDateRange(now = new Date()) {
 }
 
 /**
+ * Returns the academic year string for a given date.
+ * Academic year starts in November (REPORT_DEFAULTS.defaultStartMonth).
+ * March 2026 → "2025-26", December 2026 → "2026-27"
+ */
+export function getAcademicYear(date = new Date()) {
+  const startYear = date.getMonth() >= REPORT_DEFAULTS.defaultStartMonth
+    ? date.getFullYear()
+    : date.getFullYear() - 1;
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
+/**
  * Parse the structured JSON response from GPT-4o report generation.
  * Expected shape: { reportText, sentimentScore, areaBalanceScore, missingInputFlags }
  */

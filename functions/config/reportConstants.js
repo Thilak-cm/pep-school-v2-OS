@@ -13,11 +13,46 @@ export const REPORT_DEFAULTS = {
 export const REPORT_PROMPT_DOCS = {
   adolescent: "report_adolescent",
   elementary: "report_elementary",
-  // primary: "report_primary", // TBD — prompt not yet available
+  primary: "report_primary",
+  toddler: "report_toddler",
 };
 
 // Concurrency limit for bulk report generation
 export const REPORT_BULK_CONCURRENCY = 5;
+
+// Branding for Google Doc report template
+const STORAGE_BASE = "https://storage.googleapis.com/pep-os.firebasestorage.app/assets/branding";
+export const REPORT_BRANDING = {
+  assets: {
+    logoUrl: `${STORAGE_BASE}/pep-logo.png`,
+    footerUrl: `${STORAGE_BASE}/footer-pattern.png`,
+    headerFirstPageUrl: `${STORAGE_BASE}/header-first-page.png`,
+    headerDefaultUrl: `${STORAGE_BASE}/header-default.png`,
+  },
+  colors: {
+    studentName: { red: 0.10, green: 0.14, blue: 0.49 }, // Dark navy (#1A237E)
+    subtitle: { red: 0.19, green: 0.22, blue: 0.57 }, // Indigo 800 (#303F9F)
+    heading: { red: 0.13, green: 0.13, blue: 0.13 }, // Near-black
+  },
+  fonts: {
+    heading: "Montserrat",
+    body: "Georgia",
+    studentNameSize: 24,
+    subtitleSize: 10,
+    headingSize: 13,
+    bodySize: 11,
+  },
+  dimensions: {
+    // Logo: 1500×269px → scaled to ~150pt wide, preserve aspect ratio
+    logoPt: { width: 150, height: 27 },
+    // Footer: 2029×279px → full page width ~468pt, preserve aspect ratio
+    footerPt: { width: 468, height: 64 },
+    // First-page header corner: 800×800px → 80pt square
+    headerFirstPagePt: { width: 80, height: 80 },
+    // Default header corner: 300×300px → 45pt square
+    headerDefaultPt: { width: 45, height: 45 },
+  },
+};
 
 // Google Drive export constants
 export const DRIVE_CONSTANTS = {
