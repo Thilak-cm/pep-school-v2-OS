@@ -148,7 +148,25 @@ export const createAuthUserAndProfile = functions
           status: status || existingData.status || "active",
           updatedAt: new Date(),
         };
-        if (existingData.role === "classroomadmin" && hasManageableClassroomsInput) {
+        // Handle role promotion (e.g. teacher → classroomadmin)
+        if (normalizedRole !== existingData.role) {
+          if (normalizedRole === "classroomadmin") {
+            if (!isSuperAdmin) {
+              throw new functions.https.HttpsError("permission-denied", "Only super admins can promote users to classroom admin");
+            }
+            if (normalizedManageableClassrooms.length === 0) {
+              throw new functions.https.HttpsError("invalid-argument", "Classroom admins must manage at least one classroom");
+            }
+            updateData.role = normalizedRole;
+            updateData.manageableClassrooms = normalizedManageableClassrooms;
+          } else if (normalizedRole === "superadmin") {
+            if (!isSuperAdmin) {
+              throw new functions.https.HttpsError("permission-denied", "Only super admins can promote users to super admin");
+            }
+            updateData.role = normalizedRole;
+          }
+        } else if (existingData.role === "classroomadmin" && hasManageableClassroomsInput) {
+          // Editing existing classroom admin's manageable classrooms (no role change)
           if (!isSuperAdmin) {
             throw new functions.https.HttpsError("permission-denied", "Only super admins can edit classroom admins");
           }
@@ -197,7 +215,7 @@ export const createAuthUserAndProfile = functions
           }
         }
 
-        return { ok: true, uid: isMigrated ? existingDocId : null, updated: true, role: existingData.role };
+        return { ok: true, uid: isMigrated ? existingDocId : null, updated: true, role: updateData.role || existingData.role };
       }
 
       // Create pending Firestore profile (no Auth account - Google-only)
