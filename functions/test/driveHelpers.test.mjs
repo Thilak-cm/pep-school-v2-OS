@@ -4,6 +4,8 @@ import {
   resolveStudentName,
   capitalize,
   buildReportDocTitle,
+  buildDocInsertRequests,
+  buildSegmentImageRequests,
 } from "../utils/driveHelpers.js";
 
 describe("resolveStudentName", () => {
@@ -97,5 +99,123 @@ describe("buildReportDocTitle", () => {
       buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z", 0),
       "Aakash Mehta — Progress Report (2026-02-28)",
     );
+  });
+});
+
+describe("buildDocInsertRequests", () => {
+  it("produces logo, name, and subtitle even with empty markdown", () => {
+    const requests = buildDocInsertRequests("", {
+      studentName: "Aakash Mehta",
+      programName: "Adolescent",
+      academicYear: "2025-26",
+    });
+    assert.ok(requests.length > 0, "should produce requests");
+
+    // Logo image at index 1
+    const logoReq = requests.find((r) => r.insertInlineImage);
+    assert.ok(logoReq, "should have an insertInlineImage for logo");
+    assert.equal(logoReq.insertInlineImage.location.index, 1);
+    assert.ok(logoReq.insertInlineImage.uri.includes("pep-logo.png"));
+
+    // Student name text present
+    const nameReq = requests.find((r) =>
+      r.insertText?.text?.includes("Aakash Mehta"),
+    );
+    assert.ok(nameReq, "should insert student name");
+
+    // Subtitle with program name + AY
+    const subReq = requests.find((r) =>
+      r.insertText?.text?.includes("Adolescent Program") &&
+      r.insertText?.text?.includes("AY 2025-26"),
+    );
+    assert.ok(subReq, "should insert subtitle with program and AY");
+
+    // Only the logo image in body (footer/headers handled separately)
+    const imageReqs = requests.filter((r) => r.insertInlineImage);
+    assert.equal(imageReqs.length, 1, "should have exactly 1 image (logo only)");
+  });
+
+  it("produces bold text style for ## headings", () => {
+    const requests = buildDocInsertRequests("## Personal Development", {
+      studentName: "Priya",
+    });
+    const textReqs = requests.filter((r) =>
+      r.insertText?.text?.includes("Personal Development"),
+    );
+    assert.ok(textReqs.length > 0, "should insert heading text");
+
+    const styleReqs = requests.filter((r) =>
+      r.updateTextStyle?.textStyle?.bold === true &&
+      r.updateTextStyle?.textStyle?.weightedFontFamily?.fontFamily === "Montserrat",
+    );
+    assert.ok(styleReqs.length > 0, "should have bold Montserrat style for headings");
+  });
+
+  it("produces justified alignment for body paragraphs", () => {
+    const requests = buildDocInsertRequests("Aakash is doing well in math.", {});
+    const justifiedReqs = requests.filter((r) =>
+      r.updateParagraphStyle?.paragraphStyle?.alignment === "JUSTIFIED",
+    );
+    assert.ok(justifiedReqs.length > 0, "body text should be justified");
+  });
+
+  it("handles missing metadata gracefully (no crash)", () => {
+    const requests = buildDocInsertRequests("Some body text.");
+    assert.ok(Array.isArray(requests));
+    assert.ok(requests.length > 0);
+  });
+
+  it("handles null/undefined markdown with metadata", () => {
+    const requests = buildDocInsertRequests(null, {
+      studentName: "Aakash",
+      programName: "Elementary",
+      academicYear: "2025-26",
+    });
+    assert.ok(Array.isArray(requests));
+    // Should still have logo, name, subtitle
+    assert.ok(requests.length > 0);
+  });
+
+  it("produces index values in ascending order for all insert operations", () => {
+    const requests = buildDocInsertRequests("## Heading\n\nSome body text.\n\n### Sub heading\n\nMore text.", {
+      studentName: "Aakash Mehta",
+      programName: "Adolescent",
+      academicYear: "2025-26",
+    });
+
+    const insertIndices = requests
+      .filter((r) => r.insertText || r.insertInlineImage)
+      .map((r) => (r.insertText?.location?.index ?? r.insertInlineImage?.location?.index));
+
+    for (let i = 1; i < insertIndices.length; i++) {
+      assert.ok(
+        insertIndices[i] >= insertIndices[i - 1],
+        `index ${insertIndices[i]} should be >= ${insertIndices[i - 1]}`,
+      );
+    }
+  });
+});
+
+describe("buildSegmentImageRequests", () => {
+  it("produces insertInlineImage and right-align paragraph style", () => {
+    const requests = buildSegmentImageRequests(
+      "header-abc", "https://example.com/img.png", 100, 50,
+    );
+    assert.equal(requests.length, 2);
+
+    // First request: insert image at index 0 in the segment
+    const imgReq = requests[0];
+    assert.ok(imgReq.insertInlineImage);
+    assert.equal(imgReq.insertInlineImage.location.segmentId, "header-abc");
+    assert.equal(imgReq.insertInlineImage.location.index, 0);
+    assert.equal(imgReq.insertInlineImage.uri, "https://example.com/img.png");
+    assert.equal(imgReq.insertInlineImage.objectSize.width.magnitude, 100);
+    assert.equal(imgReq.insertInlineImage.objectSize.height.magnitude, 50);
+
+    // Second request: right-align the paragraph
+    const paraReq = requests[1];
+    assert.ok(paraReq.updateParagraphStyle);
+    assert.equal(paraReq.updateParagraphStyle.range.segmentId, "header-abc");
+    assert.equal(paraReq.updateParagraphStyle.paragraphStyle.alignment, "END");
   });
 });

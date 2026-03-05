@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   getDefaultDateRange,
+  getAcademicYear,
   parseReportResponse,
   getReportPromptDocId,
   formatCsvRow,
@@ -42,6 +43,37 @@ describe("getDefaultDateRange", () => {
     const now = new Date(2026, 5, 1);
     const { end } = getDefaultDateRange(now);
     assert.equal(end.getTime(), now.getTime());
+  });
+});
+
+describe("getAcademicYear", () => {
+  it("returns previous year start for months before November (March 2026 → 2025-26)", () => {
+    assert.equal(getAcademicYear(new Date(2026, 2, 15)), "2025-26");
+  });
+
+  it("returns current year start for November (Nov 2026 → 2026-27)", () => {
+    assert.equal(getAcademicYear(new Date(2026, 10, 1)), "2026-27");
+  });
+
+  it("returns current year start for December (Dec 2026 → 2026-27)", () => {
+    assert.equal(getAcademicYear(new Date(2026, 11, 25)), "2026-27");
+  });
+
+  it("handles Oct 31 boundary (still previous academic year)", () => {
+    assert.equal(getAcademicYear(new Date(2026, 9, 31)), "2025-26");
+  });
+
+  it("handles Nov 1 boundary (new academic year)", () => {
+    assert.equal(getAcademicYear(new Date(2026, 10, 1)), "2026-27");
+  });
+
+  it("handles January (start of calendar year)", () => {
+    assert.equal(getAcademicYear(new Date(2027, 0, 5)), "2026-27");
+  });
+
+  it("defaults to current date when no argument provided", () => {
+    const result = getAcademicYear();
+    assert.match(result, /^\d{4}-\d{2}$/);
   });
 });
 
@@ -134,8 +166,12 @@ describe("getReportPromptDocId", () => {
     assert.equal(getReportPromptDocId("elementary"), "report_elementary");
   });
 
-  it("returns null for unsupported program", () => {
-    assert.equal(getReportPromptDocId("primary"), null);
+  it("returns correct doc ID for primary program", () => {
+    assert.equal(getReportPromptDocId("primary"), "report_primary");
+  });
+
+  it("returns correct doc ID for toddler program", () => {
+    assert.equal(getReportPromptDocId("toddler"), "report_toddler");
   });
 
   it("returns null for undefined/empty input", () => {
