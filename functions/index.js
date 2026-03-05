@@ -164,6 +164,11 @@ export const createAuthUserAndProfile = functions
               throw new functions.https.HttpsError("permission-denied", "Only super admins can promote users to super admin");
             }
             updateData.role = normalizedRole;
+          } else if (normalizedRole === "teacher") {
+            if (!isSuperAdmin) {
+              throw new functions.https.HttpsError("permission-denied", "Only super admins can change user roles");
+            }
+            updateData.role = normalizedRole;
           }
         } else if (existingData.role === "classroomadmin" && hasManageableClassroomsInput) {
           // Editing existing classroom admin's manageable classrooms (no role change)
