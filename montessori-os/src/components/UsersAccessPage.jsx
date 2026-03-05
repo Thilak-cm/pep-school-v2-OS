@@ -16,7 +16,6 @@ import {
   query,
   where,
   doc,
-  setDoc,
   updateDoc,
   runTransaction,
   Timestamp,
@@ -30,6 +29,7 @@ import {
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { filterTeachersForAdmin, isUserInScope } from '../utils/scopeUtils.js';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -628,9 +628,17 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { type, user } = deleteTarget;
-    
+
     if (user.id === currentUser?.uid) {
       notify.error('You cannot delete your own account');
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      return;
+    }
+
+    // AC3: Classroom admins can only delete teachers in their scope
+    if (isClassroomAdminUser && type === 'teacher' && !isUserInScope(user.id, classrooms, manageableClassrooms)) {
+      notify.error('You can only manage teachers in your assigned classrooms');
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
       return;
@@ -722,7 +730,14 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   const saveManage = async () => {
     if (!manageTeacher || (manageTeacher.status || 'active') !== 'active') return;
-    
+
+    // AC3: Classroom admins can only manage teachers in their scope
+    if (isClassroomAdminUser && !isUserInScope(manageTeacher.id, classrooms, manageableClassrooms)) {
+      notify.error('You can only manage teachers in your assigned classrooms');
+      setManageOpen(false);
+      return;
+    }
+
     const currentIds = new Set(getTeacherClassroomIds(manageTeacher.id));
     const nextIds = new Set(manageSelectedIds);
     const toAdd = [...nextIds].filter(x => !currentIds.has(x));
@@ -1047,12 +1062,19 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     try {
       setClassroomDialogSaving(true);
       if (classroomDialogMode === 'promote') {
-        const userRef = doc(db, 'users', classroomDialogTarget.id);
-        await setDoc(userRef, {
+        // AC4: Route promote through server-side validation
+        // Fall back to displayName parts when firstName is missing (migrated users)
+        const nameParts = (classroomDialogTarget.displayName || '').split(' ');
+        const firstName = classroomDialogTarget.firstName || nameParts[0] || classroomDialogTarget.email?.split('@')[0] || '';
+        const lastName = classroomDialogTarget.lastName || nameParts.slice(1).join(' ') || '';
+        await createAuthUserAndProfile({
+          email: classroomDialogTarget.email,
+          firstName,
+          lastName,
           role: 'classroomadmin',
           manageableClassrooms: classroomDialogSelection,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
+          updateIfExists: true,
+        });
         notify.success('Teacher promoted to classroom admin');
         setClassroomDialogOpen(false);
         setClassroomDialogTarget(null);
@@ -1060,18 +1082,22 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         try {
           await fetchTeachers();
         } catch (_) {
-          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at L1061');
+          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at promote-refresh-teachers');
         }
         try {
           await fetchAdmins();
         } catch (_) {
-          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at L1064');
+          reportCaughtError(_, 'UsersAccessPage', 'swallow-only try/catch at promote-refresh-admins');
         }
       } else {
+        // Fall back to displayName parts when firstName is missing (migrated users)
+        const editNameParts = (classroomDialogTarget.displayName || '').split(' ');
+        const editFirstName = classroomDialogTarget.firstName || editNameParts[0] || classroomDialogTarget.email?.split('@')[0] || '';
+        const editLastName = classroomDialogTarget.lastName || editNameParts.slice(1).join(' ') || '';
         await createAuthUserAndProfile({
           email: classroomDialogTarget.email,
-          firstName: classroomDialogTarget.firstName || '',
-          lastName: classroomDialogTarget.lastName || '',
+          firstName: editFirstName,
+          lastName: editLastName,
           role: 'classroomadmin',
           manageableClassrooms: classroomDialogSelection,
           updateIfExists: true,
@@ -1104,7 +1130,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   // ============================================================================
 
   const filterTeachers = useMemo(() => {
-    return teachers.filter(t => {
+    // AC1: Classroom admins only see teachers in their manageable classrooms
+    const scopedTeachers = isClassroomAdminUser
+      ? filterTeachersForAdmin(teachers, classrooms, manageableClassrooms)
+      : teachers;
+
+    return scopedTeachers.filter(t => {
       const q = teacherSearch.trim().toLowerCase();
       if (q) {
         const name = `${t.firstName || ''} ${t.lastName || ''}`.trim().toLowerCase();
@@ -1113,20 +1144,20 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           return false;
         }
       }
-      
+
       const status = (t.status || 'active');
       if (statusFilter === 'active' && status !== 'active') return false;
       if (statusFilter === 'inactive' && status === 'active') return false;
-      
+
       const assigned = getTeacherClassroomIds(t.id);
       if (onlyNoClassrooms && assigned.length > 0) return false;
       if (selectedClassroomFilterIds.length > 0 && !assigned.some(cid => selectedClassroomFilterIds.includes(cid))) {
         return false;
       }
-      
+
       return true;
     });
-  }, [teachers, teacherSearch, statusFilter, onlyNoClassrooms, selectedClassroomFilterIds, getTeacherClassroomIds]);
+  }, [teachers, classrooms, manageableClassrooms, isClassroomAdminUser, teacherSearch, statusFilter, onlyNoClassrooms, selectedClassroomFilterIds, getTeacherClassroomIds]);
 
   const filterStudents = useMemo(() => {
     return students.filter(s => {
