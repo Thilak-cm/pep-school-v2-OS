@@ -115,11 +115,18 @@ export async function countExistingReportDocs(drive, folderId, studentName) {
 }
 
 /**
- * Build Docs API requests to insert a right-aligned image into a
- * header, footer, or other segment. Each segment has its own index space
- * starting at 0.
+ * Build Docs API requests to insert an image into a header/footer segment.
+ * Each segment has its own index space starting at 0.
+ *
+ * @param {string} segmentId - Header or footer segment ID
+ * @param {string} imageUri - Public URL of the image
+ * @param {number} width - Image width in PT
+ * @param {number} height - Image height in PT
+ * @param {Object} [options]
+ * @param {string} [options.alignment="END"] - Paragraph alignment (END for headers, START for footers)
  */
-export function buildSegmentImageRequests(segmentId, imageUri, width, height) {
+export function buildSegmentImageRequests(segmentId, imageUri, width, height, options = {}) {
+  const alignment = options.alignment || "END";
   return [
     {
       insertInlineImage: {
@@ -134,8 +141,14 @@ export function buildSegmentImageRequests(segmentId, imageUri, width, height) {
     {
       updateParagraphStyle: {
         range: { segmentId, startIndex: 0, endIndex: 1 },
-        paragraphStyle: { alignment: "END" },
-        fields: "alignment",
+        paragraphStyle: {
+          alignment,
+          spaceAbove: { magnitude: 0, unit: "PT" },
+          spaceBelow: { magnitude: 0, unit: "PT" },
+          indentStart: { magnitude: 0, unit: "PT" },
+          indentEnd: { magnitude: 0, unit: "PT" },
+        },
+        fields: "alignment,spaceAbove,spaceBelow,indentStart,indentEnd",
       },
     },
   ];
@@ -173,16 +186,22 @@ export async function createReportDoc(
   const docId = file.data.id;
   const docLink = file.data.webViewLink;
 
-  // 2. Set up document structure: enable different first-page header,
-  //    create default header + footer
+  // 2. Set up document structure: zero out margins so header/footer images
+  //    touch page edges, enable different first-page header, create segments
   await docs.documents.batchUpdate({
     documentId: docId,
     requestBody: {
       requests: [
         {
           updateDocumentStyle: {
-            documentStyle: { useFirstPageHeaderFooter: true },
-            fields: "useFirstPageHeaderFooter",
+            documentStyle: {
+              useFirstPageHeaderFooter: true,
+              marginLeft: { magnitude: 0, unit: "PT" },
+              marginRight: { magnitude: 0, unit: "PT" },
+              marginHeader: { magnitude: 0, unit: "PT" },
+              marginFooter: { magnitude: 0, unit: "PT" },
+            },
+            fields: "useFirstPageHeaderFooter,marginLeft,marginRight,marginHeader,marginFooter",
           },
         },
         { createHeader: { type: "DEFAULT", sectionBreakLocation: { index: 0 } } },
@@ -222,23 +241,25 @@ export async function createReportDoc(
     ));
   }
 
-  // Default footer: footer pattern on all non-first pages
+  // Default footer: footer pattern on all non-first pages (full width)
   if (docStyle.defaultFooterId) {
     requests.push(...buildSegmentImageRequests(
       docStyle.defaultFooterId,
       assets.footerUrl,
       dimensions.footerPt.width,
       dimensions.footerPt.height,
+      { alignment: "START" },
     ));
   }
 
-  // First-page footer: same footer pattern
+  // First-page footer: same footer pattern (full width)
   if (docStyle.firstPageFooterId) {
     requests.push(...buildSegmentImageRequests(
       docStyle.firstPageFooterId,
       assets.footerUrl,
       dimensions.footerPt.width,
       dimensions.footerPt.height,
+      { alignment: "START" },
     ));
   }
 
@@ -333,7 +354,7 @@ export function buildDocInsertRequests(markdown, metadata = {}) {
   }
 
   // ── 3. Subtitle ──
-  const subtitleParts = [programName ? `${programName} Program` : "", "Educator Summary", "Term 1", academicYear ? `AY ${academicYear}` : ""].filter(Boolean);
+  const subtitleParts = [programName ? `${programName} Program` : "", "Educator Summary", academicYear ? `AY ${academicYear}` : ""].filter(Boolean);
   const subtitleText = subtitleParts.join(" | ");
   if (subtitleText) {
     const subRange = insertText(subtitleText + "\n");
@@ -394,6 +415,20 @@ export function buildDocInsertRequests(markdown, metadata = {}) {
         insertText("\n");
       }
     }
+  }
+
+  // ── 6. Bulk indentation ──
+  // Page left/right margins are 0 so header/footer images touch edges.
+  // Compensate by indenting all body paragraphs 72pt (1 inch) each side.
+  if (idx > 1) {
+    styleParagraph(
+      { start: 1, end: idx },
+      {
+        indentStart: { magnitude: 72, unit: "PT" },
+        indentEnd: { magnitude: 72, unit: "PT" },
+      },
+      "indentStart,indentEnd",
+    );
   }
 
   return requests;

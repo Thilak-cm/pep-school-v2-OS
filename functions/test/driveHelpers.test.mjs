@@ -123,12 +123,13 @@ describe("buildDocInsertRequests", () => {
     );
     assert.ok(nameReq, "should insert student name");
 
-    // Subtitle with program name + AY
+    // Subtitle with program name + AY (no Term 1)
     const subReq = requests.find((r) =>
       r.insertText?.text?.includes("Adolescent Program") &&
       r.insertText?.text?.includes("AY 2025-26"),
     );
     assert.ok(subReq, "should insert subtitle with program and AY");
+    assert.ok(!subReq.insertText.text.includes("Term 1"), "should not include Term 1");
 
     // Only the logo image in body (footer/headers handled separately)
     const imageReqs = requests.filter((r) => r.insertInlineImage);
@@ -197,7 +198,7 @@ describe("buildDocInsertRequests", () => {
 });
 
 describe("buildSegmentImageRequests", () => {
-  it("produces insertInlineImage and right-align paragraph style", () => {
+  it("defaults to right-aligned (END) with zero spacing", () => {
     const requests = buildSegmentImageRequests(
       "header-abc", "https://example.com/img.png", 100, 50,
     );
@@ -212,10 +213,21 @@ describe("buildSegmentImageRequests", () => {
     assert.equal(imgReq.insertInlineImage.objectSize.width.magnitude, 100);
     assert.equal(imgReq.insertInlineImage.objectSize.height.magnitude, 50);
 
-    // Second request: right-align the paragraph
+    // Second request: right-align with zero spacing/indentation
     const paraReq = requests[1];
     assert.ok(paraReq.updateParagraphStyle);
     assert.equal(paraReq.updateParagraphStyle.range.segmentId, "header-abc");
     assert.equal(paraReq.updateParagraphStyle.paragraphStyle.alignment, "END");
+    assert.equal(paraReq.updateParagraphStyle.paragraphStyle.spaceAbove.magnitude, 0);
+    assert.equal(paraReq.updateParagraphStyle.paragraphStyle.indentStart.magnitude, 0);
+  });
+
+  it("accepts custom alignment via options", () => {
+    const requests = buildSegmentImageRequests(
+      "footer-xyz", "https://example.com/footer.png", 612, 84,
+      { alignment: "START" },
+    );
+    const paraReq = requests[1];
+    assert.equal(paraReq.updateParagraphStyle.paragraphStyle.alignment, "START");
   });
 });

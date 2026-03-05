@@ -45,8 +45,8 @@ export const REPORT_BRANDING = {
   dimensions: {
     // Logo: 1500×269px → scaled to ~150pt wide, preserve aspect ratio
     logoPt: { width: 150, height: 27 },
-    // Footer: 2029×279px → full page width ~468pt, preserve aspect ratio
-    footerPt: { width: 468, height: 64 },
+    // Footer: 2029×279px → full US-Letter width 612pt, preserve aspect ratio
+    footerPt: { width: 612, height: 84 },
     // First-page header corner: 800×800px → 80pt square
     headerFirstPagePt: { width: 80, height: 80 },
     // Default header corner: 300×300px → 45pt square
