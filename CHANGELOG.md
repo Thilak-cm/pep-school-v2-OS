@@ -1,5 +1,13 @@
 # Changelog
 
+# 9.6.1 — 2026-03-05
+
+### Fixed
+- Classroom admins on Users & Access page now only see and act on teachers assigned to their manageable classrooms (PEP-48)
+- Promote-teacher-to-admin flow routed through server-side validation instead of direct Firestore write (PEP-48)
+- Delete and manage-classrooms actions gated to in-scope teachers for classroom admins (PEP-48)
+- firstName/lastName fallback for migrated users in promote/edit Cloud Function calls (PEP-48)
+
 # 9.6.0 — 2026-03-03
 
 ### Added
