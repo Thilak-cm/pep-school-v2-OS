@@ -294,7 +294,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           const batch = teacherIds.slice(i, i + batchSize);
           const snap = await getDocs(query(
             collection(db, 'users'),
-            where(documentId(), 'in', batch)
+            where(documentId(), 'in', batch),
+            where('role', '==', 'teacher')
           ));
           list.push(...snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
         }
