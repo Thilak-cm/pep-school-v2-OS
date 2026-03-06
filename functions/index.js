@@ -286,6 +286,38 @@ const HANDWRITING_VLM_MODEL = { model: "gpt-4o-mini", temperature: 0.1, max_toke
 const HANDWRITING_VLM_FALLBACK_PROMPT = "You are a classroom image classifier. Your only job is to determine whether the image contains handwriting (letters, numbers, or words written by hand). Respond with exactly one word: YES or NO.";
 const MAX_PDF_TEXT_LENGTH = 15000;
 
+/**
+ * Returns true if the model is a reasoning model that does not support
+ * temperature, top_p, frequency_penalty, or presence_penalty.
+ * GPT-5 base/mini/nano are reasoning models; gpt-5-chat-* variants are not.
+ */
+function isReasoningModel(model) {
+  if (!model) return false;
+  const m = model.toLowerCase();
+  // o-series reasoning models
+  if (/^o[13]/.test(m)) return true;
+  // GPT-5 family (but NOT gpt-5-chat variants which support temperature)
+  if (m.startsWith("gpt-5") && !m.includes("-chat")) return true;
+  return false;
+}
+
+/**
+ * Build a request body for the OpenAI Chat Completions API.
+ * Automatically strips unsupported parameters for reasoning models.
+ */
+function buildChatBody({ model, messages, temperature, max_completion_tokens, response_format, stream }) {
+  const body = { model, messages };
+  if (max_completion_tokens != null) body.max_completion_tokens = max_completion_tokens;
+  if (stream) body.stream = true;
+  if (response_format) body.response_format = response_format;
+
+  // Only include temperature for non-reasoning models
+  if (!isReasoningModel(model) && temperature != null) {
+    body.temperature = temperature;
+  }
+  return body;
+}
+
 async function runChatCompletion(messages, modelInfo) {
   const openAiKey = getOpenAiKey();
   if (!openAiKey) {
@@ -300,12 +332,12 @@ async function runChatCompletion(messages, modelInfo) {
         "Authorization": `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
+      body: JSON.stringify(buildChatBody({
         model: modelInfo.model,
         messages,
         temperature: modelInfo.temperature,
         max_completion_tokens: modelInfo.max_tokens,
-      }),
+      })),
     });
   } catch (err) {
     console.error("[runChatCompletion] network error", err);
@@ -934,7 +966,7 @@ export const aiTextCleanup = functions
 
     const renderedUser = interpolate(userPrompt || "Please clean up the following observation. Density: ${tone}. --- ${text} ---", { tone, text });
 
-    const body = {
+    const body = buildChatBody({
       model: CLEANUP_MODEL_INFO.model,
       messages: [
         { role: "system", content: systemPrompt || "" },
@@ -942,7 +974,7 @@ export const aiTextCleanup = functions
       ],
       temperature: CLEANUP_MODEL_INFO.temperature,
       max_completion_tokens: CLEANUP_MODEL_INFO.max_tokens,
-    };
+    });
 
     let response;
     try {
@@ -1277,7 +1309,7 @@ export const aiCoachReview = functions
 
       // avoid logging prompt contents in production
 
-      const body = {
+      const body = buildChatBody({
         model: COACH_MODEL_INFO.model,
         messages: [
           { role: "system", content: enhancedSystemPrompt },
@@ -1285,8 +1317,8 @@ export const aiCoachReview = functions
         ],
         temperature: COACH_MODEL_INFO.temperature,
         max_completion_tokens: COACH_MODEL_INFO.max_tokens,
-        response_format: { type: "json_object" }, // Force JSON response
-      };
+        response_format: { type: "json_object" },
+      });
 
       // avoid logging request body details
 
@@ -1582,7 +1614,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     .replaceAll("<STUDENT_AGE>", safeContext.age);
   const userPrompt = `Generate the last ${windowDays}-day summary.\n\nStudent:\n${JSON.stringify(safeContext)}\n\nNotes (JSON array):\n${JSON.stringify(notes)}`;
 
-  const body = {
+  const body = buildChatBody({
     model: config.model || BASEBALL_CARD_DEFAULTS.model,
     messages: [
       { role: "system", content: renderedSystem },
@@ -1591,7 +1623,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
     temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
     max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
-  };
+  });
 
   let response;
   try {
@@ -2143,7 +2175,7 @@ async function callWritingSnapshotVLM(samples, config, prompt, studentContext, m
     text: "Analyze these writing samples and respond with the JSON assessment.",
   });
 
-  const body = {
+  const body = buildChatBody({
     model: config.model || WRITING_SNAPSHOT_DEFAULTS.model,
     messages: [
       { role: "system", content: renderedSystem },
@@ -2152,7 +2184,7 @@ async function callWritingSnapshotVLM(samples, config, prompt, studentContext, m
     temperature: Number.isFinite(config.temperature) ? config.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
     max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
-  };
+  });
 
   let response;
   try {
@@ -2756,13 +2788,13 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
 
   const messages = buildOpenAIMessages(contextPack);
 
-  const body = {
+  const body = buildChatBody({
     model: model || CHAT_MODEL_INFO.model,
     messages,
     temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
     max_completion_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
-    stream: true, // Enable streaming
-  };
+    stream: true,
+  });
 
   let response;
   try {
@@ -2861,13 +2893,13 @@ async function streamChildChat(contextPack, model, temperature, max_tokens, send
 
   const messages = buildOpenAIMessages(contextPack);
 
-  const body = {
+  const body = buildChatBody({
     model: model || CHAT_MODEL_INFO.model,
     messages,
     temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
     max_completion_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
-    stream: true, // Enable streaming
-  };
+    stream: true,
+  });
 
   let response;
   try {
@@ -3105,7 +3137,7 @@ async function generateChatName(firstMessage) {
         Authorization: `Bearer ${openAiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
+      body: JSON.stringify(buildChatBody({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -3115,7 +3147,7 @@ async function generateChatName(firstMessage) {
         ],
         temperature: 0.7,
         max_completion_tokens: 50,
-      }),
+      })),
     });
 
     if (!response.ok) {
@@ -3743,7 +3775,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     JSON.stringify(notes),
   ].join("\n");
 
-  const body = {
+  const body = buildChatBody({
     model: config.model || REPORT_DEFAULTS.model,
     messages: [
       { role: "system", content: systemContent },
@@ -3752,7 +3784,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
     max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
-  };
+  });
 
   let response;
   try {
