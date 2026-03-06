@@ -5,7 +5,7 @@ import {
   List, ListItemButton, ListItemAvatar, ListItemText, IconButton, Checkbox, ListItemIcon, ListItem,
   Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, Delete, Edit } from '@mui/icons-material';
+import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, Delete, Edit, ExpandMore } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -117,7 +117,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [studentStatusFilter, setStudentStatusFilter] = useState('all');
   const [studentClassroomFilterOpen, setStudentClassroomFilterOpen] = useState(false);
   const [selectedStudentClassroomFilterIds, setSelectedStudentClassroomFilterIds] = useState([]);
-  
+
+  // Display-level pagination limits per tab
+  const [displayLimits, setDisplayLimits] = useState({ teachers: 10, classroomadmins: 10, superadmins: 10, students: 10 });
+
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -198,6 +201,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, manageTab, hasUserManagementAccess, canManageAdmins, canViewAdmins, teachers.length, admins.length, superAdmins.length, students.length, classrooms.length]);
+
+  // Reset display limits when teacher filters change
+  useEffect(() => {
+    setDisplayLimits(prev => ({ ...prev, teachers: 10 }));
+  }, [teacherSearch, statusFilter, onlyNoClassrooms, selectedClassroomFilterIds]);
+
+  // Reset display limits when student filters change
+  useEffect(() => {
+    setDisplayLimits(prev => ({ ...prev, students: 10 }));
+  }, [studentSearch, studentStatusFilter, selectedStudentClassroomFilterIds]);
 
   // ============================================================================
   // DATA FETCHING
@@ -1553,7 +1566,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
             {loading ? <LoadingSpinner /> : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {filterTeachers.map((t) => {
+                {filterTeachers.slice(0, displayLimits.teachers).map((t) => {
                   const assigned = getTeacherClassroomIds(t.id);
                   const inactive = (t.status && t.status !== 'active');
                   const chips = assigned.slice(0, 3).map(cid => {
@@ -1561,7 +1574,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     return <Chip key={cid} size="small" label={cls ? (cls.name || cls.id) : cid} sx={{ mr: 0.5, mb: 0.5 }} />;
                   });
                   const overflow = Math.max(0, assigned.length - 3);
-                  
+
                   return (
                     <UserListItem
                       key={t.id}
@@ -1588,6 +1601,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     />
                   );
                 })}
+                {filterTeachers.length > displayLimits.teachers && (
+                  <Box sx={{ textAlign: 'center', pt: 1 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setDisplayLimits(prev => ({ ...prev, teachers: prev.teachers + 10 }))}
+                      startIcon={<ExpandMore />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Show 10 More
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -1653,7 +1678,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           <>
             {loading ? <LoadingSpinner /> : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {superAdmins.map((a) => (
+                {superAdmins.slice(0, displayLimits.superadmins).map((a) => (
                   <UserListItem
                     key={a.id}
                     user={a}
@@ -1662,19 +1687,31 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     secondaryContent={
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
                         <Typography variant="caption" color="text.secondary">{a.email}</Typography>
-                        <Chip 
-                          size="small" 
-                          label="Super Admin" 
-                          sx={{ 
+                        <Chip
+                          size="small"
+                          label="Super Admin"
+                          sx={{
                             backgroundColor: '#4f46e5',
                             color: 'white',
                             fontWeight: 500
-                          }} 
+                          }}
                         />
                       </Box>
                     }
                   />
                 ))}
+                {superAdmins.length > displayLimits.superadmins && (
+                  <Box sx={{ textAlign: 'center', pt: 1 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setDisplayLimits(prev => ({ ...prev, superadmins: prev.superadmins + 10 }))}
+                      startIcon={<ExpandMore />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Show 10 More
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
           </>
@@ -1685,7 +1722,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           <>
             {loading ? <LoadingSpinner /> : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {admins.map((a) => (
+                {admins.slice(0, displayLimits.classroomadmins).map((a) => (
                   <UserListItem
                     key={a.id}
                     user={a}
@@ -1695,11 +1732,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
                         <Typography variant="caption" color="text.secondary">{a.email}</Typography>
                         {(a.manageableClassrooms || []).map((classroomId) => (
-                          <Chip 
-                            key={classroomId} 
-                            size="small" 
+                          <Chip
+                            key={classroomId}
+                            size="small"
                             label={getClassroomLabel(classroomId)}
-                            sx={{ 
+                            sx={{
                               backgroundColor: '#f1f5f9',
                               color: '#475569',
                               fontWeight: 500,
@@ -1711,6 +1748,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     }
                   />
                 ))}
+                {admins.length > displayLimits.classroomadmins && (
+                  <Box sx={{ textAlign: 'center', pt: 1 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setDisplayLimits(prev => ({ ...prev, classroomadmins: prev.classroomadmins + 10 }))}
+                      startIcon={<ExpandMore />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Show 10 More
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
           </>
@@ -1741,7 +1790,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
             {loading ? <LoadingSpinner /> : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {filterStudents.map((s) => {
+                {filterStudents.slice(0, displayLimits.students).map((s) => {
                   const cls = classrooms.find(c => c.id === s.classroomId);
                   const clsLabel = cls ? (cls.name || cls.id) : (s.classroomId || 'Unknown');
                   return (
@@ -1752,21 +1801,33 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       onClick={() => openStudentDialog(s)}
                       secondaryContent={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                          <Chip 
-                            size="small" 
-                            label={clsLabel} 
-                            sx={{ 
+                          <Chip
+                            size="small"
+                            label={clsLabel}
+                            sx={{
                               backgroundColor: '#f1f5f9',
                               color: '#475569',
                               fontWeight: 500,
                               fontSize: '0.75rem'
-                            }} 
+                            }}
                           />
                         </Box>
                       }
                     />
                   );
                 })}
+                {filterStudents.length > displayLimits.students && (
+                  <Box sx={{ textAlign: 'center', pt: 1 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setDisplayLimits(prev => ({ ...prev, students: prev.students + 10 }))}
+                      startIcon={<ExpandMore />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Show 10 More
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
 

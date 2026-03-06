@@ -19,8 +19,8 @@ import {
   Checkbox,
   TextField
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled } from '@mui/icons-material';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore } from '@mui/icons-material';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -53,12 +53,17 @@ const MEDIA_URL_FETCH_CONCURRENCY = 6;
 function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null }) {
   const notify = useNotify();
   const isSuperAdminUser = isSuperAdmin(userRole);
-  const [observations, setObservations] = useState([]);
+  const [recentObs, setRecentObs] = useState([]);
+  const [olderObs, setOlderObs] = useState([]);
   const [mediaDocs, setMediaDocs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreObs, setHasMoreObs] = useState(false);
   const [selectedObservation, setSelectedObservation] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const snapshotLastDocRef = useRef(null);
+  const paginationCursorRef = useRef(null);
   // Note: All note expansion functionality is now handled by NoteExpansionDialog component
   
   // Classroom teachers for creator filter
@@ -83,6 +88,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const isMountedRef = useRef(true);
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightPathsRef = useRef(new Set());
+
+  // Derive observations by merging recentObs + olderObs + mediaDocs, deduping, sorting
+  const observations = useMemo(() => {
+    const merged = [...recentObs, ...olderObs, ...mediaDocs];
+    const seen = new Set();
+    const deduped = merged.filter(item => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+    deduped.sort((a, b) => {
+      const da = a.observedAt?.toDate?.() ? a.observedAt.toDate() : (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+      const db = b.observedAt?.toDate?.() ? b.observedAt.toDate() : (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
+      return db - da;
+    });
+    return deduped;
+  }, [recentObs, olderObs, mediaDocs]);
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -336,24 +358,29 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setMediaEditSaving(false);
   }, [mediaPreview]);
 
+  const OBS_PAGE_SIZE = 20;
+
   useEffect(() => {
     if (!student) return;
-    
+
     setLoading(true);
     setMediaUrls({});
-    
+    setOlderObs([]);
+    paginationCursorRef.current = null;
+    snapshotLastDocRef.current = null;
+
     // Add timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
       setLoading(false);
     }, 10000); // 10 second timeout
-    
+
     const studentIdToQuery = student.id;
 
     const obsQuery = query(
       collectionGroup(db, 'observations'),
       where('studentId', '==', studentIdToQuery),
       orderBy('observedAt', 'desc'),
-      limit(100)
+      limit(OBS_PAGE_SIZE)
     );
 
     const mediaQuery = query(
@@ -362,18 +389,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       limit(200)
     );
 
-    let obsList = [];
-    let mediaList = [];
     let obsReady = false;
     let mediaReady = false;
 
-    const mergeAndSet = () => {
-      const combined = [...obsList, ...mediaList].sort((a, b) => {
-        const da = toJsDate(a.observedAt || a.timestamp) || new Date(0);
-        const db = toJsDate(b.observedAt || b.timestamp) || new Date(0);
-        return db - da;
-      });
-      setObservations(combined.slice(0, 100));
+    const checkLoaded = () => {
       if (obsReady && mediaReady) {
         setLoading(false);
         clearTimeout(timeoutId);
@@ -381,17 +400,22 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     };
 
     const unsubObs = onSnapshot(obsQuery, (snap) => {
-      obsList = snap.docs.map((d) => ({
+      const list = snap.docs.map((d) => ({
         id: d.id,
         parentStudentId: d.ref.parent?.parent?.id,
         docPath: d.ref.path,
         ...d.data(),
       }));
+      setRecentObs(list);
+      if (snap.docs.length > 0) {
+        snapshotLastDocRef.current = snap.docs[snap.docs.length - 1];
+      }
+      setHasMoreObs(snap.docs.length >= OBS_PAGE_SIZE);
       obsReady = true;
-      mergeAndSet();
+      checkLoaded();
     }, () => {
       obsReady = true;
-      mergeAndSet();
+      checkLoaded();
     });
 
     const unsubMedia = onSnapshot(mediaQuery, (snap) => {
@@ -401,17 +425,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         docPath: d.ref.path,
         ...d.data(),
       }));
-      mediaList = list;
       setMediaDocs(list);
       mediaReady = true;
-      mergeAndSet();
+      checkLoaded();
     }, () => {
-      mediaList = [];
       setMediaDocs([]);
       mediaReady = true;
-      mergeAndSet();
+      checkLoaded();
     });
-    
+
     return () => {
       clearTimeout(timeoutId);
       unsubObs();
@@ -721,6 +743,41 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return;
     }
     setExportWizardOpen(true);
+  };
+
+  const handleLoadMore = async () => {
+    if (!student) return;
+    const cursor = paginationCursorRef.current || snapshotLastDocRef.current;
+    if (!cursor) return;
+
+    setLoadingMore(true);
+    try {
+      const moreQuery = query(
+        collectionGroup(db, 'observations'),
+        where('studentId', '==', student.id),
+        orderBy('observedAt', 'desc'),
+        startAfter(cursor),
+        limit(OBS_PAGE_SIZE)
+      );
+      const snap = await getDocs(moreQuery);
+      const newObs = snap.docs.map((d) => ({
+        id: d.id,
+        parentStudentId: d.ref.parent?.parent?.id,
+        docPath: d.ref.path,
+        ...d.data(),
+      }));
+      if (snap.docs.length > 0) {
+        paginationCursorRef.current = snap.docs[snap.docs.length - 1];
+      }
+      setHasMoreObs(snap.docs.length >= OBS_PAGE_SIZE);
+      if (newObs.length > 0) {
+        setOlderObs(prev => [...prev, ...newObs]);
+      }
+    } catch {
+      // silently fail on load more
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   const handleRunExport = async ({ noteKinds, format, dateRange }) => {
@@ -1242,6 +1299,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               </>
             );
           })()}
+          {/* Show More Button */}
+          {hasMoreObs && !loadingMore && (
+            <Box sx={{ textAlign: 'center', pt: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={handleLoadMore}
+                startIcon={<ExpandMore />}
+                sx={{ textTransform: 'none' }}
+              >
+                Show 20 More
+              </Button>
+            </Box>
+          )}
+          {loadingMore && (
+            <Box sx={{ textAlign: 'center', pt: 2 }}>
+              <Button
+                variant="outlined"
+                disabled
+                startIcon={<CircularProgress size={16} />}
+                sx={{ textTransform: 'none' }}
+              >
+                Loading...
+              </Button>
+            </Box>
+          )}
           {visibleObservations.length === 0 && observations.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
               No notes match the current filters.
