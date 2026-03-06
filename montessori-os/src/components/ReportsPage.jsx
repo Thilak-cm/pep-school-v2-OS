@@ -64,7 +64,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   // Delete state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deletingIds, setDeletingIds] = useState(new Set());
 
   // Load all past reports from subcollection
   useEffect(() => {
@@ -158,19 +158,33 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
 
   const handleDeleteConfirm = async () => {
     if (!reportToDelete?.id || !studentId) return;
+    const target = reportToDelete;
+    setDeleteConfirmOpen(false);
+    setReportToDelete(null);
+
+    // Optimistically remove from list and show info toast
+    setReports((prev) => prev.filter((r) => r.id !== target.id));
+    setDeletingIds((prev) => new Set(prev).add(target.id));
+    notify.info('Deleting report…', { duration: 2000 });
+    trackEvent('report_deleted', { studentId, reportDocId: target.id }).catch(() => {});
+
     try {
-      setDeleting(true);
-      setDeleteConfirmOpen(false);
-      trackEvent('report_deleted', { studentId, reportDocId: reportToDelete.id }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'deleteStudentReport');
-      await call({ studentId, reportDocId: reportToDelete.id });
-      setReports((prev) => prev.filter((r) => r.id !== reportToDelete.id));
+      await call({ studentId, reportDocId: target.id });
       notify.success('Report deleted');
     } catch (e) {
+      // Restore the report on failure
+      setReports((prev) => {
+        if (prev.some((r) => r.id === target.id)) return prev;
+        return [...prev, target].sort((a, b) => (b.generatedAt || 0) - (a.generatedAt || 0));
+      });
       notify.error(e?.message || 'Failed to delete report.');
     } finally {
-      setDeleting(false);
-      setReportToDelete(null);
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(target.id);
+        return next;
+      });
     }
   };
 
@@ -263,7 +277,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
                   <IconButton
                     size="small"
                     onClick={() => handleDeleteClick(report)}
-                    disabled={deleting}
+                    disabled={deletingIds.has(report.id)}
                     sx={{ color: '#ef4444', ml: 0.5 }}
                     aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
                   >
