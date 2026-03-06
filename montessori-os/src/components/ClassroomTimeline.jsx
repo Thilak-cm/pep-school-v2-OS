@@ -133,7 +133,10 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
 };
 
 
+const NOTES_PAGE_SIZE = 20;
+
 function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onNavigateToStudent }) {
+  const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
@@ -215,8 +218,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       }
     };
 
-    const PAGE_SIZE = 20;
-
     // Fetch classroom notes by studentId (not classroomId) to include notes from previous classrooms
     const fetchNotes = async (studentIds) => {
       try {
@@ -243,7 +244,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
               collectionGroup(db, 'observations'),
               where('studentId', 'in', batch),
               orderBy('observedAt', 'desc'),
-              limit(PAGE_SIZE)
+              limit(NOTES_PAGE_SIZE)
             )
           );
         }
@@ -256,7 +257,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           if (snapshot.docs.length > 0) {
             batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
           }
-          if (snapshot.docs.length < PAGE_SIZE) {
+          if (snapshot.docs.length < NOTES_PAGE_SIZE) {
             exhaustedBatchesRef.current.add(batchIndex);
           }
           snapshot.docs.forEach(doc => {
@@ -306,7 +307,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                 collectionGroup(db, 'observations'),
                 where('studentId', 'in', batch),
                 orderBy('observedAt', 'desc'),
-                limit(PAGE_SIZE)
+                limit(NOTES_PAGE_SIZE)
               )
             );
           }
@@ -317,7 +318,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             if (snapshot.docs.length > 0) {
               batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
             }
-            if (snapshot.docs.length < PAGE_SIZE) {
+            if (snapshot.docs.length < NOTES_PAGE_SIZE) {
               exhaustedBatchesRef.current.add(batchIndex);
             }
             snapshot.docs.forEach(doc => {
@@ -381,7 +382,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   };
 
   const handleLoadMore = async () => {
-    const PAGE_SIZE = 20;
     const batchSize = 10;
     const studentIds = studentIdsRef.current;
     if (!studentIds || studentIds.length === 0) return;
@@ -404,7 +404,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             where('studentId', 'in', batch),
             orderBy('observedAt', 'desc'),
             startAfter(cursor),
-            limit(PAGE_SIZE)
+            limit(NOTES_PAGE_SIZE)
           )
         );
         batchIndices.push(batchIndex);
@@ -423,7 +423,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         if (snapshot.docs.length > 0) {
           batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
         }
-        if (snapshot.docs.length < PAGE_SIZE) {
+        if (snapshot.docs.length < NOTES_PAGE_SIZE) {
           exhaustedBatchesRef.current.add(batchIndex);
         }
         snapshot.docs.forEach(doc => {
@@ -453,7 +453,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       const totalBatches = Math.ceil(studentIds.length / batchSize);
       setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
     } catch {
-      // silently fail on load more
+      notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
     } finally {
       setLoadingMore(false);
     }
