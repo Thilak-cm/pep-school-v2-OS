@@ -7,6 +7,17 @@
 - Centralized model configuration into a single modelConstants module for all AI features
 - Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
 
+# 9.6.3 — 2026-03-05
+
+### Removed
+- Performance summary card from Notifications page (already present in Stats > Students tab) — eliminates duplicate Firestore queries for students, classrooms, and observations
+
+# 9.6.2 — 2026-03-05
+
+### Fixed
+- Classroom admin teacher query now scoped to managed classrooms at the Firestore query level, not just client-side filtering (PEP-23)
+- Classroom admins can now view other classroom admins who manage overlapping classrooms (view-only, no edit access) (PEP-23)
+
 # 9.6.1 — 2026-03-05
 
 ### Fixed
