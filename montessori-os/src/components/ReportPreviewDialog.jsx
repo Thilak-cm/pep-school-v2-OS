@@ -25,6 +25,7 @@ export default function ReportPreviewDialog({
   onExportToDrive = null,
   exporting = false,
   driveDocLink = null,
+  isDraft = false,
 }) {
   const sections = useMemo(() => parseReportSections(reportText), [reportText]);
 
@@ -164,9 +165,9 @@ export default function ReportPreviewDialog({
       <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
         <Button
           onClick={onClose}
-          sx={{ textTransform: 'none', color: '#475569' }}
+          sx={{ textTransform: 'none', color: isDraft ? '#ef4444' : '#475569' }}
         >
-          Close
+          {isDraft ? 'Discard' : 'Close'}
         </Button>
         {onExportToDrive && (
           driveDocLink ? (
@@ -188,13 +189,9 @@ export default function ReportPreviewDialog({
               startIcon={<ExportIcon />}
               onClick={onExportToDrive}
               disabled={exporting || !reportText}
-              sx={{
-                textTransform: 'none',
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-              }}
+              sx={{ textTransform: 'none', borderRadius: 2 }}
             >
-              {exporting ? 'Exporting…' : 'Export to Drive'}
+              {exporting ? 'Exporting…' : 'Save and Export to Drive'}
             </Button>
           )
         )}

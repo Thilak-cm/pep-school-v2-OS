@@ -3917,11 +3917,11 @@ export const generateStudentReport = functions
       dateRangeStart: data?.dateRangeStart || null,
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
+      dryRun: true,
     });
 
     return {
       status: result.status,
-      docId: result.docId,
       studentId: result.studentId,
       noteCount: result.payload.noteCount,
       sentimentScore: result.payload.sentimentScore,
@@ -3929,6 +3929,11 @@ export const generateStudentReport = functions
       missingInputFlags: result.payload.missingInputFlags,
       reportText: result.payload.reportText,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+      dateRangeStart: result.payload.dateRangeStart?.toISOString?.() || null,
+      dateRangeEnd: result.payload.dateRangeEnd?.toISOString?.() || null,
+      programId: result.payload.programId || null,
+      model: result.payload.model || null,
+      sourceNoteIds: result.payload.sourceNoteIds || [],
     };
   });
 
@@ -4059,31 +4064,64 @@ export const exportReportToDrive = functions
     }
 
     const studentId = String(data?.studentId || "").trim();
-    const reportDocId = String(data?.reportDocId || "").trim();
-    if (!studentId || !reportDocId) {
+    const reportDocId = data?.reportDocId ? String(data.reportDocId).trim() : null;
+    const reportPayload = data?.reportPayload || null;
+    if (!studentId || (!reportDocId && !reportPayload)) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "studentId and reportDocId are required",
+        "studentId and either reportDocId or reportPayload are required",
       );
     }
 
     // Permission check (same as report generation)
     await checkReportPermission(context.auth.uid, studentId);
 
-    // Load the report from Firestore
-    const reportRef = db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc(reportDocId);
-    const reportSnap = await reportRef.get();
-    if (!reportSnap.exists) {
-      throw new functions.https.HttpsError("not-found", "Report not found");
-    }
-    const report = reportSnap.data();
+    let report;
+    let actualDocId;
 
-    if (!report.reportText) {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "Report has no content to export",
-      );
+    if (reportPayload) {
+      // Draft report from preview — save to Firestore first
+      if (!reportPayload.reportText) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Report has no content to export",
+        );
+      }
+      const payload = {
+        reportText: reportPayload.reportText,
+        sentimentScore: reportPayload.sentimentScore ?? null,
+        areaBalanceScore: reportPayload.areaBalanceScore ?? null,
+        missingInputFlags: reportPayload.missingInputFlags || [],
+        noteCount: reportPayload.noteCount || 0,
+        dateRangeStart: reportPayload.dateRangeStart
+          ? new Date(reportPayload.dateRangeStart) : null,
+        dateRangeEnd: reportPayload.dateRangeEnd
+          ? new Date(reportPayload.dateRangeEnd) : null,
+        programId: reportPayload.programId || "",
+        model: reportPayload.model || "gpt-4o",
+        generatedAt: reportPayload.generatedAt
+          ? new Date(reportPayload.generatedAt) : new Date(),
+        generatedBy: context.auth.uid,
+        status: reportPayload.status || "ok",
+        sourceNoteIds: reportPayload.sourceNoteIds || [],
+      };
+      actualDocId = await writeReportDoc(studentId, payload);
+      report = payload;
+    } else {
+      // Existing saved report — load from Firestore
+      const reportSnap = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc(reportDocId).get();
+      if (!reportSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Report not found");
+      }
+      report = reportSnap.data();
+      actualDocId = reportDocId;
+      if (!report.reportText) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Report has no content to export",
+        );
+      }
     }
 
     // Get student + classroom info
@@ -4135,8 +4173,10 @@ export const exportReportToDrive = functions
 
     // Count existing report docs to determine version
     const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
-    const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
-    const academicYear = getAcademicYear(report.generatedAt?.toDate?.() || new Date());
+    const generatedAtDate = report.generatedAt?.toDate?.() || report.generatedAt || new Date();
+    const generatedAtIso = generatedAtDate instanceof Date
+      ? generatedAtDate.toISOString() : new Date().toISOString();
+    const academicYear = getAcademicYear(generatedAtDate);
 
     // Create the Google Doc in student folder
     const { docId: driveDocId, docLink } = await createReportDoc(
@@ -4172,10 +4212,13 @@ export const exportReportToDrive = functions
     }
 
     // Store Drive doc link on the report doc
-    await reportRef.update({ driveDocId, driveDocLink: docLink });
+    await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc(actualDocId)
+      .update({ driveDocId, driveDocLink: docLink });
 
     return {
       status: "ok",
+      docId: actualDocId,
       driveDocId,
       driveDocLink: docLink,
       studentName,

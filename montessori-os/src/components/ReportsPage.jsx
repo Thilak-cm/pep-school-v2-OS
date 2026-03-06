@@ -100,8 +100,9 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
       trackEvent('report_generate_start', { studentId }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'generateStudentReport');
       const result = await call({ studentId, dateRangeStart, dateRangeEnd });
-      const newReport = {
-        id: result.data.docId,
+      // Preview only — not saved to Firestore until exported
+      const draft = {
+        id: null,
         generatedAt: result.data.generatedAt ? new Date(result.data.generatedAt) : new Date(),
         noteCount: result.data.noteCount ?? null,
         reportText: result.data.reportText || '',
@@ -110,9 +111,23 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
         sentimentScore: result.data.sentimentScore ?? null,
         areaBalanceScore: result.data.areaBalanceScore ?? null,
         driveDocLink: null,
+        // Payload fields for roundtrip on export
+        _payload: {
+          reportText: result.data.reportText || '',
+          noteCount: result.data.noteCount ?? 0,
+          sentimentScore: result.data.sentimentScore ?? null,
+          areaBalanceScore: result.data.areaBalanceScore ?? null,
+          missingInputFlags: result.data.missingInputFlags || [],
+          status: result.data.status || 'ok',
+          generatedAt: result.data.generatedAt || new Date().toISOString(),
+          dateRangeStart: result.data.dateRangeStart || null,
+          dateRangeEnd: result.data.dateRangeEnd || null,
+          programId: result.data.programId || null,
+          model: result.data.model || null,
+          sourceNoteIds: result.data.sourceNoteIds || [],
+        },
       };
-      setReports((prev) => [newReport, ...prev]);
-      setSelectedReport(newReport);
+      setSelectedReport(draft);
       setGenerateOpen(false);
       setPreviewOpen(true);
       trackEvent('report_generate_success', { studentId }).catch(() => {});
@@ -126,17 +141,36 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   };
 
   const handleExportToDrive = async () => {
-    if (!selectedReport?.id || !studentId) return;
+    if (!selectedReport || !studentId) return;
     try {
       setExporting(true);
       trackEvent('report_export_start', { studentId }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
-      const result = await call({ studentId, reportDocId: selectedReport.id });
+      const isDraft = !selectedReport.id;
+      const callData = isDraft
+        ? { studentId, reportPayload: selectedReport._payload }
+        : { studentId, reportDocId: selectedReport.id };
+      const result = await call(callData);
       const link = result.data.driveDocLink;
-      setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
-      setReports((prev) =>
-        prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
-      );
+      const docId = result.data.docId;
+
+      if (isDraft) {
+        // Draft was just saved to Firestore — add to list
+        const savedReport = {
+          ...selectedReport,
+          id: docId,
+          driveDocLink: link,
+          _payload: undefined,
+        };
+        setSelectedReport(savedReport);
+        setReports((prev) => [savedReport, ...prev]);
+      } else {
+        // Existing report — update Drive link
+        setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
+        setReports((prev) =>
+          prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
+        );
+      }
       trackEvent('report_export_success', { studentId }).catch(() => {});
     } catch (e) {
       setError(e?.message || 'Failed to export to Drive.');
@@ -184,15 +218,8 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
           startIcon={<AddIcon />}
           onClick={() => setGenerateOpen(true)}
           disabled={generating || !studentId}
-          sx={{
-            textTransform: 'none',
-            borderRadius: 2,
-            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #047857 0%, #065f46 100%)',
-            },
-          }}
+          color="secondary"
+          sx={{ textTransform: 'none', borderRadius: 2 }}
         >
           Generate Report
         </Button>
@@ -293,9 +320,10 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
         generatedAt={selectedReport?.generatedAt || null}
         studentLabel={studentLabel}
         noteCount={selectedReport?.noteCount ?? null}
-        onExportToDrive={selectedReport?.id ? handleExportToDrive : null}
+        onExportToDrive={selectedReport?.reportText ? handleExportToDrive : null}
         exporting={exporting}
         driveDocLink={selectedReport?.driveDocLink || null}
+        isDraft={!selectedReport?.id}
       />
 
       <Dialog
