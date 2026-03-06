@@ -10,6 +10,8 @@ import {
   serializeCsv,
   updateCsvContent,
   removeCsvRow,
+  validateReportPayload,
+  clampScoreExported,
 } from "../utils/reportHelpers.js";
 
 describe("getDefaultDateRange", () => {
@@ -381,5 +383,138 @@ describe("removeCsvRow", () => {
     const result = removeCsvRow(csv, "aakash mehta", CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 0);
+  });
+});
+
+describe("validateReportPayload", () => {
+  const validPayload = {
+    reportText: "Student is doing well in all areas.",
+    status: "ok",
+    noteCount: 12,
+    sentimentScore: 4,
+    areaBalanceScore: 3,
+    missingInputFlags: ["Hindi inputs missing"],
+    sourceNoteIds: ["obs_1", "obs_2"],
+    programId: "adolescent",
+    model: "gpt-4o",
+    generatedAt: "2026-02-28T10:30:00.000Z",
+    dateRangeStart: "2025-11-01T00:00:00.000Z",
+    dateRangeEnd: "2026-02-28T23:59:59.000Z",
+  };
+
+  it("returns sanitized copy for a well-formed payload", () => {
+    const result = validateReportPayload(validPayload);
+    assert.equal(result.reportText, validPayload.reportText);
+    assert.equal(result.status, "ok");
+    assert.equal(result.noteCount, 12);
+    assert.equal(result.sentimentScore, 4);
+    assert.equal(result.areaBalanceScore, 3);
+    assert.deepEqual(result.missingInputFlags, ["Hindi inputs missing"]);
+    assert.deepEqual(result.sourceNoteIds, ["obs_1", "obs_2"]);
+    assert.equal(result.programId, "adolescent");
+    assert.equal(result.model, "gpt-4o");
+  });
+
+  it("throws when payload is null or not an object", () => {
+    assert.throws(() => validateReportPayload(null), /must be an object/);
+    assert.throws(() => validateReportPayload("string"), /must be an object/);
+  });
+
+  it("throws when reportText is missing or empty", () => {
+    assert.throws(() => validateReportPayload({ ...validPayload, reportText: "" }), /reportText is required/);
+    assert.throws(() => validateReportPayload({ ...validPayload, reportText: "   " }), /reportText is required/);
+    assert.throws(() => validateReportPayload({ noteCount: 5 }), /reportText is required/);
+  });
+
+  it("defaults status to 'ok' for invalid values", () => {
+    const result = validateReportPayload({ ...validPayload, status: "hacked" });
+    assert.equal(result.status, "ok");
+  });
+
+  it("accepts 'no_notes' as valid status", () => {
+    const result = validateReportPayload({ ...validPayload, status: "no_notes" });
+    assert.equal(result.status, "no_notes");
+  });
+
+  it("clamps noteCount to non-negative integer", () => {
+    assert.equal(validateReportPayload({ ...validPayload, noteCount: -5 }).noteCount, 0);
+    assert.equal(validateReportPayload({ ...validPayload, noteCount: 3.7 }).noteCount, 3);
+    assert.equal(validateReportPayload({ ...validPayload, noteCount: "abc" }).noteCount, 0);
+  });
+
+  it("clamps scores to 1-5 range", () => {
+    assert.equal(validateReportPayload({ ...validPayload, sentimentScore: 0 }).sentimentScore, 1);
+    assert.equal(validateReportPayload({ ...validPayload, sentimentScore: 7 }).sentimentScore, 5);
+    assert.equal(validateReportPayload({ ...validPayload, areaBalanceScore: -1 }).areaBalanceScore, 1);
+  });
+
+  it("returns null for non-numeric scores", () => {
+    assert.equal(validateReportPayload({ ...validPayload, sentimentScore: "high" }).sentimentScore, null);
+    assert.equal(validateReportPayload({ ...validPayload, areaBalanceScore: null }).areaBalanceScore, null);
+  });
+
+  it("filters non-string entries from missingInputFlags", () => {
+    const result = validateReportPayload({
+      ...validPayload,
+      missingInputFlags: ["valid", 123, null, "also valid"],
+    });
+    assert.deepEqual(result.missingInputFlags, ["valid", "also valid"]);
+  });
+
+  it("filters non-string entries from sourceNoteIds", () => {
+    const result = validateReportPayload({
+      ...validPayload,
+      sourceNoteIds: ["obs_1", null, 42, "obs_2"],
+    });
+    assert.deepEqual(result.sourceNoteIds, ["obs_1", "obs_2"]);
+  });
+
+  it("defaults arrays to empty when not provided", () => {
+    const { reportText } = validPayload;
+    const result = validateReportPayload({ reportText });
+    assert.deepEqual(result.missingInputFlags, []);
+    assert.deepEqual(result.sourceNoteIds, []);
+  });
+
+  it("defaults model to gpt-4o when not a string", () => {
+    const result = validateReportPayload({ ...validPayload, model: 123 });
+    assert.equal(result.model, "gpt-4o");
+  });
+
+  it("preserves date strings as-is for caller to convert", () => {
+    const result = validateReportPayload(validPayload);
+    assert.equal(result.generatedAt, validPayload.generatedAt);
+    assert.equal(result.dateRangeStart, validPayload.dateRangeStart);
+    assert.equal(result.dateRangeEnd, validPayload.dateRangeEnd);
+  });
+});
+
+describe("clampScoreExported", () => {
+  it("clamps values above 5 to 5", () => {
+    assert.equal(clampScoreExported(7), 5);
+  });
+
+  it("clamps values below 1 to 1", () => {
+    assert.equal(clampScoreExported(0), 1);
+    assert.equal(clampScoreExported(-3), 1);
+  });
+
+  it("rounds fractional values", () => {
+    assert.equal(clampScoreExported(3.6), 4);
+    assert.equal(clampScoreExported(2.4), 2);
+  });
+
+  it("returns null for non-numeric values", () => {
+    assert.equal(clampScoreExported("high"), null);
+    assert.equal(clampScoreExported(null), null);
+    assert.equal(clampScoreExported(undefined), null);
+    assert.equal(clampScoreExported(NaN), null);
+    assert.equal(clampScoreExported(Infinity), null);
+  });
+
+  it("passes through valid scores unchanged", () => {
+    assert.equal(clampScoreExported(1), 1);
+    assert.equal(clampScoreExported(3), 3);
+    assert.equal(clampScoreExported(5), 5);
   });
 });

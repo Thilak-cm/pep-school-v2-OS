@@ -60,6 +60,64 @@ function clampScore(value) {
 }
 
 /**
+ * Validate and sanitize a client-supplied report payload for Firestore persistence.
+ * Throws if required fields are missing or malformed.
+ * Returns a sanitized copy with clamped scores and typed fields.
+ */
+export function validateReportPayload(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("reportPayload must be an object");
+  }
+  if (typeof raw.reportText !== "string" || !raw.reportText.trim()) {
+    throw new Error("reportPayload.reportText is required");
+  }
+
+  const ALLOWED_STATUSES = ["ok", "no_notes"];
+  const status = ALLOWED_STATUSES.includes(raw.status) ? raw.status : "ok";
+
+  const noteCount = Number.isFinite(raw.noteCount) && raw.noteCount >= 0
+    ? Math.floor(raw.noteCount) : 0;
+
+  const sentimentScore = clampScoreExported(raw.sentimentScore);
+  const areaBalanceScore = clampScoreExported(raw.areaBalanceScore);
+
+  const missingInputFlags = Array.isArray(raw.missingInputFlags)
+    ? raw.missingInputFlags.filter((f) => typeof f === "string")
+    : [];
+
+  const sourceNoteIds = Array.isArray(raw.sourceNoteIds)
+    ? raw.sourceNoteIds.filter((id) => typeof id === "string")
+    : [];
+
+  const programId = typeof raw.programId === "string" ? raw.programId : "";
+  const model = typeof raw.model === "string" ? raw.model : "gpt-4o";
+
+  return {
+    reportText: raw.reportText.trim(),
+    status,
+    noteCount,
+    sentimentScore,
+    areaBalanceScore,
+    missingInputFlags,
+    sourceNoteIds,
+    programId,
+    model,
+    generatedAt: raw.generatedAt || null,
+    dateRangeStart: raw.dateRangeStart || null,
+    dateRangeEnd: raw.dateRangeEnd || null,
+  };
+}
+
+/**
+ * Clamp a score to 1-5 range, or return null if not a valid number.
+ * Exported version of the internal clampScore for reuse.
+ */
+export function clampScoreExported(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+/**
  * Get the Firestore document ID for a program's report prompt.
  * Returns null if the program is not supported.
  */

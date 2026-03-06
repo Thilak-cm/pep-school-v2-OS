@@ -21,7 +21,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, getAcademicYear, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, getAcademicYear, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, validateReportPayload } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -4016,6 +4016,10 @@ export const generateClassroomReports = functions
     // Check permission for the first student (all are in the same classroom)
     await checkReportPermission(context.auth.uid, studentIds[0]);
 
+    // Bulk generation saves to Firestore immediately (no dryRun) because
+    // holding many report payloads client-side is impractical. The single-
+    // student flow uses dryRun for preview-only, but bulk is generate-all
+    // then export-all by design.
     const results = [];
     await runWithConcurrency(studentIds, async (studentId) => {
       try {
@@ -4080,30 +4084,24 @@ export const exportReportToDrive = functions
     let actualDocId;
 
     if (reportPayload) {
-      // Draft report from preview — save to Firestore first
-      if (!reportPayload.reportText) {
+      // Draft report from preview — validate and save to Firestore first
+      let validated;
+      try {
+        validated = validateReportPayload(reportPayload);
+      } catch (valErr) {
         throw new functions.https.HttpsError(
-          "failed-precondition",
-          "Report has no content to export",
+          "invalid-argument", valErr.message,
         );
       }
       const payload = {
-        reportText: reportPayload.reportText,
-        sentimentScore: reportPayload.sentimentScore ?? null,
-        areaBalanceScore: reportPayload.areaBalanceScore ?? null,
-        missingInputFlags: reportPayload.missingInputFlags || [],
-        noteCount: reportPayload.noteCount || 0,
-        dateRangeStart: reportPayload.dateRangeStart
-          ? new Date(reportPayload.dateRangeStart) : null,
-        dateRangeEnd: reportPayload.dateRangeEnd
-          ? new Date(reportPayload.dateRangeEnd) : null,
-        programId: reportPayload.programId || "",
-        model: reportPayload.model || "gpt-4o",
-        generatedAt: reportPayload.generatedAt
-          ? new Date(reportPayload.generatedAt) : new Date(),
+        ...validated,
+        dateRangeStart: validated.dateRangeStart
+          ? new Date(validated.dateRangeStart) : null,
+        dateRangeEnd: validated.dateRangeEnd
+          ? new Date(validated.dateRangeEnd) : null,
+        generatedAt: validated.generatedAt
+          ? new Date(validated.generatedAt) : new Date(),
         generatedBy: context.auth.uid,
-        status: reportPayload.status || "ok",
-        sourceNoteIds: reportPayload.sourceNoteIds || [],
       };
       actualDocId = await writeReportDoc(studentId, payload);
       report = payload;
