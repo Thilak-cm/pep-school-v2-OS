@@ -774,7 +774,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         setOlderObs(prev => [...prev, ...newObs]);
       }
     } catch {
-      // silently fail on load more
+      notify.error('Failed to load more notes. Please try again.', { duration: 3000 });
     } finally {
       setLoadingMore(false);
     }
