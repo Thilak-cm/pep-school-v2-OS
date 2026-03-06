@@ -58,6 +58,7 @@ import {
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { paginateTimelineItems } from './classroomTimelineUtils.js';
 
 const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
   const dimensions = getLessonDimensions(note);
@@ -502,46 +503,10 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     });
   }, [groupedAndSortedObservations]);
 
-  // Paginated (first N) notes and grouped for divider rendering
-  // Now handles both grouped and ungrouped notes
+  // Paginated (first N) notes — merges grouped & ungrouped by date before limiting
   const groupedLimitedNotes = useMemo(() => {
     const { grouped, ungrouped } = groupedAndSortedObservations;
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const groups = { today: [], last7Days: [], beyond: [] };
-    let count = 0;
-    const maxCount = displayedNotesCount;
-
-    // Process grouped notes first
-    for (const group of grouped) {
-      if (count >= maxCount) break;
-      const noteDate = group.earliestObservedAt;
-      const groupItem = { ...group, isGrouped: true };
-      if (noteDate >= today) groups.today.push(groupItem);
-      else if (noteDate >= lastWeek) groups.last7Days.push(groupItem);
-      else groups.beyond.push(groupItem);
-      count++;
-    }
-
-    // Process ungrouped notes
-    for (const note of ungrouped) {
-      if (count >= maxCount) break;
-      try {
-        const noteDate = toDate(note.observedAt || note.timestamp);
-        const noteItem = { ...note, isGrouped: false };
-        if (noteDate >= today) groups.today.push(noteItem);
-        else if (noteDate >= lastWeek) groups.last7Days.push(noteItem);
-        else groups.beyond.push(noteItem);
-        count++;
-      } catch {
-        groups.beyond.push({ ...note, isGrouped: false });
-        count++;
-      }
-    }
-    
-    return groups;
+    return paginateTimelineItems(grouped, ungrouped, displayedNotesCount);
   }, [groupedAndSortedObservations, displayedNotesCount]);
 
   const lessonTitleById = useMemo(() => {
