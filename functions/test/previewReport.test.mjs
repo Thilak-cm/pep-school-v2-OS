@@ -39,10 +39,10 @@ describe("previewStudentReport config override chain", () => {
     const firestoreData = { model: "gpt-4-turbo", max_tokens: 8192 };
     const baseConfig = mergeReportConfig(firestoreData, REPORT_DEFAULTS);
 
-    const playgroundOverrides = { model: "gpt-4o-mini", max_tokens: 2048 };
+    const playgroundOverrides = { model: "gpt-5-mini", max_tokens: 2048 };
     const final = mergeReportConfig(playgroundOverrides, baseConfig);
 
-    assert.equal(final.model, "gpt-4o-mini");
+    assert.equal(final.model, "gpt-5-mini");
     assert.equal(final.max_tokens, 2048);
   });
 
