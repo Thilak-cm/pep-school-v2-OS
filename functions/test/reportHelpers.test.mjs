@@ -481,11 +481,35 @@ describe("validateReportPayload", () => {
     assert.equal(result.model, "gpt-4o");
   });
 
-  it("preserves date strings as-is for caller to convert", () => {
+  it("preserves valid ISO date strings", () => {
     const result = validateReportPayload(validPayload);
     assert.equal(result.generatedAt, validPayload.generatedAt);
     assert.equal(result.dateRangeStart, validPayload.dateRangeStart);
     assert.equal(result.dateRangeEnd, validPayload.dateRangeEnd);
+  });
+
+  it("nullifies invalid date strings to prevent RangeError", () => {
+    const result = validateReportPayload({
+      ...validPayload,
+      generatedAt: "not-a-date",
+      dateRangeStart: "garbage",
+      dateRangeEnd: "",
+    });
+    assert.equal(result.generatedAt, null);
+    assert.equal(result.dateRangeStart, null);
+    assert.equal(result.dateRangeEnd, null);
+  });
+
+  it("nullifies non-string date values", () => {
+    const result = validateReportPayload({
+      ...validPayload,
+      generatedAt: 12345,
+      dateRangeStart: true,
+      dateRangeEnd: {},
+    });
+    assert.equal(result.generatedAt, null);
+    assert.equal(result.dateRangeStart, null);
+    assert.equal(result.dateRangeEnd, null);
   });
 });
 

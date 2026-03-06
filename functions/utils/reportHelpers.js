@@ -52,6 +52,16 @@ export function parseReportResponse(rawContent) {
 }
 
 /**
+ * Check whether a value is a valid ISO-8601 date string.
+ * Returns false for non-strings and strings that produce Invalid Date.
+ */
+function isValidIsoDate(value) {
+  if (typeof value !== "string" || !value) return false;
+  const d = new Date(value);
+  return !isNaN(d.getTime());
+}
+
+/**
  * Clamp a score to 1-5 range, or return null if not a valid number.
  */
 function clampScore(value) {
@@ -102,9 +112,9 @@ export function validateReportPayload(raw) {
     sourceNoteIds,
     programId,
     model,
-    generatedAt: raw.generatedAt || null,
-    dateRangeStart: raw.dateRangeStart || null,
-    dateRangeEnd: raw.dateRangeEnd || null,
+    generatedAt: isValidIsoDate(raw.generatedAt) ? raw.generatedAt : null,
+    dateRangeStart: isValidIsoDate(raw.dateRangeStart) ? raw.dateRangeStart : null,
+    dateRangeEnd: isValidIsoDate(raw.dateRangeEnd) ? raw.dateRangeEnd : null,
   };
 }
 
