@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,11 @@ export default function ReportPreviewDialog({
 }) {
   const sections = useMemo(() => parseReportSections(reportText), [reportText]);
   const [flagsAnchorEl, setFlagsAnchorEl] = useState(null);
+
+  // Reset popover anchor when dialog closes to avoid stale DOM references
+  useEffect(() => {
+    if (!open) setFlagsAnchorEl(null);
+  }, [open]);
 
   const formatGeneratedAt = (value) => {
     if (!value) return null;
