@@ -1,5 +1,10 @@
 # Changelog
 
+# 9.6.3 — 2026-03-05
+
+### Removed
+- Performance summary card from Notifications page (already present in Stats > Students tab) — eliminates duplicate Firestore queries for students, classrooms, and observations
+
 # 9.6.2 — 2026-03-05
 
 ### Fixed

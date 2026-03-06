@@ -33,14 +33,13 @@ import {
   RemoveCircleOutline,
   TrendingDown
 } from '@mui/icons-material';
-import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp, documentId } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
-import PerformanceSummaryCard from './PerformanceSummaryCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 // Confetti animation for coverage celebration
@@ -190,11 +189,6 @@ function NotificationsPage() {
   const [currentRole, setCurrentRole] = useState(null);
   const [accessibleClassrooms, setAccessibleClassrooms] = useState([]);
   const [accessLoaded, setAccessLoaded] = useState(false);
-  const [performanceSummary, setPerformanceSummary] = useState(null);
-  const [performanceLoading, setPerformanceLoading] = useState(false);
-  const [performanceError, setPerformanceError] = useState('');
-  const [performanceClassroomOptions, setPerformanceClassroomOptions] = useState([]);
-  const [selectedPerformanceClassroomId, setSelectedPerformanceClassroomId] = useState('');
   const weekKey = getIstIsoWeekKey();
 
   // Baseball card expansion state
@@ -333,204 +327,6 @@ function NotificationsPage() {
     return () => { active = false; };
   }, [expandedStudentId]);
 
-  useEffect(() => {
-    let active = true;
-    const loadPerformanceClassrooms = async () => {
-      try {
-        if (!accessLoaded) return;
-
-        let classroomsData = [];
-        if (currentRole === 'superadmin') {
-          const classroomsSnap = await getDocs(collection(db, 'classrooms'));
-          classroomsData = classroomsSnap.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...(docSnap.data() || {})
-          }));
-        } else {
-          const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms.filter(Boolean) : [];
-          if (scopedClassrooms.length === 0) {
-            if (active) {
-              setPerformanceClassroomOptions([]);
-              setSelectedPerformanceClassroomId('');
-            }
-            return;
-          }
-          const batchSize = 10;
-          for (let i = 0; i < scopedClassrooms.length; i += batchSize) {
-            const batch = scopedClassrooms.slice(i, i + batchSize);
-            const classroomsQuery = query(
-              collection(db, 'classrooms'),
-              where(documentId(), 'in', batch)
-            );
-            const classroomsSnap = await getDocs(classroomsQuery);
-            classroomsSnap.docs.forEach((docSnap) => {
-              classroomsData.push({ id: docSnap.id, ...(docSnap.data() || {}) });
-            });
-          }
-        }
-
-        const options = classroomsData
-          .filter((c) => (c?.status || 'active') !== 'archived')
-          .map((c) => ({
-            id: c.id,
-            label: c.name || c.displayName || c.label || c.id
-          }))
-          .sort((a, b) => a.label.localeCompare(b.label));
-
-        if (active) {
-          setPerformanceClassroomOptions(options);
-          setSelectedPerformanceClassroomId((prev) => (
-            prev && options.some((option) => option.id === prev) ? prev : ''
-          ));
-        }
-      } catch {
-        if (active) {
-          setPerformanceClassroomOptions([]);
-          setSelectedPerformanceClassroomId('');
-        }
-      }
-    };
-
-    loadPerformanceClassrooms();
-    return () => { active = false; };
-  }, [accessLoaded, currentRole, accessibleClassrooms]);
-
-  useEffect(() => {
-    let active = true;
-    const fetchPerformanceSummary = async () => {
-      try {
-        if (!accessLoaded) return;
-        setPerformanceLoading(true);
-        setPerformanceError('');
-
-        const uid = auth?.currentUser?.uid;
-        const cacheKeyBase = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
-        const cacheKey = `${cacheKeyBase}:classroom:${selectedPerformanceClassroomId || 'all'}`;
-        
-        // Try to load from cache first
-        const cachedPerformanceSummary = getCachedData(cacheKey, 'performanceSummary');
-        if (cachedPerformanceSummary) {
-          if (active) {
-            setPerformanceSummary(cachedPerformanceSummary);
-            setPerformanceLoading(false);
-          }
-          return;
-        }
-
-        const isRoleSuperAdmin = currentRole === 'superadmin';
-        const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
-
-        const students = [];
-
-        if (isRoleSuperAdmin) {
-          const studentsSnap = await getDocs(collection(db, 'students'));
-          studentsSnap.docs.forEach((docSnap) => {
-            students.push({ id: docSnap.id, ...(docSnap.data() || {}) });
-          });
-        } else {
-          if (scopedClassrooms.length === 0) {
-            const emptySummary = {
-              excellent: 0,
-              sufficient: 0,
-              needsSupport: 0,
-              immediateAttention: 0,
-              studentCount: 0,
-              averageNotes: 0,
-              totalNotes: 0,
-            };
-            if (active) {
-              setPerformanceSummary(emptySummary);
-              setCachedData(cacheKey, 'performanceSummary', emptySummary);
-            }
-            return;
-          }
-          const batchSize = 10;
-          for (let i = 0; i < scopedClassrooms.length; i += batchSize) {
-            const batch = scopedClassrooms.slice(i, i + batchSize);
-            const studentsQuery = query(collection(db, 'students'), where('classroomId', 'in', batch));
-            const studentsSnap = await getDocs(studentsQuery);
-            studentsSnap.docs.forEach((docSnap) => {
-              students.push({ id: docSnap.id, ...(docSnap.data() || {}) });
-            });
-          }
-        }
-
-        const activeStudents = students.filter((student) => (student?.status || 'active') === 'active');
-        const scopedStudents = selectedPerformanceClassroomId
-          ? activeStudents.filter((student) => student.classroomId === selectedPerformanceClassroomId)
-          : activeStudents;
-        const studentIds = scopedStudents.map((student) => student.id).filter(Boolean);
-
-        const cutoffDate = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000);
-        const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
-
-        const countsByStudent = Object.fromEntries(studentIds.map((id) => [id, 0]));
-
-        if (studentIds.length > 0) {
-          const batchSize = 10;
-          for (let i = 0; i < studentIds.length; i += batchSize) {
-            const batch = studentIds.slice(i, i + batchSize);
-            const observationsQuery = query(
-              collectionGroup(db, 'observations'),
-              where('studentId', 'in', batch),
-              where('observedAt', '>=', cutoffTimestamp),
-              orderBy('observedAt', 'desc')
-            );
-            const observationsSnap = await getDocs(observationsQuery);
-            observationsSnap.docs.forEach((docSnap) => {
-              const obs = docSnap.data() || {};
-              const studentId = obs.studentId;
-              if (!studentId || countsByStudent[studentId] === undefined) return;
-              const obsDate = toDate(obs.observedAt || obs.createdAt || obs.timestamp);
-              if (!obsDate || obsDate < cutoffDate) return;
-              countsByStudent[studentId] += 1;
-            });
-          }
-        }
-
-        const totals = {
-          excellent: 0,
-          sufficient: 0,
-          needsSupport: 0,
-          immediateAttention: 0,
-          studentCount: scopedStudents.length,
-          averageNotes: 0,
-          totalNotes: 0,
-        };
-
-        if (scopedStudents.length > 0) {
-          Object.values(countsByStudent).forEach((count) => {
-            const n = Number.isFinite(count) ? count : 0;
-            totals.totalNotes += n;
-            if (n >= 12) totals.excellent += 1;
-            else if (n >= 8) totals.sufficient += 1;
-            else if (n >= 4) totals.needsSupport += 1;
-            else totals.immediateAttention += 1;
-          });
-          totals.averageNotes = totals.totalNotes / totals.studentCount;
-        }
-
-        if (active) {
-          setPerformanceSummary(totals);
-          setCachedData(cacheKey, 'performanceSummary', totals);
-        }
-      } catch (err) {
-        const message = err?.message || 'Unable to load performance summary.';
-        if (active) {
-          if (err?.code === 'failed-precondition' && message.toLowerCase().includes('index')) {
-            setPerformanceError('Firestore index required. Please deploy indexes for observations.');
-          } else {
-            setPerformanceError(message);
-          }
-        }
-      } finally {
-        if (active) setPerformanceLoading(false);
-      }
-    };
-
-    fetchPerformanceSummary();
-    return () => { active = false; };
-  }, [accessLoaded, currentRole, accessibleClassrooms, weekKey, selectedPerformanceClassroomId]);
 
   useEffect(() => {
     let active = true;
@@ -1885,14 +1681,6 @@ function NotificationsPage() {
             )}
           </Paper>
 
-          <PerformanceSummaryCard
-            summary={performanceSummary}
-            loading={performanceLoading}
-            error={performanceError}
-            classroomOptions={performanceClassroomOptions}
-            selectedClassroomId={selectedPerformanceClassroomId}
-            onClassroomChange={setSelectedPerformanceClassroomId}
-          />
         </Stack>
       )}
     </Box>
