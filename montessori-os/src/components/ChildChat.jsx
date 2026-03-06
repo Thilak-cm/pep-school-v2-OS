@@ -16,7 +16,7 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Mic, Pause, PlayArrow } from '@mui/icons-material';
+import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Mic, Pause, PlayArrow, Stop } from '@mui/icons-material';
 import { formatDate } from '../utils/dateFormat';
 import {
   collection,
@@ -988,6 +988,13 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     }
   };
 
+  // Handle stop / force-exit while waiting for assistant response
+  const handleStopResponse = () => {
+    setAssistantPending(false);
+    setSending(false);
+    lastPendingUserTimestampRef.current = null;
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1749,61 +1756,88 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 },
               }}
             />
-            {/* Mic Button */}
-            <IconButton
-              onClick={startRecording}
-              disabled={isRecording || sending}
-              aria-label="Start voice recording"
-              sx={{
-                minWidth: 44,
-                minHeight: 44,
-                width: 44,
-                height: 44,
-                color: 'primary.main',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  color: 'primary.dark',
-                  backgroundColor: 'transparent',
-                },
-                '&:active': {
-                  transform: 'scale(0.95)',
-                },
-                '&:disabled': {
-                  color: 'grey.400',
-                  backgroundColor: 'transparent',
-                },
-              }}
-            >
-              <Mic />
-            </IconButton>
-            {/* Send Button */}
-            <IconButton
-              color="primary"
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || sending}
-              aria-label="Send message"
-              sx={{
-                minWidth: 44,
-                minHeight: 44,
-                width: 44,
-                height: 44,
-                color: 'primary.main',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  color: 'primary.dark',
-                  backgroundColor: 'transparent',
-                },
-                '&:active': {
-                  transform: 'scale(0.95)',
-                },
-                '&:disabled': {
-                  color: 'grey.400',
-                  backgroundColor: 'transparent',
-                },
-              }}
-            >
-              <Send />
-            </IconButton>
+            {assistantPending ? (
+              /* Stop Button — shown while waiting for assistant response */
+              <IconButton
+                onClick={handleStopResponse}
+                aria-label="Stop waiting for response"
+                sx={{
+                  minWidth: 44,
+                  minHeight: 44,
+                  width: 44,
+                  height: 44,
+                  color: 'error.main',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    color: 'error.dark',
+                    backgroundColor: 'rgba(211, 47, 47, 0.08)',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  },
+                }}
+              >
+                <Stop />
+              </IconButton>
+            ) : (
+              <>
+                {/* Mic Button */}
+                <IconButton
+                  onClick={startRecording}
+                  disabled={isRecording || sending}
+                  aria-label="Start voice recording"
+                  sx={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    width: 44,
+                    height: 44,
+                    color: 'primary.main',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      color: 'primary.dark',
+                      backgroundColor: 'transparent',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    },
+                    '&:disabled': {
+                      color: 'grey.400',
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  <Mic />
+                </IconButton>
+                {/* Send Button */}
+                <IconButton
+                  color="primary"
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || sending}
+                  aria-label="Send message"
+                  sx={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    width: 44,
+                    height: 44,
+                    color: 'primary.main',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      color: 'primary.dark',
+                      backgroundColor: 'transparent',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    },
+                    '&:disabled': {
+                      color: 'grey.400',
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  <Send />
+                </IconButton>
+              </>
+            )}
           </Paper>
         )}
       </Box>
