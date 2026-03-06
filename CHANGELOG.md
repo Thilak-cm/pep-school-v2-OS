@@ -1,5 +1,11 @@
 # Changelog
 
+# 9.6.2 — 2026-03-05
+
+### Fixed
+- Classroom admin teacher query now scoped to managed classrooms at the Firestore query level, not just client-side filtering (PEP-23)
+- Classroom admins can now view other classroom admins who manage overlapping classrooms (view-only, no edit access) (PEP-23)
+
 # 9.6.1 — 2026-03-05
 
 ### Fixed
