@@ -1,5 +1,12 @@
 # Changelog
 
+# 9.7.0 — 2026-03-05
+
+### Changed
+- Migrated all AI features from GPT-4o/4o-mini to GPT-5 family models (gpt-5.2 and gpt-5-mini) (PEP-75)
+- Centralized model configuration into a single modelConstants module for all AI features
+- Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
+
 # 9.6.1 — 2026-03-05
 
 ### Fixed
