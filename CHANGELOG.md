@@ -1,5 +1,19 @@
 # Changelog
 
+# 9.6.4 — 2026-03-06
+
+### Fixed
+- ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
+- Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
+- OpenAI API calls now use `max_completion_tokens` and strip unsupported params for reasoning models (PEP-27)
+
+### Changed
+- ChildChat UI polished to ChatGPT-level quality: modern message bubbles (16px radius), generous spacing, simplified typing indicator with bouncing dots (PEP-27)
+- Timestamps and copy buttons now show on hover/tap instead of always visible (PEP-27)
+- Scroll-to-bottom floating button appears when user scrolls up in conversation (PEP-27)
+- Stop button replaces mic/send while waiting for AI response (PEP-27)
+- Chat components extracted into reusable `chat/` module (MessageBubble, TypingIndicator, ScrollToBottomFab, formatMessage, chatUtils) (PEP-27)
+
 # 9.6.3 — 2026-03-05
 
 ### Removed
