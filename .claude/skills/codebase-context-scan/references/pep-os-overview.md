@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-06T08:29:22.588Z
-App version: 9.7.1
+Generated: 2026-03-06T22:47:28.595Z
+App version: 9.7.3
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 9.7.1
 - `montessori-os/src/components/MentionTextArea.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 10
-- Components: `ClassroomList`, `ClassroomTimeline`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentList`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 12
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentList`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
+- `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
+- `montessori-os/src/components/classroomTimelineUtils.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
 - `montessori-os/src/components/FilterPanel.jsx`
 - `montessori-os/src/components/StudentDashboard.jsx`
-- `montessori-os/src/components/StudentList.jsx`
-- `montessori-os/src/components/StudentStatsPage.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -137,6 +137,15 @@ App version: 9.7.1
 
 ## Recent Changes
 
+### 9.7.3 (2026-03-06)
+- Google Doc report exports now match the reference template: PEP logo, navy blue student name heading, pink metadata line with program/academic year, styled section headings, dark grey justified body text, proper spacing (PEP-73)
+- Missing input flags in report preview now display as a compact chip-button with expandable popover instead of stacked alerts (PEP-73)
+- Google Doc export logo URL updated to use GCS direct URL (PNG format) — fixes 403 error from Google Docs API when inserting inline image (PEP-73)
+
+### 9.7.2 (2026-03-06)
+- Observations (voice, text, lesson) now appear correctly on the classroom timeline in the default unfiltered view (PEP-74)
+- Timeline pagination merges grouped and ungrouped notes by date before limiting, preventing newer notes from being pushed off the first page by older grouped items
+
 ### 9.7.1 (2026-03-06)
 - ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
 - Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
@@ -146,11 +155,4 @@ App version: 9.7.1
 - Migrated all AI features from GPT-4o/4o-mini to GPT-5 family models (gpt-5.2 and gpt-5-mini) (PEP-75)
 - Centralized model configuration into a single modelConstants module for all AI features
 - Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
-
-### 9.6.3 (2026-03-05)
-- Performance summary card from Notifications page (already present in Stats > Students tab) — eliminates duplicate Firestore queries for students, classrooms, and observations
-
-### 9.6.2 (2026-03-05)
-- Classroom admin teacher query now scoped to managed classrooms at the Firestore query level, not just client-side filtering (PEP-23)
-- Classroom admins can now view other classroom admins who manage overlapping classrooms (view-only, no edit access) (PEP-23)
 
