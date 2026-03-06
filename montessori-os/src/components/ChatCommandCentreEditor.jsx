@@ -11,6 +11,7 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from '../../../functions/config/chatConstants';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 
 // Program IDs
 const PROGRAMS = [
@@ -254,15 +255,23 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                   <Chip label={`Model: ${model}`} size="small" color="default" variant="outlined" />
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <TextField
-                    fullWidth
-                    label="Model"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    disabled={true}
-                    size="small"
-                    helperText="OpenAI model to use (e.g., gpt-4o, gpt-4o-mini)"
-                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="model-select-label">Model</InputLabel>
+                    <Select
+                      labelId="model-select-label"
+                      id="model-select"
+                      value={model}
+                      label="Model"
+                      onChange={(e) => setModel(e.target.value)}
+                      disabled={saving}
+                    >
+                      {AVAILABLE_MODELS.map((m) => (
+                        <MenuItem key={m.id} value={m.id}>
+                          {m.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <TextField
                     fullWidth
                     type="number"
