@@ -29,7 +29,7 @@ import {
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { filterTeachersForAdmin, isUserInScope } from '../utils/scopeUtils.js';
+import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms } from '../utils/scopeUtils.js';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -183,6 +183,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   }, [role, selectedAdminClassrooms.length]);
 
   // Lazily fetch data when entering Manage view
+  // classrooms.length is a dep so scoped teacher fetch re-triggers when classrooms load
   useEffect(() => {
     if (!hasUserManagementAccess) return;
     if (view === 'manage') {
@@ -192,7 +193,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, superAdmins.length, students.length]);
+  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, superAdmins.length, students.length, classrooms.length]);
 
   // ============================================================================
   // DATA FETCHING
@@ -275,8 +276,33 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   };
 
   const fetchTeachers = async () => {
-    const list = await fetchUsersByRole('teacher');
-    setTeachers(list);
+    if (isClassroomAdminUser) {
+      // Scope query: only fetch teachers assigned to managed classrooms
+      const teacherIds = extractTeacherIdsFromClassrooms(classrooms);
+      if (teacherIds.length === 0) {
+        setTeachers([]);
+        return;
+      }
+      try {
+        const batchSize = 10;
+        const list = [];
+        for (let i = 0; i < teacherIds.length; i += batchSize) {
+          const batch = teacherIds.slice(i, i + batchSize);
+          const snap = await getDocs(query(
+            collection(db, 'users'),
+            where(documentId(), 'in', batch)
+          ));
+          list.push(...snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
+        }
+        list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
+        setTeachers(list);
+      } catch (_e) {
+        setError('Failed to fetch teachers');
+      }
+    } else {
+      const list = await fetchUsersByRole('teacher');
+      setTeachers(list);
+    }
   };
 
   const fetchAdmins = async () => {
