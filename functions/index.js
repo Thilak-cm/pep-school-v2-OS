@@ -36,6 +36,17 @@ import {
   trashDriveFile,
   deriveAcademicYear,
 } from "./utils/driveHelpers.js";
+import {
+  shouldSyncOnClassroomUpdate,
+  shouldSyncOnUserUpdate,
+  diffArrays,
+  syncTeacherChanges,
+  syncUserChanges,
+  revokeAllForUser,
+  reconcileClassroomPermissions,
+  buildBulkSyncPlan,
+  grantDrivePermission,
+} from "./utils/drivePermissions.js";
 
 initializeApp({ credential: applicationDefault() });
 
@@ -3951,18 +3962,24 @@ export const generateStudentReport = functions
       dateRangeStart: data?.dateRangeStart || null,
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
+      dryRun: true,
     });
 
     return {
       status: result.status,
-      docId: result.docId,
       studentId: result.studentId,
       noteCount: result.payload.noteCount,
       sentimentScore: result.payload.sentimentScore,
       areaBalanceScore: result.payload.areaBalanceScore,
       missingInputFlags: result.payload.missingInputFlags,
       reportText: result.payload.reportText,
+      dateRangeStart: result.payload.dateRangeStart?.toISOString?.() || null,
+      dateRangeEnd: result.payload.dateRangeEnd?.toISOString?.() || null,
+      programId: result.payload.programId,
+      model: result.payload.model,
+      sourceNoteIds: result.payload.sourceNoteIds,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
+      generatedBy: result.payload.generatedBy,
     };
   });
 
@@ -4094,24 +4111,57 @@ export const exportReportToDrive = functions
 
     const studentId = String(data?.studentId || "").trim();
     const reportDocId = String(data?.reportDocId || "").trim();
-    if (!studentId || !reportDocId) {
+    const reportPayload = data?.reportPayload || null;
+
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+    if (!reportDocId && !reportPayload) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "studentId and reportDocId are required",
+        "Either reportDocId or reportPayload is required",
       );
     }
 
     // Permission check (same as report generation)
     await checkReportPermission(context.auth.uid, studentId);
 
-    // Load the report from Firestore
-    const reportRef = db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc(reportDocId);
-    const reportSnap = await reportRef.get();
-    if (!reportSnap.exists) {
-      throw new functions.https.HttpsError("not-found", "Report not found");
+    // Resolve report data: from Firestore (existing report) or from payload (draft)
+    let report;
+    let reportRef;
+    if (reportDocId) {
+      // Existing report path — load from Firestore
+      reportRef = db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc(reportDocId);
+      const reportSnap = await reportRef.get();
+      if (!reportSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Report not found");
+      }
+      report = reportSnap.data();
+    } else {
+      // Draft payload path — validate required fields
+      if (!reportPayload.reportText) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "reportPayload.reportText is required",
+        );
+      }
+      report = {
+        reportText: reportPayload.reportText,
+        sentimentScore: reportPayload.sentimentScore ?? null,
+        areaBalanceScore: reportPayload.areaBalanceScore ?? null,
+        missingInputFlags: reportPayload.missingInputFlags || [],
+        noteCount: reportPayload.noteCount ?? 0,
+        dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
+        dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
+        programId: reportPayload.programId || "",
+        model: reportPayload.model || "",
+        sourceNoteIds: reportPayload.sourceNoteIds || [],
+        generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
+        generatedBy: reportPayload.generatedBy || context.auth.uid,
+        status: reportPayload.status || "ok",
+      };
     }
-    const report = reportSnap.data();
 
     if (!report.reportText) {
       throw new functions.https.HttpsError(
@@ -4169,23 +4219,23 @@ export const exportReportToDrive = functions
 
     // Count existing report docs to determine version
     const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
-    const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+    const generatedAtIso = reportDocId
+      ? (report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString())
+      : (report.generatedAt?.toISOString?.() || new Date().toISOString());
 
-    // Create the Google Doc in student folder
-    const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
+    // Create the Google Doc in student folder (Drive first to minimize orphans)
+    const academicYear = deriveAcademicYear(
+      reportDocId
+        ? (report.dateRangeStart?.toDate?.() || generatedAtIso)
+        : (report.dateRangeStart || generatedAtIso),
+    );
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
       existingCount, generatedAtIso,
       { programName, academicYear },
     );
 
-    // Update summary CSV in classroom folder
-    // Note: Single-student CSV update is not atomic across concurrent exports.
-    // If two concurrent exports occur for different students in the same classroom,
-    // the CSV update could race. Since we now use per-classroom CSVs (lower contention),
-    // and the Drive doc creation is the critical path, we treat CSV updates as
-    // best-effort supplementary data. If the CSV update fails, we log a warning
-    // but do not block the export.
+    // Update summary CSV in classroom folder (best-effort)
     try {
       const csvRow = formatCsvRow({
         studentName,
@@ -4206,11 +4256,22 @@ export const exportReportToDrive = functions
       console.warn("[drive-export] CSV update failed (non-blocking):", csvError);
     }
 
-    // Store Drive doc link on the report doc
-    await reportRef.update({ driveDocId, driveDocLink: docLink });
+    // Write to Firestore — update existing doc or create new one from draft
+    let docId;
+    if (reportDocId) {
+      await reportRef.update({ driveDocId, driveDocLink: docLink });
+      docId = reportDocId;
+    } else {
+      docId = await writeReportDoc(studentId, {
+        ...report,
+        driveDocId,
+        driveDocLink: docLink,
+      });
+    }
 
     return {
       status: "ok",
+      docId,
       driveDocId,
       driveDocLink: docLink,
       studentName,
@@ -4407,4 +4468,207 @@ export const deleteStudentReport = functions
     await reportRef.delete();
 
     return { status: "ok", deletedDocId: reportDocId };
+  });
+
+// ============================================================================
+// DRIVE PERMISSION SYNC (PEP-69)
+// ============================================================================
+
+/**
+ * Firestore trigger: sync Drive permissions when classroom teacherIds
+ * or driveFolderId change.
+ */
+export const onClassroomUpdate = functions
+  .region("asia-south1")
+  .firestore.document("classrooms/{classroomId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const classroomId = context.params.classroomId;
+
+    if (!shouldSyncOnClassroomUpdate(before, after)) return null;
+
+    console.log(`[drive-perms] Classroom ${classroomId} changed, syncing Drive permissions`);
+
+    let drive;
+    try {
+      ({ drive } = await getDriveClients());
+    } catch (err) {
+      console.error("[drive-perms] Failed to get Drive client:", err.message);
+      return null;
+    }
+
+    const driveFolderId = after.driveFolderId;
+
+    // If driveFolderId was just set, do full reconciliation
+    if (!before.driveFolderId && after.driveFolderId) {
+      try {
+        const result = await reconcileClassroomPermissions(drive, db, classroomId);
+        console.log(`[drive-perms] Initial sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}`);
+      } catch (err) {
+        console.error(`[drive-perms] Full reconciliation failed for ${classroomId}:`, err.message);
+      }
+      return null;
+    }
+
+    // Diff teacherIds and sync changes
+    const { added, removed } = diffArrays(before.teacherIds, after.teacherIds);
+    if (added.length === 0 && removed.length === 0) return null;
+
+    try {
+      const result = await syncTeacherChanges(drive, db, driveFolderId, added, removed);
+      console.log(`[drive-perms] Teacher sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}, errors=${result.errors.length}`);
+    } catch (err) {
+      console.error(`[drive-perms] Teacher sync failed for ${classroomId}:`, err.message);
+    }
+
+    return null;
+  });
+
+/**
+ * Firestore trigger: sync Drive permissions when user role
+ * or manageableClassrooms change.
+ */
+export const onUserUpdate = functions
+  .region("asia-south1")
+  .firestore.document("users/{uid}")
+  .onUpdate(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const uid = change.before.id;
+
+    if (!shouldSyncOnUserUpdate(before, after)) return null;
+
+    console.log(`[drive-perms] User ${uid} changed (role: ${before.role}→${after.role}), syncing Drive permissions`);
+
+    let drive;
+    try {
+      ({ drive } = await getDriveClients());
+    } catch (err) {
+      console.error("[drive-perms] Failed to get Drive client:", err.message);
+      return null;
+    }
+
+    try {
+      const result = await syncUserChanges(drive, db, before, after);
+      console.log(`[drive-perms] User sync for ${uid}: granted=${result.granted.length}, revoked=${result.revoked.length}, errors=${result.errors.length}`);
+    } catch (err) {
+      console.error(`[drive-perms] User sync failed for ${uid}:`, err.message);
+    }
+
+    return null;
+  });
+
+/**
+ * Firestore trigger: revoke all Drive permissions when a user is deleted.
+ * Primarily needed for admin/superadmin deletions — teacher permissions
+ * are already cleaned up via the classroom trigger when they're removed
+ * from teacherIds before deletion.
+ */
+export const onUserDelete = functions
+  .region("asia-south1")
+  .firestore.document("users/{uid}")
+  .onDelete(async (snap) => {
+    const deletedData = snap.data();
+    const uid = snap.id;
+
+    // Only need to revoke for admins/superadmins who have direct access
+    if (deletedData.role !== "classroomadmin" && deletedData.role !== "superadmin") {
+      return null;
+    }
+
+    console.log(`[drive-perms] User ${uid} (${deletedData.role}) deleted, revoking Drive permissions`);
+
+    let drive;
+    try {
+      ({ drive } = await getDriveClients());
+    } catch (err) {
+      console.error("[drive-perms] Failed to get Drive client:", err.message);
+      return null;
+    }
+
+    try {
+      const result = await revokeAllForUser(drive, db, deletedData);
+      console.log(`[drive-perms] Revoked ${result.revoked.length} permissions for deleted user ${uid}`);
+    } catch (err) {
+      console.error(`[drive-perms] Revoke-all failed for ${uid}:`, err.message);
+    }
+
+    return null;
+  });
+
+/**
+ * Callable: bulk sync Drive permissions for all classrooms.
+ * Superadmin-only. Used for initial backfill or periodic reconciliation.
+ */
+export const bulkSyncDrivePermissions = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB" })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Must be signed in");
+    }
+
+    // Check superadmin
+    const callerSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Superadmin only");
+    }
+
+    console.log("[drive-perms] Starting bulk sync of Drive permissions");
+
+    const { drive } = await getDriveClients();
+
+    // Load all classrooms and users
+    const [classroomsSnap, usersSnap] = await Promise.all([
+      db.collection("classrooms").get(),
+      db.collection("users").get(),
+    ]);
+
+    const classrooms = classroomsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const plan = buildBulkSyncPlan(classrooms, allUsers);
+    console.log(`[drive-perms] Bulk sync plan: ${plan.length} classrooms with Drive folders`);
+
+    const results = { synced: 0, granted: 0, errors: [] };
+
+    for (const entry of plan) {
+      try {
+        // Get current permissions on the folder
+        const res = await drive.permissions.list({
+          fileId: entry.driveFolderId,
+          supportsAllDrives: true,
+          fields: "permissions(id,emailAddress,role)",
+        });
+
+        const currentEmails = new Set(
+          (res.data.permissions || [])
+            .filter((p) => p.emailAddress && p.role !== "owner" && p.role !== "organizer")
+            .map((p) => p.emailAddress.toLowerCase()),
+        );
+
+        // Grant missing permissions
+        for (const email of entry.desiredEmails) {
+          if (!currentEmails.has(email.toLowerCase())) {
+            await grantDrivePermission(drive, entry.driveFolderId, email);
+            results.granted++;
+          }
+        }
+
+        results.synced++;
+      } catch (err) {
+        console.warn(`[drive-perms] Bulk sync failed for ${entry.classroomId}:`, err.message);
+        results.errors.push({ classroomId: entry.classroomId, error: err.message });
+      }
+    }
+
+    console.log(`[drive-perms] Bulk sync complete: ${results.synced} classrooms, ${results.granted} permissions granted, ${results.errors.length} errors`);
+
+    return {
+      status: "ok",
+      classroomsSynced: results.synced,
+      permissionsGranted: results.granted,
+      errors: results.errors,
+    };
   });
