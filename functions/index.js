@@ -304,7 +304,7 @@ async function runChatCompletion(messages, modelInfo) {
         model: modelInfo.model,
         messages,
         temperature: modelInfo.temperature,
-        max_tokens: modelInfo.max_tokens,
+        max_completion_tokens: modelInfo.max_tokens,
       }),
     });
   } catch (err) {
@@ -941,7 +941,7 @@ export const aiTextCleanup = functions
         { role: "user", content: renderedUser }
       ],
       temperature: CLEANUP_MODEL_INFO.temperature,
-      max_tokens: CLEANUP_MODEL_INFO.max_tokens,
+      max_completion_tokens: CLEANUP_MODEL_INFO.max_tokens,
     };
 
     let response;
@@ -1284,7 +1284,7 @@ export const aiCoachReview = functions
           { role: "user", content: userPrompt }
         ],
         temperature: COACH_MODEL_INFO.temperature,
-        max_tokens: COACH_MODEL_INFO.max_tokens,
+        max_completion_tokens: COACH_MODEL_INFO.max_tokens,
         response_format: { type: "json_object" }, // Force JSON response
       };
 
@@ -1589,7 +1589,7 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
       { role: "user", content: userPrompt }
     ],
     temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
-    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+    max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
   };
 
@@ -2150,7 +2150,7 @@ async function callWritingSnapshotVLM(samples, config, prompt, studentContext, m
       { role: "user", content: userContent },
     ],
     temperature: Number.isFinite(config.temperature) ? config.temperature : WRITING_SNAPSHOT_DEFAULTS.temperature,
-    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
+    max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : WRITING_SNAPSHOT_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
   };
 
@@ -2760,7 +2760,7 @@ async function runChildChat(contextPack, model, temperature, max_tokens) {
     model: model || CHAT_MODEL_INFO.model,
     messages,
     temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
-    max_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
+    max_completion_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
     stream: true, // Enable streaming
   };
 
@@ -2865,7 +2865,7 @@ async function streamChildChat(contextPack, model, temperature, max_tokens, send
     model: model || CHAT_MODEL_INFO.model,
     messages,
     temperature: Number.isFinite(temperature) ? temperature : CHAT_MODEL_INFO.temperature,
-    max_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
+    max_completion_tokens: Number.isFinite(max_tokens) ? max_tokens : CHAT_MODEL_INFO.max_tokens,
     stream: true, // Enable streaming
   };
 
@@ -3114,7 +3114,7 @@ async function generateChatName(firstMessage) {
           },
         ],
         temperature: 0.7,
-        max_tokens: 50,
+        max_completion_tokens: 50,
       }),
     });
 
@@ -3750,7 +3750,7 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
       { role: "user", content: userContent },
     ],
     temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
-    max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
+    max_completion_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
     response_format: { type: "json_object" },
   };
 
