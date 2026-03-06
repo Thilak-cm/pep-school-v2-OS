@@ -1,5 +1,11 @@
 # Changelog
 
+# 9.7.2 — 2026-03-06
+
+### Fixed
+- Observations (voice, text, lesson) now appear correctly on the classroom timeline in the default unfiltered view (PEP-74)
+- Timeline pagination merges grouped and ungrouped notes by date before limiting, preventing newer notes from being pushed off the first page by older grouped items
+
 # 9.7.1 — 2026-03-06
 
 ### Fixed
