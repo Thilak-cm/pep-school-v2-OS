@@ -52,12 +52,12 @@ export function paginateTimelineItems(grouped, ungrouped, limit, now = new Date(
   const buckets = { today: [], last7Days: [], beyond: [] };
 
   for (let i = 0; i < Math.min(merged.length, limit); i++) {
-    const item = merged[i];
-    const d = item._sortDate;
+    const { _sortDate, ...cleanItem } = merged[i];
+    const d = _sortDate;
 
-    if (d >= today) buckets.today.push(item);
-    else if (d >= lastWeek) buckets.last7Days.push(item);
-    else buckets.beyond.push(item);
+    if (d >= today) buckets.today.push(cleanItem);
+    else if (d >= lastWeek) buckets.last7Days.push(cleanItem);
+    else buckets.beyond.push(cleanItem);
   }
 
   return buckets;

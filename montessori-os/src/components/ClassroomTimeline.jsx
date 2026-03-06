@@ -58,7 +58,7 @@ import {
   LESSON_ATTENDANCE_LABELS
 } from '../utils/lessonNoteConstraints';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { paginateTimelineItems } from './classroomTimelineUtils.js';
+import { paginateTimelineItems, toDate } from './classroomTimelineUtils.js';
 
 const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
   const dimensions = getLessonDimensions(note);
@@ -413,14 +413,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     handleClearFilters,
     toggleFilters
   } = useObservationFilters(filteredNotes);
-
-  // Helper function to convert timestamp to Date
-  const toDate = (ts) => {
-    if (!ts) return new Date(0);
-    if (ts.toDate) return ts.toDate();
-    if (ts.seconds) return new Date(ts.seconds * 1000);
-    return new Date(ts);
-  };
 
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
