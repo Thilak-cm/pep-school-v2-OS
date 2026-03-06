@@ -160,6 +160,16 @@ describe("buildDocInsertRequests", () => {
     assert.ok(justifiedReqs.length > 0, "body text should be justified");
   });
 
+  it("resets bold to false on body text so headings don't bleed", () => {
+    const requests = buildDocInsertRequests("## Heading\n\nBody paragraph.", {});
+    // Find updateTextStyle requests that set bold: true (headings) and bold: false (body)
+    const bodyStyleReqs = requests.filter((r) => {
+      const ts = r.updateTextStyle?.textStyle;
+      return ts && ts.bold === false;
+    });
+    assert.ok(bodyStyleReqs.length > 0, "body text should explicitly set bold: false");
+  });
+
   it("handles missing metadata gracefully (no crash)", () => {
     const requests = buildDocInsertRequests("Some body text.");
     assert.ok(Array.isArray(requests));

@@ -398,6 +398,7 @@ export function buildDocInsertRequests(markdown, metadata = {}) {
       } else if (line.trim()) {
         const range = insertText(line + "\n");
         styleText(range, {
+          bold: false,
           fontSize: { magnitude: fonts.bodySize, unit: "PT" },
           weightedFontFamily: { fontFamily: fonts.body },
         });
