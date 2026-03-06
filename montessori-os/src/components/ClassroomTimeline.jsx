@@ -272,8 +272,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
         // Sort by observedAt descending (since we combined multiple queries)
         allNotes.sort((a, b) => {
-          const aDate = a.observedAt?.toDate?.() || a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0);
-          const bDate = b.observedAt?.toDate?.() || b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0);
+          const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+          const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
           return bDate - aDate;
         });
 
@@ -294,10 +294,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             return;
           }
 
-          // Reset cursors on student changes
+          // Update student IDs but preserve pagination state for older notes
           studentIdsRef.current = updatedStudentIds;
-          batchCursorsRef.current = new Map();
-          exhaustedBatchesRef.current = new Set();
 
           const updatedNoteQueries = [];
           for (let i = 0; i < updatedStudentIds.length; i += batchSize) {
@@ -313,16 +311,13 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           }
 
           const updatedSnapshots = await Promise.all(updatedNoteQueries.map(q => getDocs(q)));
-          const updatedNotes = [];
+          const freshNotes = [];
           updatedSnapshots.forEach((snapshot, batchIndex) => {
             if (snapshot.docs.length > 0) {
               batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
             }
-            if (snapshot.docs.length < NOTES_PAGE_SIZE) {
-              exhaustedBatchesRef.current.add(batchIndex);
-            }
             snapshot.docs.forEach(doc => {
-              updatedNotes.push({
+              freshNotes.push({
                 id: doc.id,
                 parentStudentId: doc.ref.parent?.parent?.id,
                 docPath: doc.ref.path,
@@ -331,13 +326,19 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             });
           });
 
-          updatedNotes.sort((a, b) => {
-            const aDate = a.observedAt?.toDate?.() || a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0);
-            const bDate = b.observedAt?.toDate?.() || b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0);
-            return bDate - aDate;
+          // Merge fresh first-page notes with previously loaded older notes
+          // Fresh notes take priority (they have real-time updates)
+          const freshIds = new Set(freshNotes.map(n => n.id));
+          setClassroomNotes(prev => {
+            const olderNotes = prev.filter(n => !freshIds.has(n.id));
+            const merged = [...freshNotes, ...olderNotes];
+            merged.sort((a, b) => {
+              const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+              const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
+              return bDate - aDate;
+            });
+            return merged;
           });
-
-          setClassroomNotes(updatedNotes);
           const updatedTotalBatches = Math.ceil(updatedStudentIds.length / batchSize);
           setHasMoreNotes(exhaustedBatchesRef.current.size < updatedTotalBatches);
         }, () => {
@@ -442,8 +443,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           const deduped = newNotes.filter(n => !existingIds.has(n.id));
           const combined = [...prev, ...deduped];
           combined.sort((a, b) => {
-            const aDate = a.observedAt?.toDate?.() || a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0);
-            const bDate = b.observedAt?.toDate?.() || b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0);
+            const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+            const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
             return bDate - aDate;
           });
           return combined;
