@@ -250,10 +250,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
 
               {/* Model Configuration */}
               <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Model Configuration</Typography>
-                  <Chip label={`Model: ${model}`} size="small" color="default" variant="outlined" />
-                </Box>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Model Configuration</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel id="model-select-label">Model</InputLabel>
@@ -264,6 +261,10 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                       label="Model"
                       onChange={(e) => setModel(e.target.value)}
                       disabled={saving}
+                      renderValue={(val) => {
+                        const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                        return found ? found.label : val;
+                      }}
                     >
                       {AVAILABLE_MODELS.map((m) => (
                         <MenuItem key={m.id} value={m.id}>

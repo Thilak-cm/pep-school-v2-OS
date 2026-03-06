@@ -11,13 +11,18 @@ import {
   Divider,
   Chip,
   InputAdornment,
-  Autocomplete
+  Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../scripts/config/baseballCardPrompt';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
@@ -378,12 +383,23 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
                 onChange={handlePlaygroundFieldChange('windowDays', true)}
                 fullWidth
               />
-              <TextField
-                label="Model"
-                value={playgroundConfig.model}
-                disabled
-                fullWidth
-              />
+              <FormControl fullWidth size="small">
+                <InputLabel id="baseball-playground-model-label">Model</InputLabel>
+                <Select
+                  labelId="baseball-playground-model-label"
+                  value={playgroundConfig.model}
+                  label="Model"
+                  onChange={handlePlaygroundFieldChange('model')}
+                  renderValue={(val) => {
+                    const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                    return found ? found.label : val;
+                  }}
+                >
+                  {AVAILABLE_MODELS.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
