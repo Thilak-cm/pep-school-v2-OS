@@ -8,6 +8,7 @@ import { defineSecret } from "firebase-functions/params";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
+import { MINI_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { WRITING_SNAPSHOT_DEFAULTS } from "./config/writingSnapshotConstants.js";
 import { WRITING_SNAPSHOT_SYSTEM_PROMPT_FALLBACK } from "./config/writingSnapshotPrompt.js";
@@ -280,9 +281,9 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 // PDF helpers (title + essence) for media notes
 // -------------------------------------------------
-const PDF_TITLE_MODEL = { model: "gpt-4o-mini", temperature: 0.4, max_tokens: 48 };
-const PDF_ESSENCE_MODEL = { model: "gpt-4o-mini", temperature: 0.35, max_tokens: 220 };
-const HANDWRITING_VLM_MODEL = { model: "gpt-4o-mini", temperature: 0.1, max_tokens: 10 };
+const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
+const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
+const HANDWRITING_VLM_MODEL = { model: MINI_MODEL, temperature: 0.1, max_tokens: 10 };
 const HANDWRITING_VLM_FALLBACK_PROMPT = "You are a classroom image classifier. Your only job is to determine whether the image contains handwriting (letters, numbers, or words written by hand). Respond with exactly one word: YES or NO.";
 const MAX_PDF_TEXT_LENGTH = 15000;
 
@@ -895,7 +896,7 @@ export const migratePendingUser = functions
 // AI: Text Cleanup (server-side OpenAI invocation)
 // -----------------------------------------------
 const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const CLEANUP_MODEL_INFO = { model: "gpt-4o-mini", temperature: 0, max_tokens: 1000 };
+const CLEANUP_MODEL_INFO = { model: MINI_MODEL, temperature: 0, max_tokens: 1000 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
 const PROMPT_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
@@ -3138,7 +3139,7 @@ async function generateChatName(firstMessage) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(buildChatBody({
-        model: "gpt-4o-mini",
+        model: MINI_MODEL,
         messages: [
           {
             role: "user",

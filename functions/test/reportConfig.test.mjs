@@ -7,7 +7,7 @@ describe("mergeReportConfig", () => {
   it("returns REPORT_DEFAULTS when docData is null/undefined", () => {
     const result = mergeReportConfig(null, REPORT_DEFAULTS);
     assert.deepStrictEqual(result, {
-      model: "gpt-4o",
+      model: "gpt-5.2",
       temperature: 0.7,
       max_tokens: 4096,
       timezone: "Asia/Kolkata",
@@ -17,7 +17,7 @@ describe("mergeReportConfig", () => {
   it("returns REPORT_DEFAULTS when docData is empty object", () => {
     const result = mergeReportConfig({}, REPORT_DEFAULTS);
     assert.deepStrictEqual(result, {
-      model: "gpt-4o",
+      model: "gpt-5.2",
       temperature: 0.7,
       max_tokens: 4096,
       timezone: "Asia/Kolkata",
@@ -34,7 +34,7 @@ describe("mergeReportConfig", () => {
   it("overrides temperature from docData", () => {
     const result = mergeReportConfig({ temperature: 0.3 }, REPORT_DEFAULTS);
     assert.equal(result.temperature, 0.3);
-    assert.equal(result.model, "gpt-4o");
+    assert.equal(result.model, "gpt-5.2");
   });
 
   it("overrides max_tokens from docData", () => {
@@ -64,7 +64,7 @@ describe("mergeReportConfig", () => {
 
   it("falls back to default when model is empty string", () => {
     const result = mergeReportConfig({ model: "" }, REPORT_DEFAULTS);
-    assert.equal(result.model, "gpt-4o");
+    assert.equal(result.model, "gpt-5.2");
   });
 
   it("merges multiple overrides at once", () => {

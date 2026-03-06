@@ -1,6 +1,6 @@
 # Changelog
 
-# 9.6.4 — 2026-03-06
+# 9.7.1 — 2026-03-06
 
 ### Fixed
 - ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
@@ -13,6 +13,13 @@
 - Scroll-to-bottom floating button appears when user scrolls up in conversation (PEP-27)
 - Stop button replaces mic/send while waiting for AI response (PEP-27)
 - Chat components extracted into reusable `chat/` module (MessageBubble, TypingIndicator, ScrollToBottomFab, formatMessage, chatUtils) (PEP-27)
+
+# 9.7.0 — 2026-03-05
+
+### Changed
+- Migrated all AI features from GPT-4o/4o-mini to GPT-5 family models (gpt-5.2 and gpt-5-mini) (PEP-75)
+- Centralized model configuration into a single modelConstants module for all AI features
+- Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
 
 # 9.6.3 — 2026-03-05
 
