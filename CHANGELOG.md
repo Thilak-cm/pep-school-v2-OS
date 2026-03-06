@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.6.2 — 2026-03-05
+
+### Changed
+- Report generation is now preview-only — nothing saved to Firestore until user explicitly exports to Drive (PEP-73)
+- Report preview dialog shows Discard/Save and Export to Drive instead of Close/Export (PEP-73)
+- Generate Report and Export buttons restyled to match app theme (PEP-73)
+
+### Fixed
+- Client-supplied report payloads are now validated and sanitized before Firestore persistence (PEP-73)
+
 # 9.6.1 — 2026-03-05
 
 ### Fixed
