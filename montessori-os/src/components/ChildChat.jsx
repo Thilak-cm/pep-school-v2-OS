@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { keyframes } from '@emotion/react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -17,7 +16,7 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Settings, AutoAwesome, Mic, Pause, PlayArrow } from '@mui/icons-material';
+import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Mic, Pause, PlayArrow, Stop } from '@mui/icons-material';
 import { formatDate } from '../utils/dateFormat';
 import {
   collection,
@@ -33,394 +32,12 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions, auth } from '../firebase';
-import CopyToClipboardButton from './CopyToClipboardButton';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-
-// Basic markdown formatting function
-const formatMessage = (text) => {
-  if (!text) return '';
-  
-  // Split by lines to handle bullets and paragraphs
-  const lines = text.split('\n');
-  const formatted = [];
-  let inList = false;
-  let listItems = [];
-  let listType = null; // 'ul' or 'ol'
-  
-  const flushList = () => {
-    if (listItems.length > 0) {
-      const ListComponent = listType === 'ol' ? 'ol' : 'ul';
-      const listStyleType = listType === 'ol' ? 'decimal' : 'disc';
-      formatted.push(
-        <Box key={`list-${formatted.length}`} component={ListComponent} sx={{ m: 0, pl: 2, mb: 1, listStyle: listStyleType }}>
-          {listItems}
-        </Box>
-      );
-      listItems = [];
-      inList = false;
-      listType = null;
-    }
-  };
-  
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    
-    // Handle bullet points (- or *)
-    if (trimmed.match(/^[-*]\s+/)) {
-      const content = trimmed.replace(/^[-*]\s+/, '');
-      if (!inList || listType !== 'ul') {
-        flushList();
-        inList = true;
-        listType = 'ul';
-      }
-      listItems.push(
-        <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
-          {formatInlineMarkdown(content)}
-        </Box>
-      );
-    } else if (trimmed.match(/^\d+\.\s+/)) {
-      // Handle numbered lists
-      const content = trimmed.replace(/^\d+\.\s+/, '');
-      if (!inList || listType !== 'ol') {
-        flushList();
-        inList = true;
-        listType = 'ol';
-      }
-      listItems.push(
-        <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
-          {formatInlineMarkdown(content)}
-        </Box>
-      );
-    } else if (!trimmed && inList) {
-      // Skip blank lines inside a list — don't flush yet
-    } else {
-      // Flush any pending list
-      flushList();
-      
-      if (trimmed.startsWith('###')) {
-        // H3 headers
-        const content = trimmed.replace(/^###\s+/, '');
-        formatted.push(
-          <Typography key={index} variant="subtitle2" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
-          </Typography>
-        );
-      } else if (trimmed.startsWith('##')) {
-        // H2 headers
-        const content = trimmed.replace(/^##\s+/, '');
-        formatted.push(
-          <Typography key={index} variant="subtitle1" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
-          </Typography>
-        );
-      } else if (trimmed.startsWith('#')) {
-        // H1 headers
-        const content = trimmed.replace(/^#\s+/, '');
-        formatted.push(
-          <Typography key={index} variant="h6" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
-          </Typography>
-        );
-      } else if (trimmed) {
-        // Regular paragraph
-        formatted.push(
-          <Box key={index} component="p" sx={{ m: 0, mb: 1 }}>
-            {formatInlineMarkdown(trimmed)}
-          </Box>
-        );
-      } else {
-        // Empty line
-        formatted.push(<br key={index} />);
-      }
-    }
-  });
-  
-  // Flush any remaining list
-  flushList();
-  
-  return formatted;
-};
-
-// Format inline markdown (bold, italic, code)
-const formatInlineMarkdown = (text) => {
-  if (!text) return '';
-  
-  const parts = [];
-  let currentIndex = 0;
-  
-  // Match **bold**, *italic*, `code`, and regular text
-  const patterns = [
-    { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
-    { regex: /\*([^*]+)\*/g, type: 'italic' },
-    { regex: /`([^`]+)`/g, type: 'code' },
-  ];
-  
-  const matches = [];
-  patterns.forEach((pattern) => {
-    let match;
-    while ((match = pattern.regex.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        type: pattern.type,
-        content: match[1],
-        fullMatch: match[0],
-      });
-    }
-  });
-  
-  // Sort matches by start position
-  matches.sort((a, b) => a.start - b.start);
-  
-  // Remove overlapping matches (prefer bold over italic)
-  const filteredMatches = [];
-  matches.forEach((match) => {
-    const overlaps = filteredMatches.some(
-      (m) => match.start < m.end && match.end > m.start
-    );
-    if (!overlaps) {
-      filteredMatches.push(match);
-    }
-  });
-  
-  // Build formatted parts
-  filteredMatches.forEach((match) => {
-    // Add text before match
-    if (match.start > currentIndex) {
-      parts.push(text.substring(currentIndex, match.start));
-    }
-    
-    // Add formatted match
-    if (match.type === 'bold') {
-      parts.push(<strong key={`bold-${match.start}`}>{match.content}</strong>);
-    } else if (match.type === 'italic') {
-      parts.push(<em key={`italic-${match.start}`}>{match.content}</em>);
-    } else if (match.type === 'code') {
-      parts.push(
-        <Box
-          key={`code-${match.start}`}
-          component="code"
-          sx={{
-            backgroundColor: 'rgba(0,0,0,0.1)',
-            padding: '0.1em 0.3em',
-            borderRadius: '0.25em',
-            fontSize: '0.9em',
-            fontFamily: 'monospace',
-          }}
-        >
-          {match.content}
-        </Box>
-      );
-    }
-    
-    currentIndex = match.end;
-  });
-  
-  // Add remaining text
-  if (currentIndex < text.length) {
-    parts.push(text.substring(currentIndex));
-  }
-  
-  return parts.length > 0 ? parts : text;
-};
-
-const stripQuotes = (text) => {
-  if (!text) return text;
-  return text.replace(/^["']|["']$/g, '');
-};
-
-const messageContentSx = {
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  '& ul': {
-    margin: 0,
-    paddingLeft: 2,
-    listStyleType: 'disc',
-  },
-  '& ol': {
-    margin: 0,
-    paddingLeft: 2,
-  },
-  '& p': {
-    margin: 0,
-    marginBottom: 1,
-    '&:last-child': {
-      marginBottom: 0,
-    },
-  },
-};
-
-// Keyframe animations for buffer stages
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
-
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-`;
-
-const TypingIndicator = ({ stage = null }) => {
-  const getStageContent = () => {
-    switch (stage) {
-      case 'creating':
-        return {
-          icon: <Settings sx={{ fontSize: 18, color: '#4f46e5', animation: `${spin} 2s linear infinite` }} />,
-          text: 'Creating your chat...',
-        };
-      case 'preparing':
-        return {
-          icon: <AutoAwesome sx={{ fontSize: 18, color: '#4f46e5', animation: `${pulse} 1.5s ease-in-out infinite` }} />,
-          text: 'Preparing context...',
-        };
-      case 'thinking':
-      default:
-        return {
-          icon: <CircularProgress size={18} sx={{ color: '#4f46e5' }} />,
-          text: 'Coach Pepper is thinking...',
-        };
-    }
-  };
-
-  const { icon, text } = getStageContent();
-
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        justifyContent: 'flex-start',
-        mb: 1,
-        width: '100%',
-        p: 1.5,
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-        }}
-      >
-        {icon}
-        <Typography variant="body2" color="text.secondary">
-          {text}
-        </Typography>
-      </Box>
-    </Box>
-  );
-};
-
-const UserBubble = ({ message, formatTimestamp }) => (
-  <Paper
-    elevation={0}
-    sx={{
-      maxWidth: '88%',
-      p: 1.5,
-      backgroundColor: 'primary.main',
-      color: 'white',
-      borderRadius: 2,
-      position: 'relative',
-    }}
-  >
-    {message.authorName && (
-      <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
-        {message.authorName}
-      </Typography>
-    )}
-    <Box
-      component="div"
-      sx={messageContentSx}
-    >
-      {formatMessage(message.content)}
-    </Box>
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        mt: 0.5,
-      }}
-    >
-      {message.timestamp && (
-        <Typography
-          variant="caption"
-          sx={{
-            opacity: 0.7,
-            fontSize: '0.7rem',
-          }}
-        >
-          {formatTimestamp(message.timestamp)}
-        </Typography>
-      )}
-      <CopyToClipboardButton
-        text={message.content}
-        ariaLabel="Copy message"
-        sx={{
-          color: 'white',
-          opacity: 0.8,
-          transition: 'opacity 0.2s ease',
-          '&:hover': {
-            opacity: 1,
-          },
-        }}
-      />
-    </Box>
-  </Paper>
-);
-
-const AssistantBubble = ({ message, formatTimestamp }) => (
-  <Box
-    sx={{
-      width: '100%',
-      p: 1.5,
-      position: 'relative',
-    }}
-  >
-    <Box
-      component="div"
-      sx={{
-        ...messageContentSx,
-        color: 'text.primary',
-      }}
-    >
-      {formatMessage(message.content)}
-    </Box>
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        mt: 0.5,
-      }}
-    >
-      {message.timestamp && (
-        <Typography
-          variant="caption"
-          sx={{
-            opacity: 0.7,
-            fontSize: '0.7rem',
-          }}
-        >
-          {formatTimestamp(message.timestamp)}
-        </Typography>
-      )}
-      <CopyToClipboardButton
-        text={message.content}
-        ariaLabel="Copy message"
-        sx={{
-          color: '#000000',
-          opacity: 0.6,
-          transition: 'opacity 0.2s ease',
-          '&:hover': {
-            opacity: 1,
-          },
-        }}
-      />
-    </Box>
-  </Box>
-);
+import { stripQuotes, ASSISTANT_TIMEOUT_MS } from './chat/chatUtils';
+import { UserBubble, AssistantBubble } from './chat/MessageBubble';
+import TypingIndicator from './chat/TypingIndicator';
+import ScrollToBottomFab from './chat/ScrollToBottomFab';
 
 function ChildChat({ student, startInLandingPage = false, currentRole }) {
   // State
@@ -440,8 +57,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const [editingChatName, setEditingChatName] = useState('');
   const [deletingChatId, setDeletingChatId] = useState(null);
   const [devMode, setDevMode] = useState(false); // Default OFF - includes observations in context
-  const [bufferStage, setBufferStage] = useState(null); // 'creating' | 'preparing' | 'thinking' | null
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -459,7 +76,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const hasManuallySelectedChatRef = useRef(false);
   const lastPendingUserTimestampRef = useRef(null);
   const selectedChatIdRef = useRef(null);
-  const stageTimersRef = useRef([]);
+  const messagesContainerRef = useRef(null);
   
   // Recording refs
   const mediaRecorderRef = useRef(null);
@@ -502,6 +119,25 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Defensive timeout: clear assistantPending after 30s to prevent stuck spinner
+  useEffect(() => {
+    if (!assistantPending) return;
+    const timer = setTimeout(() => {
+      setAssistantPending(false);
+      lastPendingUserTimestampRef.current = null;
+      setError('Response may have arrived — try scrolling up or refreshing.');
+    }, ASSISTANT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [assistantPending]);
+
+  // Track scroll position for scroll-to-bottom FAB
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollButton(distanceFromBottom > 200);
+  }, []);
 
   // Load chats list
   useEffect(() => {
@@ -711,25 +347,23 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
           // If we're in first message flow and real messages arrive, remove temp messages
           if (isFirstMessageFlow && messagesList.length > 0) {
-            // Real messages have arrived - remove any temp messages
-            // messagesList from Firestore doesn't include temp messages, so this replaces them
-            clearStageProgression();
             setIsFirstMessageFlow(false);
           }
 
           setMessages(messagesList);
           setMessagesLoading(false);
 
-          // Clear pending state when an assistant response arrives after the last pending user message
-          if (assistantPending && lastPendingUserTimestampRef.current) {
+          // Clear pending state when an assistant response arrives after the last pending user message.
+          // Gate on the ref (always current) instead of assistantPending state (stale in this closure).
+          if (lastPendingUserTimestampRef.current) {
+            const pendingTs = lastPendingUserTimestampRef.current.toMillis?.()
+              || lastPendingUserTimestampRef.current.seconds * 1000
+              || 0;
             const hasAssistantAfterPending = messagesList.some(
               (m) =>
                 m.role === 'assistant' &&
                 m.timestamp &&
-                (m.timestamp.toMillis?.() || m.timestamp.seconds * 1000 || 0) >
-                  (lastPendingUserTimestampRef.current.toMillis?.() ||
-                    lastPendingUserTimestampRef.current.seconds * 1000 ||
-                    0)
+                (m.timestamp.toMillis?.() || m.timestamp.seconds * 1000 || 0) > pendingTs
             );
             if (hasAssistantAfterPending) {
               setAssistantPending(false);
@@ -1143,31 +777,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
   const isLanding = selectedChatId === null;
 
-  // Start stage progression for first message flow
-  const startStageProgression = () => {
-    // Clear any existing timers
-    stageTimersRef.current.forEach((timer) => clearTimeout(timer));
-    stageTimersRef.current = [];
-
-    // Stage 1: Creating (1 second)
-    setBufferStage('creating');
-    const timer1 = setTimeout(() => {
-      setBufferStage('preparing');
-      const timer2 = setTimeout(() => {
-        setBufferStage('thinking');
-      }, 1000); // 1 second
-      stageTimersRef.current.push(timer2);
-    }, 1000); // 1 second
-    stageTimersRef.current.push(timer1);
-  };
-
-  // Clear stage progression timers
-  const clearStageProgression = () => {
-    stageTimersRef.current.forEach((timer) => clearTimeout(timer));
-    stageTimersRef.current = [];
-    setBufferStage(null);
-  };
-
   // Handle send message
   const handleSendMessage = async () => {
     const messageText = inputMessage.trim();
@@ -1192,7 +801,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
       localTempChatId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       setIsFirstMessageFlow(true);
       setSelectedChatId(localTempChatId); // Switch to chat view immediately
-      startStageProgression(); // Start stage progression
     }
 
     // Optimistically add user message
@@ -1223,11 +831,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         throw new Error(responseData.error || 'Failed to send message');
       }
 
-      // Clear stage progression when backend completes
-      if (isFirstMessageFlow) {
-        clearStageProgression();
-      }
-
       // Update selectedChatId if a new chat was created
       if (responseData.chatId) {
         if (isFirstMessageFlow && responseData.chatId !== localTempChatId) {
@@ -1250,11 +853,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         scrollToBottom();
       }, 100);
     } catch (err) {
-
-      // Clear stage progression on error
-      if (isFirstMessageFlow) {
-        clearStageProgression();
-      }
 
       // For first message flow: keep user message visible, return to landing
       if (isFirstMessageFlow) {
@@ -1390,6 +988,14 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     }
   };
 
+  // Handle stop / force-exit while waiting for assistant response
+  const handleStopResponse = () => {
+    setAssistantPending(false);
+    setSending(false);
+    lastPendingUserTimestampRef.current = null;
+    setError('Stopped waiting — the response may still arrive shortly.');
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -1399,10 +1005,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
       if (messagesUnsubscribeRef.current) {
         messagesUnsubscribeRef.current();
       }
-      // Clear stage timers
-      stageTimersRef.current.forEach((timer) => clearTimeout(timer));
-      stageTimersRef.current = [];
-      
       // Cleanup recording
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -1796,13 +1398,15 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
       {/* Messages Area */}
       <Box
+        ref={isLanding ? undefined : messagesContainerRef}
+        onScroll={isLanding ? undefined : handleMessagesScroll}
         sx={{
           ...(isLanding
             ? {
                 // Landing page: absolutely positioned between dropdown and input, no scrolling
                 position: 'absolute',
-                top: '56px', // Below the dropdown (pt: 1 + pb: 0.5 + Paper py: 1 + content ≈ 56px)
-                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' }, // Above footer
+                top: '56px',
+                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 left: 0,
                 right: 0,
                 overflow: 'hidden',
@@ -1824,7 +1428,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 flexDirection: 'column',
                 justifyContent: 'flex-start',
                 alignItems: 'stretch',
-                gap: 1,
+                gap: 1.5,
               }),
         }}
       >
@@ -1880,7 +1484,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 sx={{
                   display: 'flex',
                   justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  mb: 1,
                   position: 'relative',
                   width: '100%',
                 }}
@@ -1892,12 +1495,14 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 )}
               </Box>
             ))}
-            {/* Coach Pepper loading state - shows left-aligned while waiting for assistant */}
-            {assistantPending && <TypingIndicator stage={bufferStage} />}
+            {assistantPending && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </>
         )}
       </Box>
+
+      {/* Scroll-to-bottom FAB */}
+      {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={scrollToBottom} />}
 
       {/* Floating Input Area - Fixed at bottom */}
       <Box
@@ -2152,61 +1757,88 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 },
               }}
             />
-            {/* Mic Button */}
-            <IconButton
-              onClick={startRecording}
-              disabled={isRecording || sending}
-              aria-label="Start voice recording"
-              sx={{
-                minWidth: 44,
-                minHeight: 44,
-                width: 44,
-                height: 44,
-                color: 'primary.main',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  color: 'primary.dark',
-                  backgroundColor: 'transparent',
-                },
-                '&:active': {
-                  transform: 'scale(0.95)',
-                },
-                '&:disabled': {
-                  color: 'grey.400',
-                  backgroundColor: 'transparent',
-                },
-              }}
-            >
-              <Mic />
-            </IconButton>
-            {/* Send Button */}
-            <IconButton
-              color="primary"
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || sending}
-              aria-label="Send message"
-              sx={{
-                minWidth: 44,
-                minHeight: 44,
-                width: 44,
-                height: 44,
-                color: 'primary.main',
-                transition: 'all 0.2s ease-in-out',
-                '&:hover': {
-                  color: 'primary.dark',
-                  backgroundColor: 'transparent',
-                },
-                '&:active': {
-                  transform: 'scale(0.95)',
-                },
-                '&:disabled': {
-                  color: 'grey.400',
-                  backgroundColor: 'transparent',
-                },
-              }}
-            >
-              <Send />
-            </IconButton>
+            {assistantPending ? (
+              /* Stop Button — shown while waiting for assistant response */
+              <IconButton
+                onClick={handleStopResponse}
+                aria-label="Stop waiting for response"
+                sx={{
+                  minWidth: 44,
+                  minHeight: 44,
+                  width: 44,
+                  height: 44,
+                  color: 'error.main',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    color: 'error.dark',
+                    backgroundColor: 'rgba(211, 47, 47, 0.08)',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
+                  },
+                }}
+              >
+                <Stop />
+              </IconButton>
+            ) : (
+              <>
+                {/* Mic Button */}
+                <IconButton
+                  onClick={startRecording}
+                  disabled={isRecording || sending}
+                  aria-label="Start voice recording"
+                  sx={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    width: 44,
+                    height: 44,
+                    color: 'primary.main',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      color: 'primary.dark',
+                      backgroundColor: 'transparent',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    },
+                    '&:disabled': {
+                      color: 'grey.400',
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  <Mic />
+                </IconButton>
+                {/* Send Button */}
+                <IconButton
+                  color="primary"
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || sending}
+                  aria-label="Send message"
+                  sx={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    width: 44,
+                    height: 44,
+                    color: 'primary.main',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      color: 'primary.dark',
+                      backgroundColor: 'transparent',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    },
+                    '&:disabled': {
+                      color: 'grey.400',
+                      backgroundColor: 'transparent',
+                    },
+                  }}
+                >
+                  <Send />
+                </IconButton>
+              </>
+            )}
           </Paper>
         )}
       </Box>
