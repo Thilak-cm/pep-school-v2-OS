@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,11 +7,12 @@ import {
   Typography,
   Stack,
   Box,
-  Alert,
+  Chip,
   IconButton,
   Divider,
+  Popover,
 } from '@mui/material';
-import { Close, Description as ReportIcon, CloudUpload as ExportIcon } from '@mui/icons-material';
+import { Close, Description as ReportIcon, CloudUpload as ExportIcon, WarningAmber } from '@mui/icons-material';
 import { parseReportSections, renderSectionContent } from '../utils/reportUtils';
 
 export default function ReportPreviewDialog({
@@ -27,6 +28,7 @@ export default function ReportPreviewDialog({
   driveDocLink = null,
 }) {
   const sections = useMemo(() => parseReportSections(reportText), [reportText]);
+  const [flagsAnchorEl, setFlagsAnchorEl] = useState(null);
 
   const formatGeneratedAt = (value) => {
     if (!value) return null;
@@ -94,13 +96,55 @@ export default function ReportPreviewDialog({
       <DialogContent sx={{ px: 3, py: 2 }}>
         <Stack spacing={2}>
           {missingInputFlags.length > 0 && (
-            <Stack spacing={1}>
-              {missingInputFlags.map((flag, i) => (
-                <Alert key={i} severity="warning" sx={{ py: 0.25 }}>
-                  {flag}
-                </Alert>
-              ))}
-            </Stack>
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<WarningAmber sx={{ fontSize: 18 }} />}
+                onClick={(e) => setFlagsAnchorEl(e.currentTarget)}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  borderColor: '#f59e0b',
+                  color: '#92400e',
+                  backgroundColor: '#fffbeb',
+                  px: 1.5,
+                  alignSelf: 'flex-start',
+                  '&:hover': {
+                    borderColor: '#d97706',
+                    backgroundColor: '#fef3c7',
+                  },
+                }}
+              >
+                {missingInputFlags.length} missing {missingInputFlags.length === 1 ? 'input' : 'inputs'}
+              </Button>
+              <Popover
+                open={Boolean(flagsAnchorEl)}
+                anchorEl={flagsAnchorEl}
+                onClose={() => setFlagsAnchorEl(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                PaperProps={{ sx: { p: 2, maxWidth: 340, border: '1px solid #fde68a' } }}
+              >
+                <Stack spacing={1.25}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <WarningAmber sx={{ fontSize: 20, color: '#f59e0b' }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#92400e' }}>
+                      Missing inputs
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" sx={{ color: '#92400e' }}>
+                    This report was generated without data in these areas.
+                  </Typography>
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    {missingInputFlags.map((flag, i) => (
+                      <Chip key={i} label={flag} size="small" variant="outlined" />
+                    ))}
+                  </Stack>
+                </Stack>
+              </Popover>
+            </>
           )}
 
           {sections.length === 0 ? (

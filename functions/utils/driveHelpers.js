@@ -163,10 +163,25 @@ export async function createReportDoc(
   const requests = buildDocInsertRequests(reportMarkdown, docOpts);
 
   if (requests.length) {
-    await docs.documents.batchUpdate({
-      documentId: docId,
-      requestBody: { requests },
-    });
+    try {
+      await docs.documents.batchUpdate({
+        documentId: docId,
+        requestBody: { requests },
+      });
+    } catch (err) {
+      // Clean up the empty doc so it doesn't orphan on Drive
+      console.error("[drive-export] batchUpdate failed, trashing empty doc:", err.message);
+      try {
+        await drive.files.update({
+          fileId: docId,
+          requestBody: { trashed: true },
+          supportsAllDrives: true,
+        });
+      } catch (cleanupErr) {
+        console.warn("[drive-export] Failed to trash orphaned doc:", cleanupErr.message);
+      }
+      throw err;
+    }
   }
 
   return { docId, docLink };

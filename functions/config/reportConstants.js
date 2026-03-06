@@ -62,7 +62,8 @@ export const DOC_STYLE = {
   logoHeight: 80,
 };
 
-// PEP School logo — hosted on Firebase Storage (public download URL)
-// Upload via: gsutil cp "pep school logo.webp" gs://pep-os.firebasestorage.app/branding/logo.webp
-// Then set public: gsutil acl ch -u AllUsers:R gs://pep-os.firebasestorage.app/branding/logo.webp
-export const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/pep-os.firebasestorage.app/o/branding%2Flogo.webp?alt=media";
+// PEP School logo — hosted on Firebase Storage at assets/branding/ (public via GCS ACL)
+// NOTE: Must be PNG/JPEG/GIF — Google Docs API rejects WebP for insertInlineImage.
+// NOTE: Use storage.googleapis.com (GCS direct) URL, NOT firebasestorage.googleapis.com
+// — the Firebase REST URL applies Storage security rules and returns 403.
+export const LOGO_URL = "https://storage.googleapis.com/pep-os.firebasestorage.app/assets/branding/pep-logo.png";
