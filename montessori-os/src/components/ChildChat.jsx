@@ -353,16 +353,17 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           setMessages(messagesList);
           setMessagesLoading(false);
 
-          // Clear pending state when an assistant response arrives after the last pending user message
-          if (assistantPending && lastPendingUserTimestampRef.current) {
+          // Clear pending state when an assistant response arrives after the last pending user message.
+          // Gate on the ref (always current) instead of assistantPending state (stale in this closure).
+          if (lastPendingUserTimestampRef.current) {
+            const pendingTs = lastPendingUserTimestampRef.current.toMillis?.()
+              || lastPendingUserTimestampRef.current.seconds * 1000
+              || 0;
             const hasAssistantAfterPending = messagesList.some(
               (m) =>
                 m.role === 'assistant' &&
                 m.timestamp &&
-                (m.timestamp.toMillis?.() || m.timestamp.seconds * 1000 || 0) >
-                  (lastPendingUserTimestampRef.current.toMillis?.() ||
-                    lastPendingUserTimestampRef.current.seconds * 1000 ||
-                    0)
+                (m.timestamp.toMillis?.() || m.timestamp.seconds * 1000 || 0) > pendingTs
             );
             if (hasAssistantAfterPending) {
               setAssistantPending(false);

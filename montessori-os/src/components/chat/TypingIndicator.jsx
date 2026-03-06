@@ -44,7 +44,7 @@ const TypingIndicator = () => (
         ))}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-        Thinking...
+        Coach Pepper is thinking...
       </Typography>
     </Box>
   </Box>
