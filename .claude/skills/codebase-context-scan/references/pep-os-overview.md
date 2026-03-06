@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-03T02:27:54.882Z
-App version: 9.4.0
+Generated: 2026-03-06T07:12:13.120Z
+App version: 9.6.3
 
 ## App Snapshot
 
@@ -93,17 +93,17 @@ App version: 9.4.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 16
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 19
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
 - `montessori-os/src/components/BaseballCardBody.jsx`
+- `montessori-os/src/components/BulkUploadPage.jsx`
+- `montessori-os/src/components/BulkUploadPage.helpers.js`
+- `montessori-os/src/components/BulkUploadPage.test.js`
 - `montessori-os/src/components/CopyToClipboardButton.jsx`
-- `montessori-os/src/components/FeedbackPage.jsx`
-- `montessori-os/src/components/LandingPage.jsx`
-- `montessori-os/src/components/ProfilePage.jsx`
 
 ## Existing UX Patterns
 
@@ -137,23 +137,20 @@ App version: 9.4.0
 
 ## Recent Changes
 
-### 9.4.0 (2026-03-02)
-- Report Generation config page: model settings (model, temperature, max tokens, timezone) read/write to `/config/report_generation` Firestore doc (PEP-67)
-- Per-program prompt editor with template variable chips and edit/preview toggle for adolescent and elementary programs (PEP-67)
-- Report playground: select a student, override config values, preview report output without saving via `previewStudentReport` Cloud Function (PEP-67)
+### 9.6.3 (2026-03-05)
+- Performance summary card from Notifications page (already present in Stats > Students tab) — eliminates duplicate Firestore queries for students, classrooms, and observations
 
-### 9.3.1 (2026-03-01)
-- Superadmin report deletion: delete icon on each report row, confirmation dialog, cascading deletion of Firestore doc + Google Drive doc + CSV summary row (PEP-66)
-- `deleteStudentReport` Cloud Function with superadmin-only enforcement (PEP-66)
-- `removeCsvRow` helper with 5 unit tests and `trashDriveFile` Drive helper (PEP-66)
+### 9.6.2 (2026-03-05)
+- Classroom admin teacher query now scoped to managed classrooms at the Firestore query level, not just client-side filtering (PEP-23)
+- Classroom admins can now view other classroom admins who manage overlapping classrooms (view-only, no edit access) (PEP-23)
 
-### 9.3.0 (2026-03-01)
-- Dedicated Reports card on Student Dashboard with navigation to a full Reports page (PEP-64)
-- Reports page: list of past reports with dates, view any report, generate new reports (PEP-64)
-- `buildReportList` utility with 7 unit tests for Firestore doc normalization and sorting (PEP-64)
+### 9.6.1 (2026-03-05)
+- Classroom admins on Users & Access page now only see and act on teachers assigned to their manageable classrooms (PEP-48)
+- Promote-teacher-to-admin flow routed through server-side validation instead of direct Firestore write (PEP-48)
+- Delete and manage-classrooms actions gated to in-scope teachers for classroom admins (PEP-48)
 
-### 9.2.0 (2026-02-28)
-- Google Drive export: "Export to Drive" button on report preview creates a formatted Google Doc in a per-classroom Drive folder hierarchy (Branch → Program → Classroom → Student) (PEP-61)
-- Bulk export: "Export All to Drive" button after bulk report generation exports all reports with concurrency control (PEP-61)
-- Per-classroom summary CSV in the classroom Drive folder with scores, metadata, and Google Doc links — auto-updated on each export (PEP-61)
+### 9.6.0 (2026-03-03)
+- CSV bulk upload for historical lessons and observations (superadmin-only, on Settings page) (PEP-45)
+- Fuzzy student name matching with supervised review step for CSV imports (PEP-45)
+- Duplicate detection with warnings for bulk-uploaded records (PEP-45)
 
