@@ -1,6 +1,8 @@
 // Shared defaults for the parent report generation feature
+import { FRONTIER_MODEL } from "./modelConstants.js";
+
 export const REPORT_DEFAULTS = {
-  model: "gpt-4o",
+  model: FRONTIER_MODEL,
   temperature: 0.7,
   max_tokens: 4096,
   timezone: "Asia/Kolkata",

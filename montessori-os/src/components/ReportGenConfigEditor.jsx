@@ -12,12 +12,16 @@ import {
   Chip,
   Autocomplete,
   MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { REPORT_DEFAULTS, REPORT_PROMPT_DOCS } from '../../../scripts/config/reportConstants';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 
@@ -278,12 +282,23 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             These settings apply to all report generation. Saved to <code>/config/report_generation</code>.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Model"
-              value={config.model}
-              onChange={(e) => setConfig((p) => ({ ...p, model: e.target.value }))}
-              fullWidth
-            />
+            <FormControl fullWidth size="small">
+              <InputLabel id="report-model-label">Model</InputLabel>
+              <Select
+                labelId="report-model-label"
+                value={config.model}
+                label="Model"
+                onChange={(e) => setConfig((p) => ({ ...p, model: e.target.value }))}
+                renderValue={(val) => {
+                  const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                  return found ? found.label : val;
+                }}
+              >
+                {AVAILABLE_MODELS.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Temperature"
               type="number"
@@ -425,12 +440,22 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Playground overrides</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Model"
-                value={playgroundConfig.model}
-                disabled
-                fullWidth
-              />
+              <FormControl fullWidth size="small" disabled>
+                <InputLabel id="report-playground-model-label">Model</InputLabel>
+                <Select
+                  labelId="report-playground-model-label"
+                  value={playgroundConfig.model}
+                  label="Model"
+                  renderValue={(val) => {
+                    const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                    return found ? found.label : val;
+                  }}
+                >
+                  {AVAILABLE_MODELS.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <TextField
                 label="Temperature"
                 type="number"
