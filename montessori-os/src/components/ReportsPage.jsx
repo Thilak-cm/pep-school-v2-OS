@@ -30,7 +30,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
 import { trackEvent } from '../utils/analytics';
-import { isSuperAdmin } from '../utils/roleUtils';
+import { isAdminRole } from '../utils/roleUtils';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
 
@@ -57,6 +57,9 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   // Preview dialog state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
+
+  // Draft report state (generated but not yet saved to Firestore)
+  const [draftReport, setDraftReport] = useState(null);
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -100,8 +103,8 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
       trackEvent('report_generate_start', { studentId }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'generateStudentReport');
       const result = await call({ studentId, dateRangeStart, dateRangeEnd });
-      const newReport = {
-        id: result.data.docId,
+      const draft = {
+        // No id — this is a draft, not yet in Firestore
         generatedAt: result.data.generatedAt ? new Date(result.data.generatedAt) : new Date(),
         noteCount: result.data.noteCount ?? null,
         reportText: result.data.reportText || '',
@@ -109,10 +112,16 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
         missingInputFlags: result.data.missingInputFlags || [],
         sentimentScore: result.data.sentimentScore ?? null,
         areaBalanceScore: result.data.areaBalanceScore ?? null,
+        dateRangeStart: result.data.dateRangeStart || null,
+        dateRangeEnd: result.data.dateRangeEnd || null,
+        programId: result.data.programId || '',
+        model: result.data.model || '',
+        sourceNoteIds: result.data.sourceNoteIds || [],
+        generatedBy: result.data.generatedBy || '',
         driveDocLink: null,
       };
-      setReports((prev) => [newReport, ...prev]);
-      setSelectedReport(newReport);
+      setDraftReport(draft);
+      setSelectedReport(draft);
       setGenerateOpen(false);
       setPreviewOpen(true);
       trackEvent('report_generate_success', { studentId }).catch(() => {});
@@ -126,17 +135,34 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   };
 
   const handleExportToDrive = async () => {
-    if (!selectedReport?.id || !studentId) return;
+    if (!studentId) return;
+    const isDraft = !selectedReport?.id;
+
     try {
       setExporting(true);
-      trackEvent('report_export_start', { studentId }).catch(() => {});
+      trackEvent('report_export_start', { studentId, isDraft }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
-      const result = await call({ studentId, reportDocId: selectedReport.id });
-      const link = result.data.driveDocLink;
-      setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
-      setReports((prev) =>
-        prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
-      );
+
+      if (isDraft) {
+        // Draft path: send full payload, server creates Drive doc + Firestore doc atomically
+        const result = await call({ studentId, reportPayload: selectedReport });
+        const savedReport = {
+          ...selectedReport,
+          id: result.data.docId,
+          driveDocLink: result.data.driveDocLink,
+        };
+        setSelectedReport(savedReport);
+        setReports((prev) => [savedReport, ...prev]);
+        setDraftReport(null);
+      } else {
+        // Existing report path: pass reportDocId as before
+        const result = await call({ studentId, reportDocId: selectedReport.id });
+        const link = result.data.driveDocLink;
+        setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
+        setReports((prev) =>
+          prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
+        );
+      }
       trackEvent('report_export_success', { studentId }).catch(() => {});
     } catch (e) {
       setError(e?.message || 'Failed to export to Drive.');
@@ -273,7 +299,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
                 >
                   <ViewIcon fontSize="small" />
                 </IconButton>
-                {isSuperAdmin(userRole) && (
+                {isAdminRole(userRole) && (
                   <IconButton
                     size="small"
                     onClick={() => handleDeleteClick(report)}
@@ -301,15 +327,19 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
 
       <ReportPreviewDialog
         open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
+        onClose={() => {
+          setPreviewOpen(false);
+          if (draftReport) setDraftReport(null);
+        }}
         reportText={selectedReport?.reportText || ''}
         missingInputFlags={selectedReport?.missingInputFlags || []}
         generatedAt={selectedReport?.generatedAt || null}
         studentLabel={studentLabel}
         noteCount={selectedReport?.noteCount ?? null}
-        onExportToDrive={selectedReport?.id ? handleExportToDrive : null}
+        onExportToDrive={handleExportToDrive}
         exporting={exporting}
         driveDocLink={selectedReport?.driveDocLink || null}
+        isDraft={!!draftReport}
       />
 
       <Dialog
