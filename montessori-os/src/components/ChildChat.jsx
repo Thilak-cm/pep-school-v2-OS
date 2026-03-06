@@ -993,6 +993,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     setAssistantPending(false);
     setSending(false);
     lastPendingUserTimestampRef.current = null;
+    setError('Stopped waiting — the response may still arrive shortly.');
   };
 
   // Cleanup on unmount

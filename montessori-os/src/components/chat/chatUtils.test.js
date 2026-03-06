@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { stripQuotes, ASSISTANT_TIMEOUT_MS } from './chatUtils.js';
+import { stripQuotes, ASSISTANT_TIMEOUT_MS, collectInlineMatches, classifyLine } from './chatUtils.js';
 
 // --- stripQuotes ---
 
@@ -45,4 +45,131 @@ test('stripQuotes returns empty string for empty string', () => {
 
 test('ASSISTANT_TIMEOUT_MS is 30 seconds', () => {
   assert.equal(ASSISTANT_TIMEOUT_MS, 30_000);
+});
+
+// --- collectInlineMatches ---
+
+test('collectInlineMatches returns empty array for null', () => {
+  assert.deepEqual(collectInlineMatches(null), []);
+});
+
+test('collectInlineMatches returns empty array for empty string', () => {
+  assert.deepEqual(collectInlineMatches(''), []);
+});
+
+test('collectInlineMatches returns empty array for plain text', () => {
+  assert.deepEqual(collectInlineMatches('hello world'), []);
+});
+
+test('collectInlineMatches finds bold text', () => {
+  const matches = collectInlineMatches('hello **bold** world');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].type, 'bold');
+  assert.equal(matches[0].content, 'bold');
+  assert.equal(matches[0].start, 6);
+  assert.equal(matches[0].end, 14);
+});
+
+test('collectInlineMatches finds italic text', () => {
+  const matches = collectInlineMatches('hello *italic* world');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].type, 'italic');
+  assert.equal(matches[0].content, 'italic');
+});
+
+test('collectInlineMatches finds inline code', () => {
+  const matches = collectInlineMatches('hello `code` world');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].type, 'code');
+  assert.equal(matches[0].content, 'code');
+});
+
+test('collectInlineMatches finds bold and code together', () => {
+  const matches = collectInlineMatches('**bold** and `code`');
+  assert.equal(matches.length, 2);
+  assert.equal(matches[0].type, 'bold');
+  assert.equal(matches[0].content, 'bold');
+  assert.equal(matches[1].type, 'code');
+  assert.equal(matches[1].content, 'code');
+});
+
+test('collectInlineMatches prefers bold over italic (no overlap)', () => {
+  const matches = collectInlineMatches('**bold text** here');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].type, 'bold');
+  assert.equal(matches[0].content, 'bold text');
+});
+
+test('collectInlineMatches returns matches sorted by position', () => {
+  const matches = collectInlineMatches('`code` then **bold**');
+  assert.equal(matches.length, 2);
+  assert.ok(matches[0].start < matches[1].start);
+});
+
+test('collectInlineMatches is stable across multiple calls', () => {
+  // Ensures regex lastIndex is properly reset
+  const first = collectInlineMatches('**bold** *italic*');
+  const second = collectInlineMatches('**bold** *italic*');
+  assert.deepEqual(first, second);
+});
+
+// --- classifyLine ---
+
+test('classifyLine identifies blank lines', () => {
+  assert.deepEqual(classifyLine(''), { type: 'blank', content: '' });
+  assert.deepEqual(classifyLine('   '), { type: 'blank', content: '' });
+});
+
+test('classifyLine identifies h1 headings', () => {
+  const result = classifyLine('# Hello');
+  assert.equal(result.type, 'h1');
+  assert.equal(result.content, 'Hello');
+});
+
+test('classifyLine identifies h2 headings', () => {
+  const result = classifyLine('## Subheading');
+  assert.equal(result.type, 'h2');
+  assert.equal(result.content, 'Subheading');
+});
+
+test('classifyLine identifies h3 headings', () => {
+  const result = classifyLine('### Minor heading');
+  assert.equal(result.type, 'h3');
+  assert.equal(result.content, 'Minor heading');
+});
+
+test('classifyLine identifies unordered list items with dash', () => {
+  const result = classifyLine('- list item');
+  assert.equal(result.type, 'ul');
+  assert.equal(result.content, 'list item');
+});
+
+test('classifyLine identifies unordered list items with asterisk', () => {
+  const result = classifyLine('* list item');
+  assert.equal(result.type, 'ul');
+  assert.equal(result.content, 'list item');
+});
+
+test('classifyLine identifies ordered list items', () => {
+  const result = classifyLine('1. first item');
+  assert.equal(result.type, 'ol');
+  assert.equal(result.content, 'first item');
+});
+
+test('classifyLine identifies ordered list with multi-digit numbers', () => {
+  const result = classifyLine('10. tenth item');
+  assert.equal(result.type, 'ol');
+  assert.equal(result.content, 'tenth item');
+});
+
+test('classifyLine identifies regular paragraphs', () => {
+  const result = classifyLine('Just some text');
+  assert.equal(result.type, 'paragraph');
+  assert.equal(result.content, 'Just some text');
+});
+
+test('classifyLine trims leading whitespace', () => {
+  const result = classifyLine('   ## Indented heading');
+  assert.equal(result.type, 'h2');
+  assert.equal(result.content, 'Indented heading');
 });

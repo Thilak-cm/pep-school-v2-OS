@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { collectInlineMatches, classifyLine } from './chatUtils';
 
 export const messageContentSx = {
   whiteSpace: 'pre-wrap',
@@ -22,46 +23,17 @@ export const messageContentSx = {
   },
 };
 
-// Format inline markdown (bold, italic, code)
+// Render inline markdown matches (bold, italic, code) to JSX
 export const formatInlineMarkdown = (text) => {
   if (!text) return '';
+
+  const matches = collectInlineMatches(text);
+  if (matches.length === 0) return text;
 
   const parts = [];
   let currentIndex = 0;
 
-  const patterns = [
-    { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
-    { regex: /\*([^*]+)\*/g, type: 'italic' },
-    { regex: /`([^`]+)`/g, type: 'code' },
-  ];
-
-  const matches = [];
-  patterns.forEach((pattern) => {
-    let match;
-    while ((match = pattern.regex.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        type: pattern.type,
-        content: match[1],
-        fullMatch: match[0],
-      });
-    }
-  });
-
-  matches.sort((a, b) => a.start - b.start);
-
-  const filteredMatches = [];
   matches.forEach((match) => {
-    const overlaps = filteredMatches.some(
-      (m) => match.start < m.end && match.end > m.start
-    );
-    if (!overlaps) {
-      filteredMatches.push(match);
-    }
-  });
-
-  filteredMatches.forEach((match) => {
     if (match.start > currentIndex) {
       parts.push(text.substring(currentIndex, match.start));
     }
@@ -95,7 +67,7 @@ export const formatInlineMarkdown = (text) => {
     parts.push(text.substring(currentIndex));
   }
 
-  return parts.length > 0 ? parts : text;
+  return parts;
 };
 
 // Basic markdown formatting function
@@ -124,10 +96,9 @@ export const formatMessage = (text) => {
   };
 
   lines.forEach((line, index) => {
-    const trimmed = line.trim();
+    const cls = classifyLine(line);
 
-    if (trimmed.match(/^[-*]\s+/)) {
-      const content = trimmed.replace(/^[-*]\s+/, '');
+    if (cls.type === 'ul') {
       if (!inList || listType !== 'ul') {
         flushList();
         inList = true;
@@ -135,11 +106,10 @@ export const formatMessage = (text) => {
       }
       listItems.push(
         <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
-          {formatInlineMarkdown(content)}
+          {formatInlineMarkdown(cls.content)}
         </Box>
       );
-    } else if (trimmed.match(/^\d+\.\s+/)) {
-      const content = trimmed.replace(/^\d+\.\s+/, '');
+    } else if (cls.type === 'ol') {
       if (!inList || listType !== 'ol') {
         flushList();
         inList = true;
@@ -147,39 +117,36 @@ export const formatMessage = (text) => {
       }
       listItems.push(
         <Box key={`item-${index}`} component="li" sx={{ mb: 0.5 }}>
-          {formatInlineMarkdown(content)}
+          {formatInlineMarkdown(cls.content)}
         </Box>
       );
-    } else if (!trimmed && inList) {
+    } else if (cls.type === 'blank' && inList) {
       // Skip blank lines inside a list
     } else {
       flushList();
 
-      if (trimmed.startsWith('###')) {
-        const content = trimmed.replace(/^###\s+/, '');
+      if (cls.type === 'h3') {
         formatted.push(
           <Typography key={index} variant="subtitle2" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
+            {formatInlineMarkdown(cls.content)}
           </Typography>
         );
-      } else if (trimmed.startsWith('##')) {
-        const content = trimmed.replace(/^##\s+/, '');
+      } else if (cls.type === 'h2') {
         formatted.push(
           <Typography key={index} variant="subtitle1" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
+            {formatInlineMarkdown(cls.content)}
           </Typography>
         );
-      } else if (trimmed.startsWith('#')) {
-        const content = trimmed.replace(/^#\s+/, '');
+      } else if (cls.type === 'h1') {
         formatted.push(
           <Typography key={index} variant="h6" sx={{ fontWeight: 600, mt: index > 0 ? 1.5 : 0, mb: 0.5 }}>
-            {formatInlineMarkdown(content)}
+            {formatInlineMarkdown(cls.content)}
           </Typography>
         );
-      } else if (trimmed) {
+      } else if (cls.type === 'paragraph') {
         formatted.push(
           <Box key={index} component="p" sx={{ m: 0, mb: 1 }}>
-            {formatInlineMarkdown(trimmed)}
+            {formatInlineMarkdown(cls.content)}
           </Box>
         );
       } else {
