@@ -366,6 +366,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
     setLoading(true);
     setMediaUrls({});
+    setRecentObs([]);
     setOlderObs([]);
     paginationCursorRef.current = null;
     snapshotLastDocRef.current = null;

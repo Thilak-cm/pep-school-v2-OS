@@ -311,10 +311,16 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           }
 
           const updatedSnapshots = await Promise.all(updatedNoteQueries.map(q => getDocs(q)));
+          // Reset pagination state for the new student list
+          batchCursorsRef.current = new Map();
+          exhaustedBatchesRef.current = new Set();
           const freshNotes = [];
           updatedSnapshots.forEach((snapshot, batchIndex) => {
             if (snapshot.docs.length > 0) {
               batchCursorsRef.current.set(batchIndex, snapshot.docs[snapshot.docs.length - 1]);
+            }
+            if (snapshot.docs.length < NOTES_PAGE_SIZE) {
+              exhaustedBatchesRef.current.add(batchIndex);
             }
             snapshot.docs.forEach(doc => {
               freshNotes.push({
