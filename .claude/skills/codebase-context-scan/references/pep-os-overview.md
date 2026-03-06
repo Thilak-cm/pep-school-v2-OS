@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-06T07:12:13.120Z
-App version: 9.6.3
+Generated: 2026-03-06T08:29:22.588Z
+App version: 9.7.1
 
 ## App Snapshot
 
@@ -137,20 +137,20 @@ App version: 9.6.3
 
 ## Recent Changes
 
+### 9.7.1 (2026-03-06)
+- ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
+- Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
+- OpenAI API calls now use `max_completion_tokens` and strip unsupported params for reasoning models (PEP-27)
+
+### 9.7.0 (2026-03-05)
+- Migrated all AI features from GPT-4o/4o-mini to GPT-5 family models (gpt-5.2 and gpt-5-mini) (PEP-75)
+- Centralized model configuration into a single modelConstants module for all AI features
+- Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
+
 ### 9.6.3 (2026-03-05)
 - Performance summary card from Notifications page (already present in Stats > Students tab) — eliminates duplicate Firestore queries for students, classrooms, and observations
 
 ### 9.6.2 (2026-03-05)
 - Classroom admin teacher query now scoped to managed classrooms at the Firestore query level, not just client-side filtering (PEP-23)
 - Classroom admins can now view other classroom admins who manage overlapping classrooms (view-only, no edit access) (PEP-23)
-
-### 9.6.1 (2026-03-05)
-- Classroom admins on Users & Access page now only see and act on teachers assigned to their manageable classrooms (PEP-48)
-- Promote-teacher-to-admin flow routed through server-side validation instead of direct Firestore write (PEP-48)
-- Delete and manage-classrooms actions gated to in-scope teachers for classroom admins (PEP-48)
-
-### 9.6.0 (2026-03-03)
-- CSV bulk upload for historical lessons and observations (superadmin-only, on Settings page) (PEP-45)
-- Fuzzy student name matching with supervised review step for CSV imports (PEP-45)
-- Duplicate detection with warnings for bulk-uploaded records (PEP-45)
 
