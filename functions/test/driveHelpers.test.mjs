@@ -4,7 +4,10 @@ import {
   resolveStudentName,
   capitalize,
   buildReportDocTitle,
+  deriveAcademicYear,
+  buildDocInsertRequests,
 } from "../utils/driveHelpers.js";
+import { DOC_STYLE } from "../config/reportConstants.js";
 
 describe("resolveStudentName", () => {
   it("returns displayName when present", () => {
@@ -97,5 +100,208 @@ describe("buildReportDocTitle", () => {
       buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z", 0),
       "Aakash Mehta — Progress Report (2026-02-28)",
     );
+  });
+});
+
+// --- deriveAcademicYear ---
+
+describe("deriveAcademicYear", () => {
+  it("returns 2025-26 for a November 2025 start date", () => {
+    assert.equal(deriveAcademicYear(new Date("2025-11-01")), "2025-26");
+  });
+
+  it("returns 2025-26 for a March 2026 start date (before November)", () => {
+    assert.equal(deriveAcademicYear(new Date("2026-03-15")), "2025-26");
+  });
+
+  it("returns 2025-26 for an October 2026 start date (still before November)", () => {
+    assert.equal(deriveAcademicYear(new Date("2026-10-31")), "2025-26");
+  });
+
+  it("returns 2026-27 for a November 2026 start date", () => {
+    assert.equal(deriveAcademicYear(new Date("2026-11-01")), "2026-27");
+  });
+
+  it("returns 2025-26 for a December 2025 start date", () => {
+    assert.equal(deriveAcademicYear(new Date("2025-12-15")), "2025-26");
+  });
+
+  it("handles string date input", () => {
+    assert.equal(deriveAcademicYear("2026-01-10"), "2025-26");
+  });
+
+  it("falls back to current year when input is null", () => {
+    const now = new Date();
+    const month = now.getUTCMonth();
+    const year = now.getUTCFullYear();
+    const expectedStart = month >= 10 ? year : year - 1;
+    assert.equal(
+      deriveAcademicYear(null),
+      `${expectedStart}-${String(expectedStart + 1).slice(-2)}`,
+    );
+  });
+});
+
+// --- buildDocInsertRequests formatting ---
+
+describe("buildDocInsertRequests formatting", () => {
+  const sampleMarkdown = "## Social-Emotional Development\nAakash shows great empathy.\n### Sub-area\nDetails here.";
+  const baseOpts = {
+    studentName: "Aakash Mehta",
+    programName: "Adolescent",
+    academicYear: "2025-26",
+    logoUrl: "https://example.com/logo.webp",
+  };
+
+  // Helper: find requests of a given type
+  function findRequests(requests, type) {
+    return requests.filter((r) => r[type] !== undefined);
+  }
+
+  // Helper: find a text style update covering a given text
+  function findTextStyleForText(requests, text) {
+    // Find the insertText with the given text, get its index range, then find the matching updateTextStyle
+    for (let i = 0; i < requests.length; i++) {
+      const r = requests[i];
+      if (r.insertText && r.insertText.text.includes(text)) {
+        const startIdx = r.insertText.location.index;
+        const endIdx = startIdx + r.insertText.text.length;
+        // Find the updateTextStyle that covers this range
+        return requests.find((s) =>
+          s.updateTextStyle &&
+          s.updateTextStyle.range.startIndex === startIdx &&
+          s.updateTextStyle.range.endIndex === endIdx,
+        );
+      }
+    }
+    return null;
+  }
+
+  it("returns empty array for empty markdown without options", () => {
+    assert.deepEqual(buildDocInsertRequests(""), []);
+    assert.deepEqual(buildDocInsertRequests(null), []);
+  });
+
+  // AC1: Logo insertion
+  it("inserts logo as the first request when logoUrl is provided", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const imageRequests = findRequests(requests, "insertInlineImage");
+    assert.equal(imageRequests.length, 1);
+    assert.equal(imageRequests[0].insertInlineImage.uri, baseOpts.logoUrl);
+    assert.equal(imageRequests[0].insertInlineImage.location.index, 1);
+  });
+
+  it("sets logo dimensions from DOC_STYLE", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const img = findRequests(requests, "insertInlineImage")[0].insertInlineImage;
+    assert.equal(img.objectSize.width.magnitude, DOC_STYLE.logoWidth);
+    assert.equal(img.objectSize.height.magnitude, DOC_STYLE.logoHeight);
+    assert.equal(img.objectSize.width.unit, "PT");
+  });
+
+  it("omits logo when logoUrl is not provided", () => {
+    const opts = { ...baseOpts, logoUrl: undefined };
+    const requests = buildDocInsertRequests(sampleMarkdown, opts);
+    const imageRequests = findRequests(requests, "insertInlineImage");
+    assert.equal(imageRequests.length, 0);
+  });
+
+  // AC2: Student name heading — navy blue
+  it("inserts student name with navy blue color and bold", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const styleReq = findTextStyleForText(requests, "Aakash Mehta");
+    assert.ok(styleReq, "should have a text style for student name");
+    const style = styleReq.updateTextStyle.textStyle;
+    assert.ok(style.bold, "student name should be bold");
+    assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.nameColor);
+    assert.equal(style.fontSize.magnitude, DOC_STYLE.nameFontSize);
+  });
+
+  // AC3: Metadata line — pink/magenta
+  it("inserts metadata line with correct format and pink color", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const metaText = "Adolescent | Educator Summary | AY 2025-26";
+    const styleReq = findTextStyleForText(requests, metaText);
+    assert.ok(styleReq, "should have a text style for metadata line");
+    const style = styleReq.updateTextStyle.textStyle;
+    assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.metaColor);
+    assert.equal(style.fontSize.magnitude, DOC_STYLE.metaFontSize);
+  });
+
+  // AC4: Section headings — bold dark navy
+  it("styles ## headings with bold dark navy color", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const styleReq = findTextStyleForText(requests, "Social-Emotional Development");
+    assert.ok(styleReq, "should have a text style for h2 heading");
+    const style = styleReq.updateTextStyle.textStyle;
+    assert.ok(style.bold, "heading should be bold");
+    assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.headingColor);
+  });
+
+  it("styles ### headings with bold dark navy color", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const styleReq = findTextStyleForText(requests, "Sub-area");
+    assert.ok(styleReq, "should have a text style for h3 heading");
+    const style = styleReq.updateTextStyle.textStyle;
+    assert.ok(style.bold, "h3 heading should be bold");
+    assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.headingColor);
+  });
+
+  // AC5: Body text — dark grey, justified
+  it("styles body text with dark grey color", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const styleReq = findTextStyleForText(requests, "Aakash shows great empathy.");
+    assert.ok(styleReq, "should have a text style for body text");
+    const style = styleReq.updateTextStyle.textStyle;
+    assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.bodyColor);
+    assert.equal(style.fontSize.magnitude, DOC_STYLE.bodyFontSize);
+  });
+
+  it("applies justified alignment to body paragraphs", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    // Find paragraph style for body text
+    const bodyInsert = requests.find((r) =>
+      r.insertText && r.insertText.text.includes("Aakash shows great empathy."),
+    );
+    assert.ok(bodyInsert, "body text should be inserted");
+    const startIdx = bodyInsert.insertText.location.index;
+    const endIdx = startIdx + bodyInsert.insertText.text.length;
+    const paraStyle = requests.find((r) =>
+      r.updateParagraphStyle &&
+      r.updateParagraphStyle.range.startIndex === startIdx &&
+      r.updateParagraphStyle.range.endIndex === endIdx &&
+      r.updateParagraphStyle.paragraphStyle.alignment === "JUSTIFIED",
+    );
+    assert.ok(paraStyle, "body paragraph should have JUSTIFIED alignment");
+  });
+
+  // AC6: Paragraph spacing
+  it("applies spacing above section headings", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const headingInsert = requests.find((r) =>
+      r.insertText && r.insertText.text.includes("Social-Emotional Development"),
+    );
+    assert.ok(headingInsert);
+    const startIdx = headingInsert.insertText.location.index;
+    const endIdx = startIdx + headingInsert.insertText.text.length;
+    const paraStyle = requests.find((r) =>
+      r.updateParagraphStyle &&
+      r.updateParagraphStyle.range.startIndex === startIdx &&
+      r.updateParagraphStyle.range.endIndex === endIdx &&
+      r.updateParagraphStyle.paragraphStyle.spaceAbove,
+    );
+    assert.ok(paraStyle, "headings should have spaceAbove");
+    assert.equal(
+      paraStyle.updateParagraphStyle.paragraphStyle.spaceAbove.magnitude,
+      DOC_STYLE.headingSpaceAbove,
+    );
+  });
+
+  // Backward compatibility: no options → same behavior as before (basic headings + text)
+  it("works without options (backward compatible)", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown);
+    assert.ok(requests.length > 0, "should produce requests");
+    const imageRequests = findRequests(requests, "insertInlineImage");
+    assert.equal(imageRequests.length, 0, "no logo without options");
   });
 });

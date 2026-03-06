@@ -37,3 +37,33 @@ export const DRIVE_CONSTANTS = {
     "Google Doc Link",
   ],
 };
+
+// Google Doc formatting constants (colors as Google Docs API RGB fractions 0-1)
+export const DOC_STYLE = {
+  // Student name heading — navy blue
+  nameColor: { red: 21 / 255, green: 101 / 255, blue: 192 / 255 }, // #1565C0
+  nameFontSize: 18,
+  // Metadata line — pink/magenta
+  metaColor: { red: 194 / 255, green: 24 / 255, blue: 91 / 255 }, // #C2185B
+  metaFontSize: 11,
+  // Section headings — dark navy
+  headingColor: { red: 13 / 255, green: 71 / 255, blue: 161 / 255 }, // #0D47A1
+  headingFontSize: 14,
+  // Body text — dark grey
+  bodyColor: { red: 51 / 255, green: 51 / 255, blue: 51 / 255 }, // #333333
+  bodyFontSize: 11,
+  // Spacing (points)
+  headingSpaceAbove: 14,
+  headingSpaceBelow: 4,
+  bodySpaceAfter: 6,
+  metaSpaceBelow: 18,
+  // Logo dimensions (points)
+  logoWidth: 80,
+  logoHeight: 80,
+};
+
+// PEP School logo — hosted on Firebase Storage at assets/branding/ (public via GCS ACL)
+// NOTE: Must be PNG/JPEG/GIF — Google Docs API rejects WebP for insertInlineImage.
+// NOTE: Use storage.googleapis.com (GCS direct) URL, NOT firebasestorage.googleapis.com
+// — the Firebase REST URL applies Storage security rules and returns 403.
+export const LOGO_URL = "https://storage.googleapis.com/pep-os.firebasestorage.app/assets/branding/pep-logo.png";
