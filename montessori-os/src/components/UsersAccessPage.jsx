@@ -29,7 +29,7 @@ import {
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { filterTeachersForAdmin, isUserInScope } from '../utils/scopeUtils.js';
+import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms } from '../utils/scopeUtils.js';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -138,6 +138,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const isClassroomAdminUser = userRole === 'classroomadmin';
   const hasUserManagementAccess = isSuperAdminUser || isClassroomAdminUser;
   const canManageAdmins = isSuperAdminUser;
+  const canViewAdmins = isSuperAdminUser || isClassroomAdminUser;
 
   // Sync external view prop with internal state
   useEffect(() => {
@@ -165,10 +166,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   }, [hasUserManagementAccess, isClassroomAdminUser, manageableClassrooms]);
 
   useEffect(() => {
-    if (!canManageAdmins && (manageTab === 'classroomadmins' || manageTab === 'superadmins')) {
+    if (!canViewAdmins && manageTab === 'classroomadmins') {
       setManageTab('teachers');
     }
-  }, [canManageAdmins, manageTab]);
+    if (!canManageAdmins && manageTab === 'superadmins') {
+      setManageTab('teachers');
+    }
+  }, [canViewAdmins, canManageAdmins, manageTab]);
 
   useEffect(() => {
     if (!canManageAdmins && role === 'classroomadmin') {
@@ -183,16 +187,17 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   }, [role, selectedAdminClassrooms.length]);
 
   // Lazily fetch data when entering Manage view
+  // classrooms.length is a dep so scoped teacher fetch re-triggers when classrooms load
   useEffect(() => {
     if (!hasUserManagementAccess) return;
     if (view === 'manage') {
       if (manageTab === 'teachers' && teachers.length === 0) fetchTeachers();
-      if (manageTab === 'classroomadmins' && canManageAdmins && admins.length === 0) fetchAdmins();
+      if (manageTab === 'classroomadmins' && canViewAdmins && admins.length === 0) fetchAdmins();
       if (manageTab === 'superadmins' && canManageAdmins && superAdmins.length === 0) fetchSuperAdmins();
       if (manageTab === 'students' && students.length === 0) fetchStudents();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, teachers.length, admins.length, superAdmins.length, students.length]);
+  }, [view, manageTab, hasUserManagementAccess, canManageAdmins, canViewAdmins, teachers.length, admins.length, superAdmins.length, students.length, classrooms.length]);
 
   // ============================================================================
   // DATA FETCHING
@@ -275,13 +280,72 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   };
 
   const fetchTeachers = async () => {
-    const list = await fetchUsersByRole('teacher');
-    setTeachers(list);
+    if (isClassroomAdminUser) {
+      // Scope query: only fetch teachers assigned to managed classrooms
+      const teacherIds = extractTeacherIdsFromClassrooms(classrooms);
+      if (teacherIds.length === 0) {
+        setTeachers([]);
+        return;
+      }
+      try {
+        const batchSize = 10;
+        const list = [];
+        for (let i = 0; i < teacherIds.length; i += batchSize) {
+          const batch = teacherIds.slice(i, i + batchSize);
+          const snap = await getDocs(query(
+            collection(db, 'users'),
+            where(documentId(), 'in', batch),
+            where('role', '==', 'teacher')
+          ));
+          list.push(...snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
+        }
+        list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
+        setTeachers(list);
+      } catch (_e) {
+        setError('Failed to fetch teachers');
+      }
+    } else {
+      const list = await fetchUsersByRole('teacher');
+      setTeachers(list);
+    }
   };
 
   const fetchAdmins = async () => {
-    const list = await fetchUsersByRole('classroomadmin');
-    setAdmins(list);
+    if (isClassroomAdminUser) {
+      // Scope query: only fetch classroom admins whose manageableClassrooms
+      // overlap with the current admin's manageableClassrooms
+      const programIds = manageableClassrooms.filter(Boolean);
+      if (programIds.length === 0) {
+        setAdmins([]);
+        return;
+      }
+      try {
+        const batchSize = 10; // Firestore array-contains-any limit
+        const seen = new Set();
+        const list = [];
+        for (let i = 0; i < programIds.length; i += batchSize) {
+          const batch = programIds.slice(i, i + batchSize);
+          const snap = await getDocs(query(
+            collection(db, 'users'),
+            where('role', '==', 'classroomadmin'),
+            where('manageableClassrooms', 'array-contains-any', batch)
+          ));
+          snap.docs.forEach(d => {
+            if (!seen.has(d.id)) {
+              seen.add(d.id);
+              list.push({ id: d.id, ...(d.data() || {}) });
+            }
+          });
+        }
+        list.sort((a, b) => (a.firstName || a.email || a.id).localeCompare(b.firstName || b.email || b.id));
+        setAdmins(list);
+      } catch (_e) {
+        setError('Failed to fetch classroom admins');
+      }
+    } else {
+      const list = await fetchUsersByRole('classroomadmin');
+      setAdmins(list);
+    }
   };
 
   const fetchSuperAdmins = async () => {
@@ -1420,9 +1484,19 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         {view === 'manage' && (
           <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', mb: 2 }}>
             <Tabs
-              value={Math.max(0, (canManageAdmins ? ['teachers','superadmins','classroomadmins','students'] : ['teachers','students']).indexOf(manageTab))}
+              value={Math.max(0, ([
+                'teachers',
+                ...(canManageAdmins ? ['superadmins'] : []),
+                ...(canViewAdmins ? ['classroomadmins'] : []),
+                'students'
+              ]).indexOf(manageTab))}
               onChange={(e, idx) => {
-                const options = canManageAdmins ? ['teachers','superadmins','classroomadmins','students'] : ['teachers','students'];
+                const options = [
+                  'teachers',
+                  ...(canManageAdmins ? ['superadmins'] : []),
+                  ...(canViewAdmins ? ['classroomadmins'] : []),
+                  'students'
+                ];
                 setManageTab(options[idx] || 'teachers');
               }}
               variant="scrollable"
@@ -1439,7 +1513,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             >
               <Tab label="Teachers" />
               {canManageAdmins && <Tab label="Super Admins" />}
-              {canManageAdmins && <Tab label="Classroom Admins" />}
+              {canViewAdmins && <Tab label="Classroom Admins" />}
               <Tab label="Students" />
             </Tabs>
           </Box>
@@ -1607,7 +1681,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         )}
 
         {/* Classroom Admins tab */}
-        {view === 'manage' && manageTab === 'classroomadmins' && canManageAdmins && (
+        {view === 'manage' && manageTab === 'classroomadmins' && canViewAdmins && (
           <>
             {loading ? <LoadingSpinner /> : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -1616,7 +1690,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     key={a.id}
                     user={a}
                     type="classroomadmin"
-                    onClick={() => openActionDialog('classroomadmin', a)}
+                    onClick={canManageAdmins ? () => openActionDialog('classroomadmin', a) : undefined}
                     secondaryContent={
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 0.5 }}>
                         <Typography variant="caption" color="text.secondary">{a.email}</Typography>

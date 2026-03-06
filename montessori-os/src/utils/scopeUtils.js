@@ -32,6 +32,24 @@ export const filterTeachersForAdmin = (teachers, classrooms, manageableClassroom
 };
 
 /**
+ * Extract unique teacher IDs from a list of classrooms.
+ * Used to scope Firestore queries so classroom admins only fetch
+ * teacher documents for users assigned to their classrooms.
+ *
+ * @param {Array<{id: string, teacherIds?: string[]}>} classrooms - Scoped classrooms
+ * @returns {string[]} Unique teacher IDs
+ */
+export const extractTeacherIdsFromClassrooms = (classrooms) => {
+  const ids = new Set();
+  for (const cls of classrooms) {
+    for (const tid of (cls.teacherIds || [])) {
+      ids.add(tid);
+    }
+  }
+  return [...ids];
+};
+
+/**
  * Check whether a specific user is in scope for a classroom admin.
  *
  * @param {string} userId - The user ID to check
