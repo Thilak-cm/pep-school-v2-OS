@@ -34,6 +34,7 @@ import {
   resolveStudentName,
   capitalize,
   trashDriveFile,
+  deriveAcademicYear,
 } from "./utils/driveHelpers.js";
 
 initializeApp({ credential: applicationDefault() });
@@ -4171,9 +4172,11 @@ export const exportReportToDrive = functions
     const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
 
     // Create the Google Doc in student folder
+    const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
       existingCount, generatedAtIso,
+      { programName, academicYear },
     );
 
     // Update summary CSV in classroom folder
@@ -4301,9 +4304,11 @@ export const exportClassroomReportsToDrive = functions
 
         const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
         const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
+        const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
         const { docId: driveDocId, docLink } = await createReportDoc(
           drive, docs, studentFolderId, studentName, report.reportText,
           existingCount, generatedAtIso,
+          { programName, academicYear },
         );
 
         // Update report doc with Drive link

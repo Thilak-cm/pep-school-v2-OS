@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { DRIVE_CONSTANTS } from "../config/reportConstants.js";
+import { DRIVE_CONSTANTS, DOC_STYLE, LOGO_URL } from "../config/reportConstants.js";
 
 /**
  * Resolve a student document's display name.
@@ -33,6 +33,20 @@ export function buildReportDocTitle(studentName, generatedAt, existingDocCount =
   const base = `${name} — Progress Report`;
   if (existingDocCount <= 0) return `${base} (${dateStr})`;
   return `${base} v${existingDocCount + 1} (${dateStr})`;
+}
+
+/**
+ * Derive the academic year string (e.g. "2025-26") from a date.
+ * Academic year starts in November (month index 10).
+ * Dates before November belong to the AY that started the previous November.
+ * Uses UTC to stay consistent with ISO date strings and Cloud Functions.
+ */
+export function deriveAcademicYear(dateInput) {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth(); // 0-indexed
+  const startYear = month >= 10 ? year : year - 1;
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
 }
 
 /**
@@ -117,9 +131,11 @@ export async function countExistingReportDocs(drive, folderId, studentName) {
 /**
  * Create a Google Doc with the report content in the specified folder.
  * Returns { docId, docLink }.
+ * @param {object} [formatOpts] - Optional formatting: { programName, academicYear }
  */
 export async function createReportDoc(
   drive, docs, folderId, studentName, reportMarkdown, existingDocCount, generatedAt,
+  formatOpts,
 ) {
   const title = buildReportDocTitle(studentName, generatedAt, existingDocCount);
 
@@ -138,7 +154,13 @@ export async function createReportDoc(
   const docLink = file.data.webViewLink;
 
   // Build Docs API requests to insert formatted content
-  const requests = buildDocInsertRequests(reportMarkdown);
+  const docOpts = formatOpts ? {
+    studentName,
+    programName: formatOpts.programName,
+    academicYear: formatOpts.academicYear,
+    logoUrl: LOGO_URL,
+  } : undefined;
+  const requests = buildDocInsertRequests(reportMarkdown, docOpts);
 
   if (requests.length) {
     await docs.documents.batchUpdate({
@@ -152,15 +174,21 @@ export async function createReportDoc(
 
 /**
  * Convert report markdown to Google Docs API batchUpdate requests.
- * Handles ## headings (h2), ### headings (h3), and body paragraphs.
- * Builds Docs API requests to insert formatted content at sequential indices.
+ * When `opts` is provided, inserts a branded header (logo, student name,
+ * metadata line) and applies colors/typography matching the reference template.
+ * Without `opts`, falls back to basic heading styles (backward compatible).
+ *
+ * @param {string} markdown - Report content in markdown
+ * @param {object} [opts] - { studentName, programName, academicYear, logoUrl }
  */
-export function buildDocInsertRequests(markdown) {
+export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
 
   const lines = markdown.split("\n");
-  const segments = [];
+  const hasOpts = opts && opts.studentName;
 
+  // Parse markdown lines into segments
+  const segments = [];
   for (const line of lines) {
     const h2Match = line.match(/^## (.+)$/);
     const h3Match = line.match(/^###+ (.+)$/);
@@ -174,33 +202,148 @@ export function buildDocInsertRequests(markdown) {
     }
   }
 
-  // Build requests: insert text at index 1 (after the default empty paragraph),
-  // then apply paragraph styles
   const requests = [];
-  let currentIndex = 1;
+  let idx = 1; // Start after the default empty paragraph
 
+  // --- Header block (only when formatting options are provided) ---
+  if (hasOpts) {
+    // 1. Logo
+    if (opts.logoUrl) {
+      requests.push({
+        insertInlineImage: {
+          uri: opts.logoUrl,
+          location: { index: idx },
+          objectSize: {
+            width: { magnitude: DOC_STYLE.logoWidth, unit: "PT" },
+            height: { magnitude: DOC_STYLE.logoHeight, unit: "PT" },
+          },
+        },
+      });
+      idx += 1; // Image occupies one index position
+      // Newline after logo
+      requests.push({
+        insertText: { location: { index: idx }, text: "\n" },
+      });
+      idx += 1;
+    }
+
+    // 2. Student name heading
+    const nameText = opts.studentName + "\n";
+    requests.push({
+      insertText: { location: { index: idx }, text: nameText },
+    });
+    requests.push({
+      updateTextStyle: {
+        range: { startIndex: idx, endIndex: idx + nameText.length },
+        textStyle: {
+          bold: true,
+          fontSize: { magnitude: DOC_STYLE.nameFontSize, unit: "PT" },
+          foregroundColor: { color: { rgbColor: DOC_STYLE.nameColor } },
+        },
+        fields: "bold,fontSize,foregroundColor",
+      },
+    });
+    idx += nameText.length;
+
+    // 3. Metadata line: "{Program} | Educator Summary | AY {YYYY-YY}"
+    const metaText = `${opts.programName || ""} | Educator Summary | AY ${opts.academicYear || ""}\n`;
+    requests.push({
+      insertText: { location: { index: idx }, text: metaText },
+    });
+    requests.push({
+      updateTextStyle: {
+        range: { startIndex: idx, endIndex: idx + metaText.length },
+        textStyle: {
+          fontSize: { magnitude: DOC_STYLE.metaFontSize, unit: "PT" },
+          foregroundColor: { color: { rgbColor: DOC_STYLE.metaColor } },
+        },
+        fields: "fontSize,foregroundColor",
+      },
+    });
+    requests.push({
+      updateParagraphStyle: {
+        range: { startIndex: idx, endIndex: idx + metaText.length },
+        paragraphStyle: {
+          spaceBelow: { magnitude: DOC_STYLE.metaSpaceBelow, unit: "PT" },
+        },
+        fields: "spaceBelow",
+      },
+    });
+    idx += metaText.length;
+  }
+
+  // --- Content segments ---
   for (const segment of segments) {
     requests.push({
       insertText: {
-        location: { index: currentIndex },
+        location: { index: idx },
         text: segment.text,
       },
     });
 
-    if (segment.style !== "NORMAL_TEXT") {
-      requests.push({
-        updateParagraphStyle: {
-          range: {
-            startIndex: currentIndex,
-            endIndex: currentIndex + segment.text.length,
+    const rangeObj = { startIndex: idx, endIndex: idx + segment.text.length };
+
+    if (hasOpts) {
+      // Apply full formatting
+      if (segment.style === "HEADING_2" || segment.style === "HEADING_3") {
+        requests.push({
+          updateTextStyle: {
+            range: rangeObj,
+            textStyle: {
+              bold: true,
+              fontSize: { magnitude: DOC_STYLE.headingFontSize, unit: "PT" },
+              foregroundColor: { color: { rgbColor: DOC_STYLE.headingColor } },
+            },
+            fields: "bold,fontSize,foregroundColor",
           },
-          paragraphStyle: { namedStyleType: segment.style },
-          fields: "namedStyleType",
-        },
-      });
+        });
+        requests.push({
+          updateParagraphStyle: {
+            range: rangeObj,
+            paragraphStyle: {
+              spaceAbove: { magnitude: DOC_STYLE.headingSpaceAbove, unit: "PT" },
+              spaceBelow: { magnitude: DOC_STYLE.headingSpaceBelow, unit: "PT" },
+            },
+            fields: "spaceAbove,spaceBelow",
+          },
+        });
+      } else if (segment.text.trim()) {
+        // Body text (non-empty lines only)
+        requests.push({
+          updateTextStyle: {
+            range: rangeObj,
+            textStyle: {
+              fontSize: { magnitude: DOC_STYLE.bodyFontSize, unit: "PT" },
+              foregroundColor: { color: { rgbColor: DOC_STYLE.bodyColor } },
+            },
+            fields: "fontSize,foregroundColor",
+          },
+        });
+        requests.push({
+          updateParagraphStyle: {
+            range: rangeObj,
+            paragraphStyle: {
+              alignment: "JUSTIFIED",
+              spaceBelow: { magnitude: DOC_STYLE.bodySpaceAfter, unit: "PT" },
+            },
+            fields: "alignment,spaceBelow",
+          },
+        });
+      }
+    } else {
+      // Backward compatible: just apply named heading styles
+      if (segment.style !== "NORMAL_TEXT") {
+        requests.push({
+          updateParagraphStyle: {
+            range: rangeObj,
+            paragraphStyle: { namedStyleType: segment.style },
+            fields: "namedStyleType",
+          },
+        });
+      }
     }
 
-    currentIndex += segment.text.length;
+    idx += segment.text.length;
   }
 
   return requests;
