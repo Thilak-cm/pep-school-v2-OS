@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { filterTeachersForAdmin, isUserInScope } from './scopeUtils.js';
+import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms } from './scopeUtils.js';
 
 // ============================================================================
 // FIXTURES
@@ -105,4 +105,42 @@ test('isUserInScope handles empty classrooms', () => {
 
 test('isUserInScope handles empty manageableClassrooms', () => {
   assert.equal(isUserInScope('t1', classrooms, []), false);
+});
+
+// ============================================================================
+// extractTeacherIdsFromClassrooms
+// ============================================================================
+
+test('extractTeacherIdsFromClassrooms returns unique teacher IDs from classrooms', () => {
+  // t2 appears in both cls-A and cls-B but should only appear once
+  const ids = extractTeacherIdsFromClassrooms(classrooms);
+  assert.deepEqual([...ids].sort(), ['t1', 't2', 't3', 't4']);
+});
+
+test('extractTeacherIdsFromClassrooms deduplicates across classrooms', () => {
+  const result = extractTeacherIdsFromClassrooms([
+    { id: 'c1', teacherIds: ['t1', 't2'] },
+    { id: 'c2', teacherIds: ['t2', 't3'] },
+  ]);
+  assert.deepEqual([...result].sort(), ['t1', 't2', 't3']);
+});
+
+test('extractTeacherIdsFromClassrooms returns empty array for no classrooms', () => {
+  const result = extractTeacherIdsFromClassrooms([]);
+  assert.equal(result.length, 0);
+});
+
+test('extractTeacherIdsFromClassrooms handles classrooms with no teacherIds', () => {
+  const result = extractTeacherIdsFromClassrooms([
+    { id: 'c1' },
+    { id: 'c2', teacherIds: ['t1'] },
+  ]);
+  assert.deepEqual([...result], ['t1']);
+});
+
+test('extractTeacherIdsFromClassrooms handles classrooms with empty teacherIds', () => {
+  const result = extractTeacherIdsFromClassrooms([
+    { id: 'c1', teacherIds: [] },
+  ]);
+  assert.equal(result.length, 0);
 });
