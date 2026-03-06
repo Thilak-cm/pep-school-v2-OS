@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.7.3 — 2026-03-06
+
+### Changed
+- Google Doc report exports now match the reference template: PEP logo, navy blue student name heading, pink metadata line with program/academic year, styled section headings, dark grey justified body text, proper spacing (PEP-73)
+- Missing input flags in report preview now display as a compact chip-button with expandable popover instead of stacked alerts (PEP-73)
+
+### Fixed
+- Google Doc export logo URL updated to use GCS direct URL (PNG format) — fixes 403 error from Google Docs API when inserting inline image (PEP-73)
+- Orphaned empty Google Docs are now automatically trashed if content insertion fails during export (PEP-73)
+
 # 9.7.2 — 2026-03-06
 
 ### Fixed
