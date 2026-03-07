@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-06T22:47:28.595Z
-App version: 9.7.3
+Generated: 2026-03-07T00:11:47.881Z
+App version: 9.7.4
 
 ## App Snapshot
 
@@ -137,6 +137,11 @@ App version: 9.7.3
 
 ## Recent Changes
 
+### 9.7.4 (2026-03-06)
+- ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
+- StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
+- UsersAccessPage displays 10 users per tab with "Show 10 More" buttons; limits reset automatically when search or filters change (PEP-28)
+
 ### 9.7.3 (2026-03-06)
 - Google Doc report exports now match the reference template: PEP logo, navy blue student name heading, pink metadata line with program/academic year, styled section headings, dark grey justified body text, proper spacing (PEP-73)
 - Missing input flags in report preview now display as a compact chip-button with expandable popover instead of stacked alerts (PEP-73)
@@ -150,9 +155,4 @@ App version: 9.7.3
 - ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
 - Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
 - OpenAI API calls now use `max_completion_tokens` and strip unsupported params for reasoning models (PEP-27)
-
-### 9.7.0 (2026-03-05)
-- Migrated all AI features from GPT-4o/4o-mini to GPT-5 family models (gpt-5.2 and gpt-5-mini) (PEP-75)
-- Centralized model configuration into a single modelConstants module for all AI features
-- Model selection fields across config editors (Baseball Card, Chat, Reports) now use dropdown pickers with all available GPT-5 models
 

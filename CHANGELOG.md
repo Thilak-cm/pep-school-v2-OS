@@ -14,6 +14,21 @@
 - Report generation uses dry-run mode to return preview data without persisting, allowing discard before export (PEP-69)
 - Export to Drive now accepts draft report payloads in addition to existing Firestore report references (PEP-69)
 
+# 9.7.4 — 2026-03-06
+
+### Changed
+- ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
+- StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
+- UsersAccessPage displays 10 users per tab with "Show 10 More" buttons; limits reset automatically when search or filters change (PEP-28)
+
+### Fixed
+- ClassroomTimeline onSnapshot now merges fresh notes with previously loaded pages instead of discarding them (PEP-28)
+- ClassroomTimeline resets pagination cursors and exhaustion state when the student list changes, preventing stale markers and wasted Firestore reads (PEP-28)
+- ClassroomTimeline filters out removed students' notes from the merged timeline (PEP-28)
+- StudentTimeline displaced observations at the snapshot page boundary are moved to olderObs instead of silently disappearing (PEP-28)
+- StudentTimeline recentObs is cleared on student change, preventing briefly stale data from the previous student (PEP-28)
+- Fixed operator precedence bug in date-sort expressions across both timelines (PEP-28)
+
 # 9.7.3 — 2026-03-06
 
 ### Changed
