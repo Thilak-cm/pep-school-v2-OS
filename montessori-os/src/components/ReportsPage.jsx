@@ -197,7 +197,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
     try {
       const call = httpsCallable(cloudFunctions, 'deleteStudentReport');
       await call({ studentId, reportDocId: target.id });
-      notify.success('Report deleted');
+      notify.success('Report deleted', { duration: 3000 });
     } catch (e) {
       // Restore the report on failure
       setReports((prev) => {

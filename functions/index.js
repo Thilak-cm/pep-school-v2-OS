@@ -4405,7 +4405,7 @@ export const exportClassroomReportsToDrive = functions
     return { status: "ok", completed, failed, total: reportResults.length, results };
   });
 
-// ── Delete a student report (superadmin only) ──────────────────────────
+// ── Delete a student report (admins only — superadmin or scoped classroomadmin) ─
 export const deleteStudentReport = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 120, memory: "512MB" })
@@ -4420,10 +4420,36 @@ export const deleteStudentReport = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId and reportDocId are required");
     }
 
-    // Superadmin-only access
+    // Admin-only access: superadmins can delete any report,
+    // classroomadmins can delete reports for students in their programs
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Only superadmins can delete reports");
+    if (!requesterSnap.exists) {
+      throw new functions.https.HttpsError("permission-denied", "User not found");
+    }
+    const requesterData = requesterSnap.data();
+    const requesterRole = requesterData?.role;
+
+    if (requesterRole === "superadmin") {
+      // Allowed — superadmins can delete any report
+    } else if (requesterRole === "classroomadmin" || requesterRole === "admin") {
+      const studentSnap = await db.collection("students").doc(studentId).get();
+      if (!studentSnap.exists) {
+        throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
+      }
+      const classroomId = studentSnap.data()?.classroomId;
+      const classroomSnap = classroomId
+        ? await db.collection("classrooms").doc(classroomId).get()
+        : null;
+      const programId = classroomSnap?.data()?.programId;
+      const manageable = requesterData.manageableClassrooms || [];
+      if (!programId || !manageable.includes(programId)) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Classroom admin does not manage this student's program",
+        );
+      }
+    } else {
+      throw new functions.https.HttpsError("permission-denied", "Only admins can delete reports");
     }
 
     // Load report doc
@@ -4500,8 +4526,8 @@ export const onClassroomUpdate = functions
 
     const driveFolderId = after.driveFolderId;
 
-    // If driveFolderId was just set, do full reconciliation
-    if (!before.driveFolderId && after.driveFolderId) {
+    // If driveFolderId changed (new folder set or replaced), do full reconciliation
+    if (before.driveFolderId !== after.driveFolderId && after.driveFolderId) {
       try {
         const result = await reconcileClassroomPermissions(drive, db, classroomId);
         console.log(`[drive-perms] Initial sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}`);

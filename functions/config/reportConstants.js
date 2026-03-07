@@ -15,7 +15,8 @@ export const REPORT_DEFAULTS = {
 export const REPORT_PROMPT_DOCS = {
   adolescent: "report_adolescent",
   elementary: "report_elementary",
-  // primary: "report_primary", // TBD — prompt not yet available
+  primary: "report_primary",
+  toddler: "report_toddler",
 };
 
 // Concurrency limit for bulk report generation
