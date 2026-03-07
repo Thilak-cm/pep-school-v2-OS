@@ -1,5 +1,19 @@
 # Changelog
 
+# 9.8.0 — 2026-03-06
+
+### Added
+- Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
+- Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
+- Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
+- Reports page now accessible to all roles (teachers, classroom admins, superadmins) instead of superadmin-only (PEP-69)
+- Draft report flow: generate a report preview before committing to Firestore, with option to discard or save & export to Drive (PEP-69)
+- Classroom admins can now delete reports for students in their managed programs (PEP-69)
+
+### Changed
+- Report generation uses dry-run mode to return preview data without persisting, allowing discard before export (PEP-69)
+- Export to Drive now accepts draft report payloads in addition to existing Firestore report references (PEP-69)
+
 # 9.7.4 — 2026-03-06
 
 ### Changed

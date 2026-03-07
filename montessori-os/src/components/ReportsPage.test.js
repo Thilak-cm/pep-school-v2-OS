@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 const sourceUrl = new URL('./ReportsPage.jsx', import.meta.url);
 
-test('ReportsPage gates delete icon behind isSuperAdmin check', async () => {
+test('ReportsPage gates delete icon behind isAdminRole check', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /isSuperAdmin/.test(source),
-    'Expected ReportsPage to import or call isSuperAdmin for role-gating the delete icon',
+    /isAdminRole/.test(source),
+    'Expected ReportsPage to import or call isAdminRole for role-gating the delete icon',
   );
 });
 
