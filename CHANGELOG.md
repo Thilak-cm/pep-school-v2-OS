@@ -1,5 +1,12 @@
 # Changelog
 
+# 9.7.4 — 2026-03-06
+
+### Changed
+- ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
+- StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
+- UsersAccessPage displays 10 users per tab with "Show 10 More" buttons; limits reset automatically when search or filters change (PEP-28)
+
 # 9.7.3 — 2026-03-06
 
 ### Changed
