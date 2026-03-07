@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-07T00:11:47.881Z
-App version: 9.7.4
+Generated: 2026-03-07T03:57:24.890Z
+App version: 9.8.0
 
 ## App Snapshot
 
@@ -137,6 +137,11 @@ App version: 9.7.4
 
 ## Recent Changes
 
+### 9.8.0 (2026-03-06)
+- Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
+- Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
+- Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
+
 ### 9.7.4 (2026-03-06)
 - ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
 - StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
@@ -150,9 +155,4 @@ App version: 9.7.4
 ### 9.7.2 (2026-03-06)
 - Observations (voice, text, lesson) now appear correctly on the classroom timeline in the default unfiltered view (PEP-74)
 - Timeline pagination merges grouped and ungrouped notes by date before limiting, preventing newer notes from being pushed off the first page by older grouped items
-
-### 9.7.1 (2026-03-06)
-- ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
-- Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
-- OpenAI API calls now use `max_completion_tokens` and strip unsupported params for reasoning models (PEP-27)
 
