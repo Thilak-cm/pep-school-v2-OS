@@ -64,6 +64,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const snapshotLastDocRef = useRef(null);
   const paginationCursorRef = useRef(null);
+  const prevRecentIdsRef = useRef(new Set());
   // Note: All note expansion functionality is now handled by NoteExpansionDialog component
   
   // Classroom teachers for creator filter
@@ -365,9 +366,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
     setLoading(true);
     setMediaUrls({});
+    setRecentObs([]);
     setOlderObs([]);
     paginationCursorRef.current = null;
     snapshotLastDocRef.current = null;
+    prevRecentIdsRef.current = new Set();
 
     // Add timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
@@ -406,7 +409,28 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         docPath: d.ref.path,
         ...d.data(),
       }));
-      setRecentObs(list);
+
+      // Detect observations displaced from recentObs by the new snapshot
+      // (e.g., the observation at position 20 that falls off when a new one is added)
+      const newIds = new Set(list.map((o) => o.id));
+      const prevIds = prevRecentIdsRef.current;
+      if (prevIds.size > 0) {
+        setRecentObs((prevRecent) => {
+          const displaced = prevRecent.filter((o) => !newIds.has(o.id));
+          if (displaced.length > 0) {
+            setOlderObs((prevOlder) => {
+              const olderIds = new Set(prevOlder.map((o) => o.id));
+              const toAdd = displaced.filter((o) => !olderIds.has(o.id));
+              return toAdd.length > 0 ? [...toAdd, ...prevOlder] : prevOlder;
+            });
+          }
+          return list;
+        });
+      } else {
+        setRecentObs(list);
+      }
+      prevRecentIdsRef.current = newIds;
+
       if (snap.docs.length > 0) {
         snapshotLastDocRef.current = snap.docs[snap.docs.length - 1];
       }
