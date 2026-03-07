@@ -335,8 +335,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           // Merge fresh first-page notes with previously loaded older notes
           // Fresh notes take priority (they have real-time updates)
           const freshIds = new Set(freshNotes.map(n => n.id));
+          const updatedStudentIdSet = new Set(updatedStudentIds);
           setClassroomNotes(prev => {
-            const olderNotes = prev.filter(n => !freshIds.has(n.id));
+            const olderNotes = prev.filter(n => !freshIds.has(n.id) && updatedStudentIdSet.has(n.studentId));
             const merged = [...freshNotes, ...olderNotes];
             merged.sort((a, b) => {
               const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
