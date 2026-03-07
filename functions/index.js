@@ -4576,7 +4576,7 @@ export const onUserUpdate = functions
     }
 
     try {
-      const result = await syncUserChanges(drive, db, before, after);
+      const result = await syncUserChanges(drive, db, before, after, uid);
       console.log(`[drive-perms] User sync for ${uid}: granted=${result.granted.length}, revoked=${result.revoked.length}, errors=${result.errors.length}`);
     } catch (err) {
       console.error(`[drive-perms] User sync failed for ${uid}:`, err.message);

@@ -614,7 +614,7 @@ describe("syncUserChanges", () => {
       manageableClassrooms: ["primary", "elementary"],
     };
 
-    const result = await syncUserChanges(drive, db, before, after);
+    const result = await syncUserChanges(drive, db, before, after, "admin1");
 
     // Both classrooms in "elementary" program should get granted
     assert.equal(result.granted.length, 2);
@@ -642,7 +642,7 @@ describe("syncUserChanges", () => {
       manageableClassrooms: ["elementary"],
     };
 
-    const result = await syncUserChanges(drive, db, before, after);
+    const result = await syncUserChanges(drive, db, before, after, "admin1");
 
     assert.equal(result.revoked.length, 1);
     assert.ok(result.revoked[0].includes("c1"));
@@ -655,7 +655,7 @@ describe("syncUserChanges", () => {
     const before = { role: "teacher" };
     const after = { role: "classroomadmin", manageableClassrooms: ["primary"] };
 
-    const result = await syncUserChanges(drive, db, before, after);
+    const result = await syncUserChanges(drive, db, before, after, "user1");
 
     assert.deepEqual(result, { granted: [], revoked: [], errors: [] });
   });
@@ -672,10 +672,33 @@ describe("syncUserChanges", () => {
     const before = { role: "teacher", email: "user@pep.com" };
     const after = { role: "superadmin", email: "user@pep.com" };
 
-    const result = await syncUserChanges(drive, db, before, after);
+    const result = await syncUserChanges(drive, db, before, after, "user1");
 
     assert.equal(result.granted.length, 2);
     assert.equal(drive._calls.create.length, 2);
+  });
+
+  it("keeps access when superadmin demoted to teacher who is in teacherIds", async () => {
+    const perms = [{ id: "p1", emailAddress: "user@pep.com" }];
+    const drive = mockDrive(perms);
+    const db = mockDb({
+      classrooms: {
+        c1: { programId: "primary", driveFolderId: "folder1", teacherIds: ["user1"] },
+        c2: { programId: "elementary", driveFolderId: "folder2", teacherIds: [] },
+      },
+    });
+
+    const before = { role: "superadmin", email: "user@pep.com" };
+    const after = { role: "teacher", email: "user@pep.com" };
+
+    const result = await syncUserChanges(drive, db, before, after, "user1");
+
+    // c1: user is in teacherIds → keep access (no revoke)
+    // c2: user is NOT in teacherIds → revoke
+    assert.equal(result.revoked.length, 1);
+    assert.ok(result.revoked[0].includes("c2"));
+    // Only 1 delete call (for c2), not 2
+    assert.equal(drive._calls.delete.length, 1);
   });
 });
 

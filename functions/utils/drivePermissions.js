@@ -275,8 +275,9 @@ export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherI
  * @param {object} db - Firestore instance
  * @param {object} beforeData - User doc data before the change
  * @param {object} afterData - User doc data after the change
+ * @param {string} uid - The user's document ID (Firestore .data() doesn't include it)
  */
-export async function syncUserChanges(drive, db, beforeData, afterData) {
+export async function syncUserChanges(drive, db, beforeData, afterData, uid) {
   const email = afterData.email || beforeData.email;
   if (!email) return { granted: [], revoked: [], errors: [] };
 
@@ -307,7 +308,7 @@ export async function syncUserChanges(drive, db, beforeData, afterData) {
           results.granted.push(`${email} → ${doc.id}`);
         } else if (beforeData.role === "superadmin") {
           // Demoted from superadmin — check if they still need access via other roles
-          const stillNeeded = userNeedsAccessToClassroom(afterData, doc.id, doc.data());
+          const stillNeeded = userNeedsAccessToClassroom(afterData, doc.id, doc.data(), uid);
           if (!stillNeeded) {
             await revokeDrivePermission(drive, folderId, email);
             results.revoked.push(`${email} → ${doc.id}`);
@@ -381,7 +382,7 @@ function getUserManagedProgramIds(userData) {
 /**
  * Check if a user still needs access to a specific classroom after a role change.
  */
-function userNeedsAccessToClassroom(userData, classroomId, classroomData) {
+function userNeedsAccessToClassroom(userData, classroomId, classroomData, uid) {
   if (userData.role === "superadmin") return true;
 
   if (
@@ -392,10 +393,11 @@ function userNeedsAccessToClassroom(userData, classroomId, classroomData) {
     return true;
   }
 
-  // Check if user is a teacher in this classroom
+  // Check if user is a teacher in this classroom (use uid since userData from .data() has no id)
   if (
+    uid &&
     Array.isArray(classroomData.teacherIds) &&
-    classroomData.teacherIds.includes(userData.id)
+    classroomData.teacherIds.includes(uid)
   ) {
     return true;
   }
