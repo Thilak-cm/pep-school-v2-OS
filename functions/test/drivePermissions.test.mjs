@@ -145,6 +145,18 @@ describe("shouldSyncOnClassroomUpdate", () => {
     const after = { teacherIds: ["u1"] };
     assert.equal(shouldSyncOnClassroomUpdate(before, after), false);
   });
+
+  it("returns true when programId changes while folder exists", () => {
+    const before = { teacherIds: ["u1"], driveFolderId: "folder1", programId: "primary" };
+    const after = { teacherIds: ["u1"], driveFolderId: "folder1", programId: "elementary" };
+    assert.equal(shouldSyncOnClassroomUpdate(before, after), true);
+  });
+
+  it("returns false when programId changes but no folder", () => {
+    const before = { teacherIds: ["u1"], programId: "primary" };
+    const after = { teacherIds: ["u1"], programId: "elementary" };
+    assert.equal(shouldSyncOnClassroomUpdate(before, after), false);
+  });
 });
 
 // ---------------------------------------------------------------------------

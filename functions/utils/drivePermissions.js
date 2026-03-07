@@ -12,6 +12,9 @@ export function shouldSyncOnClassroomUpdate(before, after) {
   // No folder on after side — nothing to sync
   if (!hasFolder) return false;
 
+  // programId changed while folder exists — admin access model depends on programId
+  if (before.programId !== after.programId) return true;
+
   // teacherIds changed while folder exists
   const beforeIds = (before.teacherIds || []).slice().sort().join(",");
   const afterIds = (after.teacherIds || []).slice().sort().join(",");

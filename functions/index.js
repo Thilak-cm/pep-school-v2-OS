@@ -45,7 +45,6 @@ import {
   revokeAllForUser,
   reconcileClassroomPermissions,
   buildBulkSyncPlan,
-  grantDrivePermission,
 } from "./utils/drivePermissions.js";
 
 initializeApp({ credential: applicationDefault() });
@@ -4529,11 +4528,14 @@ export const onClassroomUpdate = functions
 
     const driveFolderId = after.driveFolderId;
 
-    // If driveFolderId changed (new folder set or replaced), do full reconciliation
-    if (before.driveFolderId !== after.driveFolderId && after.driveFolderId) {
+    // If driveFolderId or programId changed, do full reconciliation
+    if (
+      (before.driveFolderId !== after.driveFolderId && after.driveFolderId) ||
+      before.programId !== after.programId
+    ) {
       try {
         const result = await reconcileClassroomPermissions(drive, db, classroomId);
-        console.log(`[drive-perms] Initial sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}`);
+        console.log(`[drive-perms] Full reconciliation for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}`);
       } catch (err) {
         console.error(`[drive-perms] Full reconciliation failed for ${classroomId}:`, err.message);
       }
@@ -4660,31 +4662,13 @@ export const bulkSyncDrivePermissions = functions
     const plan = buildBulkSyncPlan(classrooms, allUsers);
     console.log(`[drive-perms] Bulk sync plan: ${plan.length} classrooms with Drive folders`);
 
-    const results = { synced: 0, granted: 0, errors: [] };
+    const results = { synced: 0, granted: 0, revoked: 0, errors: [] };
 
     for (const entry of plan) {
       try {
-        // Get current permissions on the folder
-        const res = await drive.permissions.list({
-          fileId: entry.driveFolderId,
-          supportsAllDrives: true,
-          fields: "permissions(id,emailAddress,role)",
-        });
-
-        const currentEmails = new Set(
-          (res.data.permissions || [])
-            .filter((p) => p.emailAddress && p.role !== "owner" && p.role !== "organizer")
-            .map((p) => p.emailAddress.toLowerCase()),
-        );
-
-        // Grant missing permissions
-        for (const email of entry.desiredEmails) {
-          if (!currentEmails.has(email.toLowerCase())) {
-            await grantDrivePermission(drive, entry.driveFolderId, email);
-            results.granted++;
-          }
-        }
-
+        const result = await reconcileClassroomPermissions(drive, db, entry.classroomId);
+        results.granted += result.granted.length;
+        results.revoked += result.revoked.length;
         results.synced++;
       } catch (err) {
         console.warn(`[drive-perms] Bulk sync failed for ${entry.classroomId}:`, err.message);
@@ -4692,12 +4676,13 @@ export const bulkSyncDrivePermissions = functions
       }
     }
 
-    console.log(`[drive-perms] Bulk sync complete: ${results.synced} classrooms, ${results.granted} permissions granted, ${results.errors.length} errors`);
+    console.log(`[drive-perms] Bulk sync complete: ${results.synced} classrooms, ${results.granted} granted, ${results.revoked} revoked, ${results.errors.length} errors`);
 
     return {
       status: "ok",
       classroomsSynced: results.synced,
       permissionsGranted: results.granted,
+      permissionsRevoked: results.revoked,
       errors: results.errors,
     };
   });
