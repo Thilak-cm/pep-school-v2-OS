@@ -12,6 +12,7 @@ import {
   ArrowForward,
 } from '@mui/icons-material';
 import { trackEvent } from '../utils/analytics';
+import NewFeaturePill from './NewFeaturePill';
 
 export default function ReportsCard({ studentId, onClick }) {
   return (
@@ -36,9 +37,12 @@ export default function ReportsCard({ studentId, onClick }) {
                 <ReportIcon />
               </Avatar>
               <Box>
-                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                  Reports
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                    Reports
+                  </Typography>
+                  <NewFeaturePill label="New" showIcon={false} />
+                </Box>
                 <Typography variant="body2" sx={{ color: '#64748b' }}>
                   View and generate student reports
                 </Typography>
