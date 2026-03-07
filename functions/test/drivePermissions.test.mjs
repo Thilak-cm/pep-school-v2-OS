@@ -588,6 +588,57 @@ describe("syncTeacherChanges", () => {
     assert.equal(result.errors.length, 2);
     assert.equal(result.granted.length, 0);
   });
+
+  it("skips revocation for superadmins removed from teacherIds", async () => {
+    const perms = [{ id: "p1", emailAddress: "super@pep.com" }];
+    const drive = mockDrive(perms);
+    const db = mockDb({
+      users: {
+        sa1: { email: "super@pep.com", role: "superadmin" },
+      },
+    });
+
+    const result = await syncTeacherChanges(
+      drive, db, "folder1", [], ["sa1"], "primary",
+    );
+
+    assert.equal(result.revoked.length, 0);
+    assert.equal(drive._calls.list.length, 0); // no revoke attempt
+  });
+
+  it("skips revocation for classroomadmins who manage the program", async () => {
+    const perms = [{ id: "p1", emailAddress: "admin@pep.com" }];
+    const drive = mockDrive(perms);
+    const db = mockDb({
+      users: {
+        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["primary", "elementary"] },
+      },
+    });
+
+    const result = await syncTeacherChanges(
+      drive, db, "folder1", [], ["ca1"], "primary",
+    );
+
+    assert.equal(result.revoked.length, 0);
+    assert.equal(drive._calls.list.length, 0);
+  });
+
+  it("revokes classroomadmin who does NOT manage the program", async () => {
+    const perms = [{ id: "p1", emailAddress: "admin@pep.com" }];
+    const drive = mockDrive(perms);
+    const db = mockDb({
+      users: {
+        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["elementary"] },
+      },
+    });
+
+    const result = await syncTeacherChanges(
+      drive, db, "folder1", [], ["ca1"], "primary",
+    );
+
+    assert.equal(result.revoked.length, 1);
+    assert.equal(result.revoked[0], "admin@pep.com");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -3934,8 +3934,11 @@ async function checkReportPermission(uid, studentId) {
   }
 
   if (role === "teacher") {
-    const assignedClassrooms = requester.assignedClassrooms || [];
-    if (classroomId && assignedClassrooms.includes(classroomId)) return;
+    if (classroomId) {
+      const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
+      const teacherIds = classroomSnap.data()?.teacherIds || [];
+      if (teacherIds.includes(uid)) return;
+    }
     throw new functions.https.HttpsError("permission-denied", "Teacher is not assigned to this student's classroom");
   }
 
@@ -4542,7 +4545,7 @@ export const onClassroomUpdate = functions
     if (added.length === 0 && removed.length === 0) return null;
 
     try {
-      const result = await syncTeacherChanges(drive, db, driveFolderId, added, removed);
+      const result = await syncTeacherChanges(drive, db, driveFolderId, added, removed, after.programId);
       console.log(`[drive-perms] Teacher sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}, errors=${result.errors.length}`);
     } catch (err) {
       console.error(`[drive-perms] Teacher sync failed for ${classroomId}:`, err.message);

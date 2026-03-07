@@ -235,8 +235,9 @@ export async function reconcileClassroomPermissions(drive, db, classroomId) {
  * @param {string} driveFolderId - The classroom's Drive folder ID
  * @param {string[]} addedTeacherIds - Teacher UIDs that were added
  * @param {string[]} removedTeacherIds - Teacher UIDs that were removed
+ * @param {string} classroomProgramId - The classroom's programId (to check admin access)
  */
-export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherIds, removedTeacherIds) {
+export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherIds, removedTeacherIds, classroomProgramId) {
   const results = { granted: [], revoked: [], errors: [] };
 
   // Grant permissions for added teachers
@@ -252,13 +253,25 @@ export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherI
     }
   }
 
-  // Revoke permissions for removed teachers
+  // Revoke permissions for removed teachers (skip if user retains access via another role)
   for (const uid of removedTeacherIds) {
     try {
       const userSnap = await db.collection("users").doc(uid).get();
       if (!userSnap.exists || !userSnap.data().email) continue;
-      await revokeDrivePermission(drive, driveFolderId, userSnap.data().email);
-      results.revoked.push(userSnap.data().email);
+      const userData = userSnap.data();
+
+      // Superadmins always retain access
+      if (userData.role === "superadmin") continue;
+
+      // Classroomadmins who manage this program retain access
+      if (
+        userData.role === "classroomadmin" &&
+        Array.isArray(userData.manageableClassrooms) &&
+        userData.manageableClassrooms.includes(classroomProgramId)
+      ) continue;
+
+      await revokeDrivePermission(drive, driveFolderId, userData.email);
+      results.revoked.push(userData.email);
     } catch (err) {
       console.warn(`[drive-perms] Failed to revoke for ${uid}:`, err.message);
       results.errors.push({ uid, action: "revoke", error: err.message });
