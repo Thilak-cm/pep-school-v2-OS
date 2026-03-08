@@ -13,31 +13,12 @@ import {
 import { Description as ReportIcon } from '@mui/icons-material';
 import { getDefaultReportDateRange } from '../utils/reportUtils';
 
-// dd/mm/yyyy display format (Indian standard)
-function formatDateDisplay(date) {
-  const d = String(date.getDate()).padStart(2, '0');
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const y = date.getFullYear();
-  return `${d}/${m}/${y}`;
-}
-
-// ISO format for Cloud Function API
+// yyyy-mm-dd (native input[type=date] format)
 function toIsoDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-// Parse dd/mm/yyyy string to Date (returns null if invalid)
-function parseDdMmYyyy(str) {
-  const match = String(str || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return null;
-  const [, d, m, y] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  if (isNaN(date.getTime())) return null;
-  if (date.getDate() !== Number(d) || date.getMonth() !== Number(m) - 1) return null; // overflow check
-  return date;
 }
 
 export default function ReportGenerateDialog({
@@ -50,20 +31,14 @@ export default function ReportGenerateDialog({
 }) {
   const defaults = useMemo(() => {
     const { start, end } = getDefaultReportDateRange();
-    return {
-      start: formatDateDisplay(start),
-      end: formatDateDisplay(end),
-    };
+    return { start: toIsoDate(start), end: toIsoDate(end) };
   }, []);
 
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
 
-  const startParsed = parseDdMmYyyy(startDate);
-  const endParsed = parseDdMmYyyy(endDate);
-  const startError = startDate && !startParsed;
-  const endError = endDate && !endParsed;
-  const dateValid = Boolean(startParsed && endParsed);
+  const dateValid = Boolean(startDate && endDate);
+  const rangeError = dateValid && endDate < startDate;
 
   const isBulk = bulkCount > 1;
   const title = isBulk
@@ -71,8 +46,8 @@ export default function ReportGenerateDialog({
     : `Generate report for ${studentLabel}?`;
 
   const handleGenerate = () => {
-    if (!startParsed || !endParsed) return;
-    onGenerate?.({ dateRangeStart: toIsoDate(startParsed), dateRangeEnd: toIsoDate(endParsed) });
+    if (!dateValid || rangeError) return;
+    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate });
   };
 
   return (
@@ -114,34 +89,38 @@ export default function ReportGenerateDialog({
 
           <Typography variant="body2" sx={{ color: '#475569' }}>
             {isBulk
-              ? 'AI will generate parent reports for each selected student using observations within the date range below.'
-              : 'AI will generate a parent report using observations within the date range below.'}
+              ? 'Coach Pepper will generate parent reports for each selected student using observations within the date range below.'
+              : 'Coach Pepper will generate a parent report using observations within the date range below.'}
           </Typography>
 
           <Stack direction="row" spacing={2}>
             <TextField
               label="From"
-              placeholder="dd/mm/yyyy"
+              type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               size="small"
               fullWidth
               disabled={generating}
-              error={startError}
-              helperText={startError ? 'Use dd/mm/yyyy' : ''}
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { max: endDate || undefined },
+              }}
             />
             <TextField
               label="To"
-              placeholder="dd/mm/yyyy"
+              type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               size="small"
               fullWidth
               disabled={generating}
-              error={endError}
-              helperText={endError ? 'Use dd/mm/yyyy' : ''}
-              slotProps={{ inputLabel: { shrink: true } }}
+              error={rangeError}
+              helperText={rangeError ? "'To' must be after 'From'" : ''}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { min: startDate || undefined },
+              }}
             />
           </Stack>
 
@@ -166,7 +145,7 @@ export default function ReportGenerateDialog({
         <Button
           variant="contained"
           onClick={handleGenerate}
-          disabled={generating || !dateValid}
+          disabled={generating || !dateValid || rangeError}
           sx={{
             textTransform: 'none',
             borderRadius: 999,
