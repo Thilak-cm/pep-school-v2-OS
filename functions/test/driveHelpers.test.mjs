@@ -6,6 +6,7 @@ import {
   buildReportDocTitle,
   deriveAcademicYear,
   buildDocInsertRequests,
+  formatDateDDMMYYYY,
 } from "../utils/driveHelpers.js";
 import { DOC_STYLE } from "../config/reportConstants.js";
 
@@ -142,6 +143,28 @@ describe("deriveAcademicYear", () => {
   });
 });
 
+// --- formatDateDDMMYYYY ---
+
+describe("formatDateDDMMYYYY", () => {
+  it("formats a Date object to DD/MM/YYYY", () => {
+    assert.equal(formatDateDDMMYYYY(new Date("2025-11-01T00:00:00.000Z")), "01/11/2025");
+  });
+
+  it("formats an ISO string to DD/MM/YYYY", () => {
+    assert.equal(formatDateDDMMYYYY("2026-03-15T10:00:00.000Z"), "15/03/2026");
+  });
+
+  it("handles a Firestore-like Timestamp with toDate()", () => {
+    const fakeTimestamp = { toDate: () => new Date("2025-11-01T00:00:00.000Z") };
+    assert.equal(formatDateDDMMYYYY(fakeTimestamp), "01/11/2025");
+  });
+
+  it("returns empty string for null/undefined", () => {
+    assert.equal(formatDateDDMMYYYY(null), "");
+    assert.equal(formatDateDDMMYYYY(undefined), "");
+  });
+});
+
 // --- buildDocInsertRequests formatting ---
 
 describe("buildDocInsertRequests formatting", () => {
@@ -150,6 +173,7 @@ describe("buildDocInsertRequests formatting", () => {
     studentName: "Aakash Mehta",
     programName: "Adolescent",
     academicYear: "2025-26",
+    startDate: new Date("2025-11-01T00:00:00.000Z"),
     logoUrl: "https://example.com/logo.webp",
   };
 
@@ -217,15 +241,23 @@ describe("buildDocInsertRequests formatting", () => {
     assert.equal(style.fontSize.magnitude, DOC_STYLE.nameFontSize);
   });
 
-  // AC3: Metadata line — pink/magenta
-  it("inserts metadata line with correct format and pink color", () => {
+  // AC3: Metadata line — pink/magenta with date range and academic year
+  it("inserts metadata line with date range at pipe 3 and AY at pipe 4", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
-    const metaText = "Adolescent | Educator Summary | AY 2025-26";
+    const metaText = "Adolescent | Educator Summary | 01/11/2025 to Date | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should have a text style for metadata line");
     const style = styleReq.updateTextStyle.textStyle;
     assert.deepEqual(style.foregroundColor.color.rgbColor, DOC_STYLE.metaColor);
     assert.equal(style.fontSize.magnitude, DOC_STYLE.metaFontSize);
+  });
+
+  it("omits date range from metadata when startDate is not provided", () => {
+    const opts = { ...baseOpts, startDate: undefined };
+    const requests = buildDocInsertRequests(sampleMarkdown, opts);
+    const metaText = "Adolescent | Educator Summary | AY 2025-26";
+    const styleReq = findTextStyleForText(requests, metaText);
+    assert.ok(styleReq, "should fallback to metadata line without date range");
   });
 
   // AC4: Section headings — bold dark navy
@@ -295,6 +327,24 @@ describe("buildDocInsertRequests formatting", () => {
       paraStyle.updateParagraphStyle.paragraphStyle.spaceAbove.magnitude,
       DOC_STYLE.headingSpaceAbove,
     );
+  });
+
+  // AC: Roboto font on all text styles
+  it("applies Roboto font to all updateTextStyle requests", () => {
+    const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
+    const textStyles = findRequests(requests, "updateTextStyle");
+    assert.ok(textStyles.length >= 4, "should have at least 4 text style updates (name, meta, heading, body)");
+    for (const req of textStyles) {
+      const style = req.updateTextStyle.textStyle;
+      assert.ok(
+        style.weightedFontFamily && style.weightedFontFamily.fontFamily === "Roboto",
+        `expected Roboto font, got: ${JSON.stringify(style.weightedFontFamily)}`,
+      );
+      assert.ok(
+        req.updateTextStyle.fields.includes("weightedFontFamily"),
+        "fields mask should include weightedFontFamily",
+      );
+    }
   });
 
   // Backward compatibility: no options → same behavior as before (basic headings + text)
