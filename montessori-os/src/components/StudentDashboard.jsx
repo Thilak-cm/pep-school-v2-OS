@@ -39,6 +39,7 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardCons
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import NewFeaturePill from './NewFeaturePill';
 import ReportsCard from './ReportsCard';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 const confettiFall = keyframes`
   0% {
@@ -123,7 +124,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
-  const [, setCurrentRole] = useState(null);
+  const [currentRole, setCurrentRole] = useState(null);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
@@ -822,7 +823,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      <ReportsCard studentId={studentId} onClick={onOpenReports} />
+      {isSuperAdmin(currentRole) && <ReportsCard studentId={studentId} onClick={onOpenReports} />}
 
       <Card
         sx={{

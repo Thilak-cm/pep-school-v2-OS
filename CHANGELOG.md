@@ -1,5 +1,11 @@
 # Changelog
 
+# 9.8.3 — 2026-03-08
+
+### Changed
+- Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
+- Reports card on student dashboard now visible only to superadmins (PEP-78)
+
 # 9.8.2 — 2026-03-08
 
 ### Fixed
