@@ -22,7 +22,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, normalizeEndOfDay } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -3854,7 +3854,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     : await getReportPrompt(studentInfo.programId);
 
   const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
-  const endDate = dateRangeEnd ? new Date(dateRangeEnd) : new Date();
+  const endDate = dateRangeEnd ? normalizeEndOfDay(new Date(dateRangeEnd)) : new Date();
 
   const notes = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
 
