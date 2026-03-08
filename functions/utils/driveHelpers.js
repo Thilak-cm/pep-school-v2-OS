@@ -205,7 +205,7 @@ export async function createReportDoc(
  * Without `opts`, falls back to basic heading styles (backward compatible).
  *
  * @param {string} markdown - Report content in markdown
- * @param {object} [opts] - { studentName, programName, academicYear, startDate, endDate, logoUrl }
+ * @param {object} [opts] - { studentName, programName, academicYear, startDate, logoUrl }
  */
 export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
@@ -272,10 +272,9 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | {start} to {end} | AY {YYYY-YY}"
+    // 3. Metadata line: "{Program} | Educator Summary | {YYYY-MM-DD} to Date | AY {YYYY-YY}"
     const startStr = formatDateForMeta(opts.startDate);
-    const endStr = formatDateForMeta(opts.endDate);
-    const datePipe = startStr && endStr ? ` | ${startStr} to ${endStr}` : "";
+    const datePipe = startStr ? ` | ${startStr} to Date` : "";
     const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
