@@ -3926,10 +3926,8 @@ async function checkReportPermission(uid, studentId) {
 
   if (role === "classroomadmin" || role === "admin") {
     const manageable = requester.manageableClassrooms || [];
-    const classroomSnap = classroomId ? await db.collection("classrooms").doc(classroomId).get() : null;
-    const programId = classroomSnap?.data()?.programId;
-    if (programId && manageable.includes(programId)) return;
-    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's program");
+    if (classroomId && manageable.includes(classroomId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's classroom");
   }
 
   if (role === "teacher") {
@@ -4231,10 +4229,13 @@ export const exportReportToDrive = functions
         ? (report.dateRangeStart?.toDate?.() || generatedAtIso)
         : (report.dateRangeStart || generatedAtIso),
     );
+    const reportStartDate = reportDocId
+      ? (report.dateRangeStart?.toDate?.() || report.dateRangeStart)
+      : report.dateRangeStart;
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
       existingCount, generatedAtIso,
-      { programName, academicYear },
+      { programName, academicYear, startDate: reportStartDate },
     );
 
     // Update summary CSV in classroom folder (best-effort)
@@ -4368,10 +4369,11 @@ export const exportClassroomReportsToDrive = functions
         const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
         const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
         const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
+        const bulkStartDate = report.dateRangeStart?.toDate?.() || report.dateRangeStart;
         const { docId: driveDocId, docLink } = await createReportDoc(
           drive, docs, studentFolderId, studentName, report.reportText,
           existingCount, generatedAtIso,
-          { programName, academicYear },
+          { programName, academicYear, startDate: bulkStartDate },
         );
 
         // Update report doc with Drive link
@@ -4439,15 +4441,11 @@ export const deleteStudentReport = functions
         throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
       }
       const classroomId = studentSnap.data()?.classroomId;
-      const classroomSnap = classroomId
-        ? await db.collection("classrooms").doc(classroomId).get()
-        : null;
-      const programId = classroomSnap?.data()?.programId;
       const manageable = requesterData.manageableClassrooms || [];
-      if (!programId || !manageable.includes(programId)) {
+      if (!classroomId || !manageable.includes(classroomId)) {
         throw new functions.https.HttpsError(
           "permission-denied",
-          "Classroom admin does not manage this student's program",
+          "Classroom admin does not manage this student's classroom",
         );
       }
     } else {
