@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-08T04:53:11.634Z
-App version: 9.8.1
+Generated: 2026-03-08T10:18:23.585Z
+App version: 9.8.3
 
 ## App Snapshot
 
@@ -137,6 +137,15 @@ App version: 9.8.1
 
 ## Recent Changes
 
+### 9.8.3 (2026-03-08)
+- Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
+- Reports card on student dashboard now visible only to superadmins (PEP-78)
+
+### 9.8.2 (2026-03-08)
+- Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
+- Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
+- Date boundary regression tests for report generation and export filtering (PEP-77)
+
 ### 9.8.1 (2026-03-07)
 - Google Doc report metadata line now shows start date in DD/MM/YYYY format with "to date" text, and academic year moved to pipe 4 (PEP-76)
 - Report logo increased from 80x80 to 200x200 PT in exported Google Docs (PEP-76)
@@ -146,14 +155,4 @@ App version: 9.8.1
 - Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
 - Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
 - Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
-
-### 9.7.4 (2026-03-06)
-- ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
-- StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
-- UsersAccessPage displays 10 users per tab with "Show 10 More" buttons; limits reset automatically when search or filters change (PEP-28)
-
-### 9.7.3 (2026-03-06)
-- Google Doc report exports now match the reference template: PEP logo, navy blue student name heading, pink metadata line with program/academic year, styled section headings, dark grey justified body text, proper spacing (PEP-73)
-- Missing input flags in report preview now display as a compact chip-button with expandable popover instead of stacked alerts (PEP-73)
-- Google Doc export logo URL updated to use GCS direct URL (PNG format) — fixes 403 error from Google Docs API when inserting inline image (PEP-73)
 
