@@ -36,17 +36,14 @@ export function buildReportDocTitle(studentName, generatedAt, existingDocCount =
 }
 
 /**
- * Format a date as DD/MM/YYYY for display in report metadata.
+ * Format a date as YYYY-MM-DD for display in report metadata.
  * Accepts Date, ISO string, or Firestore Timestamp (with toDate()).
  * Returns empty string for null/undefined.
  */
-export function formatDateDDMMYYYY(dateInput) {
+export function formatDateForMeta(dateInput) {
   if (dateInput == null) return "";
   const d = typeof dateInput.toDate === "function" ? dateInput.toDate() : new Date(dateInput);
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const year = d.getUTCFullYear();
-  return `${day}/${month}/${year}`;
+  return d.toISOString().split("T")[0];
 }
 
 /**
@@ -208,7 +205,7 @@ export async function createReportDoc(
  * Without `opts`, falls back to basic heading styles (backward compatible).
  *
  * @param {string} markdown - Report content in markdown
- * @param {object} [opts] - { studentName, programName, academicYear, startDate, logoUrl }
+ * @param {object} [opts] - { studentName, programName, academicYear, startDate, endDate, logoUrl }
  */
 export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
@@ -275,9 +272,10 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | {DD/MM/YYYY} to Date | AY {YYYY-YY}"
-    const dateStr = formatDateDDMMYYYY(opts.startDate);
-    const datePipe = dateStr ? ` | ${dateStr} to Date` : "";
+    // 3. Metadata line: "{Program} | Educator Summary | {start} to {end} | AY {YYYY-YY}"
+    const startStr = formatDateForMeta(opts.startDate);
+    const endStr = formatDateForMeta(opts.endDate);
+    const datePipe = startStr && endStr ? ` | ${startStr} to ${endStr}` : "";
     const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
