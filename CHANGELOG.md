@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.8.1 — 2026-03-07
+
+### Changed
+- Google Doc report metadata line now shows start date in DD/MM/YYYY format with "to date" text, and academic year moved to pipe 4 (PEP-76)
+- Report logo increased from 80x80 to 200x200 PT in exported Google Docs (PEP-76)
+- Entire exported report document now uses Roboto font (PEP-76)
+
+### Fixed
+- Classroom admin report permissions now check classroomId directly instead of resolving programId, aligning with Firestore security rules (PEP-76)
+
 # 9.8.0 — 2026-03-06
 
 ### Added
