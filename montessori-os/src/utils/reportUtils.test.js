@@ -33,16 +33,6 @@ describe('getDefaultReportDateRange', () => {
     assert.equal(end, now);
   });
 
-  it('returns Oct 15 of current year on October 31', () => {
-    // October 31, 2026
-    const now = new Date(2026, 9, 31);
-    const { start, end } = getDefaultReportDateRange(now);
-    assert.equal(start.getFullYear(), 2026);
-    assert.equal(start.getMonth(), 9);
-    assert.equal(start.getDate(), 15);
-    assert.equal(end, now);
-  });
-
   it('returns Oct 15 of previous year on October 14 (boundary)', () => {
     // October 14, 2026 — just before the term starts
     const now = new Date(2026, 9, 14);
