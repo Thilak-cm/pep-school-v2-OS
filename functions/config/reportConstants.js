@@ -59,8 +59,8 @@ export const DOC_STYLE = {
   bodySpaceAfter: 6,
   metaSpaceBelow: 18,
   // Logo dimensions (points)
-  logoWidth: 150,
-  logoHeight: 150,
+  logoWidth: 200,
+  logoHeight: 200,
   // Font
   fontFamily: "Roboto",
 };
