@@ -27,7 +27,6 @@ import {
   getDriveClients,
   getOrCreateClassroomFolder,
   getOrCreateFolder,
-  countExistingReportDocs,
   createReportDoc,
   downloadCsvContent,
   updateDriveSummaryCsv,
@@ -4217,24 +4216,18 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
-    // Count existing report docs to determine version
-    const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
     const generatedAtIso = reportDocId
       ? (report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString())
       : (report.generatedAt?.toISOString?.() || new Date().toISOString());
 
     // Create the Google Doc in student folder (Drive first to minimize orphans)
-    const academicYear = deriveAcademicYear(
-      reportDocId
-        ? (report.dateRangeStart?.toDate?.() || generatedAtIso)
-        : (report.dateRangeStart || generatedAtIso),
-    );
+    const academicYear = deriveAcademicYear(new Date());
     const reportStartDate = reportDocId
       ? (report.dateRangeStart?.toDate?.() || report.dateRangeStart)
       : report.dateRangeStart;
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
-      existingCount, generatedAtIso,
+      generatedAtIso,
       { programName, academicYear, startDate: reportStartDate },
     );
 
@@ -4366,13 +4359,12 @@ export const exportClassroomReportsToDrive = functions
           drive, classroomFolderId, studentName,
         );
 
-        const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
         const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
-        const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
+        const academicYear = deriveAcademicYear(new Date());
         const bulkStartDate = report.dateRangeStart?.toDate?.() || report.dateRangeStart;
         const { docId: driveDocId, docLink } = await createReportDoc(
           drive, docs, studentFolderId, studentName, report.reportText,
-          existingCount, generatedAtIso,
+          generatedAtIso,
           { programName, academicYear, startDate: bulkStartDate },
         );
 

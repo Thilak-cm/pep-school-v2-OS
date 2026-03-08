@@ -22,17 +22,14 @@ export function capitalize(str) {
 }
 
 /**
- * Build the Google Doc title for a student report, including generation date.
- * First report:  "Name — Progress Report (2026-02-28)"
- * Subsequent:    "Name — Progress Report v2 (2026-02-28)"
+ * Build the Google Doc title for a student report.
+ * Format: "Child Name | Educator Summary | Month-Year" (e.g. "March 2026")
  */
-export function buildReportDocTitle(studentName, generatedAt, existingDocCount = 0) {
+export function buildReportDocTitle(studentName, generatedAt) {
   const name = (studentName || "").trim();
   const date = generatedAt ? new Date(generatedAt) : new Date();
-  const dateStr = date.toISOString().split("T")[0];
-  const base = `${name} — Progress Report`;
-  if (existingDocCount <= 0) return `${base} (${dateStr})`;
-  return `${base} v${existingDocCount + 1} (${dateStr})`;
+  const monthYear = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  return `${name} | Educator Summary | ${monthYear}`;
 }
 
 /**
@@ -128,30 +125,15 @@ export async function getOrCreateClassroomFolder(drive, branchName, programName,
 }
 
 /**
- * Count existing report docs for a student in a folder.
- */
-export async function countExistingReportDocs(drive, folderId, studentName) {
-  const namePattern = `${studentName.trim()} — Progress Report`;
-  const search = await drive.files.list({
-    q: `name contains '${namePattern.replace(/'/g, "\\'")}' and '${folderId}' in parents and mimeType = 'application/vnd.google-apps.document' and trashed = false`,
-    includeItemsFromAllDrives: true,
-    supportsAllDrives: true,
-    pageSize: 100,
-    fields: "files(id)",
-  });
-  return search.data.files?.length || 0;
-}
-
-/**
  * Create a Google Doc with the report content in the specified folder.
  * Returns { docId, docLink }.
  * @param {object} [formatOpts] - Optional formatting: { programName, academicYear }
  */
 export async function createReportDoc(
-  drive, docs, folderId, studentName, reportMarkdown, existingDocCount, generatedAt,
+  drive, docs, folderId, studentName, reportMarkdown, generatedAt,
   formatOpts,
 ) {
-  const title = buildReportDocTitle(studentName, generatedAt, existingDocCount);
+  const title = buildReportDocTitle(studentName, generatedAt);
 
   // Create blank doc in the folder
   const file = await drive.files.create({
