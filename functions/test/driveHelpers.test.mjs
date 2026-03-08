@@ -244,7 +244,7 @@ describe("buildDocInsertRequests formatting", () => {
   // AC3: Metadata line — pink/magenta with date range and academic year
   it("inserts metadata line with date range at pipe 3 and AY at pipe 4", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
-    const metaText = "Adolescent | Educator Summary | 2025-11-01 to Date | AY 2025-26";
+    const metaText = "Adolescent | Educator Summary | 2025-11-01 to date | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should have a text style for metadata line");
     const style = styleReq.updateTextStyle.textStyle;
