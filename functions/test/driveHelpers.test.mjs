@@ -6,7 +6,7 @@ import {
   buildReportDocTitle,
   deriveAcademicYear,
   buildDocInsertRequests,
-  formatDateDDMMYYYY,
+  formatDateForMeta,
 } from "../utils/driveHelpers.js";
 import { DOC_STYLE } from "../config/reportConstants.js";
 
@@ -143,25 +143,25 @@ describe("deriveAcademicYear", () => {
   });
 });
 
-// --- formatDateDDMMYYYY ---
+// --- formatDateForMeta ---
 
-describe("formatDateDDMMYYYY", () => {
-  it("formats a Date object to DD/MM/YYYY", () => {
-    assert.equal(formatDateDDMMYYYY(new Date("2025-11-01T00:00:00.000Z")), "01/11/2025");
+describe("formatDateForMeta", () => {
+  it("formats a Date object to YYYY-MM-DD", () => {
+    assert.equal(formatDateForMeta(new Date("2025-11-01T00:00:00.000Z")), "2025-11-01");
   });
 
-  it("formats an ISO string to DD/MM/YYYY", () => {
-    assert.equal(formatDateDDMMYYYY("2026-03-15T10:00:00.000Z"), "15/03/2026");
+  it("formats an ISO string to YYYY-MM-DD", () => {
+    assert.equal(formatDateForMeta("2026-03-15T10:00:00.000Z"), "2026-03-15");
   });
 
   it("handles a Firestore-like Timestamp with toDate()", () => {
     const fakeTimestamp = { toDate: () => new Date("2025-11-01T00:00:00.000Z") };
-    assert.equal(formatDateDDMMYYYY(fakeTimestamp), "01/11/2025");
+    assert.equal(formatDateForMeta(fakeTimestamp), "2025-11-01");
   });
 
   it("returns empty string for null/undefined", () => {
-    assert.equal(formatDateDDMMYYYY(null), "");
-    assert.equal(formatDateDDMMYYYY(undefined), "");
+    assert.equal(formatDateForMeta(null), "");
+    assert.equal(formatDateForMeta(undefined), "");
   });
 });
 
@@ -174,6 +174,7 @@ describe("buildDocInsertRequests formatting", () => {
     programName: "Adolescent",
     academicYear: "2025-26",
     startDate: new Date("2025-11-01T00:00:00.000Z"),
+    endDate: new Date("2026-03-07T00:00:00.000Z"),
     logoUrl: "https://example.com/logo.webp",
   };
 
@@ -244,7 +245,7 @@ describe("buildDocInsertRequests formatting", () => {
   // AC3: Metadata line — pink/magenta with date range and academic year
   it("inserts metadata line with date range at pipe 3 and AY at pipe 4", () => {
     const requests = buildDocInsertRequests(sampleMarkdown, baseOpts);
-    const metaText = "Adolescent | Educator Summary | 01/11/2025 to Date | AY 2025-26";
+    const metaText = "Adolescent | Educator Summary | 2025-11-01 to 2026-03-07 | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
     assert.ok(styleReq, "should have a text style for metadata line");
     const style = styleReq.updateTextStyle.textStyle;
@@ -252,8 +253,8 @@ describe("buildDocInsertRequests formatting", () => {
     assert.equal(style.fontSize.magnitude, DOC_STYLE.metaFontSize);
   });
 
-  it("omits date range from metadata when startDate is not provided", () => {
-    const opts = { ...baseOpts, startDate: undefined };
+  it("omits date range from metadata when dates are not provided", () => {
+    const opts = { ...baseOpts, startDate: undefined, endDate: undefined };
     const requests = buildDocInsertRequests(sampleMarkdown, opts);
     const metaText = "Adolescent | Educator Summary | AY 2025-26";
     const styleReq = findTextStyleForText(requests, metaText);
