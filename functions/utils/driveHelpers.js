@@ -36,6 +36,20 @@ export function buildReportDocTitle(studentName, generatedAt, existingDocCount =
 }
 
 /**
+ * Format a date as DD/MM/YYYY for display in report metadata.
+ * Accepts Date, ISO string, or Firestore Timestamp (with toDate()).
+ * Returns empty string for null/undefined.
+ */
+export function formatDateDDMMYYYY(dateInput) {
+  if (dateInput == null) return "";
+  const d = typeof dateInput.toDate === "function" ? dateInput.toDate() : new Date(dateInput);
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
  * Derive the academic year string (e.g. "2025-26") from a date.
  * Academic year starts in November (month index 10).
  * Dates before November belong to the AY that started the previous November.
@@ -194,7 +208,7 @@ export async function createReportDoc(
  * Without `opts`, falls back to basic heading styles (backward compatible).
  *
  * @param {string} markdown - Report content in markdown
- * @param {object} [opts] - { studentName, programName, academicYear, logoUrl }
+ * @param {object} [opts] - { studentName, programName, academicYear, startDate, logoUrl }
  */
 export function buildDocInsertRequests(markdown, opts) {
   if (!markdown || !markdown.trim()) return [];
@@ -254,14 +268,17 @@ export function buildDocInsertRequests(markdown, opts) {
           bold: true,
           fontSize: { magnitude: DOC_STYLE.nameFontSize, unit: "PT" },
           foregroundColor: { color: { rgbColor: DOC_STYLE.nameColor } },
+          weightedFontFamily: { fontFamily: DOC_STYLE.fontFamily },
         },
-        fields: "bold,fontSize,foregroundColor",
+        fields: "bold,fontSize,foregroundColor,weightedFontFamily",
       },
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | AY {YYYY-YY}"
-    const metaText = `${opts.programName || ""} | Educator Summary | AY ${opts.academicYear || ""}\n`;
+    // 3. Metadata line: "{Program} | Educator Summary | {DD/MM/YYYY} to Date | AY {YYYY-YY}"
+    const dateStr = formatDateDDMMYYYY(opts.startDate);
+    const datePipe = dateStr ? ` | ${dateStr} to Date` : "";
+    const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
     requests.push({
       insertText: { location: { index: idx }, text: metaText },
     });
@@ -271,8 +288,9 @@ export function buildDocInsertRequests(markdown, opts) {
         textStyle: {
           fontSize: { magnitude: DOC_STYLE.metaFontSize, unit: "PT" },
           foregroundColor: { color: { rgbColor: DOC_STYLE.metaColor } },
+          weightedFontFamily: { fontFamily: DOC_STYLE.fontFamily },
         },
-        fields: "fontSize,foregroundColor",
+        fields: "fontSize,foregroundColor,weightedFontFamily",
       },
     });
     requests.push({
@@ -308,8 +326,9 @@ export function buildDocInsertRequests(markdown, opts) {
               bold: true,
               fontSize: { magnitude: DOC_STYLE.headingFontSize, unit: "PT" },
               foregroundColor: { color: { rgbColor: DOC_STYLE.headingColor } },
+              weightedFontFamily: { fontFamily: DOC_STYLE.fontFamily },
             },
-            fields: "bold,fontSize,foregroundColor",
+            fields: "bold,fontSize,foregroundColor,weightedFontFamily",
           },
         });
         requests.push({
@@ -330,8 +349,9 @@ export function buildDocInsertRequests(markdown, opts) {
             textStyle: {
               fontSize: { magnitude: DOC_STYLE.bodyFontSize, unit: "PT" },
               foregroundColor: { color: { rgbColor: DOC_STYLE.bodyColor } },
+              weightedFontFamily: { fontFamily: DOC_STYLE.fontFamily },
             },
-            fields: "fontSize,foregroundColor",
+            fields: "fontSize,foregroundColor,weightedFontFamily",
           },
         });
         requests.push({

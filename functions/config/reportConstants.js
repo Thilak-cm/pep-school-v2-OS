@@ -59,8 +59,10 @@ export const DOC_STYLE = {
   bodySpaceAfter: 6,
   metaSpaceBelow: 18,
   // Logo dimensions (points)
-  logoWidth: 80,
-  logoHeight: 80,
+  logoWidth: 150,
+  logoHeight: 150,
+  // Font
+  fontFamily: "Roboto",
 };
 
 // PEP School logo — hosted on Firebase Storage at assets/branding/ (public via GCS ACL)

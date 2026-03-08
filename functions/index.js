@@ -4231,10 +4231,13 @@ export const exportReportToDrive = functions
         ? (report.dateRangeStart?.toDate?.() || generatedAtIso)
         : (report.dateRangeStart || generatedAtIso),
     );
+    const reportStartDate = reportDocId
+      ? (report.dateRangeStart?.toDate?.() || report.dateRangeStart)
+      : report.dateRangeStart;
     const { docId: driveDocId, docLink } = await createReportDoc(
       drive, docs, studentFolderId, studentName, report.reportText,
       existingCount, generatedAtIso,
-      { programName, academicYear },
+      { programName, academicYear, startDate: reportStartDate },
     );
 
     // Update summary CSV in classroom folder (best-effort)
@@ -4368,10 +4371,11 @@ export const exportClassroomReportsToDrive = functions
         const existingCount = await countExistingReportDocs(drive, studentFolderId, studentName);
         const generatedAtIso = report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString();
         const academicYear = deriveAcademicYear(report.dateRangeStart?.toDate?.() || generatedAtIso);
+        const bulkStartDate = report.dateRangeStart?.toDate?.() || report.dateRangeStart;
         const { docId: driveDocId, docLink } = await createReportDoc(
           drive, docs, studentFolderId, studentName, report.reportText,
           existingCount, generatedAtIso,
-          { programName, academicYear },
+          { programName, academicYear, startDate: bulkStartDate },
         );
 
         // Update report doc with Drive link
