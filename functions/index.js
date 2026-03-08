@@ -3926,10 +3926,8 @@ async function checkReportPermission(uid, studentId) {
 
   if (role === "classroomadmin" || role === "admin") {
     const manageable = requester.manageableClassrooms || [];
-    const classroomSnap = classroomId ? await db.collection("classrooms").doc(classroomId).get() : null;
-    const programId = classroomSnap?.data()?.programId;
-    if (programId && manageable.includes(programId)) return;
-    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's program");
+    if (classroomId && manageable.includes(classroomId)) return;
+    throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's classroom");
   }
 
   if (role === "teacher") {
@@ -4443,15 +4441,11 @@ export const deleteStudentReport = functions
         throw new functions.https.HttpsError("not-found", `Student not found: ${studentId}`);
       }
       const classroomId = studentSnap.data()?.classroomId;
-      const classroomSnap = classroomId
-        ? await db.collection("classrooms").doc(classroomId).get()
-        : null;
-      const programId = classroomSnap?.data()?.programId;
       const manageable = requesterData.manageableClassrooms || [];
-      if (!programId || !manageable.includes(programId)) {
+      if (!classroomId || !manageable.includes(classroomId)) {
         throw new functions.https.HttpsError(
           "permission-denied",
-          "Classroom admin does not manage this student's program",
+          "Classroom admin does not manage this student's classroom",
         );
       }
     } else {
