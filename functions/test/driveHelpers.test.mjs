@@ -69,37 +69,31 @@ describe("capitalize", () => {
 });
 
 describe("buildReportDocTitle", () => {
-  it("includes date for first report (count=0)", () => {
+  it("formats as 'Name | Educator Summary | Month Year'", () => {
     assert.equal(
-      buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z", 0),
-      "Aakash Mehta — Progress Report (2026-02-28)",
+      buildReportDocTitle("Aakash Mehta", "2026-02-28T10:00:00.000Z"),
+      "Aakash Mehta | Educator Summary | February 2026",
     );
   });
 
-  it("includes version and date for subsequent reports", () => {
+  it("uses month-year from generatedAt", () => {
     assert.equal(
-      buildReportDocTitle("Aakash Mehta", "2026-03-15T10:00:00.000Z", 1),
-      "Aakash Mehta — Progress Report v2 (2026-03-15)",
-    );
-  });
-
-  it("handles higher version counts", () => {
-    assert.equal(
-      buildReportDocTitle("Priya Sharma", "2026-06-01T00:00:00.000Z", 3),
-      "Priya Sharma — Progress Report v4 (2026-06-01)",
+      buildReportDocTitle("Aakash Mehta", "2026-03-15T10:00:00.000Z"),
+      "Aakash Mehta | Educator Summary | March 2026",
     );
   });
 
   it("uses current date when generatedAt is null", () => {
     const title = buildReportDocTitle("Aakash Mehta", null);
-    const todayStr = new Date().toISOString().split("T")[0];
-    assert.equal(title, `Aakash Mehta — Progress Report (${todayStr})`);
+    const now = new Date();
+    const monthYear = now.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    assert.equal(title, `Aakash Mehta | Educator Summary | ${monthYear}`);
   });
 
   it("trims student name", () => {
     assert.equal(
-      buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z", 0),
-      "Aakash Mehta — Progress Report (2026-02-28)",
+      buildReportDocTitle("  Aakash Mehta  ", "2026-02-28T10:00:00.000Z"),
+      "Aakash Mehta | Educator Summary | February 2026",
     );
   });
 });
