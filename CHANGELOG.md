@@ -1,5 +1,38 @@
 # Changelog
 
+# 9.8.2 — 2026-03-08
+
+### Fixed
+- Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
+- Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
+
+### Added
+- Date boundary regression tests for report generation and export filtering (PEP-77)
+
+# 9.8.1 — 2026-03-07
+
+### Changed
+- Google Doc report metadata line now shows start date in DD/MM/YYYY format with "to date" text, and academic year moved to pipe 4 (PEP-76)
+- Report logo increased from 80x80 to 200x200 PT in exported Google Docs (PEP-76)
+- Entire exported report document now uses Roboto font (PEP-76)
+
+### Fixed
+- Classroom admin report permissions now check classroomId directly instead of resolving programId, aligning with Firestore security rules (PEP-76)
+
+# 9.8.0 — 2026-03-06
+
+### Added
+- Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
+- Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
+- Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
+- Reports page now accessible to all roles (teachers, classroom admins, superadmins) instead of superadmin-only (PEP-69)
+- Draft report flow: generate a report preview before committing to Firestore, with option to discard or save & export to Drive (PEP-69)
+- Classroom admins can now delete reports for students in their managed programs (PEP-69)
+
+### Changed
+- Report generation uses dry-run mode to return preview data without persisting, allowing discard before export (PEP-69)
+- Export to Drive now accepts draft report payloads in addition to existing Firestore report references (PEP-69)
+
 # 9.7.4 — 2026-03-06
 
 ### Changed

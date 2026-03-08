@@ -15,7 +15,8 @@ export const REPORT_DEFAULTS = {
 export const REPORT_PROMPT_DOCS = {
   adolescent: "report_adolescent",
   elementary: "report_elementary",
-  // primary: "report_primary", // TBD — prompt not yet available
+  primary: "report_primary",
+  toddler: "report_toddler",
 };
 
 // Concurrency limit for bulk report generation
@@ -58,8 +59,10 @@ export const DOC_STYLE = {
   bodySpaceAfter: 6,
   metaSpaceBelow: 18,
   // Logo dimensions (points)
-  logoWidth: 80,
-  logoHeight: 80,
+  logoWidth: 200,
+  logoHeight: 200,
+  // Font
+  fontFamily: "Roboto",
 };
 
 // PEP School logo — hosted on Firebase Storage at assets/branding/ (public via GCS ACL)

@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-07T00:11:47.881Z
-App version: 9.7.4
+Generated: 2026-03-08T04:53:11.634Z
+App version: 9.8.1
 
 ## App Snapshot
 
@@ -137,6 +137,16 @@ App version: 9.7.4
 
 ## Recent Changes
 
+### 9.8.1 (2026-03-07)
+- Google Doc report metadata line now shows start date in DD/MM/YYYY format with "to date" text, and academic year moved to pipe 4 (PEP-76)
+- Report logo increased from 80x80 to 200x200 PT in exported Google Docs (PEP-76)
+- Entire exported report document now uses Roboto font (PEP-76)
+
+### 9.8.0 (2026-03-06)
+- Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
+- Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
+- Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
+
 ### 9.7.4 (2026-03-06)
 - ClassroomTimeline now fetches 20 observations per batch with Firestore cursor-based pagination instead of 50, with a "Show 20 More" button to load additional pages (PEP-28)
 - StudentTimeline now fetches 20 observations initially via real-time listener, with cursor-based "Show 20 More" for older notes (PEP-28)
@@ -146,13 +156,4 @@ App version: 9.7.4
 - Google Doc report exports now match the reference template: PEP logo, navy blue student name heading, pink metadata line with program/academic year, styled section headings, dark grey justified body text, proper spacing (PEP-73)
 - Missing input flags in report preview now display as a compact chip-button with expandable popover instead of stacked alerts (PEP-73)
 - Google Doc export logo URL updated to use GCS direct URL (PNG format) — fixes 403 error from Google Docs API when inserting inline image (PEP-73)
-
-### 9.7.2 (2026-03-06)
-- Observations (voice, text, lesson) now appear correctly on the classroom timeline in the default unfiltered view (PEP-74)
-- Timeline pagination merges grouped and ungrouped notes by date before limiting, preventing newer notes from being pushed off the first page by older grouped items
-
-### 9.7.1 (2026-03-06)
-- ChildChat stale closure bug: assistant "thinking" indicator now clears reliably when response arrives (PEP-27)
-- Defensive 30-second timeout prevents stuck spinner when backend errors silently (PEP-27)
-- OpenAI API calls now use `max_completion_tokens` and strip unsupported params for reasoning models (PEP-27)
 

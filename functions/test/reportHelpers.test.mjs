@@ -135,7 +135,7 @@ describe("getReportPromptDocId", () => {
   });
 
   it("returns null for unsupported program", () => {
-    assert.equal(getReportPromptDocId("primary"), null);
+    assert.equal(getReportPromptDocId("unsupported_program"), null);
   });
 
   it("returns null for undefined/empty input", () => {
