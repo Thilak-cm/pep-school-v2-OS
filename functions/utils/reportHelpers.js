@@ -198,6 +198,17 @@ export function removeCsvRow(existingCsv, studentName, csvHeaders) {
  * Update CSV content: replace existing row for studentName, or append new row.
  * If existing CSV is empty, creates new CSV with headers.
  */
+/**
+ * Set a Date's time to 23:59:59.999 (end of day) so that
+ * an end-date filter is inclusive of the entire day.
+ * Returns a new Date — does not mutate the original.
+ */
+export function normalizeEndOfDay(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
   if (!existingCsv || !existingCsv.trim()) {
     return csvHeaders.join(",") + "\n" + newRow;
