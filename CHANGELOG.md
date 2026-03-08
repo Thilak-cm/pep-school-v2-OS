@@ -1,5 +1,14 @@
 # Changelog
 
+# 9.8.2 — 2026-03-08
+
+### Fixed
+- Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
+- Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
+
+### Added
+- Date boundary regression tests for report generation and export filtering (PEP-77)
+
 # 9.8.1 — 2026-03-07
 
 ### Changed
