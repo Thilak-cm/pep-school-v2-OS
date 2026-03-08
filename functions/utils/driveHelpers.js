@@ -36,7 +36,7 @@ export function buildReportDocTitle(studentName, generatedAt, existingDocCount =
 }
 
 /**
- * Format a date as YYYY-MM-DD for display in report metadata.
+ * Format a date as DD/MM/YYYY for display in report metadata.
  * Accepts Date, ISO string, or Firestore Timestamp (with toDate()).
  * Returns empty string for null/undefined.
  */
@@ -276,7 +276,7 @@ export function buildDocInsertRequests(markdown, opts) {
     });
     idx += nameText.length;
 
-    // 3. Metadata line: "{Program} | Educator Summary | {YYYY-MM-DD} to date | AY {YYYY-YY}"
+    // 3. Metadata line: "{Program} | Educator Summary | {DD/MM/YYYY} to date | AY {YYYY-YY}"
     const startStr = formatDateForMeta(opts.startDate);
     const datePipe = startStr ? ` | ${startStr} to date` : "";
     const metaText = `${opts.programName || ""} | Educator Summary${datePipe} | AY ${opts.academicYear || ""}\n`;
