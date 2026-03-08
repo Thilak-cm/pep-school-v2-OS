@@ -106,7 +106,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
         setPrograms(progSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setBranches(branchSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (_err) {
-        notify.error('Failed to load classrooms/programs');
+        notify.error('Failed to load classroom filters');
       }
     })();
   }, [isAdmin]);
