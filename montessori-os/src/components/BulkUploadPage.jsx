@@ -48,7 +48,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
-import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate } from '../utils/csvParser';
+import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate, DEFAULT_PLACEHOLDER_DATE } from '../utils/csvParser';
 import {
   matchStudentNames,
   buildObservationDoc,
@@ -75,6 +75,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
   const [selectedClassrooms, setSelectedClassrooms] = useState([]);
+  const [defaultDate, setDefaultDate] = useState(DEFAULT_PLACEHOLDER_DATE);
 
   // Step 1: Matching state
   const [allStudents, setAllStudents] = useState([]);
@@ -157,12 +158,12 @@ export default function BulkUploadPage({ currentUser, userRole }) {
         setParsedRows([]);
         return;
       }
-      const filled = applyDefaultDate(rows);
+      const filled = applyDefaultDate(rows, defaultDate);
       setParsedRows(filled);
       setParseErrors([]);
     };
     reader.readAsText(file);
-  }, []);
+  }, [defaultDate]);
 
   // --- Step 0 → 1: Start matching ---
   const handleStartMatching = useCallback(async () => {
@@ -181,7 +182,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       setMatchResults(matches);
       setActiveStep(1);
       const highCount = matches.filter((m) => m.confidence === CONFIDENCE.HIGH).length;
-      notify.success(`Found ${students.length} students. ${highCount}/${matches.length} names matched with high confidence.`);
+      notify.success(`${highCount}/${matches.length} students matched with high confidence from selected classrooms.`);
     } catch (err) {
       notify.error('Failed to load students: ' + (err.message || ''));
     }
@@ -444,11 +445,20 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                     {...params}
                     label="Classrooms"
                     placeholder={selectedClassrooms.length === 0 ? 'Select classrooms...' : ''}
-                    error={selectedClassrooms.length === 0}
                     helperText={selectedClassrooms.length === 0 ? 'Select at least one classroom' : ''}
                   />
                 )}
                 sx={{ minWidth: 260 }}
+              />
+              <TextField
+                size="small"
+                type="date"
+                label="Default date"
+                value={defaultDate}
+                onChange={(e) => setDefaultDate(e.target.value)}
+                helperText="Used when CSV rows have no date"
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ minWidth: 170 }}
               />
             </Box>
 
@@ -722,6 +732,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 setSelectedBranch('');
                 setSelectedProgram('');
                 setSelectedClassrooms([]);
+                setDefaultDate(DEFAULT_PLACEHOLDER_DATE);
               }}
             >
               Upload Another CSV

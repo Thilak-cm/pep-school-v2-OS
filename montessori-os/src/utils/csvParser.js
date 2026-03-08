@@ -111,10 +111,10 @@ export function normalizeDateDMY(dateStr) {
  * @param {object[]} rows - parsed rows
  * @returns {object[]}
  */
-export function applyDefaultDate(rows) {
+export function applyDefaultDate(rows, fallback = DEFAULT_PLACEHOLDER_DATE) {
   return rows.map((row) => {
     if (!row.date || !row.date.trim()) {
-      return { ...row, date: DEFAULT_PLACEHOLDER_DATE };
+      return { ...row, date: fallback };
     }
     return { ...row, date: normalizeDateDMY(row.date) };
   });
