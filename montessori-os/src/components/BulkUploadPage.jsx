@@ -69,10 +69,12 @@ export default function BulkUploadPage({ currentUser, userRole }) {
   const [fileName, setFileName] = useState('');
   const [parsedRows, setParsedRows] = useState([]);
   const [parseErrors, setParseErrors] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [selectedClassroom, setSelectedClassroom] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
+  const [selectedClassrooms, setSelectedClassrooms] = useState([]);
 
   // Step 1: Matching state
   const [allStudents, setAllStudents] = useState([]);
@@ -94,25 +96,46 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     if (!isAdmin) return;
     (async () => {
       try {
-        const [classSnap, progSnap] = await Promise.all([
+        const [classSnap, progSnap, branchSnap] = await Promise.all([
           getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active'))),
           getDocs(collection(db, 'programs')),
+          getDocs(collection(db, 'branches')),
         ]);
         setClassrooms(classSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setPrograms(progSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setBranches(branchSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (_err) {
         notify.error('Failed to load classrooms/programs');
       }
     })();
   }, [isAdmin]);
 
-  // --- Derived: programClassroomIds ---
-  const programClassroomIds = useMemo(() => {
-    if (!selectedProgram) return null;
-    const prog = programs.find((p) => p.id === selectedProgram);
-    if (!prog?.classrooms) return null;
-    return prog.classrooms.map((path) => path.split('/').pop());
-  }, [selectedProgram, programs]);
+  // --- Derived: cascading filter options ---
+  const availablePrograms = useMemo(() => {
+    if (!selectedBranch) return programs;
+    const branchClassroomIds = new Set(
+      classrooms.filter((c) => c.branchId === selectedBranch).map((c) => c.id),
+    );
+    return programs.filter((p) => {
+      const progClassIds = (p.classrooms || []).map((path) => path.split('/').pop());
+      return progClassIds.some((cid) => branchClassroomIds.has(cid));
+    });
+  }, [selectedBranch, programs, classrooms]);
+
+  const availableClassrooms = useMemo(() => {
+    let filtered = classrooms;
+    if (selectedBranch) {
+      filtered = filtered.filter((c) => c.branchId === selectedBranch);
+    }
+    if (selectedProgram) {
+      const prog = programs.find((p) => p.id === selectedProgram);
+      if (prog?.classrooms) {
+        const progClassIds = new Set(prog.classrooms.map((path) => path.split('/').pop()));
+        filtered = filtered.filter((c) => progClassIds.has(c.id));
+      }
+    }
+    return filtered;
+  }, [selectedBranch, selectedProgram, programs, classrooms]);
 
   // --- Step 0: File upload handler ---
   const handleFileChange = useCallback((e) => {
@@ -152,9 +175,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       setAllStudents(students);
 
       const uniqueNames = extractUniqueNames(parsedRows);
-      const filter = {};
-      if (selectedClassroom) filter.classroomId = selectedClassroom;
-      else if (programClassroomIds) filter.programClassroomIds = programClassroomIds;
+      const filter = { programClassroomIds: selectedClassrooms.map((c) => c.id) };
 
       const matches = matchStudentNames(uniqueNames, students, filter);
       setMatchResults(matches);
@@ -164,7 +185,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     } catch (err) {
       notify.error('Failed to load students: ' + (err.message || ''));
     }
-  }, [parsedRows, selectedClassroom, programClassroomIds, notify]);
+  }, [parsedRows, selectedClassrooms, notify]);
 
   // --- Step 1: Match actions ---
   const handleAccept = useCallback((idx) => {
@@ -383,33 +404,52 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               </Table>
             </TableContainer>
 
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel>Program (optional)</InputLabel>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Branch</InputLabel>
+                <Select
+                  value={selectedBranch}
+                  label="Branch"
+                  onChange={(e) => { setSelectedBranch(e.target.value); setSelectedProgram(''); setSelectedClassrooms([]); }}
+                >
+                  <MenuItem value="">All branches</MenuItem>
+                  {branches.map((b) => (
+                    <MenuItem key={b.id} value={b.id}>{b.name || b.id}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Program</InputLabel>
                 <Select
                   value={selectedProgram}
-                  label="Program (optional)"
-                  onChange={(e) => { setSelectedProgram(e.target.value); setSelectedClassroom(''); }}
+                  label="Program"
+                  onChange={(e) => { setSelectedProgram(e.target.value); setSelectedClassrooms([]); }}
                 >
-                  <MenuItem value="">None</MenuItem>
-                  {programs.map((p) => (
+                  <MenuItem value="">All programs</MenuItem>
+                  {availablePrograms.map((p) => (
                     <MenuItem key={p.id} value={p.id}>{p.id}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Classroom (optional)</InputLabel>
-                <Select
-                  value={selectedClassroom}
-                  label="Classroom (optional)"
-                  onChange={(e) => { setSelectedClassroom(e.target.value); setSelectedProgram(''); }}
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {classrooms.map((c) => (
-                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                multiple
+                size="small"
+                options={availableClassrooms}
+                getOptionLabel={(c) => c.name || c.id}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                value={selectedClassrooms}
+                onChange={(_, newVal) => setSelectedClassrooms(newVal)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Classrooms"
+                    placeholder={selectedClassrooms.length === 0 ? 'Select classrooms...' : ''}
+                    error={selectedClassrooms.length === 0}
+                    helperText={selectedClassrooms.length === 0 ? 'Select at least one classroom' : ''}
+                  />
+                )}
+                sx={{ minWidth: 260 }}
+              />
             </Box>
 
             <Button
@@ -466,9 +506,19 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                     Showing first 10 of {parsedRows.length} rows
                   </Typography>
                 )}
-                <Button variant="contained" onClick={handleStartMatching} sx={{ alignSelf: 'flex-start' }}>
+                <Button
+                  variant="contained"
+                  onClick={handleStartMatching}
+                  disabled={selectedClassrooms.length === 0}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
                   Next: Match Students
                 </Button>
+                {selectedClassrooms.length === 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Select at least one classroom to proceed with student matching.
+                  </Typography>
+                )}
               </>
             )}
           </CardContent>
@@ -669,8 +719,9 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                 setMatchResults([]);
                 setReviewRows([]);
                 setResults(null);
-                setSelectedClassroom('');
+                setSelectedBranch('');
                 setSelectedProgram('');
+                setSelectedClassrooms([]);
               }}
             >
               Upload Another CSV
