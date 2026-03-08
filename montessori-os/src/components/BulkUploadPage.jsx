@@ -543,6 +543,16 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               <Typography variant="h6">
                 Match Students ({matchResults.filter((m) => m.accepted).length}/{matchResults.length} matched)
               </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary">Classrooms:</Typography>
+              {selectedClassrooms.map((c) => (
+                <Chip key={c.id} label={c.name || c.id} size="small" variant="outlined" />
+              ))}
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 size="small"
                 variant="outlined"
@@ -585,7 +595,9 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                             sx={{ minWidth: 220 }}
                           />
                         ) : (
-                          m.match?.displayName || <em>No match</em>
+                          m.match
+                            ? <>{m.match.displayName} <Typography component="span" variant="body2" color="text.secondary">({classrooms.find((c) => c.id === m.match.classroomId)?.name || m.match.classroomId})</Typography></>
+                            : <em>No match</em>
                         )}
                       </TableCell>
                       <TableCell>
