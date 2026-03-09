@@ -67,7 +67,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
 
   // Step 0: Upload state
   const [fileName, setFileName] = useState('');
-  const [parsedRows, setParsedRows] = useState([]);
+  const [rawParsedRows, setRawParsedRows] = useState([]);
   const [parseErrors, setParseErrors] = useState([]);
   const [branches, setBranches] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
@@ -138,6 +138,11 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     return filtered;
   }, [selectedBranch, selectedProgram, programs, classrooms]);
 
+  const parsedRows = useMemo(
+    () => (rawParsedRows.length > 0 ? applyDefaultDate(rawParsedRows, defaultDate) : []),
+    [rawParsedRows, defaultDate],
+  );
+
   // --- Step 0: File upload handler ---
   const handleFileChange = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -149,21 +154,20 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       const { rows, errors: pErrors } = parseCSV(text);
       if (pErrors.length > 0) {
         setParseErrors(pErrors);
-        setParsedRows([]);
+        setRawParsedRows([]);
         return;
       }
       const { valid, errors: vErrors } = validateCSV(rows);
       if (!valid) {
         setParseErrors(vErrors);
-        setParsedRows([]);
+        setRawParsedRows([]);
         return;
       }
-      const filled = applyDefaultDate(rows, defaultDate);
-      setParsedRows(filled);
+      setRawParsedRows(rows);
       setParseErrors([]);
     };
     reader.readAsText(file);
-  }, [defaultDate]);
+  }, []);
 
   // --- Step 0 → 1: Start matching ---
   const handleStartMatching = useCallback(async () => {
@@ -395,7 +399,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                   </TableRow>
                   <TableRow>
                     <TableCell><code>date</code></TableCell>
-                    <TableCell>DD-MM-YYYY (blank defaults to Jan 10, 2026)</TableCell>
+                    <TableCell>DD-MM-YYYY (blank defaults to {defaultDate})</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell><code>content</code></TableCell>
@@ -736,7 +740,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               onClick={() => {
                 setActiveStep(0);
                 setFileName('');
-                setParsedRows([]);
+                setRawParsedRows([]);
                 setParseErrors([]);
                 setMatchResults([]);
                 setReviewRows([]);
