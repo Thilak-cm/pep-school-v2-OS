@@ -22,9 +22,30 @@ export const REPORT_PROMPT_DOCS = {
 // Concurrency limit for bulk report generation
 export const REPORT_BULK_CONCURRENCY = 5;
 
+// Hardcoded term label for CSV filenames (PEP-83).
+// TODO: auto-detect Term 1 (March) vs Term 2 (October) from report date range.
+export const HARDCODED_TERM = "March 2026";
+
+/**
+ * Build the classroom-specific summary CSV filename.
+ * Format: "{Classroom Name} | {Term} | Report Consolidation Summary.csv"
+ */
+export function buildCsvFilename(classroomName) {
+  return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary.csv`;
+}
+
+/**
+ * Build the classroom-specific archive CSV filename.
+ * Format: "{Classroom Name} | {Term} | Report Consolidation Summary Archive.csv"
+ */
+export function buildArchiveCsvFilename(classroomName) {
+  return `${classroomName} | ${HARDCODED_TERM} | Report Consolidation Summary Archive.csv`;
+}
+
 // Google Drive export constants
 export const DRIVE_CONSTANTS = {
   sharedDriveId: "0ANF5MPbc7nZEUk9PVA",
+  // Legacy filename — kept for migration search (PEP-83)
   csvFilename: "Report Consolidation Summary.csv",
   csvHeaders: [
     "Child Name",
