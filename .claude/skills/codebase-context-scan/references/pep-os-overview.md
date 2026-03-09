@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-08T10:18:23.585Z
-App version: 9.8.3
+Generated: 2026-03-09T16:54:25.263Z
+App version: 9.8.5
 
 ## App Snapshot
 
@@ -137,6 +137,16 @@ App version: 9.8.3
 
 ## Recent Changes
 
+### 9.8.5 (2026-03-09)
+- Classroom name and term prepended to CSV report filenames: `{Classroom} | March 2026 | Report Consolidation Summary.csv` (PEP-83)
+- Append-only archive CSV alongside summary CSV — accumulates all report rows as a historical audit trail (PEP-83)
+- Legacy `Report Consolidation Summary.csv` files auto-renamed to new format on first access (PEP-83)
+
+### 9.8.4 (2026-03-08)
+- Cascading branch/program/classroom filters on bulk CSV upload page — branch narrows programs, program narrows classrooms (PEP-80)
+- Classroom multi-select via autocomplete replaces single classroom dropdown; at least one classroom required before student matching (PEP-80)
+- Editable default date picker for CSV rows without dates (PEP-80)
+
 ### 9.8.3 (2026-03-08)
 - Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
 - Reports card on student dashboard now visible only to superadmins (PEP-78)
@@ -145,14 +155,4 @@ App version: 9.8.3
 - Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
 - Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
 - Date boundary regression tests for report generation and export filtering (PEP-77)
-
-### 9.8.1 (2026-03-07)
-- Google Doc report metadata line now shows start date in DD/MM/YYYY format with "to date" text, and academic year moved to pipe 4 (PEP-76)
-- Report logo increased from 80x80 to 200x200 PT in exported Google Docs (PEP-76)
-- Entire exported report document now uses Roboto font (PEP-76)
-
-### 9.8.0 (2026-03-06)
-- Drive folder permissions now mirror in-app access: teachers, classroom admins, and superadmins automatically receive editor access on classroom-level Google Drive folders (PEP-69)
-- Firestore triggers sync Drive permissions when classroom teacher assignments, user roles, or manageable programs change (PEP-69)
-- Bulk sync callable for superadmins to backfill Drive permissions across all existing classroom folders (PEP-69)
 
