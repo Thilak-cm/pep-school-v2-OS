@@ -10,7 +10,6 @@ import {
   updateCsvContent,
   removeCsvRow,
   appendCsvContent,
-  removeCsvRowByDocLink,
 } from "../utils/reportHelpers.js";
 import {
   buildCsvFilename,
@@ -424,45 +423,3 @@ describe("appendCsvContent", () => {
   });
 });
 
-// ── removeCsvRowByDocLink (PEP-83) ──
-
-describe("removeCsvRowByDocLink", () => {
-  const CSV_HEADERS = [
-    "Child Name",
-    "Branch",
-    "Program",
-    "Classroom",
-    "Generation Date",
-    "Sentiment Score",
-    "Area Balance Score",
-    "Missing Input Flags",
-    "Google Doc Link",
-  ];
-
-  it("removes row matching the given doc link", () => {
-    const csv = [
-      CSV_HEADERS.join(","),
-      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc",
-      "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def",
-    ].join("\n");
-    const result = removeCsvRowByDocLink(csv, "https://docs.google.com/document/d/abc", CSV_HEADERS);
-    const { rows } = parseCsv(result);
-    assert.equal(rows.length, 1);
-    assert.ok(rows[0][8].includes("def"), "remaining row should be the one with /def link");
-  });
-
-  it("returns CSV unchanged when doc link not found", () => {
-    const csv = [
-      CSV_HEADERS.join(","),
-      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc",
-    ].join("\n");
-    const result = removeCsvRowByDocLink(csv, "https://docs.google.com/document/d/nonexistent", CSV_HEADERS);
-    const { rows } = parseCsv(result);
-    assert.equal(rows.length, 1);
-  });
-
-  it("returns empty string for empty CSV input", () => {
-    const result = removeCsvRowByDocLink("", "https://docs.google.com/document/d/abc", CSV_HEADERS);
-    assert.equal(result, "");
-  });
-});

@@ -221,27 +221,6 @@ export function appendCsvContent(existingCsv, newRow, csvHeaders) {
   return serializeCsv(headers.length ? headers : csvHeaders, rows);
 }
 
-/**
- * Remove rows from CSV content by matching the Google Doc Link column.
- * Used by the archive CSV to remove a specific report's row(s).
- * Returns empty string if input is empty.
- */
-export function removeCsvRowByDocLink(existingCsv, docLink, csvHeaders) {
-  if (!existingCsv || !existingCsv.trim()) return "";
-
-  const { headers, rows } = parseCsv(existingCsv);
-  const linkColIdx = headers.findIndex((h) =>
-    h.trim().toLowerCase() === "google doc link",
-  );
-
-  if (linkColIdx < 0) return existingCsv;
-
-  const filtered = rows.filter((r) =>
-    r[linkColIdx]?.trim() !== docLink.trim(),
-  );
-
-  return serializeCsv(headers.length ? headers : csvHeaders, filtered);
-}
 
 /**
  * Update CSV content: replace existing row for studentName, or append new row.
