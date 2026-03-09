@@ -9,7 +9,12 @@ import {
   serializeCsv,
   updateCsvContent,
   removeCsvRow,
+  appendCsvContent,
 } from "../utils/reportHelpers.js";
+import {
+  buildCsvFilename,
+  buildArchiveCsvFilename,
+} from "../config/reportConstants.js";
 
 describe("getDefaultDateRange", () => {
   it("returns Nov 1 of previous year when current month is before Nov", () => {
@@ -347,3 +352,74 @@ describe("removeCsvRow", () => {
     assert.equal(rows.length, 0);
   });
 });
+
+// ── buildCsvFilename / buildArchiveCsvFilename (PEP-83) ──
+
+describe("buildCsvFilename", () => {
+  it("prepends classroom name and hardcoded term to summary CSV filename", () => {
+    assert.equal(
+      buildCsvFilename("All Stars"),
+      "All Stars | March 2026 | Report Consolidation Summary.csv",
+    );
+  });
+
+  it("handles classroom names with special characters", () => {
+    assert.equal(
+      buildCsvFilename("Room A & B"),
+      "Room A & B | March 2026 | Report Consolidation Summary.csv",
+    );
+  });
+});
+
+describe("buildArchiveCsvFilename", () => {
+  it("prepends classroom name and hardcoded term to archive CSV filename", () => {
+    assert.equal(
+      buildArchiveCsvFilename("All Stars"),
+      "All Stars | March 2026 | Report Consolidation Summary Archive.csv",
+    );
+  });
+});
+
+// ── appendCsvContent (PEP-83) ──
+
+describe("appendCsvContent", () => {
+  const CSV_HEADERS = [
+    "Child Name",
+    "Branch",
+    "Program",
+    "Classroom",
+    "Generation Date",
+    "Sentiment Score",
+    "Area Balance Score",
+    "Missing Input Flags",
+    "Google Doc Link",
+  ];
+
+  it("creates new CSV with headers when existing is empty", () => {
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const result = appendCsvContent("", newRow, CSV_HEADERS);
+    const lines = result.split("\n");
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0], CSV_HEADERS.join(","));
+    assert.equal(lines[1], newRow);
+  });
+
+  it("always appends — never replaces existing row for same student", () => {
+    const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const result = appendCsvContent(existing, newRow, CSV_HEADERS);
+    const { rows } = parseCsv(result);
+    assert.equal(rows.length, 2, "should have 2 rows for same student — append, not replace");
+    assert.ok(rows[0][8].includes("abc"), "first row keeps original doc link");
+    assert.ok(rows[1][8].includes("def"), "second row has new doc link");
+  });
+
+  it("appends row for a different student", () => {
+    const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const result = appendCsvContent(existing, newRow, CSV_HEADERS);
+    const { rows } = parseCsv(result);
+    assert.equal(rows.length, 2);
+  });
+});
+

@@ -21,8 +21,8 @@ import {
 } from "./writingSnapshot.helpers.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
-import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, normalizeEndOfDay } from "./utils/reportHelpers.js";
+import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "./config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -30,6 +30,7 @@ import {
   createReportDoc,
   downloadCsvContent,
   updateDriveSummaryCsv,
+  migrateLegacyCsv,
   resolveStudentName,
   capitalize,
   trashDriveFile,
@@ -4231,7 +4232,7 @@ export const exportReportToDrive = functions
       { programName, academicYear, startDate: reportStartDate },
     );
 
-    // Update summary CSV in classroom folder (best-effort)
+    // Update summary + archive CSVs in classroom folder (best-effort)
     try {
       const csvRow = formatCsvRow({
         studentName,
@@ -4245,9 +4246,21 @@ export const exportReportToDrive = functions
         docLink,
       });
 
-      const existingCsv = await downloadCsvContent(drive, classroomFolderId);
+      const summaryCsvName = buildCsvFilename(classroomName);
+      const archiveCsvName = buildArchiveCsvFilename(classroomName);
+
+      // Migrate legacy CSV if it exists under the old name
+      await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+
+      // Summary CSV: one row per student (replace on regeneration)
+      const existingCsv = await downloadCsvContent(drive, classroomFolderId, summaryCsvName);
       const newCsv = updateCsvContent(existingCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
-      await updateDriveSummaryCsv(drive, classroomFolderId, newCsv);
+      await updateDriveSummaryCsv(drive, classroomFolderId, newCsv, summaryCsvName);
+
+      // Archive CSV: append-only (accumulates historical rows)
+      const existingArchive = await downloadCsvContent(drive, classroomFolderId, archiveCsvName);
+      const newArchive = appendCsvContent(existingArchive, csvRow, DRIVE_CONSTANTS.csvHeaders);
+      await updateDriveSummaryCsv(drive, classroomFolderId, newArchive, archiveCsvName);
     } catch (csvError) {
       console.warn("[drive-export] CSV update failed (non-blocking):", csvError);
     }
@@ -4330,8 +4343,16 @@ export const exportClassroomReportsToDrive = functions
       });
     }
 
-    // Download existing CSV from classroom folder once
-    let currentCsv = await downloadCsvContent(drive, classroomFolderId);
+    // Build classroom-specific CSV filenames (PEP-83)
+    const summaryCsvName = buildCsvFilename(classroomName);
+    const archiveCsvName = buildArchiveCsvFilename(classroomName);
+
+    // Migrate legacy CSV if it exists under the old name
+    await migrateLegacyCsv(drive, classroomFolderId, summaryCsvName);
+
+    // Download existing CSVs from classroom folder once
+    let currentCsv = await downloadCsvContent(drive, classroomFolderId, summaryCsvName);
+    let currentArchive = await downloadCsvContent(drive, classroomFolderId, archiveCsvName);
 
     const results = [];
     await runWithConcurrency(reportResults, async ({ studentId, docId }) => {
@@ -4384,6 +4405,7 @@ export const exportClassroomReportsToDrive = functions
           docLink,
         });
         currentCsv = updateCsvContent(currentCsv, csvRow, studentName, DRIVE_CONSTANTS.csvHeaders);
+        currentArchive = appendCsvContent(currentArchive, csvRow, DRIVE_CONSTANTS.csvHeaders);
 
         results.push({ studentId, status: "ok", driveDocId, driveDocLink: docLink });
       } catch (err) {
@@ -4392,8 +4414,9 @@ export const exportClassroomReportsToDrive = functions
       }
     }, REPORT_BULK_CONCURRENCY);
 
-    // Upload final CSV to classroom folder once
-    await updateDriveSummaryCsv(drive, classroomFolderId, currentCsv);
+    // Upload final CSVs to classroom folder once
+    await updateDriveSummaryCsv(drive, classroomFolderId, currentCsv, summaryCsvName);
+    await updateDriveSummaryCsv(drive, classroomFolderId, currentArchive, archiveCsvName);
 
     const completed = results.filter((r) => r.status === "ok").length;
     const failed = results.filter((r) => r.status === "error").length;
@@ -4461,18 +4484,22 @@ export const deleteStudentReport = functions
         // Trash the Google Doc (recoverable for 30 days)
         await trashDriveFile(drive, reportData.driveDocId);
 
-        // Remove student row from classroom CSV
+        // Remove student row from summary CSV only (archive is immutable)
         const studentSnap = await db.collection("students").doc(studentId).get();
         const classroomId = studentSnap.data()?.classroomId;
         if (classroomId) {
           const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
-          const driveFolderId = classroomSnap.data()?.driveFolderId;
+          const classroomData2 = classroomSnap.data();
+          const driveFolderId = classroomData2?.driveFolderId;
           if (driveFolderId) {
             const studentName = resolveStudentName(studentSnap.data());
-            const existingCsv = await downloadCsvContent(drive, driveFolderId);
+            const clsName = classroomData2?.name || "Unknown Classroom";
+            const summaryCsvName = buildCsvFilename(clsName);
+
+            const existingCsv = await downloadCsvContent(drive, driveFolderId, summaryCsvName);
             if (existingCsv) {
               const updatedCsv = removeCsvRow(existingCsv, studentName, DRIVE_CONSTANTS.csvHeaders);
-              await updateDriveSummaryCsv(drive, driveFolderId, updatedCsv);
+              await updateDriveSummaryCsv(drive, driveFolderId, updatedCsv, summaryCsvName);
             }
           }
         }

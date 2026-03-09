@@ -206,6 +206,23 @@ export function normalizeEndOfDay(date) {
 }
 
 /**
+ * Append a row to CSV content — always adds, never replaces.
+ * Used by the archive CSV to accumulate historical rows.
+ * If existing CSV is empty, creates new CSV with headers.
+ */
+export function appendCsvContent(existingCsv, newRow, csvHeaders) {
+  if (!existingCsv || !existingCsv.trim()) {
+    return csvHeaders.join(",") + "\n" + newRow;
+  }
+
+  const { headers, rows } = parseCsv(existingCsv);
+  const newFields = parseCsv(csvHeaders.join(",") + "\n" + newRow).rows[0];
+  rows.push(newFields);
+  return serializeCsv(headers.length ? headers : csvHeaders, rows);
+}
+
+
+/**
  * Update CSV content: replace existing row for studentName, or append new row.
  * If existing CSV is empty, creates new CSV with headers.
  */

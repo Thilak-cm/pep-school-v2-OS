@@ -368,15 +368,16 @@ export function buildDocInsertRequests(markdown, opts) {
 }
 
 /**
- * Find or upload the summary CSV in a folder.
+ * Find or upload a named CSV in a folder.
  * Downloads existing CSV content, applies updates, re-uploads.
+ * @param {string} [csvName] - Filename to use. Defaults to legacy DRIVE_CONSTANTS.csvFilename.
  */
-export async function updateDriveSummaryCsv(drive, folderId, newCsvContent) {
-  const csvName = DRIVE_CONSTANTS.csvFilename;
+export async function updateDriveSummaryCsv(drive, folderId, newCsvContent, csvName) {
+  const name = csvName || DRIVE_CONSTANTS.csvFilename;
 
   // Search for existing CSV
   const search = await drive.files.list({
-    q: `name = '${csvName}' and '${folderId}' in parents and trashed = false`,
+    q: `name = '${name.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
     pageSize: 1,
@@ -401,7 +402,7 @@ export async function updateDriveSummaryCsv(drive, folderId, newCsvContent) {
   // Create new CSV file
   const file = await drive.files.create({
     requestBody: {
-      name: csvName,
+      name,
       mimeType: "text/csv",
       parents: [folderId],
     },
@@ -418,12 +419,13 @@ export async function updateDriveSummaryCsv(drive, folderId, newCsvContent) {
 
 /**
  * Download existing CSV content from Drive. Returns empty string if not found.
+ * @param {string} [csvName] - Filename to search for. Defaults to legacy DRIVE_CONSTANTS.csvFilename.
  */
-export async function downloadCsvContent(drive, folderId) {
-  const csvName = DRIVE_CONSTANTS.csvFilename;
+export async function downloadCsvContent(drive, folderId, csvName) {
+  const name = csvName || DRIVE_CONSTANTS.csvFilename;
 
   const search = await drive.files.list({
-    q: `name = '${csvName}' and '${folderId}' in parents and trashed = false`,
+    q: `name = '${name.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
     pageSize: 1,
@@ -440,6 +442,34 @@ export async function downloadCsvContent(drive, folderId) {
   });
 
   return typeof response.data === "string" ? response.data : "";
+}
+
+/**
+ * Migrate legacy "Report Consolidation Summary.csv" to the new classroom-prefixed name.
+ * Searches for the old filename in the folder; if found, renames it and returns
+ * the file ID. Returns null if no legacy file exists.
+ */
+export async function migrateLegacyCsv(drive, folderId, newCsvName) {
+  const legacyName = DRIVE_CONSTANTS.csvFilename;
+
+  const search = await drive.files.list({
+    q: `name = '${legacyName}' and '${folderId}' in parents and trashed = false`,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+    pageSize: 1,
+    fields: "files(id)",
+  });
+
+  const fileId = search.data.files?.[0]?.id;
+  if (!fileId) return null;
+
+  await drive.files.update({
+    fileId,
+    requestBody: { name: newCsvName },
+    supportsAllDrives: true,
+  });
+
+  return fileId;
 }
 
 /**

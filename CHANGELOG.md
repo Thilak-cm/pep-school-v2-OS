@@ -1,5 +1,15 @@
 # Changelog
 
+# 9.8.5 — 2026-03-09
+
+### Added
+- Classroom name and term prepended to CSV report filenames: `{Classroom} | March 2026 | Report Consolidation Summary.csv` (PEP-83)
+- Append-only archive CSV alongside summary CSV — accumulates all report rows as a historical audit trail (PEP-83)
+- Legacy `Report Consolidation Summary.csv` files auto-renamed to new format on first access (PEP-83)
+
+### Changed
+- Report deletions only remove from summary CSV; archive rows are preserved as immutable history (PEP-83)
+
 # 9.8.4 — 2026-03-08
 
 ### Added
