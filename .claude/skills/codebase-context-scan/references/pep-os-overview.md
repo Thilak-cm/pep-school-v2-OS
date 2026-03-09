@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-09T16:54:25.263Z
-App version: 9.8.5
+Generated: 2026-03-09T17:40:44.515Z
+App version: 9.8.6
 
 ## App Snapshot
 
@@ -137,6 +137,9 @@ App version: 9.8.5
 
 ## Recent Changes
 
+### 9.8.6 (2026-03-09)
+- Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
+
 ### 9.8.5 (2026-03-09)
 - Classroom name and term prepended to CSV report filenames: `{Classroom} | March 2026 | Report Consolidation Summary.csv` (PEP-83)
 - Append-only archive CSV alongside summary CSV — accumulates all report rows as a historical audit trail (PEP-83)
@@ -150,9 +153,4 @@ App version: 9.8.5
 ### 9.8.3 (2026-03-08)
 - Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
 - Reports card on student dashboard now visible only to superadmins (PEP-78)
-
-### 9.8.2 (2026-03-08)
-- Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
-- Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
-- Date boundary regression tests for report generation and export filtering (PEP-77)
 

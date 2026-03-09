@@ -8,7 +8,8 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { deleteObject, ref, uploadBytesResumable } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, storage, cloudFunctions } from '../firebase';
 import { buildMediaDocData } from '../utils/mediaDocBuilder';
 
 const STORAGE_KEY = 'pep_save_queue_v1';
@@ -20,6 +21,7 @@ const NETWORK_BACKOFF_CAP_MS = 12000;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const MEDIA_MAX_ATTEMPTS = 6;
 const MEDIA_DOC_PROPAGATION_WAIT_MS = 350;
+const REPORT_EXPORT_MAX_ATTEMPTS = 3;
 
 export const SAVE_QUEUE_STATUS = Object.freeze({
   PENDING: 'pending',
@@ -406,10 +408,20 @@ const deriveMediaPayload = async (payload, item) => {
   }
 };
 
+const deriveReportExportPayload = async (payload) => {
+  const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
+  const result = await call({
+    studentId: payload.studentId,
+    reportPayload: payload.reportPayload,
+  });
+  return { docId: result.data.docId, driveDocLink: result.data.driveDocLink };
+};
+
 const runItem = async (item) => {
   if (item.kind === 'text_voice') return deriveObservationPayload(item.payload, item);
   if (item.kind === 'lesson') return deriveLessonPayload(item.payload, item);
   if (item.kind === 'media') return deriveMediaPayload(item.payload, item);
+  if (item.kind === 'report_export') return deriveReportExportPayload(item.payload);
   throw new Error(`Unsupported queue item type: ${item.kind}`);
 };
 
@@ -590,6 +602,8 @@ export const clearCompletedForStudent = (studentId) => {
     commitState();
   }
 };
+
+export { REPORT_EXPORT_MAX_ATTEMPTS };
 
 export const initSaveQueue = () => {
   ensureInitialized();

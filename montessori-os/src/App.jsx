@@ -64,6 +64,7 @@ function App() {
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [pendingViewReportId, setPendingViewReportId] = useState(null);
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState(null);
@@ -503,7 +504,13 @@ function App() {
         >
           <NotificationProvider>
             <NotificationStack />
-            <SaveQueueNotificationBridge />
+            <SaveQueueNotificationBridge
+              onNavigateToReport={({ studentId: sid, docId }) => {
+                setSelectedStudent((prev) => prev?.id === sid ? prev : { id: sid });
+                setPendingViewReportId(docId);
+                setScreen('studentReports');
+              }}
+            />
           {/* Loading State */}
           {loading && (
             <Box
@@ -741,6 +748,8 @@ function App() {
                       studentId={selectedStudent?.id || selectedStudent?.uid}
                       studentLabel={getStudentDisplayName(selectedStudent)}
                       userRole={role}
+                      pendingViewReportId={pendingViewReportId}
+                      onPendingViewHandled={() => setPendingViewReportId(null)}
                     />
                   )}
 
