@@ -54,6 +54,25 @@ test('matchStudentNames filters by classroomId when provided', () => {
   assert.equal(results[0].confidence, CONFIDENCE.LOW);
 });
 
+test('matchStudentNames filters by multiple classroomIds via programClassroomIds', () => {
+  const results = matchStudentNames(
+    ['Aarav Kumar', 'Arjun Patel'],
+    STUDENTS,
+    { programClassroomIds: ['c1', 'c2'] },
+  );
+  assert.equal(results.length, 2);
+  assert.equal(results[0].match.id, 's1'); // c1 student found
+  assert.equal(results[1].match.id, 's3'); // c2 student found
+  assert.equal(results[0].confidence, CONFIDENCE.HIGH);
+  assert.equal(results[1].confidence, CONFIDENCE.HIGH);
+});
+
+test('matchStudentNames excludes students outside multi-selected classrooms', () => {
+  // Only classroom c1 selected — Arjun (c2) should not match well
+  const results = matchStudentNames(['Arjun Patel'], STUDENTS, { programClassroomIds: ['c1'] });
+  assert.equal(results[0].confidence, CONFIDENCE.LOW);
+});
+
 // --- buildObservationDoc ---
 
 const MOCK_USER = {
@@ -229,5 +248,43 @@ test('BulkUploadPage checks for duplicate observations', async () => {
   assert.ok(
     /isDuplicate/.test(source),
     'Expected BulkUploadPage to reference isDuplicate flag from duplicate check',
+  );
+});
+
+// --- PEP-80: Cascading branch/program/classroom filters ---
+
+test('BulkUploadPage fetches branches collection on mount', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /collection\(db,\s*['"]branches['"]\)/.test(source),
+    'Expected BulkUploadPage to fetch from branches collection',
+  );
+});
+
+test('BulkUploadPage uses Autocomplete with multiple prop for classroom multi-select', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /Autocomplete[\s\S]{0,200}multiple/.test(source),
+    'Expected BulkUploadPage to use Autocomplete with multiple for classroom selection',
+  );
+});
+
+test('BulkUploadPage resets downstream selections on branch change', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /setSelectedBranch/.test(source),
+    'Expected BulkUploadPage to manage selectedBranch state',
+  );
+  assert.ok(
+    /setSelectedClassrooms\(\[\]\)/.test(source),
+    'Expected BulkUploadPage to reset classrooms array when upstream filter changes',
+  );
+});
+
+test('BulkUploadPage disables Next button until classrooms are selected', async () => {
+  const source = await readFile(pageSourceUrl, 'utf8');
+  assert.ok(
+    /selectedClassrooms\.length/.test(source),
+    'Expected BulkUploadPage to check selectedClassrooms.length for button disabled state',
   );
 });

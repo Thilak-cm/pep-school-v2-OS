@@ -1,5 +1,13 @@
 # Changelog
 
+# 9.8.4 — 2026-03-08
+
+### Added
+- Cascading branch/program/classroom filters on bulk CSV upload page — branch narrows programs, program narrows classrooms (PEP-80)
+- Classroom multi-select via autocomplete replaces single classroom dropdown; at least one classroom required before student matching (PEP-80)
+- Editable default date picker for CSV rows without dates (PEP-80)
+- Matched students now display their classroom name for disambiguation (PEP-80)
+
 # 9.8.3 — 2026-03-08
 
 ### Changed

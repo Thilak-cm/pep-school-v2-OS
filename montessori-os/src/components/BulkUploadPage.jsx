@@ -48,7 +48,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
-import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate } from '../utils/csvParser';
+import { parseCSV, validateCSV, extractUniqueNames, applyDefaultDate, DEFAULT_PLACEHOLDER_DATE } from '../utils/csvParser';
 import {
   matchStudentNames,
   buildObservationDoc,
@@ -67,12 +67,15 @@ export default function BulkUploadPage({ currentUser, userRole }) {
 
   // Step 0: Upload state
   const [fileName, setFileName] = useState('');
-  const [parsedRows, setParsedRows] = useState([]);
+  const [rawParsedRows, setRawParsedRows] = useState([]);
   const [parseErrors, setParseErrors] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [selectedClassroom, setSelectedClassroom] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('');
+  const [selectedClassrooms, setSelectedClassrooms] = useState([]);
+  const [defaultDate, setDefaultDate] = useState(DEFAULT_PLACEHOLDER_DATE);
 
   // Step 1: Matching state
   const [allStudents, setAllStudents] = useState([]);
@@ -94,25 +97,51 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     if (!isAdmin) return;
     (async () => {
       try {
-        const [classSnap, progSnap] = await Promise.all([
+        const [classSnap, progSnap, branchSnap] = await Promise.all([
           getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active'))),
           getDocs(collection(db, 'programs')),
+          getDocs(collection(db, 'branches')),
         ]);
         setClassrooms(classSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setPrograms(progSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setBranches(branchSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (_err) {
-        notify.error('Failed to load classrooms/programs');
+        notify.error('Failed to load classroom filters');
       }
     })();
   }, [isAdmin]);
 
-  // --- Derived: programClassroomIds ---
-  const programClassroomIds = useMemo(() => {
-    if (!selectedProgram) return null;
-    const prog = programs.find((p) => p.id === selectedProgram);
-    if (!prog?.classrooms) return null;
-    return prog.classrooms.map((path) => path.split('/').pop());
-  }, [selectedProgram, programs]);
+  // --- Derived: cascading filter options ---
+  const availablePrograms = useMemo(() => {
+    if (!selectedBranch) return programs;
+    const branchClassroomIds = new Set(
+      classrooms.filter((c) => c.branchId === selectedBranch).map((c) => c.id),
+    );
+    return programs.filter((p) => {
+      const progClassIds = (p.classrooms || []).map((path) => path.split('/').pop());
+      return progClassIds.some((cid) => branchClassroomIds.has(cid));
+    });
+  }, [selectedBranch, programs, classrooms]);
+
+  const availableClassrooms = useMemo(() => {
+    let filtered = classrooms;
+    if (selectedBranch) {
+      filtered = filtered.filter((c) => c.branchId === selectedBranch);
+    }
+    if (selectedProgram) {
+      const prog = programs.find((p) => p.id === selectedProgram);
+      if (prog?.classrooms) {
+        const progClassIds = new Set(prog.classrooms.map((path) => path.split('/').pop()));
+        filtered = filtered.filter((c) => progClassIds.has(c.id));
+      }
+    }
+    return filtered;
+  }, [selectedBranch, selectedProgram, programs, classrooms]);
+
+  const parsedRows = useMemo(
+    () => (rawParsedRows.length > 0 ? applyDefaultDate(rawParsedRows, defaultDate) : []),
+    [rawParsedRows, defaultDate],
+  );
 
   // --- Step 0: File upload handler ---
   const handleFileChange = useCallback((e) => {
@@ -125,17 +154,16 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       const { rows, errors: pErrors } = parseCSV(text);
       if (pErrors.length > 0) {
         setParseErrors(pErrors);
-        setParsedRows([]);
+        setRawParsedRows([]);
         return;
       }
       const { valid, errors: vErrors } = validateCSV(rows);
       if (!valid) {
         setParseErrors(vErrors);
-        setParsedRows([]);
+        setRawParsedRows([]);
         return;
       }
-      const filled = applyDefaultDate(rows);
-      setParsedRows(filled);
+      setRawParsedRows(rows);
       setParseErrors([]);
     };
     reader.readAsText(file);
@@ -152,19 +180,17 @@ export default function BulkUploadPage({ currentUser, userRole }) {
       setAllStudents(students);
 
       const uniqueNames = extractUniqueNames(parsedRows);
-      const filter = {};
-      if (selectedClassroom) filter.classroomId = selectedClassroom;
-      else if (programClassroomIds) filter.programClassroomIds = programClassroomIds;
+      const filter = { programClassroomIds: selectedClassrooms.map((c) => c.id) };
 
       const matches = matchStudentNames(uniqueNames, students, filter);
       setMatchResults(matches);
       setActiveStep(1);
       const highCount = matches.filter((m) => m.confidence === CONFIDENCE.HIGH).length;
-      notify.success(`Found ${students.length} students. ${highCount}/${matches.length} names matched with high confidence.`);
+      notify.success(`${highCount}/${matches.length} students matched with high confidence from selected classrooms.`);
     } catch (err) {
       notify.error('Failed to load students: ' + (err.message || ''));
     }
-  }, [parsedRows, selectedClassroom, programClassroomIds, notify]);
+  }, [parsedRows, selectedClassrooms, notify]);
 
   // --- Step 1: Match actions ---
   const handleAccept = useCallback((idx) => {
@@ -373,7 +399,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                   </TableRow>
                   <TableRow>
                     <TableCell><code>date</code></TableCell>
-                    <TableCell>DD-MM-YYYY (blank defaults to Jan 10, 2026)</TableCell>
+                    <TableCell>DD-MM-YYYY (blank defaults to {defaultDate})</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell><code>content</code></TableCell>
@@ -383,33 +409,61 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               </Table>
             </TableContainer>
 
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel>Program (optional)</InputLabel>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Branch</InputLabel>
+                <Select
+                  value={selectedBranch}
+                  label="Branch"
+                  onChange={(e) => { setSelectedBranch(e.target.value); setSelectedProgram(''); setSelectedClassrooms([]); }}
+                >
+                  <MenuItem value="">All branches</MenuItem>
+                  {branches.map((b) => (
+                    <MenuItem key={b.id} value={b.id}>{b.name || b.id}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Program</InputLabel>
                 <Select
                   value={selectedProgram}
-                  label="Program (optional)"
-                  onChange={(e) => { setSelectedProgram(e.target.value); setSelectedClassroom(''); }}
+                  label="Program"
+                  onChange={(e) => { setSelectedProgram(e.target.value); setSelectedClassrooms([]); }}
                 >
-                  <MenuItem value="">None</MenuItem>
-                  {programs.map((p) => (
+                  <MenuItem value="">All programs</MenuItem>
+                  {availablePrograms.map((p) => (
                     <MenuItem key={p.id} value={p.id}>{p.id}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-              <FormControl size="small" sx={{ minWidth: 200 }}>
-                <InputLabel>Classroom (optional)</InputLabel>
-                <Select
-                  value={selectedClassroom}
-                  label="Classroom (optional)"
-                  onChange={(e) => { setSelectedClassroom(e.target.value); setSelectedProgram(''); }}
-                >
-                  <MenuItem value="">None</MenuItem>
-                  {classrooms.map((c) => (
-                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                multiple
+                size="small"
+                options={availableClassrooms}
+                getOptionLabel={(c) => c.name || c.id}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                value={selectedClassrooms}
+                onChange={(_, newVal) => setSelectedClassrooms(newVal)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Classrooms"
+                    placeholder={selectedClassrooms.length === 0 ? 'Select classrooms...' : ''}
+                    helperText={selectedClassrooms.length === 0 ? 'Select at least one classroom' : ''}
+                  />
+                )}
+                sx={{ minWidth: 260 }}
+              />
+              <TextField
+                size="small"
+                type="date"
+                label="Default date"
+                value={defaultDate}
+                onChange={(e) => setDefaultDate(e.target.value)}
+                helperText="Used when CSV rows have no date"
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ minWidth: 170 }}
+              />
             </Box>
 
             <Button
@@ -466,9 +520,19 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                     Showing first 10 of {parsedRows.length} rows
                   </Typography>
                 )}
-                <Button variant="contained" onClick={handleStartMatching} sx={{ alignSelf: 'flex-start' }}>
+                <Button
+                  variant="contained"
+                  onClick={handleStartMatching}
+                  disabled={selectedClassrooms.length === 0}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
                   Next: Match Students
                 </Button>
+                {selectedClassrooms.length === 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Select at least one classroom to proceed with student matching.
+                  </Typography>
+                )}
               </>
             )}
           </CardContent>
@@ -483,6 +547,16 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               <Typography variant="h6">
                 Match Students ({matchResults.filter((m) => m.accepted).length}/{matchResults.length} matched)
               </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary">Classrooms:</Typography>
+              {selectedClassrooms.map((c) => (
+                <Chip key={c.id} label={c.name || c.id} size="small" variant="outlined" />
+              ))}
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 size="small"
                 variant="outlined"
@@ -525,7 +599,9 @@ export default function BulkUploadPage({ currentUser, userRole }) {
                             sx={{ minWidth: 220 }}
                           />
                         ) : (
-                          m.match?.displayName || <em>No match</em>
+                          m.match
+                            ? <>{m.match.displayName} <Typography component="span" variant="body2" color="text.secondary">({classrooms.find((c) => c.id === m.match.classroomId)?.name || m.match.classroomId})</Typography></>
+                            : <em>No match</em>
                         )}
                       </TableCell>
                       <TableCell>
@@ -664,13 +740,15 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               onClick={() => {
                 setActiveStep(0);
                 setFileName('');
-                setParsedRows([]);
+                setRawParsedRows([]);
                 setParseErrors([]);
                 setMatchResults([]);
                 setReviewRows([]);
                 setResults(null);
-                setSelectedClassroom('');
+                setSelectedBranch('');
                 setSelectedProgram('');
+                setSelectedClassrooms([]);
+                setDefaultDate(DEFAULT_PLACEHOLDER_DATE);
               }}
             >
               Upload Another CSV
