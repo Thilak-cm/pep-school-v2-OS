@@ -85,8 +85,8 @@ interface User {
   photoURL?: string;
 
   // Access
-  role: 'superadmin' | 'admin' | 'teacher'; // superadmin is global, admin is program-scoped
-  manageableClassrooms?: ProgramId[];         // required (non-empty) when role == 'admin'
+  role: 'superadmin' | 'classroomadmin' | 'teacher'; // superadmin is global, classroomadmin is classroom-scoped
+  manageableClassrooms?: ClassroomId[];       // required (non-empty) when role == 'classroomadmin'; contains classroom doc IDs (e.g. "allstars", "periwinkle")
   
   // Branch scope
   branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
@@ -106,8 +106,8 @@ Guidance
 - Use document ID as the Auth UID; do not duplicate as a field.
 - Roles live here and are read by rules; no custom claims required.
 - Super admins ignore `manageableClassrooms`/`branchIds` for access control but can edit any admin’s `manageableClassrooms` list.
-- Classroom admins MUST have `manageableClassrooms` populated with at least one `ProgramId`; UI should block save otherwise. These admins can act on students/placements/observations within those programs and invite teachers/students across branches.
-- Classroom admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'admin' | 'superadmin'` are rejected unless performed by a super admin.
+- Classroom admins MUST have `manageableClassrooms` populated with at least one classroom ID (e.g. `"allstars"`, `"periwinkle"`); UI should block save otherwise. These admins can act on students/placements/observations within those classrooms and invite teachers/students across branches.
+- Classroom admins may create/update `users` docs only when `role == 'teacher'`. Attempts to write `role: 'classroomadmin' | 'superadmin'` are rejected unless performed by a super admin.
 - Coaches/specialists: can be represented as `role: 'teacher'` with multiple `branchIds` until finer-grained roles are introduced.
 - `studentAliases` is optional and only loaded for teachers that create personal student groups for faster lesson-note selection (see below).
 
@@ -221,7 +221,7 @@ ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
   - Include a branch code in the ID (e.g., `YYYY-BBB-XXX-NNN` where `BBB` is the branch slug), or
   - Ensure classroom IDs are globally unique across branches and keep the current `YYYY-XXX-NNN` format.
-- Access: classroom admins can only create/update/delete students whose `classroomId` resolves to a `programId` contained in their `manageableClassrooms`. Super admins bypass this check.
+- Access: classroom admins can only create/update/delete students whose `classroomId` is contained in their `manageableClassrooms`. Super admins bypass this check.
 
 ---
 
@@ -430,7 +430,7 @@ Group notes (groupId)
 
 Branch transfer behavior
 - Existing observations retain their original `branchId` when a student transfers to another branch. New observations pick up the student's current branch.
-- Access: classroom admins can create/update/delete observations for students when `classroom.programId ∈ manageableClassrooms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
+- Access: classroom admins can create/update/delete observations for students when `classroomId ∈ manageableClassrooms`. Teachers retain current create/read rights scoped by classroom membership; super admins remain unrestricted.
 
 ---
 
@@ -487,7 +487,7 @@ Notes
 - `classrooms` stores document-path strings (not DocumentReference) for portability with admin scripts and simple reads.
 - Populated by `scripts/admin/seed-programs.js`, which scans `classrooms` by `programId` and writes `programs/{programId}`.
 - Client UI reads this collection to group classrooms by program on the Classrooms list.
-- Classroom admin `manageableClassrooms` values must match these document IDs.
+- Classroom admin `manageableClassrooms` values are classroom document IDs (e.g. `"allstars"`, `"periwinkle"`), not program document IDs.
 
 ---
 
@@ -686,17 +686,17 @@ Admin UI
 ## 🔒 Security Rules – Hooks
 Helper checks (pseudocode names):
 - `isSuperAdmin(uid)`: `get(/users/uid).role == 'superadmin'`
-- `isProgramAdmin(uid)`: `get(/users/uid).role == 'admin'`
-- `isPrivilegedAdmin(uid)`: `isSuperAdmin(uid) || isProgramAdmin(uid)`
+- `isClassroomAdmin(uid)`: `get(/users/uid).role == 'classroomadmin'`
+- `isPrivilegedAdmin(uid)`: `isSuperAdmin(uid) || isClassroomAdmin(uid)`
 - `isTeacher(uid)`: `get(/users/uid).role == 'teacher'`
-- `managesProgram(uid, programId)`: `isSuperAdmin(uid)` OR (`isProgramAdmin(uid)` AND `programId` in `get(/users/uid).manageableClassrooms`)
+- `managesClassroom(uid, classroomId)`: `isSuperAdmin(uid)` OR (`isClassroomAdmin(uid)` AND `classroomId` in `get(/users/uid).manageableClassrooms`)
 - `classroomProgramId(classroomId)`: `get(/classrooms/classroomId).programId`
 - `studentClassroomId(studentId)`: `get(/students/studentId).classroomId`
 - `studentProgramId(studentId)`: `classroomProgramId(studentClassroomId(studentId))`
 - `classroomHasTeacher(classroomId, uid)`: `get(/classrooms/classroomId).teacherIds` contains `uid`
 // Branch helpers
 - `userBranches(uid)`: `get(/users/uid).branchIds` or `[get(/users/uid).homeBranchId]`
-- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isSuperAdmin(uid)` OR `isProgramAdmin(uid)`
+- `userInBranch(uid, branchId)`: `branchId` in `userBranches(uid)` OR `isSuperAdmin(uid)` OR `isClassroomAdmin(uid)`
 
 Branch invariants
 - `students/{id}.branchId == classrooms/{classroomId}.branchId`
@@ -715,7 +715,7 @@ Reads
 
 Writes – users
 - Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageableClassrooms`.
-- Classroom admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'admin' | 'superadmin'`.
+- Classroom admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'classroomadmin' | 'superadmin'`.
 
 Writes – classrooms/programs/branches/ai_prompts
 - Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `ai_prompts` documents.

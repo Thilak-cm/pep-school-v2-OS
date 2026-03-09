@@ -1,5 +1,10 @@
 # Changelog
 
+# 9.8.6 — 2026-03-09
+
+### Fixed
+- Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
+
 # 9.8.5 — 2026-03-09
 
 ### Added

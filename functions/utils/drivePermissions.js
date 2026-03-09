@@ -12,7 +12,7 @@ export function shouldSyncOnClassroomUpdate(before, after) {
   // No folder on after side — nothing to sync
   if (!hasFolder) return false;
 
-  // programId changed while folder exists — admin access model depends on programId
+  // programId changed while folder exists — full reconciliation to be safe
   if (before.programId !== after.programId) return true;
 
   // teacherIds changed while folder exists
@@ -53,7 +53,7 @@ export function diffArrays(before, after) {
  *
  * Rules:
  * - Teachers: UID in classroom.teacherIds → include their email
- * - Classroom admins: classroom.programId in user.manageableClassrooms → include
+ * - Classroom admins: classroomDoc.id in user.manageableClassrooms → include
  * - Super admins: always included
  *
  * @param {object} classroomDoc - { id, programId, teacherIds, driveFolderId }
@@ -77,7 +77,7 @@ export function computeDesiredEmails(classroomDoc, allUsers) {
     if (
       user.role === "classroomadmin" &&
       Array.isArray(user.manageableClassrooms) &&
-      user.manageableClassrooms.includes(classroomDoc.programId)
+      user.manageableClassrooms.includes(classroomDoc.id)
     ) {
       emails.add(user.email);
       continue;
@@ -238,9 +238,9 @@ export async function reconcileClassroomPermissions(drive, db, classroomId) {
  * @param {string} driveFolderId - The classroom's Drive folder ID
  * @param {string[]} addedTeacherIds - Teacher UIDs that were added
  * @param {string[]} removedTeacherIds - Teacher UIDs that were removed
- * @param {string} classroomProgramId - The classroom's programId (to check admin access)
+ * @param {string} classroomId - The classroom's document ID (to check admin access)
  */
-export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherIds, removedTeacherIds, classroomProgramId) {
+export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherIds, removedTeacherIds, classroomId) {
   const results = { granted: [], revoked: [], errors: [] };
 
   // Grant permissions for added teachers
@@ -266,11 +266,11 @@ export async function syncTeacherChanges(drive, db, driveFolderId, addedTeacherI
       // Superadmins always retain access
       if (userData.role === "superadmin") continue;
 
-      // Classroomadmins who manage this program retain access
+      // Classroomadmins who manage this classroom retain access
       if (
         userData.role === "classroomadmin" &&
         Array.isArray(userData.manageableClassrooms) &&
-        userData.manageableClassrooms.includes(classroomProgramId)
+        userData.manageableClassrooms.includes(classroomId)
       ) continue;
 
       await revokeDrivePermission(drive, driveFolderId, userData.email);
@@ -299,11 +299,11 @@ export async function syncUserChanges(drive, db, beforeData, afterData, uid) {
 
   const results = { granted: [], revoked: [], errors: [] };
 
-  // Determine which programs the user should now manage
-  const afterProgramIds = getUserManagedProgramIds(afterData);
-  const beforeProgramIds = getUserManagedProgramIds(beforeData);
+  // Determine which classrooms the user should now manage
+  const afterClassroomIds = getUserManagedClassroomIds(afterData);
+  const beforeClassroomIds = getUserManagedClassroomIds(beforeData);
 
-  const { added, removed } = diffArrays(beforeProgramIds, afterProgramIds);
+  const { added, removed } = diffArrays(beforeClassroomIds, afterClassroomIds);
 
   // For superadmins: "all classrooms" means we need to query all classrooms with driveFolderId
   const needsAllClassrooms = afterData.role === "superadmin" || beforeData.role === "superadmin";
@@ -339,39 +339,32 @@ export async function syncUserChanges(drive, db, beforeData, afterData, uid) {
     return results;
   }
 
-  // Non-superadmin changes: diff-based on programIds
-  for (const programId of added) {
-    // Find all classrooms in this program that have Drive folders
-    const classroomsSnap = await db.collection("classrooms")
-      .where("programId", "==", programId)
-      .get();
-    for (const classDoc of classroomsSnap.docs) {
-      const folderId = classDoc.data().driveFolderId;
+  // Non-superadmin changes: diff-based on classroomIds
+  for (const classroomId of added) {
+    try {
+      const classSnap = await db.collection("classrooms").doc(classroomId).get();
+      if (!classSnap.exists) continue;
+      const folderId = classSnap.data().driveFolderId;
       if (!folderId) continue;
-      try {
-        await grantDrivePermission(drive, folderId, email);
-        results.granted.push(`${email} → ${classDoc.id}`);
-      } catch (err) {
-        console.warn(`[drive-perms] Failed to grant on ${classDoc.id}:`, err.message);
-        results.errors.push({ classroomId: classDoc.id, action: "grant", error: err.message });
-      }
+      await grantDrivePermission(drive, folderId, email);
+      results.granted.push(`${email} → ${classroomId}`);
+    } catch (err) {
+      console.warn(`[drive-perms] Failed to grant on ${classroomId}:`, err.message);
+      results.errors.push({ classroomId, action: "grant", error: err.message });
     }
   }
 
-  for (const programId of removed) {
-    const classroomsSnap = await db.collection("classrooms")
-      .where("programId", "==", programId)
-      .get();
-    for (const classDoc of classroomsSnap.docs) {
-      const folderId = classDoc.data().driveFolderId;
+  for (const classroomId of removed) {
+    try {
+      const classSnap = await db.collection("classrooms").doc(classroomId).get();
+      if (!classSnap.exists) continue;
+      const folderId = classSnap.data().driveFolderId;
       if (!folderId) continue;
-      try {
-        await revokeDrivePermission(drive, folderId, email);
-        results.revoked.push(`${email} → ${classDoc.id}`);
-      } catch (err) {
-        console.warn(`[drive-perms] Failed to revoke on ${classDoc.id}:`, err.message);
-        results.errors.push({ classroomId: classDoc.id, action: "revoke", error: err.message });
-      }
+      await revokeDrivePermission(drive, folderId, email);
+      results.revoked.push(`${email} → ${classroomId}`);
+    } catch (err) {
+      console.warn(`[drive-perms] Failed to revoke on ${classroomId}:`, err.message);
+      results.errors.push({ classroomId, action: "revoke", error: err.message });
     }
   }
 
@@ -379,11 +372,11 @@ export async function syncUserChanges(drive, db, beforeData, afterData, uid) {
 }
 
 /**
- * Get the list of program IDs a classroomadmin manages.
- * manageableClassrooms actually contains programIds (e.g. "primary", "elementary").
+ * Get the list of classroom IDs a classroomadmin manages.
+ * manageableClassrooms contains classroom IDs (e.g. "allstars", "periwinkle").
  * For teachers, returns [] — their access is via classroom.teacherIds.
  */
-function getUserManagedProgramIds(userData) {
+function getUserManagedClassroomIds(userData) {
   if (!userData || !userData.role) return [];
 
   if (userData.role === "classroomadmin") {
@@ -404,7 +397,7 @@ function userNeedsAccessToClassroom(userData, classroomId, classroomData, uid) {
   if (
     userData.role === "classroomadmin" &&
     Array.isArray(userData.manageableClassrooms) &&
-    userData.manageableClassrooms.includes(classroomData.programId)
+    userData.manageableClassrooms.includes(classroomId)
   ) {
     return true;
   }
