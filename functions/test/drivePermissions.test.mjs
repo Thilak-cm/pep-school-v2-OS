@@ -236,8 +236,8 @@ describe("computeDesiredEmails", () => {
   const allUsers = [
     { id: "t1", email: "teacher1@pep.com", role: "teacher" },
     { id: "t2", email: "teacher2@pep.com", role: "teacher" },
-    { id: "a1", email: "admin1@pep.com", role: "classroomadmin", manageableClassrooms: ["primary", "elementary"] },
-    { id: "a2", email: "admin2@pep.com", role: "classroomadmin", manageableClassrooms: ["adolescent"] },
+    { id: "a1", email: "admin1@pep.com", role: "classroomadmin", manageableClassrooms: ["c1", "c3"] },
+    { id: "a2", email: "admin2@pep.com", role: "classroomadmin", manageableClassrooms: ["c99"] },
     { id: "s1", email: "super1@pep.com", role: "superadmin" },
   ];
 
@@ -249,8 +249,8 @@ describe("computeDesiredEmails", () => {
 
   it("includes emails of classroom admins who manage this classroom", () => {
     const emails = computeDesiredEmails(classroomDoc, allUsers);
-    assert.ok(emails.has("admin1@pep.com"));
-    assert.ok(!emails.has("admin2@pep.com")); // doesn't manage "primary" program
+    assert.ok(emails.has("admin1@pep.com")); // manages "c1" (the classroom ID)
+    assert.ok(!emails.has("admin2@pep.com")); // manages "c99", not "c1"
   });
 
   it("includes emails of all superadmins", () => {
@@ -289,15 +289,15 @@ describe("computeDesiredEmails", () => {
     assert.equal(emails.size, 0);
   });
 
-  it("only includes classroomadmins who manage the classroom's program (not just any classroom)", () => {
+  it("only includes classroomadmins who manage this specific classroom (by classroomId)", () => {
     const classroomDoc = { id: "c1", programId: "primary", teacherIds: [], driveFolderId: "folder1" };
     const users = [
-      { id: "a1", email: "admin_primary@pep.com", role: "classroomadmin", manageableClassrooms: ["primary"] },
-      { id: "a2", email: "admin_elementary@pep.com", role: "classroomadmin", manageableClassrooms: ["elementary"] },
+      { id: "a1", email: "admin_c1@pep.com", role: "classroomadmin", manageableClassrooms: ["c1"] },
+      { id: "a2", email: "admin_c2@pep.com", role: "classroomadmin", manageableClassrooms: ["c2"] },
     ];
     const emails = computeDesiredEmails(classroomDoc, users);
-    assert.ok(emails.has("admin_primary@pep.com"));
-    assert.ok(!emails.has("admin_elementary@pep.com"));
+    assert.ok(emails.has("admin_c1@pep.com"));
+    assert.ok(!emails.has("admin_c2@pep.com"));
   });
 });
 
@@ -618,34 +618,34 @@ describe("syncTeacherChanges", () => {
     assert.equal(drive._calls.list.length, 0); // no revoke attempt
   });
 
-  it("skips revocation for classroomadmins who manage the program", async () => {
+  it("skips revocation for classroomadmins who manage this classroom", async () => {
     const perms = [{ id: "p1", emailAddress: "admin@pep.com" }];
     const drive = mockDrive(perms);
     const db = mockDb({
       users: {
-        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["primary", "elementary"] },
+        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["allstars", "periwinkle"] },
       },
     });
 
     const result = await syncTeacherChanges(
-      drive, db, "folder1", [], ["ca1"], "primary",
+      drive, db, "folder1", [], ["ca1"], "allstars",
     );
 
     assert.equal(result.revoked.length, 0);
     assert.equal(drive._calls.list.length, 0);
   });
 
-  it("revokes classroomadmin who does NOT manage the program", async () => {
+  it("revokes classroomadmin who does NOT manage this classroom", async () => {
     const perms = [{ id: "p1", emailAddress: "admin@pep.com" }];
     const drive = mockDrive(perms);
     const db = mockDb({
       users: {
-        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["elementary"] },
+        ca1: { email: "admin@pep.com", role: "classroomadmin", manageableClassrooms: ["periwinkle"] },
       },
     });
 
     const result = await syncTeacherChanges(
-      drive, db, "folder1", [], ["ca1"], "primary",
+      drive, db, "folder1", [], ["ca1"], "allstars",
     );
 
     assert.equal(result.revoked.length, 1);
@@ -657,58 +657,58 @@ describe("syncTeacherChanges", () => {
 // syncUserChanges
 // ---------------------------------------------------------------------------
 describe("syncUserChanges", () => {
-  it("grants access when classroomadmin gains a new program", async () => {
+  it("grants access when classroomadmin gains new classrooms", async () => {
     const drive = mockDrive();
     const db = mockDb({
       classrooms: {
-        c2: { programId: "elementary", driveFolderId: "folder2", teacherIds: [] },
-        c3: { programId: "elementary", driveFolderId: "folder3", teacherIds: [] },
+        allstars: { programId: "primary", driveFolderId: "folder2", teacherIds: [] },
+        periwinkle: { programId: "primary", driveFolderId: "folder3", teacherIds: [] },
       },
     });
 
     const before = {
       role: "classroomadmin",
       email: "admin@pep.com",
-      manageableClassrooms: ["primary"],
+      manageableClassrooms: ["plumeria"],
     };
     const after = {
       role: "classroomadmin",
       email: "admin@pep.com",
-      manageableClassrooms: ["primary", "elementary"],
+      manageableClassrooms: ["plumeria", "allstars", "periwinkle"],
     };
 
     const result = await syncUserChanges(drive, db, before, after, "admin1");
 
-    // Both classrooms in "elementary" program should get granted
+    // Both allstars and periwinkle should get granted
     assert.equal(result.granted.length, 2);
-    assert.ok(result.granted[0].includes("c2"));
-    assert.ok(result.granted[1].includes("c3"));
+    assert.ok(result.granted[0].includes("allstars"));
+    assert.ok(result.granted[1].includes("periwinkle"));
   });
 
-  it("revokes access when classroomadmin loses a program", async () => {
+  it("revokes access when classroomadmin loses a classroom", async () => {
     const perms = [{ id: "p1", emailAddress: "admin@pep.com" }];
     const drive = mockDrive(perms);
     const db = mockDb({
       classrooms: {
-        c1: { programId: "primary", driveFolderId: "folder1", teacherIds: [] },
+        allstars: { programId: "primary", driveFolderId: "folder1", teacherIds: [] },
       },
     });
 
     const before = {
       role: "classroomadmin",
       email: "admin@pep.com",
-      manageableClassrooms: ["primary", "elementary"],
+      manageableClassrooms: ["allstars", "periwinkle"],
     };
     const after = {
       role: "classroomadmin",
       email: "admin@pep.com",
-      manageableClassrooms: ["elementary"],
+      manageableClassrooms: ["periwinkle"],
     };
 
     const result = await syncUserChanges(drive, db, before, after, "admin1");
 
     assert.equal(result.revoked.length, 1);
-    assert.ok(result.revoked[0].includes("c1"));
+    assert.ok(result.revoked[0].includes("allstars"));
   });
 
   it("returns empty result when user has no email", async () => {
@@ -716,7 +716,7 @@ describe("syncUserChanges", () => {
     const db = mockDb({});
 
     const before = { role: "teacher" };
-    const after = { role: "classroomadmin", manageableClassrooms: ["primary"] };
+    const after = { role: "classroomadmin", manageableClassrooms: ["allstars"] };
 
     const result = await syncUserChanges(drive, db, before, after, "user1");
 
