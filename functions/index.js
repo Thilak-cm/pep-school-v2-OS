@@ -22,7 +22,7 @@ import {
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, REPORT_BULK_CONCURRENCY, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, removeCsvRowByDocLink, normalizeEndOfDay } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -4484,7 +4484,7 @@ export const deleteStudentReport = functions
         // Trash the Google Doc (recoverable for 30 days)
         await trashDriveFile(drive, reportData.driveDocId);
 
-        // Remove student row from both summary and archive CSVs
+        // Remove student row from summary CSV only (archive is immutable)
         const studentSnap = await db.collection("students").doc(studentId).get();
         const classroomId = studentSnap.data()?.classroomId;
         if (classroomId) {
@@ -4495,23 +4495,11 @@ export const deleteStudentReport = functions
             const studentName = resolveStudentName(studentSnap.data());
             const clsName = classroomData2?.name || "Unknown Classroom";
             const summaryCsvName = buildCsvFilename(clsName);
-            const archiveCsvName = buildArchiveCsvFilename(clsName);
 
-            // Summary CSV: remove by student name
             const existingCsv = await downloadCsvContent(drive, driveFolderId, summaryCsvName);
             if (existingCsv) {
               const updatedCsv = removeCsvRow(existingCsv, studentName, DRIVE_CONSTANTS.csvHeaders);
               await updateDriveSummaryCsv(drive, driveFolderId, updatedCsv, summaryCsvName);
-            }
-
-            // Archive CSV: remove by doc link (preserves other generations)
-            const docLink = reportData.driveDocLink || "";
-            if (docLink) {
-              const existingArchive = await downloadCsvContent(drive, driveFolderId, archiveCsvName);
-              if (existingArchive) {
-                const updatedArchive = removeCsvRowByDocLink(existingArchive, docLink, DRIVE_CONSTANTS.csvHeaders);
-                await updateDriveSummaryCsv(drive, driveFolderId, updatedArchive, archiveCsvName);
-              }
             }
           }
         }
