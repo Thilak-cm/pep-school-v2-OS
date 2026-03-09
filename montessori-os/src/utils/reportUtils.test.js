@@ -3,43 +3,53 @@ import assert from 'node:assert/strict';
 import { getDefaultReportDateRange, parseReportSections, renderSectionContent } from './reportUtils.js';
 
 describe('getDefaultReportDateRange', () => {
-  it('returns Nov 1 of previous year when current month is before November', () => {
+  it('returns Oct 15 of previous year when current month is before October', () => {
     // January 15, 2026
     const now = new Date(2026, 0, 15);
     const { start, end } = getDefaultReportDateRange(now);
     assert.equal(start.getFullYear(), 2025);
-    assert.equal(start.getMonth(), 10); // November (0-indexed)
-    assert.equal(start.getDate(), 1);
+    assert.equal(start.getMonth(), 9); // October (0-indexed)
+    assert.equal(start.getDate(), 15);
     assert.equal(end, now);
   });
 
-  it('returns Nov 1 of current year when current month is November', () => {
+  it('returns Oct 15 of current year when current month is November', () => {
     // November 20, 2025
     const now = new Date(2025, 10, 20);
     const { start, end } = getDefaultReportDateRange(now);
     assert.equal(start.getFullYear(), 2025);
-    assert.equal(start.getMonth(), 10);
-    assert.equal(start.getDate(), 1);
+    assert.equal(start.getMonth(), 9);
+    assert.equal(start.getDate(), 15);
     assert.equal(end, now);
   });
 
-  it('returns Nov 1 of current year when current month is December', () => {
+  it('returns Oct 15 of current year when current month is December', () => {
     // December 5, 2025
     const now = new Date(2025, 11, 5);
     const { start, end } = getDefaultReportDateRange(now);
     assert.equal(start.getFullYear(), 2025);
-    assert.equal(start.getMonth(), 10);
-    assert.equal(start.getDate(), 1);
+    assert.equal(start.getMonth(), 9);
+    assert.equal(start.getDate(), 15);
     assert.equal(end, now);
   });
 
-  it('returns Nov 1 of previous year in October', () => {
-    // October 31, 2026
-    const now = new Date(2026, 9, 31);
+  it('returns Oct 15 of previous year on October 14 (boundary)', () => {
+    // October 14, 2026 — just before the term starts
+    const now = new Date(2026, 9, 14);
     const { start, end } = getDefaultReportDateRange(now);
     assert.equal(start.getFullYear(), 2025);
-    assert.equal(start.getMonth(), 10);
-    assert.equal(start.getDate(), 1);
+    assert.equal(start.getMonth(), 9);
+    assert.equal(start.getDate(), 15);
+    assert.equal(end, now);
+  });
+
+  it('returns Oct 15 of current year on exactly October 15 (boundary)', () => {
+    // October 15, 2026 — term start day
+    const now = new Date(2026, 9, 15);
+    const { start, end } = getDefaultReportDateRange(now);
+    assert.equal(start.getFullYear(), 2026);
+    assert.equal(start.getMonth(), 9);
+    assert.equal(start.getDate(), 15);
     assert.equal(end, now);
   });
 
@@ -47,8 +57,8 @@ describe('getDefaultReportDateRange', () => {
     const before = new Date();
     const { start, end } = getDefaultReportDateRange();
     const after = new Date();
-    assert.equal(start.getMonth(), 10);
-    assert.equal(start.getDate(), 1);
+    assert.equal(start.getMonth(), 9);
+    assert.equal(start.getDate(), 15);
     assert.ok(end >= before && end <= after);
   });
 });
