@@ -80,7 +80,7 @@ No Redux/Zustand — local React state + hooks. Key patterns:
 ### Roles & Access Control
 Three roles stored on Firestore user docs: `superadmin`, `classroomadmin`, `teacher`.
 - `isSuperAdmin()` / `isPrivilegedAdmin()` defined in `utils/roleUtils.js`
-- Classroomadmins scoped via `manageableClassrooms` array (contains programIds)
+- Classroomadmins scoped via `manageableClassrooms` array (contains classroomIds, e.g. "allstars", "periwinkle")
 - Firestore rules enforce role checks; Storage rules limited to 2 `firestore.get()` calls per evaluation
 
 ### AI Features

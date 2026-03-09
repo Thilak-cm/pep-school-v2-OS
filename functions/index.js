@@ -4564,7 +4564,7 @@ export const onClassroomUpdate = functions
     if (added.length === 0 && removed.length === 0) return null;
 
     try {
-      const result = await syncTeacherChanges(drive, db, driveFolderId, added, removed, after.programId);
+      const result = await syncTeacherChanges(drive, db, driveFolderId, added, removed, classroomId);
       console.log(`[drive-perms] Teacher sync for ${classroomId}: granted=${result.granted.length}, revoked=${result.revoked.length}, errors=${result.errors.length}`);
     } catch (err) {
       console.error(`[drive-perms] Teacher sync failed for ${classroomId}:`, err.message);
