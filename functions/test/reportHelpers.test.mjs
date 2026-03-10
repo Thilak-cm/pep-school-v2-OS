@@ -353,7 +353,7 @@ describe("removeCsvRow", () => {
     const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
     const result = removeCsvRow(csv, "Aakash Mehta", CSV_HEADERS);
     const { headers, rows } = parseCsv(result);
-    assert.equal(headers.length, 9);
+    assert.equal(headers.length, 10); // migrated from 9 to 10 columns
     assert.equal(rows.length, 0);
   });
 
@@ -375,6 +375,51 @@ describe("removeCsvRow", () => {
     const result = removeCsvRow(csv, "aakash mehta", CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 0);
+  });
+});
+
+// ── CSV header migration (PEP-87 — Author column added) ──
+
+describe("CSV header migration", () => {
+  const NEW_HEADERS = [
+    "Child Name", "Branch", "Program", "Classroom", "Generation Date",
+    "Author", "Sentiment Score", "Area Balance Score", "Missing Input Flags", "Google Doc Link",
+  ];
+
+  it("updateCsvContent migrates old 9-column CSV to 10-column on update", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old";
+    const newRow = "Priya,HSR,Adolescent,Stars,2026-03-01,Teacher,5,4,,https://doc/new";
+    const result = updateCsvContent(oldCsv, newRow, "Priya", NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10, "headers migrated to 10 columns");
+    assert.equal(headers[5], "Author", "Author header at position 5");
+    // Old row: Author column should be empty (migrated)
+    assert.equal(rows[0][5], "", "migrated row has empty Author");
+    assert.equal(rows[0][6], "4", "old Sentiment Score moved to col 6");
+    assert.equal(rows[0][9], "https://doc/old", "old Doc Link moved to col 9");
+    // New row: all 10 fields present
+    assert.equal(rows[1][5], "Teacher", "new row has Author at col 5");
+  });
+
+  it("appendCsvContent migrates old 9-column CSV to 10-column on append", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old";
+    const newRow = "Priya,HSR,Adolescent,Stars,2026-03-01,Teacher,5,4,,https://doc/new";
+    const result = appendCsvContent(oldCsv, newRow, NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10);
+    assert.equal(rows[0][5], "", "migrated row has empty Author");
+    assert.equal(rows[0][9], "https://doc/old", "old Doc Link at col 9");
+    assert.equal(rows.length, 2);
+  });
+
+  it("removeCsvRow migrates headers even when removing rows", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old\nPriya,HSR,Adolescent,Stars,2026-02-01,5,4,,https://doc/other";
+    const result = removeCsvRow(oldCsv, "Aakash", NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10, "headers migrated to 10 columns");
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][0], "Priya");
+    assert.equal(rows[0][5], "", "remaining row has empty Author after migration");
   });
 });
 
@@ -436,7 +481,7 @@ describe("appendCsvContent", () => {
     const result = appendCsvContent(existing, newRow, CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 2, "should have 2 rows for same student — append, not replace");
-    assert.ok(rows[0][8].includes("abc"), "first row keeps original doc link");
+    assert.ok(rows[0][9].includes("abc"), "first row keeps original doc link (migrated to col 9)");
     assert.ok(rows[1][8].includes("def"), "second row has new doc link");
   });
 
