@@ -44,6 +44,8 @@ export function buildReportList(docs) {
       missingInputFlags: d.missingInputFlags || [],
       sentimentScore: d.sentimentScore ?? null,
       areaBalanceScore: d.areaBalanceScore ?? null,
+      generatedBy: d.generatedBy || '',
+      generatedByName: d.generatedByName || null,
       driveDocLink: d.driveDocLink || null,
     }))
     .sort((a, b) => {

@@ -24,6 +24,7 @@ import {
   Visibility as ViewIcon,
   Add as AddIcon,
   DeleteOutline as DeleteIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { collection, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -42,6 +43,13 @@ function formatReportDate(date) {
     year: 'numeric',
     timeZone: 'Asia/Kolkata',
   }).format(date);
+}
+
+function getScoreColor(score) {
+  if (score == null) return 'default';
+  if (score >= 4) return 'success';
+  if (score === 3) return 'warning';
+  return 'error';
 }
 
 export default function ReportsPage({ studentId, studentLabel = 'Student', userRole }) {
@@ -118,6 +126,7 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
         model: result.data.model || '',
         sourceNoteIds: result.data.sourceNoteIds || [],
         generatedBy: result.data.generatedBy || '',
+        generatedByName: result.data.generatedByName || null,
         driveDocLink: null,
       };
       setDraftReport(draft);
@@ -276,18 +285,47 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
               }}
             >
               <ListItemText
-                primary={formatReportDate(report.generatedAt)}
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                      {formatReportDate(report.generatedAt)}
+                    </Typography>
+                    {report.generatedByName && (
+                      <Chip
+                        icon={<PersonIcon sx={{ fontSize: '0.75rem' }} />}
+                        label={report.generatedByName}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.65rem', color: '#64748b', borderColor: '#e2e8f0' }}
+                      />
+                    )}
+                  </Box>
+                }
                 secondary={
-                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25, flexWrap: 'wrap', gap: 0.5 }}>
                     {report.noteCount != null && (
                       <Chip label={`${report.noteCount} notes`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                     )}
                     {report.status === 'no_notes' && (
                       <Chip label="No notes" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
                     )}
+                    {report.sentimentScore != null && (
+                      <Chip label={`Sentiment: ${report.sentimentScore}`} size="small" color={getScoreColor(report.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    )}
+                    {report.areaBalanceScore != null && (
+                      <Chip label={`Balance: ${report.areaBalanceScore}`} size="small" color={getScoreColor(report.areaBalanceScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    )}
+                    {report.status !== 'no_notes' && (
+                      <Chip
+                        label={report.missingInputFlags?.length ? 'Missing data' : 'Complete'}
+                        size="small"
+                        color={report.missingInputFlags?.length ? 'warning' : 'success'}
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.7rem' }}
+                      />
+                    )}
                   </Stack>
                 }
-                primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: '#1e293b' }}
                 secondaryTypographyProps={{ component: 'div' }}
               />
               <ListItemSecondaryAction>
