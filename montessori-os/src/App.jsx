@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import SignIn from "./SignIn";
@@ -64,6 +64,12 @@ function App() {
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [pendingViewReportId, setPendingViewReportId] = useState(null);
+  const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
+    setSelectedStudent((prev) => prev?.id === sid ? prev : { id: sid });
+    setPendingViewReportId(docId);
+    setScreen('studentReports');
+  }, []);
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState(null);
@@ -503,7 +509,9 @@ function App() {
         >
           <NotificationProvider>
             <NotificationStack />
-            <SaveQueueNotificationBridge />
+            <SaveQueueNotificationBridge
+              onNavigateToReport={handleNavigateToReport}
+            />
           {/* Loading State */}
           {loading && (
             <Box
@@ -741,6 +749,8 @@ function App() {
                       studentId={selectedStudent?.id || selectedStudent?.uid}
                       studentLabel={getStudentDisplayName(selectedStudent)}
                       userRole={role}
+                      pendingViewReportId={pendingViewReportId}
+                      onPendingViewHandled={() => setPendingViewReportId(null)}
                     />
                   )}
 

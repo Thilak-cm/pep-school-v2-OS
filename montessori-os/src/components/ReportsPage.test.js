@@ -75,3 +75,61 @@ test('ReportsPage renders author display name (generatedByName)', async () => {
     'Expected ReportsPage to reference generatedByName for author display',
   );
 });
+
+// --- PEP-81: Queue report export tests ---
+
+test('ReportsPage imports enqueueSaveQueueItems for background export', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /enqueueSaveQueueItems/.test(source),
+    'Expected ReportsPage to import enqueueSaveQueueItems from saveQueue',
+  );
+});
+
+test('ReportsPage enqueues report_export kind on draft export', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /report_export/.test(source),
+    'Expected ReportsPage to enqueue items with kind report_export',
+  );
+});
+
+test('ReportsPage shows info toast with student name when enqueuing export', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /Saving and exporting|saving.*export/i.test(source),
+    'Expected ReportsPage to show an info toast when enqueuing export',
+  );
+});
+
+test('ReportsPage subscribes to SaveQueue for in-progress export state', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /subscribeSaveQueue/.test(source),
+    'Expected ReportsPage to subscribe to SaveQueue for exporting state',
+  );
+});
+
+test('ReportsPage shows exporting indicator for in-progress exports', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /[Ee]xporting/.test(source) && /PENDING|PROCESSING|pending|processing/.test(source),
+    'Expected ReportsPage to show exporting indicator based on queue item status',
+  );
+});
+
+test('ReportsPage accepts pendingViewReportId prop for auto-opening report dialog', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /pendingViewReportId/.test(source),
+    'Expected ReportsPage to accept pendingViewReportId prop',
+  );
+});
+
+test('ReportsPage uses REPORT_EXPORT_MAX_ATTEMPTS for queue items', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /REPORT_EXPORT_MAX_ATTEMPTS|maxAttempts/.test(source),
+    'Expected ReportsPage to set maxAttempts on enqueued report_export items',
+  );
+});

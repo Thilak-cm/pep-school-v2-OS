@@ -1,6 +1,6 @@
 # Changelog
 
-# 9.9.0 — 2026-03-10
+# 9.10.0 — 2026-03-10
 
 ### Added
 - Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
@@ -10,6 +10,19 @@
 
 ### Changed
 - `generatedByName` stored alongside `generatedBy` at report generation time — no extra Firestore reads at render (PEP-87)
+
+# 9.9.0 — 2026-03-09
+
+### Added
+- Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
+- In-progress export indicator on ReportsPage while background exports are running (PEP-81)
+- Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
+- Error toast with "Retry" action for failed exports, using SaveQueue retry logic with max 3 attempts (PEP-81)
+
+# 9.8.6 — 2026-03-09
+
+### Fixed
+- Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
 
 # 9.8.5 — 2026-03-09
 

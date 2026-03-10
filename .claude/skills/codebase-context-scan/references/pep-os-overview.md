@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-09T16:54:25.263Z
-App version: 9.8.5
+Generated: 2026-03-10T01:03:03.480Z
+App version: 9.9.0
 
 ## App Snapshot
 
@@ -137,6 +137,14 @@ App version: 9.8.5
 
 ## Recent Changes
 
+### 9.9.0 (2026-03-09)
+- Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
+- In-progress export indicator on ReportsPage while background exports are running (PEP-81)
+- Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
+
+### 9.8.6 (2026-03-09)
+- Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
+
 ### 9.8.5 (2026-03-09)
 - Classroom name and term prepended to CSV report filenames: `{Classroom} | March 2026 | Report Consolidation Summary.csv` (PEP-83)
 - Append-only archive CSV alongside summary CSV — accumulates all report rows as a historical audit trail (PEP-83)
@@ -146,13 +154,4 @@ App version: 9.8.5
 - Cascading branch/program/classroom filters on bulk CSV upload page — branch narrows programs, program narrows classrooms (PEP-80)
 - Classroom multi-select via autocomplete replaces single classroom dropdown; at least one classroom required before student matching (PEP-80)
 - Editable default date picker for CSV rows without dates (PEP-80)
-
-### 9.8.3 (2026-03-08)
-- Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
-- Reports card on student dashboard now visible only to superadmins (PEP-78)
-
-### 9.8.2 (2026-03-08)
-- Report end date is now inclusive: observations on the last day of a date range are no longer excluded from generated reports (PEP-77)
-- Report date picker switched from manual dd/mm/yyyy text input to native date picker with range validation (PEP-77)
-- Date boundary regression tests for report generation and export filtering (PEP-77)
 
