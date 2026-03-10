@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-03-10T00:45:00.000Z
+Generated: 2026-03-10T01:03:03.480Z
 App version: 9.9.0
 
 ## App Snapshot
@@ -138,9 +138,9 @@ App version: 9.9.0
 ## Recent Changes
 
 ### 9.9.0 (2026-03-09)
-- Report save & Drive export now runs in the background via SaveQueueService with a new `report_export` kind, instead of blocking the UI (PEP-81)
+- Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
 - In-progress export indicator on ReportsPage while background exports are running (PEP-81)
-- Success toast with "View" action navigates to and auto-opens the finished report; error toast with "Retry" action for failed exports (PEP-81)
+- Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
 
 ### 9.8.6 (2026-03-09)
 - Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
@@ -154,8 +154,4 @@ App version: 9.9.0
 - Cascading branch/program/classroom filters on bulk CSV upload page — branch narrows programs, program narrows classrooms (PEP-80)
 - Classroom multi-select via autocomplete replaces single classroom dropdown; at least one classroom required before student matching (PEP-80)
 - Editable default date picker for CSV rows without dates (PEP-80)
-
-### 9.8.3 (2026-03-08)
-- Default report start date changed from November 1st to October 15th to align with term 2 start (PEP-78)
-- Reports card on student dashboard now visible only to superadmins (PEP-78)
 
