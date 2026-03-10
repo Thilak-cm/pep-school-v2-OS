@@ -1,5 +1,13 @@
 # Changelog
 
+# 9.9.0 — 2026-03-09
+
+### Added
+- Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
+- In-progress export indicator on ReportsPage while background exports are running (PEP-81)
+- Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
+- Error toast with "Retry" action for failed exports, using SaveQueue retry logic with max 3 attempts (PEP-81)
+
 # 9.8.6 — 2026-03-09
 
 ### Fixed

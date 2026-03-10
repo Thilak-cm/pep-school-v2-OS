@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import useNotify from '../notifications/useNotify';
 import {
   Box,
@@ -31,6 +31,12 @@ import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
 import { trackEvent } from '../utils/analytics';
 import { isAdminRole } from '../utils/roleUtils';
+import {
+  enqueueSaveQueueItems,
+  subscribeSaveQueue,
+  SAVE_QUEUE_STATUS,
+  REPORT_EXPORT_MAX_ATTEMPTS,
+} from '../services/saveQueue';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
 
@@ -44,7 +50,13 @@ function formatReportDate(date) {
   }).format(date);
 }
 
-export default function ReportsPage({ studentId, studentLabel = 'Student', userRole }) {
+export default function ReportsPage({
+  studentId,
+  studentLabel = 'Student',
+  userRole,
+  pendingViewReportId = null,
+  onPendingViewHandled,
+}) {
   const notify = useNotify();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,8 +73,11 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   // Draft report state (generated but not yet saved to Firestore)
   const [draftReport, setDraftReport] = useState(null);
 
-  // Export state
+  // Export state (for non-draft synchronous export)
   const [exporting, setExporting] = useState(false);
+
+  // Queue-based export tracking
+  const [exportingCount, setExportingCount] = useState(0);
 
   // Delete state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -70,31 +85,80 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
   const [deletingIds, setDeletingIds] = useState(new Set());
 
   // Load all past reports from subcollection
-  useEffect(() => {
+  const loadReports = useCallback(async () => {
     if (!studentId) {
       setReports([]);
       setLoading(false);
       return;
     }
-
-    let active = true;
-    const loadReports = async () => {
-      try {
-        setLoading(true);
-        const ref = collection(db, 'students', studentId, 'ai_summaries');
-        const snap = await getDocs(ref);
-        if (!active) return;
-        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setReports(buildReportList(docs));
-      } catch {
-        if (active) setError('Failed to load reports.');
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    loadReports();
-    return () => { active = false; };
+    try {
+      setLoading(true);
+      const ref = collection(db, 'students', studentId, 'ai_summaries');
+      const snap = await getDocs(ref);
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setReports(buildReportList(docs));
+    } catch {
+      setError('Failed to load reports.');
+    } finally {
+      setLoading(false);
+    }
   }, [studentId]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
+
+  // Subscribe to SaveQueue for in-progress report_export items
+  useEffect(() => {
+    if (!studentId) return;
+    const unsubscribe = subscribeSaveQueue((items) => {
+      const activeExports = (items || []).filter((i) =>
+        i.kind === 'report_export' &&
+        i.studentId === studentId &&
+        (i.status === SAVE_QUEUE_STATUS.PENDING || i.status === SAVE_QUEUE_STATUS.PROCESSING)
+      );
+      setExportingCount(activeExports.length);
+    });
+    return unsubscribe;
+  }, [studentId]);
+
+  // Subscribe to SaveQueue for completed report_export items — refresh list
+  useEffect(() => {
+    if (!studentId) return;
+    const prevStatuses = new Map();
+    const unsubscribe = subscribeSaveQueue((items) => {
+      let hasNewCompletion = false;
+      (items || []).forEach((item) => {
+        if (item.kind !== 'report_export' || item.studentId !== studentId) return;
+        const prev = prevStatuses.get(item.id);
+        if (item.status === SAVE_QUEUE_STATUS.COMPLETED && prev && prev !== SAVE_QUEUE_STATUS.COMPLETED) {
+          hasNewCompletion = true;
+        }
+        prevStatuses.set(item.id, item.status);
+      });
+      // Clean up IDs no longer in queue
+      const currentIds = new Set((items || []).map((i) => i.id));
+      prevStatuses.forEach((_, id) => {
+        if (!currentIds.has(id)) prevStatuses.delete(id);
+      });
+      if (hasNewCompletion) {
+        loadReports();
+      }
+    });
+    return unsubscribe;
+  }, [studentId, loadReports]);
+
+  // Auto-open report dialog when navigated to via pendingViewReportId
+  useEffect(() => {
+    if (!pendingViewReportId || reports.length === 0) return;
+    const report = reports.find((r) => r.id === pendingViewReportId);
+    if (report) {
+      setSelectedReport(report);
+      setPreviewOpen(true);
+    }
+    // Always clear after first attempt — prevents stale ID matching a different student's report
+    if (onPendingViewHandled) onPendingViewHandled();
+  }, [pendingViewReportId, reports, onPendingViewHandled]);
 
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
@@ -138,31 +202,37 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
     if (!studentId) return;
     const isDraft = !selectedReport?.id;
 
+    if (isDraft) {
+      // Queue the draft save + Drive export in the background
+      enqueueSaveQueueItems([{
+        kind: 'report_export',
+        studentId,
+        studentName: studentLabel,
+        title: `Report for ${studentLabel}`,
+        maxAttempts: REPORT_EXPORT_MAX_ATTEMPTS,
+        payload: {
+          studentId,
+          reportPayload: selectedReport,
+        },
+      }]);
+      setPreviewOpen(false);
+      setDraftReport(null);
+      notify.info(`Saving and exporting report for ${studentLabel}...`, { duration: 4000 });
+      trackEvent('report_export_queued', { studentId }).catch(() => {});
+      return;
+    }
+
+    // Non-draft path: synchronous export (existing behavior)
     try {
       setExporting(true);
       trackEvent('report_export_start', { studentId, isDraft }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
-
-      if (isDraft) {
-        // Draft path: send full payload, server creates Drive doc + Firestore doc atomically
-        const result = await call({ studentId, reportPayload: selectedReport });
-        const savedReport = {
-          ...selectedReport,
-          id: result.data.docId,
-          driveDocLink: result.data.driveDocLink,
-        };
-        setSelectedReport(savedReport);
-        setReports((prev) => [savedReport, ...prev]);
-        setDraftReport(null);
-      } else {
-        // Existing report path: pass reportDocId as before
-        const result = await call({ studentId, reportDocId: selectedReport.id });
-        const link = result.data.driveDocLink;
-        setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
-        setReports((prev) =>
-          prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
-        );
-      }
+      const result = await call({ studentId, reportDocId: selectedReport.id });
+      const link = result.data.driveDocLink;
+      setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
+      setReports((prev) =>
+        prev.map((r) => (r.id === selectedReport.id ? { ...r, driveDocLink: link } : r))
+      );
       trackEvent('report_export_success', { studentId }).catch(() => {});
     } catch (e) {
       setError(e?.message || 'Failed to export to Drive.');
@@ -244,13 +314,23 @@ export default function ReportsPage({ studentId, studentLabel = 'Student', userR
         </Alert>
       )}
 
+      {exportingCount > 0 && (
+        <Alert
+          severity="info"
+          icon={<CircularProgress size={18} />}
+          sx={{ borderRadius: 2 }}
+        >
+          Exporting {exportingCount === 1 ? 'a report' : `${exportingCount} reports`} to Drive...
+        </Alert>
+      )}
+
       {loading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress size={28} />
         </Box>
       )}
 
-      {!loading && reports.length === 0 && (
+      {!loading && reports.length === 0 && exportingCount === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <ReportIcon sx={{ fontSize: 48, color: '#cbd5e1', mb: 1 }} />
           <Typography variant="body1" sx={{ color: '#94a3b8' }}>
