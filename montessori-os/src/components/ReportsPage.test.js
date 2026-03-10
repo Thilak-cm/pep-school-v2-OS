@@ -47,3 +47,31 @@ test('ReportsPage accepts userRole prop', async () => {
     'Expected ReportsPage to accept a userRole prop',
   );
 });
+
+test('ReportsPage renders score chips with color logic based on score value', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /sentimentScore/.test(source) && /areaBalanceScore/.test(source),
+    'Expected ReportsPage to reference sentimentScore and areaBalanceScore for chip display',
+  );
+  assert.ok(
+    /getScoreColor|scoreColor|score.*color/i.test(source),
+    'Expected ReportsPage to have score-to-color logic for chips',
+  );
+});
+
+test('ReportsPage renders data completeness chip (Complete / Missing data)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /Complete/.test(source) && /Missing data/.test(source),
+    'Expected ReportsPage to show "Complete" and "Missing data" labels for data completeness chip',
+  );
+});
+
+test('ReportsPage renders author display name (generatedByName)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /generatedByName/.test(source),
+    'Expected ReportsPage to reference generatedByName for author display',
+  );
+});

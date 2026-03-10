@@ -151,7 +151,7 @@ describe("getReportPromptDocId", () => {
 });
 
 describe("formatCsvRow", () => {
-  it("formats a complete row with all fields including branch/program/classroom", () => {
+  it("formats a complete row with all fields including branch/program/classroom and author", () => {
     const row = formatCsvRow({
       studentName: "Aakash Mehta",
       branch: "HSR",
@@ -162,14 +162,15 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 3,
       missingInputFlags: ["Hindi inputs missing"],
       docLink: "https://docs.google.com/document/d/abc123",
+      author: "Priya Sharma",
     });
     assert.equal(
       row,
-      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
+      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya Sharma,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
     );
   });
 
-  it("handles null scores and missing branch/program/classroom", () => {
+  it("handles null scores and missing branch/program/classroom/author", () => {
     const row = formatCsvRow({
       studentName: "Priya Sharma",
       generatedAt: "2026-02-28T10:30:00.000Z",
@@ -180,7 +181,7 @@ describe("formatCsvRow", () => {
     });
     assert.equal(
       row,
-      "Priya Sharma,,,,2026-02-28T10:30:00.000Z,,,,https://docs.google.com/document/d/xyz",
+      "Priya Sharma,,,,2026-02-28T10:30:00.000Z,,,,,https://docs.google.com/document/d/xyz",
     );
   });
 
@@ -195,6 +196,7 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 2,
       missingInputFlags: ["Hindi inputs missing", "Kannada inputs missing"],
       docLink: "https://docs.google.com/document/d/abc",
+      author: "Thilak",
     });
     assert.ok(row.includes("Hindi inputs missing; Kannada inputs missing"));
   });
@@ -210,8 +212,29 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 3,
       missingInputFlags: [],
       docLink: "https://docs.google.com/document/d/abc",
+      author: "Thilak",
     });
     assert.ok(row.startsWith('"Mehta, Aakash"'));
+  });
+
+  it("places Author column after Generation Date and before Sentiment Score", () => {
+    const row = formatCsvRow({
+      studentName: "Aakash",
+      branch: "HSR",
+      program: "Adolescent",
+      classroom: "All Stars",
+      generatedAt: "2026-03-01",
+      sentimentScore: 4,
+      areaBalanceScore: 5,
+      missingInputFlags: [],
+      docLink: "https://docs.google.com/document/d/abc",
+      author: "Test Author",
+    });
+    const fields = row.split(",");
+    // Position 5 should be author (after Generation Date at 4)
+    assert.equal(fields[5], "Test Author");
+    // Position 6 should be sentiment score
+    assert.equal(fields[6], "4");
   });
 });
 
@@ -268,6 +291,7 @@ describe("updateCsvContent", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
@@ -310,6 +334,7 @@ describe("removeCsvRow", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
@@ -389,6 +414,7 @@ describe("appendCsvContent", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
