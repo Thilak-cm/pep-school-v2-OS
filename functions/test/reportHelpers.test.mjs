@@ -151,7 +151,7 @@ describe("getReportPromptDocId", () => {
 });
 
 describe("formatCsvRow", () => {
-  it("formats a complete row with all fields including branch/program/classroom", () => {
+  it("formats a complete row with all fields including branch/program/classroom and author", () => {
     const row = formatCsvRow({
       studentName: "Aakash Mehta",
       branch: "HSR",
@@ -162,14 +162,15 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 3,
       missingInputFlags: ["Hindi inputs missing"],
       docLink: "https://docs.google.com/document/d/abc123",
+      author: "Priya Sharma",
     });
     assert.equal(
       row,
-      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
+      "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya Sharma,4,3,Hindi inputs missing,https://docs.google.com/document/d/abc123",
     );
   });
 
-  it("handles null scores and missing branch/program/classroom", () => {
+  it("handles null scores and missing branch/program/classroom/author", () => {
     const row = formatCsvRow({
       studentName: "Priya Sharma",
       generatedAt: "2026-02-28T10:30:00.000Z",
@@ -180,7 +181,7 @@ describe("formatCsvRow", () => {
     });
     assert.equal(
       row,
-      "Priya Sharma,,,,2026-02-28T10:30:00.000Z,,,,https://docs.google.com/document/d/xyz",
+      "Priya Sharma,,,,2026-02-28T10:30:00.000Z,,,,,https://docs.google.com/document/d/xyz",
     );
   });
 
@@ -195,6 +196,7 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 2,
       missingInputFlags: ["Hindi inputs missing", "Kannada inputs missing"],
       docLink: "https://docs.google.com/document/d/abc",
+      author: "Thilak",
     });
     assert.ok(row.includes("Hindi inputs missing; Kannada inputs missing"));
   });
@@ -210,8 +212,29 @@ describe("formatCsvRow", () => {
       areaBalanceScore: 3,
       missingInputFlags: [],
       docLink: "https://docs.google.com/document/d/abc",
+      author: "Thilak",
     });
     assert.ok(row.startsWith('"Mehta, Aakash"'));
+  });
+
+  it("places Author column after Generation Date and before Sentiment Score", () => {
+    const row = formatCsvRow({
+      studentName: "Aakash",
+      branch: "HSR",
+      program: "Adolescent",
+      classroom: "All Stars",
+      generatedAt: "2026-03-01",
+      sentimentScore: 4,
+      areaBalanceScore: 5,
+      missingInputFlags: [],
+      docLink: "https://docs.google.com/document/d/abc",
+      author: "Test Author",
+    });
+    const fields = row.split(",");
+    // Position 5 should be author (after Generation Date at 4)
+    assert.equal(fields[5], "Test Author");
+    // Position 6 should be sentiment score
+    assert.equal(fields[6], "4");
   });
 });
 
@@ -268,6 +291,7 @@ describe("updateCsvContent", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
@@ -275,7 +299,7 @@ describe("updateCsvContent", () => {
   ];
 
   it("creates new CSV with headers when existing is empty", () => {
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya,4,3,,https://docs.google.com/document/d/abc";
     const result = updateCsvContent("", newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2);
@@ -285,7 +309,7 @@ describe("updateCsvContent", () => {
 
   it("appends row for a new student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,,5,4,,https://docs.google.com/document/d/xyz";
     const result = updateCsvContent(existing, newRow, "Priya Sharma", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 3);
@@ -294,7 +318,7 @@ describe("updateCsvContent", () => {
 
   it("updates existing row for same student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/def";
     const result = updateCsvContent(existing, newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2); // header + 1 data row (updated, not appended)
@@ -310,6 +334,7 @@ describe("removeCsvRow", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
@@ -328,7 +353,7 @@ describe("removeCsvRow", () => {
     const csv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
     const result = removeCsvRow(csv, "Aakash Mehta", CSV_HEADERS);
     const { headers, rows } = parseCsv(result);
-    assert.equal(headers.length, 9);
+    assert.equal(headers.length, 10); // migrated from 9 to 10 columns
     assert.equal(rows.length, 0);
   });
 
@@ -350,6 +375,51 @@ describe("removeCsvRow", () => {
     const result = removeCsvRow(csv, "aakash mehta", CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 0);
+  });
+});
+
+// ── CSV header migration (PEP-87 — Author column added) ──
+
+describe("CSV header migration", () => {
+  const NEW_HEADERS = [
+    "Child Name", "Branch", "Program", "Classroom", "Generation Date",
+    "Author", "Sentiment Score", "Area Balance Score", "Missing Input Flags", "Google Doc Link",
+  ];
+
+  it("updateCsvContent migrates old 9-column CSV to 10-column on update", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old";
+    const newRow = "Priya,HSR,Adolescent,Stars,2026-03-01,Teacher,5,4,,https://doc/new";
+    const result = updateCsvContent(oldCsv, newRow, "Priya", NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10, "headers migrated to 10 columns");
+    assert.equal(headers[5], "Author", "Author header at position 5");
+    // Old row: Author column should be empty (migrated)
+    assert.equal(rows[0][5], "", "migrated row has empty Author");
+    assert.equal(rows[0][6], "4", "old Sentiment Score moved to col 6");
+    assert.equal(rows[0][9], "https://doc/old", "old Doc Link moved to col 9");
+    // New row: all 10 fields present
+    assert.equal(rows[1][5], "Teacher", "new row has Author at col 5");
+  });
+
+  it("appendCsvContent migrates old 9-column CSV to 10-column on append", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old";
+    const newRow = "Priya,HSR,Adolescent,Stars,2026-03-01,Teacher,5,4,,https://doc/new";
+    const result = appendCsvContent(oldCsv, newRow, NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10);
+    assert.equal(rows[0][5], "", "migrated row has empty Author");
+    assert.equal(rows[0][9], "https://doc/old", "old Doc Link at col 9");
+    assert.equal(rows.length, 2);
+  });
+
+  it("removeCsvRow migrates headers even when removing rows", () => {
+    const oldCsv = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash,HSR,Adolescent,Stars,2026-01-01,4,3,,https://doc/old\nPriya,HSR,Adolescent,Stars,2026-02-01,5,4,,https://doc/other";
+    const result = removeCsvRow(oldCsv, "Aakash", NEW_HEADERS);
+    const { headers, rows } = parseCsv(result);
+    assert.equal(headers.length, 10, "headers migrated to 10 columns");
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][0], "Priya");
+    assert.equal(rows[0][5], "", "remaining row has empty Author after migration");
   });
 });
 
@@ -389,6 +459,7 @@ describe("appendCsvContent", () => {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",
@@ -396,7 +467,7 @@ describe("appendCsvContent", () => {
   ];
 
   it("creates new CSV with headers when existing is empty", () => {
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya,4,3,,https://docs.google.com/document/d/abc";
     const result = appendCsvContent("", newRow, CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2);
@@ -406,17 +477,17 @@ describe("appendCsvContent", () => {
 
   it("always appends — never replaces existing row for same student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/def";
     const result = appendCsvContent(existing, newRow, CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 2, "should have 2 rows for same student — append, not replace");
-    assert.ok(rows[0][8].includes("abc"), "first row keeps original doc link");
-    assert.ok(rows[1][8].includes("def"), "second row has new doc link");
+    assert.ok(rows[0][9].includes("abc"), "first row keeps original doc link (migrated to col 9)");
+    assert.ok(rows[1][9].includes("def"), "second row has new doc link at col 9");
   });
 
   it("appends row for a different student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/xyz";
     const result = appendCsvContent(existing, newRow, CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 2);

@@ -2,13 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import useNotify from '../notifications/useNotify';
 import {
   Box,
+  Collapse,
   Typography,
   Button,
   Stack,
   List,
   ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   CircularProgress,
   Alert,
@@ -24,6 +23,7 @@ import {
   Visibility as ViewIcon,
   Add as AddIcon,
   DeleteOutline as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import { collection, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -48,6 +48,13 @@ function formatReportDate(date) {
     year: 'numeric',
     timeZone: 'Asia/Kolkata',
   }).format(date);
+}
+
+function getScoreColor(score) {
+  if (score == null) return 'default';
+  if (score >= 4) return 'success';
+  if (score === 3) return 'warning';
+  return 'error';
 }
 
 export default function ReportsPage({
@@ -83,6 +90,9 @@ export default function ReportsPage({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState(null);
   const [deletingIds, setDeletingIds] = useState(new Set());
+
+  // Expanded missing flags state (tracks which report IDs have expanded missing data)
+  const [expandedMissing, setExpandedMissing] = useState(new Set());
 
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
@@ -182,6 +192,7 @@ export default function ReportsPage({
         model: result.data.model || '',
         sourceNoteIds: result.data.sourceNoteIds || [],
         generatedBy: result.data.generatedBy || '',
+        generatedByName: result.data.generatedByName || null,
         driveDocLink: null,
       };
       setDraftReport(draft);
@@ -344,7 +355,10 @@ export default function ReportsPage({
 
       {!loading && reports.length > 0 && (
         <List disablePadding>
-          {reports.map((report) => (
+          {reports.map((report) => {
+            const hasMissing = report.missingInputFlags?.length > 0;
+            const isExpanded = expandedMissing.has(report.id);
+            return (
             <ListItem
               key={report.id}
               sx={{
@@ -353,46 +367,102 @@ export default function ReportsPage({
                 mb: 1,
                 '&:hover': { backgroundColor: 'rgba(5, 150, 105, 0.04)' },
                 py: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
               }}
             >
-              <ListItemText
-                primary={formatReportDate(report.generatedAt)}
-                secondary={
-                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
-                    {report.noteCount != null && (
-                      <Chip label={`${report.noteCount} notes`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                    )}
-                    {report.status === 'no_notes' && (
-                      <Chip label="No notes" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
-                    )}
-                  </Stack>
-                }
-                primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: '#1e293b' }}
-                secondaryTypographyProps={{ component: 'div' }}
-              />
-              <ListItemSecondaryAction>
-                <IconButton
-                  size="small"
-                  onClick={() => handleViewReport(report)}
-                  sx={{ color: '#4f46e5' }}
-                  aria-label={`View report from ${formatReportDate(report.generatedAt)}`}
-                >
-                  <ViewIcon fontSize="small" />
-                </IconButton>
-                {isAdminRole(userRole) && (
+              {/* Top row: date/author left, notes + actions right */}
+              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                    {formatReportDate(report.generatedAt)}
+                  </Typography>
+                  {report.generatedByName && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                      <span role="img" aria-label="teacher" style={{ fontSize: '14px' }}>👩‍🏫</span>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                        {report.generatedByName}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+                  {report.noteCount != null && (
+                    <Chip label={`${report.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+                  )}
+                  {report.status === 'no_notes' && (
+                    <Chip label="No notes" size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+                  )}
                   <IconButton
                     size="small"
-                    onClick={() => handleDeleteClick(report)}
-                    disabled={deletingIds.has(report.id)}
-                    sx={{ color: '#ef4444', ml: 0.5 }}
-                    aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
+                    onClick={() => handleViewReport(report)}
+                    sx={{ color: '#4f46e5' }}
+                    aria-label={`View report from ${formatReportDate(report.generatedAt)}`}
                   >
-                    <DeleteIcon fontSize="small" />
+                    <ViewIcon fontSize="small" />
                   </IconButton>
-                )}
-              </ListItemSecondaryAction>
+                  {isAdminRole(userRole) && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteClick(report)}
+                      disabled={deletingIds.has(report.id)}
+                      sx={{ color: '#ef4444' }}
+                      aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Stack>
+              </Box>
+
+              {/* Quality flags row */}
+              {report.status !== 'no_notes' && (
+                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+                  {report.sentimentScore != null && (
+                    <Chip label={`Sentiment: ${report.sentimentScore}`} size="small" color={getScoreColor(report.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  )}
+                  {report.areaBalanceScore != null && (
+                    <Chip label={`Balance: ${report.areaBalanceScore}`} size="small" color={getScoreColor(report.areaBalanceScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  )}
+                  {hasMissing ? (
+                    <Chip
+                      label="Missing data"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      deleteIcon={<ExpandMoreIcon sx={{ fontSize: '0.9rem', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                      onDelete={() => setExpandedMissing((prev) => {
+                        const next = new Set(prev);
+                        next.has(report.id) ? next.delete(report.id) : next.add(report.id);
+                        return next;
+                      })}
+                      onClick={() => setExpandedMissing((prev) => {
+                        const next = new Set(prev);
+                        next.has(report.id) ? next.delete(report.id) : next.add(report.id);
+                        return next;
+                      })}
+                      sx={{ height: 20, fontSize: '0.7rem', cursor: 'pointer' }}
+                    />
+                  ) : (
+                    <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  )}
+                </Stack>
+              )}
+
+              {/* Expanded missing flags */}
+              <Collapse in={isExpanded && hasMissing}>
+                <Box sx={{ mt: 0.75, pl: 0.5 }}>
+                  {report.missingInputFlags?.map((flag, i) => (
+                    <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6 }}>
+                      • {flag}
+                    </Typography>
+                  ))}
+                </Box>
+              </Collapse>
             </ListItem>
-          ))}
+            );
+          })}
         </List>
       )}
     </Box>

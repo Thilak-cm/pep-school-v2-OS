@@ -83,12 +83,12 @@ function escapeCsvField(value) {
 
 /**
  * Format a single CSV row for the summary CSV.
- * Columns: Child Name, Branch, Program, Classroom, Generation Date,
+ * Columns: Child Name, Branch, Program, Classroom, Generation Date, Author,
  *          Sentiment Score, Area Balance Score, Missing Input Flags, Google Doc Link
  */
 export function formatCsvRow({
   studentName, branch, program, classroom,
-  generatedAt, sentimentScore, areaBalanceScore, missingInputFlags, docLink,
+  generatedAt, author, sentimentScore, areaBalanceScore, missingInputFlags, docLink,
 }) {
   const flags = Array.isArray(missingInputFlags) ? missingInputFlags.join("; ") : "";
   return [
@@ -97,6 +97,7 @@ export function formatCsvRow({
     escapeCsvField(program || ""),
     escapeCsvField(classroom || ""),
     escapeCsvField(generatedAt),
+    escapeCsvField(author || ""),
     sentimentScore != null ? String(sentimentScore) : "",
     areaBalanceScore != null ? String(areaBalanceScore) : "",
     escapeCsvField(flags),
@@ -163,6 +164,24 @@ export function parseCsv(content) {
 }
 
 /**
+ * Migrate existing rows when CSV headers have changed (e.g. new column added).
+ * Maps old columns to new positions by header name; new columns get empty values.
+ */
+function migrateRows(oldHeaders, newHeaders, rows) {
+  const mapping = oldHeaders.map((h) => {
+    const needle = h.trim().toLowerCase();
+    return newHeaders.findIndex((nh) => nh.trim().toLowerCase() === needle);
+  });
+  return rows.map((row) => {
+    const out = new Array(newHeaders.length).fill("");
+    for (let i = 0; i < oldHeaders.length; i++) {
+      if (mapping[i] >= 0 && i < row.length) out[mapping[i]] = row[i];
+    }
+    return out;
+  });
+}
+
+/**
  * Serialize headers and rows back to CSV string.
  */
 export function serializeCsv(headers, rows) {
@@ -180,8 +199,16 @@ export function serializeCsv(headers, rows) {
 export function removeCsvRow(existingCsv, studentName, csvHeaders) {
   if (!existingCsv || !existingCsv.trim()) return "";
 
-  const { headers, rows } = parseCsv(existingCsv);
-  const nameColIdx = headers.findIndex((h) =>
+  let { headers, rows } = parseCsv(existingCsv);
+
+  // Migrate existing rows if headers have changed (e.g. new column added)
+  if (headers.length && headers.length !== csvHeaders.length) {
+    rows = migrateRows(headers, csvHeaders, rows);
+    headers = csvHeaders;
+  }
+
+  const useHeaders = headers.length ? headers : csvHeaders;
+  const nameColIdx = useHeaders.findIndex((h) =>
     h.trim().toLowerCase() === "child name",
   );
 
@@ -191,7 +218,7 @@ export function removeCsvRow(existingCsv, studentName, csvHeaders) {
     r[nameColIdx]?.trim().toLowerCase() !== studentName.trim().toLowerCase(),
   );
 
-  return serializeCsv(headers.length ? headers : csvHeaders, filtered);
+  return serializeCsv(useHeaders, filtered);
 }
 
 /**
@@ -215,7 +242,14 @@ export function appendCsvContent(existingCsv, newRow, csvHeaders) {
     return csvHeaders.join(",") + "\n" + newRow;
   }
 
-  const { headers, rows } = parseCsv(existingCsv);
+  let { headers, rows } = parseCsv(existingCsv);
+
+  // Migrate existing rows if headers have changed (e.g. new column added)
+  if (headers.length && headers.length !== csvHeaders.length) {
+    rows = migrateRows(headers, csvHeaders, rows);
+    headers = csvHeaders;
+  }
+
   const newFields = parseCsv(csvHeaders.join(",") + "\n" + newRow).rows[0];
   rows.push(newFields);
   return serializeCsv(headers.length ? headers : csvHeaders, rows);
@@ -231,8 +265,16 @@ export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
     return csvHeaders.join(",") + "\n" + newRow;
   }
 
-  const { headers, rows } = parseCsv(existingCsv);
-  const nameColIdx = headers.findIndex((h) =>
+  let { headers, rows } = parseCsv(existingCsv);
+
+  // Migrate existing rows if headers have changed (e.g. new column added)
+  if (headers.length && headers.length !== csvHeaders.length) {
+    rows = migrateRows(headers, csvHeaders, rows);
+    headers = csvHeaders;
+  }
+
+  const useHeaders = headers.length ? headers : csvHeaders;
+  const nameColIdx = useHeaders.findIndex((h) =>
     h.trim().toLowerCase() === "child name",
   );
 
@@ -251,5 +293,5 @@ export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
     rows.push(newFields);
   }
 
-  return serializeCsv(headers.length ? headers : csvHeaders, rows);
+  return serializeCsv(useHeaders, rows);
 }

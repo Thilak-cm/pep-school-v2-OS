@@ -3835,7 +3835,7 @@ async function writeReportDoc(studentId, payload) {
   return docId;
 }
 
-async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, configOverrides, promptOverride, dryRun = false }) {
+async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false }) {
   const studentInfo = await getStudentWithProgram(studentId);
   if (!studentInfo.programId) {
     throw new functions.https.HttpsError(
@@ -3871,6 +3871,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
       model: config.model,
       generatedAt: new Date(),
       generatedBy: requesterId,
+      generatedByName: requesterName || null,
       status: "no_notes",
       sourceNoteIds: [],
     };
@@ -3897,6 +3898,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     model: config.model,
     generatedAt: new Date(),
     generatedBy: requesterId,
+    generatedByName: requesterName || null,
     status: "ok",
     sourceNoteIds,
   };
@@ -3915,8 +3917,9 @@ async function checkReportPermission(uid, studentId) {
   }
   const requester = requesterSnap.data();
   const role = requester.role;
+  const displayName = requester.displayName || requester.name || null;
 
-  if (role === "superadmin") return;
+  if (role === "superadmin") return { displayName };
 
   const studentSnap = await db.collection("students").doc(studentId).get();
   if (!studentSnap.exists) {
@@ -3926,7 +3929,7 @@ async function checkReportPermission(uid, studentId) {
 
   if (role === "classroomadmin" || role === "admin") {
     const manageable = requester.manageableClassrooms || [];
-    if (classroomId && manageable.includes(classroomId)) return;
+    if (classroomId && manageable.includes(classroomId)) return { displayName };
     throw new functions.https.HttpsError("permission-denied", "Classroom admin does not manage this student's classroom");
   }
 
@@ -3934,7 +3937,7 @@ async function checkReportPermission(uid, studentId) {
     if (classroomId) {
       const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
       const teacherIds = classroomSnap.data()?.teacherIds || [];
-      if (teacherIds.includes(uid)) return;
+      if (teacherIds.includes(uid)) return { displayName };
     }
     throw new functions.https.HttpsError("permission-denied", "Teacher is not assigned to this student's classroom");
   }
@@ -3955,13 +3958,14 @@ export const generateStudentReport = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    await checkReportPermission(context.auth.uid, studentId);
+    const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
 
     const result = await runSingleReport({
       studentId,
       dateRangeStart: data?.dateRangeStart || null,
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
+      requesterName,
       dryRun: true,
     });
 
@@ -3980,6 +3984,7 @@ export const generateStudentReport = functions
       sourceNoteIds: result.payload.sourceNoteIds,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
       generatedBy: result.payload.generatedBy,
+      generatedByName: result.payload.generatedByName,
     };
   });
 
@@ -4060,7 +4065,7 @@ export const generateClassroomReports = functions
     }
 
     // Check permission for the first student (all are in the same classroom)
-    await checkReportPermission(context.auth.uid, studentIds[0]);
+    const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentIds[0]);
 
     const results = [];
     await runWithConcurrency(studentIds, async (studentId) => {
@@ -4070,6 +4075,7 @@ export const generateClassroomReports = functions
           dateRangeStart: data?.dateRangeStart || null,
           dateRangeEnd: data?.dateRangeEnd || null,
           requesterId: context.auth.uid,
+          requesterName,
         });
         results.push({
           studentId,
@@ -4124,7 +4130,7 @@ export const exportReportToDrive = functions
     }
 
     // Permission check (same as report generation)
-    await checkReportPermission(context.auth.uid, studentId);
+    const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
 
     // Resolve report data: from Firestore (existing report) or from payload (draft)
     let report;
@@ -4159,6 +4165,7 @@ export const exportReportToDrive = functions
         sourceNoteIds: reportPayload.sourceNoteIds || [],
         generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
         generatedBy: reportPayload.generatedBy || context.auth.uid,
+        generatedByName: reportPayload.generatedByName || requesterName || null,
         status: reportPayload.status || "ok",
       };
     }
@@ -4240,6 +4247,7 @@ export const exportReportToDrive = functions
         program: programName,
         classroom: classroomName,
         generatedAt: generatedAtIso,
+        author: report.generatedByName || "",
         sentimentScore: report.sentimentScore,
         areaBalanceScore: report.areaBalanceScore,
         missingInputFlags: report.missingInputFlags || [],
@@ -4399,6 +4407,7 @@ export const exportClassroomReportsToDrive = functions
           program: programName,
           classroom: classroomName,
           generatedAt: generatedAtIso,
+          author: report.generatedByName || "",
           sentimentScore: report.sentimentScore,
           areaBalanceScore: report.areaBalanceScore,
           missingInputFlags: report.missingInputFlags || [],

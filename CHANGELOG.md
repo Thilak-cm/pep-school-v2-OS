@@ -1,5 +1,16 @@
 # Changelog
 
+# 9.10.0 — 2026-03-10
+
+### Added
+- Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
+- Data completeness chip on report cards: "Complete" (green) or "Missing data" (amber) with expandable flag list (PEP-87)
+- Author display name shown on each report card with teacher emoji (PEP-87)
+- "Author" column added to both summary and archive CSV exports (PEP-87)
+
+### Changed
+- `generatedByName` stored alongside `generatedBy` at report generation time — no extra Firestore reads at render (PEP-87)
+
 # 9.9.0 — 2026-03-09
 
 ### Added

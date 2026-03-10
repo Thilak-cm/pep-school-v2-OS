@@ -53,6 +53,7 @@ export const DRIVE_CONSTANTS = {
     "Program",
     "Classroom",
     "Generation Date",
+    "Author",
     "Sentiment Score",
     "Area Balance Score",
     "Missing Input Flags",

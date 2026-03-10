@@ -247,4 +247,28 @@ describe('buildReportList', () => {
     assert.ok(result[0].generatedAt instanceof Date);
     assert.equal(result[0].generatedAt.toISOString(), '2026-01-15T08:00:00.000Z');
   });
+
+  it('extracts generatedBy and generatedByName from report docs', () => {
+    const docs = [
+      {
+        id: 'report_author',
+        generatedAt: new Date('2026-03-01'),
+        reportText: 'Content',
+        generatedBy: 'uid_123',
+        generatedByName: 'Priya Sharma',
+      },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].generatedBy, 'uid_123');
+    assert.equal(result[0].generatedByName, 'Priya Sharma');
+  });
+
+  it('defaults generatedBy to empty string and generatedByName to null when missing', () => {
+    const docs = [
+      { id: 'report_no_author', generatedAt: new Date('2026-03-01'), reportText: 'Content' },
+    ];
+    const result = buildReportList(docs);
+    assert.equal(result[0].generatedBy, '');
+    assert.equal(result[0].generatedByName, null);
+  });
 });
