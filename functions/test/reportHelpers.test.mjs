@@ -299,7 +299,7 @@ describe("updateCsvContent", () => {
   ];
 
   it("creates new CSV with headers when existing is empty", () => {
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya,4,3,,https://docs.google.com/document/d/abc";
     const result = updateCsvContent("", newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2);
@@ -309,7 +309,7 @@ describe("updateCsvContent", () => {
 
   it("appends row for a new student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-02-28T11:00:00.000Z,,5,4,,https://docs.google.com/document/d/xyz";
     const result = updateCsvContent(existing, newRow, "Priya Sharma", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 3);
@@ -318,7 +318,7 @@ describe("updateCsvContent", () => {
 
   it("updates existing row for same student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/def";
     const result = updateCsvContent(existing, newRow, "Aakash Mehta", CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2); // header + 1 data row (updated, not appended)
@@ -467,7 +467,7 @@ describe("appendCsvContent", () => {
   ];
 
   it("creates new CSV with headers when existing is empty", () => {
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,Priya,4,3,,https://docs.google.com/document/d/abc";
     const result = appendCsvContent("", newRow, CSV_HEADERS);
     const lines = result.split("\n");
     assert.equal(lines.length, 2);
@@ -477,17 +477,17 @@ describe("appendCsvContent", () => {
 
   it("always appends — never replaces existing row for same student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/def";
+    const newRow = "Aakash Mehta,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/def";
     const result = appendCsvContent(existing, newRow, CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 2, "should have 2 rows for same student — append, not replace");
     assert.ok(rows[0][9].includes("abc"), "first row keeps original doc link (migrated to col 9)");
-    assert.ok(rows[1][8].includes("def"), "second row has new doc link");
+    assert.ok(rows[1][9].includes("def"), "second row has new doc link at col 9");
   });
 
   it("appends row for a different student", () => {
     const existing = "Child Name,Branch,Program,Classroom,Generation Date,Sentiment Score,Area Balance Score,Missing Input Flags,Google Doc Link\nAakash Mehta,HSR,Adolescent,All Stars,2026-02-28T10:30:00.000Z,4,3,,https://docs.google.com/document/d/abc";
-    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,5,4,,https://docs.google.com/document/d/xyz";
+    const newRow = "Priya Sharma,HSR,Adolescent,All Stars,2026-03-01T12:00:00.000Z,,5,4,,https://docs.google.com/document/d/xyz";
     const result = appendCsvContent(existing, newRow, CSV_HEADERS);
     const { rows } = parseCsv(result);
     assert.equal(rows.length, 2);
