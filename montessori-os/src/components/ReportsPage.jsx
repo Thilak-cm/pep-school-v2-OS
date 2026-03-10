@@ -155,8 +155,9 @@ export default function ReportsPage({
     if (report) {
       setSelectedReport(report);
       setPreviewOpen(true);
-      if (onPendingViewHandled) onPendingViewHandled();
     }
+    // Always clear after first attempt — prevents stale ID matching a different student's report
+    if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
