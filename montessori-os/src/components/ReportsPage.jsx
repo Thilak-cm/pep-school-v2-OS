@@ -105,13 +105,7 @@ export default function ReportsPage({
   }, [studentId]);
 
   useEffect(() => {
-    let active = true;
-    const doLoad = async () => {
-      await loadReports();
-      if (!active) return;
-    };
-    doLoad();
-    return () => { active = false; };
+    loadReports();
   }, [loadReports]);
 
   // Subscribe to SaveQueue for in-progress report_export items
