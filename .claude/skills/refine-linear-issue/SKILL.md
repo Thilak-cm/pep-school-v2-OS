@@ -29,8 +29,27 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 2. Load the high-level overview without asking for permission:
    - `.claude/skills/codebase-context-scan/references/pep-os-overview.md`
 3. Infer likely `area_tag` values from the issue using the overview `## Area Map`.
-4. If the overview context is insufficient for refining the issue, spawn an Explore subagent to gather deeper context on the relevant areas.
-6. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
+   - Area mapping examples:
+     - "voice note", "voice transcription" → "observation-capture"
+     - "timeline", "student timeline" → "timelines-and-media"
+     - "permission", "role", "admin" → "auth-and-access"
+     - "firebase", "rules", "security" → "firebase-infrastructure"
+     - "export", "report", "PDF" → "reporting-and-export"
+     - "coach", "AI", "nudge" → "ai-coach"
+4. If the overview context is insufficient for refining the issue, spawn the **codebase-explorer agent** (`.claude/agents/codebase-explorer.md`) to gather deeper context on the relevant areas. This is important when:
+   - The issue touches specific code patterns you need to understand to ask good questions
+   - You need to know current behavior to define acceptance criteria accurately
+   - The issue involves data flows, hooks, or component contracts that affect scope decisions
+   - You're unsure whether the issue's requirements conflict with existing constraints
+
+   **Data to pass to the codebase-explorer agent:**
+   - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 2)
+   - `target_areas`: The inferred area tags from step 3
+   - `issue_context`: Issue title + current description + any labels
+   - `exploration_focus`: `"refinement"` (find current behavior, existing constraints, data shapes, and UX patterns to inform acceptance criteria and scope decisions)
+   - `specific_files`: Any files explicitly mentioned in the issue description
+
+5. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
 
 ## Workflow
 
@@ -44,7 +63,8 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 ### 2. Clarify & Extract Intent
 
 - Ask focused follow-up questions until ambiguity is low.
-- Leverage loaded context (overview + explore findings) to ask smart, specific questions — not generic ones.
+- Leverage loaded context (overview + codebase-explorer findings) to ask smart, specific questions — not generic ones.
+- Use exploration results to ground questions in actual code behavior (e.g., "The current flow does X — should this change?" rather than "What should happen?").
 - For bugs: capture reproducible steps, expected behavior, actual behavior, and environment details.
 - For features: capture who benefits, desired behavior, constraints, and edge cases.
 - Confirm or adjust priority: Urgent, High, Normal, or Low.
@@ -103,14 +123,14 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 - Assignee: keep existing assignee; set to `me` if currently unassigned
 - Labels: Bug, Feature, Improvement based on issue type
 - Priority: always confirm before updating
-- Context source: always start from `pep-os-overview.md`, then Explore subagent when deeper context needed
+- Context source: always start from `pep-os-overview.md`, then codebase-explorer agent (`.claude/agents/codebase-explorer.md`) when deeper context needed
 
 ## Guardrails
 
 - Do not update the Linear issue before showing a draft and receiving explicit approval.
 - Confirm state and label if the issue type is ambiguous.
 - If related issues exist, call them out and suggest linking.
-- Auto-read overview without asking; spawn Explore subagent when deeper context is needed.
+- Auto-read overview without asking; spawn codebase-explorer agent when deeper context is needed — don't ask the user for permission to explore, just do it.
 - Keep existing assignee unless the user explicitly requests a change; set to `me` if unassigned.
 - Never discard the original MoM context snippet from draft-sourced issues.
 - If the issue identifier is invalid or not found, inform the user and ask for a correct one.
