@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-10T01:03:03.480Z
-App version: 9.9.0
+Generated: 2026-03-17T04:47:43.814Z
+App version: 9.10.1
 
 ## App Snapshot
 
@@ -137,6 +137,16 @@ App version: 9.9.0
 
 ## Recent Changes
 
+### 9.10.1 (2026-03-16)
+- Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
+- Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
+- Report Generate dialog stays open on error so the user can adjust dates and retry without re-navigating (PEP-89)
+
+### 9.10.0 (2026-03-10)
+- Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
+- Data completeness chip on report cards: "Complete" (green) or "Missing data" (amber) with expandable flag list (PEP-87)
+- Author display name shown on each report card with teacher emoji (PEP-87)
+
 ### 9.9.0 (2026-03-09)
 - Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
 - In-progress export indicator on ReportsPage while background exports are running (PEP-81)
@@ -144,14 +154,4 @@ App version: 9.9.0
 
 ### 9.8.6 (2026-03-09)
 - Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
-
-### 9.8.5 (2026-03-09)
-- Classroom name and term prepended to CSV report filenames: `{Classroom} | March 2026 | Report Consolidation Summary.csv` (PEP-83)
-- Append-only archive CSV alongside summary CSV — accumulates all report rows as a historical audit trail (PEP-83)
-- Legacy `Report Consolidation Summary.csv` files auto-renamed to new format on first access (PEP-83)
-
-### 9.8.4 (2026-03-08)
-- Cascading branch/program/classroom filters on bulk CSV upload page — branch narrows programs, program narrows classrooms (PEP-80)
-- Classroom multi-select via autocomplete replaces single classroom dropdown; at least one classroom required before student matching (PEP-80)
-- Editable default date picker for CSV rows without dates (PEP-80)
 
