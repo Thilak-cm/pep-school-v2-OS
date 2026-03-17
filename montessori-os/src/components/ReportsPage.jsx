@@ -68,7 +68,6 @@ export default function ReportsPage({
   const notify = useNotify();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   // Generate dialog state
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -109,11 +108,11 @@ export default function ReportsPage({
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setReports(buildReportList(docs));
     } catch {
-      setError('Failed to load reports.');
+      notify.error('Failed to load reports.');
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, notify]);
 
   useEffect(() => {
     loadReports();
@@ -173,7 +172,6 @@ export default function ReportsPage({
 
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
-      setError('');
       setGenerating(true);
       trackEvent('report_generate_start', { studentId }).catch(() => {});
       const call = httpsCallable(cloudFunctions, 'generateStudentReport', { timeout: 300_000 });
@@ -203,7 +201,7 @@ export default function ReportsPage({
       trackEvent('report_generate_success', { studentId }).catch(() => {});
     } catch (e) {
       setGenerateOpen(false);
-      setError(friendlyFunctionError(e));
+      notify.error(friendlyFunctionError(e));
       trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
       setGenerating(false);
@@ -247,7 +245,7 @@ export default function ReportsPage({
       );
       trackEvent('report_export_success', { studentId }).catch(() => {});
     } catch (e) {
-      setError(friendlyFunctionError(e));
+      notify.error(friendlyFunctionError(e));
       trackEvent('report_export_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
       setExporting(false);
@@ -319,26 +317,6 @@ export default function ReportsPage({
           Generate Report
         </Button>
       </Box>
-
-      {error && (
-        <Alert
-          severity="error"
-          onClose={() => setError('')}
-          sx={{ borderRadius: 2 }}
-          action={
-            <Button
-              color="inherit"
-              size="small"
-              onClick={() => { setError(''); setGenerateOpen(true); }}
-              sx={{ textTransform: 'none', fontWeight: 600 }}
-            >
-              Try Again
-            </Button>
-          }
-        >
-          {error}
-        </Alert>
-      )}
 
       {exportingCount > 0 && (
         <Alert
