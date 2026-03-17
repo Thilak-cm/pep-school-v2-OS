@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useNotify from './notifications/useNotify.js';
 import { translateAudioToEnglish, validateAudioForTranscription } from './whisperSTT';
+import { friendlyFunctionError } from './utils/cloudFunctionErrors';
 import { cleanUpText } from './textCleanup';
 import {
   Box,
@@ -473,8 +474,9 @@ const VoiceRecorder = ({
       }
       
     } catch (error) {
-      setTranscriptionError(`Transcription failed: ${error.message}`);
-      notify.error('Transcription failed. Please try again.', { id: 'stt-failed', duration: 4000 });
+      const friendly = friendlyFunctionError(error);
+      setTranscriptionError(`Transcription failed: ${friendly}`);
+      notify.error(friendly, { id: 'stt-failed', duration: 4000 });
       if (onTranscriptionError) onTranscriptionError(error);
     } finally {
       setIsTranscribing(false);

@@ -33,6 +33,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions, auth } from '../firebase';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { stripQuotes, ASSISTANT_TIMEOUT_MS } from './chat/chatUtils';
 import { UserBubble, AssistantBubble } from './chat/MessageBubble';
@@ -768,8 +769,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         setError('No speech detected in the recording.');
       }
     } catch (error) {
-      const errorMessage = error?.message || error?.code || 'Unknown error';
-      setError(`Transcription failed: ${errorMessage}`);
+      setError(`Transcription failed: ${friendlyFunctionError(error)}`);
     } finally {
       resetRecordingState();
     }

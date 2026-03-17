@@ -26,6 +26,7 @@ import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../scripts/config/baseballCardPrompt';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
 export default function BaseballCardConfigEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
@@ -204,7 +205,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     setPlaygroundResult(null);
     try {
       const runWindowDays = Number.isFinite(playgroundWindowDays) ? Math.max(1, playgroundWindowDays) : windowDaysValue;
-      const call = httpsCallable(cloudFunctions, 'previewBaseballCard');
+      const call = httpsCallable(cloudFunctions, 'previewBaseballCard', { timeout: 300_000 });
       const payload = {
         studentId: selectedStudent.id,
         windowDays: runWindowDays,
@@ -219,8 +220,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
       const res = await call(payload);
       setPlaygroundResult(res.data);
     } catch (err) {
-      const message = err?.message || 'Failed to run preview.';
-      setPlaygroundError(message);
+      setPlaygroundError(friendlyFunctionError(err));
     } finally {
       setPlaygroundRunning(false);
     }

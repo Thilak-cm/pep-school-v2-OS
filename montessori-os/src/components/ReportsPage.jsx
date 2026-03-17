@@ -31,6 +31,7 @@ import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
 import { trackEvent } from '../utils/analytics';
 import { isAdminRole } from '../utils/roleUtils';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import {
   enqueueSaveQueueItems,
   subscribeSaveQueue,
@@ -67,7 +68,6 @@ export default function ReportsPage({
   const notify = useNotify();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   // Generate dialog state
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -108,11 +108,11 @@ export default function ReportsPage({
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setReports(buildReportList(docs));
     } catch {
-      setError('Failed to load reports.');
+      notify.error('Failed to load reports.');
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, notify]);
 
   useEffect(() => {
     loadReports();
@@ -172,10 +172,9 @@ export default function ReportsPage({
 
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
-      setError('');
       setGenerating(true);
       trackEvent('report_generate_start', { studentId }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'generateStudentReport');
+      const call = httpsCallable(cloudFunctions, 'generateStudentReport', { timeout: 300_000 });
       const result = await call({ studentId, dateRangeStart, dateRangeEnd });
       const draft = {
         // No id — this is a draft, not yet in Firestore
@@ -201,8 +200,8 @@ export default function ReportsPage({
       setPreviewOpen(true);
       trackEvent('report_generate_success', { studentId }).catch(() => {});
     } catch (e) {
-      setGenerateOpen(false);
-      setError(e?.message || 'Failed to generate report.');
+      // Keep dialog open so the user can adjust dates and retry
+      notify.error(friendlyFunctionError(e));
       trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
       setGenerating(false);
@@ -237,7 +236,7 @@ export default function ReportsPage({
     try {
       setExporting(true);
       trackEvent('report_export_start', { studentId, isDraft }).catch(() => {});
-      const call = httpsCallable(cloudFunctions, 'exportReportToDrive');
+      const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 120_000 });
       const result = await call({ studentId, reportDocId: selectedReport.id });
       const link = result.data.driveDocLink;
       setSelectedReport((prev) => ({ ...prev, driveDocLink: link }));
@@ -246,7 +245,7 @@ export default function ReportsPage({
       );
       trackEvent('report_export_success', { studentId }).catch(() => {});
     } catch (e) {
-      setError(e?.message || 'Failed to export to Drive.');
+      notify.error(friendlyFunctionError(e));
       trackEvent('report_export_error', { studentId, error: e?.message }).catch(() => {});
     } finally {
       setExporting(false);
@@ -276,7 +275,7 @@ export default function ReportsPage({
     trackEvent('report_deleted', { studentId, reportDocId: target.id }).catch(() => {});
 
     try {
-      const call = httpsCallable(cloudFunctions, 'deleteStudentReport');
+      const call = httpsCallable(cloudFunctions, 'deleteStudentReport', { timeout: 120_000 });
       await call({ studentId, reportDocId: target.id });
       notify.success('Report deleted', { duration: 3000 });
     } catch (e) {
@@ -285,7 +284,7 @@ export default function ReportsPage({
         if (prev.some((r) => r.id === target.id)) return prev;
         return [...prev, target].sort((a, b) => (b.generatedAt || 0) - (a.generatedAt || 0));
       });
-      notify.error(e?.message || 'Failed to delete report.');
+      notify.error(friendlyFunctionError(e));
     } finally {
       setDeletingIds((prev) => {
         const next = new Set(prev);
@@ -318,12 +317,6 @@ export default function ReportsPage({
           Generate Report
         </Button>
       </Box>
-
-      {error && (
-        <Alert severity="error" onClose={() => setError('')} sx={{ borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
 
       {exportingCount > 0 && (
         <Alert

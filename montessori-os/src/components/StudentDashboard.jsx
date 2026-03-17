@@ -33,13 +33,14 @@ import {
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, auth, cloudFunctions } from '../firebase';
+import { db, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import NewFeaturePill from './NewFeaturePill';
 import ReportsCard from './ReportsCard';
-import { isSuperAdmin } from '../utils/roleUtils';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
+
 
 const confettiFall = keyframes`
   0% {
@@ -124,7 +125,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
   const [cardConfig, setCardConfig] = useState({ ...BASEBALL_CARD_DEFAULTS });
-  const [currentRole, setCurrentRole] = useState(null);
+
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsData, setSignalsData] = useState(null);
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
@@ -181,32 +182,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     try {
       setRegenError('');
       setRegenRunning(true);
-      const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+      const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent', { timeout: 300_000 });
       await call({ studentId });
       setReloadKey((k) => k + 1);
     } catch (e) {
-      setRegenError(e?.message || 'Failed to regenerate.');
+      setRegenError(friendlyFunctionError(e));
     } finally {
       setRegenRunning(false);
     }
   };
 
-  useEffect(() => {
-    let active = true;
-    const loadRole = async () => {
-      try {
-        const uid = auth?.currentUser?.uid;
-        if (!uid) return;
-        const snap = await getDoc(doc(db, 'users', uid));
-        if (!active) return;
-        setCurrentRole(snap.exists() ? (snap.data()?.role || null) : null);
-      } catch {
-        /* ignored */
-      }
-    };
-    loadRole();
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -823,7 +808,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      {isSuperAdmin(currentRole) && <ReportsCard studentId={studentId} onClick={onOpenReports} />}
+      <ReportsCard studentId={studentId} onClick={onOpenReports} />
 
       <Card
         sx={{

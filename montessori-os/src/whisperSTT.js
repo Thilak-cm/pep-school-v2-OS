@@ -39,7 +39,7 @@ export const transcribeAudio = async (audioBlob, languageCode = 'en-US') => {
     }
 
     const audioBase64 = await blobToBase64(audioBlob);
-    const call = httpsCallable(cloudFunctions, 'aiWhisperTranscribe');
+    const call = httpsCallable(cloudFunctions, 'aiWhisperTranscribe', { timeout: 300_000 });
     const resp = await call({ audioBase64, mimeType: audioBlob.type, languageCode });
     const text = String(resp?.data?.text || '').trim();
     const detectedLanguage = resp?.data?.detectedLanguage || undefined;
@@ -69,7 +69,7 @@ export const translateAudioToEnglish = async (audioBlob) => {
     }
 
     const audioBase64 = await blobToBase64(audioBlob);
-    const call = httpsCallable(cloudFunctions, 'aiWhisperTranslate');
+    const call = httpsCallable(cloudFunctions, 'aiWhisperTranslate', { timeout: 300_000 });
     const resp = await call({ audioBase64, mimeType: audioBlob.type });
     const rawLanguage = resp?.data?.detectedLanguage;
     const detectedLanguage = normalizeLanguage(rawLanguage);
