@@ -281,7 +281,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
 
     let imported = 0;
     let failed = 0;
-    const groupId = `bulk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
     try {
       // Split into chunks for progress updates
@@ -304,7 +303,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               lessonTitle: row.content,
               date: row.date,
               currentUser,
-              groupId,
             });
           } else {
             data = buildObservationDoc({
@@ -314,7 +312,6 @@ export default function BulkUploadPage({ currentUser, userRole }) {
               text: row.content,
               date: row.date,
               currentUser,
-              groupId,
             });
           }
 
