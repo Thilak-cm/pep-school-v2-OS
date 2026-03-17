@@ -39,6 +39,7 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardCons
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import NewFeaturePill from './NewFeaturePill';
 import ReportsCard from './ReportsCard';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
 
 const confettiFall = keyframes`
@@ -181,11 +182,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     try {
       setRegenError('');
       setRegenRunning(true);
-      const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+      const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent', { timeout: 300_000 });
       await call({ studentId });
       setReloadKey((k) => k + 1);
     } catch (e) {
-      setRegenError(e?.message || 'Failed to regenerate.');
+      setRegenError(friendlyFunctionError(e));
     } finally {
       setRegenRunning(false);
     }

@@ -31,6 +31,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import { trackEvent } from '../utils/analytics';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
 
@@ -209,7 +210,7 @@ function StudentList({ classroom, onSelectStudent }) {
         count: selectedIds.size,
       }).catch(() => {});
 
-      const call = httpsCallable(cloudFunctions, 'generateClassroomReports');
+      const call = httpsCallable(cloudFunctions, 'generateClassroomReports', { timeout: 540_000 });
       const result = await call({
         classroomId: classroom.id,
         studentIds: Array.from(selectedIds),
@@ -229,7 +230,7 @@ function StudentList({ classroom, onSelectStudent }) {
         failed: result.data?.failed,
       }).catch(() => {});
     } catch (e) {
-      setBulkError(e?.message || 'Failed to generate reports.');
+      setBulkError(friendlyFunctionError(e));
       trackEvent('bulk_report_generate_error', {
         classroomId: classroom.id,
         error: e?.message,
@@ -254,7 +255,7 @@ function StudentList({ classroom, onSelectStudent }) {
         count: successResults.length,
       }).catch(() => {});
 
-      const call = httpsCallable(cloudFunctions, 'exportClassroomReportsToDrive');
+      const call = httpsCallable(cloudFunctions, 'exportClassroomReportsToDrive', { timeout: 540_000 });
       await call({
         classroomId: classroom.id,
         reportResults: successResults,
@@ -266,7 +267,7 @@ function StudentList({ classroom, onSelectStudent }) {
         count: successResults.length,
       }).catch(() => {});
     } catch (e) {
-      setBulkError(e?.message || 'Failed to export reports to Drive.');
+      setBulkError(friendlyFunctionError(e));
       trackEvent('bulk_export_error', {
         classroomId: classroom.id,
         error: e?.message,

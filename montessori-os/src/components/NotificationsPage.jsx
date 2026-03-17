@@ -41,6 +41,7 @@ import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
 // Confetti animation for coverage celebration
 const confettiFallSmall = keyframes`
@@ -1193,13 +1194,13 @@ function NotificationsPage() {
       try {
         setRegenError(prev => ({ ...prev, [studentId]: '' }));
         setRegenRunning(prev => ({ ...prev, [studentId]: true }));
-        const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent');
+        const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent', { timeout: 300_000 });
         await call({ studentId });
         setReloadKeys(prev => ({ ...prev, [studentId]: (prev[studentId] || 0) + 1 }));
         // Reload the data with force reload
         await loadBaseballCardForStudent(studentId, true);
       } catch (e) {
-        setRegenError(prev => ({ ...prev, [studentId]: e?.message || 'Failed to regenerate.' }));
+        setRegenError(prev => ({ ...prev, [studentId]: friendlyFunctionError(e) }));
       } finally {
         setRegenRunning(prev => ({ ...prev, [studentId]: false }));
       }

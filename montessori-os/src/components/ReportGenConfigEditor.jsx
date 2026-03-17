@@ -24,6 +24,7 @@ import { REPORT_DEFAULTS, REPORT_PROMPT_DOCS } from '../../../scripts/config/rep
 import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
+import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
 const PROGRAM_OPTIONS = Object.entries(REPORT_PROMPT_DOCS).map(([id, docId]) => ({
   id,
@@ -229,7 +230,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     setPlaygroundError('');
     setPlaygroundResult(null);
     try {
-      const call = httpsCallable(cloudFunctions, 'previewStudentReport');
+      const call = httpsCallable(cloudFunctions, 'previewStudentReport', { timeout: 300_000 });
       const payload = {
         studentId: selectedStudent.id,
         systemPrompt: prompt.systemPrompt,
@@ -243,8 +244,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
       const res = await call(payload);
       setPlaygroundResult(res.data);
     } catch (err) {
-      const message = err?.message || 'Failed to run preview.';
-      setPlaygroundError(message);
+      setPlaygroundError(friendlyFunctionError(err));
     } finally {
       setPlaygroundRunning(false);
     }
