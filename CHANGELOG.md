@@ -1,5 +1,12 @@
 # Changelog
 
+# 9.10.1 — 2026-03-16
+
+### Fixed
+- Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
+- Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
+- Report Generate dialog stays open on error so the user can adjust dates and retry without re-navigating (PEP-89)
+
 # 9.10.0 — 2026-03-10
 
 ### Added
