@@ -200,7 +200,7 @@ export default function ReportsPage({
       setPreviewOpen(true);
       trackEvent('report_generate_success', { studentId }).catch(() => {});
     } catch (e) {
-      setGenerateOpen(false);
+      // Keep dialog open so the user can adjust dates and retry
       notify.error(friendlyFunctionError(e));
       trackEvent('report_generate_error', { studentId, error: e?.message }).catch(() => {});
     } finally {

@@ -22,7 +22,7 @@ export function isFunctionTimeout(error) {
  */
 export function friendlyFunctionError(error) {
   if (isFunctionTimeout(error)) {
-    return 'This is taking longer than expected \u2014 please try again.';
+    return 'This is taking longer than expected — please try again.';
   }
-  return 'Something went wrong \u2014 please try again.';
+  return 'Something went wrong — please try again.';
 }
