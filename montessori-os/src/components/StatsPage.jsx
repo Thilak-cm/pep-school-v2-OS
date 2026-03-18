@@ -378,21 +378,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               });
             }
             classroomsData = classroomsData.filter(isActiveClassroom);
+          } else if (role === 'teacher') {
+            // Teachers: query only their assigned classrooms (matches Firestore rule scoping)
+            const classroomsQuery = query(
+              collection(db, 'classrooms'),
+              where('teacherIds', 'array-contains', user.uid)
+            );
+            const classroomsSnap = await getDocs(classroomsQuery);
+            classroomsData = classroomsSnap.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter(isActiveClassroom);
           } else {
-            const classroomConstraints = [where('status', '==', 'active')];
-            const classroomsQuery = query(collection(db, 'classrooms'), ...classroomConstraints);
+            // Superadmins: all active classrooms
+            const classroomsQuery = query(collection(db, 'classrooms'), where('status', '==', 'active'));
             const classroomsSnap = await getDocs(classroomsQuery);
             classroomsData = classroomsSnap.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
             }));
             classroomsData = classroomsData.filter(isActiveClassroom);
-            if (classroomsData.length === 0) {
-              const fallbackSnap = await getDocs(collection(db, 'classrooms'));
-              classroomsData = fallbackSnap.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(isActiveClassroom);
-            }
           }
           } catch (_error) {
             classroomsData = [];

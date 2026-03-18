@@ -108,11 +108,14 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
             if (isMounted) setClassrooms([]);
             return;
           }
-          const snap = await getDocs(query(collection(db, 'classrooms')));
+          // Query only classrooms where teacher is assigned (matches Firestore rule scoping)
+          const snap = await getDocs(query(
+            collection(db, 'classrooms'),
+            where('teacherIds', 'array-contains', currentUser.uid)
+          ));
           results = snap.docs
             .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter((cls) => (cls.status || 'active') !== 'archived')
-            .filter((cls) => Array.isArray(cls.teacherIds) && cls.teacherIds.includes(currentUser.uid));
+            .filter((cls) => (cls.status || 'active') !== 'archived');
         } else if (isClassroomAdminUser) {
           const ids = (manageableClassrooms || []).filter(Boolean);
           if (!ids.length) {

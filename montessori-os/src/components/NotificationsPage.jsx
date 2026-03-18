@@ -281,12 +281,14 @@ function NotificationsPage() {
         }
 
         // Teacher or other roles: derive classrooms by teacher assignment
-        const classroomsSnap = await getDocs(query(collection(db, 'classrooms')));
+        const classroomsSnap = await getDocs(query(
+          collection(db, 'classrooms'),
+          where('teacherIds', 'array-contains', uid)
+        ));
         if (!active) return;
         const teacherClassrooms = classroomsSnap.docs
           .map((d) => ({ id: d.id, ...(d.data() || {}) }))
           .filter((c) => (c.status || 'active') !== 'archived')
-          .filter((c) => Array.isArray(c.teacherIds) && c.teacherIds.includes(uid))
           .map((c) => c.id);
 
         setAccessibleClassrooms(teacherClassrooms);

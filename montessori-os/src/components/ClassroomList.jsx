@@ -124,17 +124,14 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         let classroomsToShow = [];
 
         if (userRole === 'teacher') {
-          const allClassroomsSnap = await getDocs(query(collection(db, 'classrooms')));
-          const allClassrooms = allClassroomsSnap.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-          }));
-          
-          classroomsToShow = allClassrooms
-            .filter(classroom => (classroom.status || 'active') !== 'archived')
-            .filter(classroom => {
-              return classroom.teacherIds && classroom.teacherIds.includes(currentUser.uid);
-            });
+          // Query only classrooms where teacher is assigned (matches Firestore rule scoping)
+          const teacherClassroomsSnap = await getDocs(query(
+            collection(db, 'classrooms'),
+            where('teacherIds', 'array-contains', currentUser.uid)
+          ));
+          classroomsToShow = teacherClassroomsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(classroom => (classroom.status || 'active') !== 'archived');
         } else if (isClassroomAdmin) {
           if (manageableClassrooms.length === 0) {
             classroomsToShow = [];
