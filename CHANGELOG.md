@@ -1,5 +1,14 @@
 # Changelog
 
+# 9.10.2 — 2026-03-18
+
+### Fixed
+- Teachers can no longer read students, observations, media, or AI summaries from classrooms they are not assigned to (PEP-55)
+- Removed `updateUserWithEmailCheck` Cloud Function — had no role/scope checks, allowing privilege escalation (PEP-54)
+- Classroom admins can no longer assign teachers to classrooms outside their manageable scope (PEP-56)
+- Child chat functions now verify classroom access before allowing cross-classroom chat (PEP-57)
+- Observation and media delete rules now enforce classroom scoping for teachers (PEP-55)
+
 # 9.10.1 — 2026-03-16
 
 ### Fixed
