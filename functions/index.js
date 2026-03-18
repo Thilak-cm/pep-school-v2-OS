@@ -1546,10 +1546,10 @@ async function getStudentContext(studentId) {
     const studentName = data.displayName || data.name || fallbackName || "Unknown student";
     const dob = formatDobForContext(data.dob);
     const age = calculateAgeFromDob(data.dob);
-    return { studentName, dob, age };
+    return { studentName, dob, age, classroomId: data.classroomId || null };
   } catch (err) {
     console.warn(`[baseballCard] failed to fetch student context for ${studentId}:`, err);
-    return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable" };
+    return { studentName: "Unknown student", dob: "dob unavailable in context", age: "age unavailable", classroomId: null };
   }
 }
 
@@ -1753,6 +1753,7 @@ async function runBaseballCards({
           temperature: config.temperature,
           generatedAt: new Date(),
           status: "no_notes",
+          classroomId: studentContext.classroomId,
         };
         if (dryRun && collectResults) {
           results.push({ studentId, status: "no_notes", payload });
@@ -1769,6 +1770,7 @@ async function runBaseballCards({
             generatedAt: payload.generatedAt,
             status: payload.status,
             evidenceCount: payload.noteCount,
+            classroomId: studentContext.classroomId,
           });
           await writeSignalsDoc(studentId, signalsPayload);
         }
@@ -1792,6 +1794,7 @@ async function runBaseballCards({
         status: "ok",
         sourceNoteIds,
         rawContent: aiResult.rawContent,
+        classroomId: studentContext.classroomId,
       };
 
       if (dryRun && collectResults) {
@@ -1809,6 +1812,7 @@ async function runBaseballCards({
           generatedAt: payload.generatedAt,
           status: payload.status,
           evidenceCount: payload.noteCount,
+          classroomId: studentContext.classroomId,
         });
         await writeSignalsDoc(studentId, signalsPayload);
       }
@@ -2196,6 +2200,7 @@ async function runWritingSnapshots({
   await runWithConcurrency(ids, async (studentId) => {
     try {
       const samples = await fetchStudentWritingSamples(studentId, monthKey);
+      const studentContext = await getStudentContext(studentId);
       const status = determineSnapshotStatus(samples.length, config.minSamples);
 
       if (status !== "ok") {
@@ -2214,6 +2219,7 @@ async function runWritingSnapshots({
           generatedAt: new Date(),
           status,
           sourceMediaIds: samples.map((s) => s.id),
+          classroomId: studentContext.classroomId,
         };
         if (dryRun && collectResults) {
           results.push({ studentId, status, payload });
@@ -2223,7 +2229,6 @@ async function runWritingSnapshots({
         return;
       }
 
-      const studentContext = await getStudentContext(studentId);
       const aiResult = await callWritingSnapshotVLM(samples, config, prompt, studentContext, monthKey);
 
       const payload = {
@@ -2242,6 +2247,7 @@ async function runWritingSnapshots({
         status: "ok",
         sourceMediaIds: samples.map((s) => s.id),
         rawContent: aiResult.rawContent,
+        classroomId: studentContext.classroomId,
       };
 
       if (dryRun && collectResults) {
@@ -3843,6 +3849,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
       programId: studentInfo.programId,
+      classroomId: studentInfo.classroomId,
       model: config.model,
       generatedAt: new Date(),
       generatedBy: requesterId,
@@ -3870,6 +3877,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     dateRangeStart: startDate,
     dateRangeEnd: endDate,
     programId: studentInfo.programId,
+    classroomId: studentInfo.classroomId,
     model: config.model,
     generatedAt: new Date(),
     generatedBy: requesterId,

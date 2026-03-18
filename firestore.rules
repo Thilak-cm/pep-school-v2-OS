@@ -44,11 +44,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds.hasAny([request.auth.uid]);
     }
 
-    // PEP-55: Teacher can access this classroom (is assigned to it)
-    function teacherCanAccessClassroom(classroomId) {
-      return isSuperAdmin() || managesClassroom(classroomId) || teacherBelongsToClassroom(classroomId);
-    }
-
     function studentClassroomId(studentId) {
       return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
     }
@@ -336,9 +331,9 @@ service cloud.firestore {
         // Updates: admins can update all notes; authors can update their own notes within 48h (author implies classroom membership).
         allow update: if adminCanAccessObservation() || authorCanEditObservation();
 
-        // Allow delete by admins OR by the author within 48h (author implies classroom membership).
+        // Allow delete by admins OR by the author within 48h.
         allow delete: if adminCanAccessObservation() || (
-          isTeacher() &&
+          teacherCanAccessObservation() &&
           isAuthor() &&
           withinAuthorActionWindow()
         );
@@ -442,7 +437,7 @@ service cloud.firestore {
           validMediaCreatePayload(request.resource.data);
         allow update: if adminCanAccessMedia() || authorCanEditMedia();
         allow delete: if adminCanAccessMedia() || (
-          isTeacher() && isAuthor() && withinAuthorActionWindow()
+          teacherCanAccessMedia() && isAuthor() && withinAuthorActionWindow()
         );
       }
     }
@@ -458,13 +453,13 @@ service cloud.firestore {
     }
 
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
-    // NOTE: ai_summaries docs don't carry studentId/classroomId fields, so collection
-    // group queries can't be scoped per-teacher here. Document-level rules under
-    // /students/{studentId}/ai_summaries/ ARE scoped. Frontend queries filter by
-    // classroom client-side. TODO: add classroomId to ai_summaries docs to enable
-    // server-side scoping on collection group queries.
+    // PEP-55: teachers scoped via classroomId on the doc
     match /{path=**}/ai_summaries/{summaryId} {
-      allow read: if isPrivilegedAdmin() || isTeacher();
+      allow read: if isPrivilegedAdmin() || (
+        isTeacher() &&
+        ('classroomId' in resource.data) &&
+        teacherBelongsToClassroom(resource.data.classroomId)
+      );
     }
 
     // Collection group rule for observations (needed for collectionGroup queries)

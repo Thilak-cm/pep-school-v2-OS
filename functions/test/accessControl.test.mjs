@@ -142,6 +142,59 @@ describe("PEP-57: childChatStream classroom scope check", () => {
 });
 
 // ──────────────────────────────────────────────────────────
+// PEP-55: ai_summaries docs include classroomId for rule scoping
+// ──────────────────────────────────────────────────────────
+describe("PEP-55: ai_summaries classroomId in Cloud Functions", () => {
+  it("writeBaseballCardDoc callers should include classroomId in payload", () => {
+    // Find runBaseballCards function body
+    const fnStart = indexSource.indexOf("async function runBaseballCards");
+    assert.ok(fnStart !== -1, "runBaseballCards must exist");
+    const fnEnd = indexSource.indexOf("\nasync function ", fnStart + 1);
+    const fnBody = fnEnd !== -1 ? indexSource.slice(fnStart, fnEnd) : indexSource.slice(fnStart);
+    const classroomIdCount = (fnBody.match(/classroomId/g) || []).length;
+    assert.ok(
+      classroomIdCount >= 2,
+      "runBaseballCards must include classroomId in payloads (both no_notes and ok paths)"
+    );
+  });
+
+  it("writeWritingSnapshotDoc callers should include classroomId in payload", () => {
+    const fnStart = indexSource.indexOf("async function runWritingSnapshots");
+    assert.ok(fnStart !== -1, "runWritingSnapshots must exist");
+    const fnEnd = indexSource.indexOf("\nasync function ", fnStart + 1);
+    const fnBody = fnEnd !== -1 ? indexSource.slice(fnStart, fnEnd) : indexSource.slice(fnStart);
+    const classroomIdCount = (fnBody.match(/classroomId/g) || []).length;
+    assert.ok(
+      classroomIdCount >= 2,
+      "runWritingSnapshots must include classroomId in payloads (both status paths)"
+    );
+  });
+
+  it("runSingleReport should include classroomId in report payloads", () => {
+    const fnStart = indexSource.indexOf("async function runSingleReport");
+    assert.ok(fnStart !== -1, "runSingleReport must exist");
+    const fnEnd = indexSource.indexOf("\nasync function ", fnStart + 1);
+    const fnBody = fnEnd !== -1 ? indexSource.slice(fnStart, fnEnd) : indexSource.slice(fnStart);
+    const classroomIdCount = (fnBody.match(/classroomId/g) || []).length;
+    assert.ok(
+      classroomIdCount >= 2,
+      "runSingleReport must include classroomId in both no_notes and ok payloads"
+    );
+  });
+
+  it("getStudentContext should return classroomId", () => {
+    const fnStart = indexSource.indexOf("async function getStudentContext");
+    assert.ok(fnStart !== -1, "getStudentContext must exist");
+    const fnEnd = indexSource.indexOf("\nasync function ", fnStart + 1);
+    const fnBody = fnEnd !== -1 ? indexSource.slice(fnStart, fnEnd) : indexSource.slice(fnStart);
+    assert.ok(
+      fnBody.includes("classroomId"),
+      "getStudentContext must return classroomId for ai_summaries scoping"
+    );
+  });
+});
+
+// ──────────────────────────────────────────────────────────
 // PEP-55: Firestore rules — teacher read scoping
 // ──────────────────────────────────────────────────────────
 describe("PEP-55: Firestore rules teacher scoping", () => {
@@ -202,6 +255,27 @@ describe("PEP-55: Firestore rules teacher scoping", () => {
     assert.ok(
       mediaGroupSection.includes("teacherBelongsToClassroom"),
       "Media collection group rule must scope teacher reads"
+    );
+  });
+
+  it("should scope ai_summaries collection group query for teachers", () => {
+    const aiSummariesGroupSection = rulesSource.slice(
+      rulesSource.indexOf("match /{path=**}/ai_summaries/{summaryId}")
+    );
+    assert.ok(
+      aiSummariesGroupSection.includes("teacherBelongsToClassroom"),
+      "ai_summaries collection group rule must scope teacher reads via classroomId"
+    );
+    assert.ok(
+      aiSummariesGroupSection.includes("'classroomId' in resource.data"),
+      "ai_summaries collection group rule must check classroomId field existence"
+    );
+  });
+
+  it("should NOT define unused teacherCanAccessClassroom helper", () => {
+    assert.ok(
+      !rulesSource.includes("function teacherCanAccessClassroom"),
+      "teacherCanAccessClassroom was dead code and should be removed"
     );
   });
 
