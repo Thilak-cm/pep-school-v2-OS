@@ -96,6 +96,18 @@ export const createAuthUserAndProfile = functions
       ? Array.from(new Set(selectedClassrooms.filter(Boolean)))
       : [];
 
+    // PEP-56: Classroom admins can only assign teachers to classrooms they manage
+    if (isClassroomAdmin && uniqueSelectedClassrooms.length > 0) {
+      const callerManageable = requesterSnap.data()?.manageableClassrooms || [];
+      const outOfScope = uniqueSelectedClassrooms.filter(id => !callerManageable.includes(id));
+      if (outOfScope.length > 0) {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Cannot assign teachers to classrooms you don't manage: " + outOfScope.join(", ")
+        );
+      }
+    }
+
     if (!email || !firstName) {
       throw new functions.https.HttpsError("invalid-argument", "email and firstName are required");
     }
@@ -693,74 +705,6 @@ export const updateUserProfileIfExists = functions
     return { ok: true, uid };
 });
 
-// Callable function: Update user with email uniqueness check
-export const updateUserWithEmailCheck = functions.region("asia-south1").https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-  }
-
-  const { uid, email, displayName, additionalData = {} } = data;
-  
-  if (!uid) {
-    throw new functions.https.HttpsError("invalid-argument", "User UID is required");
-  }
-
-  try {
-    const result = await db.runTransaction(async (transaction) => {
-      // Get the current user document
-      const userRef = db.collection("users").doc(uid);
-      const userSnap = await transaction.get(userRef);
-
-      if (!userSnap.exists) {
-        throw new functions.https.HttpsError("not-found", "User not found");
-      }
-
-      // If email is being updated, check for conflicts
-      if (email && email !== userSnap.data().email) {
-        const existingUserSnap = await transaction.get(
-          db.collection("users").where("email", "==", email)
-        );
-
-        if (!existingUserSnap.empty) {
-          throw new functions.https.HttpsError(
-            "already-exists", 
-            "User with email " + email + " already exists"
-          );
-        }
-      }
-
-      // Update the user document
-      const updateData = {
-        ...additionalData
-      };
-
-      if (email) updateData.email = email.toLowerCase().trim();
-      if (displayName) updateData.displayName = displayName;
-      updateData.updatedAt = new Date();
-
-      transaction.update(userRef, updateData);
-
-      return {
-        uid,
-        ...updateData
-      };
-    });
-
-    return { success: true, user: result };
-
-  } catch (error) {
-    console.error("updateUserWithEmailCheck failed:", error);
-    
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    
-    throw new functions.https.HttpsError(
-      "internal", 
-      "Failed to update user: " + error.message
-    );
-  }
-});
 
 
 // Callable: Migrate pending user document to users/{uid} when user signs in
@@ -3331,6 +3275,23 @@ export const childChatStream = functions
       }
 
       const classroomData = classroomDoc.data();
+
+      // PEP-57: Verify caller has access to this student's classroom
+      const callerRole = userDoc.data()?.role;
+      if (callerRole === "classroomadmin") {
+        const manageable = userDoc.data()?.manageableClassrooms || [];
+        if (!manageable.includes(classroomId)) {
+          sendError(new Error("You don't have access to this student's classroom"));
+          return;
+        }
+      } else if (callerRole === "teacher") {
+        const teacherIds = classroomData?.teacherIds || [];
+        if (!teacherIds.includes(decodedToken.uid)) {
+          sendError(new Error("You don't have access to this student's classroom"));
+          return;
+        }
+      }
+
       const programId = classroomData?.programId || "primary";
 
       // Handle chatId: if not provided, find most recent chat or create new one
@@ -3502,6 +3463,20 @@ export const childChat = functions
       }
 
       const classroomData = classroomDoc.data();
+
+      // PEP-57: Verify caller has access to this student's classroom
+      if (userRole === "classroomadmin") {
+        const manageable = userDoc.data()?.manageableClassrooms || [];
+        if (!manageable.includes(classroomId)) {
+          throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
+        }
+      } else if (userRole === "teacher") {
+        const teacherIds = classroomData?.teacherIds || [];
+        if (!teacherIds.includes(context.auth.uid)) {
+          throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
+        }
+      }
+
       const programId = classroomData?.programId || "primary"; // Default to primary if missing
 
       // Handle chatId: if not provided or forceNewChat is true, create new chat
