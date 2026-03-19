@@ -44,6 +44,10 @@ jobs:
         working-directory: montessori-os
         run: npm install
 
+      - name: Lint
+        working-directory: montessori-os
+        run: npm run lint
+
       - name: Run unit tests
         working-directory: montessori-os
         run: npm test
@@ -64,6 +68,10 @@ jobs:
       - name: Install dependencies
         working-directory: functions
         run: npm install
+
+      - name: Lint
+        working-directory: functions
+        run: npm run lint
 
       - name: Run unit tests
         working-directory: functions
