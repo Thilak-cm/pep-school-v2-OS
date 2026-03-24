@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-17T04:47:43.814Z
-App version: 9.10.1
+Generated: 2026-03-24T23:56:45.665Z
+App version: 10.0.0
 
 ## App Snapshot
 
@@ -137,6 +137,11 @@ App version: 9.10.1
 
 ## Recent Changes
 
+### 10.0.0 (2026-03-24)
+- Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
+- grammy framework integration for Telegram Bot API interactions (PEP-109)
+- One-time setup script (`scripts/admin/setup-telegram-bot.mjs`) registers webhook URL with Telegram and seeds `config/telegram_bot` Firestore doc with allowed user IDs (PEP-109)
+
 ### 9.10.1 (2026-03-16)
 - Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
 - Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
@@ -151,7 +156,4 @@ App version: 9.10.1
 - Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
 - In-progress export indicator on ReportsPage while background exports are running (PEP-81)
 - Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
-
-### 9.8.6 (2026-03-09)
-- Classroomadmin Google Drive permissions now compare `manageableClassrooms` against classroom IDs instead of program IDs, fixing incorrect folder access grants/revocations (PEP-86)
 

@@ -5,6 +5,8 @@ import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
+import { Bot } from "grammy";
+import { createWebhookHandler } from "./telegram/handler.js";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
@@ -41,6 +43,8 @@ import {
 initializeApp({ credential: applicationDefault() });
 
 const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
+const TELEGRAM_WEBHOOK_SECRET = defineSecret("TELEGRAM_WEBHOOK_SECRET");
 const getOpenAiKey = () => process.env.OPENAI_API_KEY || OPENAI_API_KEY.value() || null;
 
 const db = getFirestore();
@@ -4101,4 +4105,19 @@ export const bulkSyncDrivePermissions = functions
       permissionsRevoked: results.revoked,
       errors: results.errors,
     };
+  });
+
+// ---------- Telegram Bot Webhook ----------
+
+export const telegramWebhook = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 30, memory: "256MB", secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET] })
+  .https.onRequest(async (req, res) => {
+    const bot = new Bot(TELEGRAM_BOT_TOKEN.value());
+    const handler = createWebhookHandler({
+      db,
+      bot,
+      webhookSecret: TELEGRAM_WEBHOOK_SECRET.value(),
+    });
+    await handler(req, res);
   });
