@@ -4313,7 +4313,7 @@ export const bulkSyncDrivePermissions = functions
 
 export const telegramWebhook = functions
   .region("asia-south1")
-  .runWith({ secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET] })
+  .runWith({ timeoutSeconds: 30, memory: "256MB", secrets: [TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET] })
   .https.onRequest(async (req, res) => {
     const bot = new Bot(TELEGRAM_BOT_TOKEN.value());
     const handler = createWebhookHandler({
