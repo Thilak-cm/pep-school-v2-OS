@@ -223,7 +223,56 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
      ```
    - Report PR URL to user
 
-### Phase 7: Linear Sync (Orchestrator)
+### Phase 7: Devin Review Loop (Orchestrator)
+
+After the PR is opened, Devin (AI code reviewer) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
+
+**7a. Wait for Devin's review**
+- Poll for Devin's review using `gh pr reviews <pr_number> --json author,state,body`
+- Look for a review from Devin (author login contains `devin` or similar)
+- If no review yet, inform the user and ask whether to:
+  - Wait and check again (re-poll)
+  - Skip Devin review and proceed to Linear sync
+- Do NOT auto-poll in a loop — always ask the user before re-checking
+
+**7b. Parse Devin's findings**
+- If Devin's review state is `APPROVED` → all green, proceed to Phase 8
+- If Devin's review state is `CHANGES_REQUESTED` or `COMMENTED`:
+  - Fetch review comments via `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq '.[] | select(.user.login | contains("devin"))'`
+  - Also fetch general review body from the review itself
+  - Display Devin's findings to the user in a clear summary
+
+**7c. Fix Devin's findings**
+- Ask user for confirmation before fixing (Human Approval Gate)
+- Spawn the **`code-fixer` agent** (`.claude/agents/code-fixer.md`) with:
+  - Devin's review comments (formatted as findings)
+  - Linear issue context
+- After fixes are applied, commit and push to the same branch:
+  - `git add` changed files
+  - `git commit -m "fix: address Devin review feedback (PEP-{id})"`
+  - `git push origin {branch}`
+- The new push will trigger Devin to re-review the PR
+
+**7d. Re-check loop**
+- After pushing fixes, return to step 7a (wait for new Devin review)
+- Loop control:
+  ```
+  max_devin_iterations = 3
+
+  for i in 1..max_devin_iterations:
+      wait for Devin review
+      if APPROVED:
+          break → proceed to Phase 8
+      if i == max_devin_iterations:
+          STOP — surface remaining Devin findings to user
+          ask: "3 rounds of Devin fixes haven't resolved all issues. Proceed anyway or review manually?"
+      else:
+          fix findings → push → continue loop
+  ```
+
+### Phase 8: Linear Sync (Orchestrator)
+
+*(Renumbered from Phase 7)*
 
 1. **Create comment on Linear issue:**
    ```markdown
@@ -255,6 +304,8 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
 3. **Version bump type** — always confirm patch/minor/major/skip
 4. **Changelog entry** — show for review before committing
 5. **Before pushing + opening PR** — confirm user is ready to ship
+6. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)
+7. **After 3 failed Devin review loops** — surface remaining findings, ask user whether to proceed or review manually
 
 ## Guardrails
 
@@ -277,7 +328,8 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
 6. Clean commit(s) created with issue references
 7. Feature branch pushed to origin
 8. PR opened against `dev` with audit summary in body
-9. Linear issue commented and moved to `In Review`
+9. Devin review is APPROVED (or user chose to skip/proceed)
+10. Linear issue commented and moved to `In Review`
 
 ## Next Step
 
