@@ -1,5 +1,10 @@
 # Changelog
 
+# 9.10.2 — 2026-03-24
+
+### Removed
+- Dead bulk report generation code: `StudentList.jsx` component, `generateClassroomReports` and `exportClassroomReportsToDrive` Cloud Functions, `REPORT_BULK_CONCURRENCY` constant, and bulk UI in `ReportGenerateDialog` (PEP-115)
+
 # 9.10.1 — 2026-03-16
 
 ### Fixed
