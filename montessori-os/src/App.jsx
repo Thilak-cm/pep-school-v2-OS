@@ -11,7 +11,6 @@ import AIVoiceTranscriberEditor from "./components/AIVoiceTranscriberEditor.jsx"
 import AICoachEditor from "./components/AICoachEditor.jsx";
 import ChatCommandCentreEditor from "./components/ChatCommandCentreEditor.jsx";
 import ClassroomList from "./components/ClassroomList";
-import StudentList from "./components/StudentList";
 import StudentTimeline from "./components/StudentTimeline";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentStatsPage from "./components/StudentStatsPage";
@@ -60,7 +59,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentList' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig' | 'bulkUpload'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig' | 'bulkUpload'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -315,7 +314,6 @@ function App() {
   if (screen === 'landingPage') pageTitle = isTeacher ? 'Teacher Panel' : (isSuperAdminUser ? 'Super Admin Panel' : 'Classroom Admin Panel');
   else if (screen === 'classroomList') pageTitle = isTeacher ? 'My Classrooms' : 'Classrooms & Students';
   else if (screen === 'classroomTimeline') pageTitle = selectedClassroom?.name || 'Classroom Timeline';
-  else if (screen === 'studentList') pageTitle = `${selectedClassroom?.name || 'Classroom'} Students`;
   else if (screen === 'studentDashboard') pageTitle = `${getStudentDisplayName(selectedStudent)}'s Dashboard`;
   else if (screen === 'timeline') pageTitle = timelineTitleAsDashboard
     ? `${getStudentDisplayName(selectedStudent)}'s Dashboard`
@@ -370,8 +368,6 @@ function App() {
           setUsersAccessView('home');
         };
       case 'classroomTimeline':
-        return () => setScreen('classroomList');
-      case 'studentList':
         return () => setScreen('classroomList');
       case 'studentDashboard':
         return () => setScreen(studentDashboardReturnScreen || 'classroomTimeline');
@@ -709,18 +705,6 @@ function App() {
                     onNavigateToStudent={(student) => {
                       setSelectedStudent(student);
                       setStudentDashboardReturnScreen('classroomTimeline');
-                      setStudentDashboardNoteType('textVoice');
-                      setScreen('studentDashboard');
-                    }}
-                  />
-                  )}
-
-                  {screen === 'studentList' && (
-                    <StudentList
-                      classroom={selectedClassroom}
-                    onSelectStudent={(stu) => {
-                      setSelectedStudent(stu);
-                      setStudentDashboardReturnScreen('studentList');
                       setStudentDashboardNoteType('textVoice');
                       setScreen('studentDashboard');
                     }}

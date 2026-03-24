@@ -19,9 +19,6 @@ export const REPORT_PROMPT_DOCS = {
   toddler: "report_toddler",
 };
 
-// Concurrency limit for bulk report generation
-export const REPORT_BULK_CONCURRENCY = 5;
-
 // Hardcoded term label for CSV filenames (PEP-83).
 // TODO: auto-detect Term 1 (March) vs Term 2 (October) from report date range.
 export const HARDCODED_TERM = "March 2026";

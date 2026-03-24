@@ -27,7 +27,6 @@ export default function ReportGenerateDialog({
   onGenerate,
   generating = false,
   studentLabel = 'this student',
-  bulkCount = 0,
 }) {
   const defaults = useMemo(() => {
     const { start, end } = getDefaultReportDateRange();
@@ -40,10 +39,7 @@ export default function ReportGenerateDialog({
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;
 
-  const isBulk = bulkCount > 1;
-  const title = isBulk
-    ? `Generate reports for ${bulkCount} students?`
-    : `Generate report for ${studentLabel}?`;
+  const title = `Generate report for ${studentLabel}?`;
 
   const handleGenerate = () => {
     if (!dateValid || rangeError) return;
@@ -88,9 +84,7 @@ export default function ReportGenerateDialog({
           </Stack>
 
           <Typography variant="body2" sx={{ color: '#475569' }}>
-            {isBulk
-              ? 'Coach Pepper will generate parent reports for each selected student using observations within the date range below.'
-              : 'Coach Pepper will generate a parent report using observations within the date range below.'}
+            Coach Pepper will generate a parent report using observations within the date range below.
           </Typography>
 
           <Stack direction="row" spacing={2}>
@@ -128,7 +122,7 @@ export default function ReportGenerateDialog({
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
               <CircularProgress size={18} />
               <Typography variant="body2" sx={{ color: '#4f46e5', fontWeight: 600 }}>
-                Coach Pepper is reviewing and preparing your report{isBulk ? 's' : ''}-- hang tight!
+                Coach Pepper is reviewing and preparing your report-- hang tight!
               </Typography>
             </Stack>
           )}
