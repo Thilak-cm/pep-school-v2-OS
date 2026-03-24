@@ -1,5 +1,12 @@
 # Changelog
 
+# 10.0.0 — 2026-03-24
+
+### Added
+- Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
+- grammy framework integration for Telegram Bot API interactions (PEP-109)
+- One-time setup script (`scripts/admin/setup-telegram-bot.mjs`) registers webhook URL with Telegram and seeds `config/telegram_bot` Firestore doc with allowed user IDs (PEP-109)
+
 # 9.10.1 — 2026-03-16
 
 ### Fixed
