@@ -390,6 +390,21 @@ const deriveMediaPayload = async (payload, item) => {
   };
 
   await setDoc(mediaRef, docData);
+
+  // Write backlinks to tagged lesson observations (same pattern as deriveObservationPayload)
+  const mediaBacklinkIds = Array.isArray(payload.lessonBacklinkIds) ? payload.lessonBacklinkIds : [];
+  if (mediaBacklinkIds.length > 0) {
+    await Promise.allSettled(
+      mediaBacklinkIds.map(async (lessonId) => {
+        if (!lessonId) return;
+        const lessonRef = doc(db, 'students', studentId, 'observations', lessonId);
+        await updateDoc(lessonRef, {
+          linkedObservations: arrayUnion(mediaId),
+        });
+      })
+    );
+  }
+
   await sleep(MEDIA_DOC_PROPAGATION_WAIT_MS);
 
   try {
