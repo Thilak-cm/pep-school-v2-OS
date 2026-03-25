@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.1.0 — 2026-03-25
+
+### Added
+- "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
+- Lesson tag chips displayed on media cards in the student timeline (PEP-58)
+
 # 10.0.1 — 2026-03-24
 
 ### Removed

@@ -940,6 +940,14 @@ function AddNoteModal({
       setMultiStudentWarningOpen(true);
       return;
     }
+    // Clear lesson tags when student changes in STEP_MEDIA (tags are student-specific)
+    if (step === STEP_MEDIA && (selectedLessonIds?.length || 0) > 0) {
+      const prevStu = selectedStudents?.length === 1 ? selectedStudents[0] : null;
+      const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
+      if (prevStu && (!nextStu || nextStu !== prevStu)) {
+        setSelectedLessonIds([]);
+      }
+    }
     setSelectedStudents(nextStudents);
   };
 
@@ -1642,6 +1650,18 @@ function AddNoteModal({
       : mediaItems;
     const studentsToUpload = [...selectedStudents];
 
+    // Lesson tag guard — same logic as saveNote() for text/voice
+    const normalizedMediaLessonIds = Array.from(new Set(selectedLessonIds || []));
+    const selectedMediaLessonObjects = lessonNotes.filter((n) =>
+      normalizedMediaLessonIds.includes(n.id)
+    );
+    const canTagMediaLesson = (
+      studentsToUpload.length === 1 &&
+      normalizedMediaLessonIds.length > 0 &&
+      selectedMediaLessonObjects.length === normalizedMediaLessonIds.length
+    );
+    const mediaTaggedLessonIds = canTagMediaLesson ? normalizedMediaLessonIds : [];
+
     const queueEntries = [];
     studentsToUpload.forEach((studentId) => {
       itemsToUpload.forEach((item) => {
@@ -1665,6 +1685,8 @@ function AddNoteModal({
             pdfTitle: item.kind === 'pdf' ? String(pdfTitle || '').trim() : '',
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
             ...(item.kind === 'photo' ? { copied: item.copied === true, handwritten: item.handwritten === true } : {}),
+            ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
+            ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',
@@ -2497,7 +2519,6 @@ function AddNoteModal({
                   </Box>
                 )}
 
-                {null}
               </Box>
 
               <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
@@ -2512,6 +2533,38 @@ function AddNoteModal({
                 />
               </Box>
             </Box>
+
+            {/* Lesson tag chips (shown when tags are selected) */}
+            {selectedLessonIds && selectedLessonIds.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 0, pt: 1 }}>
+                <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>
+                  Tagged Lesson Notes:
+                </Typography>
+                {selectedLessonIds.map((id) => {
+                  const note = lessonNotes.find((n) => n.id === id);
+                  const label = note?.lessonTitle || 'Lesson Note';
+                  return (
+                    <Chip
+                      key={id}
+                      label={label}
+                      onDelete={() => {
+                        setSelectedLessonIds((prev) => prev.filter((x) => x !== id));
+                      }}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  );
+                })}
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={handleClearLessonTag}
+                  sx={{ textTransform: 'none', ml: 0.5 }}
+                >
+                  Clear all
+                </Button>
+              </Box>
+            )}
 
             <Box
               sx={{
@@ -2528,13 +2581,23 @@ function AddNoteModal({
                 mt: 0.5
               }}
             >
-              <Button
-                variant="outlined"
-                onClick={() => requestClose('media-cancel')}
-                disabled={saving || mediaUploading}
-              >
-                Cancel
-              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => requestClose('media-cancel')}
+                  disabled={saving || mediaUploading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleTagButtonClick}
+                  disabled={saving || mediaUploading}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Tag Lesson Note
+                </Button>
+              </Box>
               <Button
                 variant="contained"
                 onClick={handleCreateMediaNote}
