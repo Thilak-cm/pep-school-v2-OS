@@ -1,3 +1,11 @@
 {
-  "enabledPlugins": {}
+  "enabledPlugins": {
+    "telegram@claude-plugins-official": true
+  },
+  "mcpServers": {
+    "pep-os-firestore": {
+      "command": "node",
+      "args": ["mcp-server/index.js"]
+    }
+  }
 }
