@@ -283,6 +283,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           mediaKindCounts: { photo: 0, video: 0, pdf: 0, file: 0 },
           mediaCount: 0,
           mediaItems: [],
+          linkedLessonObservationId: [],
           _observedAtMs: initialDate ? initialDate.getTime() : 0
         });
       }
@@ -293,6 +294,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
+      // Merge lesson tag IDs from each media doc in the batch
+      if (Array.isArray(obs.linkedLessonObservationId)) {
+        obs.linkedLessonObservationId.forEach((id) => {
+          if (id && !group.linkedLessonObservationId.includes(id)) {
+            group.linkedLessonObservationId.push(id);
+          }
+        });
+      }
       const obsDate = toJsDate(obs.observedAt || obs.timestamp);
       const obsMs = obsDate ? obsDate.getTime() : 0;
       if (obsMs > group._observedAtMs) {
