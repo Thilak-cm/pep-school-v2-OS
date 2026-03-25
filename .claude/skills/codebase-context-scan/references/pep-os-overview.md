@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-24T23:56:45.665Z
-App version: 10.0.0
+Generated: 2026-03-25T00:03:02.311Z
+App version: 10.0.1
 
 ## App Snapshot
 
@@ -44,8 +44,8 @@ App version: 10.0.0
 - `montessori-os/src/components/MentionTextArea.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 12
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentList`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 11
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -93,8 +93,8 @@ App version: 10.0.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 19
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 20
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -137,6 +137,9 @@ App version: 10.0.0
 
 ## Recent Changes
 
+### 10.0.1 (2026-03-24)
+- Dead bulk report generation code: `StudentList.jsx` component, `generateClassroomReports` and `exportClassroomReportsToDrive` Cloud Functions, `REPORT_BULK_CONCURRENCY` constant, and bulk UI in `ReportGenerateDialog` (PEP-115)
+
 ### 10.0.0 (2026-03-24)
 - Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
 - grammy framework integration for Telegram Bot API interactions (PEP-109)
@@ -151,9 +154,4 @@ App version: 10.0.0
 - Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
 - Data completeness chip on report cards: "Complete" (green) or "Missing data" (amber) with expandable flag list (PEP-87)
 - Author display name shown on each report card with teacher emoji (PEP-87)
-
-### 9.9.0 (2026-03-09)
-- Report save & Drive export now runs in the background via SaveQueueService instead of blocking the UI (PEP-81)
-- In-progress export indicator on ReportsPage while background exports are running (PEP-81)
-- Success toast with "View" action that navigates to and auto-opens the finished report (PEP-81)
 
