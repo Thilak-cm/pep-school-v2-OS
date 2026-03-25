@@ -1178,6 +1178,23 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </>
                       )}
 
+                      {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                            Tagged Lesson Notes:
+                          </Typography>
+                          {(obs.linkedLessonObservationId || []).map((id) => (
+                            <Chip
+                              key={id}
+                              size="small"
+                              variant="outlined"
+                              label={lessonTitleById[id] || 'Lesson note'}
+                              sx={{ borderRadius: 999 }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                         <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary">
