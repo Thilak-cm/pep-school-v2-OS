@@ -944,7 +944,7 @@ function AddNoteModal({
     if (step === STEP_MEDIA && (selectedLessonIds?.length || 0) > 0) {
       const prevStu = selectedStudents?.length === 1 ? selectedStudents[0] : null;
       const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
-      if (prevStu && nextStu && prevStu !== nextStu) {
+      if (prevStu && (!nextStu || nextStu !== prevStu)) {
         setSelectedLessonIds([]);
       }
     }
@@ -1686,7 +1686,7 @@ function AddNoteModal({
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
             ...(item.kind === 'photo' ? { copied: item.copied === true, handwritten: item.handwritten === true } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
-            ...(canTagMediaLesson && mediaTaggedLessonIds.length > 0 ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
+            ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
             createdByName: currentUser?.displayName || 'Unknown Teacher',
             createdByEmail: currentUser?.email || 'unknown@email.com',

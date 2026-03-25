@@ -39,7 +39,5 @@ export function buildMediaDocData(payload, mediaId, storagePath) {
     ...(kind === 'photo' ? { copied: payload.copied === true, handwritten: payload.handwritten === true } : {}),
     ...(Array.isArray(payload.linkedLessonObservationId) && payload.linkedLessonObservationId.length > 0
       ? { linkedLessonObservationId: payload.linkedLessonObservationId } : {}),
-    ...(Array.isArray(payload.lessonBacklinkIds) && payload.lessonBacklinkIds.length > 0
-      ? { lessonBacklinkIds: payload.lessonBacklinkIds } : {}),
   };
 }
