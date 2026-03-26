@@ -153,7 +153,6 @@ export async function handleGetObservations(db, params) {
     .collection("students")
     .doc(studentId)
     .collection("observations")
-    .orderBy("observedAt", "desc")
     .get();
 
   const results = [];
@@ -176,6 +175,7 @@ export async function handleGetObservations(db, params) {
     }
   });
 
+  results.sort((a, b) => new Date(b.observedAt) - new Date(a.observedAt));
   return results;
 }
 

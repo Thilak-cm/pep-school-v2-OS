@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pep-os-firestore": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/Users/thilakcm/Downloads/alt-pepos/mcp-server/index.js"
+      ],
+      "env": {}
+    }
+  }
+}
