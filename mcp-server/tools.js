@@ -7,7 +7,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_student",
     description:
-      "Look up a student by name (case-insensitive partial match) or by student ID. Returns student profile fields. When searching by name, only active students are returned.",
+      "Look up a student by name (case-insensitive partial match) or by student ID. Returns student profile fields. When searching by name, only active students are returned. When looking up by ID, any student is returned regardless of status — useful for checking graduated or archived students.",
     inputSchema: {
       type: "object",
       properties: {
@@ -153,29 +153,31 @@ export async function handleGetObservations(db, params) {
     .collection("students")
     .doc(studentId)
     .collection("observations")
+    .where("observedAt", ">=", cutoff)
+    .orderBy("observedAt", "desc")
+    .limit(100)
     .get();
 
   const results = [];
   snap.forEach((doc) => {
     const d = doc.data();
     const observedAt = d.observedAt?.toDate?.() ?? d.observedAt;
-    if (observedAt && observedAt >= cutoff) {
-      results.push({
-        id: doc.id,
-        text: d.text || d.lessonTitle || null,
-        type: d.type,
-        observedAt: observedAt.toISOString(),
-        createdByName: d.createdByName || null,
-        classroomId: d.classroomId,
-        lessonTitle: d.lessonTitle || null,
-        lessonDescription: d.lessonDescription || null,
-        ratings: d.ratings || null,
-        starScore: d.starScore || null,
-      });
-    }
+    results.push({
+      id: doc.id,
+      text: d.text || d.lessonTitle || null,
+      type: d.type,
+      observedAt: observedAt
+        ? observedAt.toISOString()
+        : null,
+      createdByName: d.createdByName || null,
+      classroomId: d.classroomId,
+      lessonTitle: d.lessonTitle || null,
+      lessonDescription: d.lessonDescription || null,
+      ratings: d.ratings || null,
+      starScore: d.starScore || null,
+    });
   });
 
-  results.sort((a, b) => new Date(b.observedAt) - new Date(a.observedAt));
   return results;
 }
 

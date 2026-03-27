@@ -117,6 +117,24 @@ Send these messages to your bot on Telegram (one at a time, wait for each respon
 3. `how is [student name] doing?` — should fetch student data + baseball card
 4. `compare [student A] and [student B]` — should fetch both and compare
 
+## Deregistering a Previous Webhook
+
+If the bot previously had a webhook registered (e.g., from the old Cloud Function architecture), you must deregister it before Claude Code Channels will receive messages. A registered webhook takes priority over long-polling and will steal all incoming messages.
+
+Run the setup script to deregister automatically:
+
+```bash
+TELEGRAM_BOT_TOKEN="your-token" node scripts/admin/setup-telegram-bot.mjs
+```
+
+Or deregister manually with curl:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<your-token>/deleteWebhook"
+```
+
+You should see `{"ok":true,"result":true,"description":"Webhook was deleted"}`.
+
 ## Known Issues
 
 **Messages occasionally don't reach Claude Code.** The Telegram plugin uses long-polling which sometimes silently drops its connection. If a message isn't getting through after 30 seconds (check the Claude Code terminal for `← telegram` lines), restart the session with `ct`.
