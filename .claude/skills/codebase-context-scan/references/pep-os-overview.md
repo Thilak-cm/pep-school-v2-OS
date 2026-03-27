@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-25T18:14:16.300Z
-App version: 10.1.0
+Generated: 2026-03-27T07:21:56.314Z
+App version: 10.0.1
 
 ## App Snapshot
 
@@ -137,10 +137,6 @@ App version: 10.1.0
 
 ## Recent Changes
 
-### 10.1.0 (2026-03-25)
-- "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
-- Lesson tag chips displayed on media cards in the student timeline (PEP-58)
-
 ### 10.0.1 (2026-03-24)
 - Dead bulk report generation code: `StudentList.jsx` component, `generateClassroomReports` and `exportClassroomReportsToDrive` Cloud Functions, `REPORT_BULK_CONCURRENCY` constant, and bulk UI in `ReportGenerateDialog` (PEP-115)
 
@@ -153,4 +149,9 @@ App version: 10.1.0
 - Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
 - Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
 - Report Generate dialog stays open on error so the user can adjust dates and retry without re-navigating (PEP-89)
+
+### 9.10.0 (2026-03-10)
+- Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
+- Data completeness chip on report cards: "Complete" (green) or "Missing data" (amber) with expandable flag list (PEP-87)
+- Author display name shown on each report card with teacher emoji (PEP-87)
 
