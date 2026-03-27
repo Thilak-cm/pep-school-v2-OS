@@ -1,8 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 
-const instructions = readFileSync("coach-pepper-instructions.md", "utf8");
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const instructions = readFileSync(resolve(__dirname, "coach-pepper-instructions.md"), "utf8");
 
 describe("Coach Pepper channel instructions", () => {
   it("AC1: file exists and is non-empty", () => {

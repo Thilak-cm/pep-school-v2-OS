@@ -37,8 +37,13 @@ function createMockQuery(docs) {
       let filtered = docs;
       for (const { field, op, value } of filters) {
         filtered = filtered.filter((d) => {
-          const v = d.data()[field];
+          const raw = d.data()[field];
+          const v = raw?.toDate?.() ?? raw;
           if (op === "==") return v === value;
+          if (op === ">=") return v >= value;
+          if (op === "<=") return v <= value;
+          if (op === ">") return v > value;
+          if (op === "<") return v < value;
           return true;
         });
       }
@@ -212,6 +217,25 @@ describe("handleGetObservations", () => {
       days: 90,
     });
     assert.equal(result.length, 2);
+  });
+
+  it("should safely skip observations with null observedAt", async () => {
+    const obsWithNullDate = [
+      mockDoc("obs-null", {
+        text: "Observation with no date",
+        type: "text",
+        observedAt: null,
+        createdByName: "Ms. Priya",
+        classroomId: "allstars",
+      }),
+    ];
+    const db = createMockDb({
+      "students/2025-ALL-001/observations": obsWithNullDate,
+    });
+    const result = await handleGetObservations(db, {
+      studentId: "2025-ALL-001",
+    });
+    assert.equal(result.length, 0);
   });
 
   it("should return empty array when no observations", async () => {
