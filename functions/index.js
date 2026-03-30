@@ -3428,11 +3428,11 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
   return parseReportResponse(rawContent);
 }
 
-async function writeReportDoc(studentId, payload) {
-  const docId = `report_${Date.now()}`;
-  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(docId);
+async function writeReportDoc(studentId, payload, docId) {
+  const resolvedId = docId || `report_${Date.now()}`;
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(resolvedId);
   await ref.set(payload);
-  return docId;
+  return resolvedId;
 }
 
 async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false }) {
@@ -3679,7 +3679,51 @@ export const exportReportToDrive = functions
     // Resolve report data: from Firestore (existing report) or from payload (draft)
     let report;
     let reportRef;
-    if (reportDocId) {
+    if (reportDocId && reportPayload) {
+      // Idempotent draft path — client provided a stable reportDocId with a draft payload.
+      // Check if this report was already created by a previous attempt.
+      reportRef = db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc(reportDocId);
+      const existingSnap = await reportRef.get();
+      if (existingSnap.exists) {
+        const existingReport = existingSnap.data();
+        if (existingReport.driveDocId) {
+          // Previous attempt completed — return existing data (idempotent retry)
+          return {
+            status: "ok",
+            docId: reportDocId,
+            driveDocId: existingReport.driveDocId,
+            driveDocLink: existingReport.driveDocLink,
+            studentName: resolveStudentName(
+              (await db.collection("students").doc(studentId).get()).data(),
+            ),
+          };
+        }
+      }
+      // First attempt or previous attempt failed before writing — proceed with creation
+      report = {
+        reportText: reportPayload.reportText,
+        sentimentScore: reportPayload.sentimentScore ?? null,
+        areaBalanceScore: reportPayload.areaBalanceScore ?? null,
+        missingInputFlags: reportPayload.missingInputFlags || [],
+        noteCount: reportPayload.noteCount ?? 0,
+        dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
+        dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
+        programId: reportPayload.programId || "",
+        model: reportPayload.model || "",
+        sourceNoteIds: reportPayload.sourceNoteIds || [],
+        generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
+        generatedBy: reportPayload.generatedBy || context.auth.uid,
+        generatedByName: reportPayload.generatedByName || requesterName || null,
+        status: reportPayload.status || "ok",
+      };
+      if (!report.reportText) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "reportPayload.reportText is required",
+        );
+      }
+    } else if (reportDocId) {
       // Existing report path — load from Firestore
       reportRef = db.collection("students").doc(studentId)
         .collection("ai_summaries").doc(reportDocId);
@@ -3819,15 +3863,17 @@ export const exportReportToDrive = functions
 
     // Write to Firestore — update existing doc or create new one from draft
     let docId;
-    if (reportDocId) {
+    if (reportDocId && !reportPayload) {
+      // Existing report path — just attach the Drive link
       await reportRef.update({ driveDocId, driveDocLink: docLink });
       docId = reportDocId;
     } else {
+      // Draft path — create new doc (uses stable reportDocId if provided)
       docId = await writeReportDoc(studentId, {
         ...report,
         driveDocId,
         driveDocLink: docLink,
-      });
+      }, reportDocId || undefined);
     }
 
     return {

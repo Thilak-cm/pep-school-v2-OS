@@ -427,6 +427,7 @@ const deriveReportExportPayload = async (payload) => {
   const call = httpsCallable(cloudFunctions, 'exportReportToDrive', { timeout: 120_000 });
   const result = await call({
     studentId: payload.studentId,
+    reportDocId: payload.reportDocId,
     reportPayload: payload.reportPayload,
   });
   return { docId: result.data.docId, driveDocLink: result.data.driveDocLink };

@@ -213,8 +213,12 @@ export default function ReportsPage({
     const isDraft = !selectedReport?.id;
 
     if (isDraft) {
+      // Generate a stable queue item ID so we can derive a deterministic reportDocId
+      const queueItemId = `sq_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+      const reportDocId = `report_sq_${queueItemId}`;
       // Queue the draft save + Drive export in the background
       enqueueSaveQueueItems([{
+        id: queueItemId,
         kind: 'report_export',
         studentId,
         studentName: studentLabel,
@@ -222,6 +226,7 @@ export default function ReportsPage({
         maxAttempts: REPORT_EXPORT_MAX_ATTEMPTS,
         payload: {
           studentId,
+          reportDocId,
           reportPayload: selectedReport,
         },
       }]);
