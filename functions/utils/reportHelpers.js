@@ -71,6 +71,19 @@ export function mergeReportConfig(docData, defaults = REPORT_DEFAULTS) {
 }
 
 /**
+ * Assemble the full system message content for report generation.
+ * Joins static system prompt + dynamic system prompt (if non-empty) + JSON wrapper.
+ * When dynamicSystemPrompt is empty/null, the output is identical to the
+ * pre-split behavior (staticSystemPrompt + jsonWrapper).
+ */
+export function assembleReportSystemContent(staticSP, dynamicSP, jsonWrapper) {
+  const staticTrimmed = (staticSP || "").trimEnd();
+  const dynamicTrimmed = (dynamicSP || "").trim();
+  const promptParts = [staticTrimmed, dynamicTrimmed].filter(Boolean).join("\n\n");
+  return promptParts + (jsonWrapper || "");
+}
+
+/**
  * Escape a CSV field: wrap in quotes if it contains commas, quotes, or newlines.
  */
 function escapeCsvField(value) {

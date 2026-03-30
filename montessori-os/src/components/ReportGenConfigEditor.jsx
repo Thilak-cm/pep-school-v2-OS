@@ -15,8 +15,21 @@ import {
   FormControl,
   InputLabel,
   Select,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import RestoreIcon from '@mui/icons-material/Restore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -25,6 +38,8 @@ import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
+
+const MAX_HISTORY = 10;
 
 const PROGRAM_OPTIONS = Object.entries(REPORT_PROMPT_DOCS).map(([id, docId]) => ({
   id,
@@ -38,32 +53,28 @@ function extractTemplateVars(text) {
   return matches ? [...new Set(matches)] : [];
 }
 
-function renderPromptWithChips(text) {
-  if (!text) return null;
-  const parts = text.split(/(<[A-Z_]+>)/g);
-  return parts.map((part, idx) => {
-    if (/^<[A-Z_]+>$/.test(part)) {
-      return (
-        <Chip
-          key={idx}
-          component="span"
-          size="small"
-          label={part}
-          color="info"
-          variant="outlined"
-          sx={{
-            mx: 0.5,
-            fontWeight: 700,
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-            borderColor: '#93c5fd',
-            verticalAlign: 'middle',
-          }}
-        />
-      );
-    }
-    return <React.Fragment key={idx}>{part}</React.Fragment>;
-  });
+function countLines(text) {
+  if (!text) return 0;
+  return text.split('\n').length;
 }
+
+const sectionHeaderSx = {
+  fontWeight: 700,
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: 1.2,
+  color: '#64748b',
+  mb: 1,
+  mt: 0.5,
+};
+
+const accordionSx = {
+  border: '1px solid #e2e8f0',
+  borderRadius: '12px !important',
+  boxShadow: 'none',
+  '&:before': { display: 'none' },
+  '&.Mui-expanded': { margin: 0 },
+};
 
 export default function ReportGenConfigEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
@@ -79,8 +90,10 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
   });
 
   const [programId, setProgramId] = useState(PROGRAM_OPTIONS[0]?.id || 'adolescent');
-  const [prompt, setPrompt] = useState({ title: '', description: '', systemPrompt: '' });
-  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [prompt, setPrompt] = useState({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
+  const [promptDocState, setPromptDocState] = useState(null); // full Firestore doc state for version history
+  const [editingField, setEditingField] = useState(null); // 'static' | 'dynamic' | null
+  const [changeNote, setChangeNote] = useState('');
 
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -131,13 +144,16 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
       const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
       if (snap.exists()) {
         const data = snap.data() || {};
+        setPromptDocState({ id: snap.id, ...data });
         setPrompt({
           title: data.title || '',
           description: data.description || '',
-          systemPrompt: data.systemPrompt || '',
+          staticSystemPrompt: data.staticSystemPrompt || '',
+          dynamicSystemPrompt: data.dynamicSystemPrompt || '',
         });
       } else {
-        setPrompt({ title: '', description: '', systemPrompt: '' });
+        setPromptDocState(null);
+        setPrompt({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
       }
     } catch {
       notify.error(`Failed to load prompt for ${programId}.`);
@@ -182,6 +198,13 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     if (!isAdmin) return;
     setSaving(true);
     try {
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+
       const saves = [
         setDoc(doc(db, 'config', 'report_generation'), {
           model: config.model || REPORT_DEFAULTS.model,
@@ -189,24 +212,103 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
           timezone: config.timezone || REPORT_DEFAULTS.timezone,
           updatedBy: currentUser?.uid || null,
-          updatedAt: new Date(),
+          updatedAt: now,
         }, { merge: true }),
       ];
+
       if (promptDocId) {
-        saves.push(
-          setDoc(doc(db, 'ai_prompts', promptDocId), {
-            title: prompt.title || '',
-            description: prompt.description || '',
-            systemPrompt: prompt.systemPrompt || '',
-            updatedBy: currentUser?.uid || null,
-            updatedAt: new Date(),
-          }, { merge: true }),
-        );
+        const curr = promptDocState || { version: 0, versions: [] };
+        const prevSnapshot = (curr.staticSystemPrompt || curr.dynamicSystemPrompt) ? {
+          version: curr.version || 1,
+          staticSystemPrompt: curr.staticSystemPrompt || '',
+          dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
+          updatedAt: now,
+          updatedBy,
+          changeNote: changeNote || 'Updated prompts',
+        } : null;
+        const newVersions = [
+          ...(prevSnapshot ? [prevSnapshot] : []),
+          ...((curr.versions || []).slice(0, MAX_HISTORY - (prevSnapshot ? 1 : 0))),
+        ];
+
+        const promptPayload = {
+          title: prompt.title || '',
+          description: prompt.description || '',
+          staticSystemPrompt: prompt.staticSystemPrompt || '',
+          dynamicSystemPrompt: prompt.dynamicSystemPrompt || '',
+          version: (curr.version || 1) + 1,
+          updatedAt: now,
+          updatedBy,
+          versions: newVersions,
+        };
+
+        if (promptDocState) {
+          saves.push(updateDoc(doc(db, 'ai_prompts', promptDocId), promptPayload));
+        } else {
+          saves.push(setDoc(doc(db, 'ai_prompts', promptDocId), { ...promptPayload, version: 1, versions: [] }));
+        }
       }
+
       await Promise.all(saves);
+
+      // Reload prompt doc state after save
+      if (promptDocId) {
+        const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+        if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
+      }
+
+      setEditingField(null);
+      setChangeNote('');
       notify.success('Report generation settings saved.');
     } catch {
       notify.error('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevert = async (versionItem) => {
+    if (!isAdmin || !promptDocState || !promptDocId) return;
+    setSaving(true);
+    try {
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+      const curr = promptDocState;
+      const prevSnapshot = {
+        version: curr.version || 1,
+        staticSystemPrompt: curr.staticSystemPrompt || '',
+        dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
+        updatedAt: now,
+        updatedBy,
+        changeNote: `Revert to v${versionItem?.version || ''}`,
+      };
+      const newVersions = [prevSnapshot, ...(curr.versions || []).filter((v) => v !== versionItem)].slice(0, MAX_HISTORY);
+
+      const payload = {
+        staticSystemPrompt: versionItem.staticSystemPrompt || '',
+        dynamicSystemPrompt: versionItem.dynamicSystemPrompt || '',
+        version: (curr.version || 1) + 1,
+        updatedAt: now,
+        updatedBy,
+        versions: newVersions,
+      };
+      await updateDoc(doc(db, 'ai_prompts', promptDocId), payload);
+
+      const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+      if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
+      setPrompt((prev) => ({
+        ...prev,
+        staticSystemPrompt: payload.staticSystemPrompt,
+        dynamicSystemPrompt: payload.dynamicSystemPrompt,
+      }));
+      setEditingField(null);
+      notify.success(`Reverted to v${versionItem?.version || ''}.`);
+    } catch {
+      notify.error('Failed to revert prompt.');
     } finally {
       setSaving(false);
     }
@@ -231,9 +333,12 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     setPlaygroundResult(null);
     try {
       const call = httpsCallable(cloudFunctions, 'previewStudentReport', { timeout: 300_000 });
+      // Sending prompt fields as overrides bypasses the server-side reportPromptCache,
+      // so the preview always uses the latest editor values even right after a save.
       const payload = {
         studentId: selectedStudent.id,
-        systemPrompt: prompt.systemPrompt,
+        staticSystemPrompt: prompt.staticSystemPrompt,
+        dynamicSystemPrompt: prompt.dynamicSystemPrompt,
         config: {
           model: playgroundConfig.model,
           temperature: playgroundConfig.temperature,
@@ -250,7 +355,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     }
   };
 
-  const templateVars = useMemo(() => extractTemplateVars(prompt.systemPrompt), [prompt.systemPrompt]);
+  const allPromptText = prompt.staticSystemPrompt + prompt.dynamicSystemPrompt;
+  const templateVars = useMemo(() => extractTemplateVars(allPromptText), [allPromptText]);
   const studentMatches = useMemo(() => fuzzySearchStudents(students, studentSearch).slice(0, 3), [students, studentSearch]);
   const getStudentLabel = (stu) => stu ? (stu.displayName || stu.name || `${stu.firstName || ''} ${stu.lastName || ''}`.trim() || stu.id) : '';
 
@@ -327,32 +433,28 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         </CardContent>
       </Card>
 
-      {/* Program Prompt */}
+      {/* Context Window */}
       <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Program Prompt</Typography>
-            <Button
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Context Window</Typography>
+            <TextField
+              select
+              label="Program"
+              value={programId}
+              onChange={(e) => { setProgramId(e.target.value); setEditingField(null); }}
               size="small"
-              variant={editingPrompt ? 'outlined' : 'text'}
-              onClick={() => setEditingPrompt((prev) => !prev)}
-              sx={{ textTransform: 'none' }}
+              sx={{ minWidth: 160 }}
             >
-              {editingPrompt ? 'Done' : 'Edit'}
-            </Button>
+              {PROGRAM_OPTIONS.map((opt) => (
+                <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
+              ))}
+            </TextField>
           </Stack>
 
-          <TextField
-            select
-            label="Program"
-            value={programId}
-            onChange={(e) => setProgramId(e.target.value)}
-            sx={{ maxWidth: 260 }}
-          >
-            {PROGRAM_OPTIONS.map((opt) => (
-              <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
-            ))}
-          </TextField>
+          <Typography variant="body2" color="text.secondary">
+            Everything the LLM receives when generating a report. Editable blocks can be modified; info blocks are assembled at generation time.
+          </Typography>
 
           {templateVars.length > 0 && (
             <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
@@ -363,35 +465,191 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             </Stack>
           )}
 
-          <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 2, backgroundColor: '#f8fafc', p: 2 }}>
-            {editingPrompt ? (
+          {/* — System Message Section — */}
+          <Typography sx={sectionHeaderSx}>System Message</Typography>
+
+          {/* Static System Prompt */}
+          <Accordion
+            sx={accordionSx}
+            expanded={editingField === 'static'}
+            onChange={(_, expanded) => setEditingField(expanded ? 'static' : null)}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <LockOutlinedIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Static System Prompt</Typography>
+              <Chip
+                label={prompt.staticSystemPrompt ? `${countLines(prompt.staticSystemPrompt)} lines` : 'empty'}
+                size="small"
+                variant="outlined"
+                sx={{ mr: 1, fontSize: 11 }}
+              />
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'static' ? null : 'static'); }}
+                sx={{ color: '#6366f1' }}
+              >
+                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pt: 0 }}>
               <TextField
-                label="System Prompt"
-                value={prompt.systemPrompt}
-                onChange={(e) => setPrompt((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                value={prompt.staticSystemPrompt}
+                onChange={(e) => setPrompt((prev) => ({ ...prev, staticSystemPrompt: e.target.value }))}
                 fullWidth
                 multiline
                 minRows={8}
+                maxRows={30}
+                placeholder="Core report generation instructions (persona, structure, scoring rubrics...)"
+                sx={{ '& .MuiInputBase-root': { fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6 } }}
               />
-            ) : (
-              <Typography
-                component="div"
-                sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: '#0f172a', lineHeight: 1.6, fontSize: 15 }}
-              >
-                {renderPromptWithChips(prompt.systemPrompt) || (
-                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                    No prompt loaded. Select a program above.
-                  </Typography>
-                )}
+            </AccordionDetails>
+          </Accordion>
+
+          {/* Collapsed preview — kept as sibling because AccordionDetails is hidden when collapsed */}
+          {editingField !== 'static' && prompt.staticSystemPrompt && (
+            <Box sx={{ px: 2, mt: -1.5 }}>
+              <Typography variant="body2" sx={{
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                fontSize: 13,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}>
+                {prompt.staticSystemPrompt}
               </Typography>
+            </Box>
+          )}
+
+          {/* Dynamic System Prompt */}
+          <Accordion
+            sx={accordionSx}
+            expanded={editingField === 'dynamic'}
+            onChange={(_, expanded) => setEditingField(expanded ? 'dynamic' : null)}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <EditOutlinedIcon sx={{ fontSize: 18, color: '#10b981' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Dynamic System Prompt</Typography>
+              <Chip
+                label={prompt.dynamicSystemPrompt ? `${countLines(prompt.dynamicSystemPrompt)} lines` : 'empty'}
+                size="small"
+                variant="outlined"
+                sx={{ mr: 1, fontSize: 11 }}
+              />
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'dynamic' ? null : 'dynamic'); }}
+                sx={{ color: '#10b981' }}
+              >
+                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pt: 0 }}>
+              <TextField
+                value={prompt.dynamicSystemPrompt}
+                onChange={(e) => setPrompt((prev) => ({ ...prev, dynamicSystemPrompt: e.target.value }))}
+                fullWidth
+                multiline
+                minRows={4}
+                maxRows={20}
+                placeholder="Glossary, context-specific instructions, classroom-level customizations..."
+                sx={{ '& .MuiInputBase-root': { fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6 } }}
+              />
+            </AccordionDetails>
+          </Accordion>
+
+          {editingField !== 'dynamic' && prompt.dynamicSystemPrompt && (
+            <Box sx={{ px: 2, mt: -1.5 }}>
+              <Typography variant="body2" sx={{
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                fontSize: 13,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}>
+                {prompt.dynamicSystemPrompt}
+              </Typography>
+            </Box>
+          )}
+
+          <TextField
+            label="Change note (optional)"
+            value={changeNote}
+            onChange={(e) => setChangeNote(e.target.value)}
+            size="small"
+            fullWidth
+            placeholder="e.g. Added glossary terms for primary program"
+            sx={{ mt: 0.5 }}
+          />
+
+          <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+            A JSON output schema wrapper is automatically appended after both prompts at generation time.
+          </Typography>
+
+          {/* Version History */}
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
+            {!promptDocState?.versions?.length && (
+              <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
+            )}
+            {promptDocState?.versions?.length > 0 && (
+              <List dense>
+                {promptDocState.versions.map((v, idx) => (
+                  <ListItem key={`${v.version}-${idx}`} divider>
+                    <ListItemText
+                      primary={`v${v.version || '?'} — ${v.changeNote || 'Updated'}`}
+                      secondary={(v.updatedBy?.email || v.updatedBy?.name) ? `${v.updatedBy?.name || ''} ${v.updatedBy?.email || ''}` : ''}
+                    />
+                    <ListItemSecondaryAction>
+                      <Button size="small" startIcon={<RestoreIcon />} onClick={() => handleRevert(v)} disabled={saving}>Revert</Button>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
             )}
           </Box>
 
-          <Typography variant="caption" color="text.secondary">
-            Note: A JSON output schema wrapper is automatically appended when generating reports. It is not shown here.
-          </Typography>
+          <Divider sx={{ my: 0.5 }} />
 
-          <Divider sx={{ my: 1 }} />
+          {/* — User Message Section — */}
+          <Typography sx={sectionHeaderSx}>User Message</Typography>
+
+          {/* Student Context */}
+          <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Stack direction="row" alignItems="center" gap={1}>
+              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Context</Typography>
+              <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
+            </Stack>
+            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
+              Student name, date of birth, and age are injected from the student profile at generation time.
+            </Typography>
+            <Box sx={{ backgroundColor: '#f8fafc', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>
+              {'Student: {"studentName":"Aarav Sharma","dob":"15 March 2019","age":"6 years 11 months"}'}
+            </Box>
+          </Box>
+
+          {/* Student Observations */}
+          <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Stack direction="row" alignItems="center" gap={1}>
+              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Observations</Typography>
+              <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
+            </Stack>
+            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
+              All observations for the selected date range are injected as a JSON array at generation time.
+            </Typography>
+          </Box>
+
         </CardContent>
       </Card>
 
