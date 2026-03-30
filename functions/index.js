@@ -13,7 +13,7 @@ import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js"
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
 import { REPORT_DEFAULTS, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay } from "./utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -3255,16 +3255,17 @@ async function getReportPrompt(programId, { forceRefresh = false } = {}) {
 
   const data = snap.data() || {};
   const prompt = {
-    systemPrompt: String(data.systemPrompt || ""),
+    staticSystemPrompt: String(data.staticSystemPrompt || ""),
+    dynamicSystemPrompt: String(data.dynamicSystemPrompt || ""),
     title: String(data.title || ""),
     description: String(data.description || ""),
     version: Number.isFinite(data.version) ? data.version : 1,
   };
 
-  if (!prompt.systemPrompt) {
+  if (!prompt.staticSystemPrompt) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      `Report prompt for ${programId} has empty systemPrompt`,
+      `Report prompt for ${programId} has empty staticSystemPrompt`,
     );
   }
 
@@ -3361,7 +3362,11 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
     age: studentContext?.age || "age unavailable",
   };
 
-  const systemContent = prompt.systemPrompt + REPORT_JSON_WRAPPER;
+  const systemContent = assembleReportSystemContent(
+    prompt.staticSystemPrompt,
+    prompt.dynamicSystemPrompt,
+    REPORT_JSON_WRAPPER,
+  );
 
   const startStr = dateRange.start instanceof Date
     ? dateRange.start.toISOString().split("T")[0]
@@ -3441,9 +3446,10 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     ? mergeReportConfig(configOverrides, baseConfig)
     : baseConfig;
 
+  const basePrompt = await getReportPrompt(studentInfo.programId);
   const prompt = promptOverride
-    ? { ...await getReportPrompt(studentInfo.programId), systemPrompt: promptOverride }
-    : await getReportPrompt(studentInfo.programId);
+    ? { ...basePrompt, staticSystemPrompt: promptOverride.staticSystemPrompt ?? basePrompt.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt ?? basePrompt.dynamicSystemPrompt }
+    : basePrompt;
 
   const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
   const endDate = dateRangeEnd ? normalizeEndOfDay(new Date(dateRangeEnd)) : new Date();
@@ -3610,8 +3616,8 @@ export const previewStudentReport = functions
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
       configOverrides: data?.config || null,
-      promptOverride: typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+      promptOverride: (data?.staticSystemPrompt || data?.dynamicSystemPrompt)
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null,
       dryRun: true,
     });

@@ -15,7 +15,15 @@ import {
   FormControl,
   InputLabel,
   Select,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  IconButton,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -38,32 +46,35 @@ function extractTemplateVars(text) {
   return matches ? [...new Set(matches)] : [];
 }
 
-function renderPromptWithChips(text) {
-  if (!text) return null;
-  const parts = text.split(/(<[A-Z_]+>)/g);
-  return parts.map((part, idx) => {
-    if (/^<[A-Z_]+>$/.test(part)) {
-      return (
-        <Chip
-          key={idx}
-          component="span"
-          size="small"
-          label={part}
-          color="info"
-          variant="outlined"
-          sx={{
-            mx: 0.5,
-            fontWeight: 700,
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-            borderColor: '#93c5fd',
-            verticalAlign: 'middle',
-          }}
-        />
-      );
-    }
-    return <React.Fragment key={idx}>{part}</React.Fragment>;
-  });
+function countLines(text) {
+  if (!text) return 0;
+  return text.split('\n').length;
 }
+
+function previewText(text, maxLines = 2) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  if (lines.length <= maxLines) return text;
+  return lines.slice(0, maxLines).join('\n') + '...';
+}
+
+const sectionHeaderSx = {
+  fontWeight: 700,
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: 1.2,
+  color: '#64748b',
+  mb: 1,
+  mt: 0.5,
+};
+
+const accordionSx = {
+  border: '1px solid #e2e8f0',
+  borderRadius: '12px !important',
+  boxShadow: 'none',
+  '&:before': { display: 'none' },
+  '&.Mui-expanded': { margin: 0 },
+};
 
 export default function ReportGenConfigEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
@@ -79,8 +90,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
   });
 
   const [programId, setProgramId] = useState(PROGRAM_OPTIONS[0]?.id || 'adolescent');
-  const [prompt, setPrompt] = useState({ title: '', description: '', systemPrompt: '' });
-  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [prompt, setPrompt] = useState({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
+  const [editingField, setEditingField] = useState(null); // 'static' | 'dynamic' | null
 
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -134,10 +145,11 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         setPrompt({
           title: data.title || '',
           description: data.description || '',
-          systemPrompt: data.systemPrompt || '',
+          staticSystemPrompt: data.staticSystemPrompt || '',
+          dynamicSystemPrompt: data.dynamicSystemPrompt || '',
         });
       } else {
-        setPrompt({ title: '', description: '', systemPrompt: '' });
+        setPrompt({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
       }
     } catch {
       notify.error(`Failed to load prompt for ${programId}.`);
@@ -197,7 +209,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           setDoc(doc(db, 'ai_prompts', promptDocId), {
             title: prompt.title || '',
             description: prompt.description || '',
-            systemPrompt: prompt.systemPrompt || '',
+            staticSystemPrompt: prompt.staticSystemPrompt || '',
+            dynamicSystemPrompt: prompt.dynamicSystemPrompt || '',
             updatedBy: currentUser?.uid || null,
             updatedAt: new Date(),
           }, { merge: true }),
@@ -233,7 +246,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
       const call = httpsCallable(cloudFunctions, 'previewStudentReport', { timeout: 300_000 });
       const payload = {
         studentId: selectedStudent.id,
-        systemPrompt: prompt.systemPrompt,
+        staticSystemPrompt: prompt.staticSystemPrompt,
+        dynamicSystemPrompt: prompt.dynamicSystemPrompt,
         config: {
           model: playgroundConfig.model,
           temperature: playgroundConfig.temperature,
@@ -250,7 +264,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     }
   };
 
-  const templateVars = useMemo(() => extractTemplateVars(prompt.systemPrompt), [prompt.systemPrompt]);
+  const allPromptText = prompt.staticSystemPrompt + prompt.dynamicSystemPrompt;
+  const templateVars = useMemo(() => extractTemplateVars(allPromptText), [allPromptText]);
   const studentMatches = useMemo(() => fuzzySearchStudents(students, studentSearch).slice(0, 3), [students, studentSearch]);
   const getStudentLabel = (stu) => stu ? (stu.displayName || stu.name || `${stu.firstName || ''} ${stu.lastName || ''}`.trim() || stu.id) : '';
 
@@ -327,32 +342,28 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         </CardContent>
       </Card>
 
-      {/* Program Prompt */}
+      {/* Context Window */}
       <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Program Prompt</Typography>
-            <Button
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Context Window</Typography>
+            <TextField
+              select
+              label="Program"
+              value={programId}
+              onChange={(e) => { setProgramId(e.target.value); setEditingField(null); }}
               size="small"
-              variant={editingPrompt ? 'outlined' : 'text'}
-              onClick={() => setEditingPrompt((prev) => !prev)}
-              sx={{ textTransform: 'none' }}
+              sx={{ minWidth: 160 }}
             >
-              {editingPrompt ? 'Done' : 'Edit'}
-            </Button>
+              {PROGRAM_OPTIONS.map((opt) => (
+                <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
+              ))}
+            </TextField>
           </Stack>
 
-          <TextField
-            select
-            label="Program"
-            value={programId}
-            onChange={(e) => setProgramId(e.target.value)}
-            sx={{ maxWidth: 260 }}
-          >
-            {PROGRAM_OPTIONS.map((opt) => (
-              <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
-            ))}
-          </TextField>
+          <Typography variant="body2" color="text.secondary">
+            Everything the LLM receives when generating a report. Editable blocks can be modified; info blocks are assembled at generation time.
+          </Typography>
 
           {templateVars.length > 0 && (
             <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
@@ -363,35 +374,147 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             </Stack>
           )}
 
-          <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 2, backgroundColor: '#f8fafc', p: 2 }}>
-            {editingPrompt ? (
+          {/* — System Message Section — */}
+          <Typography sx={sectionHeaderSx}>System Message</Typography>
+
+          {/* Static System Prompt */}
+          <Accordion
+            sx={accordionSx}
+            expanded={editingField === 'static'}
+            onChange={(_, expanded) => setEditingField(expanded ? 'static' : null)}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <LockOutlinedIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Static System Prompt</Typography>
+              <Chip
+                label={`${countLines(prompt.staticSystemPrompt)} lines`}
+                size="small"
+                variant="outlined"
+                sx={{ mr: 1, fontSize: 11 }}
+              />
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'static' ? null : 'static'); }}
+                sx={{ color: '#6366f1' }}
+              >
+                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pt: 0 }}>
               <TextField
-                label="System Prompt"
-                value={prompt.systemPrompt}
-                onChange={(e) => setPrompt((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                value={prompt.staticSystemPrompt}
+                onChange={(e) => setPrompt((prev) => ({ ...prev, staticSystemPrompt: e.target.value }))}
                 fullWidth
                 multiline
                 minRows={8}
+                maxRows={30}
+                placeholder="Core report generation instructions (persona, structure, scoring rubrics...)"
+                sx={{ '& .MuiInputBase-root': { fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6 } }}
               />
-            ) : (
-              <Typography
-                component="div"
-                sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: '#0f172a', lineHeight: 1.6, fontSize: 15 }}
-              >
-                {renderPromptWithChips(prompt.systemPrompt) || (
-                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                    No prompt loaded. Select a program above.
-                  </Typography>
-                )}
-              </Typography>
-            )}
-          </Box>
+            </AccordionDetails>
+          </Accordion>
 
-          <Typography variant="caption" color="text.secondary">
-            Note: A JSON output schema wrapper is automatically appended when generating reports. It is not shown here.
+          {/* Collapsed preview for static when not editing */}
+          {editingField !== 'static' && prompt.staticSystemPrompt && (
+            <Box sx={{ px: 2, mt: -1.5 }}>
+              <Typography variant="body2" sx={{ color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 13 }}>
+                {previewText(prompt.staticSystemPrompt)}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Dynamic System Prompt */}
+          <Accordion
+            sx={accordionSx}
+            expanded={editingField === 'dynamic'}
+            onChange={(_, expanded) => setEditingField(expanded ? 'dynamic' : null)}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <EditOutlinedIcon sx={{ fontSize: 18, color: '#10b981' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Dynamic System Prompt</Typography>
+              <Chip
+                label={prompt.dynamicSystemPrompt ? `${countLines(prompt.dynamicSystemPrompt)} lines` : 'empty'}
+                size="small"
+                variant="outlined"
+                sx={{ mr: 1, fontSize: 11 }}
+              />
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'dynamic' ? null : 'dynamic'); }}
+                sx={{ color: '#10b981' }}
+              >
+                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pt: 0 }}>
+              <TextField
+                value={prompt.dynamicSystemPrompt}
+                onChange={(e) => setPrompt((prev) => ({ ...prev, dynamicSystemPrompt: e.target.value }))}
+                fullWidth
+                multiline
+                minRows={4}
+                maxRows={20}
+                placeholder="Glossary, context-specific instructions, classroom-level customizations..."
+                sx={{ '& .MuiInputBase-root': { fontFamily: 'inherit', fontSize: 14, lineHeight: 1.6 } }}
+              />
+            </AccordionDetails>
+          </Accordion>
+
+          {editingField !== 'dynamic' && prompt.dynamicSystemPrompt && (
+            <Box sx={{ px: 2, mt: -1.5 }}>
+              <Typography variant="body2" sx={{ color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 13 }}>
+                {previewText(prompt.dynamicSystemPrompt)}
+              </Typography>
+            </Box>
+          )}
+
+          <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+            A JSON output schema wrapper is automatically appended after both prompts at generation time.
           </Typography>
 
-          <Divider sx={{ my: 1 }} />
+          <Divider sx={{ my: 0.5 }} />
+
+          {/* — User Message Section — */}
+          <Typography sx={sectionHeaderSx}>User Message</Typography>
+
+          {/* Student Context */}
+          <Accordion sx={accordionSx} disabled>
+            <AccordionSummary
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Context</Typography>
+              <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
+            </AccordionSummary>
+          </Accordion>
+          <Box sx={{ px: 2, mt: -1.5 }}>
+            <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: 13 }}>
+              Student name, date of birth, and age are injected from the student profile at generation time.
+            </Typography>
+          </Box>
+
+          {/* Student Observations */}
+          <Accordion sx={accordionSx} disabled>
+            <AccordionSummary
+              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
+            >
+              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Observations</Typography>
+              <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
+            </AccordionSummary>
+          </Accordion>
+          <Box sx={{ px: 2, mt: -1.5 }}>
+            <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: 13 }}>
+              All observations for the selected date range are injected as a JSON array at generation time.
+            </Typography>
+          </Box>
+
         </CardContent>
       </Card>
 
