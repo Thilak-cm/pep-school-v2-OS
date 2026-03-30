@@ -13,6 +13,7 @@
  *   node scripts/admin/migrate-report-prompt-fields.mjs --dry-run
  */
 import admin from "firebase-admin";
+import { buildMigrationPayload } from "../config/reportMigrationUtils.js";
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -43,19 +44,22 @@ async function migrateDoc(docId) {
   }
 
   const data = snap.data();
+  const result = buildMigrationPayload(data);
 
-  if (data.staticSystemPrompt !== undefined) {
-    console.log(`  SKIP: ai_prompts/${docId} already has staticSystemPrompt (already migrated)`);
+  if (result.status === "skip") {
+    const reason = result.reason === "already-migrated"
+      ? "already has staticSystemPrompt (already migrated)"
+      : "no data";
+    console.log(`  SKIP: ai_prompts/${docId} ${reason}`);
     return "skip";
   }
 
-  if (!data.systemPrompt && data.systemPrompt !== "") {
-    console.log(`  WARN: ai_prompts/${docId} has no systemPrompt field — setting empty staticSystemPrompt`);
+  if (result.warning) {
+    console.log(`  WARN: ai_prompts/${docId} ${result.warning}`);
   }
 
   const updates = {
-    staticSystemPrompt: data.systemPrompt || "",
-    dynamicSystemPrompt: "",
+    ...result.payload,
     systemPrompt: FieldValue.delete(),
     migratedAt: FieldValue.serverTimestamp(),
     migratedFrom: "PEP-105",

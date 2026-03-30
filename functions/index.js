@@ -3240,6 +3240,9 @@ async function getReportPrompt(programId, { forceRefresh = false } = {}) {
     );
   }
 
+  // Cache assumes current field schema (staticSystemPrompt, dynamicSystemPrompt).
+  // Run migrate-report-prompt-fields.mjs BEFORE deploying updated functions to
+  // avoid stale cache entries with the old systemPrompt shape (PEP-105).
   const cached = reportPromptCache[docId];
   if (!forceRefresh && cached?.data && (Date.now() - cached.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
     return cached.data;
@@ -3450,6 +3453,13 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   const prompt = promptOverride
     ? { ...basePrompt, staticSystemPrompt: promptOverride.staticSystemPrompt ?? basePrompt.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt ?? basePrompt.dynamicSystemPrompt }
     : basePrompt;
+
+  if (!prompt.staticSystemPrompt) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "staticSystemPrompt cannot be empty",
+    );
+  }
 
   const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
   const endDate = dateRangeEnd ? normalizeEndOfDay(new Date(dateRangeEnd)) : new Date();

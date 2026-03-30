@@ -19,12 +19,17 @@ import {
   AccordionSummary,
   AccordionDetails,
   IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import RestoreIcon from '@mui/icons-material/Restore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -33,6 +38,8 @@ import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import useNotify from '../notifications/useNotify';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
+
+const MAX_HISTORY = 10;
 
 const PROGRAM_OPTIONS = Object.entries(REPORT_PROMPT_DOCS).map(([id, docId]) => ({
   id,
@@ -84,7 +91,9 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
   const [programId, setProgramId] = useState(PROGRAM_OPTIONS[0]?.id || 'adolescent');
   const [prompt, setPrompt] = useState({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
+  const [promptDocState, setPromptDocState] = useState(null); // full Firestore doc state for version history
   const [editingField, setEditingField] = useState(null); // 'static' | 'dynamic' | null
+  const [changeNote, setChangeNote] = useState('');
 
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -135,6 +144,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
       const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
       if (snap.exists()) {
         const data = snap.data() || {};
+        setPromptDocState({ id: snap.id, ...data });
         setPrompt({
           title: data.title || '',
           description: data.description || '',
@@ -142,6 +152,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           dynamicSystemPrompt: data.dynamicSystemPrompt || '',
         });
       } else {
+        setPromptDocState(null);
         setPrompt({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
       }
     } catch {
@@ -187,6 +198,13 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     if (!isAdmin) return;
     setSaving(true);
     try {
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+
       const saves = [
         setDoc(doc(db, 'config', 'report_generation'), {
           model: config.model || REPORT_DEFAULTS.model,
@@ -194,25 +212,103 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
           timezone: config.timezone || REPORT_DEFAULTS.timezone,
           updatedBy: currentUser?.uid || null,
-          updatedAt: new Date(),
+          updatedAt: now,
         }, { merge: true }),
       ];
+
       if (promptDocId) {
-        saves.push(
-          setDoc(doc(db, 'ai_prompts', promptDocId), {
-            title: prompt.title || '',
-            description: prompt.description || '',
-            staticSystemPrompt: prompt.staticSystemPrompt || '',
-            dynamicSystemPrompt: prompt.dynamicSystemPrompt || '',
-            updatedBy: currentUser?.uid || null,
-            updatedAt: new Date(),
-          }, { merge: true }),
-        );
+        const curr = promptDocState || { version: 0, versions: [] };
+        const prevSnapshot = (curr.staticSystemPrompt || curr.dynamicSystemPrompt) ? {
+          version: curr.version || 1,
+          staticSystemPrompt: curr.staticSystemPrompt || '',
+          dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
+          updatedAt: now,
+          updatedBy,
+          changeNote: changeNote || 'Updated prompts',
+        } : null;
+        const newVersions = [
+          ...(prevSnapshot ? [prevSnapshot] : []),
+          ...((curr.versions || []).slice(0, MAX_HISTORY - (prevSnapshot ? 1 : 0))),
+        ];
+
+        const promptPayload = {
+          title: prompt.title || '',
+          description: prompt.description || '',
+          staticSystemPrompt: prompt.staticSystemPrompt || '',
+          dynamicSystemPrompt: prompt.dynamicSystemPrompt || '',
+          version: (curr.version || 1) + 1,
+          updatedAt: now,
+          updatedBy,
+          versions: newVersions,
+        };
+
+        if (promptDocState) {
+          saves.push(updateDoc(doc(db, 'ai_prompts', promptDocId), promptPayload));
+        } else {
+          saves.push(setDoc(doc(db, 'ai_prompts', promptDocId), { ...promptPayload, version: 1, versions: [] }));
+        }
       }
+
       await Promise.all(saves);
+
+      // Reload prompt doc state after save
+      if (promptDocId) {
+        const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+        if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
+      }
+
+      setEditingField(null);
+      setChangeNote('');
       notify.success('Report generation settings saved.');
     } catch {
       notify.error('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevert = async (versionItem) => {
+    if (!isAdmin || !promptDocState || !promptDocId) return;
+    setSaving(true);
+    try {
+      const now = serverTimestamp();
+      const updatedBy = {
+        uid: currentUser?.uid || '',
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || '',
+      };
+      const curr = promptDocState;
+      const prevSnapshot = {
+        version: curr.version || 1,
+        staticSystemPrompt: curr.staticSystemPrompt || '',
+        dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
+        updatedAt: now,
+        updatedBy,
+        changeNote: `Revert to v${versionItem?.version || ''}`,
+      };
+      const newVersions = [prevSnapshot, ...(curr.versions || []).filter((v) => v !== versionItem)].slice(0, MAX_HISTORY);
+
+      const payload = {
+        staticSystemPrompt: versionItem.staticSystemPrompt || '',
+        dynamicSystemPrompt: versionItem.dynamicSystemPrompt || '',
+        version: (curr.version || 1) + 1,
+        updatedAt: now,
+        updatedBy,
+        versions: newVersions,
+      };
+      await updateDoc(doc(db, 'ai_prompts', promptDocId), payload);
+
+      const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+      if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
+      setPrompt((prev) => ({
+        ...prev,
+        staticSystemPrompt: payload.staticSystemPrompt,
+        dynamicSystemPrompt: payload.dynamicSystemPrompt,
+      }));
+      setEditingField(null);
+      notify.success(`Reverted to v${versionItem?.version || ''}.`);
+    } catch {
+      notify.error('Failed to revert prompt.');
     } finally {
       setSaving(false);
     }
@@ -237,6 +333,8 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     setPlaygroundResult(null);
     try {
       const call = httpsCallable(cloudFunctions, 'previewStudentReport', { timeout: 300_000 });
+      // Sending prompt fields as overrides bypasses the server-side reportPromptCache,
+      // so the preview always uses the latest editor values even right after a save.
       const payload = {
         studentId: selectedStudent.id,
         staticSystemPrompt: prompt.staticSystemPrompt,
@@ -383,7 +481,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               <LockOutlinedIcon sx={{ fontSize: 18, color: '#6366f1' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Static System Prompt</Typography>
               <Chip
-                label={`${countLines(prompt.staticSystemPrompt)} lines`}
+                label={prompt.staticSystemPrompt ? `${countLines(prompt.staticSystemPrompt)} lines` : 'empty'}
                 size="small"
                 variant="outlined"
                 sx={{ mr: 1, fontSize: 11 }}
@@ -410,7 +508,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             </AccordionDetails>
           </Accordion>
 
-          {/* Collapsed preview for static when not editing */}
+          {/* Collapsed preview — kept as sibling because AccordionDetails is hidden when collapsed */}
           {editingField !== 'static' && prompt.staticSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
               <Typography variant="body2" sx={{
@@ -483,9 +581,42 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             </Box>
           )}
 
+          <TextField
+            label="Change note (optional)"
+            value={changeNote}
+            onChange={(e) => setChangeNote(e.target.value)}
+            size="small"
+            fullWidth
+            placeholder="e.g. Added glossary terms for primary program"
+            sx={{ mt: 0.5 }}
+          />
+
           <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
             A JSON output schema wrapper is automatically appended after both prompts at generation time.
           </Typography>
+
+          {/* Version History */}
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
+            {!promptDocState?.versions?.length && (
+              <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
+            )}
+            {promptDocState?.versions?.length > 0 && (
+              <List dense>
+                {promptDocState.versions.map((v, idx) => (
+                  <ListItem key={`${v.version}-${idx}`} divider>
+                    <ListItemText
+                      primary={`v${v.version || '?'} — ${v.changeNote || 'Updated'}`}
+                      secondary={(v.updatedBy?.email || v.updatedBy?.name) ? `${v.updatedBy?.name || ''} ${v.updatedBy?.email || ''}` : ''}
+                    />
+                    <ListItemSecondaryAction>
+                      <Button size="small" startIcon={<RestoreIcon />} onClick={() => handleRevert(v)} disabled={saving}>Revert</Button>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
 
           <Divider sx={{ my: 0.5 }} />
 
