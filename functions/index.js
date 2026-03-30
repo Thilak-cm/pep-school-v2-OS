@@ -3626,7 +3626,7 @@ export const previewStudentReport = functions
       dateRangeEnd: data?.dateRangeEnd || null,
       requesterId: context.auth.uid,
       configOverrides: data?.config || null,
-      promptOverride: (data?.staticSystemPrompt || data?.dynamicSystemPrompt)
+      promptOverride: (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) || (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
         ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null,
       dryRun: true,
