@@ -484,33 +484,28 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           <Typography sx={sectionHeaderSx}>User Message</Typography>
 
           {/* Student Context */}
-          <Accordion sx={accordionSx} disabled>
-            <AccordionSummary
-              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
-            >
+          <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Stack direction="row" alignItems="center" gap={1}>
               <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Context</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
-            </AccordionSummary>
-          </Accordion>
-          <Box sx={{ px: 2, mt: -1.5 }}>
-            <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: 13 }}>
+            </Stack>
+            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
               Student name, date of birth, and age are injected from the student profile at generation time.
             </Typography>
+            <Box sx={{ backgroundColor: '#f8fafc', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>
+              {'Student: {"studentName":"Aarav Sharma","dob":"15 March 2019","age":"6 years 11 months"}'}
+            </Box>
           </Box>
 
           {/* Student Observations */}
-          <Accordion sx={accordionSx} disabled>
-            <AccordionSummary
-              sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
-            >
+          <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Stack direction="row" alignItems="center" gap={1}>
               <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Observations</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
-            </AccordionSummary>
-          </Accordion>
-          <Box sx={{ px: 2, mt: -1.5 }}>
-            <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: 13 }}>
+            </Stack>
+            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
               All observations for the selected date range are injected as a JSON array at generation time.
             </Typography>
           </Box>
