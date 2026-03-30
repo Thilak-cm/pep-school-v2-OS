@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.2.0 — 2026-03-30
+
+### Added
+- "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
+- Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
+- User Message section showing auto-injected student context and observations info blocks (PEP-105)
+- Migration script for renaming `systemPrompt` → `staticSystemPrompt` + `dynamicSystemPrompt` in Firestore `ai_prompts/report_*` docs (PEP-105)
+
+### Changed
+- `generateStudentReport` Cloud Function now assembles system message from static + dynamic prompts via `assembleReportSystemContent` helper (PEP-105)
+- Preview/playground sends both prompt fields as overrides, bypassing server-side cache for immediate feedback (PEP-105)
+
 # 10.1.0 — 2026-03-25
 
 ### Added
