@@ -51,13 +51,6 @@ function countLines(text) {
   return text.split('\n').length;
 }
 
-function previewText(text, maxLines = 2) {
-  if (!text) return '';
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n') + '...';
-}
-
 const sectionHeaderSx = {
   fontWeight: 700,
   fontSize: 11,
@@ -420,8 +413,16 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Collapsed preview for static when not editing */}
           {editingField !== 'static' && prompt.staticSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{ color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 13 }}>
-                {previewText(prompt.staticSystemPrompt)}
+              <Typography variant="body2" sx={{
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                fontSize: 13,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}>
+                {prompt.staticSystemPrompt}
               </Typography>
             </Box>
           )}
@@ -468,8 +469,16 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
           {editingField !== 'dynamic' && prompt.dynamicSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{ color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 13 }}>
-                {previewText(prompt.dynamicSystemPrompt)}
+              <Typography variant="body2" sx={{
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                fontSize: 13,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}>
+                {prompt.dynamicSystemPrompt}
               </Typography>
             </Box>
           )}
