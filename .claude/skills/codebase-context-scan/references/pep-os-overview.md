@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-03-27T07:21:56.314Z
-App version: 10.0.1
+Generated: 2026-03-30T22:25:58.301Z
+App version: 10.2.0
 
 ## App Snapshot
 
@@ -137,6 +137,15 @@ App version: 10.0.1
 
 ## Recent Changes
 
+### 10.2.0 (2026-03-30)
+- "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
+- Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
+- User Message section showing auto-injected student context and observations info blocks (PEP-105)
+
+### 10.1.0 (2026-03-25)
+- "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
+- Lesson tag chips displayed on media cards in the student timeline (PEP-58)
+
 ### 10.0.1 (2026-03-24)
 - Dead bulk report generation code: `StudentList.jsx` component, `generateClassroomReports` and `exportClassroomReportsToDrive` Cloud Functions, `REPORT_BULK_CONCURRENCY` constant, and bulk UI in `ReportGenerateDialog` (PEP-115)
 
@@ -144,14 +153,4 @@ App version: 10.0.1
 - Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
 - grammy framework integration for Telegram Bot API interactions (PEP-109)
 - One-time setup script (`scripts/admin/setup-telegram-bot.mjs`) registers webhook URL with Telegram and seeds `config/telegram_bot` Firestore doc with allowed user IDs (PEP-109)
-
-### 9.10.1 (2026-03-16)
-- Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
-- Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
-- Report Generate dialog stays open on error so the user can adjust dates and retry without re-navigating (PEP-89)
-
-### 9.10.0 (2026-03-10)
-- Quality flags on report cards: sentiment score and area balance score as colored chips (green/yellow/red) with expandable missing data details (PEP-87)
-- Data completeness chip on report cards: "Complete" (green) or "Missing data" (amber) with expandable flag list (PEP-87)
-- Author display name shown on each report card with teacher emoji (PEP-87)
 
