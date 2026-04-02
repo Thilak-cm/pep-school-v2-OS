@@ -29,12 +29,22 @@ The orchestrator itself stays thin. Heavy work (reading diffs, auditing code, ma
 ```
 Orchestrator (this skill — thin, stays in main context)
     │
-    ├── Explore subagent (Task/Explore)              — only if diff is complex
-    ├── Audit subagent (.claude/agents/code-auditor)  — produces structured review report
-    └── Fix subagent (.claude/agents/code-fixer)      — consumes report, makes fixes
+    ├── Explore subagent (Task/Explore)                — only if diff is complex
+    │
+    ├── PARALLEL AUDIT ────────────────────────────────
+    │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick)  — fast mechanical checks
+    │   └── Deep auditor  (.claude/agents/code-auditor, scope=deep)   — reasoning-heavy checks
+    │
+    ├── OVERLAPPED FIX ────────────────────────────────
+    │   ├── Fixer-A (.claude/agents/code-fixer)  — fixes quick findings (starts as soon as quick audit returns)
+    │   └── Fixer-B (.claude/agents/code-fixer)  — fixes deep findings (parallel if no file overlap, else after A)
+    │
+    └── RE-AUDIT LOOP ────────────────────────────────
+        ├── Full auditor (.claude/agents/code-auditor, scope=full)  — fresh, complete re-audit
+        └── Fixer (.claude/agents/code-fixer)                       — single fixer for remaining findings
 ```
 
-The audit report contract at `references/audit-report-contract.md` defines the exact format the audit agent outputs and the fix agent consumes.
+The audit report contract at `references/audit-report-contract.md` defines the exact format the audit agent outputs and the fix agent consumes. Both quick and deep auditors produce reports in the same format — the orchestrator merges them before displaying to the user.
 
 ## Workflow
 
@@ -84,88 +94,125 @@ Only if Phase 1 determined exploration is needed.
 
 **Output:** A structured exploration summary to pass to the audit agent alongside the overview.
 
-### Phase 2: Audit Subagent
+### Phase 2: Parallel Audit
 
-This is the core quality gate. Use the `code-auditor` agent (`.claude/agents/code-auditor.md`).
+The audit is split into two parallel agents with different scopes to enable overlapped fixing.
 
-**Data to pass to the audit agent:**
-- Linear issue: full title, description, acceptance criteria
-- Diff: output of `git diff dev...HEAD` (committed) + `git diff` (uncommitted)
-- Commit log: `git log --oneline dev..HEAD`
-- Codebase overview: contents of `pep-os-overview.md`
-- Explore summary (if Phase 1b ran)
+**2a. Spawn both auditors in parallel (same moment):**
 
-The agent has the full audit report contract and review checklist baked into its system prompt — no need to repeat them.
+| Agent | Scope | Input | Why |
+|-------|-------|-------|-----|
+| **Quick auditor** (Sonnet) | `quick` | Diff only | Fast mechanical checks — dead code, debug artifacts, unused imports, obvious async errors |
+| **Deep auditor** (Sonnet) | `deep` | Diff + Linear issue + overview + explore summary | Reasoning-heavy checks — scope alignment, correctness, security, patterns, test coverage |
 
-**Output:** A structured audit report. The orchestrator parses the `Audit verdict` field.
+Both agents output structured reports in the audit report contract format. The quick auditor omits the `Scope Alignment` section.
+
+**2b. As each auditor returns, act immediately:**
+
+```
+spawn quick-audit + deep-audit in parallel
+
+when quick-audit returns:
+    quick_report = result
+    quick_files = set of file paths from quick findings
+    if quick_report has findings:
+        spawn fixer-A in background with quick_report findings
+
+when deep-audit returns:
+    deep_report = result
+    deep_files = set of file paths from deep findings
+    if deep_report has findings:
+        overlap = quick_files ∩ deep_files
+        if overlap is empty OR fixer-A is already done:
+            spawn fixer-B immediately
+        else:
+            wait for fixer-A to finish, then spawn fixer-B
+
+wait for all fixers to complete
+```
+
+The orchestrator determines file overlap by extracting the `File:` field from each finding. If fixer-A and fixer-B would touch different files, they can run concurrently. If they share any file, serialize them to avoid conflicts.
+
+**2c. Merge reports for display:**
+
+Concatenate both reports into a single merged report for the user. Use the deep report's Scope Alignment section. Combine findings from both reports under the standard Blockers/Warnings/Nits/User Decision sections. Deduplicate any findings that appear in both (same file + same line range = duplicate; keep the higher-severity version).
 
 ### Phase 3: Process Audit Results (Orchestrator)
 
-The orchestrator reads the audit report and decides next steps.
+The orchestrator reads the merged audit report and decides next steps.
 
-1. **Display the full audit report to the user**
+1. **Display the full merged audit report to the user**
 
 2. **Handle "Needs User Decision" items first**
    - If any exist, present them to the user via `AskUserQuestion`
    - User decisions may convert items into blockers, warnings, or dismissals
    - Rewrite those items into the appropriate category before proceeding
 
-3. **Check the verdict**
-   - If `CLEAN` → proceed to Phase 5 (Version Bump)
-   - If `HAS_FINDINGS` → proceed to Phase 4 (Fix Loop)
+3. **Check the merged verdict**
+   - If both audits are `CLEAN` → proceed to Phase 5 (Version Bump)
+   - If either has `HAS_FINDINGS` → the fixers already started in Phase 2b. Wait for them if still running, then proceed to Phase 4 (Re-audit).
 
-### Phase 4: Fix Loop
+### Phase 4: Re-audit Loop
 
-Loop: fix → re-audit → repeat until clean.
+After the initial parallel fix pass from Phase 2b, a fresh re-audit validates the fixes.
 
-**4a. Spawn Fix Subagent**
+**4a. Re-Audit (full scope)**
 
-Use the `code-fixer` agent (`.claude/agents/code-fixer.md`).
+Spawn a single `code-auditor` agent with scope `full` and the updated diff. This is a fresh, complete audit — it has no memory of the previous audits or fixes. It reads the full diff cold. This catches cases where a fix introduced a new problem.
 
-**Data to pass to the fix agent:**
-- Blockers and warnings from the audit report (in Finding Format)
-- Linear issue context: `{issue_id}: {issue_title}` + description
+**4b. If clean → Phase 5**
 
-The agent has fix rules, test commands, and output format baked into its system prompt.
+**4c. If findings remain → single fix agent**
 
-**4b. Re-Audit**
+Subsequent iterations use a single fixer (no more parallel split — the remaining findings are typically few and may be interrelated).
 
-After the fix agent completes, spawn the **`code-auditor` agent again** (Phase 2) with the updated diff.
-
-This is a fresh audit — the new audit agent has no memory of the previous audit or fixes. It reads the full diff cold. This catches cases where a fix introduced a new problem.
-
-**4c. Loop Control**
+**4d. Loop Control**
 
 ```
-max_iterations = 3
+max_iterations = 3  (counts from the first re-audit, NOT the initial parallel fix)
 
 for i in 1..max_iterations:
+    spawn full re-audit
     if verdict == CLEAN:
         break → proceed to Phase 5
     if i == max_iterations:
         STOP — surface remaining findings to user
-        ask: "3 fix attempts haven't resolved all issues. Review manually?"
+        ask: "3 re-audit attempts haven't resolved all issues. Review manually?"
     else:
-        spawn fix agent → spawn audit agent → continue loop
+        spawn fix agent → continue loop
 ```
 
 ### Phase 5: Version Bump (Orchestrator)
 
 Absorbed from the former `/version-update` skill. Runs inline before committing.
 
-1. **Infer bump type** from the Linear issue and diff:
-   - **patch** — bugfix, hotfix, small tweak, rule fix. Labels like `Bug`, `Fix`
-   - **minor** — new feature, enhancement, new UI component, new endpoint. Labels like `Feature`, `Enhancement`
-   - **major** — breaking change, major refactor (rare, always confirm)
+1. **Decide bump type** from the commit prefix, Linear issue labels, and diff scope. Do NOT ask the user — decide autonomously using these rules derived from codebase history:
 
-2. **Ask user** via `AskUserQuestion`:
-   ```
-   Based on "{issue_title}" [{labels}]:
-   Suggested bump: **minor** (new feature)
-   Options: patch | minor | major | skip
-   ```
+   **patch** (default) — the vast majority of changes:
+   - Bugfixes (`fix:` commits, labels like `Bug`, `Fix`)
+   - Small tweaks, refactors, dead code removal, rule fixes
+   - Audit-driven fixes, error handling improvements
+   - Config changes, lint fixes, dependency updates
+   - Any change that modifies existing behavior without adding a new user-facing capability
 
-3. **If not skip:**
+   **minor** — new user-facing capability:
+   - A new UI screen, component, or feature the user can interact with (`feat:` commits adding visible functionality)
+   - A new Cloud Function endpoint that serves a new use case
+   - A new integration (e.g., new API, new external service)
+   - Multiple `feat:` commits in the same PR that together deliver a cohesive new feature
+
+   **major** — a new top-level capability that introduces a new subsystem, data model, or integration surface (~1 major per 10-15 minor releases). **Always ask the user before applying a major bump.** Examples from history:
+   - v6.0.0: Baseball Card AI summaries (new `ai_summaries` subcollection, new Cloud Function, new config UI)
+   - v7.0.0: Multi-chat support (new `chats/{chatId}/messages` subcollection, chat management UI, chat command centre)
+   - v8.0.0: Media notes end-to-end (photo/video/PDF observations, Storage finalize trigger, media timeline tab)
+   - v9.0.0: AI report generation pipeline (new Cloud Functions, report prompts, writing snapshots)
+   - v10.0.0: Telegram bot foundation (webhook Cloud Function, grammy integration, setup script)
+
+   The pattern: major = introduces a **new noun** to the system (baseball cards, chats, media, reports, telegram bot) with new Firestore collections/subcollections, new Cloud Functions, and a new UI surface. It is NOT about the amount of code changed — a large refactor is still patch.
+
+   **Deciding edge cases:** If the PR has both `fix:` and `feat:` commits, go by the primary intent of the Linear issue. A `feat:` that adds a small helper to support a bugfix is still patch. A `fix:` that addresses audit feedback on a new feature is still minor (the feature itself drives the bump).
+
+2. **Apply the bump:**
    - Run `node scripts/version.mjs <type>` from repo root
    - Read new version from `VERSION` file
    - Read `CHANGELOG.md`, generate a new entry at the top using Keep a Changelog format:
@@ -301,7 +348,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
-3. **Version bump type** — always confirm patch/minor/major/skip
+3. **Major version bump only** — patch and minor are decided autonomously; major requires confirmation
 4. **Changelog entry** — show for review before committing
 5. **Before pushing + opening PR** — confirm user is ready to ship
 6. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)

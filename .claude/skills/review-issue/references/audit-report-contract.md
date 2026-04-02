@@ -2,6 +2,18 @@
 
 This document defines the structured format that the **audit subagent** must output and the **fix subagent** consumes. It is the interface contract between the two agents — precision here determines fix quality.
 
+## Audit Scope
+
+The orchestrator may run multiple auditors in parallel, each with a different scope:
+
+| Scope | Checks | Context needed |
+|-------|--------|---------------|
+| **quick** | Dead code, debug artifacts, unused imports/variables, missing error handling on obvious async, commented-out code, console.logs | Diff only |
+| **deep** | Scope alignment, correctness/logic, security, pattern consistency, test coverage | Diff + Linear issue + overview + explore |
+| **full** | Everything | Everything |
+
+Each auditor produces its own report in the format below. The orchestrator merges reports by concatenating findings sections. The `Scope Alignment` section only appears in `deep` or `full` reports.
+
 ## Report Format
 
 The audit agent MUST output a report in exactly this structure:
@@ -12,6 +24,7 @@ The audit agent MUST output a report in exactly this structure:
 ## Metadata
 - **Issue:** PEP-{id} — {title}
 - **Branch:** {branch-name}
+- **Audit scope:** quick | deep | full
 - **Diff scope:** {N} files changed, {+additions} / {-deletions}
 - **Audit verdict:** CLEAN | HAS_FINDINGS
 - **Blocker count:** {N}
