@@ -3811,9 +3811,8 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
-    const generatedAtIso = reportDocId
-      ? (report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString())
-      : (report.generatedAt?.toISOString?.() || new Date().toISOString());
+    // Handle both Firestore Timestamp (.toDate()) and plain JS Date (.toISOString())
+    const generatedAtIso = (report.generatedAt?.toDate?.() || report.generatedAt)?.toISOString?.() || new Date().toISOString();
 
     // Create the Google Doc in student folder (Drive first to minimize orphans)
     const academicYear = deriveAcademicYear(new Date());
