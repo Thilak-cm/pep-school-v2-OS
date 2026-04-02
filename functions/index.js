@@ -3428,11 +3428,11 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
   return parseReportResponse(rawContent);
 }
 
-async function writeReportDoc(studentId, payload) {
-  const docId = `report_${Date.now()}`;
-  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(docId);
+async function writeReportDoc(studentId, payload, docId) {
+  const resolvedId = docId || `report_${Date.now()}`;
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(resolvedId);
   await ref.set(payload);
-  return docId;
+  return resolvedId;
 }
 
 async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, requesterId, requesterName, configOverrides, promptOverride, dryRun = false }) {
@@ -3672,6 +3672,12 @@ export const exportReportToDrive = functions
         "Either reportDocId or reportPayload is required",
       );
     }
+    if (reportPayload && !reportDocId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "reportDocId is required when reportPayload is provided",
+      );
+    }
 
     // Permission check (same as report generation)
     const { displayName: requesterName } = await checkReportPermission(context.auth.uid, studentId);
@@ -3679,7 +3685,61 @@ export const exportReportToDrive = functions
     // Resolve report data: from Firestore (existing report) or from payload (draft)
     let report;
     let reportRef;
-    if (reportDocId) {
+    if (reportDocId && reportPayload) {
+      // Idempotent draft path — client provided a stable reportDocId with a draft payload.
+      // Check if this report was already created by a previous attempt.
+      reportRef = db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc(reportDocId);
+      const existingSnap = await reportRef.get();
+      if (existingSnap.exists) {
+        const existingReport = existingSnap.data();
+        if (existingReport.driveDocId) {
+          // Previous attempt fully completed — return existing data (idempotent retry).
+          // Read studentName from the stored doc to avoid an extra Firestore read.
+          const earlyStudentName = existingReport.studentName || "Student";
+          return {
+            status: "ok",
+            docId: reportDocId,
+            driveDocId: existingReport.driveDocId,
+            driveDocLink: existingReport.driveDocLink,
+            studentName: earlyStudentName,
+          };
+        }
+        // Previous attempt wrote pending_drive but crashed before Drive completion.
+        // Re-use the saved report data and proceed to Drive work.
+        if (!existingReport.reportText) {
+          throw new functions.https.HttpsError(
+            "failed-precondition",
+            "Stored pending_drive report has no content — cannot resume export",
+          );
+        }
+        report = existingReport;
+      } else {
+        // First attempt — build report from payload.
+        report = {
+          reportText: reportPayload.reportText,
+          sentimentScore: reportPayload.sentimentScore ?? null,
+          areaBalanceScore: reportPayload.areaBalanceScore ?? null,
+          missingInputFlags: reportPayload.missingInputFlags || [],
+          noteCount: reportPayload.noteCount ?? 0,
+          dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
+          dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
+          programId: reportPayload.programId || "",
+          model: reportPayload.model || "",
+          sourceNoteIds: reportPayload.sourceNoteIds || [],
+          generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
+          generatedBy: reportPayload.generatedBy || context.auth.uid,
+          generatedByName: reportPayload.generatedByName || requesterName || null,
+          status: "pending_drive",
+        };
+        if (!report.reportText) {
+          throw new functions.https.HttpsError(
+            "failed-precondition",
+            "reportPayload.reportText is required",
+          );
+        }
+      }
+    } else if (reportDocId) {
       // Existing report path — load from Firestore
       reportRef = db.collection("students").doc(studentId)
         .collection("ai_summaries").doc(reportDocId);
@@ -3688,30 +3748,6 @@ export const exportReportToDrive = functions
         throw new functions.https.HttpsError("not-found", "Report not found");
       }
       report = reportSnap.data();
-    } else {
-      // Draft payload path — validate required fields
-      if (!reportPayload.reportText) {
-        throw new functions.https.HttpsError(
-          "failed-precondition",
-          "reportPayload.reportText is required",
-        );
-      }
-      report = {
-        reportText: reportPayload.reportText,
-        sentimentScore: reportPayload.sentimentScore ?? null,
-        areaBalanceScore: reportPayload.areaBalanceScore ?? null,
-        missingInputFlags: reportPayload.missingInputFlags || [],
-        noteCount: reportPayload.noteCount ?? 0,
-        dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
-        dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
-        programId: reportPayload.programId || "",
-        model: reportPayload.model || "",
-        sourceNoteIds: reportPayload.sourceNoteIds || [],
-        generatedAt: reportPayload.generatedAt ? new Date(reportPayload.generatedAt) : new Date(),
-        generatedBy: reportPayload.generatedBy || context.auth.uid,
-        generatedByName: reportPayload.generatedByName || requesterName || null,
-        status: reportPayload.status || "ok",
-      };
     }
 
     if (!report.reportText) {
@@ -3732,6 +3768,13 @@ export const exportReportToDrive = functions
         "failed-precondition",
         "Student has no classroom assignment",
       );
+    }
+
+    // For first-attempt drafts, persist the pending_drive doc now that we have
+    // studentName (single read).  This claims the reportDocId before Drive work.
+    if (reportRef && report.status === "pending_drive" && !report.studentName) {
+      report.studentName = studentName;
+      await reportRef.set(report);
     }
 
     const classroomSnap = await db.collection("classrooms").doc(classroomId).get();
@@ -3768,9 +3811,8 @@ export const exportReportToDrive = functions
       drive, classroomFolderId, studentName,
     );
 
-    const generatedAtIso = reportDocId
-      ? (report.generatedAt?.toDate?.()?.toISOString?.() || new Date().toISOString())
-      : (report.generatedAt?.toISOString?.() || new Date().toISOString());
+    // Handle both Firestore Timestamp (.toDate()) and plain JS Date (.toISOString())
+    const generatedAtIso = (report.generatedAt?.toDate?.() || report.generatedAt)?.toISOString?.() || new Date().toISOString();
 
     // Create the Google Doc in student folder (Drive first to minimize orphans)
     const academicYear = deriveAcademicYear(new Date());
@@ -3782,6 +3824,16 @@ export const exportReportToDrive = functions
       generatedAtIso,
       { programName, academicYear, startDate: reportStartDate },
     );
+
+    // Persist driveDocId immediately so retries find it and skip Drive creation.
+    // This narrows the unguarded window to near-zero — if the function crashes
+    // during CSV work below, the next retry will hit the early-return path.
+    // Note: if this update itself fails (e.g. network error after Drive creation),
+    // the next retry will create a new Google Doc — this is an accepted narrow
+    // residual window (PEP-101).
+    if (reportRef && reportPayload) {
+      await reportRef.update({ driveDocId, driveDocLink: docLink });
+    }
 
     // Update summary + archive CSVs in classroom folder (best-effort)
     try {
@@ -3817,12 +3869,23 @@ export const exportReportToDrive = functions
       console.warn("[drive-export] CSV update failed (non-blocking):", csvError);
     }
 
-    // Write to Firestore — update existing doc or create new one from draft
+    // Write to Firestore — update existing doc or finalize pending draft
     let docId;
-    if (reportDocId) {
+    if (reportDocId && reportPayload) {
+      // Idempotent draft path — doc already exists (written as pending_drive).
+      // driveDocId and driveDocLink were already persisted right after createReportDoc.
+      // Finalize status and attach studentName.
+      await reportRef.update({
+        status: "ok",
+        studentName,
+      });
+      docId = reportDocId;
+    } else if (reportDocId) {
+      // Existing report path — just attach the Drive link
       await reportRef.update({ driveDocId, driveDocLink: docLink });
       docId = reportDocId;
     } else {
+      // Fallback — should not be reached given validation above
       docId = await writeReportDoc(studentId, {
         ...report,
         driveDocId,

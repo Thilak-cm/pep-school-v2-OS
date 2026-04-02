@@ -133,3 +133,22 @@ test('ReportsPage uses REPORT_EXPORT_MAX_ATTEMPTS for queue items', async () => 
     'Expected ReportsPage to set maxAttempts on enqueued report_export items',
   );
 });
+
+// --- PEP-101: Idempotent draft report export tests ---
+
+test('ReportsPage generates a stable reportDocId in the enqueue payload', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /report_sq_/.test(source),
+    'Expected ReportsPage to generate a reportDocId with report_sq_ prefix in the enqueue payload',
+  );
+});
+
+test('ReportsPage includes reportDocId in the report_export payload', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  // The payload object passed to enqueueSaveQueueItems should contain reportDocId
+  assert.ok(
+    /reportDocId/.test(source),
+    'Expected ReportsPage to include reportDocId in the enqueued payload',
+  );
+});

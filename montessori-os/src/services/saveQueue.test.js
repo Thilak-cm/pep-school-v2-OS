@@ -60,3 +60,66 @@ test('report_export default maxAttempts is 3', async () => {
     'Expected a REPORT_EXPORT_MAX_ATTEMPTS constant set to 3',
   );
 });
+
+// --- PEP-101: Idempotent draft report export tests ---
+
+test('deriveReportExportPayload reads reportDocId from payload and passes it to the Cloud Function', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  // Extract the deriveReportExportPayload function body
+  const fnMatch = source.match(
+    /const deriveReportExportPayload\s*=\s*async\s*\(payload\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(fnMatch, 'Expected to find deriveReportExportPayload function');
+  const fnBody = fnMatch[1];
+  // The call payload must include reportDocId from the payload parameter
+  assert.ok(
+    /reportDocId:\s*payload\.reportDocId/.test(fnBody),
+    'Expected the Cloud Function call to include reportDocId: payload.reportDocId',
+  );
+  // The call payload must include studentId
+  assert.ok(
+    /studentId:\s*payload\.studentId/.test(fnBody),
+    'Expected the Cloud Function call to include studentId: payload.studentId',
+  );
+  // The call payload must include reportPayload
+  assert.ok(
+    /reportPayload:\s*payload\.reportPayload/.test(fnBody),
+    'Expected the Cloud Function call to include reportPayload: payload.reportPayload',
+  );
+});
+
+test('hydration preserves payload fields (including reportDocId) through serialization round-trip', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+
+  // serializeItem must preserve the payload object
+  const serializeMatch = source.match(
+    /const serializeItem\s*=\s*\(item\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(serializeMatch, 'Expected to find serializeItem function');
+  assert.ok(
+    /payload:\s*item\.payload/.test(serializeMatch[1]),
+    'Expected serializeItem to include payload: item.payload in the serialized output',
+  );
+
+  // hydrate must spread the full stored item (which includes payload)
+  const hydrateMatch = source.match(
+    /const hydrate\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(hydrateMatch, 'Expected to find hydrate function');
+  assert.ok(
+    /\.\.\.item/.test(hydrateMatch[1]),
+    'Expected hydrate to spread the full stored item via ...item (preserving all payload fields)',
+  );
+});
+
+test('buildQueueItem preserves payload from entry', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  const buildMatch = source.match(
+    /const buildQueueItem\s*=\s*\(entry\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(buildMatch, 'Expected to find buildQueueItem function');
+  assert.ok(
+    /payload:\s*entry\.payload/.test(buildMatch[1]),
+    'Expected buildQueueItem to set payload: entry.payload (preserving reportDocId and other fields)',
+  );
+});
