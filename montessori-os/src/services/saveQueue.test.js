@@ -63,32 +63,63 @@ test('report_export default maxAttempts is 3', async () => {
 
 // --- PEP-101: Idempotent draft report export tests ---
 
-test('deriveReportExportPayload passes reportDocId to the Cloud Function call', async () => {
+test('deriveReportExportPayload reads reportDocId from payload and passes it to the Cloud Function', async () => {
   const source = await readFile(sourceUrl, 'utf8');
-  // The httpsCallable call should include reportDocId from the payload
-  assert.ok(
-    /reportDocId/.test(source),
-    'Expected deriveReportExportPayload to pass reportDocId in the Cloud Function call payload',
+  // Extract the deriveReportExportPayload function body
+  const fnMatch = source.match(
+    /const deriveReportExportPayload\s*=\s*async\s*\(payload\)\s*=>\s*\{([\s\S]*?)\n\};/,
   );
-  // Specifically verify it reads reportDocId from the item payload
+  assert.ok(fnMatch, 'Expected to find deriveReportExportPayload function');
+  const fnBody = fnMatch[1];
+  // The call payload must include reportDocId from the payload parameter
   assert.ok(
-    /payload\.reportDocId/.test(source),
-    'Expected deriveReportExportPayload to read reportDocId from payload',
+    /reportDocId:\s*payload\.reportDocId/.test(fnBody),
+    'Expected the Cloud Function call to include reportDocId: payload.reportDocId',
+  );
+  // The call payload must include studentId
+  assert.ok(
+    /studentId:\s*payload\.studentId/.test(fnBody),
+    'Expected the Cloud Function call to include studentId: payload.studentId',
+  );
+  // The call payload must include reportPayload
+  assert.ok(
+    /reportPayload:\s*payload\.reportPayload/.test(fnBody),
+    'Expected the Cloud Function call to include reportPayload: payload.reportPayload',
   );
 });
 
-test('report_export items preserve reportDocId through hydration', async () => {
+test('hydration preserves payload fields (including reportDocId) through serialization round-trip', async () => {
   const source = await readFile(sourceUrl, 'utf8');
-  // The hydrate function restores items from localStorage including payload,
-  // and buildQueueItem preserves the payload object as-is.
-  // Verify that payload is preserved during serialization/hydration.
-  assert.ok(
-    /payload:\s*item\.payload/.test(source),
-    'Expected serializeItem to preserve the full payload (including reportDocId) during serialization',
+
+  // serializeItem must preserve the payload object
+  const serializeMatch = source.match(
+    /const serializeItem\s*=\s*\(item\)\s*=>\s*\{([\s\S]*?)\n\};/,
   );
-  // Verify hydration restores items with their payload intact
+  assert.ok(serializeMatch, 'Expected to find serializeItem function');
   assert.ok(
-    /\.\.\.item/.test(source),
-    'Expected hydrate to spread the full stored item (preserving payload with reportDocId)',
+    /payload:\s*item\.payload/.test(serializeMatch[1]),
+    'Expected serializeItem to include payload: item.payload in the serialized output',
+  );
+
+  // hydrate must spread the full stored item (which includes payload)
+  const hydrateMatch = source.match(
+    /const hydrate\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(hydrateMatch, 'Expected to find hydrate function');
+  assert.ok(
+    /\.\.\.item/.test(hydrateMatch[1]),
+    'Expected hydrate to spread the full stored item via ...item (preserving all payload fields)',
+  );
+});
+
+test('buildQueueItem preserves payload from entry', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  const buildMatch = source.match(
+    /const buildQueueItem\s*=\s*\(entry\)\s*=>\s*\{([\s\S]*?)\n\};/,
+  );
+  assert.ok(buildMatch, 'Expected to find buildQueueItem function');
+  assert.ok(
+    /payload:\s*entry\.payload/.test(buildMatch[1]),
+    'Expected buildQueueItem to set payload: entry.payload (preserving reportDocId and other fields)',
   );
 });

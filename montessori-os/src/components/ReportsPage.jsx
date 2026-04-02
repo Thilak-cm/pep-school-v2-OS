@@ -231,7 +231,7 @@ export default function ReportsPage({
         },
       }]);
       setPreviewOpen(false);
-      setDraftReport(null);
+      setDraftReport(null); // Clear draft to prevent double-enqueue — see PEP-101
       notify.info(`Saving and exporting report for ${studentLabel}...`, { duration: 4000 });
       trackEvent('report_export_queued', { studentId }).catch(() => {});
       return;
