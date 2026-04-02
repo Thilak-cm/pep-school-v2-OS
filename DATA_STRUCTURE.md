@@ -1,4 +1,4 @@
-# Montessori OS – Firestore Data Model (Focused v1)
+# Montessori OS – Firestore Data Model
 
 ## 🎯 Goals
 - Minimize friction for teachers to add notes to assigned students
@@ -15,6 +15,8 @@
 ---
 
 ## 📚 Collections Overview
+- `access_logs/{logId}`                                // Telegram bot access audit logs
+- `access_requests/{requestId}`                        // Telegram bot pairing requests
 - `branches/{branchId}`
 - `programs/{programId}`
 - `users/{uid}`
@@ -22,6 +24,9 @@
 - `students/{studentId}`
 - `students/{studentId}/observations/{observationId}`  // collection group: `observations`
 - `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
+- `students/{studentId}/chats/{chatId}`                // AI chat conversations
+- `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
+- `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
 - `ai_prompts/{docId}`
  - `config/{docId}`
@@ -216,6 +221,9 @@ Subcollections
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Shape: `{ reportText: string, sentimentScore?: number, areaBalanceScore?: number, missingInputFlags?: string[], startDate: Timestamp, endDate: Timestamp, generatedAt: Timestamp, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive via the `exportReportToDrive` or `exportClassroomReportsToDrive` Cloud Functions.
+- `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
+- `chats/{chatId}` – AI chat conversations per student (see below).
+- `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
 
 ID uniqueness note
 - If the same classroom slug exists in multiple branches, the `XXX` code may collide across branches. To avoid global ID conflicts in the top-level `students` collection, either:
@@ -284,6 +292,100 @@ Backfill (one-time)
 - For each student that has a `classroomId` and no placements:
   - Create placements/`2020-01-01__<classroomId>` with `{ startDate: '2020-01-01', endDate: null }`.
   - Do NOT add `currentPlacement` to the student; `classroomId` remains the source of truth for current.
+
+---
+
+## 🚩 Signals (`/students/{studentId}/ai_summaries/signals`)
+AI-generated weekly severity tracking and red-flag escalation indicators per student. Overwritten each time the baseball card generation runs. Tracks week-over-week severity changes to surface students who need attention.
+
+```typescript
+interface SignalsDoc {
+  // Red flag assessment
+  redFlag: {
+    severity: string | null;        // e.g., "medium", null if clear
+    reason: string | null;          // human-readable explanation
+  };
+  severity: 'clear' | 'low' | 'medium' | 'high';
+  severityScore: number;            // numeric: 0 (clear), 1 (low), 2 (medium), 3 (high)
+
+  // Week-over-week tracking (IST-based ISO weeks)
+  weekKey: string;                  // e.g., "2026-W14"
+  prevSeverity: string;             // previous severity level
+  prevSeverityScore: number;
+  weekBaselineSeverity: string;     // severity at start of current week
+  weekBaselineSeverityScore: number;
+  escalatedThisWeek: boolean;       // true if severity increased this week
+  improvedThisWeek: boolean;        // true if severity decreased this week
+
+  // Coverage & source info
+  coverageGaps: string[];           // e.g., ["Creative Arts", "Practical Life"]
+  noteCount: number;                // observations analyzed
+  evidenceCount: number;            // evidence-bearing observations
+  windowDays: number;               // lookback window (e.g., 42)
+
+  // Generation metadata
+  status: 'ok' | 'no_notes';
+  model: string;                    // e.g., "gpt-4o-mini"
+  temperature: number;
+  timezone: string;                 // e.g., "Asia/Kolkata"
+  generatedAt: Timestamp;
+  lastUpdatedAt: Timestamp;
+}
+```
+
+Notes
+- Written by the same Cloud Function that generates baseball cards (`generateBaseballCards`).
+- `weekKey` uses IST-based ISO week boundaries to track escalation within a school week.
+- `escalatedThisWeek` / `improvedThisWeek` are derived by comparing current `severityScore` against `weekBaselineSeverityScore`.
+
+---
+
+## 💬 Chats (`/students/{studentId}/chats/{chatId}`)
+AI-powered chat conversations between teachers and a student's context. Each chat is a thread; messages are stored in a subcollection. Soft-deleted chats are cleaned up by a scheduled Cloud Function after 31 days.
+
+```typescript
+interface ChatDoc {
+  name: string;                     // auto-generated from first message, default "New Chat"
+  messageCount: number;             // count of messages in the chat
+  lastMessagePreview: string;       // first 100 chars of the latest assistant response
+
+  // Soft delete
+  deleted: boolean;                 // false by default; set true on user delete
+  deletedAt?: Timestamp;            // set when deleted=true
+
+  // Timestamps
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+Notes
+- Chat name is AI-generated from the first user message via `generateChatName()`.
+- Soft delete: frontend sets `deleted: true` + `deletedAt`; `cleanupDeletedChats` (monthly scheduled function) hard-deletes chats where `deletedAt` > 31 days ago.
+- Listing: queries filter `deleted == false`, ordered by `createdAt` desc.
+
+### Messages (`/students/{studentId}/chats/{chatId}/messages/{messageId}`)
+Individual messages within a chat thread.
+
+```typescript
+interface MessageDoc {
+  role: 'user' | 'assistant';
+  content: string;                  // message text (trimmed)
+  timestamp: Timestamp;             // when message was created
+
+  // Assistant messages only
+  model?: string;                   // LLM model used (e.g., "gpt-4o-mini")
+
+  // User messages only
+  authorId?: string;                // uid of the teacher
+  authorName?: string;              // display name of the teacher
+}
+```
+
+Notes
+- Messages are append-only; no edits or deletes at the message level.
+- `messageCount` on the parent chat doc is incremented by 2 per exchange (user + assistant).
+- When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
 
 ---
 
@@ -498,6 +600,10 @@ Documents
 - `text_summarizer` — prompts for the Text Cleanup feature
 - `voice_transcriber` — context string for Whisper speech‑to‑text
 - `coach_{program}` — per‑program configuration for the Coach feature where `program` ∈ `toddler | primary | elementary | adolescent`
+- `coach_accel_{classroom}` — accelerated coach variants for specific classrooms (e.g., `coach_accel_cosmos`, `coach_accel_elementary`, `coach_accel_periwinkle`). Same shape as `coach_{program}`.
+- `chat_{program}` — per‑program AI chat configuration where `program` ∈ `toddler | primary | elementary | adolescent`
+- `report_{program}` — per‑program parent progress report prompts where `program` ∈ `toddler | primary | elementary | adolescent`
+- `baseball_card` — configuration for AI-generated student baseball card summaries
 
 ai_prompts/text_summarizer
 ```typescript
@@ -568,6 +674,70 @@ Example current values
 - updatedBy: { uid, email, name }
 - seed: true
 
+ai_prompts/chat_{program}
+```typescript
+type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
+
+interface ChatProgramDoc {
+  // Display metadata
+  title: string;                   // e.g., "Chat Command Centre"
+  description: string;             // e.g., "Configure AI chat settings for per-student conversations"
+  programId: ProgramId;
+
+  // LLM configuration
+  model: string;                   // e.g., "gpt-5-mini"
+  temperature: number;             // e.g., 0.7
+  max_tokens: number;              // e.g., 2000
+
+  // Context limits
+  chatMessageLimit: number;        // max recent messages to include in context (e.g., 6)
+  observationLimit: number | 'all'; // max observations for context, or 'all'
+
+  // Prompt
+  systemPrompt: string;            // system prompt for the chat model (Coach Pepper persona)
+
+  // Change tracking
+  version: number;
+  updatedAt: Timestamp;
+  updatedBy: { uid: string; email: string; name: string };
+  seed?: boolean;                  // true if populated by seed script
+}
+```
+
+ai_prompts/report_{program}
+```typescript
+type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
+
+interface ReportProgramDoc {
+  // Display metadata
+  title: string;                   // e.g., "Elementary Educator Summary"
+  description: string;             // e.g., "Parent-facing progress report for Montessori elementary children (ages 6-11)"
+
+  // Prompts
+  staticSystemPrompt: string;      // main system prompt with formatting rules, structure, scoring guidance
+  dynamicSystemPrompt?: string;    // optional additional dynamic prompt content
+
+  // Versioning / authorship
+  author?: { uid: string; name: string };
+  promptDate?: string;             // e.g., "2026-03-04"
+  version: number;
+
+  // Migration metadata (if migrated from prior format)
+  migratedAt?: Timestamp;
+  migratedFrom?: string;           // e.g., "PEP-105"
+
+  // Change tracking
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  updatedBy: string;               // uid
+}
+```
+
+Notes
+- Report prompts contain extensive formatting instructions, scoring rubrics (`sentimentScore`, `areaBalanceScore`, `missingInputFlags`), and writing guidelines.
+- The `staticSystemPrompt` is the primary prompt; `dynamicSystemPrompt` allows runtime additions.
+- Model/temperature for report generation are in `config/report_generation`, not in the prompt doc.
+
 Client usage
 - `src/services/promptProvider.js` reads `ai_prompts` with a 5‑minute TTL cache.
 - `src/textCleanup.js` uses `systemPrompt` and `userPrompt`; falls back to baked‑in defaults on fetch failure.
@@ -584,7 +754,10 @@ Security
 Central config documents for app-wide settings edited by super admins.
 
 Current documents
-- `lessonNote` — config for lesson notes UI.
+- `lessonNote` — config for lesson notes UI
+- `report_generation` — LLM settings for parent progress report generation
+- `baseball_card` — LLM settings for student baseball card generation
+- `telegram_bot` — Telegram bot configuration
 
 `config/lessonNote`
 ```typescript
@@ -610,6 +783,30 @@ Notes
 Security
 - Reads: any authenticated user (`isSignedIn()`).
 - Writes: super admins only (`isSuperAdmin()`), with rules enforcing non-empty dimension arrays when present on `config/lessonNote`.
+
+`config/report_generation`
+```typescript
+interface ReportGenerationConfig {
+  model: string;                   // e.g., "gpt-5.4"
+  max_tokens: number;              // e.g., 4096
+  temperature: number;             // e.g., 0.4
+  timezone: string;                // e.g., "Asia/Kolkata"
+
+  // Change tracking
+  updatedAt: Timestamp;
+  updatedBy: string;               // uid
+}
+```
+
+Notes
+- Used by `generateStudentReport` Cloud Function to configure the LLM call.
+- Program-specific prompts are in `ai_prompts/report_{program}`; this doc holds shared model settings.
+
+`config/baseball_card`
+Model and generation settings for the baseball card Cloud Function. Similar shape to `report_generation`.
+
+`config/telegram_bot`
+Configuration for the Telegram bot integration (Coach Pepper on Telegram).
 
 ai_prompts/coach_{program}
 ```typescript
