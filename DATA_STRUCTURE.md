@@ -101,6 +101,15 @@ interface User {
   // Lesson shortcuts
   studentAliases?: Record<string, StudentAlias>; // keyed by aliasId
   
+  // Pending user flow (ephemeral — removed on migration to real Auth account)
+  isPending?: boolean;             // true for users created without an Auth account
+  selectedClassrooms?: string[];   // temporary classroom IDs for pending teachers
+
+  // Migration metadata (persists after pending → real migration)
+  migratedAt?: Timestamp;          // when the pending user was migrated to a real Auth account
+  migratedFrom?: string;           // original pending doc ID (e.g., "pending_anitha_pepschoolv2_com")
+  createdBy?: string;              // uid of admin who created the user
+
   // Metadata
   createdAt: Timestamp; // server time
   updatedAt: Timestamp; // server time
@@ -198,7 +207,8 @@ interface Student {
   isActive: boolean;             // mirrors status == 'active' for fast filters
 
   dateOfBirth?: Timestamp;
-  
+  studentID: string;             // convenience copy of the document ID (e.g., "2025-ADO-001")
+
   // Metadata
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time
@@ -219,8 +229,8 @@ Subcollections
 - `placements/{placementId}` – classroom history per student (see above).
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
-- `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ bullets: string[], lessonSummary: string, noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status?: 'ok' | 'no_notes', sourceNoteIds?: string[] }`.
-- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Shape: `{ reportText: string, sentimentScore?: number, areaBalanceScore?: number, missingInputFlags?: string[], startDate: Timestamp, endDate: Timestamp, generatedAt: Timestamp, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive via the `exportReportToDrive` or `exportClassroomReportsToDrive` Cloud Functions.
+- `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string }`.
+- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, sentimentScore?: number, areaBalanceScore?: number, missingInputFlags?: string[], sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive via the `exportReportToDrive` or `exportClassroomReportsToDrive` Cloud Functions.
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
