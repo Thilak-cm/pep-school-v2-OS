@@ -36,18 +36,27 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
      - "firebase", "rules", "security" → "firebase-infrastructure"
      - "export", "report", "PDF" → "reporting-and-export"
      - "coach", "AI", "nudge" → "ai-coach"
-4. If the overview context is insufficient for refining the issue, spawn the **codebase-explorer agent** (`.claude/agents/codebase-explorer.md`) to gather deeper context on the relevant areas. This is important when:
-   - The issue touches specific code patterns you need to understand to ask good questions
-   - You need to know current behavior to define acceptance criteria accurately
-   - The issue involves data flows, hooks, or component contracts that affect scope decisions
-   - You're unsure whether the issue's requirements conflict with existing constraints
 
-   **Data to pass to the codebase-explorer agent:**
+4. **Assess complexity and spawn codebase-explorer agents accordingly.**
+
+   The codebase-explorer agent supports two depth modes: `overview` (fast skim of key files + data structure) and `deep` (full import tracing, data flow mapping, test/security rule checking). Use this matrix to decide:
+
+   | Complexity | Signal | What to spawn |
+   |-----------|--------|---------------|
+   | **Simple** | 1 area, issue is a clear bugfix or small tweak, overview gives enough context | No explorer needed — overview alone is sufficient |
+   | **Moderate** | 1-2 areas, need to understand current behavior or data shapes to write precise ACs | 1 explorer with `exploration_depth: "overview"` |
+   | **Complex** | 2+ areas, issue involves data flows across areas, new feature touching existing patterns, or unclear constraints | 1 explorer per area, **in parallel**, with `exploration_depth: "deep"` |
+   | **Cross-cutting** | Issue affects shared infrastructure (auth, navigation, saveQueue, Cloud Functions) plus a feature area | 2 explorers in parallel: one `deep` on the infrastructure area, one `deep` on the feature area |
+
+   **Data to pass to each codebase-explorer agent:**
    - `overview_content`: The full text of `pep-os-overview.md` (already loaded in step 2)
-   - `target_areas`: The inferred area tags from step 3
+   - `target_areas`: The area tag(s) this explorer is responsible for (1-2 per agent, not all areas dumped into one)
    - `issue_context`: Issue title + current description + any labels
-   - `exploration_focus`: `"refinement"` (find current behavior, existing constraints, data shapes, and UX patterns to inform acceptance criteria and scope decisions)
+   - `exploration_focus`: `"refinement"`
+   - `exploration_depth`: `"overview"` or `"deep"` per the matrix above
    - `specific_files`: Any files explicitly mentioned in the issue description
+
+   **Parallel dispatch:** When spawning multiple explorers, launch them all in the same tool-call message so they run concurrently. Each explorer handles its own area(s) independently and returns a focused summary. The orchestrator merges their outputs for the clarifying questions phase.
 
 5. Do not ask generic questions that ignore known app context (existing pages, roles, patterns, and current behavior).
 
@@ -123,7 +132,7 @@ Requires a Linear issue identifier as argument (e.g., `PEP-42`). If not provided
 - Assignee: keep existing assignee; set to `me` if currently unassigned
 - Labels: Bug, Feature, Improvement based on issue type
 - Priority: always confirm before updating
-- Context source: always start from `pep-os-overview.md`, then codebase-explorer agent (`.claude/agents/codebase-explorer.md`) when deeper context needed
+- Context source: always start from `pep-os-overview.md`, then codebase-explorer agent(s) at `overview` or `deep` depth based on complexity — parallel explorers for multi-area issues
 
 ## Guardrails
 

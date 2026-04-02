@@ -41,6 +41,19 @@ You will receive `overview_content` — the full text of `pep-os-overview.md`. T
    - **"implementation"**: Focus on finding patterns to follow, reusable code, data flow details, hook signatures, component prop contracts, service APIs. The caller needs to WRITE code that fits in.
    - **"review"**: Focus on finding conventions to check against, constraints to verify, neighboring code for pattern comparison, test coverage expectations. The caller needs to EVALUATE code that was written.
 
+### Exploration Depth
+
+The caller may specify an **exploration_depth** alongside the `exploration_focus`. This controls how much work you do:
+
+| Depth | What to do | Output limit | When used |
+|-------|-----------|-------------|-----------|
+| **overview** | Read the Area Map entries for target areas. Skim key_paths (first ~50 lines each). Check `DATA_STRUCTURE.md` for relevant collections. No import/usage tracing, no test checking, no security rule reading. | 100 lines | Issue touches well-understood areas; caller just needs current shape and constraints |
+| **deep** | Full Phase 2 exploration below — trace imports, map data flows, check tests, security rules, Cloud Functions | 300 lines | Issue is complex, touches unfamiliar patterns, or needs precise behavior mapping |
+
+If no depth is specified, default to **deep**.
+
+Add the depth to your output header: `## Exploration Depth: overview | deep`
+
 ### Phase 2: Targeted Exploration
 
 For each target area, starting from the `key_paths` (and any `specific_files` provided):

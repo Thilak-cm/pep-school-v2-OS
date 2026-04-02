@@ -226,6 +226,33 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
    - Show changelog entry to user for review before proceeding
    - Apply any requested edits
 
+### Phase 5b: Update DATA_STRUCTURE.md (Conditional)
+
+Check whether the diff involves Firestore schema changes. Run this check automatically — do not ask the user.
+
+**Detection — any of these in the diff triggers an update:**
+- New collection or subcollection paths in Firestore reads/writes (e.g., `collection("foo")`, `doc("students/{id}/newThing/{id}")`)
+- New fields being written to existing documents (e.g., `{ ...existingFields, newField: value }`)
+- Removed or renamed fields
+- New or changed Firestore security rules for collections in `firestore.rules`
+- Changes to `DATA_STRUCTURE.md` itself (already modified by the implementation)
+- New `ai_prompts` or `config` document patterns
+
+**If schema changes detected:**
+
+1. Read `DATA_STRUCTURE.md` in full
+2. Read the relevant sections of the diff that touch Firestore operations (frontend writes, Cloud Function writes, security rules)
+3. Update `DATA_STRUCTURE.md` to reflect the changes:
+   - **New collections/subcollections:** Add a new section with the TypeScript interface, following the existing format (emoji header, purpose line, interface block, guidance notes)
+   - **New fields on existing collections:** Add the field to the existing interface with a comment explaining its purpose
+   - **Removed fields:** Remove from the interface. If the field was recently added and might still exist in old docs, add a migration note instead
+   - **Collections Overview:** Update the overview list at the top if new collections were added
+   - **Renamed fields:** Update the interface and add a migration note if old docs may still have the old name
+4. Show the DATA_STRUCTURE.md diff to the user for review before committing
+5. Include `DATA_STRUCTURE.md` in the commit
+
+**If no schema changes detected:** Skip this phase entirely.
+
 ### Phase 6: Commit + Push + PR (Orchestrator)
 
 1. **Stage and commit**
@@ -233,6 +260,7 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
    - If unrelated changes exist, ask whether to split/stash/exclude
    - Stage intended files
    - If version was bumped, include version files (`VERSION`, `montessori-os/package.json`, `montessori-os/src/components/VersionBadge.jsx`, `CHANGELOG.md`) in the same or separate commit
+   - If `DATA_STRUCTURE.md` was updated in Phase 5b, include it in the implementation commit (not the version bump commit)
    - Write clear commit messages:
      - Implementation: `feat: {description} (PEP-{id})` or `fix: {description} (PEP-{id})`
      - Version bump (if separate): `chore: bump version to v{X.Y.Z}`
