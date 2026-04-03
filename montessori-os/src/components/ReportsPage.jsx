@@ -97,8 +97,7 @@ export default function ReportsPage({
 
   // Readiness state (PEP-68)
   const [readiness, setReadiness] = useState(null);
-  const [readinessLoading, setReadinessLoading] = useState(false);
-  const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
 
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
@@ -147,6 +146,8 @@ export default function ReportsPage({
         }
       } catch {
         // Non-blocking — readiness is advisory
+      } finally {
+        if (active) setReadinessLoading(false);
       }
     })();
     return () => { active = false; };
@@ -204,18 +205,6 @@ export default function ReportsPage({
     if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
-  // Compute staleness (PEP-68)
-  useEffect(() => {
-    if (!studentId) return;
-    const latestReport = reports[0]; // sorted newest-first by buildReportList
-    if (latestReport?.noteCount != null && readiness?.noteCount != null) {
-      const delta = readiness.noteCount - latestReport.noteCount;
-      setNewNotesSinceReport(Math.max(0, delta));
-    } else if (!latestReport) {
-      setNewNotesSinceReport(null);
-    }
-  }, [studentId, reports, readiness]);
-
   const handleCheckReadiness = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
       setReadinessLoading(true);
@@ -230,10 +219,15 @@ export default function ReportsPage({
         checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
         status: result.data.status || 'ok',
       });
-      // Recompute staleness after fresh check
+      // Show staleness info after check
       const latestReport = reports[0];
       if (latestReport?.noteCount != null && result.data.noteCount != null) {
-        setNewNotesSinceReport(Math.max(0, result.data.noteCount - latestReport.noteCount));
+        const delta = Math.max(0, result.data.noteCount - latestReport.noteCount);
+        if (delta > 0) {
+          notify.info(`${delta} new ${delta === 1 ? 'note' : 'notes'} since the last report. Consider regenerating.`, { duration: 5000 });
+        } else {
+          notify.info('No new observations since the last report.', { duration: 4000 });
+        }
       }
     } catch (e) {
       notify.error(friendlyFunctionError(e));
@@ -421,18 +415,16 @@ export default function ReportsPage({
           </Typography>
         </Stack>
 
-        {newNotesSinceReport != null && newNotesSinceReport > 0 && (
-          <Typography variant="caption" sx={{ color: '#059669', display: 'block', mb: 1 }}>
-            {newNotesSinceReport} new {newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report
-          </Typography>
-        )}
-        {newNotesSinceReport === 0 && (
-          <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mb: 1 }}>
-            No new observations since the last report
-          </Typography>
+        {readinessLoading && !readiness && (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}>
+            <CircularProgress size={16} sx={{ color: '#4f46e5' }} />
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              Loading readiness data...
+            </Typography>
+          </Stack>
         )}
 
-        {readiness && readiness.status !== 'no_notes' ? (
+        {!readinessLoading && readiness && readiness.status !== 'no_notes' ? (
           <Stack spacing={1}>
             <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
               {readiness.sentimentScore != null && (
@@ -441,17 +433,18 @@ export default function ReportsPage({
               {readiness.areaBalanceScore != null && (
                 <Chip label={`Balance: ${readiness.areaBalanceScore}`} size="small" color={getScoreColor(readiness.areaBalanceScore)} variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
               )}
-              {readiness.missingInputFlags?.length > 0 ? (
-                <Chip label="Missing data" size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
-              ) : (
+              {!readiness.missingInputFlags?.length && (
                 <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
               )}
               <Chip label={`${readiness.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
             </Stack>
             {readiness.missingInputFlags?.length > 0 && (
-              <Box sx={{ pl: 0.5 }}>
+              <Box sx={{ mt: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#b45309', display: 'block', mb: 0.25 }}>
+                  Missing data
+                </Typography>
                 {readiness.missingInputFlags.map((flag, i) => (
-                  <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6 }}>
+                  <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6, pl: 1 }}>
                     {flag}
                   </Typography>
                 ))}
@@ -476,14 +469,14 @@ export default function ReportsPage({
               {readinessLoading ? 'Checking...' : 'Re-run check'}
             </Button>
           </Stack>
-        ) : readiness && readiness.status === 'no_notes' ? (
+        ) : !readinessLoading && readiness && readiness.status === 'no_notes' ? (
           <Alert severity="warning" sx={{ borderRadius: 1.5, fontSize: '0.8rem' }}>
             No observations found in this date range.
           </Alert>
-        ) : (
+        ) : !readinessLoading ? (
           <Stack spacing={1} alignItems="flex-start">
             <Typography variant="caption" sx={{ color: '#64748b' }}>
-              Check if there is enough observation data for a balanced report.
+              Report readiness check not run yet!
             </Typography>
             <Button
               size="small"
@@ -503,7 +496,7 @@ export default function ReportsPage({
               {readinessLoading ? 'Checking...' : 'Check report readiness'}
             </Button>
           </Stack>
-        )}
+        ) : null}
       </Box>
 
       {exportingCount > 0 && (
