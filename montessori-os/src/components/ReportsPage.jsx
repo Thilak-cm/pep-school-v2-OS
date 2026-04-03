@@ -393,10 +393,30 @@ export default function ReportsPage({
       </Box>
 
       {/* Report Readiness (PEP-68) */}
-      <Box sx={{ borderRadius: 2, border: '1px solid #e2e8f0', p: 1.5, bgcolor: '#f8fafc' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          <ReadinessIcon sx={{ fontSize: 18, color: '#64748b' }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+      <Box
+        sx={{
+          borderRadius: 3,
+          p: 2,
+          background: 'linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 2px 8px rgba(99, 102, 241, 0.08)',
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(99, 102, 241, 0.12)',
+            }}
+          >
+            <ReadinessIcon sx={{ fontSize: 16, color: '#4f46e5' }} />
+          </Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#312e81', letterSpacing: '-0.01em' }}>
             Report Readiness
           </Typography>
         </Stack>
@@ -442,7 +462,7 @@ export default function ReportsPage({
               variant="text"
               onClick={() => handleCheckReadiness({})}
               disabled={readinessLoading}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', alignSelf: 'flex-start', color: '#64748b' }}
+              sx={{ textTransform: 'none', fontSize: '0.75rem', alignSelf: 'flex-start', color: '#4f46e5' }}
             >
               {readinessLoading ? 'Checking...' : 'Re-run check'}
             </Button>
@@ -462,7 +482,14 @@ export default function ReportsPage({
               startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
               onClick={() => handleCheckReadiness({})}
               disabled={readinessLoading}
-              sx={{ textTransform: 'none', fontSize: '0.8rem', borderRadius: 2 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.8rem',
+                borderRadius: 2,
+                borderColor: 'rgba(99, 102, 241, 0.4)',
+                color: '#4f46e5',
+                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+              }}
             >
               {readinessLoading ? 'Checking...' : 'Check report readiness'}
             </Button>
