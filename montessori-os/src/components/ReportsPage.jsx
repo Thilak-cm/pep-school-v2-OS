@@ -597,8 +597,8 @@ export default function ReportsPage({
                 </Stack>
               </Box>
 
-              {/* Quality flags row */}
-              {report.status !== 'no_notes' && (
+              {/* Quality flags row — only for reports that have score data (pre-PEP-68) */}
+              {report.status !== 'no_notes' && (report.sentimentScore != null || report.areaBalanceScore != null || report.missingInputFlags?.length > 0) && (
                 <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
                   {report.sentimentScore != null && (
                     <Chip label={`Sentiment: ${report.sentimentScore}`} size="small" color={getScoreColor(report.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
