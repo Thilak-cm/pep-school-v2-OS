@@ -913,25 +913,22 @@ async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
 
   try {
     const snap = await db.collection("ai_prompts").doc("text_summarizer").get();
-    const data = snap.exists ? (snap.data() || {}) : {};
+    if (!snap.exists) throw new Error("ai_prompts/text_summarizer doc not found");
+    const data = snap.data() || {};
+    if (!data.systemPrompt || !data.userPrompt) {
+      throw new Error("ai_prompts/text_summarizer missing systemPrompt or userPrompt");
+    }
     const out = {
-      systemPrompt: String(data.systemPrompt || ""),
-      userPrompt: String(data.userPrompt || ""),
+      systemPrompt: String(data.systemPrompt),
+      userPrompt: String(data.userPrompt),
       version: Number.isFinite(data.version) ? data.version : 1,
     };
     textSummarizerCache = { data: out, ts: Date.now() };
     return out;
   } catch (err) {
-    console.warn("[aiTextCleanup] prompt fetch failed:", err);
-    const out = {
-      systemPrompt:
-        "You are an assistant that cleans up Montessori observation notes. Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each); use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational. Rules: - Preserve all factual content, names, and dates; do not add or infer details. - Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL). - Ensure consistent spacing and final punctuation for sentences. - Keep it parent- and teacher-friendly; avoid clinical jargon. - Output plain text with line breaks (no headings, no markdown formatting beyond simple \"- \" bullets). - Return only the refined note text, with clean, readable structure.",
-      userPrompt:
-        "Please clean up the following observation. Density: ${tone}. --- ${text} ---",
-      version: 1,
-    };
-    textSummarizerCache = { data: out, ts: Date.now() };
-    return out;
+    textSummarizerCache = { data: null, ts: 0 };
+    console.error("[aiTextCleanup] prompt fetch failed:", err);
+    throw err;
   }
 }
 
@@ -948,26 +945,18 @@ export const aiTextCleanup = functions
     }
 
     const text = String(data?.text || "").trim();
-    const tone = String(data?.tone || "standard");
     if (!text) {
       throw new functions.https.HttpsError("invalid-argument", "text is required");
     }
     if (text.length > 12000) {
       throw new functions.https.HttpsError("invalid-argument", "text too long");
     }
-    if (!["concise", "standard", "detailed"].includes(tone)) {
-      throw new functions.https.HttpsError("invalid-argument", "invalid tone");
-    }
 
     const forceRefresh = !!data?.forceRefresh;
     const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer({ forceRefresh });
 
-    const interpolate = (tpl, vars) =>
-      String(tpl)
-        .replaceAll("${" + "tone}", vars.tone)
-        .replaceAll("${" + "text}", vars.text);
-
-    const renderedUser = interpolate(userPrompt || "Please clean up the following observation. Density: ${tone}. --- ${text} ---", { tone, text });
+    const renderedUser = String(userPrompt)
+      .replaceAll("${" + "text}", text);
 
     const body = buildChatBody({
       model: CLEANUP_MODEL_INFO.model,
