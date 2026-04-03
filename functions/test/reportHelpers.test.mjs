@@ -51,54 +51,26 @@ describe("getDefaultDateRange", () => {
 });
 
 describe("parseReportResponse", () => {
-  it("extracts all fields from a well-formed JSON response", () => {
+  it("extracts reportText from a well-formed JSON response", () => {
     const raw = JSON.stringify({
       reportText: "Aakash is a cheerful student...",
-      sentimentScore: 4,
-      areaBalanceScore: 5,
-      missingInputFlags: [],
     });
     const result = parseReportResponse(raw);
     assert.equal(result.reportText, "Aakash is a cheerful student...");
-    assert.equal(result.sentimentScore, 4);
-    assert.equal(result.areaBalanceScore, 5);
-    assert.deepEqual(result.missingInputFlags, []);
   });
 
-  it("extracts missing input flags as string array", () => {
+  it("ignores score fields if present in response", () => {
     const raw = JSON.stringify({
       reportText: "Some report text",
-      sentimentScore: 3,
-      areaBalanceScore: 3,
-      missingInputFlags: ["Hindi inputs missing", "Kannada inputs missing"],
+      sentimentScore: 4,
+      areaBalanceScore: 5,
+      missingInputFlags: ["Hindi inputs missing"],
     });
     const result = parseReportResponse(raw);
-    assert.deepEqual(result.missingInputFlags, [
-      "Hindi inputs missing",
-      "Kannada inputs missing",
-    ]);
-  });
-
-  it("clamps sentimentScore to 1-5 range", () => {
-    const raw = JSON.stringify({
-      reportText: "text",
-      sentimentScore: 7,
-      areaBalanceScore: 0,
-      missingInputFlags: [],
-    });
-    const result = parseReportResponse(raw);
-    assert.equal(result.sentimentScore, 5);
-    assert.equal(result.areaBalanceScore, 1);
-  });
-
-  it("defaults missing scores to null", () => {
-    const raw = JSON.stringify({
-      reportText: "text",
-    });
-    const result = parseReportResponse(raw);
-    assert.equal(result.sentimentScore, null);
-    assert.equal(result.areaBalanceScore, null);
-    assert.deepEqual(result.missingInputFlags, []);
+    assert.equal(result.reportText, "Some report text");
+    assert.equal(result.sentimentScore, undefined);
+    assert.equal(result.areaBalanceScore, undefined);
+    assert.equal(result.missingInputFlags, undefined);
   });
 
   it("throws on invalid JSON", () => {
@@ -109,8 +81,7 @@ describe("parseReportResponse", () => {
 
   it("throws when reportText is missing or empty", () => {
     const raw = JSON.stringify({
-      sentimentScore: 3,
-      areaBalanceScore: 4,
+      someOtherField: "value",
     });
     assert.throws(() => parseReportResponse(raw), {
       message: /reportText is missing/,
@@ -119,12 +90,7 @@ describe("parseReportResponse", () => {
 
   it("handles reportText with newlines and markdown", () => {
     const text = "# Personal Development\n\nAakash is doing well.\n\n## Math\n\nHe shows potential.";
-    const raw = JSON.stringify({
-      reportText: text,
-      sentimentScore: 4,
-      areaBalanceScore: 4,
-      missingInputFlags: [],
-    });
+    const raw = JSON.stringify({ reportText: text });
     const result = parseReportResponse(raw);
     assert.equal(result.reportText, text);
   });

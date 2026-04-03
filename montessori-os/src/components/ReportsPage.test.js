@@ -152,3 +152,62 @@ test('ReportsPage includes reportDocId in the report_export payload', async () =
     'Expected ReportsPage to include reportDocId in the enqueued payload',
   );
 });
+
+// --- PEP-68: Report readiness checker tests ---
+
+test('ReportsPage fetches report_readiness doc from ai_summaries', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /report_readiness/.test(source),
+    'Expected ReportsPage to reference report_readiness doc ID',
+  );
+});
+
+test('ReportsPage calls checkReportReadiness Cloud Function', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /checkReportReadiness/.test(source),
+    'Expected ReportsPage to call the checkReportReadiness Cloud Function',
+  );
+});
+
+test('ReportsPage passes readiness props to ReportGenerateDialog', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /readiness=/.test(source) && /readinessLoading=/.test(source) && /onCheckReadiness=/.test(source),
+    'Expected ReportsPage to pass readiness, readinessLoading, and onCheckReadiness props to ReportGenerateDialog',
+  );
+});
+
+test('ReportsPage passes newNotesSinceReport to ReportGenerateDialog', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /newNotesSinceReport/.test(source),
+    'Expected ReportsPage to compute and pass newNotesSinceReport to ReportGenerateDialog',
+  );
+});
+
+test('ReportsPage generate button is never disabled by readiness scores (advisory only)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  // The Generate Report button's disabled prop should not reference readiness state
+  const generateBtnMatch = source.match(/disabled=\{[^}]*\}[^]*?>\s*Generate Report/);
+  if (generateBtnMatch) {
+    assert.ok(
+      !/readiness/.test(generateBtnMatch[0]),
+      'Expected Generate Report button disabled prop to not reference readiness state',
+    );
+  }
+});
+
+test('ReportGenerateDialog shows observation check section', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /Observation Check/.test(source),
+    'Expected ReportGenerateDialog to display an "Observation Check" section',
+  );
+  assert.ok(
+    /Run observation check/.test(source),
+    'Expected ReportGenerateDialog to have a "Run observation check" button for first-time use',
+  );
+});
