@@ -1,5 +1,5 @@
 // Shared defaults for the parent report generation feature
-import { FRONTIER_MODEL } from "./modelConstants.js";
+import { FRONTIER_MODEL, MINI_MODEL } from "./modelConstants.js";
 
 export const REPORT_DEFAULTS = {
   model: FRONTIER_MODEL,
@@ -17,6 +17,22 @@ export const REPORT_PROMPT_DOCS = {
   elementary: "report_elementary",
   primary: "report_primary",
   toddler: "report_toddler",
+};
+
+// Report readiness checker (PEP-68)
+export const READINESS_DOC_ID = "report_readiness";
+
+export const READINESS_PROMPT_DOCS = {
+  adolescent: "readiness_adolescent",
+  elementary: "readiness_elementary",
+  primary: "readiness_primary",
+  toddler: "readiness_toddler",
+};
+
+export const READINESS_DEFAULTS = {
+  model: MINI_MODEL,
+  temperature: 0.3,
+  max_tokens: 1024,
 };
 
 // Hardcoded term label for CSV filenames (PEP-83).

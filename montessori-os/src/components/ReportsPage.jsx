@@ -25,7 +25,7 @@ import {
   DeleteOutline as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
@@ -94,6 +94,11 @@ export default function ReportsPage({
   // Expanded missing flags state (tracks which report IDs have expanded missing data)
   const [expandedMissing, setExpandedMissing] = useState(new Set());
 
+  // Readiness state (PEP-68)
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
+
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
     if (!studentId) {
@@ -117,6 +122,34 @@ export default function ReportsPage({
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  // Load readiness doc on mount (PEP-68)
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+    (async () => {
+      try {
+        const readinessRef = doc(db, 'students', studentId, 'ai_summaries', 'report_readiness');
+        const snap = await getDoc(readinessRef);
+        if (!active) return;
+        if (snap.exists()) {
+          const data = snap.data();
+          setReadiness({
+            sentimentScore: data.sentimentScore ?? null,
+            areaBalanceScore: data.areaBalanceScore ?? null,
+            missingInputFlags: data.missingInputFlags || [],
+            noteCount: data.noteCount ?? 0,
+            noteCountAtCheck: data.noteCountAtCheck ?? 0,
+            checkedAt: data.checkedAt?.toDate?.() || null,
+            status: data.status || 'ok',
+          });
+        }
+      } catch {
+        // Non-blocking — readiness is advisory
+      }
+    })();
+    return () => { active = false; };
+  }, [studentId]);
 
   // Subscribe to SaveQueue for in-progress report_export items
   useEffect(() => {
@@ -170,6 +203,48 @@ export default function ReportsPage({
     if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
+  // Compute staleness when generate dialog opens (PEP-68)
+  useEffect(() => {
+    if (!generateOpen || !studentId) return;
+    // Compare current observation count to the latest report's noteCount
+    const latestReport = reports[0]; // sorted newest-first by buildReportList
+    if (latestReport?.noteCount != null && readiness?.noteCount != null) {
+      // noteCount from readiness is current obs count at last check
+      // latestReport.noteCount is obs count when last report was generated
+      const delta = readiness.noteCount - latestReport.noteCount;
+      setNewNotesSinceReport(Math.max(0, delta));
+    } else if (!latestReport) {
+      // No reports yet — don't show staleness
+      setNewNotesSinceReport(null);
+    }
+  }, [generateOpen, studentId, reports, readiness]);
+
+  const handleCheckReadiness = async ({ dateRangeStart, dateRangeEnd }) => {
+    try {
+      setReadinessLoading(true);
+      const call = httpsCallable(cloudFunctions, 'checkReportReadiness', { timeout: 60_000 });
+      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
+      setReadiness({
+        sentimentScore: result.data.sentimentScore ?? null,
+        areaBalanceScore: result.data.areaBalanceScore ?? null,
+        missingInputFlags: result.data.missingInputFlags || [],
+        noteCount: result.data.noteCount ?? 0,
+        noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
+        checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
+        status: result.data.status || 'ok',
+      });
+      // Recompute staleness after fresh check
+      const latestReport = reports[0];
+      if (latestReport?.noteCount != null && result.data.noteCount != null) {
+        setNewNotesSinceReport(Math.max(0, result.data.noteCount - latestReport.noteCount));
+      }
+    } catch (e) {
+      notify.error(friendlyFunctionError(e));
+    } finally {
+      setReadinessLoading(false);
+    }
+  };
+
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
       setGenerating(true);
@@ -182,9 +257,6 @@ export default function ReportsPage({
         noteCount: result.data.noteCount ?? null,
         reportText: result.data.reportText || '',
         status: result.data.status || null,
-        missingInputFlags: result.data.missingInputFlags || [],
-        sentimentScore: result.data.sentimentScore ?? null,
-        areaBalanceScore: result.data.areaBalanceScore ?? null,
         dateRangeStart: result.data.dateRangeStart || null,
         dateRangeEnd: result.data.dateRangeEnd || null,
         programId: result.data.programId || '',
@@ -471,6 +543,10 @@ export default function ReportsPage({
         onGenerate={handleGenerate}
         generating={generating}
         studentLabel={studentLabel}
+        readiness={readiness}
+        readinessLoading={readinessLoading}
+        onCheckReadiness={handleCheckReadiness}
+        newNotesSinceReport={newNotesSinceReport}
       />
 
       <ReportPreviewDialog
@@ -480,7 +556,7 @@ export default function ReportsPage({
           if (draftReport) setDraftReport(null);
         }}
         reportText={selectedReport?.reportText || ''}
-        missingInputFlags={selectedReport?.missingInputFlags || []}
+        missingInputFlags={selectedReport?.missingInputFlags || readiness?.missingInputFlags || []}
         generatedAt={selectedReport?.generatedAt || null}
         studentLabel={studentLabel}
         noteCount={selectedReport?.noteCount ?? null}
