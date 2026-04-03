@@ -171,11 +171,15 @@ test('ReportsPage calls checkReportReadiness Cloud Function', async () => {
   );
 });
 
-test('ReportsPage passes readiness props to ReportGenerateDialog', async () => {
+test('ReportsPage renders report readiness section directly on the page', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /readiness=/.test(source) && /readinessLoading=/.test(source) && /onCheckReadiness=/.test(source),
-    'Expected ReportsPage to pass readiness, readinessLoading, and onCheckReadiness props to ReportGenerateDialog',
+    /Report Readiness/.test(source),
+    'Expected ReportsPage to display a "Report Readiness" section on the page',
+  );
+  assert.ok(
+    /Check report readiness/.test(source),
+    'Expected ReportsPage to have a "Check report readiness" button for first-time use',
   );
 });
 
@@ -199,15 +203,11 @@ test('ReportsPage generate button is never disabled by readiness scores (advisor
   }
 });
 
-test('ReportGenerateDialog shows observation check section', async () => {
+test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)', async () => {
   const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
   const source = await readFile(dialogUrl, 'utf8');
   assert.ok(
-    /Observation Check/.test(source),
-    'Expected ReportGenerateDialog to display an "Observation Check" section',
-  );
-  assert.ok(
-    /Run observation check/.test(source),
-    'Expected ReportGenerateDialog to have a "Run observation check" button for first-time use',
+    !/readiness/i.test(source),
+    'Expected ReportGenerateDialog to not contain any readiness-related code',
   );
 });

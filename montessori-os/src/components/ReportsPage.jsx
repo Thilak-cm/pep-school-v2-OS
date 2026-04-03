@@ -24,6 +24,7 @@ import {
   Add as AddIcon,
   DeleteOutline as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
+  FactCheck as ReadinessIcon,
 } from '@mui/icons-material';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -203,21 +204,17 @@ export default function ReportsPage({
     if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
-  // Compute staleness when generate dialog opens (PEP-68)
+  // Compute staleness (PEP-68)
   useEffect(() => {
-    if (!generateOpen || !studentId) return;
-    // Compare current observation count to the latest report's noteCount
+    if (!studentId) return;
     const latestReport = reports[0]; // sorted newest-first by buildReportList
     if (latestReport?.noteCount != null && readiness?.noteCount != null) {
-      // noteCount from readiness is current obs count at last check
-      // latestReport.noteCount is obs count when last report was generated
       const delta = readiness.noteCount - latestReport.noteCount;
       setNewNotesSinceReport(Math.max(0, delta));
     } else if (!latestReport) {
-      // No reports yet — don't show staleness
       setNewNotesSinceReport(null);
     }
-  }, [generateOpen, studentId, reports, readiness]);
+  }, [studentId, reports, readiness]);
 
   const handleCheckReadiness = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
@@ -395,6 +392,84 @@ export default function ReportsPage({
         </Button>
       </Box>
 
+      {/* Report Readiness (PEP-68) */}
+      <Box sx={{ borderRadius: 2, border: '1px solid #e2e8f0', p: 1.5, bgcolor: '#f8fafc' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <ReadinessIcon sx={{ fontSize: 18, color: '#64748b' }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+            Report Readiness
+          </Typography>
+        </Stack>
+
+        {newNotesSinceReport != null && newNotesSinceReport > 0 && (
+          <Typography variant="caption" sx={{ color: '#059669', display: 'block', mb: 1 }}>
+            {newNotesSinceReport} new {newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report
+          </Typography>
+        )}
+        {newNotesSinceReport === 0 && (
+          <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mb: 1 }}>
+            No new observations since the last report
+          </Typography>
+        )}
+
+        {readiness && readiness.status !== 'no_notes' ? (
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              {readiness.sentimentScore != null && (
+                <Chip label={`Sentiment: ${readiness.sentimentScore}`} size="small" color={getScoreColor(readiness.sentimentScore)} variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              {readiness.areaBalanceScore != null && (
+                <Chip label={`Balance: ${readiness.areaBalanceScore}`} size="small" color={getScoreColor(readiness.areaBalanceScore)} variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              {readiness.missingInputFlags?.length > 0 ? (
+                <Chip label="Missing data" size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              ) : (
+                <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              <Chip label={`${readiness.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+            </Stack>
+            {readiness.missingInputFlags?.length > 0 && (
+              <Box sx={{ pl: 0.5 }}>
+                {readiness.missingInputFlags.map((flag, i) => (
+                  <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6 }}>
+                    {flag}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => handleCheckReadiness({})}
+              disabled={readinessLoading}
+              sx={{ textTransform: 'none', fontSize: '0.75rem', alignSelf: 'flex-start', color: '#64748b' }}
+            >
+              {readinessLoading ? 'Checking...' : 'Re-run check'}
+            </Button>
+          </Stack>
+        ) : readiness && readiness.status === 'no_notes' ? (
+          <Alert severity="warning" sx={{ borderRadius: 1.5, fontSize: '0.8rem' }}>
+            No observations found in this date range.
+          </Alert>
+        ) : (
+          <Stack spacing={1} alignItems="flex-start">
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              Check if there is enough observation data for a balanced report.
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
+              onClick={() => handleCheckReadiness({})}
+              disabled={readinessLoading}
+              sx={{ textTransform: 'none', fontSize: '0.8rem', borderRadius: 2 }}
+            >
+              {readinessLoading ? 'Checking...' : 'Check report readiness'}
+            </Button>
+          </Stack>
+        )}
+      </Box>
+
       {exportingCount > 0 && (
         <Alert
           severity="info"
@@ -543,10 +618,6 @@ export default function ReportsPage({
         onGenerate={handleGenerate}
         generating={generating}
         studentLabel={studentLabel}
-        readiness={readiness}
-        readinessLoading={readinessLoading}
-        onCheckReadiness={handleCheckReadiness}
-        newNotesSinceReport={newNotesSinceReport}
       />
 
       <ReportPreviewDialog
