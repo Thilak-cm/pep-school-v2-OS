@@ -459,10 +459,19 @@ export default function ReportsPage({
             )}
             <Button
               size="small"
-              variant="text"
+              variant="outlined"
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
               onClick={() => handleCheckReadiness({})}
               disabled={readinessLoading}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', alignSelf: 'flex-start', color: '#4f46e5' }}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.8rem',
+                borderRadius: 2,
+                alignSelf: 'flex-start',
+                borderColor: 'rgba(99, 102, 241, 0.4)',
+                color: '#4f46e5',
+                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+              }}
             >
               {readinessLoading ? 'Checking...' : 'Re-run check'}
             </Button>
