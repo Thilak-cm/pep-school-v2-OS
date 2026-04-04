@@ -183,11 +183,11 @@ test('ReportsPage renders report readiness section directly on the page', async 
   );
 });
 
-test('ReportsPage shows staleness toast after readiness check completes', async () => {
+test('ReportsPage computes newNotesSinceReport from readiness and report data', async () => {
   const source = await readFile(sourceUrl, 'utf8');
   assert.ok(
-    /new.*note.*since the last report.*regenerat/s.test(source),
-    'Expected ReportsPage to show a staleness toast after readiness check',
+    /newNotesSinceReport/.test(source),
+    'Expected ReportsPage to compute and pass newNotesSinceReport to ReportGenerateDialog',
   );
 });
 

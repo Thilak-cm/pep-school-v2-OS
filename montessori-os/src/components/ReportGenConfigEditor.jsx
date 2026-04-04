@@ -761,19 +761,9 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
                     {playgroundResult.reportText || '(empty report)'}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                    <Chip label={`Sentiment: ${playgroundResult.sentimentScore ?? '—'}`} size="small" variant="outlined" />
-                    <Chip label={`Balance: ${playgroundResult.areaBalanceScore ?? '—'}`} size="small" variant="outlined" />
                     <Chip label={`Notes: ${playgroundResult.noteCount ?? 0}`} size="small" variant="outlined" />
                     <Chip label={`Model: ${playgroundResult.model || '—'}`} size="small" variant="outlined" />
                   </Stack>
-                  {Array.isArray(playgroundResult.missingInputFlags) && playgroundResult.missingInputFlags.length > 0 && (
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Missing inputs:</Typography>
-                      {playgroundResult.missingInputFlags.map((flag, idx) => (
-                        <Chip key={`flag-${idx}`} label={flag} size="small" color="warning" variant="outlined" />
-                      ))}
-                    </Stack>
-                  )}
                 </Box>
 
                 <Box

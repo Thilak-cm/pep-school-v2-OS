@@ -3910,8 +3910,8 @@ async function getReadinessPrompt(programId) {
   const docId = getReadinessPromptDocId(programId);
   if (!docId) {
     throw new functions.https.HttpsError(
-      "invalid-argument",
-      `Unsupported program for readiness check: ${programId}`,
+      "failed-precondition",
+      `This student's classroom has no program configured (programId: ${programId}). Ask an administrator to set the program for the classroom.`,
     );
   }
 
@@ -3990,7 +3990,12 @@ export const checkReportReadiness = functions
         status: "no_notes",
       };
       await writeReadinessDoc(studentId, payload);
-      return payload;
+      return {
+        ...payload,
+        checkedAt: payload.checkedAt.toISOString(),
+        dateRangeStart: payload.dateRangeStart?.toISOString?.() || null,
+        dateRangeEnd: payload.dateRangeEnd?.toISOString?.() || null,
+      };
     }
 
     const formatted = notes.map(formatObservationForPrompt);

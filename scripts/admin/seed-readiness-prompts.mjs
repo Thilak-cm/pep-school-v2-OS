@@ -104,7 +104,48 @@ List any domain with zero or very few observations. Examples: "No Science observ
 Return an empty array [] if coverage is adequate.`;
 
 // ---------------------------------------------------------------------------
-// Primary / Toddler (ages 2-6)
+// Toddler (ages 2-3)
+// ---------------------------------------------------------------------------
+const TODDLER_PROMPT = `${PREAMBLE}
+
+This student is in a Montessori Toddler classroom (ages 2-3).
+
+Major domains to check for coverage:
+- Practical Life / Care of Self (dressing, toileting, hand washing, feeding, classroom routines)
+- Gross Motor Development (walking, climbing, carrying, pushing/pulling, balance)
+- Fine Motor Development (grasping, pouring, threading, transferring, hand-eye coordination)
+- Sensory Exploration (texture, sound, taste, smell, visual discrimination)
+- Language Development (vocabulary growth, naming, following directions, verbal expression, songs/rhymes)
+- Social-Emotional / Parallel Play (turn-taking attempts, emotional expression, comfort with separation, parallel play patterns)
+
+Good-to-have domains:
+- Music and Movement (rhythm, dancing, singing, instruments)
+- Outdoor / Nature (nature walks, gardening, water play, animal observation)
+
+Scoring guidance:
+
+sentimentScore (1 to 5)
+Base this on the overall pattern across all observations, not any single note.
+5, Thriving: Consistent engagement, curiosity, growing independence, joyful exploration.
+4, Progressing well: Generally on track, positive momentum. Minor areas may need attention.
+3, Developing steadily: Mixed signals. Growth in some areas, challenges in others.
+2, Needs attention: Multiple concerns. Distress, regression, persistent difficulty separating or engaging.
+1, Concerning: Persistent significant challenges across domains.
+A child who has challenges in one area but thrives in others is a 3 or 4, not a 2. When in doubt, err toward 3.
+
+areaBalanceScore (1 to 5)
+5: All 6 major domains covered with reasonable depth; good-to-have domains also represented.
+4: All major domains covered; 1 is thin or good-to-have domains are sparse.
+3: Most major domains covered but 1 to 2 are thin or missing.
+2: Multiple major domains missing; observations concentrated in few areas.
+1: Most major domains have no observations.
+
+missingInputFlags
+List any domain with zero or very few observations. Examples: "No Fine Motor observations", "Only 1 Language Development note", "Sensory Exploration missing".
+Return an empty array [] if coverage is adequate.`;
+
+// ---------------------------------------------------------------------------
+// Primary (ages 2-6)
 // ---------------------------------------------------------------------------
 const PRIMARY_PROMPT = `${PREAMBLE}
 
@@ -200,8 +241,8 @@ async function main() {
       "readiness_toddler",
       "Toddler Report Readiness Evaluator",
       "Evaluates observation data quality before report generation for toddlers (ages 2-3)",
-      PRIMARY_PROMPT,
-      1,
+      TODDLER_PROMPT,
+      2,
     ),
   ]);
 
