@@ -152,3 +152,62 @@ test('ReportsPage includes reportDocId in the report_export payload', async () =
     'Expected ReportsPage to include reportDocId in the enqueued payload',
   );
 });
+
+// --- PEP-68: Report readiness checker tests ---
+
+test('ReportsPage fetches report_readiness doc from ai_summaries', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /report_readiness/.test(source),
+    'Expected ReportsPage to reference report_readiness doc ID',
+  );
+});
+
+test('ReportsPage calls checkReportReadiness Cloud Function', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /checkReportReadiness/.test(source),
+    'Expected ReportsPage to call the checkReportReadiness Cloud Function',
+  );
+});
+
+test('ReportsPage renders report readiness section directly on the page', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /Report Readiness/.test(source),
+    'Expected ReportsPage to display a "Report Readiness" section on the page',
+  );
+  assert.ok(
+    /Check report readiness/.test(source),
+    'Expected ReportsPage to have a "Check report readiness" button for first-time use',
+  );
+});
+
+test('ReportsPage computes newNotesSinceReport from readiness and report data', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /newNotesSinceReport/.test(source),
+    'Expected ReportsPage to compute and pass newNotesSinceReport to ReportGenerateDialog',
+  );
+});
+
+test('ReportsPage generate button is never disabled by readiness scores (advisory only)', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  // The Generate Report button's disabled prop should not reference readiness state
+  const generateBtnMatch = source.match(/disabled=\{[^}]*\}[^]*?>\s*Generate Report/);
+  if (generateBtnMatch) {
+    assert.ok(
+      !/readiness/.test(generateBtnMatch[0]),
+      'Expected Generate Report button disabled prop to not reference readiness state',
+    );
+  }
+});
+
+test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    !/readiness/i.test(source),
+    'Expected ReportGenerateDialog to not contain any readiness-related code',
+  );
+});

@@ -24,8 +24,9 @@ import {
   Add as AddIcon,
   DeleteOutline as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
+  FactCheck as ReadinessIcon,
 } from '@mui/icons-material';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { buildReportList } from '../utils/reportUtils';
@@ -94,6 +95,12 @@ export default function ReportsPage({
   // Expanded missing flags state (tracks which report IDs have expanded missing data)
   const [expandedMissing, setExpandedMissing] = useState(new Set());
 
+  // Readiness state (PEP-68)
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
+  const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
+
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
     if (!studentId) {
@@ -117,6 +124,36 @@ export default function ReportsPage({
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  // Load readiness doc on mount (PEP-68)
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+    (async () => {
+      try {
+        const readinessRef = doc(db, 'students', studentId, 'ai_summaries', 'report_readiness');
+        const snap = await getDoc(readinessRef);
+        if (!active) return;
+        if (snap.exists()) {
+          const data = snap.data();
+          setReadiness({
+            sentimentScore: data.sentimentScore ?? null,
+            areaBalanceScore: data.areaBalanceScore ?? null,
+            missingInputFlags: data.missingInputFlags || [],
+            noteCount: data.noteCount ?? 0,
+            noteCountAtCheck: data.noteCountAtCheck ?? 0,
+            checkedAt: data.checkedAt?.toDate?.() || null,
+            status: data.status || 'ok',
+          });
+        }
+      } catch {
+        // Non-blocking — readiness is advisory
+      } finally {
+        if (active) setReadinessLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [studentId]);
 
   // Subscribe to SaveQueue for in-progress report_export items
   useEffect(() => {
@@ -170,6 +207,44 @@ export default function ReportsPage({
     if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
+  // Compute staleness (PEP-68)
+  useEffect(() => {
+    if (!studentId) return;
+    const latestReport = reports[0]; // sorted newest-first by buildReportList
+    if (latestReport?.noteCount != null && readiness?.noteCount != null) {
+      const delta = readiness.noteCount - latestReport.noteCount;
+      setNewNotesSinceReport(Math.max(0, delta));
+    } else if (!latestReport) {
+      setNewNotesSinceReport(null);
+    }
+  }, [studentId, reports, readiness]);
+
+  const handleCheckReadiness = async ({ dateRangeStart, dateRangeEnd }) => {
+    try {
+      setReadinessLoading(true);
+      const call = httpsCallable(cloudFunctions, 'checkReportReadiness', { timeout: 60_000 });
+      const result = await call({ studentId, dateRangeStart, dateRangeEnd });
+      setReadiness({
+        sentimentScore: result.data.sentimentScore ?? null,
+        areaBalanceScore: result.data.areaBalanceScore ?? null,
+        missingInputFlags: result.data.missingInputFlags || [],
+        noteCount: result.data.noteCount ?? 0,
+        noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
+        checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
+        status: result.data.status || 'ok',
+      });
+      // Recompute staleness after fresh check
+      const latestReport = reports[0];
+      if (latestReport?.noteCount != null && result.data.noteCount != null) {
+        setNewNotesSinceReport(Math.max(0, result.data.noteCount - latestReport.noteCount));
+      }
+    } catch (e) {
+      notify.error(friendlyFunctionError(e));
+    } finally {
+      setReadinessLoading(false);
+    }
+  };
+
   const handleGenerate = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
       setGenerating(true);
@@ -182,9 +257,6 @@ export default function ReportsPage({
         noteCount: result.data.noteCount ?? null,
         reportText: result.data.reportText || '',
         status: result.data.status || null,
-        missingInputFlags: result.data.missingInputFlags || [],
-        sentimentScore: result.data.sentimentScore ?? null,
-        areaBalanceScore: result.data.areaBalanceScore ?? null,
         dateRangeStart: result.data.dateRangeStart || null,
         dateRangeEnd: result.data.dateRangeEnd || null,
         programId: result.data.programId || '',
@@ -323,6 +395,119 @@ export default function ReportsPage({
         </Button>
       </Box>
 
+      {/* Report Readiness (PEP-68) */}
+      <Box
+        sx={{
+          borderRadius: 3,
+          p: 2,
+          background: 'linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 2px 8px rgba(99, 102, 241, 0.08)',
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(99, 102, 241, 0.12)',
+            }}
+          >
+            <ReadinessIcon sx={{ fontSize: 16, color: '#4f46e5' }} />
+          </Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#312e81', letterSpacing: '-0.01em' }}>
+            Report Readiness
+          </Typography>
+        </Stack>
+
+        {readinessLoading && !readiness && (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}>
+            <CircularProgress size={16} sx={{ color: '#4f46e5' }} />
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              Loading readiness data...
+            </Typography>
+          </Stack>
+        )}
+
+        {!readinessLoading && readiness && readiness.status !== 'no_notes' ? (
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              {readiness.sentimentScore != null && (
+                <Chip label={`Sentiment: ${readiness.sentimentScore}`} size="small" color={getScoreColor(readiness.sentimentScore)} variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              {readiness.areaBalanceScore != null && (
+                <Chip label={`Balance: ${readiness.areaBalanceScore}`} size="small" color={getScoreColor(readiness.areaBalanceScore)} variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              {!readiness.missingInputFlags?.length && (
+                <Chip label="Complete" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+              )}
+              <Chip label={`${readiness.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+            </Stack>
+            {readiness.missingInputFlags?.length > 0 && (
+              <Box sx={{ mt: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#b45309', display: 'block', mb: 0.25 }}>
+                  Missing data
+                </Typography>
+                {readiness.missingInputFlags.map((flag, i) => (
+                  <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6, pl: 1 }}>
+                    {flag}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setRerunConfirmOpen(true)}
+              disabled={readinessLoading}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.8rem',
+                borderRadius: 2,
+                alignSelf: 'flex-start',
+                borderColor: 'rgba(99, 102, 241, 0.4)',
+                color: '#4f46e5',
+                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+              }}
+            >
+              {readinessLoading ? 'Checking...' : 'Re-run check'}
+            </Button>
+          </Stack>
+        ) : !readinessLoading && readiness && readiness.status === 'no_notes' ? (
+          <Alert severity="warning" sx={{ borderRadius: 1.5, fontSize: '0.8rem' }}>
+            No observations found in this date range.
+          </Alert>
+        ) : !readinessLoading ? (
+          <Stack spacing={1} alignItems="flex-start">
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              Report readiness check not run yet!
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
+              onClick={() => handleCheckReadiness({})}
+              disabled={readinessLoading}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.8rem',
+                borderRadius: 2,
+                borderColor: 'rgba(99, 102, 241, 0.4)',
+                color: '#4f46e5',
+                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+              }}
+            >
+              {readinessLoading ? 'Checking...' : 'Check report readiness'}
+            </Button>
+          </Stack>
+        ) : null}
+      </Box>
+
       {exportingCount > 0 && (
         <Alert
           severity="info"
@@ -414,8 +599,8 @@ export default function ReportsPage({
                 </Stack>
               </Box>
 
-              {/* Quality flags row */}
-              {report.status !== 'no_notes' && (
+              {/* Quality flags row — only for reports that have score data (pre-PEP-68) */}
+              {report.status !== 'no_notes' && (report.sentimentScore != null || report.areaBalanceScore != null || report.missingInputFlags?.length > 0) && (
                 <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
                   {report.sentimentScore != null && (
                     <Chip label={`Sentiment: ${report.sentimentScore}`} size="small" color={getScoreColor(report.sentimentScore)} variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
@@ -480,7 +665,7 @@ export default function ReportsPage({
           if (draftReport) setDraftReport(null);
         }}
         reportText={selectedReport?.reportText || ''}
-        missingInputFlags={selectedReport?.missingInputFlags || []}
+        missingInputFlags={selectedReport?.missingInputFlags || readiness?.missingInputFlags || []}
         generatedAt={selectedReport?.generatedAt || null}
         studentLabel={studentLabel}
         noteCount={selectedReport?.noteCount ?? null}
@@ -504,6 +689,35 @@ export default function ReportsPage({
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rerunConfirmOpen}
+        onClose={() => setRerunConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Re-run readiness check?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {newNotesSinceReport != null && newNotesSinceReport > 0
+              ? `There ${newNotesSinceReport === 1 ? 'is' : 'are'} ${newNotesSinceReport} new ${newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report. Re-running the check will include the latest observations.`
+              : 'There are no new observations since the last report. Re-running may not change the results.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRerunConfirmOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setRerunConfirmOpen(false);
+              handleCheckReadiness({});
+            }}
+            variant="contained"
+            sx={{ textTransform: 'none' }}
+          >
+            Re-run check
           </Button>
         </DialogActions>
       </Dialog>

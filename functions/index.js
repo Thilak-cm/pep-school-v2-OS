@@ -12,8 +12,8 @@ import { MINI_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
-import { REPORT_DEFAULTS, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "./config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, getReportPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent } from "./utils/reportHelpers.js";
+import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "./config/reportConstants.js";
+import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent } from "./utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -913,25 +913,22 @@ async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
 
   try {
     const snap = await db.collection("ai_prompts").doc("text_summarizer").get();
-    const data = snap.exists ? (snap.data() || {}) : {};
+    if (!snap.exists) throw new Error("ai_prompts/text_summarizer doc not found");
+    const data = snap.data() || {};
+    if (!data.systemPrompt || !data.userPrompt) {
+      throw new Error("ai_prompts/text_summarizer missing systemPrompt or userPrompt");
+    }
     const out = {
-      systemPrompt: String(data.systemPrompt || ""),
-      userPrompt: String(data.userPrompt || ""),
+      systemPrompt: String(data.systemPrompt),
+      userPrompt: String(data.userPrompt),
       version: Number.isFinite(data.version) ? data.version : 1,
     };
     textSummarizerCache = { data: out, ts: Date.now() };
     return out;
   } catch (err) {
-    console.warn("[aiTextCleanup] prompt fetch failed:", err);
-    const out = {
-      systemPrompt:
-        "You are an assistant that cleans up Montessori observation notes. Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each); use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational. Rules: - Preserve all factual content, names, and dates; do not add or infer details. - Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL). - Ensure consistent spacing and final punctuation for sentences. - Keep it parent- and teacher-friendly; avoid clinical jargon. - Output plain text with line breaks (no headings, no markdown formatting beyond simple \"- \" bullets). - Return only the refined note text, with clean, readable structure.",
-      userPrompt:
-        "Please clean up the following observation. Density: ${tone}. --- ${text} ---",
-      version: 1,
-    };
-    textSummarizerCache = { data: out, ts: Date.now() };
-    return out;
+    textSummarizerCache = { data: null, ts: 0 };
+    console.error("[aiTextCleanup] prompt fetch failed:", err);
+    throw err;
   }
 }
 
@@ -948,26 +945,18 @@ export const aiTextCleanup = functions
     }
 
     const text = String(data?.text || "").trim();
-    const tone = String(data?.tone || "standard");
     if (!text) {
       throw new functions.https.HttpsError("invalid-argument", "text is required");
     }
     if (text.length > 12000) {
       throw new functions.https.HttpsError("invalid-argument", "text too long");
     }
-    if (!["concise", "standard", "detailed"].includes(tone)) {
-      throw new functions.https.HttpsError("invalid-argument", "invalid tone");
-    }
 
     const forceRefresh = !!data?.forceRefresh;
     const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer({ forceRefresh });
 
-    const interpolate = (tpl, vars) =>
-      String(tpl)
-        .replaceAll("${" + "tone}", vars.tone)
-        .replaceAll("${" + "text}", vars.text);
-
-    const renderedUser = interpolate(userPrompt || "Please clean up the following observation. Density: ${tone}. --- ${text} ---", { tone, text });
+    const renderedUser = String(userPrompt)
+      .replaceAll("${" + "text}", text);
 
     const body = buildChatBody({
       model: CLEANUP_MODEL_INFO.model,
@@ -3342,15 +3331,10 @@ const REPORT_JSON_WRAPPER = `
 
 IMPORTANT: You must output your response as a JSON object with exactly this structure:
 {
-  "reportText": "<the full report narrative as a single string, using \\n for line breaks and ## for section headers>",
-  "sentimentScore": <integer 1-5>,
-  "areaBalanceScore": <integer 1-5>,
-  "missingInputFlags": ["<flag1>", "<flag2>"]
+  "reportText": "<the full report narrative as a single string, using \\n for line breaks and ## for section headers>"
 }
 
 The reportText should contain the complete parent-facing report following the prompt instructions above.
-The sentimentScore and areaBalanceScore should follow the scoring rubrics in the prompt.
-The missingInputFlags should list any areas where inputs were missing.
 Output ONLY the JSON object, nothing else.`;
 
 async function callReportGeneration(notes, prompt, studentContext, dateRange, config = REPORT_DEFAULTS) {
@@ -3469,9 +3453,6 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
   if (!notes.length) {
     const payload = {
       reportText: "",
-      sentimentScore: null,
-      areaBalanceScore: null,
-      missingInputFlags: ["No observations found in date range"],
       noteCount: 0,
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
@@ -3496,9 +3477,6 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
 
   const payload = {
     reportText: aiResult.reportText,
-    sentimentScore: aiResult.sentimentScore,
-    areaBalanceScore: aiResult.areaBalanceScore,
-    missingInputFlags: aiResult.missingInputFlags,
     noteCount: formatted.length,
     dateRangeStart: startDate,
     dateRangeEnd: endDate,
@@ -3581,9 +3559,6 @@ export const generateStudentReport = functions
       status: result.status,
       studentId: result.studentId,
       noteCount: result.payload.noteCount,
-      sentimentScore: result.payload.sentimentScore,
-      areaBalanceScore: result.payload.areaBalanceScore,
-      missingInputFlags: result.payload.missingInputFlags,
       reportText: result.payload.reportText,
       dateRangeStart: result.payload.dateRangeStart?.toISOString?.() || null,
       dateRangeEnd: result.payload.dateRangeEnd?.toISOString?.() || null,
@@ -3636,9 +3611,6 @@ export const previewStudentReport = functions
       status: result.status,
       studentId: result.studentId,
       noteCount: result.payload.noteCount,
-      sentimentScore: result.payload.sentimentScore,
-      areaBalanceScore: result.payload.areaBalanceScore,
-      missingInputFlags: result.payload.missingInputFlags,
       reportText: result.payload.reportText,
       model: result.payload.model,
       generatedAt: result.payload.generatedAt?.toISOString?.() || new Date().toISOString(),
@@ -3718,9 +3690,6 @@ export const exportReportToDrive = functions
         // First attempt — build report from payload.
         report = {
           reportText: reportPayload.reportText,
-          sentimentScore: reportPayload.sentimentScore ?? null,
-          areaBalanceScore: reportPayload.areaBalanceScore ?? null,
-          missingInputFlags: reportPayload.missingInputFlags || [],
           noteCount: reportPayload.noteCount ?? 0,
           dateRangeStart: reportPayload.dateRangeStart ? new Date(reportPayload.dateRangeStart) : null,
           dateRangeEnd: reportPayload.dateRangeEnd ? new Date(reportPayload.dateRangeEnd) : null,
@@ -3836,6 +3805,23 @@ export const exportReportToDrive = functions
     }
 
     // Update summary + archive CSVs in classroom folder (best-effort)
+    // Read scores from readiness cache (PEP-68)
+    let readinessScores = { sentimentScore: null, areaBalanceScore: null, missingInputFlags: [] };
+    try {
+      const readinessSnap = await db.collection("students").doc(studentId)
+        .collection("ai_summaries").doc(READINESS_DOC_ID).get();
+      if (readinessSnap.exists) {
+        const rd = readinessSnap.data();
+        readinessScores = {
+          sentimentScore: rd.sentimentScore ?? null,
+          areaBalanceScore: rd.areaBalanceScore ?? null,
+          missingInputFlags: rd.missingInputFlags || [],
+        };
+      }
+    } catch (readinessErr) {
+      console.warn("[drive-export] readiness doc read failed (non-blocking):", readinessErr);
+    }
+
     try {
       const csvRow = formatCsvRow({
         studentName,
@@ -3844,9 +3830,9 @@ export const exportReportToDrive = functions
         classroom: classroomName,
         generatedAt: generatedAtIso,
         author: report.generatedByName || "",
-        sentimentScore: report.sentimentScore,
-        areaBalanceScore: report.areaBalanceScore,
-        missingInputFlags: report.missingInputFlags || [],
+        sentimentScore: readinessScores.sentimentScore,
+        areaBalanceScore: readinessScores.areaBalanceScore,
+        missingInputFlags: readinessScores.missingInputFlags,
         docLink,
       });
 
@@ -3899,6 +3885,196 @@ export const exportReportToDrive = functions
       driveDocId,
       driveDocLink: docLink,
       studentName,
+    };
+  });
+
+// ── Report Readiness Checker (PEP-68) ─────────────────────────────────────────
+
+const READINESS_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object with exactly this structure:
+{
+  "sentimentScore": <integer 1-5>,
+  "areaBalanceScore": <integer 1-5>,
+  "missingInputFlags": ["<flag1>", "<flag2>"]
+}
+
+The sentimentScore and areaBalanceScore should follow the scoring rubrics in the prompt.
+The missingInputFlags should list any curriculum domains with zero or very few observations.
+Return an empty array [] for missingInputFlags if coverage is adequate.
+Output ONLY the JSON object, nothing else.`;
+
+let readinessPromptCache = {};
+
+async function getReadinessPrompt(programId) {
+  const docId = getReadinessPromptDocId(programId);
+  if (!docId) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `This student's classroom has no program configured (programId: ${programId}). Ask an administrator to set the program for the classroom.`,
+    );
+  }
+
+  const cached = readinessPromptCache[docId];
+  if (cached?.data && (Date.now() - cached.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("ai_prompts").doc(docId).get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      `Readiness prompt not found for program: ${programId}. Seed it via scripts/admin/seed-readiness-prompts.mjs`,
+    );
+  }
+
+  const data = snap.data() || {};
+  const prompt = {
+    systemPrompt: String(data.systemPrompt || ""),
+    version: Number.isFinite(data.version) ? data.version : 1,
+  };
+
+  if (!prompt.systemPrompt) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Readiness prompt for ${programId} has empty systemPrompt`,
+    );
+  }
+
+  readinessPromptCache[docId] = { data: prompt, ts: Date.now() };
+  return prompt;
+}
+
+async function writeReadinessDoc(studentId, payload) {
+  const ref = db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc(READINESS_DOC_ID);
+  await ref.set(payload);
+}
+
+export const checkReportReadiness = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    await checkReportPermission(context.auth.uid, studentId);
+
+    const studentInfo = await getStudentWithProgram(studentId);
+    const prompt = await getReadinessPrompt(studentInfo.programId);
+
+    const dateRangeStart = data?.dateRangeStart || null;
+    const dateRangeEnd = data?.dateRangeEnd || null;
+    const startDate = dateRangeStart ? new Date(dateRangeStart) : getDefaultDateRange().start;
+    const endDate = dateRangeEnd ? normalizeEndOfDay(new Date(dateRangeEnd)) : new Date();
+
+    const notes = await fetchStudentNotesForDateRange(studentId, startDate, endDate);
+
+    if (!notes.length) {
+      const payload = {
+        sentimentScore: null,
+        areaBalanceScore: null,
+        missingInputFlags: ["No observations found in date range"],
+        noteCount: 0,
+        noteCountAtCheck: 0,
+        checkedAt: new Date(),
+        dateRangeStart: startDate,
+        dateRangeEnd: endDate,
+        programId: studentInfo.programId,
+        status: "no_notes",
+      };
+      await writeReadinessDoc(studentId, payload);
+      return {
+        ...payload,
+        checkedAt: payload.checkedAt.toISOString(),
+        dateRangeStart: payload.dateRangeStart?.toISOString?.() || null,
+        dateRangeEnd: payload.dateRangeEnd?.toISOString?.() || null,
+      };
+    }
+
+    const formatted = notes.map(formatObservationForPrompt);
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const systemContent = prompt.systemPrompt + READINESS_JSON_WRAPPER;
+    const userContent = [
+      `Evaluate the observation data quality for the period ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}.`,
+      "",
+      `Student: ${JSON.stringify({ studentName: studentInfo.studentName, age: studentInfo.age })}`,
+      "",
+      `Notes (${formatted.length} observations, JSON array):`,
+      JSON.stringify(formatted),
+    ].join("\n");
+
+    const body = buildChatBody({
+      model: READINESS_DEFAULTS.model,
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+      temperature: READINESS_DEFAULTS.temperature,
+      max_completion_tokens: READINESS_DEFAULTS.max_tokens,
+      response_format: { type: "json_object" },
+    });
+
+    let response;
+    try {
+      response = await fetch(CHAT_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openAiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      console.error("[readiness] network error", e);
+      throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error("[readiness] OpenAI error", response.status, errText?.slice?.(0, 400));
+      throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+    }
+
+    const json = await response.json();
+    const rawContent = json?.choices?.[0]?.message?.content?.trim();
+    if (!rawContent) {
+      throw new functions.https.HttpsError("internal", "AI returned no content");
+    }
+
+    const scores = parseReadinessResponse(rawContent);
+
+    const payload = {
+      sentimentScore: scores.sentimentScore,
+      areaBalanceScore: scores.areaBalanceScore,
+      missingInputFlags: scores.missingInputFlags,
+      noteCount: formatted.length,
+      noteCountAtCheck: formatted.length,
+      checkedAt: new Date(),
+      dateRangeStart: startDate,
+      dateRangeEnd: endDate,
+      programId: studentInfo.programId,
+      model: READINESS_DEFAULTS.model,
+      status: "ok",
+    };
+
+    await writeReadinessDoc(studentId, payload);
+
+    return {
+      ...payload,
+      checkedAt: payload.checkedAt.toISOString(),
+      dateRangeStart: payload.dateRangeStart?.toISOString?.() || null,
+      dateRangeEnd: payload.dateRangeEnd?.toISOString?.() || null,
     };
   });
 

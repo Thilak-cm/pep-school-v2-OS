@@ -37,7 +37,6 @@ import { db, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
-import NewFeaturePill from './NewFeaturePill';
 import ReportsCard from './ReportsCard';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
@@ -870,12 +869,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
                   <ChatIcon />
                 </Avatar>
                 <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
                       Chat with Coach Pepper
                     </Typography>
-                    <NewFeaturePill label="New" showIcon={false} />
-                  </Box>
                   <Typography variant="body2" sx={{ color: '#64748b' }}>
                     Ask questions about {getStudentName(student)}'s development
                   </Typography>

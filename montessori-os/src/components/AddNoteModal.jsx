@@ -52,7 +52,6 @@ import MentionTextArea from './MentionTextArea';
 import useMentionableStudents from '../hooks/useMentionableStudents';
 import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSuggestions';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
-import NewFeaturePill from './NewFeaturePill';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 
