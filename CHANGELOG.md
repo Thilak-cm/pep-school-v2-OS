@@ -1,5 +1,21 @@
 # Changelog
 
+# 10.3.0 — 2026-04-04
+
+### Added
+- Report readiness checker: standalone Cloud Function `checkReportReadiness` evaluates observation quality before report generation, giving teachers visibility into data gaps (PEP-68)
+- Per-program readiness evaluator prompts for adolescent, elementary, primary, and toddler programs with domain-specific scoring rubrics (PEP-68)
+- Readiness results cached at `students/{studentId}/ai_summaries/report_readiness` with staleness tracking (PEP-68)
+- "Report Readiness" panel on ReportsPage showing sentiment/balance scores, missing data flags, and note count (PEP-68)
+- Staleness indicator: "X new notes since the last report" on the readiness panel (PEP-68)
+- Seed script for readiness evaluator prompts and migration script to strip scoring from report prompts (PEP-68)
+
+### Changed
+- Report generation prompts no longer include scoring rubrics — scoring is handled by the readiness checker (PEP-68)
+- `parseReportResponse` returns only `{ reportText }`; downstream consumers (CSV, Drive export) read scores from the cached readiness doc (PEP-68)
+- Removed `FeatureTag` component and `featureFlags.js` — unused feature flag infrastructure cleaned up
+
+
 # 10.2.0 — 2026-03-30
 
 ### Added
