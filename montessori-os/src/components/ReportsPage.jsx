@@ -98,6 +98,8 @@ export default function ReportsPage({
   // Readiness state (PEP-68)
   const [readiness, setReadiness] = useState(null);
   const [readinessLoading, setReadinessLoading] = useState(true);
+  const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
+  const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
 
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
@@ -205,6 +207,18 @@ export default function ReportsPage({
     if (onPendingViewHandled) onPendingViewHandled();
   }, [pendingViewReportId, reports, onPendingViewHandled]);
 
+  // Compute staleness (PEP-68)
+  useEffect(() => {
+    if (!studentId) return;
+    const latestReport = reports[0]; // sorted newest-first by buildReportList
+    if (latestReport?.noteCount != null && readiness?.noteCount != null) {
+      const delta = readiness.noteCount - latestReport.noteCount;
+      setNewNotesSinceReport(Math.max(0, delta));
+    } else if (!latestReport) {
+      setNewNotesSinceReport(null);
+    }
+  }, [studentId, reports, readiness]);
+
   const handleCheckReadiness = async ({ dateRangeStart, dateRangeEnd }) => {
     try {
       setReadinessLoading(true);
@@ -219,15 +233,10 @@ export default function ReportsPage({
         checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
         status: result.data.status || 'ok',
       });
-      // Show staleness info after check
+      // Recompute staleness after fresh check
       const latestReport = reports[0];
       if (latestReport?.noteCount != null && result.data.noteCount != null) {
-        const delta = Math.max(0, result.data.noteCount - latestReport.noteCount);
-        if (delta > 0) {
-          notify.info(`${delta} new ${delta === 1 ? 'note' : 'notes'} since the last report. Consider regenerating.`, { duration: 5000 });
-        } else {
-          notify.info('No new observations since the last report.', { duration: 4000 });
-        }
+        setNewNotesSinceReport(Math.max(0, result.data.noteCount - latestReport.noteCount));
       }
     } catch (e) {
       notify.error(friendlyFunctionError(e));
@@ -454,7 +463,7 @@ export default function ReportsPage({
               size="small"
               variant="outlined"
               startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
-              onClick={() => handleCheckReadiness({})}
+              onClick={() => setRerunConfirmOpen(true)}
               disabled={readinessLoading}
               sx={{
                 textTransform: 'none',
@@ -680,6 +689,35 @@ export default function ReportsPage({
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rerunConfirmOpen}
+        onClose={() => setRerunConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Re-run readiness check?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {newNotesSinceReport != null && newNotesSinceReport > 0
+              ? `There ${newNotesSinceReport === 1 ? 'is' : 'are'} ${newNotesSinceReport} new ${newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report. Re-running the check will include the latest observations.`
+              : 'There are no new observations since the last report. Re-running may not change the results.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRerunConfirmOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setRerunConfirmOpen(false);
+              handleCheckReadiness({});
+            }}
+            variant="contained"
+            sx={{ textTransform: 'none' }}
+          >
+            Re-run check
           </Button>
         </DialogActions>
       </Dialog>
