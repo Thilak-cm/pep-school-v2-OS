@@ -26,6 +26,7 @@
 - `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
+- `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
 - `ai_prompts/{docId}`
@@ -230,7 +231,8 @@ Subcollections
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string }`.
-- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, sentimentScore?: number, areaBalanceScore?: number, missingInputFlags?: string[], sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive via the `exportReportToDrive` or `exportClassroomReportsToDrive` Cloud Functions.
+- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
+- `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).

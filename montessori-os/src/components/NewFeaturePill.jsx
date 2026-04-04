@@ -4,7 +4,6 @@ import { AutoFixHigh } from '@mui/icons-material';
 
 /**
  * Small gradient pill for temporary "New Feature" highlighting.
- * Controlled via feature flag so it can be removed easily later.
  *
  * Props:
  *  - label: string (default: 'New Feature')
@@ -43,4 +42,3 @@ const NewFeaturePill = ({ label = 'New Feature', showIcon = true, size = 'sm', s
 };
 
 export default NewFeaturePill;
-

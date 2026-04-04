@@ -40,7 +40,6 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
 
   // Test run
   const [testInput, setTestInput] = useState('');
-  const [testTone, setTestTone] = useState('standard');
   const [testing, setTesting] = useState(false);
   const [testOutput, setTestOutput] = useState('');
   const [testError, setTestError] = useState('');
@@ -182,7 +181,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
     }
     try {
       setTesting(true);
-      const out = await cleanUpText(testInput, { tone: testTone });
+      const out = await cleanUpText(testInput);
       setTestOutput(out);
     } catch (_e) {
       setTestError(_e?.message || 'Failed to run');
@@ -241,14 +240,10 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                     </Box>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{tone}'} and ${'{text}'})</Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{text}'})</Typography>
                     <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
                       {userPrompt || '—'}
                     </Box>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>Test Tone</Typography>
-                    <TextField fullWidth placeholder="standard" value={testTone} onChange={(e) => setTestTone(e.target.value)} />
                   </Box>
                 </>
               ) : (
@@ -258,12 +253,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                     <TextField fullWidth multiline minRows={4} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} />
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{tone}'} and ${'{text}'})</Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{text}'})</Typography>
                     <TextField fullWidth multiline minRows={6} value={userPrompt} onChange={(e) => setUserPrompt(e.target.value)} />
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>Test Tone</Typography>
-                    <TextField fullWidth placeholder="standard" value={testTone} onChange={(e) => setTestTone(e.target.value)} />
                   </Box>
                   <Box>
                     <Typography variant="caption" sx={{ color: '#64748b' }}>Change note (optional)</Typography>

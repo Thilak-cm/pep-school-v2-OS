@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-02T00:38:49.691Z
-App version: 10.1.0
+Generated: 2026-04-03T07:34:41.925Z
+App version: 10.2.1
 
 ## App Snapshot
 
@@ -137,6 +137,11 @@ App version: 10.1.0
 
 ## Recent Changes
 
+### 10.2.0 (2026-03-30)
+- "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
+- Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
+- User Message section showing auto-injected student context and observations info blocks (PEP-105)
+
 ### 10.1.0 (2026-03-25)
 - "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
 - Lesson tag chips displayed on media cards in the student timeline (PEP-58)
@@ -148,9 +153,4 @@ App version: 10.1.0
 - Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
 - grammy framework integration for Telegram Bot API interactions (PEP-109)
 - One-time setup script (`scripts/admin/setup-telegram-bot.mjs`) registers webhook URL with Telegram and seeds `config/telegram_bot` Firestore doc with allowed user IDs (PEP-109)
-
-### 9.10.1 (2026-03-16)
-- Client-side timeouts on all 10 Cloud Function calls now match server-side timeouts, preventing premature "deadline-exceeded" errors (PEP-89)
-- Friendly error messages replace raw error codes across all Cloud Function call sites — timeout and generic errors (PEP-89)
-- Report Generate dialog stays open on error so the user can adjust dates and retry without re-navigating (PEP-89)
 

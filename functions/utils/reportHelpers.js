@@ -1,4 +1,4 @@
-import { REPORT_PROMPT_DOCS, REPORT_DEFAULTS } from "../config/reportConstants.js";
+import { REPORT_PROMPT_DOCS, REPORT_DEFAULTS, READINESS_PROMPT_DOCS } from "../config/reportConstants.js";
 
 /**
  * Returns the default date range for report generation.
@@ -15,7 +15,9 @@ export function getDefaultDateRange(now = new Date()) {
 
 /**
  * Parse the structured JSON response from GPT-4o report generation.
- * Expected shape: { reportText, sentimentScore, areaBalanceScore, missingInputFlags }
+ * Expected shape: { reportText }
+ * Scoring (sentimentScore, areaBalanceScore, missingInputFlags) is handled
+ * separately by the report readiness checker (PEP-68).
  */
 export function parseReportResponse(rawContent) {
   let parsed;
@@ -30,21 +32,37 @@ export function parseReportResponse(rawContent) {
     throw new Error("reportText is missing or empty in AI response");
   }
 
+  return { reportText };
+}
+
+/**
+ * Clamp a score to 1-5 range, or return null if not a valid number.
+ * Used by the report readiness checker (PEP-68).
+ */
+export function clampScore(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+/**
+ * Parse the JSON response from the readiness evaluator LLM call (PEP-68).
+ * Expected shape: { sentimentScore, areaBalanceScore, missingInputFlags }
+ */
+export function parseReadinessResponse(rawContent) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    throw new Error("Failed to parse readiness response as JSON");
+  }
+
   const sentimentScore = clampScore(parsed.sentimentScore);
   const areaBalanceScore = clampScore(parsed.areaBalanceScore);
   const missingInputFlags = Array.isArray(parsed.missingInputFlags)
     ? parsed.missingInputFlags.filter((f) => typeof f === "string")
     : [];
 
-  return { reportText, sentimentScore, areaBalanceScore, missingInputFlags };
-}
-
-/**
- * Clamp a score to 1-5 range, or return null if not a valid number.
- */
-function clampScore(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return Math.max(1, Math.min(5, Math.round(value)));
+  return { sentimentScore, areaBalanceScore, missingInputFlags };
 }
 
 /**
@@ -54,6 +72,15 @@ function clampScore(value) {
 export function getReportPromptDocId(programId) {
   if (!programId || typeof programId !== "string") return null;
   return REPORT_PROMPT_DOCS[programId] || null;
+}
+
+/**
+ * Get the Firestore document ID for a program's readiness evaluator prompt.
+ * Returns null if the program is not supported.
+ */
+export function getReadinessPromptDocId(programId) {
+  if (!programId || typeof programId !== "string") return null;
+  return READINESS_PROMPT_DOCS[programId] || null;
 }
 
 /**
