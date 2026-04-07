@@ -19,7 +19,7 @@ import {
   Checkbox,
   TextField
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -46,6 +46,7 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import ExportWizard from './ExportWizard';
+import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
 
 const MEDIA_URL_FETCH_CONCURRENCY = 6;
@@ -56,6 +57,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [recentObs, setRecentObs] = useState([]);
   const [olderObs, setOlderObs] = useState([]);
   const [mediaDocs, setMediaDocs] = useState([]);
+  const [reportDocs, setReportDocs] = useState([]);
+  const [reportPreviewData, setReportPreviewData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreObs, setHasMoreObs] = useState(false);
@@ -90,9 +93,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const mediaUrlsRef = useRef({});
   const mediaUrlInFlightPathsRef = useRef(new Set());
 
-  // Derive observations by merging recentObs + olderObs + mediaDocs, deduping, sorting
+  // Derive observations by merging recentObs + olderObs + mediaDocs + reportDocs, deduping, sorting
   const observations = useMemo(() => {
-    const merged = [...recentObs, ...olderObs, ...mediaDocs];
+    const merged = [...recentObs, ...olderObs, ...mediaDocs, ...reportDocs];
     const seen = new Set();
     const deduped = merged.filter(item => {
       if (seen.has(item.id)) return false;
@@ -105,7 +108,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return db - da;
     });
     return deduped;
-  }, [recentObs, olderObs, mediaDocs]);
+  }, [recentObs, olderObs, mediaDocs, reportDocs]);
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -400,6 +403,33 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       orderBy('observedAt', 'desc'),
       limit(200)
     );
+
+    // Fetch reports from ai_summaries subcollection
+    getDocs(collection(db, 'students', studentIdToQuery, 'ai_summaries')).then((snap) => {
+      const reports = snap.docs
+        .filter((d) => d.id.startsWith('report_'))
+        .map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            type: 'report',
+            observedAt: data.generatedAt || null,
+            generatedAt: data.generatedAt || null,
+            generatedByName: data.generatedByName || null,
+            noteCount: data.noteCount || 0,
+            reportText: data.reportText || '',
+            missingInputFlags: data.missingInputFlags || [],
+            driveDocLink: data.driveDocLink || null,
+            status: data.status || 'ok',
+            dateRangeStart: data.dateRangeStart || null,
+            dateRangeEnd: data.dateRangeEnd || null,
+          };
+        })
+        .filter((r) => r.status === 'ok');
+      setReportDocs(reports);
+    }).catch(() => {
+      setReportDocs([]);
+    });
 
     let obsReady = false;
     let mediaReady = false;
@@ -976,6 +1006,48 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             };
 
             const renderTimelineItem = (obs) => {
+              if (obs.type === 'report') {
+                return (
+                  <Card
+                    key={obs.id}
+                    onClick={() => setReportPreviewData(obs)}
+                    sx={{
+                      mb: 1.5,
+                      borderRadius: 2,
+                      cursor: 'pointer',
+                      borderLeft: '3px solid',
+                      borderLeftColor: 'secondary.main',
+                      backgroundColor: 'rgba(76, 175, 80, 0.04)',
+                      '&:hover': {
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                        transform: 'translateY(-1px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                    }}
+                    aria-label={`View report generated on ${formatTimestamp(obs.generatedAt)}`}
+                  >
+                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Report generated
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTimestamp(obs.generatedAt)}
+                        </Typography>
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                        {obs.generatedByName ? `By ${obs.generatedByName}` : 'Generated'}
+                        {obs.noteCount > 0 ? ` \u00b7 ${obs.noteCount} notes` : ''}
+                        {' \u00b7 View report \u2192'}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
               if (obs.type === 'media') {
                 const mediaItems = Array.isArray(obs.mediaItems) && obs.mediaItems.length > 0
                   ? obs.mediaItems
@@ -1891,6 +1963,18 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         loading={exporting}
         title="Export Notes"
         subjectLabel={studentLabel}
+      />
+
+      {/* Report preview dialog for timeline report markers */}
+      <ReportPreviewDialog
+        open={!!reportPreviewData}
+        onClose={() => setReportPreviewData(null)}
+        reportText={reportPreviewData?.reportText || ''}
+        missingInputFlags={reportPreviewData?.missingInputFlags || []}
+        generatedAt={reportPreviewData?.generatedAt || null}
+        studentLabel={student?.displayName || student?.name || 'Student'}
+        noteCount={reportPreviewData?.noteCount || null}
+        driveDocLink={reportPreviewData?.driveDocLink || null}
       />
 
       {/* Note creation handled by global FAB */}
