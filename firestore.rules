@@ -184,6 +184,19 @@ service cloud.firestore {
         allow create, update, delete: if isSuperAdmin();
       }
 
+      // Profile subcollection - AI-generated student profile dimensions
+      // Cloud Functions use admin SDK (bypasses rules); superadmin for manual edits
+      match /profile/{dimensionId} {
+        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow create, update, delete: if isSuperAdmin();
+
+        // Version history for each dimension
+        match /history/{historyId} {
+          allow read: if isPrivilegedAdmin() || isTeacher();
+          allow create, update, delete: if isSuperAdmin();
+        }
+      }
+
       // Chats subcollection - all authenticated roles
       match /chats/{chatId} {
         allow read: if isPrivilegedAdmin() || isTeacher();
