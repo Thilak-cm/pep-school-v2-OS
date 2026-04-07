@@ -154,6 +154,42 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // STUDENT PROFILE ACCESS CONTROL (Firestore) - AI-only writes, read for admins/teachers
+  // ============================================================================
+
+  {
+    name: 'Student profile read restricted to privileged admins or teachers',
+    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile write restricted to superadmin only (Cloud Functions use admin SDK)',
+    description: 'allow create, update, delete: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile history read restricted to privileged admins or teachers',
+    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile history write restricted to superadmin only',
+    description: 'allow create, update, delete: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================
 
