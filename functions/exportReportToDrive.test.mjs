@@ -156,10 +156,11 @@ test("writeReportDoc uses provided docId when available instead of Date.now()", 
 test("writeReportDoc merges studentId into the payload before writing", async () => {
   const source = await readFile(sourceUrl, "utf8");
   // writeReportDoc should add studentId to the payload
+  const fnMatch = source.match(/function writeReportDoc\([^)]*\)\s*\{([\s\S]*?\n\})/);
+  assert.ok(fnMatch, "Expected to find writeReportDoc function");
   assert.ok(
-      /writeReportDoc\(studentId,[\s\S]*?studentId/.test(source) ||
-      source.includes("studentId") && /ref\.set\(/.test(source),
-      "Expected writeReportDoc to include studentId in the persisted payload",
+      fnMatch[1].includes("studentId"),
+      "Expected writeReportDoc body to include studentId in the persisted payload",
   );
 });
 

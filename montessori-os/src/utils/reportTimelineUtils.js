@@ -1,4 +1,4 @@
-import { formatTimestamp } from './dateFormat';
+import { formatDate } from './dateFormat';
 
 /**
  * Normalize a Firestore timestamp or Date to a JS Date.
@@ -36,7 +36,7 @@ export function groupReportsByDate(reports) {
     if (!groups[key]) {
       groups[key] = {
         date: toDate(report.generatedAt),
-        dateLabel: formatTimestamp(report.generatedAt),
+        dateLabel: formatDate(report.generatedAt),
         reports: [],
       };
     }
