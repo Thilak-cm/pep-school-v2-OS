@@ -205,7 +205,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
 
   // Derived counts for header summary
   const { totalNotes, notesLast7Days } = useMemo(() => {
-    const total = observations?.length || 0;
+    const nonReportObs = (observations || []).filter((o) => o.type !== 'report');
+    const total = nonReportObs.length;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const toDate = (ts) => {
       if (!ts) return null;
@@ -213,7 +214,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       if (ts.seconds) return new Date(ts.seconds * 1000);
       return null;
     };
-    const recent = (observations || []).filter((obs) => {
+    const recent = nonReportObs.filter((obs) => {
       const ts = obs.observedAt || obs.timestamp;
       const d = toDate(ts);
       return d && d >= sevenDaysAgo;
@@ -794,7 +795,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setDeleteConfirmOpen(false);
   };
   const exportableObservations = useMemo(
-    () => applyFilters(observations.filter((o) => o.type !== 'media'), null),
+    () => applyFilters(observations.filter((o) => o.type !== 'media' && o.type !== 'report'), null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [observations, filters]
   );

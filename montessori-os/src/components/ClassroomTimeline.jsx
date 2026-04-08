@@ -231,7 +231,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         if (!studentIds || studentIds.length === 0) {
           setClassroomNotes([]);
           setHasMoreNotes(false);
-          return;
+          return () => {};
         }
 
         studentIdsRef.current = studentIds;

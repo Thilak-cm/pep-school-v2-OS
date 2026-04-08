@@ -16,7 +16,7 @@ function toDate(ts) {
  */
 function dateKey(ts) {
   const d = toDate(ts);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
 /**

@@ -91,7 +91,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       if (overrideNoteTypeFilter === 'media') {
         selectedTypes.add('media');
       }
-      filtered = filtered.filter(obs => selectedTypes.has(obs.type));
+      filtered = filtered.filter(obs => obs.type === 'report' || selectedTypes.has(obs.type));
     }
 
     // Language filter removed
