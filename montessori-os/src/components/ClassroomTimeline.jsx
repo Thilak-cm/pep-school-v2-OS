@@ -231,7 +231,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         if (!studentIds || studentIds.length === 0) {
           setClassroomNotes([]);
           setHasMoreNotes(false);
-          setLoading(false);
           return;
         }
 
@@ -288,7 +287,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         // Check if any batch is not exhausted
         const totalBatches = Math.ceil(studentIds.length / batchSize);
         setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
-        setLoading(false);
 
         // Set up listener for real-time updates
         // Listen to students query changes and re-fetch notes when students change
@@ -361,7 +359,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
         return unsubscribe;
       } catch {
-        setLoading(false);
+        // error handled by caller
       }
     };
 
@@ -375,39 +373,44 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       
       const students = await fetchStudents();
       const studentIds = students.map(s => s.id);
-      unsubscribeRef.current = await fetchNotes(studentIds);
       fetchTeachers(); // Teachers can load in parallel
 
-      // Fetch reports for all students in classroom
-      Promise.all(
-        students.map(async (s) => {
-          try {
-            const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
-            return snap.docs
-              .filter((d) => d.id.startsWith('report_'))
-              .map((d) => {
-                const data = d.data();
-                return {
-                  id: d.id,
-                  studentId: s.id,
-                  studentName: s.displayName || s.firstName || 'Unknown Student',
-                  generatedAt: data.generatedAt || null,
-                  generatedByName: data.generatedByName || null,
-                  noteCount: data.noteCount || 0,
-                  reportText: data.reportText || '',
-                  missingInputFlags: data.missingInputFlags || [],
-                  driveDocLink: data.driveDocLink || null,
-                  status: data.status || 'ok',
-                };
-              })
-              .filter((r) => r.status === 'ok');
-          } catch {
-            return [];
-          }
-        })
-      ).then((results) => {
-        setClassroomReports(results.flat());
-      });
+      // Fetch notes and reports in parallel, then mark loading done
+      const [notesUnsub] = await Promise.all([
+        fetchNotes(studentIds),
+        // Fetch reports for all students in classroom
+        Promise.all(
+          students.map(async (s) => {
+            try {
+              const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
+              return snap.docs
+                .filter((d) => /^report_\d/.test(d.id))
+                .map((d) => {
+                  const data = d.data();
+                  return {
+                    id: d.id,
+                    studentId: s.id,
+                    studentName: s.displayName || s.firstName || 'Unknown Student',
+                    generatedAt: data.generatedAt || null,
+                    generatedByName: data.generatedByName || null,
+                    noteCount: data.noteCount || 0,
+                    reportText: data.reportText || '',
+                    missingInputFlags: data.missingInputFlags || [],
+                    driveDocLink: data.driveDocLink || null,
+                    status: data.status || 'ok',
+                  };
+                })
+                .filter((r) => r.status === 'ok');
+            } catch {
+              return [];
+            }
+          })
+        ).then((results) => {
+          setClassroomReports(results.flat());
+        }),
+      ]);
+      unsubscribeRef.current = notesUnsub;
+      setLoading(false);
     })();
 
     // Cleanup function
@@ -922,36 +925,26 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     }}
                   >
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Box
-                        onClick={() => toggleReportGroup(group.dateLabel)}
-                        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                      >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
                           </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Typography variant="caption" color="text.secondary">
                             {group.dateLabel}
                           </Typography>
-                          <KeyboardArrowDown
-                            sx={{
-                              fontSize: 18,
-                              color: 'text.secondary',
-                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                              transition: 'transform 0.2s',
-                            }}
-                          />
                         </Box>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => toggleReportGroup(group.dateLabel)}
+                          endIcon={<KeyboardArrowDown sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />}
+                          sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, px: 1, minHeight: 22, lineHeight: 1.4 }}
+                        >
+                          See students
+                        </Button>
                       </Box>
-                      {!isExpanded && (
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
-                          {group.reports[0]?.generatedByName ? `By ${group.reports[0].generatedByName}` : 'Generated'}
-                          {' \u00b7 See students \u25be'}
-                        </Typography>
-                      )}
                       <Collapse in={isExpanded}>
                         <Box sx={{ ml: 3.5, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                           {group.reports.map((report) => (
@@ -972,9 +965,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                               <Typography variant="body2">
                                 {report.studentName}
                               </Typography>
-                              <Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
-                                View report &rarr;
-                              </Typography>
+                              <Button size="small" variant="outlined" sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, px: 1, minHeight: 22, lineHeight: 1.4 }}>
+                                View report
+                              </Button>
                             </Box>
                           ))}
                         </Box>

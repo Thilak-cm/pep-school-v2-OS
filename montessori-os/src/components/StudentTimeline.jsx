@@ -404,10 +404,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       limit(200)
     );
 
+    let obsReady = false;
+    let mediaReady = false;
+    let reportsReady = false;
+
+    const checkLoaded = () => {
+      if (obsReady && mediaReady && reportsReady) {
+        setLoading(false);
+        clearTimeout(timeoutId);
+      }
+    };
+
     // Fetch reports from ai_summaries subcollection
     getDocs(collection(db, 'students', studentIdToQuery, 'ai_summaries')).then((snap) => {
       const reports = snap.docs
-        .filter((d) => d.id.startsWith('report_'))
+        .filter((d) => /^report_\d/.test(d.id))
         .map((d) => {
           const data = d.data();
           return {
@@ -427,19 +438,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         })
         .filter((r) => r.status === 'ok');
       setReportDocs(reports);
+      reportsReady = true;
+      checkLoaded();
     }).catch(() => {
       setReportDocs([]);
+      reportsReady = true;
+      checkLoaded();
     });
-
-    let obsReady = false;
-    let mediaReady = false;
-
-    const checkLoaded = () => {
-      if (obsReady && mediaReady) {
-        setLoading(false);
-        clearTimeout(timeoutId);
-      }
-    };
 
     const unsubObs = onSnapshot(obsQuery, (snap) => {
       const list = snap.docs.map((d) => ({
@@ -1038,11 +1043,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {formatTimestamp(obs.generatedAt)}
                         </Typography>
                       </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
-                        {obs.generatedByName ? `By ${obs.generatedByName}` : 'Generated'}
-                        {obs.noteCount > 0 ? ` \u00b7 ${obs.noteCount} notes` : ''}
-                        {' \u00b7 View report \u2192'}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {obs.generatedByName ? `By ${obs.generatedByName}` : 'Generated'}
+                          {obs.noteCount > 0 ? ` \u00b7 ${obs.noteCount} notes` : ''}
+                        </Typography>
+                        <Button size="small" variant="outlined" sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, px: 1, minHeight: 22, lineHeight: 1.4 }}>
+                          View report
+                        </Button>
+                      </Box>
                     </CardContent>
                   </Card>
                 );
