@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, Timestamp, FieldPath } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getStorage } from "firebase-admin/storage";
 // Use v1 compatibility API for region(), https.onCall(), etc.
@@ -7,6 +7,8 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
+import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, SOURCE_OBSERVATION } from "./config/profileConstants.js";
+import { parseProfileResponse } from "./utils/profileHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { MINI_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
@@ -4356,5 +4358,355 @@ export const bulkSyncDrivePermissions = functions
       permissionsRevoked: results.revoked,
       errors: results.errors,
     };
+  });
+
+// -----------------------------------------------
+// Student Profile: Generate profile for a single student (PEP-124)
+// -----------------------------------------------
+
+const PROFILE_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let profilePromptCache = {};
+
+async function getProfilePrompt(programId) {
+  const docId = `profile_${programId}`;
+
+  const cached = profilePromptCache[docId];
+  if (cached?.data && (Date.now() - cached.ts < PROFILE_PROMPT_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
+  const snap = await db.collection("ai_prompts").doc(docId).get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError("not-found", `Profile prompt not found: ${docId}`);
+  }
+  const data = snap.data();
+  const prompt = {
+    systemPrompt: data.staticSystemPrompt + (data.dynamicSystemPrompt || ""),
+  };
+
+  profilePromptCache[docId] = { data: prompt, ts: Date.now() };
+  return prompt;
+}
+
+async function getProfileDimensions(programId) {
+  const docId = `profile_dimensions_${programId}`;
+  const snap = await db.collection("config").doc(docId).get();
+  if (snap.exists && snap.data()?.dimensions?.length) {
+    return snap.data().dimensions;
+  }
+  // Fall back to hardcoded constants if config doc not seeded yet
+  return PROGRAM_DIMENSIONS[programId] || null;
+}
+
+const PROFILE_JSON_WRAPPER = `
+
+IMPORTANT: You must output your response as a JSON object.
+Each key must be one of the dimension keys listed above.
+Each value must be an object with exactly: { "narrative": string, "confidence": number, "evidenceCount": number, "trend": string }
+Output ONLY the JSON object, nothing else.`;
+
+async function callProfileGeneration(notes, prompt, studentContext, dimensions, openAiKey) {
+  const dimBlock = dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
+  const systemContent = prompt.systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + PROFILE_JSON_WRAPPER;
+
+  const userContent = [
+    "Generate a student profile from the following observations.",
+    "",
+    `Student: ${JSON.stringify(studentContext)}`,
+    "",
+    `Observations (${notes.length} notes, JSON array):`,
+    JSON.stringify(notes),
+  ].join("\n");
+
+  const body = buildChatBody({
+    model: PROFILE_DEFAULTS.model,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: userContent },
+    ],
+    temperature: PROFILE_DEFAULTS.temperature,
+    max_completion_tokens: PROFILE_DEFAULTS.max_tokens,
+    response_format: { type: "json_object" },
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("[profile] network error", e);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[profile] OpenAI error", response.status, errText?.slice?.(0, 400));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch (err) {
+    console.error("[profile] JSON parse error", err, rawContent?.slice?.(0, 500));
+    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+  }
+
+  return { parsed, rawContent };
+}
+
+async function writeProfileDimensions(studentId, profileEntries, programId, sourceType) {
+  const profileRef = db.collection("students").doc(studentId).collection("profile");
+  const now = Timestamp.now();
+  const batch = db.batch();
+
+  // Read all existing dimension docs in parallel
+  const existingDocs = await Promise.all(
+    profileEntries.map((entry) => profileRef.doc(entry.dimensionKey).get()),
+  );
+
+  for (let i = 0; i < profileEntries.length; i++) {
+    const entry = profileEntries[i];
+    const existing = existingDocs[i];
+    const dimRef = profileRef.doc(entry.dimensionKey);
+
+    // If doc exists, snapshot current state to history before overwriting
+    if (existing.exists) {
+      const historyRef = dimRef.collection("history").doc(now.toMillis().toString());
+      const prevData = existing.data();
+      batch.set(historyRef, {
+        narrative: prevData.narrative || "",
+        structuredSignals: prevData.structuredSignals || {},
+        updatedAt: prevData.updatedAt || now,
+        updatedBy: prevData.updatedBy || "unknown",
+        reason: `Superseded by ${sourceType} on ${new Date().toISOString().split("T")[0]}`,
+      });
+    }
+
+    batch.set(dimRef, {
+      dimensionKey: entry.dimensionKey,
+      dimensionLabel: entry.dimensionLabel,
+      programId,
+      narrative: entry.narrative,
+      structuredSignals: {
+        ...entry.structuredSignals,
+        lastSourceType: sourceType,
+      },
+      createdAt: existing.exists ? (existing.data().createdAt || now) : now,
+      updatedAt: now,
+      updatedBy: `cloud-function:${sourceType}`,
+    });
+  }
+
+  await batch.commit();
+}
+
+export const generateStudentProfile = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Fail fast if OpenAI key is missing — before any Firestore reads
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    // Only superadmins can trigger profile generation
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can generate profiles");
+    }
+
+    const studentId = String(data?.studentId || "").trim();
+    if (!studentId) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId is required");
+    }
+
+    const studentInfo = await getStudentWithProgram(studentId);
+    if (!studentInfo.programId || !VALID_PROGRAMS.includes(studentInfo.programId)) {
+      throw new functions.https.HttpsError("failed-precondition", `Invalid program: ${studentInfo.programId}`);
+    }
+
+    const dimensions = await getProfileDimensions(studentInfo.programId);
+    if (!dimensions?.length) {
+      throw new functions.https.HttpsError("failed-precondition", `No dimensions configured for program: ${studentInfo.programId}`);
+    }
+
+    const prompt = await getProfilePrompt(studentInfo.programId);
+
+    // Default to 365-day observation window; pass windowDays to override
+    const windowDays = data?.windowDays || 365;
+    const notes = await fetchStudentNotesForWindow(studentId, windowDays);
+
+    if (!notes.length) {
+      console.log(`[profile] No observations for ${studentId}, writing empty profile`);
+      const emptyEntries = parseProfileResponse({}, dimensions);
+      await writeProfileDimensions(studentId, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
+      return {
+        status: "no_notes",
+        studentId,
+        programId: studentInfo.programId,
+        dimensionCount: dimensions.length,
+        noteCount: 0,
+      };
+    }
+
+    const formatted = notes.map(formatObservationForPrompt);
+    const { parsed } = await callProfileGeneration(formatted, prompt, {
+      studentName: studentInfo.studentName,
+      dob: studentInfo.dob,
+      age: studentInfo.age,
+      programId: studentInfo.programId,
+    }, dimensions, openAiKey);
+
+    const profileEntries = parseProfileResponse(parsed, dimensions);
+    await writeProfileDimensions(studentId, profileEntries, studentInfo.programId, SOURCE_OBSERVATION);
+
+    console.log(`[profile] Generated profile for ${studentId}: ${profileEntries.length} dimensions, ${formatted.length} observations`);
+
+    return {
+      status: "ok",
+      studentId,
+      programId: studentInfo.programId,
+      dimensionCount: profileEntries.length,
+      noteCount: formatted.length,
+      dimensions: profileEntries.map((e) => ({
+        key: e.dimensionKey,
+        confidence: e.structuredSignals.confidence,
+        evidenceCount: e.structuredSignals.evidenceCount,
+      })),
+    };
+  });
+
+// -----------------------------------------------
+// Student Profile: Bulk backfill for all active students (PEP-124)
+// -----------------------------------------------
+
+export const backfillStudentProfiles = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Fail fast if OpenAI key is missing — before any Firestore reads
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Only superadmins can run backfill");
+    }
+
+    // Pagination params
+    const windowDays = data?.windowDays || 365;
+    const dryRun = data?.dryRun === true;
+    const batchSize = Math.min(Number(data?.batchSize) || 10, 25);
+    const startAfter = data?.startAfter || null;
+
+    let query = db.collection("students")
+      .where("isActive", "==", true)
+      .orderBy(FieldPath.documentId())
+      .limit(batchSize);
+
+    if (startAfter) {
+      const startAfterDoc = await db.collection("students").doc(startAfter).get();
+      if (!startAfterDoc.exists) {
+        throw new functions.https.HttpsError("not-found", `startAfter student not found: ${startAfter}`);
+      }
+      query = query.startAfter(startAfterDoc);
+    }
+
+    const studentsSnap = await query.get();
+    const filteredStudents = studentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    if (dryRun) {
+      return {
+        status: "dry_run",
+        studentCount: filteredStudents.length,
+        students: filteredStudents.map((s) => ({ id: s.id, name: s.displayName || s.firstName })),
+        hasMore: filteredStudents.length === batchSize,
+        lastStudentId: filteredStudents.length ? filteredStudents[filteredStudents.length - 1].id : null,
+      };
+    }
+
+    const results = [];
+    let processed = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const student of filteredStudents) {
+      processed++;
+      try {
+        const studentInfo = await getStudentWithProgram(student.id);
+        if (!studentInfo.programId || !VALID_PROGRAMS.includes(studentInfo.programId)) {
+          errors.push({ studentId: student.id, error: `Invalid program: ${studentInfo.programId}` });
+          failed++;
+          continue;
+        }
+
+        const dimensions = await getProfileDimensions(studentInfo.programId);
+        if (!dimensions?.length) {
+          errors.push({ studentId: student.id, error: "No dimensions configured" });
+          failed++;
+          continue;
+        }
+
+        const prompt = await getProfilePrompt(studentInfo.programId);
+        const notes = await fetchStudentNotesForWindow(student.id, windowDays);
+
+        if (!notes.length) {
+          const emptyEntries = parseProfileResponse({}, dimensions);
+          await writeProfileDimensions(student.id, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
+          succeeded++;
+          results.push({ studentId: student.id, status: "no_notes" });
+          console.log(`[backfill] ${student.id}: no notes, wrote empty profile`);
+          continue;
+        }
+
+        const formatted = notes.map(formatObservationForPrompt);
+        const { parsed } = await callProfileGeneration(formatted, prompt, {
+          studentName: studentInfo.studentName,
+          dob: studentInfo.dob,
+          age: studentInfo.age,
+          programId: studentInfo.programId,
+        }, dimensions, openAiKey);
+
+        const profileEntries = parseProfileResponse(parsed, dimensions);
+        await writeProfileDimensions(student.id, profileEntries, studentInfo.programId, SOURCE_BACKFILL);
+        succeeded++;
+        results.push({ studentId: student.id, status: "ok", noteCount: formatted.length });
+        console.log(`[backfill] ${student.id}: ${profileEntries.length} dimensions, ${formatted.length} notes`);
+      } catch (err) {
+        console.error(`[backfill] Failed for ${student.id}:`, err.message);
+        errors.push({ studentId: student.id, error: err.message });
+        failed++;
+      }
+    }
+
+    const lastStudentId = filteredStudents.length ? filteredStudents[filteredStudents.length - 1].id : null;
+    const hasMore = filteredStudents.length === batchSize;
+    console.log(`[backfill] Batch complete: ${succeeded}/${processed} succeeded, ${failed} failed, hasMore=${hasMore}`);
+    return { status: "ok", processed, succeeded, failed, errors, results, lastStudentId, hasMore };
   });
 

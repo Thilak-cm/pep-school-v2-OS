@@ -86,6 +86,22 @@ export const TOOL_DEFINITIONS = [
       properties: {},
     },
   },
+  {
+    name: "get_ai_prompt",
+    description:
+      "Fetch an AI prompt document from the ai_prompts collection. Returns all fields including systemPrompt, userPrompt, version, etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        docId: {
+          type: "string",
+          description:
+            "Document ID in ai_prompts collection (e.g., text_summarizer, report_adolescent, baseball_card, coach_primary, chat_elementary).",
+        },
+      },
+      required: ["docId"],
+    },
+  },
 ];
 
 // --- Tool Handlers ---
@@ -245,6 +261,25 @@ export async function handleListStudents(db, params) {
   });
 
   return results;
+}
+
+export async function handleGetAiPrompt(db, params) {
+  const { docId } = params;
+  if (!docId) return null;
+
+  const doc = await db.collection("ai_prompts").doc(docId).get();
+  if (!doc.exists) return null;
+
+  const d = doc.data();
+  const result = { id: doc.id };
+  for (const [key, value] of Object.entries(d)) {
+    if (value?.toDate) {
+      result[key] = value.toDate().toISOString();
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 export async function handleListClassrooms(db) {

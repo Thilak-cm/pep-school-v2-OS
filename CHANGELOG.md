@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.4.0 — 2026-04-07
+
+### Added
+- Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
+- `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
+- `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
+- Per-program dimension config at `config/profile_dimensions_{program}` with seed script for toddler, primary, elementary, and adolescent programs (PEP-124)
+- Per-program profile generation prompts at `ai_prompts/profile_{program}` with seed script (PEP-124)
+- Firestore security rules for profile subcollection: superadmin read, Cloud Functions write via admin SDK (PEP-124)
+- Security rule spec tests for profile and history subcollection access control (PEP-124)
+
 # 10.3.0 — 2026-04-04
 
 ### Added
