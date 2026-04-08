@@ -4630,9 +4630,10 @@ export const backfillStudentProfiles = functions
 
     if (startAfter) {
       const startAfterDoc = await db.collection("students").doc(startAfter).get();
-      if (startAfterDoc.exists) {
-        query = query.startAfter(startAfterDoc);
+      if (!startAfterDoc.exists) {
+        throw new functions.https.HttpsError("not-found", `startAfter student not found: ${startAfter}`);
       }
+      query = query.startAfter(startAfterDoc);
     }
 
     const studentsSnap = await query.get();
