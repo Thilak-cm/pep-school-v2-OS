@@ -154,15 +154,15 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
-  // STUDENT PROFILE ACCESS CONTROL (Firestore) - AI-only writes, read for admins/teachers
+  // STUDENT PROFILE ACCESS CONTROL (Firestore) - AI-only writes, superadmin read only
   // ============================================================================
 
   {
-    name: 'Student profile read restricted to privileged admins or teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Student profile read restricted to superadmin only',
+    description: 'allow read: if isSuperAdmin()',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
   },
 
   {
@@ -174,11 +174,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Student profile history read restricted to privileged admins or teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Student profile history read restricted to superadmin only',
+    description: 'allow read: if isSuperAdmin()',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
   },
 
   {
@@ -186,7 +186,7 @@ export const ACCESS_CONTROL_SPEC = [
     description: 'allow create, update, delete: if isSuperAdmin()',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
   },
 
   // ============================================================================

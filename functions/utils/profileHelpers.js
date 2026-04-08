@@ -42,7 +42,6 @@ export function parseProfileResponse(rawResponse, dimensions) {
         confidence,
         evidenceCount,
         trend,
-        lastSourceType: "backfill",
       },
     };
   });

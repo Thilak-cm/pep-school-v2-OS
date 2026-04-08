@@ -7,6 +7,7 @@ import {
   VALID_SOURCE_TYPES,
   PROFILE_MODEL,
 } from "../config/profileConstants.js";
+import { FRONTIER_MODEL } from "../config/modelConstants.js";
 
 // ---------------------------------------------------------------------------
 // Dimension config validation
@@ -59,8 +60,9 @@ test("Orders are sequential within each program", () => {
 // Profile model constant validation
 // ---------------------------------------------------------------------------
 
-test("PROFILE_MODEL is a frontier model", () => {
+test("PROFILE_MODEL is the frontier model", () => {
   assert.ok(PROFILE_MODEL, "PROFILE_MODEL should be defined");
+  assert.equal(PROFILE_MODEL, FRONTIER_MODEL, "PROFILE_MODEL must match FRONTIER_MODEL");
   assert.ok(!PROFILE_MODEL.includes("mini"), "PROFILE_MODEL should not be a mini model");
   assert.ok(!PROFILE_MODEL.includes("nano"), "PROFILE_MODEL should not be a nano model");
 });

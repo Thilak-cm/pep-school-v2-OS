@@ -2,10 +2,9 @@
 
 // Hard requirement: use latest frontier model for profile generation
 // This is high-stakes data processing — not configurable downward
-import { AVAILABLE_MODELS } from "./modelConstants.js";
+import { FRONTIER_MODEL } from "./modelConstants.js";
 
-const latestFrontier = AVAILABLE_MODELS.find((m) => m.tier === "frontier");
-export const PROFILE_MODEL = latestFrontier?.id || "gpt-5.4";
+export const PROFILE_MODEL = FRONTIER_MODEL;
 
 export const PROFILE_DEFAULTS = {
   model: PROFILE_MODEL,
@@ -200,4 +199,8 @@ export const VALID_PROGRAMS = Object.keys(PROGRAM_DIMENSIONS);
 
 export const VALID_TRENDS = ["emerging", "developing", "stable", "declining"];
 
-export const VALID_SOURCE_TYPES = ["backfill", "interview", "observation"];
+export const SOURCE_BACKFILL = "backfill";
+export const SOURCE_INTERVIEW = "interview";
+export const SOURCE_OBSERVATION = "observation";
+
+export const VALID_SOURCE_TYPES = [SOURCE_BACKFILL, SOURCE_INTERVIEW, SOURCE_OBSERVATION];
