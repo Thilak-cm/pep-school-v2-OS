@@ -3746,6 +3746,9 @@ export const exportReportToDrive = functions
     // studentName (single read).  This claims the reportDocId before Drive work.
     if (reportRef && report.status === "pending_drive" && !report.studentName) {
       report.studentName = studentName;
+      report.studentId = studentId;
+      report.classroomId = classroomId;
+      report.kind = "report";
       await reportRef.set(report);
     }
 
@@ -3867,6 +3870,9 @@ export const exportReportToDrive = functions
       await reportRef.update({
         status: "ok",
         studentName,
+        studentId,
+        classroomId,
+        kind: "report",
       });
       docId = reportDocId;
     } else if (reportDocId) {

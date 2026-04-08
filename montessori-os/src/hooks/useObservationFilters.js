@@ -73,6 +73,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     if (filters.creators && filters.creators.length > 0) {
       const selectedTeacherIds = new Set(filters.creators.map(teacher => teacher.id));
       filtered = filtered.filter(obs => {
+        if (obs.type === 'report') return true;
         const creatorId = obs.createdBy || obs.teacherId;
         return selectedTeacherIds.has(creatorId);
       });
