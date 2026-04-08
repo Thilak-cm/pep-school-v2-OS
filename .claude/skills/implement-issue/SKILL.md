@@ -327,12 +327,17 @@ Update Linear issue with implementation progress and test results.
 Require the user to manually verify the implementation before moving to review.
 
 **Steps:**
-1. **Pre-check with Playwright MCP** (do this BEFORE asking the user):
-   - For UI changes, use Playwright to navigate to the affected pages and run a smoke check
-   - Use `browser_console_messages` with `level: "error"` to catch any runtime errors (React warnings, TypeErrors, etc.)
-   - Use `browser_take_screenshot` to visually confirm the feature renders correctly
-   - Fix any issues found — the goal is to hand off a clean build to the user, not make them be the first to discover console errors
-   - This step is especially valuable for catching Firestore Timestamp handling issues, duplicate React keys, missing imports, and other runtime errors that unit tests don't cover
+1. **Full Playwright e2e smoke check** (do this BEFORE presenting anything to the user):
+   - For UI changes, use Playwright MCP to navigate to the affected pages and run a complete smoke check
+   - Dev server ports: 5174 for alt-pepos worktree, 5173 for main worktree
+   - The user must sign in manually via Google OAuth once — Playwright cannot automate OAuth popups. Ask once, then proceed with all checks.
+   - Navigate to every page/flow affected by the diff — use issue context and modified file paths to determine which screens
+   - Use `browser_console_messages` with `level: "error"` after each navigation and interaction to catch runtime errors
+   - Test all interactive elements: click buttons, expand dropdowns, open dialogs, close dialogs
+   - Use `browser_take_screenshot` to visually confirm rendering at key points
+   - Fix any issues found (React key warnings, TypeErrors, Firestore Timestamp crashes, missing imports, layout bugs), re-run tests, and re-check with Playwright until clean
+   - **Only come to the user after Playwright shows 0 errors across all tested flows** — the goal is a clean handoff, not making the user be the first to discover console errors
+   - Report what you tested and the results when presenting to the user
 
 2. Present a verification prompt that strongly encourages manual testing:
    - Start the dev server if not running (`npm run dev` in `montessori-os/`)
