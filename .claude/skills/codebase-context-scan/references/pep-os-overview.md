@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-03T07:34:41.925Z
-App version: 10.2.1
+Generated: 2026-04-08T01:24:46.599Z
+App version: 10.4.0
 
 ## App Snapshot
 
@@ -57,11 +57,10 @@ App version: 10.2.1
 - `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 7
-- Components: `BaseballCardSnapshotCard`, `FeatureTag`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `UpdateNotification`
+- Count: 6
+- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `UpdateNotification`
 - Representative paths:
 - `montessori-os/src/components/BaseballCardSnapshotCard.jsx`
-- `montessori-os/src/components/FeatureTag.jsx`
 - `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
@@ -115,7 +114,7 @@ App version: 10.2.1
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `ai_prompts`, `placements`, `chats`, `messages`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `ai_prompts`, `placements`, `chats`, `messages`, `history`, `profile`
 - Rule-declared paths:
 - `/ai_prompts/{docId}`
 - `/ai_summaries/{summaryId}`
@@ -124,10 +123,12 @@ App version: 10.2.1
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
 - `/feedback/{feedbackId}`
+- `/history/{historyId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
 - `/observations/{observationId}`
 - `/placements/{placementId}`
+- `/profile/{dimensionId}`
 - `/programs/{programId}`
 - `/students/{studentId}`
 - `/users/{uid}`
@@ -137,6 +138,16 @@ App version: 10.2.1
 
 ## Recent Changes
 
+### 10.4.0 (2026-04-07)
+- Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
+- `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
+- `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
+
+### 10.3.0 (2026-04-04)
+- Report readiness checker: standalone Cloud Function `checkReportReadiness` evaluates observation quality before report generation, giving teachers visibility into data gaps (PEP-68)
+- Per-program readiness evaluator prompts for adolescent, elementary, primary, and toddler programs with domain-specific scoring rubrics (PEP-68)
+- Readiness results cached at `students/{studentId}/ai_summaries/report_readiness` with staleness tracking (PEP-68)
+
 ### 10.2.0 (2026-03-30)
 - "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
 - Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
@@ -145,12 +156,4 @@ App version: 10.2.1
 ### 10.1.0 (2026-03-25)
 - "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
 - Lesson tag chips displayed on media cards in the student timeline (PEP-58)
-
-### 10.0.1 (2026-03-24)
-- Dead bulk report generation code: `StudentList.jsx` component, `generateClassroomReports` and `exportClassroomReportsToDrive` Cloud Functions, `REPORT_BULK_CONCURRENCY` constant, and bulk UI in `ReportGenerateDialog` (PEP-115)
-
-### 10.0.0 (2026-03-24)
-- Telegram bot webhook foundation: `telegramWebhook` Cloud Function receives Telegram POSTs, verifies webhook secret header, checks sender against Firestore whitelist, and echoes authorized messages back (PEP-109)
-- grammy framework integration for Telegram Bot API interactions (PEP-109)
-- One-time setup script (`scripts/admin/setup-telegram-bot.mjs`) registers webhook URL with Telegram and seeds `config/telegram_bot` Firestore doc with allowed user IDs (PEP-109)
 
