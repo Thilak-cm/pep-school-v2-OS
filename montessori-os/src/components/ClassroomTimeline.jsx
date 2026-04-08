@@ -925,28 +925,28 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     }}
                   >
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {group.dateLabel}
-                          </Typography>
-                        </Box>
-                        <Button
-                          size="small"
-                          variant="outlined"
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {group.dateLabel}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="primary"
                           onClick={() => toggleReportGroup(group.dateLabel)}
-                          endIcon={<KeyboardArrowDown sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />}
-                          sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, px: 1, minHeight: 22, lineHeight: 1.4 }}
+                          sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
                         >
-                          See students
-                        </Button>
+                          {isExpanded ? 'Hide' : 'See'} students
+                          <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                        </Typography>
                       </Box>
                       <Collapse in={isExpanded}>
-                        <Box sx={{ ml: 3.5, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
                           {group.reports.map((report) => (
                             <Box
                               key={report.id}
@@ -965,9 +965,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                               <Typography variant="body2">
                                 {report.studentName}
                               </Typography>
-                              <Button size="small" variant="outlined" sx={{ textTransform: 'none', fontSize: '0.7rem', py: 0, px: 1, minHeight: 22, lineHeight: 1.4 }}>
-                                View report
-                              </Button>
+                              <Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+                                View
+                              </Typography>
                             </Box>
                           ))}
                         </Box>
