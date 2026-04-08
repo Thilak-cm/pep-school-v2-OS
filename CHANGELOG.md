@@ -1,5 +1,20 @@
 # Changelog
 
+# 10.4.0 — 2026-04-07
+
+### Added
+- Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
+- Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
+- Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
+- `observationUtils` extended with 'report' type for icon and label support (PEP-82)
+
+### Fixed
+- Report markers exempt from timeline type filters — reports always visible regardless of active filters (PEP-82)
+- Report items excluded from observation export count and pipeline (PEP-82)
+- Firestore Timestamp handling in ReportPreviewDialog for `.toDate()` objects (PEP-82)
+- IST-aware date grouping for classroom report markers (PEP-82)
+
+
 # 10.3.0 — 2026-04-04
 
 ### Added

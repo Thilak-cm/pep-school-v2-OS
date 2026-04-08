@@ -3415,7 +3415,8 @@ async function callReportGeneration(notes, prompt, studentContext, dateRange, co
 async function writeReportDoc(studentId, payload, docId) {
   const resolvedId = docId || `report_${Date.now()}`;
   const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc(resolvedId);
-  await ref.set(payload);
+  const enriched = { ...payload, studentId, kind: "report" };
+  await ref.set(enriched);
   return resolvedId;
 }
 
@@ -3457,6 +3458,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
       programId: studentInfo.programId,
+      classroomId: studentInfo.classroomId || null,
       model: config.model,
       generatedAt: new Date(),
       generatedBy: requesterId,
@@ -3481,6 +3483,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     dateRangeStart: startDate,
     dateRangeEnd: endDate,
     programId: studentInfo.programId,
+    classroomId: studentInfo.classroomId || null,
     model: config.model,
     generatedAt: new Date(),
     generatedBy: requesterId,
@@ -3743,6 +3746,9 @@ export const exportReportToDrive = functions
     // studentName (single read).  This claims the reportDocId before Drive work.
     if (reportRef && report.status === "pending_drive" && !report.studentName) {
       report.studentName = studentName;
+      report.studentId = studentId;
+      report.classroomId = classroomId;
+      report.kind = "report";
       await reportRef.set(report);
     }
 
@@ -3864,6 +3870,9 @@ export const exportReportToDrive = functions
       await reportRef.update({
         status: "ok",
         studentName,
+        studentId,
+        classroomId,
+        kind: "report",
       });
       docId = reportDocId;
     } else if (reportDocId) {

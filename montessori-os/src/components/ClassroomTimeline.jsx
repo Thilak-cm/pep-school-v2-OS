@@ -29,7 +29,7 @@ import {
   ListItemIcon,
   Alert
 } from '@mui/material';
-import { 
+import {
   Group,
   Notes,
   FilterList,
@@ -39,13 +39,16 @@ import {
   Search,
   Close,
   Delete,
-  Visibility
+  Visibility,
+  Description,
+  KeyboardArrowDown
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField, startAfter } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
+import ReportPreviewDialog from './ReportPreviewDialog';
 import FilterPanel from './FilterPanel';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
@@ -59,6 +62,7 @@ import {
 } from '../utils/lessonNoteConstraints';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { paginateTimelineItems, toDate } from './classroomTimelineUtils.js';
+import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
 
 const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
   const dimensions = getLessonDimensions(note);
@@ -146,6 +150,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const [hasMoreNotes, setHasMoreNotes] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [classroomReports, setClassroomReports] = useState([]);
+  const [reportPreviewData, setReportPreviewData] = useState(null);
+  const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
   const searchInputRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const [notesReloadToken] = useState(0);
@@ -224,8 +231,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         if (!studentIds || studentIds.length === 0) {
           setClassroomNotes([]);
           setHasMoreNotes(false);
-          setLoading(false);
-          return;
+          return () => {};
         }
 
         studentIdsRef.current = studentIds;
@@ -281,7 +287,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         // Check if any batch is not exhausted
         const totalBatches = Math.ceil(studentIds.length / batchSize);
         setHasMoreNotes(exhaustedBatchesRef.current.size < totalBatches);
-        setLoading(false);
 
         // Set up listener for real-time updates
         // Listen to students query changes and re-fetch notes when students change
@@ -354,7 +359,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
         return unsubscribe;
       } catch {
-        setLoading(false);
+        // error handled by caller
       }
     };
 
@@ -368,8 +373,44 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       
       const students = await fetchStudents();
       const studentIds = students.map(s => s.id);
-      unsubscribeRef.current = await fetchNotes(studentIds);
       fetchTeachers(); // Teachers can load in parallel
+
+      // Fetch notes and reports in parallel, then mark loading done
+      const [notesUnsub] = await Promise.all([
+        fetchNotes(studentIds),
+        // Fetch reports for all students in classroom
+        Promise.all(
+          students.map(async (s) => {
+            try {
+              const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
+              return snap.docs
+                .filter((d) => /^report_\d/.test(d.id))
+                .map((d) => {
+                  const data = d.data();
+                  return {
+                    id: d.id,
+                    studentId: s.id,
+                    studentName: s.displayName || s.firstName || 'Unknown Student',
+                    generatedAt: data.generatedAt || null,
+                    generatedByName: data.generatedByName || null,
+                    noteCount: data.noteCount || 0,
+                    reportText: data.reportText || '',
+                    missingInputFlags: data.missingInputFlags || [],
+                    driveDocLink: data.driveDocLink || null,
+                    status: data.status || 'ok',
+                  };
+                })
+                .filter((r) => r.status === 'ok');
+            } catch {
+              return [];
+            }
+          })
+        ).then((results) => {
+          setClassroomReports(results.flat());
+        }),
+      ]);
+      unsubscribeRef.current = notesUnsub;
+      setLoading(false);
     })();
 
     // Cleanup function
@@ -610,6 +651,17 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     const { grouped, ungrouped } = groupedAndSortedObservations;
     return paginateTimelineItems(grouped, ungrouped, Infinity);
   }, [groupedAndSortedObservations]);
+
+  const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
+
+  const toggleReportGroup = (dateLabel) => {
+    setExpandedReportGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateLabel)) next.delete(dateLabel);
+      else next.add(dateLabel);
+      return next;
+    });
+  };
 
   const lessonTitleById = useMemo(() => {
     const map = {};
@@ -857,6 +909,76 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             </Typography>
           </Box>
 
+          {/* Report Markers */}
+          {groupedReports.length > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+              {groupedReports.map((group) => {
+                const isExpanded = expandedReportGroups.has(group.dateLabel);
+                return (
+                  <Card
+                    key={`report-group-${group.dateLabel}`}
+                    sx={{
+                      borderLeft: '3px solid',
+                      borderLeftColor: 'secondary.main',
+                      backgroundColor: 'rgba(76, 175, 80, 0.04)',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {group.dateLabel}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="primary"
+                          onClick={() => toggleReportGroup(group.dateLabel)}
+                          sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
+                        >
+                          {isExpanded ? 'Hide' : 'See'} students
+                          <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                        </Typography>
+                      </Box>
+                      <Collapse in={isExpanded}>
+                        <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
+                          {group.reports.map((report) => (
+                            <Box
+                              key={`${report.studentId}-${report.id}`}
+                              onClick={() => setReportPreviewData(report)}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                py: 0.5,
+                                px: 1,
+                                borderRadius: 1,
+                                cursor: 'pointer',
+                                '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' },
+                              }}
+                            >
+                              <Typography variant="body2">
+                                {report.studentName}
+                              </Typography>
+                              <Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
+                                View
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </Collapse>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </Box>
+          )}
+
           {/* Notes Timeline */}
           {filteredObservations.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -1044,6 +1166,18 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           </Box>
         </Box>
       </Box>
+
+      {/* Report preview dialog for classroom timeline report markers */}
+      <ReportPreviewDialog
+        open={!!reportPreviewData}
+        onClose={() => setReportPreviewData(null)}
+        reportText={reportPreviewData?.reportText || ''}
+        missingInputFlags={reportPreviewData?.missingInputFlags || []}
+        generatedAt={reportPreviewData?.generatedAt || null}
+        studentLabel={reportPreviewData?.studentName || 'Student'}
+        noteCount={reportPreviewData?.noteCount || null}
+        driveDocLink={reportPreviewData?.driveDocLink || null}
+      />
     </Box>
   );
 }
