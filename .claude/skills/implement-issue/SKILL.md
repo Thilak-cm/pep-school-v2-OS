@@ -251,12 +251,18 @@ Execute the approved plan using Test-Driven Development.
    - Check for regressions in existing tests
    - **BLOCK IF:** Any criterion lacks test coverage or tests are failing
 
-5. **Refactor if needed** (Refactor phase):
+5. **Browser-verify with Playwright MCP** (for UI changes):
+   - Use the Playwright MCP tools to navigate to the dev server (port 5174 for alt-pepos worktree, 5173 for main)
+   - After implementing UI changes, use `browser_navigate` to load the relevant page, `browser_console_messages` to check for runtime errors (React key warnings, TypeError crashes, etc.), and `browser_take_screenshot` to visually confirm rendering
+   - Fix any console errors found before asking the user to verify — this closes the feedback loop without requiring the user to paste dev console output
+   - Note: The user must sign in manually via Google OAuth if the session requires auth — Playwright cannot automate OAuth popups
+
+6. **Refactor if needed** (Refactor phase):
    - Clean up code while keeping tests green
    - Ensure consistent patterns with existing codebase
    - Update tests if refactoring changes interfaces
 
-6. Create commits:
+7. Create commits:
    - Commit tests separately: `test: add tests for [feature/fix] (PEP-123)`
    - Commit implementation: `feat/fix: [description] (PEP-123)`
    - Co-authored-by: Claude
@@ -321,19 +327,26 @@ Update Linear issue with implementation progress and test results.
 Require the user to manually verify the implementation before moving to review.
 
 **Steps:**
-1. Present a verification prompt that strongly encourages manual testing:
+1. **Pre-check with Playwright MCP** (do this BEFORE asking the user):
+   - For UI changes, use Playwright to navigate to the affected pages and run a smoke check
+   - Use `browser_console_messages` with `level: "error"` to catch any runtime errors (React warnings, TypeErrors, etc.)
+   - Use `browser_take_screenshot` to visually confirm the feature renders correctly
+   - Fix any issues found — the goal is to hand off a clean build to the user, not make them be the first to discover console errors
+   - This step is especially valuable for catching Firestore Timestamp handling issues, duplicate React keys, missing imports, and other runtime errors that unit tests don't cover
+
+2. Present a verification prompt that strongly encourages manual testing:
    - Start the dev server if not running (`npm run dev` in `montessori-os/`)
    - Walk through the feature/fix end-to-end in the browser
    - Check both the happy path and edge cases
 
-2. Provide a tailored checklist based on the change type:
+3. Provide a tailored checklist based on the change type:
    - **UI changes:** Visual appearance, responsiveness, interaction states, loading/error states
    - **Data changes:** Data persists correctly, Firestore documents created/updated as expected
    - **Role/permission changes:** Test with different roles (teacher, classroomadmin, superadmin)
    - **API/Cloud Function changes:** Verify function triggers correctly, check Firebase console logs
    - **Bug fixes:** Confirm the original bug no longer reproduces
 
-3. Ask user to confirm verification using AskUserQuestion:
+4. Ask user to confirm verification using AskUserQuestion:
    - Question: "Have you manually verified the e2e flow of this feature?"
    - Options: "Yes, verified and working" / "Found issues (describe)"
    - If "Found issues": Address the issues, re-run tests, then ask again
