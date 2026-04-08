@@ -949,7 +949,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                         <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
                           {group.reports.map((report) => (
                             <Box
-                              key={report.id}
+                              key={`${report.studentId}-${report.id}`}
                               onClick={() => setReportPreviewData(report)}
                               sx={{
                                 display: 'flex',
