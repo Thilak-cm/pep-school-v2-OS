@@ -154,6 +154,42 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // STUDENT PROFILE ACCESS CONTROL (Firestore) - AI-only writes, superadmin read only
+  // ============================================================================
+
+  {
+    name: 'Student profile read restricted to superadmin only',
+    description: 'allow read: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile write restricted to superadmin only (Cloud Functions use admin SDK)',
+    description: 'allow create, update, delete: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile history read restricted to superadmin only',
+    description: 'allow read: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Student profile history write restricted to superadmin only',
+    description: 'allow create, update, delete: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================
 

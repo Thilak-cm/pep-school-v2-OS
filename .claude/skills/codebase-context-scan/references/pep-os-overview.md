@@ -114,7 +114,7 @@ App version: 10.4.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `ai_prompts`, `placements`, `chats`, `messages`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `ai_prompts`, `placements`, `chats`, `messages`, `history`, `profile`
 - Rule-declared paths:
 - `/ai_prompts/{docId}`
 - `/ai_summaries/{summaryId}`
@@ -123,10 +123,12 @@ App version: 10.4.0
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
 - `/feedback/{feedbackId}`
+- `/history/{historyId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
 - `/observations/{observationId}`
 - `/placements/{placementId}`
+- `/profile/{dimensionId}`
 - `/programs/{programId}`
 - `/students/{studentId}`
 - `/users/{uid}`
@@ -140,6 +142,9 @@ App version: 10.4.0
 - Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
 - Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
 - Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
+- Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
+- `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
+- `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
 
 ### 10.3.0 (2026-04-04)
 - Report readiness checker: standalone Cloud Function `checkReportReadiness` evaluates observation quality before report generation, giving teachers visibility into data gaps (PEP-68)

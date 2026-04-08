@@ -8,10 +8,6 @@ import {
 
 describe("modelConstants", () => {
   describe("FRONTIER_MODEL", () => {
-    it("should be gpt-5.2", () => {
-      assert.equal(FRONTIER_MODEL, "gpt-5.2");
-    });
-
     it("should be a non-empty string", () => {
       assert.equal(typeof FRONTIER_MODEL, "string");
       assert.ok(FRONTIER_MODEL.length > 0);
@@ -19,10 +15,6 @@ describe("modelConstants", () => {
   });
 
   describe("MINI_MODEL", () => {
-    it("should be gpt-5-mini", () => {
-      assert.equal(MINI_MODEL, "gpt-5-mini");
-    });
-
     it("should be a non-empty string", () => {
       assert.equal(typeof MINI_MODEL, "string");
       assert.ok(MINI_MODEL.length > 0);

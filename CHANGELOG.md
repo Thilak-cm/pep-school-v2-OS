@@ -7,13 +7,19 @@
 - Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
 - Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
 - `observationUtils` extended with 'report' type for icon and label support (PEP-82)
+- Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
+- `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
+- `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
+- Per-program dimension config at `config/profile_dimensions_{program}` with seed script for toddler, primary, elementary, and adolescent programs (PEP-124)
+- Per-program profile generation prompts at `ai_prompts/profile_{program}` with seed script (PEP-124)
+- Firestore security rules for profile subcollection: superadmin read, Cloud Functions write via admin SDK (PEP-124)
+- Security rule spec tests for profile and history subcollection access control (PEP-124)
 
 ### Fixed
 - Report markers exempt from timeline type filters — reports always visible regardless of active filters (PEP-82)
 - Report items excluded from observation export count and pipeline (PEP-82)
 - Firestore Timestamp handling in ReportPreviewDialog for `.toDate()` objects (PEP-82)
 - IST-aware date grouping for classroom report markers (PEP-82)
-
 
 # 10.3.0 — 2026-04-04
 
