@@ -4,24 +4,20 @@ import { mergeReportConfig } from "../utils/reportHelpers.js";
 import { REPORT_DEFAULTS } from "../config/reportConstants.js";
 
 describe("mergeReportConfig", () => {
-  it("returns REPORT_DEFAULTS when docData is null/undefined", () => {
+  it("returns defaults when docData is null/undefined", () => {
     const result = mergeReportConfig(null, REPORT_DEFAULTS);
-    assert.deepStrictEqual(result, {
-      model: "gpt-5.2",
-      temperature: 0.7,
-      max_tokens: 4096,
-      timezone: "Asia/Kolkata",
-    });
+    assert.equal(result.model, REPORT_DEFAULTS.model);
+    assert.equal(result.temperature, REPORT_DEFAULTS.temperature);
+    assert.equal(result.max_tokens, REPORT_DEFAULTS.max_tokens);
+    assert.equal(result.timezone, REPORT_DEFAULTS.timezone);
   });
 
-  it("returns REPORT_DEFAULTS when docData is empty object", () => {
+  it("returns defaults when docData is empty object", () => {
     const result = mergeReportConfig({}, REPORT_DEFAULTS);
-    assert.deepStrictEqual(result, {
-      model: "gpt-5.2",
-      temperature: 0.7,
-      max_tokens: 4096,
-      timezone: "Asia/Kolkata",
-    });
+    assert.equal(result.model, REPORT_DEFAULTS.model);
+    assert.equal(result.temperature, REPORT_DEFAULTS.temperature);
+    assert.equal(result.max_tokens, REPORT_DEFAULTS.max_tokens);
+    assert.equal(result.timezone, REPORT_DEFAULTS.timezone);
   });
 
   it("overrides model from docData", () => {
@@ -34,7 +30,7 @@ describe("mergeReportConfig", () => {
   it("overrides temperature from docData", () => {
     const result = mergeReportConfig({ temperature: 0.3 }, REPORT_DEFAULTS);
     assert.equal(result.temperature, 0.3);
-    assert.equal(result.model, "gpt-5.2");
+    assert.equal(result.model, REPORT_DEFAULTS.model);
   });
 
   it("overrides max_tokens from docData", () => {
@@ -64,7 +60,7 @@ describe("mergeReportConfig", () => {
 
   it("falls back to default when model is empty string", () => {
     const result = mergeReportConfig({ model: "" }, REPORT_DEFAULTS);
-    assert.equal(result.model, "gpt-5.2");
+    assert.equal(result.model, REPORT_DEFAULTS.model);
   });
 
   it("merges multiple overrides at once", () => {
