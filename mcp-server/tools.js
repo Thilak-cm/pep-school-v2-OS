@@ -80,7 +80,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "list_classrooms",
     description:
-      "List all active classrooms. Returns name, ID, program, branch, and student count.",
+      "List all active classrooms. Returns name, ID, program, branch, student count, and teacher count.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -297,6 +297,7 @@ export async function handleListClassrooms(db) {
       programId: d.programId,
       branchId: d.branchId,
       studentCount: d.studentCount || 0,
+      teacherCount: Array.isArray(d.teacherIds) ? d.teacherIds.length : 0,
     });
   });
 
