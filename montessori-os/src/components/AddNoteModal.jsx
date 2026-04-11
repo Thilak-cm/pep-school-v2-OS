@@ -54,6 +54,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
+import { parsePhotoAnalysis } from '../utils/photoAnalysis.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -368,8 +369,8 @@ function AddNoteModal({
   const [pdfPageCount, setPdfPageCount] = useState(null);
   const [_pdfExtractedText, setPdfExtractedText] = useState('');
   const pdfWorkerSetupRef = useRef(false);
-  const [handwritingDetectionLoading, setHandwritingDetectionLoading] = useState(false);
-  const handwritingDetectionFailedRef = useRef(new Set());
+  const [photoAnalysisLoading, setPhotoAnalysisLoading] = useState(false);
+  const photoAnalysisFailedRef = useRef(new Set());
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -724,19 +725,19 @@ function AddNoteModal({
     }
   }, [textData, transcriptionData, selectedStudents]);
 
-  // Auto-trigger VLM handwriting detection once photos are added
+  // Auto-trigger VLM photo analysis once photos are added
   useEffect(() => {
     if (step !== STEP_MEDIA || mediaMode !== 'photo') return;
-    if (handwritingDetectionLoading) return;
+    if (photoAnalysisLoading) return;
 
-    const undetected = mediaItems.filter((it) => it.kind === 'photo' && it.handwritten === undefined && !handwritingDetectionFailedRef.current.has(it.id));
-    if (undetected.length === 0) return;
+    const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.photoAnalysis && !photoAnalysisFailedRef.current.has(it.id));
+    if (unanalyzed.length === 0) return;
 
-    runHandwritingDetection(undetected).catch((error) => {
-      reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runHandwritingDetection');
+    runPhotoAnalysis(unanalyzed).catch((error) => {
+      reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runPhotoAnalysis');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, mediaMode, mediaItems, handwritingDetectionLoading]);
+  }, [step, mediaMode, mediaItems, photoAnalysisLoading]);
 
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
@@ -1320,18 +1321,19 @@ function AddNoteModal({
       reader.readAsDataURL(blob);
     });
 
-  const runHandwritingDetection = async (items) => {
+  const runPhotoAnalysis = async (items) => {
     const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
     if (photoItems.length === 0) return;
-    setHandwritingDetectionLoading(true);
+    setPhotoAnalysisLoading(true);
 
-    const vlmFn = httpsCallable(cloudFunctions, 'detectHandwritingVLM');
+    const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
     const results = await Promise.allSettled(
       photoItems.map(async (item) => {
         try {
           const imageBase64 = await blobToBase64(item.source.blob);
           const res = await vlmFn({ imageBase64, contentType: item.source.contentType || 'image/webp' });
-          return { itemId: item.id, handwritten: res.data?.handwritten === true };
+          const analysis = parsePhotoAnalysis(res.data);
+          return { itemId: item.id, photoAnalysis: analysis };
         } catch (err) {
           err.itemId = item.id;
           throw err;
@@ -1341,16 +1343,16 @@ function AddNoteModal({
     const updates = {};
     results.forEach((r) => {
       if (r.status === 'fulfilled') {
-        updates[r.value.itemId] = r.value.handwritten;
+        updates[r.value.itemId] = r.value.photoAnalysis;
       } else if (r.status === 'rejected') {
-        handwritingDetectionFailedRef.current.add(r.reason?.itemId);
+        photoAnalysisFailedRef.current.add(r.reason?.itemId);
       }
     });
-    setMediaItems((prev) => prev.map((it) => (it.id in updates ? { ...it, handwritten: updates[it.id] } : it)));
+    setMediaItems((prev) => prev.map((it) => (it.id in updates ? { ...it, photoAnalysis: updates[it.id], handwritten: updates[it.id].handwritten } : it)));
     if (Object.keys(updates).length < photoItems.length) {
-      notify.warning('Could not detect handwriting for some photos.');
+      notify.warning('Could not analyze some photos.');
     }
-    setHandwritingDetectionLoading(false);
+    setPhotoAnalysisLoading(false);
   };
 
   const createMediaItemId = () =>
@@ -1683,7 +1685,11 @@ function AddNoteModal({
             batchId,
             pdfTitle: item.kind === 'pdf' ? String(pdfTitle || '').trim() : '',
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
-            ...(item.kind === 'photo' ? { copied: item.copied === true, handwritten: item.handwritten === true } : {}),
+            ...(item.kind === 'photo' ? {
+              copied: item.copied === true,
+              handwritten: item.photoAnalysis?.handwritten === true || item.handwritten === true,
+              ...(item.photoAnalysis ? { photoAnalysis: item.photoAnalysis } : {}),
+            } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
             createdBy: currentUser.uid,
@@ -2315,12 +2321,42 @@ function AddNoteModal({
                                         Copied
                                       </ToggleButton>
                                     </ToggleButtonGroup>
-                                    {handwritingDetectionLoading && item.handwritten === undefined ? (
+                                    {photoAnalysisLoading && !item.photoAnalysis ? (
                                       <CircularProgress size={14} sx={{ color: '#7c3aed' }} />
-                                    ) : item.handwritten === true ? (
+                                    ) : item.photoAnalysis?.handwritten === true ? (
                                       <Chip label="Handwritten" size="small" color="info" variant="outlined" />
                                     ) : null}
+                                    {item.photoAnalysis?.curriculumArea && (
+                                      <Chip label={item.photoAnalysis.curriculumArea} size="small" color="secondary" variant="outlined" />
+                                    )}
                                   </Box>
+                                )}
+                                {item.photoAnalysis?.description && (
+                                  <TextField
+                                    label="AI Description"
+                                    value={item.photoAnalysis.description}
+                                    onChange={(e) => {
+                                      const newDesc = e.target.value;
+                                      setMediaItems((prev) => prev.map((it) =>
+                                        it.id === item.id
+                                          ? { ...it, photoAnalysis: { ...it.photoAnalysis, description: newDesc, teacherEdited: true } }
+                                          : it
+                                      ));
+                                    }}
+                                    fullWidth
+                                    multiline
+                                    minRows={2}
+                                    size="small"
+                                    sx={{ mb: 1 }}
+                                    InputProps={{
+                                      sx: { fontSize: '0.85rem' },
+                                      startAdornment: (
+                                        <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
+                                          <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed' }} />
+                                        </InputAdornment>
+                                      ),
+                                    }}
+                                  />
                                 )}
                                 <TextField
                                   label="Comment (optional)"
