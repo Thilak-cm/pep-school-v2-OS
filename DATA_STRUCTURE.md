@@ -15,8 +15,6 @@
 ---
 
 ## 📚 Collections Overview
-- `access_logs/{logId}`                                // Telegram bot access audit logs
-- `access_requests/{requestId}`                        // Telegram bot pairing requests
 - `branches/{branchId}`
 - `programs/{programId}`
 - `users/{uid}`
