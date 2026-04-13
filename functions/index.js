@@ -10,7 +10,7 @@ import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, SOURCE_OBSERVATION } from "./config/profileConstants.js";
 import { parseProfileResponse } from "./utils/profileHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
-import { MINI_MODEL, NANO_MODEL } from "./config/modelConstants.js";
+import { MINI_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
@@ -287,7 +287,7 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
-const PHOTO_ANALYSIS_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 500 };
+const PHOTO_ANALYSIS_MODEL = { model: MINI_MODEL, temperature: 0.2, max_tokens: 500 };
 const PHOTO_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori classroom photo analyst. When given a photo of student work, analyze it in the context of the specific child's age and developmental stage.
 
 IMPORTANT: The user message will include the child's name and age. Use their age to calibrate your developmental assessment — what is impressive for a 3-year-old is expected for a 6-year-old. Your ratings, curriculum mapping, and developmental notes should all reflect age-appropriate expectations.
