@@ -2321,43 +2321,62 @@ function AddNoteModal({
                                         Copied
                                       </ToggleButton>
                                     </ToggleButtonGroup>
-                                    {photoAnalysisLoading && !item.photoAnalysis ? (
-                                      <CircularProgress size={14} sx={{ color: '#7c3aed' }} />
-                                    ) : item.photoAnalysis?.handwritten === true ? (
-                                      <Chip label="Handwritten" size="small" color="info" variant="outlined" />
-                                    ) : null}
-                                    {item.photoAnalysis?.curriculumArea && (
-                                      <Chip label={item.photoAnalysis.curriculumArea} size="small" color="secondary" variant="outlined" />
-                                    )}
                                   </Box>
                                 )}
-                                {item.photoAnalysis?.description && (
-                                  <TextField
-                                    label="AI Description"
-                                    value={item.photoAnalysis.description}
-                                    onChange={(e) => {
-                                      const newDesc = e.target.value;
-                                      setMediaItems((prev) => prev.map((it) =>
-                                        it.id === item.id
-                                          ? { ...it, photoAnalysis: { ...it.photoAnalysis, description: newDesc, teacherEdited: true } }
-                                          : it
-                                      ));
-                                    }}
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    size="small"
-                                    sx={{ mb: 1 }}
-                                    InputProps={{
-                                      sx: { fontSize: '0.85rem' },
-                                      startAdornment: (
-                                        <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
-                                          <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed' }} />
-                                        </InputAdornment>
-                                      ),
-                                    }}
-                                  />
-                                )}
+                                {photoAnalysisLoading && !item.photoAnalysis ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, bgcolor: '#f3f0ff', borderRadius: 1.5 }}>
+                                    <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed', animation: 'pulse 1.5s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 0.5 }, '50%': { opacity: 1 } } }} />
+                                    <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 500 }}>
+                                      Coach Pepper is analyzing this photo...
+                                    </Typography>
+                                  </Box>
+                                ) : item.photoAnalysis ? (
+                                  <>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                                      <Chip
+                                        label={`Handwritten: ${item.photoAnalysis.handwritten ? 'Yes' : 'No'}`}
+                                        size="small"
+                                        color={item.photoAnalysis.handwritten ? 'info' : 'default'}
+                                        variant="outlined"
+                                      />
+                                      {item.photoAnalysis.curriculumArea && (
+                                        <Chip
+                                          label={`Curriculum: ${item.photoAnalysis.curriculumArea}`}
+                                          size="small"
+                                          color="secondary"
+                                          variant="outlined"
+                                        />
+                                      )}
+                                    </Box>
+                                    {item.photoAnalysis.description && (
+                                      <TextField
+                                        label="AI Description"
+                                        value={item.photoAnalysis.description}
+                                        onChange={(e) => {
+                                          const newDesc = e.target.value;
+                                          setMediaItems((prev) => prev.map((it) =>
+                                            it.id === item.id
+                                              ? { ...it, photoAnalysis: { ...it.photoAnalysis, description: newDesc, teacherEdited: true } }
+                                              : it
+                                          ));
+                                        }}
+                                        fullWidth
+                                        multiline
+                                        minRows={2}
+                                        size="small"
+                                        sx={{ mb: 0.5 }}
+                                        InputProps={{
+                                          sx: { fontSize: '0.85rem' },
+                                          startAdornment: (
+                                            <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
+                                              <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed' }} />
+                                            </InputAdornment>
+                                          ),
+                                        }}
+                                      />
+                                    )}
+                                  </>
+                                ) : null}
                                 <TextField
                                   label="Comment (optional)"
                                   value={item.teacherComment || ''}
