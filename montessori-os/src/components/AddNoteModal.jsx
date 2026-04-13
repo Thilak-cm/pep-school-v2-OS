@@ -725,19 +725,20 @@ function AddNoteModal({
     }
   }, [textData, transcriptionData, selectedStudents]);
 
-  // Auto-trigger VLM photo analysis once photos are added
+  // Auto-trigger VLM photo analysis once photos are added AND a student is selected
   useEffect(() => {
     if (step !== STEP_MEDIA || mediaMode !== 'photo') return;
     if (photoAnalysisLoading) return;
+    if (selectedStudents.length !== 1) return; // need exactly one student for context
 
     const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.photoAnalysis && !photoAnalysisFailedRef.current.has(it.id));
     if (unanalyzed.length === 0) return;
 
-    runPhotoAnalysis(unanalyzed).catch((error) => {
+    runPhotoAnalysis(unanalyzed, selectedStudents[0]).catch((error) => {
       reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runPhotoAnalysis');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, mediaMode, mediaItems, photoAnalysisLoading]);
+  }, [step, mediaMode, mediaItems, photoAnalysisLoading, selectedStudents]);
 
   const handleClose = () => {
     setStep(STEP_NOTE_TYPE);
@@ -935,6 +936,11 @@ function AddNoteModal({
   };
 
   const handleStudentsChange = (nextStudents) => {
+    // Photo mode: restrict to single student (multi-student photo analysis deferred to PEP-138)
+    if (step === STEP_MEDIA && mediaMode === 'photo' && nextStudents?.length > 1) {
+      notify.warning('Photo analysis supports one student at a time.');
+      return;
+    }
     if ((selectedLessonIds?.length || 0) > 0 && (nextStudents?.length || 0) > 1) {
       setPendingStudents(nextStudents);
       setMultiStudentWarningOpen(true);
@@ -1321,36 +1327,60 @@ function AddNoteModal({
       reader.readAsDataURL(blob);
     });
 
-  const runPhotoAnalysis = async (items) => {
+  const runPhotoAnalysis = async (items, studentId) => {
     const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
     if (photoItems.length === 0) return;
     setPhotoAnalysisLoading(true);
 
-    const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
-    const results = await Promise.allSettled(
-      photoItems.map(async (item) => {
-        try {
-          const imageBase64 = await blobToBase64(item.source.blob);
-          const res = await vlmFn({ imageBase64, contentType: item.source.contentType || 'image/webp' });
-          const analysis = parsePhotoAnalysis(res.data);
-          return { itemId: item.id, photoAnalysis: analysis };
-        } catch (err) {
-          err.itemId = item.id;
-          throw err;
+    // Fetch student context (name + age) for the VLM prompt
+    let studentName = '';
+    let studentAge = '';
+    try {
+      const stuDoc = await getDoc(doc(db, 'students', studentId));
+      if (stuDoc.exists()) {
+        const stu = stuDoc.data();
+        studentName = stu.displayName || `${stu.firstName || ''} ${stu.lastName || ''}`.trim();
+        if (stu.dateOfBirth?.toDate) {
+          const dob = stu.dateOfBirth.toDate();
+          const now = new Date();
+          const years = now.getFullYear() - dob.getFullYear();
+          const months = now.getMonth() - dob.getMonth() + (now.getDate() < dob.getDate() ? -1 : 0);
+          const totalMonths = years * 12 + months;
+          studentAge = `${Math.floor(totalMonths / 12)} years ${totalMonths % 12} months`;
         }
-      })
-    );
-    const updates = {};
-    results.forEach((r) => {
-      if (r.status === 'fulfilled') {
-        updates[r.value.itemId] = r.value.photoAnalysis;
-      } else if (r.status === 'rejected') {
-        photoAnalysisFailedRef.current.add(r.reason?.itemId);
       }
-    });
-    setMediaItems((prev) => prev.map((it) => (it.id in updates ? { ...it, photoAnalysis: updates[it.id], handwritten: updates[it.id].handwritten } : it)));
-    if (Object.keys(updates).length < photoItems.length) {
-      notify.warning('Could not analyze some photos.');
+    } catch (err) {
+      console.warn('[runPhotoAnalysis] Could not fetch student context', err?.message);
+    }
+
+    const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
+    try {
+      // Encode all photos and send in a single VLM call
+      const images = await Promise.all(
+        photoItems.map(async (item) => ({
+          itemId: item.id,
+          imageBase64: await blobToBase64(item.source.blob),
+          contentType: item.source.contentType || 'image/webp',
+        }))
+      );
+
+      const res = await vlmFn({
+        images: images.map(({ imageBase64, contentType }) => ({ imageBase64, contentType })),
+        studentName,
+        studentAge,
+      });
+
+      // Response is a single analysis for the batch of photos
+      const analysis = parsePhotoAnalysis(res.data);
+      setMediaItems((prev) => prev.map((it) => {
+        if (images.some((img) => img.itemId === it.id)) {
+          return { ...it, photoAnalysis: analysis, handwritten: analysis.handwritten };
+        }
+        return it;
+      }));
+    } catch (_err) {
+      photoItems.forEach((it) => photoAnalysisFailedRef.current.add(it.id));
+      notify.warning('Could not analyze photos.');
     }
     setPhotoAnalysisLoading(false);
   };
@@ -2217,29 +2247,30 @@ function AddNoteModal({
                     )
                   ) : (
                     mediaItems.length > 0 ? (
-                      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1 }}>
+                      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           {mediaItems.map((item) => (
                             <Box
                               key={item.id}
                               sx={{
-                                borderRadius: 2,
+                                borderRadius: 3,
                                 border: '1px solid',
-                                borderColor: 'divider',
+                                borderColor: '#e2e8f0',
                                 backgroundColor: 'background.paper',
                                 overflow: 'hidden',
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
+                              {/* Image with overlay controls */}
                               <Box
                                 sx={{
                                   position: 'relative',
                                   width: '100%',
-                                  aspectRatio: '1 / 1',
+                                  aspectRatio: '4 / 3',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  backgroundColor: 'background.default'
+                                  backgroundColor: '#f1f5f9'
                                 }}
                               >
                                 {item.previewUrl ? (
@@ -2252,6 +2283,7 @@ function AddNoteModal({
                                 ) : (
                                   <Movie color="primary" />
                                 )}
+                                {/* Remove button */}
                                 <IconButton
                                   size="small"
                                   aria-label="Remove file"
@@ -2261,96 +2293,132 @@ function AddNoteModal({
                                   }}
                                   sx={{
                                     position: 'absolute',
-                                    top: 4,
-                                    right: 4,
-                                    backgroundColor: 'background.paper'
+                                    top: 8,
+                                    right: 8,
+                                    backgroundColor: 'rgba(255,255,255,0.9)',
+                                    backdropFilter: 'blur(4px)',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                                    '&:hover': { backgroundColor: '#fff' },
                                   }}
                                 >
                                   <Close sx={{ fontSize: 16 }} />
                                 </IconButton>
-                              </Box>
-                              <Box sx={{ p: 1 }}>
+                                {/* Own work / Copied pill toggle overlay */}
                                 {item.kind === 'photo' && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                                    <ToggleButtonGroup
-                                      value={item.copied ? 'copied' : 'original'}
-                                      exclusive
-                                      onChange={() => handleToggleCopied(item.id)}
-                                      size="small"
+                                  <Box
+                                    sx={{
+                                      position: 'absolute',
+                                      bottom: 8,
+                                      left: 8,
+                                      display: 'flex',
+                                      borderRadius: 3,
+                                      overflow: 'hidden',
+                                      backdropFilter: 'blur(6px)',
+                                      boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+                                      userSelect: 'none',
+                                    }}
+                                  >
+                                    <Box
+                                      onClick={(e) => { e.stopPropagation(); if (item.copied) handleToggleCopied(item.id); }}
                                       sx={{
-                                        height: 30,
-                                        '& .MuiToggleButton-root': {
-                                          textTransform: 'none',
-                                          fontSize: '0.7rem',
-                                          fontWeight: 600,
-                                          px: 1.2,
-                                          py: 0,
-                                          gap: 0.5,
-                                          border: '1px solid',
-                                          borderColor: 'divider',
-                                          '&.Mui-selected': {
-                                            color: '#fff',
-                                          },
-                                        },
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.4,
+                                        px: 1.2,
+                                        py: 0.5,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        bgcolor: !item.copied ? 'rgba(22, 163, 74, 0.92)' : 'rgba(255,255,255,0.75)',
+                                        color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
                                       }}
                                     >
-                                      <ToggleButton
-                                        value="original"
-                                        sx={{
-                                          borderRadius: '16px 0 0 16px !important',
-                                          '&.Mui-selected': {
-                                            bgcolor: 'success.main',
-                                            '&:hover': { bgcolor: 'success.dark' },
-                                          },
-                                        }}
-                                      >
-                                        <Brush sx={{ fontSize: 14 }} />
-                                        Own work
-                                      </ToggleButton>
-                                      <ToggleButton
-                                        value="copied"
-                                        sx={{
-                                          borderRadius: '0 16px 16px 0 !important',
-                                          '&.Mui-selected': {
-                                            bgcolor: 'warning.main',
-                                            '&:hover': { bgcolor: 'warning.dark' },
-                                          },
-                                        }}
-                                      >
-                                        <ContentCopy sx={{ fontSize: 14 }} />
-                                        Copied
-                                      </ToggleButton>
-                                    </ToggleButtonGroup>
+                                      <Brush sx={{ fontSize: 13 }} />
+                                      Own work
+                                    </Box>
+                                    <Box
+                                      onClick={(e) => { e.stopPropagation(); if (!item.copied) handleToggleCopied(item.id); }}
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.4,
+                                        px: 1.2,
+                                        py: 0.5,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        bgcolor: item.copied ? 'rgba(245, 158, 11, 0.92)' : 'rgba(255,255,255,0.75)',
+                                        color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
+                                      }}
+                                    >
+                                      <ContentCopy sx={{ fontSize: 13 }} />
+                                      Copied
+                                    </Box>
                                   </Box>
                                 )}
-                                {photoAnalysisLoading && !item.photoAnalysis ? (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, bgcolor: '#f3f0ff', borderRadius: 1.5 }}>
-                                    <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed', animation: 'pulse 1.5s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 0.5 }, '50%': { opacity: 1 } } }} />
-                                    <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 500 }}>
-                                      Coach Pepper is analyzing this photo...
+                                {/* AI analysis loading indicator — subtle overlay */}
+                                {item.kind === 'photo' && photoAnalysisLoading && !item.photoAnalysis && (
+                                  <Box sx={{
+                                    position: 'absolute',
+                                    bottom: 8,
+                                    right: 8,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 0.5,
+                                    px: 1,
+                                    py: 0.4,
+                                    borderRadius: 2,
+                                    bgcolor: 'rgba(255,255,255,0.92)',
+                                    backdropFilter: 'blur(4px)',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                                  }}>
+                                    <AutoAwesome sx={{ fontSize: 14, color: '#7c3aed', animation: 'pulse 1.5s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 0.4 }, '50%': { opacity: 1 } } }} />
+                                    <Typography sx={{ fontSize: '0.68rem', color: '#7c3aed', fontWeight: 500 }}>
+                                      Analyzing...
                                     </Typography>
                                   </Box>
-                                ) : item.photoAnalysis ? (
-                                  <>
+                                )}
+                              </Box>
+
+                              {/* Content section */}
+                              <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                {/* AI analysis results */}
+                                {item.kind === 'photo' && item.photoAnalysis && (
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    {/* Chips row */}
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                                      <Chip
-                                        label={`Handwritten: ${item.photoAnalysis.handwritten ? 'Yes' : 'No'}`}
-                                        size="small"
-                                        color={item.photoAnalysis.handwritten ? 'info' : 'default'}
-                                        variant="outlined"
-                                      />
                                       {item.photoAnalysis.curriculumArea && (
                                         <Chip
-                                          label={`Curriculum: ${item.photoAnalysis.curriculumArea}`}
+                                          label={item.photoAnalysis.curriculumArea}
                                           size="small"
-                                          color="secondary"
-                                          variant="outlined"
+                                          sx={{
+                                            bgcolor: '#ecfdf5',
+                                            color: '#047857',
+                                            fontWeight: 600,
+                                            fontSize: '0.72rem',
+                                            border: '1px solid #a7f3d0',
+                                          }}
+                                        />
+                                      )}
+                                      {item.photoAnalysis.handwritten && (
+                                        <Chip
+                                          label="Handwritten"
+                                          size="small"
+                                          sx={{
+                                            bgcolor: '#eff6ff',
+                                            color: '#1d4ed8',
+                                            fontWeight: 600,
+                                            fontSize: '0.72rem',
+                                            border: '1px solid #bfdbfe',
+                                          }}
                                         />
                                       )}
                                     </Box>
+                                    {/* AI description */}
                                     {item.photoAnalysis.description && (
                                       <TextField
-                                        label="AI Description"
                                         value={item.photoAnalysis.description}
                                         onChange={(e) => {
                                           const newDesc = e.target.value;
@@ -2364,21 +2432,23 @@ function AddNoteModal({
                                         multiline
                                         minRows={2}
                                         size="small"
-                                        sx={{ mb: 0.5 }}
+                                        placeholder="AI-generated description"
                                         InputProps={{
-                                          sx: { fontSize: '0.85rem' },
+                                          sx: { fontSize: '0.82rem', lineHeight: 1.5, color: '#334155' },
                                           startAdornment: (
                                             <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
-                                              <AutoAwesome sx={{ fontSize: 16, color: '#7c3aed' }} />
+                                              <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa' }} />
                                             </InputAdornment>
                                           ),
                                         }}
                                       />
                                     )}
-                                  </>
-                                ) : null}
+                                  </Box>
+                                )}
+
+                                {/* Teacher comment */}
                                 <TextField
-                                  label="Comment (optional)"
+                                  label="Your notes"
                                   value={item.teacherComment || ''}
                                   onChange={(e) => {
                                     handleMediaItemCommentChange(item.id, e.target.value);
@@ -2390,11 +2460,13 @@ function AddNoteModal({
                                   fullWidth
                                   multiline
                                   minRows={2}
-                                  placeholder="Add context for this file"
+                                  placeholder="Add your observation..."
+                                  size="small"
                                   inputRef={(el) => { mediaItemCommentRefs.current[item.id] = el; }}
                                   InputProps={{
+                                    sx: { fontSize: '0.85rem' },
                                     endAdornment: (
-                                      <InputAdornment position="end">
+                                      <InputAdornment position="end" sx={{ alignSelf: 'flex-end', mb: 0.5 }}>
                                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                                           <Tooltip
                                             title="Add text first to polish with AI"
@@ -2444,7 +2516,7 @@ function AddNoteModal({
                                   <Button
                                     variant="text"
                                     onClick={() => handleUndoPolishMediaItemComment(item.id)}
-                                    sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -0.5 }}
+                                    sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
                                   >
                                     Undo polish
                                   </Button>
@@ -2576,6 +2648,14 @@ function AddNoteModal({
               </Box>
 
               <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
+                {mediaMode === 'photo' && mediaItems.some((it) => it.kind === 'photo' && !it.photoAnalysis) && selectedStudents.length === 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 1.5, mb: 1, bgcolor: '#fef3c7', borderRadius: 1.5, border: '1px solid #fbbf24' }}>
+                    <AutoAwesome sx={{ fontSize: 18, color: '#d97706' }} />
+                    <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 500 }}>
+                      Coach Pepper needs you to select a student to analyze this photo.
+                    </Typography>
+                  </Box>
+                )}
                 <ClassroomStudentPicker
                   selectedStudents={selectedStudents}
                   onStudentsChange={handleStudentsChange}
@@ -2623,47 +2703,49 @@ function AddNoteModal({
             <Box
               sx={{
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
+                flexDirection: 'column',
                 gap: 1,
                 pt: 1.5,
+                pb: 0.5,
                 borderTop: '1px solid #e2e8f0',
                 backgroundColor: 'white',
                 position: 'sticky',
                 bottom: 0,
-                mt: 0.5
+                mt: 1,
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  onClick={() => requestClose('media-cancel')}
-                  disabled={saving || mediaUploading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleTagButtonClick}
-                  disabled={saving || mediaUploading}
-                  sx={{ textTransform: 'none' }}
-                >
-                  Tag Lesson Note
-                </Button>
-              </Box>
               <Button
                 variant="contained"
                 onClick={handleCreateMediaNote}
+                fullWidth
                 disabled={
                   saving ||
                   mediaUploading ||
                   (mediaMode === 'pdf' ? !pdfSource : mediaItems.length === 0) ||
                   selectedStudents.length === 0
                 }
+                sx={{ py: 1.2, fontWeight: 600, borderRadius: 2, textTransform: 'none', fontSize: '0.95rem' }}
               >
                 Create Media Note
               </Button>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                <Button
+                  variant="text"
+                  onClick={() => requestClose('media-cancel')}
+                  disabled={saving || mediaUploading}
+                  sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.85rem' }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={handleTagButtonClick}
+                  disabled={saving || mediaUploading}
+                  sx={{ textTransform: 'none', color: 'primary.main', fontSize: '0.85rem' }}
+                >
+                  Tag Lesson Note
+                </Button>
+              </Box>
             </Box>
           </Box>
         )}

@@ -288,7 +288,9 @@ export const createAuthUserAndProfile = functions
 const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
 const PHOTO_ANALYSIS_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 500 };
-const PHOTO_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori classroom photo analyst. When given a photo, analyze it and return a JSON object.
+const PHOTO_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori classroom photo analyst. When given a photo of student work, analyze it in the context of the specific child's age and developmental stage.
+
+IMPORTANT: The user message will include the child's name and age. Use their age to calibrate your developmental assessment — what is impressive for a 3-year-old is expected for a 6-year-old. Your ratings, curriculum mapping, and developmental notes should all reflect age-appropriate expectations.
 
 Fields:
 - handwritten (boolean): whether the image contains handwriting (letters, numbers, or words written by hand)
@@ -297,8 +299,8 @@ Fields:
 - materialsIdentified (string[]): Montessori materials visible (e.g., "golden beads", "pink tower", "moveable alphabet"). Empty array if none identified or not student_work.
 - curriculumArea (string|null): broad Montessori curriculum area (e.g., "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural"). Null if not student_work.
 - curriculumSubArea (string|null): specific topic within the area (e.g., "Decimal System - Dynamic Addition", "Writing - Cursive Introduction"). Null if not student_work.
-- developmentalNotes (string|null): brief observation about what the work reveals about the child's development. Null if not student_work.
-- writingAnalysis (object|null): only when handwritten is true AND contentCategory is student_work. Contains five dimensions, each with rating (1-5 integer or null if insufficient evidence) and note (short string). Dimensions: handwriting, spelling, vocabulary, structure, punctuation. Null when handwritten is false.
+- developmentalNotes (string|null): brief age-contextualized observation about what the work reveals about the child's development. Reference what is typical or advanced for their age. Null if not student_work.
+- writingAnalysis (object|null): only when handwritten is true AND contentCategory is student_work. Contains five dimensions, each with rating (1-5 integer or null if insufficient evidence) and note (short string). Ratings should be calibrated to the child's age — a 3 on handwriting means different things for a 3-year-old vs a 6-year-old. Dimensions: handwriting, spelling, vocabulary, structure, punctuation. Null when handwritten is false.
 
 Respond with ONLY valid JSON matching this structure:
 {
@@ -471,11 +473,26 @@ const analyzePhotoVLMHandler = async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
   }
-  const imageBase64 = String(data?.imageBase64 || "").trim();
-  if (!imageBase64) {
-    throw new functions.https.HttpsError("invalid-argument", "imageBase64 is required");
+
+  // Support both single-image (legacy) and multi-image payloads
+  let images = [];
+  if (Array.isArray(data?.images) && data.images.length > 0) {
+    images = data.images.map((img) => ({
+      base64: String(img.imageBase64 || "").trim(),
+      contentType: String(img.contentType || "image/webp").trim(),
+    })).filter((img) => img.base64);
+  } else {
+    const imageBase64 = String(data?.imageBase64 || "").trim();
+    if (imageBase64) {
+      images = [{ base64: imageBase64, contentType: String(data?.contentType || "image/webp").trim() }];
+    }
   }
-  const contentType = String(data?.contentType || "image/webp").trim();
+  if (images.length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", "At least one image is required");
+  }
+
+  const studentName = String(data?.studentName || "").trim();
+  const studentAge = String(data?.studentAge || "").trim();
 
   let systemPrompt = PHOTO_ANALYSIS_FALLBACK_PROMPT;
   try {
@@ -497,17 +514,23 @@ const analyzePhotoVLMHandler = async (data, context) => {
     throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
   }
 
+  // Build user message: text context + all image(s)
+  let contextText = "Analyze this classroom photo.";
+  if (studentName) {
+    contextText = `Analyze this classroom photo. Student: ${studentName}`;
+    if (studentAge) contextText += `, Age: ${studentAge}`;
+    contextText += ".";
+  }
+  const userContent = [
+    { type: "text", text: contextText },
+    ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.contentType};base64,${img.base64}` } })),
+  ];
+
   const body = buildChatBody({
     model: PHOTO_ANALYSIS_MODEL.model,
     messages: [
       { role: "system", content: enhancedPrompt },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Analyze this classroom photo." },
-          { type: "image_url", image_url: { url: `data:${contentType};base64,${imageBase64}` } },
-        ],
-      },
+      { role: "user", content: userContent },
     ],
     temperature: PHOTO_ANALYSIS_MODEL.temperature,
     max_completion_tokens: PHOTO_ANALYSIS_MODEL.max_tokens,
