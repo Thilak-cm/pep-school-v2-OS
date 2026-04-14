@@ -89,7 +89,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_ai_prompt",
     description:
-      "Fetch an AI tool config document. Reads from the config collection (PEP-139 migration target), falling back to ai_prompts for unmigrated docs. Returns all fields including systemPrompt, model, temperature, etc.",
+      "Fetch an AI tool config document from the config collection. Returns all fields including systemPrompt, model, temperature, etc.",
     inputSchema: {
       type: "object",
       properties: {
@@ -105,7 +105,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "list_ai_prompts",
     description:
-      "List all AI tool config documents. Reads from the config collection (PEP-139 migration target), falling back to ai_prompts for unmigrated docs. Returns document IDs and key metadata fields.",
+      "List all AI tool config documents from the config collection. Returns document IDs and key metadata fields.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -301,15 +301,11 @@ export async function handleGetAiPrompt(db, params) {
   const { docId } = params;
   if (!docId) return null;
 
-  // PEP-139: read from config first, fall back to ai_prompts for unmigrated docs
-  let snap = await db.collection("config").doc(docId).get();
-  if (!snap.exists) {
-    snap = await db.collection("ai_prompts").doc(docId).get();
-  }
+  const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) return null;
 
   const d = snap.data();
-  const result = { id: snap.id, _collection: snap.ref.parent.id };
+  const result = { id: snap.id };
   for (const [key, value] of Object.entries(d)) {
     if (value?.toDate) {
       result[key] = value.toDate().toISOString();
