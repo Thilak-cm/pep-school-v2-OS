@@ -129,13 +129,7 @@ export const ACCESS_CONTROL_SPEC = [
   // SUPERADMIN-ONLY COLLECTIONS (Firestore) - AI prompts, config, programs cannot be modified by others
   // ============================================================================
 
-  {
-    name: 'AI Prompts write restricted to superadmin only',
-    description: 'allow create, update, delete: if isSuperAdmin()',
-    file: 'firestore',
-    criticality: 'critical',
-    pattern: /match\s+\/ai_prompts\/\{docId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
-  },
+  // AI Prompts rule removed — PEP-139: migrated to config collection
 
   {
     name: 'Programs write restricted to superadmin only',
