@@ -364,7 +364,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>Model Settings</Typography>
           <Typography variant="body2" color="text.secondary">
-            These settings apply to all report generation. Saved to <code>/config/report_generation</code>.
+            These settings apply to report generation for the selected program. Saved to <code>/config/report_{'{program}'}</code>.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <FormControl fullWidth size="small">

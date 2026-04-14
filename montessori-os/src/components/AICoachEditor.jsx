@@ -47,6 +47,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [originalEnabledNudges, setOriginalEnabledNudges] = useState([]);
   const [originalMaxReturnNudges, setOriginalMaxReturnNudges] = useState(1);
   const [originalCoachEnabled, setOriginalCoachEnabled] = useState(true);
+  const [originalModel, setOriginalModel] = useState(COACH_MODEL_INFO.model);
+  const [originalTemperature, setOriginalTemperature] = useState(COACH_MODEL_INFO.temperature);
   
   // Collapsible section states
   const [coachConfigExpanded, setCoachConfigExpanded] = useState(true); // Default to true since it's the main editing section
@@ -85,8 +87,12 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalEnabledNudges(initialEnabledNudges);
           setOriginalMaxReturnNudges(initialMaxReturnNudges);
           setOriginalCoachEnabled(initialCoachEnabled);
-          if (data.model) setModel(data.model);
-          if (typeof data.temperature === 'number') setTemperature(data.temperature);
+          const initialModel = data.model || COACH_MODEL_INFO.model;
+          const initialTemp = typeof data.temperature === 'number' ? data.temperature : COACH_MODEL_INFO.temperature;
+          setModel(initialModel);
+          setTemperature(initialTemp);
+          setOriginalModel(initialModel);
+          setOriginalTemperature(initialTemp);
         } else {
           setDocState(null);
           setEnabledNudges([]);
@@ -95,6 +101,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalEnabledNudges([]);
           setOriginalMaxReturnNudges(1);
           setOriginalCoachEnabled(false);
+          setModel(COACH_MODEL_INFO.model);
+          setTemperature(COACH_MODEL_INFO.temperature);
+          setOriginalModel(COACH_MODEL_INFO.model);
+          setOriginalTemperature(COACH_MODEL_INFO.temperature);
           setError('Coach prompt configuration not found for this program');
         }
       } catch {
@@ -172,6 +182,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
         setOriginalEnabledNudges(enabledNudges);
         setOriginalMaxReturnNudges(maxReturnNudges);
         setOriginalCoachEnabled(coachEnabled);
+        setOriginalModel(model);
+        setOriginalTemperature(temperature);
       }
       
       // Show success notification
@@ -208,13 +220,17 @@ export default function AICoachEditor({ currentUser, userRole }) {
     setEnabledNudges([...originalEnabledNudges]);
     setMaxReturnNudges(originalMaxReturnNudges);
     setCoachEnabled(originalCoachEnabled);
+    setModel(originalModel);
+    setTemperature(originalTemperature);
   };
 
   // Check if there are unsaved changes
-  const hasUnsavedChanges = 
+  const hasUnsavedChanges =
     JSON.stringify(enabledNudges.sort()) !== JSON.stringify(originalEnabledNudges.sort()) ||
     maxReturnNudges !== originalMaxReturnNudges ||
-    coachEnabled !== originalCoachEnabled;
+    coachEnabled !== originalCoachEnabled ||
+    model !== originalModel ||
+    temperature !== originalTemperature;
 
   // Handle Coach test run
   const handleRunCoach = async () => {
