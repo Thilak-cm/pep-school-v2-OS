@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-08T18:26:34.825Z
-App version: 10.4.0
+Generated: 2026-04-14T19:25:34.419Z
+App version: 10.5.0
 
 ## App Snapshot
 
@@ -138,13 +138,15 @@ App version: 10.4.0
 
 ## Recent Changes
 
+### 10.5.0 (2026-04-13)
+- Rich AI photo analysis — photos of student work are automatically analyzed by VLM returning curriculum area, handwritten detection, AI-generated description, materials identified, and developmental notes (PEP-32)
+- Cloud Function `analyzePhotoVLM` with structured JSON output, student age context, and Firestore-managed prompt with hardcoded fallback (PEP-32)
+- Photo card UI redesign — 4:3 aspect ratio, overlay pill toggle for Own work/Copied, curriculum and handwritten chips, editable AI description (PEP-32)
+
 ### 10.4.0 (2026-04-07)
 - Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
 - Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
 - Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
-- Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
-- `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
-- `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
 
 ### 10.3.0 (2026-04-04)
 - Report readiness checker: standalone Cloud Function `checkReportReadiness` evaluates observation quality before report generation, giving teachers visibility into data gaps (PEP-68)
@@ -155,8 +157,4 @@ App version: 10.4.0
 - "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
 - Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
 - User Message section showing auto-injected student context and observations info blocks (PEP-105)
-
-### 10.1.0 (2026-03-25)
-- "Tag Lesson Note" support for media observations — teachers can tag photos, videos, and PDFs with lesson notes, matching the existing text/voice tagging UX (PEP-58)
-- Lesson tag chips displayed on media cards in the student timeline (PEP-58)
 
