@@ -1108,9 +1108,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
-                      {buildMediaSummary(obs)}
-                      </Typography>
+                      {!obs.photoAnalysis && (
+                        <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
+                          {buildMediaSummary(obs)}
+                        </Typography>
+                      )}
                       {!obs.batchId && obs.teacherComment && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                           💬 {obs.teacherComment}
