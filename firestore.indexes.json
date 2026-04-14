@@ -73,6 +73,13 @@
         { "fieldPath": "escalatedThisWeek", "order": "ASCENDING" }
       ]
     }
+    {
+      "collectionGroup": "interviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conductedAt", "order": "DESCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": [
     {

@@ -235,6 +235,7 @@ Subcollections
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
 - `profile/{dimensionId}` – AI-generated student profile dimensions (PEP-124). One doc per developmental dimension. Shape: `{ dimensionKey: string, dimensionLabel: string, programId: ProgramId, narrative: string, gaps: string, structuredSignals: { confidence: number (0-1), evidenceCount: number, trend: 'emerging' | 'developing' | 'stable' | 'declining', lastSourceType: 'backfill' | 'interview' | 'observation' }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `gaps` field (PEP-141) is a plain-text description of what is unknown or unobserved for this dimension; empty string when well-covered, fallback text when no data exists. Dimension keys are program-specific (e.g., `independence_practical_life` for primary, `enterprise_applied` for adolescent). Dimensions and prompts consolidated in `config/profile_{program}` (PEP-139).
 - `profile/{dimensionId}/history/{timestamp}` – Version history for each profile dimension. Shape: `{ narrative: string, gaps: string, structuredSignals: {...}, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically when a dimension is updated — the previous state is snapshotted before overwrite.
+- `interviews/{interviewId}` – Immutable interview transcripts (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
 
@@ -350,6 +351,45 @@ Notes
 - Written by the same Cloud Function that generates baseball cards (`generateBaseballCards`).
 - `weekKey` uses IST-based ISO week boundaries to track escalation within a school week.
 - `escalatedThisWeek` / `improvedThisWeek` are derived by comparing current `severityScore` against `weekBaselineSeverityScore`.
+
+---
+
+## 🎙️ Interviews (`/students/{studentId}/interviews/{interviewId}`)
+Immutable, append-only interview transcripts. Each doc is a complete session written by a Cloud Function at interview end. Doc ID format: `interview_{Date.now()}` (e.g., `interview_1713090000000`). The weekly profile rebuild consumes these alongside observations. The interview agent reads recent transcripts to avoid redundant questions across teachers.
+
+```typescript
+interface InterviewTranscript {
+  teacherId: string;               // uid of the teacher interviewed
+  teacherName: string;             // denormalised display name
+  classroomId: string;             // classroom context for the interview
+  programId: ProgramId;            // program (toddler, primary, elementary, adolescent)
+  conductedAt: Timestamp;          // session start — indexed for time-window queries
+  completedAt: Timestamp | null;   // session end (null if abandoned)
+  status: 'completed' | 'abandoned';
+  questionCount: number;           // total questions in the session
+  dimensionsCovered: string[];     // e.g. ["technology_research", "indian_languages"] — quick filtering without reading exchanges
+
+  exchanges: InterviewExchange[];  // ordered Q&A pairs
+}
+
+interface InterviewExchange {
+  questionId: number;              // 1-based within the session
+  questionText: string;            // the question presented to the teacher
+  questionType: 'mcq' | 'open';
+  dimension: string;               // dimension key this question targets
+  options: string[] | null;        // MCQ choices (null for open)
+  selectedOption: number | null;   // MCQ index into options (null for open or unanswered)
+  responseText: string | null;     // transcribed voice / typed text (null for MCQ-only or unanswered)
+  askedAt: Timestamp;              // when the question was presented
+  answeredAt: Timestamp | null;    // when the teacher responded (null if unanswered / abandoned)
+}
+```
+
+Guidance
+- **Append-only:** Firestore rules deny all client-side create/update/delete. Only Cloud Functions (admin SDK) can write.
+- **Read access:** `isPrivilegedAdmin() || isTeacher()` — same pattern as `ai_summaries`.
+- **Time-window queries:** Use `conductedAt` with a range filter. Composite index defined in `firestore.indexes.json`.
+- **Profile rebuild integration:** `generateStudentProfile` fetches completed interviews within the observation window and includes them as a separate context block in the LLM prompt.
 
 ---
 
