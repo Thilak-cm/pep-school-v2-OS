@@ -166,3 +166,73 @@ test("parseProfileResponse defaults invalid trend to 'emerging'", async () => {
   const result = parseProfileResponse(rawResponse, dimensions);
   assert.equal(result[0].structuredSignals.trend, "emerging", "invalid trend should default to 'emerging'");
 });
+
+// ---------------------------------------------------------------------------
+// gaps field extraction (PEP-141)
+// ---------------------------------------------------------------------------
+
+test("parseProfileResponse extracts gaps string from LLM response", async () => {
+  const { parseProfileResponse } = await import("../utils/profileHelpers.js");
+  const dimensions = [PROGRAM_DIMENSIONS.primary[0]];
+  const rawResponse = {
+    independence_practical_life: {
+      narrative: "Child shows growing independence.",
+      confidence: 0.7,
+      evidenceCount: 10,
+      trend: "developing",
+      gaps: "No observations of independent dressing or food preparation.",
+    },
+  };
+
+  const result = parseProfileResponse(rawResponse, dimensions);
+  assert.equal(result[0].gaps, "No observations of independent dressing or food preparation.");
+});
+
+test("parseProfileResponse defaults gaps when dimension has no data", async () => {
+  const { parseProfileResponse } = await import("../utils/profileHelpers.js");
+  const dimensions = [PROGRAM_DIMENSIONS.primary[0]];
+  // Empty response — no data for any dimension
+  const result = parseProfileResponse({}, dimensions);
+  assert.equal(
+    result[0].gaps,
+    "No observations available for this dimension — further data needed.",
+  );
+});
+
+test("parseProfileResponse defaults gaps when field is missing from LLM output", async () => {
+  const { parseProfileResponse } = await import("../utils/profileHelpers.js");
+  const dimensions = [PROGRAM_DIMENSIONS.primary[0]];
+  const rawResponse = {
+    independence_practical_life: {
+      narrative: "Child shows growing independence.",
+      confidence: 0.7,
+      evidenceCount: 10,
+      trend: "developing",
+      // gaps intentionally omitted
+    },
+  };
+
+  const result = parseProfileResponse(rawResponse, dimensions);
+  assert.equal(
+    result[0].gaps,
+    "No observations available for this dimension — further data needed.",
+    "missing gaps should get fallback text",
+  );
+});
+
+test("parseProfileResponse passes through empty string gaps for well-covered dimensions", async () => {
+  const { parseProfileResponse } = await import("../utils/profileHelpers.js");
+  const dimensions = [PROGRAM_DIMENSIONS.primary[0]];
+  const rawResponse = {
+    independence_practical_life: {
+      narrative: "Comprehensive profile with strong evidence.",
+      confidence: 0.95,
+      evidenceCount: 25,
+      trend: "stable",
+      gaps: "",
+    },
+  };
+
+  const result = parseProfileResponse(rawResponse, dimensions);
+  assert.equal(result[0].gaps, "", "empty string gaps should pass through as-is");
+});
