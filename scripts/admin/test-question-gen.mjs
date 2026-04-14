@@ -88,9 +88,9 @@ IMPORTANT: You must output your response as a JSON object with this exact struct
       "id": number,
       "text": "The question text",
       "type": "mcq" or "open",
-      "dimension": "dimension_key from the list above",
+      "dimension": "dimension_key from the list above — must be the COMPLETE key, not truncated",
       "rationale": "Why this question was chosen",
-      "options": ["Option A", "Option B", "Option C", "Option D"]
+      "options": ["Option A", "Option B", "Option C", "Option D"]  // ONLY for "mcq" type
     }
   ],
   "coverageReport": {
@@ -103,7 +103,8 @@ IMPORTANT: You must output your response as a JSON object with this exact struct
 }
 
 Notes on the JSON schema:
-- "options" is required for "mcq" type, omit for "open" type
+- "options" field: INCLUDE with 3-4 choices for "mcq" type. OMIT ENTIRELY (do not include the key) for "open" type
+- "dimension" must be the EXACT, COMPLETE dimension key from the list above — do not truncate
 - "dimensionsTargeted" lists dimensions that have at least one question
 - "dimensionsSkipped" lists dimensions with no questions (explain why in reasoning)
 - "gapsCovered" counts how many low-confidence (< 0.5) dimensions have questions
@@ -163,6 +164,10 @@ export function parseQuestionResponse(rawContent, dimensionKeys) {
   for (const q of parsed.questions) {
     if (q.dimension && !dimensionKeys.includes(q.dimension)) {
       warnings.push(`Question ${q.id}: unknown dimension "${q.dimension}" (expected one of: ${dimensionKeys.join(", ")})`);
+    }
+    // Strip spurious options from open-ended questions
+    if (q.type === "open" && Array.isArray(q.options)) {
+      delete q.options;
     }
   }
 

@@ -146,7 +146,19 @@ describe("parseQuestionResponse", () => {
       if (q.type === "mcq") {
         assert.ok(Array.isArray(q.options) && q.options.length >= 2, "MCQ should have at least 2 options");
       }
+      if (q.type === "open") {
+        assert.equal(q.options, undefined, "Open questions should not have options");
+      }
     }
+  });
+
+  it("strips spurious options from open-ended questions", () => {
+    const modified = JSON.parse(JSON.stringify(VALID_LLM_RESPONSE));
+    // Simulate LLM adding options to an open question
+    modified.questions[1].options = ["Option A", "Option B"];
+    const result = parseQuestionResponse(JSON.stringify(modified), dimKeys);
+    const openQ = result.questions.find((q) => q.type === "open");
+    assert.equal(openQ.options, undefined, "Parser should strip options from open questions");
   });
 
   it("validates coverage report fields", () => {
