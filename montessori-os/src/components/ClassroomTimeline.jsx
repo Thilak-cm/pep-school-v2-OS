@@ -577,6 +577,16 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     toggleFilters
   } = useObservationFilters(filteredNotes);
 
+  // Derive unique curriculum areas for FilterPanel (PEP-33)
+  const availableCurriculumAreas = useMemo(() => {
+    const areas = new Set();
+    filteredNotes.forEach(note => {
+      const area = note.photoAnalysis?.curriculumArea;
+      if (area) areas.add(area);
+    });
+    return [...areas].sort();
+  }, [filteredNotes]);
+
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
     if (!filteredObservations || filteredObservations.length === 0) {
@@ -824,6 +834,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
         onToggleFilters={toggleFilters}
+        availableCurriculumAreas={availableCurriculumAreas}
       />
 
       {/* Tabs - Sticky positioned under AppHeader */}
@@ -1992,12 +2003,42 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
         
         {isLesson ? (
           renderLessonSummary(note, !!note.groupDefaults)
+        ) : note.type === 'media' ? (
+          <Box sx={{ mb: 1 }}>
+            <Typography variant="body1" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {note.text || '(media note)'}
+            </Typography>
+            {note.photoAnalysis?.curriculumArea && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
+                <Chip
+                  label={note.photoAnalysis.curriculumArea}
+                  size="small"
+                  sx={{
+                    bgcolor: '#ecfdf5',
+                    color: '#047857',
+                    fontWeight: 600,
+                    fontSize: '0.68rem',
+                    border: '1px solid #a7f3d0',
+                    height: 20,
+                  }}
+                />
+                {note.photoAnalysis.curriculumSubArea && (
+                  <Chip
+                    label={note.photoAnalysis.curriculumSubArea}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.66rem', height: 20, color: 'text.secondary' }}
+                  />
+                )}
+              </Box>
+            )}
+          </Box>
         ) : (
           <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {note.text || '(transcribing…)'}
           </Typography>
         )}
-        
+
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
