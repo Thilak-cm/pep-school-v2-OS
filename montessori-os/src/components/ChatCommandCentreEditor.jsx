@@ -46,7 +46,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [configExpanded, setConfigExpanded] = useState(true);
   const [promptExpanded, setPromptExpanded] = useState(false);
 
-  const chatRef = useMemo(() => doc(db, 'ai_prompts', `chat_${programId}`), [programId]);
+  const chatRef = useMemo(() => doc(db, 'config', `chat_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {

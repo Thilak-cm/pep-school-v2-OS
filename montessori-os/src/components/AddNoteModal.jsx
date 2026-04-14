@@ -475,7 +475,7 @@ function AddNoteModal({
 
   async function isCoachEnabledForProgram(programId) {
     try {
-      const ref = doc(db, 'ai_prompts', `coach_${programId}`);
+      const ref = doc(db, 'config', `coach_${programId}`);
       const snap = await getDoc(ref);
       if (!snap.exists()) return false;
       const data = snap.data() || {};

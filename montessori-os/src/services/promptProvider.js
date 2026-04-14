@@ -1,5 +1,5 @@
 // Lightweight prompt provider with 5-minute TTL caching.
-// Reads Firestore docs from collection `ai_prompts`.
+// Reads Firestore docs from collection `config` (PEP-139: migrated from ai_prompts).
 
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -17,7 +17,7 @@ function isFresh(ts) {
 
 async function fetchDoc(key) {
   try {
-    const ref = doc(db, 'ai_prompts', key);
+    const ref = doc(db, 'config', key);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
     const data = snap.data() || {};

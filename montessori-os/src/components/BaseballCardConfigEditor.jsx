@@ -70,10 +70,8 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     }
     setLoading(true);
     try {
-      const [configSnap, promptSnap] = await Promise.all([
-        getDoc(doc(db, 'config', 'baseball_card')),
-        getDoc(doc(db, 'ai_prompts', 'baseball_card'))
-      ]);
+      // PEP-139: single config doc has both prompt and model fields
+      const configSnap = await getDoc(doc(db, 'config', 'baseball_card'));
 
       if (configSnap.exists()) {
         const data = configSnap.data() || {};
@@ -84,20 +82,15 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
           timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
           max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
         });
-      } else {
-        setConfig({ ...BASEBALL_CARD_DEFAULTS });
-      }
-
-      if (promptSnap.exists()) {
-        const data = promptSnap.data() || {};
         setPrompt({
-          title: data.title || 'Coach Pepper’s summary',
+          title: data.title || "Coach Pepper\u2019s summary",
           description: data.description || 'Last six weeks baseball card summary',
           systemPrompt: data.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK,
         });
       } else {
+        setConfig({ ...BASEBALL_CARD_DEFAULTS });
         setPrompt({
-          title: 'Coach Pepper’s summary',
+          title: "Coach Pepper\u2019s summary",
           description: 'Last six weeks baseball card summary',
           systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
         });
@@ -152,24 +145,19 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     if (!isAdmin) return;
     setSaving(true);
     try {
-      await Promise.all([
-        setDoc(doc(db, 'config', 'baseball_card'), {
-          model: config.model || BASEBALL_CARD_DEFAULTS.model,
-          temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
-          windowDays: Number.isFinite(config.windowDays) ? config.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
-          timezone: config.timezone || BASEBALL_CARD_DEFAULTS.timezone,
-          max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
-          updatedBy: currentUser?.uid || null,
-          updatedAt: new Date(),
-        }, { merge: true }),
-        setDoc(doc(db, 'ai_prompts', 'baseball_card'), {
-          title: prompt.title || "Coach Pepper's summary",
-          description: prompt.description || '',
-          systemPrompt: prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK,
-          updatedBy: currentUser?.uid || null,
-          updatedAt: new Date(),
-        }, { merge: true })
-      ]);
+      // PEP-139: single config doc has both prompt and model fields
+      await setDoc(doc(db, 'config', 'baseball_card'), {
+        model: config.model || BASEBALL_CARD_DEFAULTS.model,
+        temperature: Number.isFinite(config.temperature) ? config.temperature : BASEBALL_CARD_DEFAULTS.temperature,
+        windowDays: Number.isFinite(config.windowDays) ? config.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
+        timezone: config.timezone || BASEBALL_CARD_DEFAULTS.timezone,
+        max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
+        title: prompt.title || "Coach Pepper's summary",
+        description: prompt.description || '',
+        systemPrompt: prompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK,
+        updatedBy: currentUser?.uid || null,
+        updatedAt: new Date(),
+      }, { merge: true });
       notify.success('Baseball card settings saved.');
     } catch {
       notify.error('Failed to save settings. Please try again.');

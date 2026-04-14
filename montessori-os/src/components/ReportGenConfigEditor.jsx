@@ -110,40 +110,20 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     [programId],
   );
 
+  // PEP-139: single config/report_{prog} doc has both prompt and model fields
   const loadConfig = useCallback(async () => {
-    if (!isAdmin) { setLoading(false); return; }
+    if (!isAdmin || !promptDocId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const configSnap = await getDoc(doc(db, 'config', 'report_generation'));
-      if (configSnap.exists()) {
-        const data = configSnap.data() || {};
+      const snap = await getDoc(doc(db, 'config', promptDocId));
+      if (snap.exists()) {
+        const data = snap.data() || {};
         setConfig({
           model: data.model || REPORT_DEFAULTS.model,
           temperature: Number.isFinite(data.temperature) ? data.temperature : REPORT_DEFAULTS.temperature,
           max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : REPORT_DEFAULTS.max_tokens,
           timezone: data.timezone || REPORT_DEFAULTS.timezone,
         });
-      } else {
-        setConfig({
-          model: REPORT_DEFAULTS.model,
-          temperature: REPORT_DEFAULTS.temperature,
-          max_tokens: REPORT_DEFAULTS.max_tokens,
-          timezone: REPORT_DEFAULTS.timezone,
-        });
-      }
-    } catch {
-      notify.error('Failed to load report config.');
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin, notify]);
-
-  const loadPrompt = useCallback(async () => {
-    if (!isAdmin || !promptDocId) return;
-    try {
-      const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
-      if (snap.exists()) {
-        const data = snap.data() || {};
         setPromptDocState({ id: snap.id, ...data });
         setPrompt({
           title: data.title || '',
@@ -152,13 +132,26 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           dynamicSystemPrompt: data.dynamicSystemPrompt || '',
         });
       } else {
+        setConfig({
+          model: REPORT_DEFAULTS.model,
+          temperature: REPORT_DEFAULTS.temperature,
+          max_tokens: REPORT_DEFAULTS.max_tokens,
+          timezone: REPORT_DEFAULTS.timezone,
+        });
         setPromptDocState(null);
         setPrompt({ title: '', description: '', staticSystemPrompt: '', dynamicSystemPrompt: '' });
       }
     } catch {
-      notify.error(`Failed to load prompt for ${programId}.`);
+      notify.error('Failed to load report config.');
+    } finally {
+      setLoading(false);
     }
-  }, [isAdmin, promptDocId, programId, notify]);
+  }, [isAdmin, promptDocId, notify]);
+
+  const loadPrompt = useCallback(async () => {
+    // PEP-139: prompt is now loaded by loadConfig from config/report_{prog}
+    // This function is kept as a no-op for any remaining callers
+  }, []);
 
   const loadStudents = useCallback(async () => {
     if (!isAdmin) return;
@@ -205,17 +198,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         name: currentUser?.displayName || '',
       };
 
-      const saves = [
-        setDoc(doc(db, 'config', 'report_generation'), {
-          model: config.model || REPORT_DEFAULTS.model,
-          temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
-          max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
-          timezone: config.timezone || REPORT_DEFAULTS.timezone,
-          updatedBy: currentUser?.uid || null,
-          updatedAt: now,
-        }, { merge: true }),
-      ];
-
+      // PEP-139: write everything to config/report_{prog}
       if (promptDocId) {
         const curr = promptDocState || { version: 0, versions: [] };
         const prevSnapshot = (curr.staticSystemPrompt || curr.dynamicSystemPrompt) ? {
@@ -231,7 +214,13 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           ...((curr.versions || []).slice(0, MAX_HISTORY - (prevSnapshot ? 1 : 0))),
         ];
 
-        const promptPayload = {
+        const payload = {
+          // Model config
+          model: config.model || REPORT_DEFAULTS.model,
+          temperature: Number.isFinite(config.temperature) ? config.temperature : REPORT_DEFAULTS.temperature,
+          max_tokens: Number.isFinite(config.max_tokens) ? config.max_tokens : REPORT_DEFAULTS.max_tokens,
+          timezone: config.timezone || REPORT_DEFAULTS.timezone,
+          // Prompt fields
           title: prompt.title || '',
           description: prompt.description || '',
           staticSystemPrompt: prompt.staticSystemPrompt || '',
@@ -243,17 +232,13 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         };
 
         if (promptDocState) {
-          saves.push(updateDoc(doc(db, 'ai_prompts', promptDocId), promptPayload));
+          await updateDoc(doc(db, 'config', promptDocId), payload);
         } else {
-          saves.push(setDoc(doc(db, 'ai_prompts', promptDocId), { ...promptPayload, version: 1, versions: [] }));
+          await setDoc(doc(db, 'config', promptDocId), { ...payload, version: 1, versions: [] });
         }
-      }
 
-      await Promise.all(saves);
-
-      // Reload prompt doc state after save
-      if (promptDocId) {
-        const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+        // Reload doc state after save
+        const snap = await getDoc(doc(db, 'config', promptDocId));
         if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
       }
 
@@ -296,9 +281,9 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         updatedBy,
         versions: newVersions,
       };
-      await updateDoc(doc(db, 'ai_prompts', promptDocId), payload);
+      await updateDoc(doc(db, 'config', promptDocId), payload);
 
-      const snap = await getDoc(doc(db, 'ai_prompts', promptDocId));
+      const snap = await getDoc(doc(db, 'config', promptDocId));
       if (snap.exists()) setPromptDocState({ id: snap.id, ...(snap.data() || {}) });
       setPrompt((prev) => ({
         ...prev,

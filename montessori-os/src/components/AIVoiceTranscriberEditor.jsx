@@ -37,7 +37,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const voiceRef = useMemo(() => doc(db, 'ai_prompts', 'voice_transcriber'), []);
+  const voiceRef = useMemo(() => doc(db, 'config', 'voice_transcriber'), []);
 
   useEffect(() => {
     if (!isAdmin) return;

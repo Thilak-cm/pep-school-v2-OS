@@ -44,7 +44,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
   const [testOutput, setTestOutput] = useState('');
   const [testError, setTestError] = useState('');
 
-  const textRef = useMemo(() => doc(db, 'ai_prompts', 'text_summarizer'), []);
+  const textRef = useMemo(() => doc(db, 'config', 'text_summarizer'), []);
 
   useEffect(() => {
     if (!isAdmin) return;

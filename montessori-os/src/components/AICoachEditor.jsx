@@ -60,7 +60,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [showRawJson, setShowRawJson] = useState(false);
   const [coachError, setCoachError] = useState('');
 
-  const coachRef = useMemo(() => doc(db, 'ai_prompts', `coach_${programId}`), [programId]);
+  const coachRef = useMemo(() => doc(db, 'config', `coach_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {
