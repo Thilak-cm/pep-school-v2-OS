@@ -9,7 +9,8 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
-import { COACH_MODEL_DISPLAY } from '../../../scripts/config/coachConstants';
+import { COACH_MODEL_INFO } from '../../../scripts/config/coachConstants';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 const SectionCard = ({ title, subtitle, children }) => (
@@ -59,6 +60,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [runningCoach, setRunningCoach] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
   const [coachError, setCoachError] = useState('');
+  const [model, setModel] = useState(COACH_MODEL_INFO.model);
+  const [temperature, setTemperature] = useState(COACH_MODEL_INFO.temperature);
 
   const coachRef = useMemo(() => doc(db, 'config', `coach_${programId}`), [programId]);
 
@@ -82,6 +85,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalEnabledNudges(initialEnabledNudges);
           setOriginalMaxReturnNudges(initialMaxReturnNudges);
           setOriginalCoachEnabled(initialCoachEnabled);
+          if (data.model) setModel(data.model);
+          if (typeof data.temperature === 'number') setTemperature(data.temperature);
         } else {
           setDocState(null);
           setEnabledNudges([]);
@@ -146,6 +151,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
         programId,
         introBlock,
         finalPrompt,
+        model,
+        temperature,
         updatedAt: serverTimestamp(),
         updatedBy: {
           uid: currentUser?.uid || '',
@@ -328,7 +335,36 @@ export default function AICoachEditor({ currentUser, userRole }) {
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Coach Nudges</Typography>
-              <Chip label={`Model: ${COACH_MODEL_DISPLAY}`} size="small" color="default" variant="outlined" />
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="coach-model-label">Model</InputLabel>
+                  <Select
+                    labelId="coach-model-label"
+                    value={model}
+                    label="Model"
+                    onChange={(e) => setModel(e.target.value)}
+                    disabled={saving}
+                    renderValue={(val) => {
+                      const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                      return found ? found.label : val;
+                    }}
+                  >
+                    {AVAILABLE_MODELS.map((m) => (
+                      <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  type="number"
+                  label="Temp"
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  disabled={saving}
+                  size="small"
+                  sx={{ width: 80 }}
+                  inputProps={{ min: 0, max: 2, step: 0.1 }}
+                />
+              </Box>
             </Box>
             <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
               Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt.
