@@ -85,10 +85,10 @@ Three roles stored on Firestore user docs: `superadmin`, `classroomadmin`, `teac
 
 ### AI Features
 - **Voice transcription**: OpenAI Whisper API (`whisperSTT.js`)
-- **Text cleanup**: OpenAI GPT via `textCleanup.js`, prompts from Firestore `ai_prompts/text_summarizer`
-- **AI Coach**: Nudge system per observation — Cloud Function `aiCoachReview`, prompts from `ai_prompts/coach_{program}`
+- **Text cleanup**: OpenAI GPT via `textCleanup.js`, prompts from Firestore `config/text_summarizer`
+- **AI Coach**: Nudge system per observation — Cloud Function `aiCoachReview`, config from `config/coach_{program}`
 - **Baseball Cards**: AI-generated student summaries via Cloud Function
-- Prompts managed in Firestore `ai_prompts` collection with 5-min TTL cache (`services/promptProvider.js`)
+- AI feature config (prompts, model, temperature) managed in Firestore `config` collection with 5-min TTL cache (`services/promptProvider.js`)
 
 ### Observations (Core Data Model)
 Fan-out per student: one observation doc per student at `students/{studentId}/observations/{observationId}`. Multi-student notes share a `groupId`. Three types: `text`, `voice`, `lesson`. See `DATA_STRUCTURE.md` for full schema.
