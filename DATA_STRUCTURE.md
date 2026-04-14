@@ -29,7 +29,6 @@
 - `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
-- `ai_prompts/{docId}`
  - `config/{docId}`
 
 Notes:
@@ -234,7 +233,7 @@ Subcollections
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
 - `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
-- `profile/{dimensionId}` – AI-generated student profile dimensions (PEP-124). One doc per developmental dimension. Shape: `{ dimensionKey: string, dimensionLabel: string, programId: ProgramId, narrative: string, structuredSignals: { confidence: number (0-1), evidenceCount: number, trend: 'emerging' | 'developing' | 'stable' | 'declining', lastSourceType: 'backfill' | 'interview' | 'observation' }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. Dimension keys are program-specific (e.g., `independence_practical_life` for primary, `enterprise_applied` for adolescent). Config at `config/profile_dimensions_{program}` defines the valid dimensions per program. Prompts at `ai_prompts/profile_{program}`.
+- `profile/{dimensionId}` – AI-generated student profile dimensions (PEP-124). One doc per developmental dimension. Shape: `{ dimensionKey: string, dimensionLabel: string, programId: ProgramId, narrative: string, structuredSignals: { confidence: number (0-1), evidenceCount: number, trend: 'emerging' | 'developing' | 'stable' | 'declining', lastSourceType: 'backfill' | 'interview' | 'observation' }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. Dimension keys are program-specific (e.g., `independence_practical_life` for primary, `enterprise_applied` for adolescent). Dimensions and prompts consolidated in `config/profile_{program}` (PEP-139).
 - `profile/{dimensionId}/history/{timestamp}` – Version history for each profile dimension. Shape: `{ narrative: string, structuredSignals: {...}, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically when a dimension is updated — the previous state is snapshotted before overwrite.
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
@@ -627,170 +626,20 @@ Notes
 
 ---
 
-## 🤖 AI Prompts (`/ai_prompts/{docId}`)
-Centralized prompts for AI features with simple version history. Read by clients at runtime with a 5‑minute TTL cache; writes restricted to super admins.
-
-Documents
-- `text_summarizer` — prompts for the Text Cleanup feature
-- `voice_transcriber` — context string for Whisper speech‑to‑text
-- `coach_{program}` — per‑program configuration for the Coach feature where `program` ∈ `toddler | primary | elementary | adolescent`
-- `coach_accel_{classroom}` — accelerated coach variants for specific classrooms (e.g., `coach_accel_cosmos`, `coach_accel_elementary`, `coach_accel_periwinkle`). Same shape as `coach_{program}`.
-- `chat_{program}` — per‑program AI chat configuration where `program` ∈ `toddler | primary | elementary | adolescent`
-- `report_{program}` — per‑program parent progress report prompts where `program` ∈ `toddler | primary | elementary | adolescent`
-- `baseball_card` — configuration for AI-generated student baseball card summaries
-
-ai_prompts/text_summarizer
-```typescript
-interface TextSummarizerDoc {
-  // Display metadata
-  title: string;                 // e.g., "Text Cleanup (Observation Notes)"
-  description: string;           // e.g., "Prompts used to clean up observation notes via AI."
-
-  // Prompts used by src/textCleanup.js
-  systemPrompt: string;          // system role content guiding the model
-  userPrompt: string;            // supports ${tone} and ${text} template vars
-
-  // Change tracking (managed by super admin UI)
-  version: number;               // monotonically increasing
-  updatedAt: Timestamp;          // server time
-  updatedBy: { uid: string; email: string; name: string };
-  seed?: boolean;                // true if populated by seed script
-  versions?: Array<{
-    version: number;
-    systemPrompt?: string;
-    userPrompt?: string;
-    updatedAt: Timestamp;
-    updatedBy: { uid: string; email: string; name: string };
-    changeNote?: string;
-  }>;                            // last few snapshots (UI keeps up to 5)
-}
-```
-Example current values
-- title: "Text Cleanup (Observation Notes)"
-- description: "Prompts used to clean up observation notes via AI."
-- systemPrompt: "You are an assistant that cleans up Montessori observation notes. Goals: fix capitalization, grammar, and punctuation; group into clear short paragraphs (1–3 sentences each); use succinct hyphen bullets only when listing actions or next steps; keep tone neutral and observational. Rules: - Preserve all factual content, names, and dates; do not add or infer details. - Sentence case capitalization; correct accidental ALL CAPS (keep acronyms like IEP, ESL). - Ensure consistent spacing and final punctuation for sentences. - Keep it parent- and teacher-friendly; avoid clinical jargon. - Output plain text with line breaks (no headings, no markdown formatting beyond simple "- " bullets). - Return only the refined note text, with clean, readable structure."
-- userPrompt: "Please clean up the following observation. Density: ${tone}. --- ${text} ---"
-- version: 1
-- updatedAt: <Timestamp>
-- updatedBy: { uid, email, name }
-- seed: true
-
-ai_prompts/voice_transcriber
-```typescript
-interface VoiceTranscriberDoc {
-  // Display metadata
-  title: string;                 // e.g., "Voice Transcriber Context"
-  description: string;           // e.g., "Context string provided to the STT engine to bias educational content."
-
-  // Prompt used by src/whisperSTT.js (sent to Whisper as `prompt`)
-  contextPrompt: string;
-
-  // Change tracking (managed by super admin UI)
-  version: number;               // monotonically increasing
-  updatedAt: Timestamp;          // server time
-  updatedBy: { uid: string; email: string; name: string };
-  seed?: boolean;                // true if populated by seed script
-  versions?: Array<{
-    version: number;
-    contextPrompt?: string;
-    updatedAt: Timestamp;
-    updatedBy: { uid: string; email: string; name: string };
-    changeNote?: string;
-  }>;                            // last few snapshots (UI keeps up to 5)
-}
-```
-Example current values
-- title: "Voice Transcriber Context"
-- description: "Context string provided to the STT engine to bias educational content."
-- contextPrompt: "This is a Montessori teacher recording educational observations about student learning and development. Content includes Montessori methodology, curriculum areas, student names, developmental milestones, and classroom activities."
-- version: 1
-- updatedAt: <Timestamp>
-- updatedBy: { uid, email, name }
-- seed: true
-
-ai_prompts/chat_{program}
-```typescript
-type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
-
-interface ChatProgramDoc {
-  // Display metadata
-  title: string;                   // e.g., "Chat Command Centre"
-  description: string;             // e.g., "Configure AI chat settings for per-student conversations"
-  programId: ProgramId;
-
-  // LLM configuration
-  model: string;                   // e.g., "gpt-5-mini"
-  temperature: number;             // e.g., 0.7
-  max_tokens: number;              // e.g., 2000
-
-  // Context limits
-  chatMessageLimit: number;        // max recent messages to include in context (e.g., 6)
-  observationLimit: number | 'all'; // max observations for context, or 'all'
-
-  // Prompt
-  systemPrompt: string;            // system prompt for the chat model (Coach Pepper persona)
-
-  // Change tracking
-  version: number;
-  updatedAt: Timestamp;
-  updatedBy: { uid: string; email: string; name: string };
-  seed?: boolean;                  // true if populated by seed script
-}
-```
-
-ai_prompts/report_{program}
-```typescript
-type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
-
-interface ReportProgramDoc {
-  // Display metadata
-  title: string;                   // e.g., "Elementary Educator Summary"
-  description: string;             // e.g., "Parent-facing progress report for Montessori elementary children (ages 6-11)"
-
-  // Prompts
-  staticSystemPrompt: string;      // main system prompt with formatting rules, structure, scoring guidance
-  dynamicSystemPrompt?: string;    // optional additional dynamic prompt content
-
-  // Versioning / authorship
-  author?: { uid: string; name: string };
-  promptDate?: string;             // e.g., "2026-03-04"
-  version: number;
-
-  // Migration metadata (if migrated from prior format)
-  migratedAt?: Timestamp;
-  migratedFrom?: string;           // e.g., "PEP-105"
-
-  // Change tracking
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  updatedBy: string;               // uid
-}
-```
-
-Notes
-- Report prompts contain extensive formatting instructions, scoring rubrics (`sentimentScore`, `areaBalanceScore`, `missingInputFlags`), and writing guidelines.
-- The `staticSystemPrompt` is the primary prompt; `dynamicSystemPrompt` allows runtime additions.
-- Model/temperature for report generation are in `config/report_generation`, not in the prompt doc.
-
-Client usage
-- `src/services/promptProvider.js` reads `ai_prompts` with a 5‑minute TTL cache.
-- `src/textCleanup.js` uses `systemPrompt` and `userPrompt`; falls back to baked‑in defaults on fetch failure.
-- `src/whisperSTT.js` uses `contextPrompt`; falls back to a safe default on fetch failure.
-- Super admins manage these via `AICapabilitiesPage` (`/aiPrompts`) with edit, save, and one-click revert (maintains `versions`).
-
-Security
-- Reads: any authenticated user (rules allow read on `ai_prompts/*`).
-- Writes: super admins only.
-
----
-
 ## ⚙️ Config (`/config/{docId}`)
-Central config documents for app-wide settings edited by super admins.
+Central config documents for app-wide settings and AI feature configuration edited by super admins. Since PEP-139, all AI prompts, model settings, and operational params live here — one doc per feature with a 5-minute TTL cache on the client.
 
 Current documents
 - `lessonNote` — config for lesson notes UI
-- `report_generation` — LLM settings for parent progress report generation
-- `baseball_card` — LLM settings for student baseball card generation
+- `text_summarizer` — prompts + model config for the Text Cleanup feature
+- `voice_transcriber` — context string for Whisper speech-to-text
+- `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
+- `chat_{program}` — per-program AI chat configuration
+- `report_{program}` — per-program parent progress report prompts + model config
+- `profile_{program}` — per-program student profile generation prompts + dimensions + model config
+- `readiness_{program}` — per-program report readiness checker prompts + model config
+- `baseball_card` — prompts + model config for student baseball card generation
+- `photo_analysis_vlm` — prompts + model config for photo VLM analysis
 - `telegram_bot` — Telegram bot configuration
 
 `config/lessonNote`
@@ -818,69 +667,100 @@ Security
 - Reads: any authenticated user (`isSignedIn()`).
 - Writes: super admins only (`isSuperAdmin()`), with rules enforcing non-empty dimension arrays when present on `config/lessonNote`.
 
-`config/report_generation`
+`config/report_{program}`
 ```typescript
-interface ReportGenerationConfig {
+type ProgramId = ‘toddler’ | ‘primary’ | ‘elementary’ | ‘adolescent’;
+
+interface ReportProgramConfig {
+  // Prompts
+  staticSystemPrompt: string;      // main system prompt with formatting rules, structure, scoring guidance
+  dynamicSystemPrompt?: string;    // optional additional dynamic prompt content
+  title: string;
+  description: string;
+
+  // Model config
   model: string;                   // e.g., "gpt-5.4"
   max_tokens: number;              // e.g., 4096
   temperature: number;             // e.g., 0.4
   timezone: string;                // e.g., "Asia/Kolkata"
 
   // Change tracking
+  version: number;
   updatedAt: Timestamp;
   updatedBy: string;               // uid
+  versions?: Array<{...}>;         // last few snapshots (UI keeps up to 5)
 }
 ```
 
-Notes
-- Used by `generateStudentReport` Cloud Function to configure the LLM call.
-- Program-specific prompts are in `ai_prompts/report_{program}`; this doc holds shared model settings.
-
-`config/baseball_card`
-Model and generation settings for the baseball card Cloud Function. Similar shape to `report_generation`.
-
-`config/telegram_bot`
-Configuration for the Telegram bot integration (Coach Pepper on Telegram).
-
-ai_prompts/coach_{program}
+`config/coach_{program}`
 ```typescript
-type ProgramId = 'toddler' | 'primary' | 'elementary' | 'adolescent';
+type ProgramId = ‘toddler’ | ‘primary’ | ‘elementary’ | ‘adolescent’;
 
-interface CoachProgramDoc {
+interface CoachProgramConfig {
   // Display metadata
   title: string;                 // e.g., "Coach Prompt (primary)"
-  description: string;           // e.g., "Select which nudges Coach can suggest."
+  description: string;
 
   // Feature gate (server + client honor this)
   coach_feature_enable: boolean; // if false → no nudges; note saves as-is
-  programId: ProgramId;          // redundancy for clarity
+  programId: ProgramId;
 
   // Configuration
-  enabledNudges: Array<'duration' | 'modality' | 'independence' | 'evidence' | 'subjective'>;
-  disabledNudges: string[];      // derived in UI: all minus enabled
-  maxReturnNudges: number;       // server caps return count
-  nudgeBlocks: Record<string, string>; // per-nudge prompt blocks
-  introBlock: string;            // intro/system preface
-  finalPrompt: string;           // composed prompt used by the model
+  enabledNudges: Array<’duration’ | ‘modality’ | ‘independence’ | ‘evidence’ | ‘subjective’>;
+  disabledNudges: string[];
+  maxReturnNudges: number;
+  nudgeBlocks: Record<string, string>;
+  introBlock: string;
+  finalPrompt: string;
 
-  // Change tracking (managed by super admin UI)
-  updatedAt: Timestamp;          // server time
+  // Model config (PEP-139)
+  model: string;                 // e.g., "gpt-5.4"
+  temperature: number;           // e.g., 0
+
+  // Change tracking
+  updatedAt: Timestamp;
   updatedBy: { uid: string; email: string; name: string };
 }
 ```
 
-Routing and gating
+`config/baseball_card`
+Unified config: prompts + model settings for the baseball card Cloud Function.
+```typescript
+interface BaseballCardConfig {
+  // Prompt fields
+  title: string;
+  description: string;
+  systemPrompt: string;
+  version: number;
+
+  // Model config
+  model: string;                   // e.g., "gpt-5.4-mini"
+  temperature: number;
+  max_tokens: number;
+  windowDays: number;              // e.g., 42
+  timezone: string;                // e.g., "Asia/Kolkata"
+
+  // Change tracking
+  updatedAt: Timestamp;
+  updatedBy: string;
+}
+```
+
+`config/telegram_bot`
+Configuration for the Telegram bot integration (Coach Pepper on Telegram).
+
+Routing and gating (Coach)
 - Client computes selected students’ `programId`(s): if multiple or none → skip Coach (no overlay) and save directly.
-- For a single `programId`, client checks `ai_prompts/coach_{program}.coach_feature_enable`:
+- For a single `programId`, client checks `config/coach_{program}.coach_feature_enable`:
   - If `false` or doc missing → skip Coach and save directly.
   - If `true` → call callable `aiCoachReview` with `{ noteText, programId }`.
 - Cloud Function requires `programId`/`programIds`:
   - Multiple programs → returns `{ nudges: [] }` (no model call).
-  - Reads `ai_prompts/coach_{program}`; if missing/disabled or `finalPrompt` empty → returns `{ nudges: [] }`.
+  - Reads `config/coach_{program}`; if missing/disabled or `finalPrompt` empty → returns `{ nudges: [] }`.
   - Only calls the model when enabled and properly configured.
 
 Admin UI
-- `AICoachEditor` lets super admins pick a program, toggle enable, and edit per-program config. Test runs pass the selected `programId` to the server.
+- `AICoachEditor` lets super admins pick a program, toggle enable, edit per-program config, and select model/temperature.
 
 ---
 
@@ -939,7 +819,7 @@ Reads
 - `students`: super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(student.classroomId))`; teachers may read active students when assigned to the classroom + branch.
 - `students/{studentId}/placements`: same gating as `students`.
 - `observations` (collection group): super admins can read all; classroom admins can read when `managesProgram(classroomProgramId(observation.classroomId))`; teachers follow existing classroom/branch scoping.
-- `ai_prompts`: any authenticated user (client fetch).
+- `config`: any authenticated user can read (client fetches AI config + lesson note config); writes restricted to super admins.
 - `branches`: any authenticated user can read (UI picker); writes restricted to super admins.
 - `programs`: signed-in read for grouping; super admins write.
 - `feedback`: user reads own; both admin tiers read all for triage.
@@ -948,8 +828,8 @@ Writes – users
 - Super admins can create/update/delete any user and assign roles, including editing another admin’s `manageableClassrooms`.
 - Classroom admins can create/update `role: 'teacher'` docs (including setting branchIds) but cannot write `role: 'classroomadmin' | 'superadmin'`.
 
-Writes – classrooms/programs/branches/ai_prompts
-- Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `ai_prompts` documents.
+Writes – classrooms/programs/branches/config
+- Only super admins (or maintenance scripts running as them) may create/update/delete `classrooms`, `programs`, `branches`, and `config` documents.
 
 Writes – students
 - Super admins can CRUD any student.
