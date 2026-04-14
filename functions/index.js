@@ -4539,7 +4539,8 @@ const PROFILE_JSON_WRAPPER = `
 
 IMPORTANT: You must output your response as a JSON object.
 Each key must be one of the dimension keys listed above.
-Each value must be an object with exactly: { "narrative": string, "confidence": number, "evidenceCount": number, "trend": string }
+Each value must be an object with exactly: { "narrative": string, "confidence": number, "evidenceCount": number, "trend": string, "gaps": string }
+- "gaps": a plain-text description of what is unknown, uncertain, or unobserved about this child in this dimension. Describe specific missing observations or blind spots (e.g., "No observations of independent reading. Social interactions only observed in group settings."). Use an empty string "" if the dimension is well-covered with no obvious gaps.
 Output ONLY the JSON object, nothing else.`;
 
 async function callProfileGeneration(notes, prompt, studentContext, dimensions, openAiKey) {
@@ -4637,6 +4638,7 @@ async function writeProfileDimensions(studentId, profileEntries, programId, sour
       dimensionLabel: entry.dimensionLabel,
       programId,
       narrative: entry.narrative,
+      gaps: entry.gaps || "",
       structuredSignals: {
         ...entry.structuredSignals,
         lastSourceType: sourceType,

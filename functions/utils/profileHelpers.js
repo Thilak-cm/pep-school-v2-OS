@@ -4,7 +4,7 @@ import { VALID_TRENDS } from "../config/profileConstants.js";
  * Parse LLM profile response into structured dimension entries.
  *
  * The LLM returns a JSON object keyed by dimension key, each with:
- *   { narrative: string, confidence: number, evidenceCount: number, trend: string }
+ *   { narrative: string, confidence: number, evidenceCount: number, trend: string, gaps: string }
  *
  * This function validates, clamps, and fills missing dimensions with defaults.
  *
@@ -16,6 +16,8 @@ export function parseProfileResponse(rawResponse, dimensions) {
   return dimensions.map((dim) => {
     const entry = rawResponse?.[dim.key];
     const hasData = entry && typeof entry.narrative === "string" && entry.narrative.trim().length > 0;
+
+    const NO_DATA_GAPS = "No observations available for this dimension — further data needed.";
 
     const narrative = hasData
       ? entry.narrative.trim()
@@ -34,10 +36,15 @@ export function parseProfileResponse(rawResponse, dimensions) {
       ? entry.trend
       : "emerging";
 
+    const gaps = hasData && typeof entry.gaps === "string"
+      ? entry.gaps
+      : NO_DATA_GAPS;
+
     return {
       dimensionKey: dim.key,
       dimensionLabel: dim.label,
       narrative,
+      gaps,
       structuredSignals: {
         confidence,
         evidenceCount,
