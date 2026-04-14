@@ -72,7 +72,7 @@
         { "fieldPath": "weekKey", "order": "ASCENDING" },
         { "fieldPath": "escalatedThisWeek", "order": "ASCENDING" }
       ]
-    }
+    },
     {
       "collectionGroup": "interviews",
       "queryScope": "COLLECTION",
