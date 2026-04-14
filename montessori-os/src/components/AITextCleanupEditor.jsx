@@ -100,7 +100,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         version: curr.version || 1,
         systemPrompt: curr.systemPrompt || '',
         userPrompt: curr.userPrompt || '',
-        updatedAt: now,
+        updatedAt: new Date(),
         updatedBy,
         changeNote: changeNote || 'Updated prompts',
       } : null;
@@ -132,7 +132,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       const snap = await getDoc(textRef);
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
-    } catch {
+    } catch (err) {
+      console.error('[AITextCleanupEditor] save failed:', err);
       setError('Failed to save');
     } finally {
       setSaving(false);
@@ -154,7 +155,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         version: curr.version || 1,
         systemPrompt: curr.systemPrompt || '',
         userPrompt: curr.userPrompt || '',
-        updatedAt: now,
+        updatedAt: new Date(),
         updatedBy,
         changeNote: `Revert to v${versionItem?.version || ''}`,
       };

@@ -205,7 +205,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           version: curr.version || 1,
           staticSystemPrompt: curr.staticSystemPrompt || '',
           dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
-          updatedAt: now,
+          updatedAt: new Date(),
           updatedBy,
           changeNote: changeNote || 'Updated prompts',
         } : null;
@@ -267,7 +267,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
         version: curr.version || 1,
         staticSystemPrompt: curr.staticSystemPrompt || '',
         dynamicSystemPrompt: curr.dynamicSystemPrompt || '',
-        updatedAt: now,
+        updatedAt: new Date(),
         updatedBy,
         changeNote: `Revert to v${versionItem?.version || ''}`,
       };
