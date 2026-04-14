@@ -279,6 +279,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                     label="Temperature"
                     value={temperature}
                     onChange={(e) => setTemperature(Number(e.target.value))}
+                    onWheel={(e) => e.target.blur()}
                     disabled={saving}
                     size="small"
                     inputProps={{ min: 0, max: 2, step: 0.1 }}

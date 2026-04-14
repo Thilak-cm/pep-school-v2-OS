@@ -359,6 +359,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                   label="Temp"
                   value={temperature}
                   onChange={(e) => setTemperature(Number(e.target.value))}
+                  onWheel={(e) => e.target.blur()}
                   disabled={saving}
                   size="small"
                   sx={{ width: 80 }}
