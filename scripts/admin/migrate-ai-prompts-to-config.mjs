@@ -309,7 +309,7 @@ const EXPECTED_FIELDS = {
 for (const prog of PROGRAMS) {
   EXPECTED_FIELDS[`coach_${prog}`] = ["nudgeBlocks", "enabledNudges", "model", "temperature"];
   EXPECTED_FIELDS[`chat_${prog}`] = ["systemPrompt", "model", "temperature", "max_tokens"];
-  EXPECTED_FIELDS[`readiness_${prog}`] = ["staticSystemPrompt", "model", "temperature"];
+  EXPECTED_FIELDS[`readiness_${prog}`] = ["systemPrompt", "model", "temperature"];
   EXPECTED_FIELDS[`report_${prog}`] = ["staticSystemPrompt", "model", "temperature", "max_tokens", "timezone"];
   EXPECTED_FIELDS[`profile_${prog}`] = ["staticSystemPrompt", "model", "temperature"];
 }
