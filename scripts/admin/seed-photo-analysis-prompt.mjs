@@ -25,7 +25,7 @@ Fields:
 
 Respond with ONLY valid JSON matching this structure:
 {
-  "handwritten": true,
+  "handwritten": false,
   "contentCategory": "student_work",
   "description": "A child's addition work using golden beads with number cards laid out on a mat.",
   "materialsIdentified": ["golden beads", "number cards"],

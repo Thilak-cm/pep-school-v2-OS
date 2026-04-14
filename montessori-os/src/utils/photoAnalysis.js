@@ -80,6 +80,6 @@ export function parsePhotoAnalysis(input) {
     curriculumSubArea,
     developmentalNotes,
     writingAnalysis,
-    teacherEdited: false,
+    teacherEdited: parsed?.teacherEdited === true,
   };
 }

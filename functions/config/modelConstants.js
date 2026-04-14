@@ -6,7 +6,7 @@ export const FRONTIER_MODEL = "gpt-5.4";
 // Mini model — used by Cleanup, Baseball Cards, PDF processing, Chat name generation
 export const MINI_MODEL = "gpt-5.4-mini";
 
-// Nano model — used by Photo Analysis VLM
+// Nano model — available for lightweight tasks
 export const NANO_MODEL = "gpt-5.4-nano";
 
 // Available models for config editor dropdowns (GPT-5.4 family)

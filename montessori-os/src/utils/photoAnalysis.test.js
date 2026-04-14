@@ -3,7 +3,7 @@
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePhotoAnalysis, PHOTO_ANALYSIS_DEFAULTS } from './photoAnalysis.js';
+import { parsePhotoAnalysis } from './photoAnalysis.js';
 
 describe('parsePhotoAnalysis', () => {
   test('parses valid student_work response with no writing', () => {
@@ -119,6 +119,17 @@ describe('parsePhotoAnalysis', () => {
     const result = parsePhotoAnalysis(obj);
     assert.equal(result.description, 'Pink tower work');
     assert.equal(result.curriculumArea, 'Sensorial');
+  });
+
+  test('preserves teacherEdited flag on round-trip parse', () => {
+    const obj = {
+      handwritten: false,
+      contentCategory: 'student_work',
+      description: 'Edited description',
+      teacherEdited: true,
+    };
+    const result = parsePhotoAnalysis(obj);
+    assert.equal(result.teacherEdited, true);
   });
 
   test('coerces invalid contentCategory to "other"', () => {

@@ -472,7 +472,7 @@ Notes
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
 - `handwritten` is a VLM-inferred boolean per photo (default `false`). Backward-compatible field derived from `photoAnalysis.handwritten`.
-- `photoAnalysis` is the full structured VLM analysis (PEP-32). Set automatically by the `analyzePhotoVLM` Cloud Function (gpt-5.4-nano) after photo capture. Rich fields (`description`, `curriculumArea`, `materialsIdentified`, etc.) are only populated when `contentCategory` is `student_work`. The `description` field is shown to teachers for optional editing; if edited, `teacherEdited` is set to `true`.
+- `photoAnalysis` is the full structured VLM analysis (PEP-32). Set automatically by the `analyzePhotoVLM` Cloud Function (gpt-5.4-mini) after photo capture. Rich fields (`description`, `curriculumArea`, `materialsIdentified`, etc.) are only populated when `contentCategory` is `student_work`. The `description` field is shown to teachers for optional editing; if edited, `teacherEdited` is set to `true`.
 
 ---
 

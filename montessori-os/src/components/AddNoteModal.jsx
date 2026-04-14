@@ -10,8 +10,6 @@ import {
   Snackbar,
   Alert,
   Chip,
-  ToggleButton,
-  ToggleButtonGroup,
   InputAdornment,
   Divider,
   Tooltip
@@ -1030,6 +1028,8 @@ function AddNoteModal({
     setPdfEssenceLoading(false);
     setPdfPageCount(null);
     setPdfExtractedText('');
+    setPhotoAnalysisLoading(false);
+    photoAnalysisFailedRef.current.clear();
   };
 
   const openMediaDictation = () => {
@@ -1378,7 +1378,8 @@ function AddNoteModal({
         }
         return it;
       }));
-    } catch (_err) {
+    } catch (err) {
+      reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis VLM call failed');
       photoItems.forEach((it) => photoAnalysisFailedRef.current.add(it.id));
       notify.warning('Could not analyze photos.');
     }
