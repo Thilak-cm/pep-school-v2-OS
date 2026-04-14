@@ -320,6 +320,64 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
       <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Model Configuration
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel id="baseball-model-label">Model</InputLabel>
+              <Select
+                labelId="baseball-model-label"
+                value={config.model}
+                label="Model"
+                onChange={(e) => setConfig((prev) => ({ ...prev, model: e.target.value }))}
+                disabled={saving}
+                renderValue={(val) => {
+                  const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                  return found ? found.label : val;
+                }}
+              >
+                {AVAILABLE_MODELS.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Temperature"
+              type="number"
+              inputProps={{ step: 0.1, min: 0, max: 2 }}
+              value={config.temperature}
+              onChange={(e) => setConfig((prev) => ({ ...prev, temperature: Number(e.target.value) }))}
+              disabled={saving}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Window Days"
+              type="number"
+              inputProps={{ min: 1 }}
+              value={config.windowDays}
+              onChange={(e) => setConfig((prev) => ({ ...prev, windowDays: Number(e.target.value) }))}
+              disabled={saving}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Max Tokens"
+              type="number"
+              inputProps={{ min: 50 }}
+              value={config.max_tokens}
+              onChange={(e) => setConfig((prev) => ({ ...prev, max_tokens: Number(e.target.value) }))}
+              disabled={saving}
+              size="small"
+              fullWidth
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
+        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Baseball Card Playground
           </Typography>
           <Typography variant="body2" color="text.secondary">
