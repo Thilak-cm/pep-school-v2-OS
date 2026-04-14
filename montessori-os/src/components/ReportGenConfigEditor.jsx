@@ -392,7 +392,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             </FormControl>
             <TextField
               label="Temperature"
-              type="number"
+              type="number" onWheel={(e) => e.target.blur()}
               inputProps={{ step: 0.1, min: 0, max: 2 }}
               value={config.temperature}
               onChange={(e) => setConfig((p) => ({ ...p, temperature: e.target.value === '' ? '' : Number(e.target.value) }))}
@@ -402,7 +402,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               label="Max tokens"
-              type="number"
+              type="number" onWheel={(e) => e.target.blur()}
               inputProps={{ min: 50 }}
               value={config.max_tokens}
               onChange={(e) => setConfig((p) => ({ ...p, max_tokens: e.target.value === '' ? '' : Number(e.target.value) }))}
@@ -701,7 +701,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               </FormControl>
               <TextField
                 label="Temperature"
-                type="number"
+                type="number" onWheel={(e) => e.target.blur()}
                 inputProps={{ step: 0.1, min: 0, max: 2 }}
                 value={playgroundConfig.temperature}
                 onChange={handlePlaygroundFieldChange('temperature', true)}
@@ -711,7 +711,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Max tokens"
-                type="number"
+                type="number" onWheel={(e) => e.target.blur()}
                 inputProps={{ min: 50 }}
                 value={playgroundConfig.max_tokens}
                 onChange={handlePlaygroundFieldChange('max_tokens', true)}

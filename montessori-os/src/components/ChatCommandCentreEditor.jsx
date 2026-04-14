@@ -275,7 +275,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                   </FormControl>
                   <TextField
                     fullWidth
-                    type="number"
+                    type="number" onWheel={(e) => e.target.blur()}
                     label="Temperature"
                     value={temperature}
                     onChange={(e) => setTemperature(Number(e.target.value))}
@@ -287,7 +287,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                   />
                   <TextField
                     fullWidth
-                    type="number"
+                    type="number" onWheel={(e) => e.target.blur()}
                     label="Max Tokens"
                     value={maxTokens}
                     onChange={(e) => setMaxTokens(Number(e.target.value))}
@@ -310,7 +310,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <TextField
                     fullWidth
-                    type="number"
+                    type="number" onWheel={(e) => e.target.blur()}
                     label="Chat Message Limit"
                     value={chatMessageLimit}
                     onChange={(e) => setChatMessageLimit(Number(e.target.value))}

@@ -399,6 +399,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Maximum Return Nudges</Typography>
             <TextField
               type="number"
+              onWheel={(e) => e.target.blur()}
               value={maxReturnNudges}
               onChange={handleMaxReturnNudgesChange}
               slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}
