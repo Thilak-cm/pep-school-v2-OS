@@ -87,19 +87,28 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_ai_prompt",
+    name: "get_config",
     description:
-      "Fetch an AI prompt document from the ai_prompts collection. Returns all fields including systemPrompt, userPrompt, version, etc.",
+      "Fetch a document from the top-level config collection. Returns all fields. Includes both operational config docs and AI tool config docs (prompts, model settings, temperature, etc.).",
     inputSchema: {
       type: "object",
       properties: {
         docId: {
           type: "string",
           description:
-            "Document ID in ai_prompts collection (e.g., text_summarizer, report_adolescent, baseball_card, coach_primary, chat_elementary).",
+            "Document ID in config collection (e.g., baseball_card, report_primary, coach_elementary, text_summarizer, lessonNote, chat_elementary).",
         },
       },
       required: ["docId"],
+    },
+  },
+  {
+    name: "list_config",
+    description:
+      "List all documents in the top-level config collection, including AI tool configs. Returns document IDs and a preview of top-level field names for each doc.",
+    inputSchema: {
+      type: "object",
+      properties: {},
     },
   },
 ];
@@ -263,11 +272,11 @@ export async function handleListStudents(db, params) {
   return results;
 }
 
-export async function handleGetAiPrompt(db, params) {
+export async function handleGetConfig(db, params) {
   const { docId } = params;
   if (!docId) return null;
 
-  const doc = await db.collection("ai_prompts").doc(docId).get();
+  const doc = await db.collection("config").doc(docId).get();
   if (!doc.exists) return null;
 
   const d = doc.data();
@@ -280,6 +289,21 @@ export async function handleGetAiPrompt(db, params) {
     }
   }
   return result;
+}
+
+export async function handleListConfig(db) {
+  const snap = await db.collection("config").get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    const d = doc.data();
+    results.push({
+      id: doc.id,
+      fields: Object.keys(d),
+    });
+  });
+
+  return results;
 }
 
 export async function handleListClassrooms(db) {

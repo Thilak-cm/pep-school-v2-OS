@@ -1,5 +1,21 @@
 # Changelog
 
+# 10.5.1 — 2026-04-14
+
+### Changed
+- Consolidated all `ai_prompts` docs into `config` collection — each AI feature now has a single config doc with prompts, model, temperature, and operational params (PEP-139)
+- Dynamic model selection dropdowns added to Coach, Text Cleanup, and Baseball Card editors (PEP-139)
+- Cloud Functions read model/temperature from Firestore config docs with fallback to hardcoded constants (PEP-139)
+- MCP server tools consolidated: `get_ai_config`/`list_ai_configs` removed, `get_config`/`list_config` now serve all config docs (PEP-139)
+
+### Removed
+- `ai_prompts` Firestore security rules (collection no longer referenced in code) (PEP-139)
+- Baseball Card playground section from admin UI (PEP-139)
+- Stale seed scripts: `seed-profile-prompts`, `seed-readiness-prompts`, `seed-profile-dimensions` (PEP-139)
+
+### Fixed
+- Scroll-wheel no longer changes number input values across all admin editors (PEP-139)
+
 # 10.5.0 — 2026-04-13
 
 ### Added

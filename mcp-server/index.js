@@ -29,7 +29,8 @@ import {
   handleGetBaseballCard,
   handleListStudents,
   handleListClassrooms,
-  handleGetAiPrompt,
+  handleGetConfig,
+  handleListConfig,
 } from "./tools.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -91,8 +92,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "list_classrooms":
         result = await handleListClassrooms(db);
         break;
-      case "get_ai_prompt":
-        result = await handleGetAiPrompt(db, params);
+      case "get_config":
+        result = await handleGetConfig(db, params);
+        break;
+      case "list_config":
+        result = await handleListConfig(db);
         break;
       default:
         return {

@@ -479,14 +479,6 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
-    // AI Prompts
-    // - Any signed-in user can read (clients fetch prompts at runtime)
-    // - Only admins can write
-    match /ai_prompts/{docId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
-    }
-
     // Programs collection
     // - Any signed-in user can read to support classroom grouping and UI filters
     // - Only super admins (or admin scripts running as them) can write
