@@ -151,6 +151,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [classroomReports, setClassroomReports] = useState([]);
+  const [classroomMediaDocs, setClassroomMediaDocs] = useState([]);
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
   const searchInputRef = useRef(null);
@@ -375,9 +376,42 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       const studentIds = students.map(s => s.id);
       fetchTeachers(); // Teachers can load in parallel
 
-      // Fetch notes and reports in parallel, then mark loading done
+      // Fetch notes, media docs, and reports in parallel, then mark loading done
+      const batchSize = 10;
       const [notesUnsub] = await Promise.all([
         fetchNotes(studentIds),
+        // Fetch media docs for all students in classroom
+        (async () => {
+          try {
+            const mediaQueries = [];
+            for (let i = 0; i < studentIds.length; i += batchSize) {
+              const batch = studentIds.slice(i, i + batchSize);
+              mediaQueries.push(
+                query(
+                  collectionGroup(db, 'media'),
+                  where('studentId', 'in', batch),
+                  orderBy('observedAt', 'desc'),
+                  limit(100)
+                )
+              );
+            }
+            const mediaSnapshots = await Promise.all(mediaQueries.map(q => getDocs(q)));
+            const allMedia = [];
+            mediaSnapshots.forEach((snap) => {
+              snap.docs.forEach((d) => {
+                allMedia.push({
+                  id: d.id,
+                  parentStudentId: d.ref.parent?.parent?.id,
+                  docPath: d.ref.path,
+                  ...d.data(),
+                });
+              });
+            });
+            setClassroomMediaDocs(allMedia);
+          } catch {
+            setClassroomMediaDocs([]);
+          }
+        })(),
         // Fetch reports for all students in classroom
         Promise.all(
           students.map(async (s) => {
@@ -555,15 +589,28 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
   // Filter notes based on search query (only show notes from students whose names match)
   const filteredNotes = useMemo(() => {
+    // Merge observation notes with media docs, deduplicating by id
+    const seen = new Set();
+    const merged = [...classroomNotes, ...classroomMediaDocs].filter(note => {
+      if (seen.has(note.id)) return false;
+      seen.add(note.id);
+      return true;
+    });
+    merged.sort((a, b) => {
+      const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+      const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
+      return bDate - aDate;
+    });
+
     if (!searchQuery || !searchQuery.trim()) {
-      return classroomNotes;
+      return merged;
     }
-    
+
     const matchingStudentIds = filteredStudents.map(student => student.id);
-    return classroomNotes.filter(note => 
+    return merged.filter(note =>
       matchingStudentIds.includes(note.studentId)
     );
-  }, [classroomNotes, filteredStudents, searchQuery]);
+  }, [classroomNotes, classroomMediaDocs, filteredStudents, searchQuery]);
 
   // Group filtered notes by time periods
   // Apply advanced filters (date, creator, type) on top of search-filtered notes
