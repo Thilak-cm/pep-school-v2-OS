@@ -1098,7 +1098,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   });
                 };
                 return (
-                  <Card key={obs.id} sx={{ ...cardSx, cursor: 'default' }}>
+                  <Card
+                    key={obs.id}
+                    sx={{ ...cardSx, cursor: 'pointer', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)', transform: 'translateY(-1px)' }, transition: 'all 0.2s ease-in-out' }}
+                    onClick={() => { if (mediaItems.length > 0) openMediaItemPreview(mediaItems[0]); }}
+                  >
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
                         <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
