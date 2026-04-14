@@ -32,7 +32,7 @@ if (isMainScript) {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (reused from test-student-profile.mjs)
+// Helpers
 // ---------------------------------------------------------------------------
 
 function formatDob(dobValue) {
@@ -292,6 +292,11 @@ if (isMainScript) {
     const rawContent = json?.choices?.[0]?.message?.content?.trim();
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`Response received in ${elapsed}s`);
+
+    if (!rawContent) {
+      console.error("Empty response from OpenAI — unexpected response shape");
+      process.exit(1);
+    }
 
     // 6. Parse and validate
     const dimKeys = profileDims.map((d) => d.dimensionKey);
