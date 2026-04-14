@@ -78,8 +78,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
     if (docState) {
       setSystemPrompt(docState.systemPrompt || '');
       setUserPrompt(docState.userPrompt || '');
-      if (docState.model) setModel(docState.model);
-      if (typeof docState.temperature === 'number') setTemperature(docState.temperature);
+      setModel(docState.model || CLEANUP_MODEL_INFO.model);
+      setTemperature(typeof docState.temperature === 'number' ? docState.temperature : CLEANUP_MODEL_INFO.temperature);
     }
     setChangeNote('');
     setEditing(false);
