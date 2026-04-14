@@ -76,13 +76,15 @@ This skill covers:
 - `git pull origin dev` (fast-forward)
 - If pull fails, stop and report
 
-3. Delete local feature branch
-- `git branch -d <branch>` (safe delete — will fail if not fully merged)
-- If delete fails, report the reason and ask user
+3. Delete feature branch (local + remote)
+- Local: `git branch -d <branch>` (safe delete — will fail if not fully merged)
+- Remote: `git push origin --delete <branch>`
+- If either delete fails, report the reason and ask user
 
 4. Confirm clean state
 - `git status --short` should be clean
 - `git branch` should not show the feature branch
+- `git branch -r` should not show the remote feature branch
 
 ### Phase 4: Linear Sync + Move to `Done` (Required)
 
@@ -126,7 +128,7 @@ Ask for explicit approval at these points:
 
 - **Do not merge if CI checks are failing or pending** — this is the primary safety gate
 - Do not merge if PR has unresolved review comments
-- Do not delete local branch until merge + pull are confirmed successful
+- Do not delete branches (local or remote) until merge + pull are confirmed successful
 - Do not update the wrong Linear issue
 - Do not move to `Done` if merge actually failed
 - Do not force-delete branches (`-D`) — use safe delete (`-d`) only
@@ -136,6 +138,6 @@ Ask for explicit approval at these points:
 1. CI checks confirmed passing before merge
 2. PR was merged into `dev` via `gh pr merge`
 3. Local dev branch is up to date with the merged changes
-4. Local feature branch was deleted
+4. Feature branch was deleted (local + remote)
 5. Linear issue was commented and moved to `Done`
 6. User was prompted to refresh codebase overview

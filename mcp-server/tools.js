@@ -102,6 +102,40 @@ export const TOOL_DEFINITIONS = [
       required: ["docId"],
     },
   },
+  {
+    name: "list_ai_prompts",
+    description:
+      "List all documents in the ai_prompts collection. Returns document IDs and key metadata fields (title, description, version, updatedAt) without full prompt content.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "get_config",
+    description:
+      "Fetch a document from the top-level config collection. Returns all fields. Use for operational config docs like baseball_card_config, report_generation, etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        docId: {
+          type: "string",
+          description:
+            "Document ID in config collection (e.g., baseball_card_config, report_generation).",
+        },
+      },
+      required: ["docId"],
+    },
+  },
+  {
+    name: "list_config",
+    description:
+      "List all documents in the top-level config collection. Returns document IDs and a preview of top-level field names for each doc.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];
 
 // --- Tool Handlers ---
@@ -280,6 +314,58 @@ export async function handleGetAiPrompt(db, params) {
     }
   }
   return result;
+}
+
+export async function handleListAiPrompts(db) {
+  const snap = await db.collection("ai_prompts").get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    const d = doc.data();
+    results.push({
+      id: doc.id,
+      title: d.title || null,
+      description: d.description || null,
+      version: d.version || null,
+      updatedAt: d.updatedAt?.toDate?.()?.toISOString() ?? null,
+    });
+  });
+
+  return results;
+}
+
+export async function handleGetConfig(db, params) {
+  const { docId } = params;
+  if (!docId) return null;
+
+  const doc = await db.collection("config").doc(docId).get();
+  if (!doc.exists) return null;
+
+  const d = doc.data();
+  const result = { id: doc.id };
+  for (const [key, value] of Object.entries(d)) {
+    if (value?.toDate) {
+      result[key] = value.toDate().toISOString();
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+export async function handleListConfig(db) {
+  const snap = await db.collection("config").get();
+
+  const results = [];
+  snap.forEach((doc) => {
+    const d = doc.data();
+    results.push({
+      id: doc.id,
+      fields: Object.keys(d),
+    });
+  });
+
+  return results;
 }
 
 export async function handleListClassrooms(db) {

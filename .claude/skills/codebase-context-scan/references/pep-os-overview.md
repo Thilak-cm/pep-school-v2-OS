@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-04-08T01:24:46.599Z
+Generated: 2026-04-08T18:26:34.825Z
 App version: 10.4.0
 
 ## App Snapshot
@@ -139,6 +139,9 @@ App version: 10.4.0
 ## Recent Changes
 
 ### 10.4.0 (2026-04-07)
+- Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
+- Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
+- Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
 - Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
 - `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
 - `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)

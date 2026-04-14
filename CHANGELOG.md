@@ -1,8 +1,29 @@
 # Changelog
 
+# 10.5.0 — 2026-04-13
+
+### Added
+- Rich AI photo analysis — photos of student work are automatically analyzed by VLM returning curriculum area, handwritten detection, AI-generated description, materials identified, and developmental notes (PEP-32)
+- Cloud Function `analyzePhotoVLM` with structured JSON output, student age context, and Firestore-managed prompt with hardcoded fallback (PEP-32)
+- Photo card UI redesign — 4:3 aspect ratio, overlay pill toggle for Own work/Copied, curriculum and handwritten chips, editable AI description (PEP-32)
+- `photoAnalysis` parser with comprehensive validation, safe defaults for malformed VLM responses, and `teacherEdited` tracking (PEP-32)
+- Seed script for `ai_prompts/photo_analysis_vlm` prompt management (PEP-32)
+
+### Changed
+- Photo notes restricted to single student per upload for age-contextualized VLM analysis; multi-student deferred to PEP-138 (PEP-32)
+- Action buttons (polish/dictate) moved below text fields instead of inside endAdornment for better mobile layout (PEP-32)
+
+### Fixed
+- Image payload validation on VLM callable — enforces max 10 images and 10 MB total size (PEP-32)
+- `resetMediaState` now clears photo analysis loading state to prevent stale analysis blocks (PEP-32)
+
 # 10.4.0 — 2026-04-07
 
 ### Added
+- Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
+- Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
+- Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
+- `observationUtils` extended with 'report' type for icon and label support (PEP-82)
 - Student profile model: per-dimension AI-generated narrative profiles stored at `students/{studentId}/profile/{dimensionId}` with structured signals (confidence, evidence count, trend) and version history subcollection (PEP-124)
 - `generateStudentProfile` Cloud Function for single-student profile generation from observations using GPT-5.4 (PEP-124)
 - `backfillStudentProfiles` Cloud Function with `startAfter`/`batchSize` pagination for bulk profile seeding across all active students (PEP-124)
@@ -10,6 +31,12 @@
 - Per-program profile generation prompts at `ai_prompts/profile_{program}` with seed script (PEP-124)
 - Firestore security rules for profile subcollection: superadmin read, Cloud Functions write via admin SDK (PEP-124)
 - Security rule spec tests for profile and history subcollection access control (PEP-124)
+
+### Fixed
+- Report markers exempt from timeline type filters — reports always visible regardless of active filters (PEP-82)
+- Report items excluded from observation export count and pipeline (PEP-82)
+- Firestore Timestamp handling in ReportPreviewDialog for `.toDate()` objects (PEP-82)
+- IST-aware date grouping for classroom report markers (PEP-82)
 
 # 10.3.0 — 2026-04-04
 

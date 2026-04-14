@@ -36,7 +36,11 @@ export function buildMediaDocData(payload, mediaId, storagePath) {
     ...(payload.batchId ? { batchId: payload.batchId } : {}),
     ...(kind === 'pdf' && payload.pdfTitle ? { pdfTitle: payload.pdfTitle } : {}),
     ...(kind === 'pdf' && payload.pdfEssence ? { essence_text: payload.pdfEssence } : {}),
-    ...(kind === 'photo' ? { copied: payload.copied === true, handwritten: payload.handwritten === true } : {}),
+    ...(kind === 'photo' ? {
+      copied: payload.copied === true,
+      handwritten: payload.photoAnalysis?.handwritten === true || payload.handwritten === true,
+      ...(payload.photoAnalysis ? { photoAnalysis: payload.photoAnalysis } : {}),
+    } : {}),
     ...(Array.isArray(payload.linkedLessonObservationId) && payload.linkedLessonObservationId.length > 0
       ? { linkedLessonObservationId: payload.linkedLessonObservationId } : {}),
   };

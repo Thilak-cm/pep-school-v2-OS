@@ -15,8 +15,6 @@
 ---
 
 ## 📚 Collections Overview
-- `access_logs/{logId}`                                // Telegram bot access audit logs
-- `access_requests/{requestId}`                        // Telegram bot pairing requests
 - `branches/{branchId}`
 - `programs/{programId}`
 - `users/{uid}`
@@ -233,7 +231,7 @@ Subcollections
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
 - `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string }`.
-- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
+- `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
 - `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
 - `profile/{dimensionId}` – AI-generated student profile dimensions (PEP-124). One doc per developmental dimension. Shape: `{ dimensionKey: string, dimensionLabel: string, programId: ProgramId, narrative: string, structuredSignals: { confidence: number (0-1), evidenceCount: number, trend: 'emerging' | 'developing' | 'stable' | 'declining', lastSourceType: 'backfill' | 'interview' | 'observation' }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. Dimension keys are program-specific (e.g., `independence_practical_life` for primary, `enterprise_applied` for adolescent). Config at `config/profile_dimensions_{program}` defines the valid dimensions per program. Prompts at `ai_prompts/profile_{program}`.
@@ -432,7 +430,26 @@ interface MediaDoc {
   // Per-image metadata (photos only)
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
   handwritten?: boolean;         // VLM-inferred: true if image contains handwriting (default false)
-                                 // Set by Cloud Function `detectHandwritingVLM`
+                                 // Backward-compat field derived from photoAnalysis.handwritten
+
+  // AI photo analysis (photos only, PEP-32)
+  photoAnalysis?: {
+    handwritten: boolean;
+    contentCategory: 'student_work' | 'other';
+    description: string | null;            // AI-generated description of the photo
+    materialsIdentified: string[];         // Montessori materials visible in the photo
+    curriculumArea: string | null;         // e.g., "Mathematics", "Language", "Sensorial"
+    curriculumSubArea: string | null;      // e.g., "Decimal System - Dynamic Addition"
+    developmentalNotes: string | null;     // What the work reveals about the child's development
+    writingAnalysis: {                     // Only present when handwritten=true
+      handwriting: { rating: number | null; note: string | null };
+      spelling:    { rating: number | null; note: string | null };
+      vocabulary:  { rating: number | null; note: string | null };
+      structure:   { rating: number | null; note: string | null };
+      punctuation: { rating: number | null; note: string | null };
+    } | null;
+    teacherEdited: boolean;                // true if teacher edited the AI description
+  };
 
   // AI features
   pdfTitle?: string;             // AI-extracted title (PDFs only)
@@ -454,7 +471,8 @@ Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
-- `handwritten` is a VLM-inferred boolean per photo (default `false`). Set automatically by the `detectHandwritingVLM` Cloud Function after photo upload. Both fields feed into the monthly writing snapshot job.
+- `handwritten` is a VLM-inferred boolean per photo (default `false`). Backward-compatible field derived from `photoAnalysis.handwritten`.
+- `photoAnalysis` is the full structured VLM analysis (PEP-32). Set automatically by the `analyzePhotoVLM` Cloud Function (gpt-5.4-mini) after photo capture. Rich fields (`description`, `curriculumArea`, `materialsIdentified`, etc.) are only populated when `contentCategory` is `student_work`. The `description` field is shown to teachers for optional editing; if edited, `teacherEdited` is set to `true`.
 
 ---
 
