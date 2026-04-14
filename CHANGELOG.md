@@ -1,5 +1,13 @@
 # Changelog
 
+# 10.6.0 — 2026-04-14
+
+### Added
+- Interview question generation prototype — standalone script reads student profile dimensions and baseball card from Firestore, calls OpenAI to generate 7 targeted MCQ/open-ended interview questions with coverage report (PEP-140)
+
+### Fixed
+- Null guard on OpenAI response content to prevent confusing errors on unexpected API response shapes (PEP-140)
+
 # 10.5.0 — 2026-04-13
 
 ### Added
