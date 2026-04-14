@@ -2447,71 +2447,69 @@ function AddNoteModal({
                                 )}
 
                                 {/* Teacher comment */}
-                                <TextField
-                                  label="Your notes"
-                                  value={item.teacherComment || ''}
-                                  onChange={(e) => {
-                                    handleMediaItemCommentChange(item.id, e.target.value);
-                                    if (mediaItemCommentCleanedOnce[item.id]) {
-                                      setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [item.id]: false }));
-                                      setMediaItemCommentPrevText((prev) => ({ ...prev, [item.id]: '' }));
-                                    }
-                                  }}
-                                  fullWidth
-                                  multiline
-                                  minRows={2}
-                                  placeholder="Add your observation..."
-                                  size="small"
-                                  inputRef={(el) => { mediaItemCommentRefs.current[item.id] = el; }}
-                                  InputProps={{
-                                    sx: { fontSize: '0.85rem' },
-                                    endAdornment: (
-                                      <InputAdornment position="end" sx={{ alignSelf: 'flex-end', mb: 0.5 }}>
-                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                          <Tooltip
-                                            title="Add text first to polish with AI"
-                                            disableHoverListener={!!String(item.teacherComment || '').trim()}
-                                            disableFocusListener={!!String(item.teacherComment || '').trim()}
-                                          >
-                                            <span>
-                                              <IconButton
-                                                aria-label="Polish comment with AI"
-                                                onClick={() => handlePolishMediaItemComment(item.id)}
-                                                disabled={
-                                                  !String(item.teacherComment || '').trim() ||
-                                                  !!mediaItemCommentCleaning[item.id] ||
-                                                  !!mediaItemCommentCleanedOnce[item.id]
-                                                }
-                                                size="small"
-                                                sx={{
-                                                  border: 1,
-                                                  borderColor: 'divider',
-                                                  bgcolor: 'action.hover',
-                                                  color: mediaItemCommentCleanedOnce[item.id] ? '#059669' : mediaItemCommentCleaning[item.id] ? '#7c3aed' : !String(item.teacherComment || '').trim() ? 'text.disabled' : '#7c3aed'
-                                                }}
-                                              >
-                                                {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
-                                              </IconButton>
-                                            </span>
-                                          </Tooltip>
-                                          <IconButton
-                                            aria-label={`Dictate comment for file`}
-                                            onClick={() => openMediaItemDictation(item.id)}
-                                            color="primary"
-                                            size="small"
-                                            sx={{
-                                              border: 1,
-                                              borderColor: 'divider',
-                                              bgcolor: 'action.hover'
-                                            }}
-                                          >
-                                            <Mic fontSize="small" />
-                                          </IconButton>
-                                        </Box>
-                                      </InputAdornment>
-                                    )
-                                  }}
-                                />
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                  <TextField
+                                    label="Your notes"
+                                    value={item.teacherComment || ''}
+                                    onChange={(e) => {
+                                      handleMediaItemCommentChange(item.id, e.target.value);
+                                      if (mediaItemCommentCleanedOnce[item.id]) {
+                                        setMediaItemCommentCleanedOnce((prev) => ({ ...prev, [item.id]: false }));
+                                        setMediaItemCommentPrevText((prev) => ({ ...prev, [item.id]: '' }));
+                                      }
+                                    }}
+                                    fullWidth
+                                    multiline
+                                    minRows={2}
+                                    placeholder="Add your observation..."
+                                    size="small"
+                                    inputRef={(el) => { mediaItemCommentRefs.current[item.id] = el; }}
+                                    InputProps={{
+                                      sx: { fontSize: '0.85rem' },
+                                    }}
+                                  />
+                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                    <Tooltip
+                                      title="Add text first to polish with AI"
+                                      disableHoverListener={!!String(item.teacherComment || '').trim()}
+                                      disableFocusListener={!!String(item.teacherComment || '').trim()}
+                                    >
+                                      <span>
+                                        <IconButton
+                                          aria-label="Polish comment with AI"
+                                          onClick={() => handlePolishMediaItemComment(item.id)}
+                                          disabled={
+                                            !String(item.teacherComment || '').trim() ||
+                                            !!mediaItemCommentCleaning[item.id] ||
+                                            !!mediaItemCommentCleanedOnce[item.id]
+                                          }
+                                          size="small"
+                                          sx={{
+                                            border: 1,
+                                            borderColor: 'divider',
+                                            bgcolor: 'action.hover',
+                                            color: mediaItemCommentCleanedOnce[item.id] ? '#059669' : mediaItemCommentCleaning[item.id] ? '#7c3aed' : !String(item.teacherComment || '').trim() ? 'text.disabled' : '#7c3aed'
+                                          }}
+                                        >
+                                          {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                    <IconButton
+                                      aria-label={`Dictate comment for file`}
+                                      onClick={() => openMediaItemDictation(item.id)}
+                                      color="primary"
+                                      size="small"
+                                      sx={{
+                                        border: 1,
+                                        borderColor: 'divider',
+                                        bgcolor: 'action.hover'
+                                      }}
+                                    >
+                                      <Mic fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
                                 {mediaItemCommentCleanedOnce[item.id] && mediaItemCommentPrevText[item.id] && (
                                   <Button
                                     variant="text"
