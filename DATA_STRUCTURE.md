@@ -15,8 +15,6 @@
 ---
 
 ## 📚 Collections Overview
-- `access_logs/{logId}`                                // Telegram bot access audit logs
-- `access_requests/{requestId}`                        // Telegram bot pairing requests
 - `branches/{branchId}`
 - `programs/{programId}`
 - `users/{uid}`
@@ -432,7 +430,26 @@ interface MediaDoc {
   // Per-image metadata (photos only)
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
   handwritten?: boolean;         // VLM-inferred: true if image contains handwriting (default false)
-                                 // Set by Cloud Function `detectHandwritingVLM`
+                                 // Backward-compat field derived from photoAnalysis.handwritten
+
+  // AI photo analysis (photos only, PEP-32)
+  photoAnalysis?: {
+    handwritten: boolean;
+    contentCategory: 'student_work' | 'other';
+    description: string | null;            // AI-generated description of the photo
+    materialsIdentified: string[];         // Montessori materials visible in the photo
+    curriculumArea: string | null;         // e.g., "Mathematics", "Language", "Sensorial"
+    curriculumSubArea: string | null;      // e.g., "Decimal System - Dynamic Addition"
+    developmentalNotes: string | null;     // What the work reveals about the child's development
+    writingAnalysis: {                     // Only present when handwritten=true
+      handwriting: { rating: number | null; note: string | null };
+      spelling:    { rating: number | null; note: string | null };
+      vocabulary:  { rating: number | null; note: string | null };
+      structure:   { rating: number | null; note: string | null };
+      punctuation: { rating: number | null; note: string | null };
+    } | null;
+    teacherEdited: boolean;                // true if teacher edited the AI description
+  };
 
   // AI features
   pdfTitle?: string;             // AI-extracted title (PDFs only)
@@ -454,7 +471,8 @@ Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
-- `handwritten` is a VLM-inferred boolean per photo (default `false`). Set automatically by the `detectHandwritingVLM` Cloud Function after photo upload. Both fields feed into the monthly writing snapshot job.
+- `handwritten` is a VLM-inferred boolean per photo (default `false`). Backward-compatible field derived from `photoAnalysis.handwritten`.
+- `photoAnalysis` is the full structured VLM analysis (PEP-32). Set automatically by the `analyzePhotoVLM` Cloud Function (gpt-5.4-mini) after photo capture. Rich fields (`description`, `curriculumArea`, `materialsIdentified`, etc.) are only populated when `contentCategory` is `student_work`. The `description` field is shown to teachers for optional editing; if edited, `teacherEdited` is set to `true`.
 
 ---
 

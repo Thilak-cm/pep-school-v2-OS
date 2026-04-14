@@ -77,15 +77,53 @@ test('buildMediaDocData does not include copied/handwritten for PDFs', () => {
   assert.equal(doc.handwritten, undefined, 'PDFs should not have handwritten field');
 });
 
-test('buildMediaDocData does not include photoAnalysis (removed in PEP-43)', () => {
+test('buildMediaDocData includes photoAnalysis when payload has it (PEP-32)', () => {
+  const analysis = {
+    handwritten: true,
+    contentCategory: 'student_work',
+    description: 'Cursive writing practice',
+    materialsIdentified: ['lined paper'],
+    curriculumArea: 'Language',
+    curriculumSubArea: 'Writing - Cursive',
+    developmentalNotes: 'Good letter formation',
+    writingAnalysis: { handwriting: { rating: 3, note: 'Consistent' } },
+    teacherEdited: false,
+  };
   const doc = buildMediaDocData({
     studentId: 'stu1',
     classroomId: 'cls1',
     mediaKind: 'photo',
-    photoAnalysis: 'This should be ignored now',
+    photoAnalysis: analysis,
     source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
     createdBy: 'uid1',
   }, 'media_1', 'students/stu1/media/media_1/original.webp');
 
-  assert.equal(doc.photoAnalysis, undefined, 'photoAnalysis field should no longer exist');
+  assert.deepEqual(doc.photoAnalysis, analysis, 'photoAnalysis should be persisted');
+  assert.equal(doc.handwritten, true, 'handwritten backward compat derived from photoAnalysis');
+});
+
+test('buildMediaDocData omits photoAnalysis when payload lacks it', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'photo',
+    source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
+    createdBy: 'uid1',
+  }, 'media_1', 'students/stu1/media/media_1/original.webp');
+
+  assert.equal(doc.photoAnalysis, undefined, 'no photoAnalysis when not in payload');
+});
+
+test('buildMediaDocData does not include photoAnalysis for PDFs', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'pdf',
+    photoAnalysis: { handwritten: false, contentCategory: 'other' },
+    source: { contentType: 'application/pdf', size: 2048, extension: 'pdf' },
+    createdBy: 'uid1',
+    pdfTitle: 'My PDF',
+  }, 'media_1', 'students/stu1/media/media_1/original.pdf');
+
+  assert.equal(doc.photoAnalysis, undefined, 'PDFs should not have photoAnalysis');
 });

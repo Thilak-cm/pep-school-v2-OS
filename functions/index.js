@@ -287,8 +287,50 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
-const HANDWRITING_VLM_MODEL = { model: MINI_MODEL, temperature: 0.1, max_tokens: 10 };
-const HANDWRITING_VLM_FALLBACK_PROMPT = "You are a classroom image classifier. Your only job is to determine whether the image contains handwriting (letters, numbers, or words written by hand). Respond with exactly one word: YES or NO.";
+const PHOTO_ANALYSIS_MODEL = { model: MINI_MODEL, temperature: 0.2, max_tokens: 1000 };
+const PHOTO_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori classroom photo analyst. When given a photo of student work, analyze it in the context of the specific child's age and developmental stage.
+
+IMPORTANT: The user message will include the child's name and age. Use their age to calibrate your developmental assessment — what is impressive for a 3-year-old is expected for a 6-year-old. Your ratings, curriculum mapping, and developmental notes should all reflect age-appropriate expectations.
+
+Fields:
+- handwritten (boolean): whether the image contains handwriting (letters, numbers, or words written by hand)
+- contentCategory (string): "student_work" if it shows a child's individual work product, otherwise "other"
+- description (string|null): 1-2 sentence description of what's in the photo. Null if not student_work.
+- materialsIdentified (string[]): Montessori materials visible (e.g., "golden beads", "pink tower", "moveable alphabet"). Empty array if none identified or not student_work.
+- curriculumArea (string|null): broad Montessori curriculum area (e.g., "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural"). Null if not student_work.
+- curriculumSubArea (string|null): specific topic within the area (e.g., "Decimal System - Dynamic Addition", "Writing - Cursive Introduction"). Null if not student_work.
+- developmentalNotes (string|null): brief age-contextualized observation about what the work reveals about the child's development. Reference what is typical or advanced for their age. Null if not student_work.
+- writingAnalysis (object|null): only when handwritten is true AND contentCategory is student_work. Contains five dimensions, each with rating (1-5 integer or null if insufficient evidence) and note (short string). Ratings should be calibrated to the child's age — a 3 on handwriting means different things for a 3-year-old vs a 6-year-old. Dimensions: handwriting, spelling, vocabulary, structure, punctuation. Null when handwritten is false.
+
+Respond with ONLY valid JSON matching this structure:
+{
+  "handwritten": false,
+  "contentCategory": "student_work",
+  "description": "A child's addition work using golden beads with number cards laid out on a mat.",
+  "materialsIdentified": ["golden beads", "number cards"],
+  "curriculumArea": "Mathematics",
+  "curriculumSubArea": "Decimal System - Dynamic Addition",
+  "developmentalNotes": "Shows understanding of place value and can compose 4-digit numbers.",
+  "writingAnalysis": null
+}
+
+Second example — handwritten student work with writing analysis:
+{
+  "handwritten": true,
+  "contentCategory": "student_work",
+  "description": "Child practicing cursive lowercase letters a through g on lined paper.",
+  "materialsIdentified": ["lined writing paper", "pencil"],
+  "curriculumArea": "Language",
+  "curriculumSubArea": "Writing - Cursive Introduction",
+  "developmentalNotes": "Consistent letter formation with appropriate sizing within lines.",
+  "writingAnalysis": {
+    "handwriting": { "rating": 3, "note": "Consistent sizing, some pressure variation" },
+    "spelling": { "rating": null, "note": "Not enough text to evaluate" },
+    "vocabulary": { "rating": null, "note": "Not applicable for letter practice" },
+    "structure": { "rating": null, "note": "Not applicable for letter practice" },
+    "punctuation": { "rating": null, "note": "Not applicable for letter practice" }
+  }
+}`;
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 /**
@@ -425,48 +467,134 @@ export const extractPdfEssence = functions
   });
 
 // -------------------------------------------------
-// VLM: Handwriting detection for media notes (PEP-43)
+// VLM: Photo analysis for media notes (PEP-32, formerly PEP-43 handwriting detection)
 // -------------------------------------------------
+const analyzePhotoVLMHandler = async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  // Support both single-image (legacy) and multi-image payloads
+  let images = [];
+  if (Array.isArray(data?.images) && data.images.length > 0) {
+    images = data.images.map((img) => ({
+      base64: String(img.imageBase64 || "").trim(),
+      contentType: String(img.contentType || "image/webp").trim(),
+    })).filter((img) => img.base64);
+  } else {
+    const imageBase64 = String(data?.imageBase64 || "").trim();
+    if (imageBase64) {
+      images = [{ base64: imageBase64, contentType: String(data?.contentType || "image/webp").trim() }];
+    }
+  }
+  if (images.length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", "At least one image is required");
+  }
+  if (images.length > 10) {
+    throw new functions.https.HttpsError("invalid-argument", "Too many images; maximum 10 per call");
+  }
+  const totalBytes = images.reduce((sum, img) => sum + Buffer.byteLength(img.base64, "base64"), 0);
+  if (totalBytes > 10 * 1024 * 1024) {
+    throw new functions.https.HttpsError("invalid-argument", "Images too large; maximum 10 MB total");
+  }
+
+  const studentName = String(data?.studentName || "").trim();
+  const studentAge = String(data?.studentAge || "").trim();
+
+  let systemPrompt = PHOTO_ANALYSIS_FALLBACK_PROMPT;
+  try {
+    const promptDoc = await db.collection("ai_prompts").doc("photo_analysis_vlm").get();
+    if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
+      systemPrompt = promptDoc.data().systemPrompt;
+    }
+  } catch (err) {
+    console.warn("[analyzePhotoVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
+  }
+
+  // Ensure system prompt mentions JSON for response_format: json_object
+  const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
+    ? systemPrompt
+    : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
+
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  // Build user message: text context + all image(s)
+  let contextText = "Analyze this classroom photo.";
+  if (studentName) {
+    contextText = `Analyze this classroom photo. Student: ${studentName}`;
+    if (studentAge) contextText += `, Age: ${studentAge}`;
+    contextText += ".";
+  }
+  const userContent = [
+    { type: "text", text: contextText },
+    ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.contentType};base64,${img.base64}` } })),
+  ];
+
+  const body = buildChatBody({
+    model: PHOTO_ANALYSIS_MODEL.model,
+    messages: [
+      { role: "system", content: enhancedPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature: PHOTO_ANALYSIS_MODEL.temperature,
+    max_completion_tokens: PHOTO_ANALYSIS_MODEL.max_tokens,
+    response_format: { type: "json_object" },
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[analyzePhotoVLM] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[analyzePhotoVLM] OpenAI error", response.status, errText?.slice?.(0, 300));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  // Parse JSON response with graceful fallback
+  let analysis;
+  try {
+    analysis = JSON.parse(rawContent);
+  } catch {
+    console.warn("[analyzePhotoVLM] Failed to parse JSON response, returning defaults", rawContent?.slice?.(0, 200));
+    return { handwritten: false, contentCategory: "other" };
+  }
+
+  return analysis;
+};
+
+const photoVLMRunWith = { timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] };
+
+export const analyzePhotoVLM = functions
+  .region("asia-south1")
+  .runWith(photoVLMRunWith)
+  .https.onCall(analyzePhotoVLMHandler);
+
+// Backward-compatible alias (PEP-43 callers)
 export const detectHandwritingVLM = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] })
-  .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-    }
-    const imageBase64 = String(data?.imageBase64 || "").trim();
-    if (!imageBase64) {
-      throw new functions.https.HttpsError("invalid-argument", "imageBase64 is required");
-    }
-    const contentType = String(data?.contentType || "image/webp").trim();
-
-    let systemPrompt = HANDWRITING_VLM_FALLBACK_PROMPT;
-    try {
-      const promptDoc = await db.collection("ai_prompts").doc("handwriting_vlm").get();
-      if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
-        systemPrompt = promptDoc.data().systemPrompt;
-      }
-    } catch (err) {
-      console.warn("[detectHandwritingVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
-    }
-
-    const answer = await runChatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Does this image contain handwriting?" },
-            { type: "image_url", image_url: { url: `data:${contentType};base64,${imageBase64}` } },
-          ],
-        },
-      ],
-      HANDWRITING_VLM_MODEL
-    );
-
-    const handwritten = /^yes$/i.test(answer.trim());
-    return { handwritten };
-  });
+  .runWith(photoVLMRunWith)
+  .https.onCall(analyzePhotoVLMHandler);
 
 // -------------------------------------------------
 // Storage finalize: media uploads -> Firestore metadata
