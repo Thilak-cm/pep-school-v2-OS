@@ -29,8 +29,8 @@ import {
   handleGetBaseballCard,
   handleListStudents,
   handleListClassrooms,
-  handleGetAiPrompt,
-  handleListAiPrompts,
+  handleGetAiConfig,
+  handleListAiConfigs,
   handleGetConfig,
   handleListConfig,
 } from "./tools.js";
@@ -94,11 +94,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "list_classrooms":
         result = await handleListClassrooms(db);
         break;
-      case "get_ai_prompt":
-        result = await handleGetAiPrompt(db, params);
+      case "get_ai_config":
+        result = await handleGetAiConfig(db, params);
         break;
-      case "list_ai_prompts":
-        result = await handleListAiPrompts(db);
+      case "list_ai_configs":
+        result = await handleListAiConfigs(db);
         break;
       case "get_config":
         result = await handleGetConfig(db, params);

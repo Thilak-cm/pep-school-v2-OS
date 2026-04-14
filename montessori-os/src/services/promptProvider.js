@@ -1,5 +1,5 @@
 // Lightweight prompt provider with 5-minute TTL caching.
-// Reads Firestore docs from collection `config` (PEP-139: migrated from ai_prompts).
+// Reads Firestore docs from collection `config`.
 
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';

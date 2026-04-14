@@ -87,7 +87,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_ai_prompt",
+    name: "get_ai_config",
     description:
       "Fetch an AI tool config document from the config collection. Returns all fields including systemPrompt, model, temperature, etc.",
     inputSchema: {
@@ -103,7 +103,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "list_ai_prompts",
+    name: "list_ai_configs",
     description:
       "List all AI tool config documents from the config collection. Returns document IDs and key metadata fields.",
     inputSchema: {
@@ -297,7 +297,7 @@ export async function handleListStudents(db, params) {
   return results;
 }
 
-export async function handleGetAiPrompt(db, params) {
+export async function handleGetAiConfig(db, params) {
   const { docId } = params;
   if (!docId) return null;
 
@@ -316,7 +316,7 @@ export async function handleGetAiPrompt(db, params) {
   return result;
 }
 
-export async function handleListAiPrompts(db) {
+export async function handleListAiConfigs(db) {
   // PEP-139: list AI tool configs from config collection, excluding non-AI docs
   const NON_AI_DOCS = new Set(["lessonNote", "telegram_bot"]);
   const snap = await db.collection("config").get();

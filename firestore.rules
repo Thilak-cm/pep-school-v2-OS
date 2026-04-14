@@ -479,9 +479,6 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
-    // AI Prompts — REMOVED (PEP-139: migrated to config collection)
-    // Old ai_prompts docs retained as read-only fallback but no rules needed.
-
     // Programs collection
     // - Any signed-in user can read to support classroom grouping and UI filters
     // - Only super admins (or admin scripts running as them) can write
