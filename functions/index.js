@@ -3553,7 +3553,7 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     : baseConfig;
 
   const prompt = promptOverride
-    ? { ...baseConfig, staticSystemPrompt: promptOverride.staticSystemPrompt ?? baseConfig.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt ?? baseConfig.dynamicSystemPrompt }
+    ? { ...baseConfig, staticSystemPrompt: promptOverride.staticSystemPrompt || baseConfig.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt || baseConfig.dynamicSystemPrompt }
     : baseConfig;
 
   if (!prompt.staticSystemPrompt) {

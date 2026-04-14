@@ -92,52 +92,130 @@ describe("previewStudentReport config override chain", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Prompt override logic (as used in runSingleReport)
-// Pattern: { ...existingPrompt, systemPrompt: promptOverride }
+// Prompt override logic (as used in previewStudentReport callable)
+// Pattern: promptOverride = { staticSystemPrompt, dynamicSystemPrompt } or null
+// Production code at functions/index.js uses:
+//   (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+//   (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
+//     ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
+//     : null
 // ---------------------------------------------------------------------------
 
 describe("previewStudentReport prompt override logic", () => {
-  it("replaces only systemPrompt while preserving title and description", () => {
-    const existingPrompt = {
+  // Helper that mirrors production logic for building promptOverride
+  function buildPromptOverride(data) {
+    return (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+      (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim())
+      ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
+      : null;
+  }
+
+  it("both staticSystemPrompt and dynamicSystemPrompt provided -> override object", () => {
+    const data = {
+      staticSystemPrompt: "You are a teacher...",
+      dynamicSystemPrompt: "Glossary: ...",
+    };
+    const override = buildPromptOverride(data);
+    assert.deepStrictEqual(override, {
+      staticSystemPrompt: "You are a teacher...",
+      dynamicSystemPrompt: "Glossary: ...",
+    });
+  });
+
+  it("only staticSystemPrompt provided -> override object", () => {
+    const data = {
+      staticSystemPrompt: "Static prompt only",
+    };
+    const override = buildPromptOverride(data);
+    assert.deepStrictEqual(override, {
+      staticSystemPrompt: "Static prompt only",
+      dynamicSystemPrompt: undefined,
+    });
+  });
+
+  it("only dynamicSystemPrompt provided -> override object", () => {
+    const data = {
+      dynamicSystemPrompt: "Dynamic prompt only",
+    };
+    const override = buildPromptOverride(data);
+    assert.deepStrictEqual(override, {
+      staticSystemPrompt: undefined,
+      dynamicSystemPrompt: "Dynamic prompt only",
+    });
+  });
+
+  it("both empty strings -> null", () => {
+    const data = {
+      staticSystemPrompt: "",
+      dynamicSystemPrompt: "",
+    };
+    const override = buildPromptOverride(data);
+    assert.equal(override, null);
+  });
+
+  it("both null -> null", () => {
+    const data = {
+      staticSystemPrompt: null,
+      dynamicSystemPrompt: null,
+    };
+    const override = buildPromptOverride(data);
+    assert.equal(override, null);
+  });
+
+  it("both undefined -> null", () => {
+    const data = {};
+    const override = buildPromptOverride(data);
+    assert.equal(override, null);
+  });
+
+  it("whitespace-only strings -> null", () => {
+    const data = {
+      staticSystemPrompt: "   ",
+      dynamicSystemPrompt: "  \t  ",
+    };
+    const override = buildPromptOverride(data);
+    assert.equal(override, null);
+  });
+
+  it("applies override fields onto baseConfig preserving other fields", () => {
+    const baseConfig = {
       title: "Adolescent Report",
       description: "Generate a Montessori progress report",
-      systemPrompt: "Original system prompt content",
+      staticSystemPrompt: "Original static prompt",
+      dynamicSystemPrompt: "Original dynamic prompt",
     };
 
-    const promptOverride = "Custom playground system prompt";
-    const result = { ...existingPrompt, systemPrompt: promptOverride };
+    const promptOverride = {
+      staticSystemPrompt: "Custom static prompt",
+      dynamicSystemPrompt: "Custom dynamic prompt",
+    };
+
+    // Production pattern: { ...baseConfig, staticSystemPrompt: override.static || base.static, ... }
+    const result = {
+      ...baseConfig,
+      staticSystemPrompt: promptOverride.staticSystemPrompt || baseConfig.staticSystemPrompt,
+      dynamicSystemPrompt: promptOverride.dynamicSystemPrompt || baseConfig.dynamicSystemPrompt,
+    };
 
     assert.equal(result.title, "Adolescent Report");
     assert.equal(result.description, "Generate a Montessori progress report");
-    assert.equal(result.systemPrompt, "Custom playground system prompt");
+    assert.equal(result.staticSystemPrompt, "Custom static prompt");
+    assert.equal(result.dynamicSystemPrompt, "Custom dynamic prompt");
   });
 
-  it("preserves all fields when promptOverride is null (no spread override)", () => {
-    const existingPrompt = {
+  it("preserves all fields when promptOverride is null", () => {
+    const baseConfig = {
       title: "Elementary Report",
       description: "Elementary program report",
-      systemPrompt: "You are a Montessori teacher...",
+      staticSystemPrompt: "You are a Montessori teacher...",
+      dynamicSystemPrompt: "Glossary terms...",
     };
 
-    // When promptOverride is null, runSingleReport uses existingPrompt directly
-    const result = existingPrompt;
-    assert.equal(result.systemPrompt, "You are a Montessori teacher...");
+    // When promptOverride is null, runSingleReport uses baseConfig directly
+    const result = baseConfig;
+    assert.equal(result.staticSystemPrompt, "You are a Montessori teacher...");
+    assert.equal(result.dynamicSystemPrompt, "Glossary terms...");
     assert.equal(result.title, "Elementary Report");
-  });
-
-  it("handles empty existingPrompt fields with override", () => {
-    const existingPrompt = {
-      title: "",
-      description: "",
-      systemPrompt: "",
-    };
-
-    const promptOverride = "New prompt from playground";
-    const result = { ...existingPrompt, systemPrompt: promptOverride };
-
-    assert.equal(result.title, "");
-    assert.equal(result.description, "");
-    assert.equal(result.systemPrompt, "New prompt from playground");
   });
 });
 
@@ -185,63 +263,79 @@ describe("previewStudentReport input validation patterns", () => {
     });
   });
 
-  // Pattern: typeof data?.systemPrompt === "string" && data.systemPrompt.trim() ? data.systemPrompt : null
-  describe("systemPrompt type checking", () => {
-    it("accepts a non-empty string systemPrompt", () => {
-      const data = { systemPrompt: "Custom prompt" };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+  // Pattern: dual-field prompt override type checking
+  describe("prompt override type checking", () => {
+    it("accepts a non-empty string staticSystemPrompt", () => {
+      const data = { staticSystemPrompt: "Custom prompt" };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
-      assert.equal(promptOverride, "Custom prompt");
+      assert.notEqual(promptOverride, null);
+      assert.equal(promptOverride.staticSystemPrompt, "Custom prompt");
     });
 
-    it("rejects null systemPrompt", () => {
-      const data = { systemPrompt: null };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+    it("accepts a non-empty string dynamicSystemPrompt", () => {
+      const data = { dynamicSystemPrompt: "Dynamic prompt" };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
+        : null;
+      assert.notEqual(promptOverride, null);
+      assert.equal(promptOverride.dynamicSystemPrompt, "Dynamic prompt");
+    });
+
+    it("rejects null for both prompt fields", () => {
+      const data = { staticSystemPrompt: null, dynamicSystemPrompt: null };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
       assert.equal(promptOverride, null);
     });
 
-    it("rejects undefined systemPrompt", () => {
+    it("rejects undefined for both prompt fields", () => {
       const data = {};
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
       assert.equal(promptOverride, null);
     });
 
-    it("rejects numeric systemPrompt", () => {
-      const data = { systemPrompt: 12345 };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+    it("rejects empty strings for both prompt fields", () => {
+      const data = { staticSystemPrompt: "", dynamicSystemPrompt: "" };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
       assert.equal(promptOverride, null);
     });
 
-    it("rejects empty string systemPrompt", () => {
-      const data = { systemPrompt: "" };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+    it("rejects whitespace-only strings for both prompt fields", () => {
+      const data = { staticSystemPrompt: "   ", dynamicSystemPrompt: "  \t  " };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
       assert.equal(promptOverride, null);
     });
 
-    it("rejects whitespace-only systemPrompt", () => {
-      const data = { systemPrompt: "   " };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
-        : null;
-      assert.equal(promptOverride, null);
-    });
-
-    it("preserves original string (does not trim) for valid systemPrompt", () => {
-      const data = { systemPrompt: "  Padded prompt  " };
-      const promptOverride = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
-        ? data.systemPrompt
+    it("preserves original string (does not trim) for valid prompt fields", () => {
+      const data = { staticSystemPrompt: "  Padded prompt  " };
+      const hasOverride = (typeof data?.staticSystemPrompt === "string" && data.staticSystemPrompt.trim()) ||
+        (typeof data?.dynamicSystemPrompt === "string" && data.dynamicSystemPrompt.trim());
+      const promptOverride = hasOverride
+        ? { staticSystemPrompt: data.staticSystemPrompt, dynamicSystemPrompt: data.dynamicSystemPrompt }
         : null;
       // The original (untrimmed) value is passed through
-      assert.equal(promptOverride, "  Padded prompt  ");
+      assert.equal(promptOverride.staticSystemPrompt, "  Padded prompt  ");
     });
   });
 });

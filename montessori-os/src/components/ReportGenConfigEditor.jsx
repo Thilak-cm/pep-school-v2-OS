@@ -148,11 +148,6 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     }
   }, [isAdmin, promptDocId, notify]);
 
-  const loadPrompt = useCallback(async () => {
-    // PEP-139: prompt is now loaded by loadConfig from config/report_{prog}
-    // This function is kept as a no-op for any remaining callers
-  }, []);
-
   const loadStudents = useCallback(async () => {
     if (!isAdmin) return;
     setStudentsLoading(true);
@@ -174,7 +169,6 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
   }, [isAdmin, notify]);
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
-  useEffect(() => { loadPrompt(); }, [loadPrompt]);
   useEffect(() => { loadStudents(); }, [loadStudents]);
 
   useEffect(() => {

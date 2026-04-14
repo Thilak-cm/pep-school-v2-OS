@@ -275,7 +275,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                   </FormControl>
                   <TextField
                     fullWidth
-                    type="number" onWheel={(e) => e.target.blur()}
+                    type="number"
                     label="Temperature"
                     value={temperature}
                     onChange={(e) => setTemperature(Number(e.target.value))}
