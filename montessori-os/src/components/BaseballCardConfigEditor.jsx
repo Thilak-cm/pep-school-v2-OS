@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   Box,
   Card,
@@ -10,23 +10,18 @@ import {
   CircularProgress,
   Divider,
   Chip,
-  InputAdornment,
-  Autocomplete,
   FormControl,
   InputLabel,
   Select,
   MenuItem
 } from '@mui/material';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from '../../../scripts/config/baseballCardPrompt';
 import useNotify from '../notifications/useNotify';
-import { fuzzySearchStudents } from '../utils/fuzzySearch';
-import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
 export default function BaseballCardConfigEditor({ currentUser, userRole }) {
   const isAdmin = isSuperAdmin(userRole);
@@ -47,21 +42,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
   });
   const [editingPrompt, setEditingPrompt] = useState(false);
-  const [students, setStudents] = useState([]);
-  const [studentsLoading, setStudentsLoading] = useState(false);
-  const [studentSearch, setStudentSearch] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [playgroundConfig, setPlaygroundConfig] = useState({
-    model: BASEBALL_CARD_DEFAULTS.model,
-    temperature: BASEBALL_CARD_DEFAULTS.temperature,
-    windowDays: BASEBALL_CARD_DEFAULTS.windowDays,
-    timezone: BASEBALL_CARD_DEFAULTS.timezone,
-    max_tokens: BASEBALL_CARD_DEFAULTS.max_tokens,
-  });
-  const [playgroundTouched, setPlaygroundTouched] = useState(false);
-  const [playgroundRunning, setPlaygroundRunning] = useState(false);
-  const [playgroundError, setPlaygroundError] = useState('');
-  const [playgroundResult, setPlaygroundResult] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) {
@@ -102,44 +82,9 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     }
   }, [isAdmin, notify]);
 
-  const loadStudents = useCallback(async () => {
-    if (!isAdmin) return;
-    setStudentsLoading(true);
-    try {
-      const studentsQuery = query(collection(db, 'students'), where('isActive', '==', true));
-      const snap = await getDocs(studentsQuery);
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      list.sort((a, b) => {
-        const nameA = (a.displayName || a.name || a.firstName || '').toLowerCase();
-        const nameB = (b.displayName || b.name || b.firstName || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-      setStudents(list);
-    } catch {
-      notify.error('Failed to load students for playground.');
-    } finally {
-      setStudentsLoading(false);
-    }
-  }, [isAdmin, notify]);
-
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    loadStudents();
-  }, [loadStudents]);
-
-  useEffect(() => {
-    if (playgroundTouched) return;
-    setPlaygroundConfig({
-      model: config.model,
-      temperature: config.temperature,
-      windowDays: config.windowDays,
-      timezone: config.timezone,
-      max_tokens: config.max_tokens,
-    });
-  }, [config.model, config.temperature, config.windowDays, config.timezone, config.max_tokens, playgroundTouched]);
 
   const handleSave = async () => {
     if (!isAdmin) return;
@@ -174,54 +119,8 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
     }));
   };
 
-  const handlePlaygroundFieldChange = (key, numeric = false) => (e) => {
-    setPlaygroundTouched(true);
-    const value = e.target.value;
-    setPlaygroundConfig((prev) => ({
-      ...prev,
-      [key]: numeric ? (value === '' ? '' : Number(value)) : value,
-    }));
-  };
-
-  const handleRunPlayground = async () => {
-    if (!selectedStudent) {
-      setPlaygroundError('Select a student to run the preview.');
-      return;
-    }
-    setPlaygroundRunning(true);
-    setPlaygroundError('');
-    setPlaygroundResult(null);
-    try {
-      const runWindowDays = Number.isFinite(playgroundWindowDays) ? Math.max(1, playgroundWindowDays) : windowDaysValue;
-      const call = httpsCallable(cloudFunctions, 'previewBaseballCard', { timeout: 300_000 });
-      const payload = {
-        studentId: selectedStudent.id,
-        windowDays: runWindowDays,
-        systemPrompt: prompt.systemPrompt,
-        config: {
-          model: playgroundConfig.model,
-          temperature: playgroundConfig.temperature,
-          max_tokens: playgroundConfig.max_tokens,
-          timezone: playgroundConfig.timezone,
-        },
-      };
-      const res = await call(payload);
-      setPlaygroundResult(res.data);
-    } catch (err) {
-      setPlaygroundError(friendlyFunctionError(err));
-    } finally {
-      setPlaygroundRunning(false);
-    }
-  };
-
   const windowDaysValue = Number.isFinite(config.windowDays) ? config.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
   const promptPreviewParts = (prompt.systemPrompt || '').split('<WINDOW_DAYS>');
-  const studentMatches = useMemo(() => {
-    const matches = fuzzySearchStudents(students, studentSearch);
-    return matches.slice(0, 3);
-  }, [students, studentSearch]);
-  const playgroundWindowDays = Number.isFinite(playgroundConfig.windowDays) ? Math.max(1, playgroundConfig.windowDays) : windowDaysValue;
-  const getStudentLabel = (stu) => stu ? (stu.displayName || stu.name || `${stu.firstName || ''} ${stu.lastName || ''}`.trim() || stu.id) : '';
 
   if (!isAdmin) {
     return (
@@ -375,192 +274,6 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
         </CardContent>
       </Card>
 
-      <Card sx={{ borderRadius: 3, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}>
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Baseball Card Playground
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Test the baseball card with the in-progress prompt/config. Runs are sandboxed and do not save. Edits are permanent only when saved.
-          </Typography>
-
-          <Stack spacing={2}>
-            <Autocomplete
-              options={studentMatches}
-              loading={studentsLoading}
-              value={selectedStudent}
-              onChange={(e, newValue) => setSelectedStudent(newValue)}
-              inputValue={studentSearch}
-              onInputChange={(e, newInputValue) => setStudentSearch(newInputValue)}
-              getOptionLabel={getStudentLabel}
-              fullWidth
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select student"
-                  placeholder="Search student"
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {studentsLoading ? <CircularProgress color="inherit" size={16} /> : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  }}
-                />
-              )}
-            />
-            {selectedStudent && (
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Selected: {getStudentLabel(selectedStudent)}
-              </Typography>
-            )}
-
-            <Divider />
-
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Playground overrides</Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Window (days)"
-                type="number"
-                inputProps={{ min: 1 }}
-                value={playgroundConfig.windowDays}
-                onChange={handlePlaygroundFieldChange('windowDays', true)}
-                fullWidth
-              />
-              <FormControl fullWidth size="small">
-                <InputLabel id="baseball-playground-model-label">Model</InputLabel>
-                <Select
-                  labelId="baseball-playground-model-label"
-                  value={playgroundConfig.model}
-                  label="Model"
-                  onChange={handlePlaygroundFieldChange('model')}
-                  renderValue={(val) => {
-                    const found = AVAILABLE_MODELS.find((m) => m.id === val);
-                    return found ? found.label : val;
-                  }}
-                >
-                  {AVAILABLE_MODELS.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Temperature"
-                type="number"
-                inputProps={{ step: 0.1, min: 0, max: 2 }}
-                value={playgroundConfig.temperature}
-                onChange={handlePlaygroundFieldChange('temperature', true)}
-                fullWidth
-              />
-              <TextField
-                label="Max tokens"
-                type="number"
-                inputProps={{ min: 50 }}
-                value={playgroundConfig.max_tokens}
-                onChange={handlePlaygroundFieldChange('max_tokens', true)}
-                fullWidth
-              />
-            </Stack>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-              <Button
-                variant="contained"
-                onClick={handleRunPlayground}
-                disabled={playgroundRunning || !selectedStudent}
-                startIcon={playgroundRunning ? <CircularProgress size={18} /> : null}
-                sx={{ minWidth: 160 }}
-              >
-                {playgroundRunning ? 'Running…' : 'Run preview'}
-              </Button>
-              <Typography variant="body2" color="text.secondary">
-                Preview + raw response
-              </Typography>
-            </Stack>
-
-            {playgroundError && (
-              <Typography variant="body2" color="error">
-                {playgroundError}
-              </Typography>
-            )}
-
-            {playgroundResult && (
-              <Stack spacing={2}>
-                <Box
-                  sx={{
-                    p: 2,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 2,
-                    backgroundColor: '#f8fafc',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5
-                  }}
-                >
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    Summary
-                  </Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', color: '#334155' }}>
-                    {playgroundResult.summary || '—'}
-                  </Typography>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Chip
-                      label={`Flag: ${playgroundResult.redFlag?.severity || 'none'}`}
-                      size="small"
-                      color={
-                        playgroundResult.redFlag?.severity === 'high'
-                          ? 'error'
-                          : playgroundResult.redFlag?.severity === 'medium'
-                            ? 'warning'
-                            : playgroundResult.redFlag?.severity === 'low'
-                              ? 'default'
-                              : 'success'
-                      }
-                      variant={playgroundResult.redFlag?.severity ? 'filled' : 'outlined'}
-                    />
-                    <Typography variant="body2" sx={{ color: '#64748b' }}>
-                      {playgroundResult.redFlag?.reason || 'No reason provided.'}
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      Coverage gaps:
-                    </Typography>
-                    {Array.isArray(playgroundResult.coverageGaps) && playgroundResult.coverageGaps.length > 0 ? (
-                      playgroundResult.coverageGaps.map((gap, idx) => (
-                        <Chip key={`gap-${idx}`} label={gap} size="small" variant="outlined" />
-                      ))
-                    ) : (
-                      <Chip label="None" size="small" color="success" variant="outlined" />
-                    )}
-                  </Stack>
-                </Box>
-
-                <Box
-                  sx={{
-                    p: 2,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 2,
-                    backgroundColor: '#f8fafc',
-                    fontFamily: 'ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    whiteSpace: 'pre-wrap',
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word'
-                  }}
-                  component="pre"
-                >
-                  {typeof playgroundResult.rawContent === 'string' && playgroundResult.rawContent.trim().length > 0
-                    ? playgroundResult.rawContent
-                    : JSON.stringify(playgroundResult, null, 2)}
-                </Box>
-              </Stack>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end" sx={{ mt: -1 }}>
         <Button variant="contained" onClick={handleSave} disabled={saving} startIcon={saving ? <CircularProgress size={18} /> : null}>
           {saving ? 'Saving...' : 'Save'}
