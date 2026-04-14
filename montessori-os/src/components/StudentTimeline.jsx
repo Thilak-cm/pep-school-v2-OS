@@ -309,6 +309,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
+      // Carry photoAnalysis from first doc that has it (all share same analysis per PEP-32)
+      if (!group.photoAnalysis && obs.photoAnalysis) {
+        group.photoAnalysis = obs.photoAnalysis;
+      }
       // Merge lesson tag IDs from each media doc in the batch
       if (Array.isArray(obs.linkedLessonObservationId)) {
         obs.linkedLessonObservationId.forEach((id) => {
