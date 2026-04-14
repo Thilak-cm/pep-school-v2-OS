@@ -664,11 +664,11 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
   const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
 
-  const toggleReportGroup = (dateLabel) => {
+  const toggleReportGroup = (groupKey) => {
     setExpandedReportGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(dateLabel)) next.delete(dateLabel);
-      else next.add(dateLabel);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   };
@@ -924,10 +924,10 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           {groupedReports.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
               {groupedReports.map((group) => {
-                const isExpanded = expandedReportGroups.has(group.dateLabel);
+                const isExpanded = expandedReportGroups.has(group.key);
                 return (
                   <Card
-                    key={`report-group-${group.dateLabel}`}
+                    key={`report-group-${group.key}`}
                     sx={{
                       borderLeft: '3px solid',
                       borderLeftColor: 'secondary.main',
@@ -949,7 +949,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                         <Typography
                           variant="caption"
                           color="primary"
-                          onClick={() => toggleReportGroup(group.dateLabel)}
+                          onClick={() => toggleReportGroup(group.key)}
                           sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
                         >
                           {isExpanded ? 'Hide' : 'See'} students
@@ -961,7 +961,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                           {group.reports.map((report) => (
                             <Box
                               key={`${report.studentId}-${report.id}`}
-                              onClick={() => setReportPreviewData(report)}
                               sx={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -969,16 +968,23 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                                 py: 0.5,
                                 px: 1,
                                 borderRadius: 1,
-                                cursor: 'pointer',
-                                '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' },
                               }}
                             >
-                              <Typography variant="body2">
+                              <Typography
+                                variant="body2"
+                                color="primary"
+                                onClick={() => {
+                                  const student = classroomStudents.find(s => s.id === report.studentId);
+                                  if (student) onNavigateToStudent(student);
+                                }}
+                                sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+                              >
                                 {report.studentName}
                               </Typography>
-                              <Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
-                                View
-                              </Typography>
+                              <Visibility
+                                onClick={() => setReportPreviewData(report)}
+                                sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                              />
                             </Box>
                           ))}
                         </Box>
