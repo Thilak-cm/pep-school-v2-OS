@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.5.0 — 2026-04-13
+
+### Added
+- Rich AI photo analysis — photos of student work are automatically analyzed by VLM returning curriculum area, handwritten detection, AI-generated description, materials identified, and developmental notes (PEP-32)
+- Cloud Function `analyzePhotoVLM` with structured JSON output, student age context, and Firestore-managed prompt with hardcoded fallback (PEP-32)
+- Photo card UI redesign — 4:3 aspect ratio, overlay pill toggle for Own work/Copied, curriculum and handwritten chips, editable AI description (PEP-32)
+- `photoAnalysis` parser with comprehensive validation, safe defaults for malformed VLM responses, and `teacherEdited` tracking (PEP-32)
+- Seed script for `ai_prompts/photo_analysis_vlm` prompt management (PEP-32)
+
+### Changed
+- Photo notes restricted to single student per upload for age-contextualized VLM analysis; multi-student deferred to PEP-138 (PEP-32)
+- Action buttons (polish/dictate) moved below text fields instead of inside endAdornment for better mobile layout (PEP-32)
+
+### Fixed
+- Image payload validation on VLM callable — enforces max 10 images and 10 MB total size (PEP-32)
+- `resetMediaState` now clears photo analysis loading state to prevent stale analysis blocks (PEP-32)
+
 # 10.4.0 — 2026-04-07
 
 ### Added
