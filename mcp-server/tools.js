@@ -87,41 +87,16 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_ai_prompt",
-    description:
-      "Fetch an AI prompt document from the ai_prompts collection. Returns all fields including systemPrompt, userPrompt, version, etc.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        docId: {
-          type: "string",
-          description:
-            "Document ID in ai_prompts collection (e.g., text_summarizer, report_adolescent, baseball_card, coach_primary, chat_elementary).",
-        },
-      },
-      required: ["docId"],
-    },
-  },
-  {
-    name: "list_ai_prompts",
-    description:
-      "List all documents in the ai_prompts collection. Returns document IDs and key metadata fields (title, description, version, updatedAt) without full prompt content.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
     name: "get_config",
     description:
-      "Fetch a document from the top-level config collection. Returns all fields. Use for operational config docs like baseball_card_config, report_generation, etc.",
+      "Fetch a document from the top-level config collection. Returns all fields. Includes both operational config docs and AI tool config docs (prompts, model settings, temperature, etc.).",
     inputSchema: {
       type: "object",
       properties: {
         docId: {
           type: "string",
           description:
-            "Document ID in config collection (e.g., baseball_card_config, report_generation).",
+            "Document ID in config collection (e.g., baseball_card, report_primary, coach_elementary, text_summarizer, lessonNote, chat_elementary).",
         },
       },
       required: ["docId"],
@@ -130,7 +105,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "list_config",
     description:
-      "List all documents in the top-level config collection. Returns document IDs and a preview of top-level field names for each doc.",
+      "List all documents in the top-level config collection, including AI tool configs. Returns document IDs and a preview of top-level field names for each doc.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -291,43 +266,6 @@ export async function handleListStudents(db, params) {
       displayName: d.displayName,
       classroomId: d.classroomId,
       programId: d.programId,
-    });
-  });
-
-  return results;
-}
-
-export async function handleGetAiPrompt(db, params) {
-  const { docId } = params;
-  if (!docId) return null;
-
-  const doc = await db.collection("ai_prompts").doc(docId).get();
-  if (!doc.exists) return null;
-
-  const d = doc.data();
-  const result = { id: doc.id };
-  for (const [key, value] of Object.entries(d)) {
-    if (value?.toDate) {
-      result[key] = value.toDate().toISOString();
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-export async function handleListAiPrompts(db) {
-  const snap = await db.collection("ai_prompts").get();
-
-  const results = [];
-  snap.forEach((doc) => {
-    const d = doc.data();
-    results.push({
-      id: doc.id,
-      title: d.title || null,
-      description: d.description || null,
-      version: d.version || null,
-      updatedAt: d.updatedAt?.toDate?.()?.toISOString() ?? null,
     });
   });
 

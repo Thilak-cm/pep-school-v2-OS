@@ -135,7 +135,6 @@ test('Firestore Rules - Observations 48h window enforced', () => {
 test('Firestore Rules - Superadmin-only collections are protected', () => {
   // Check each protected collection
   const protectedCollections = [
-    { name: 'ai_prompts', pattern: /match\s+\/ai_prompts\/\{docId\}/ },
     { name: 'programs', pattern: /match\s+\/programs\/\{programId\}/ },
     { name: 'config', pattern: /match\s+\/config\/\{docId\}/ },
   ];

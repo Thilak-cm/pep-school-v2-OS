@@ -280,7 +280,6 @@ async function parseFirestoreSurface() {
     "ai_summaries",
     "config",
     "feedback",
-    "ai_prompts",
     "placements",
     "chats",
     "messages",

@@ -46,7 +46,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
   const [configExpanded, setConfigExpanded] = useState(true);
   const [promptExpanded, setPromptExpanded] = useState(false);
 
-  const chatRef = useMemo(() => doc(db, 'ai_prompts', `chat_${programId}`), [programId]);
+  const chatRef = useMemo(() => doc(db, 'config', `chat_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {
@@ -279,6 +279,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                     label="Temperature"
                     value={temperature}
                     onChange={(e) => setTemperature(Number(e.target.value))}
+                    onWheel={(e) => e.target.blur()}
                     disabled={saving}
                     size="small"
                     inputProps={{ min: 0, max: 2, step: 0.1 }}
@@ -286,7 +287,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                   />
                   <TextField
                     fullWidth
-                    type="number"
+                    type="number" onWheel={(e) => e.target.blur()}
                     label="Max Tokens"
                     value={maxTokens}
                     onChange={(e) => setMaxTokens(Number(e.target.value))}
@@ -309,7 +310,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <TextField
                     fullWidth
-                    type="number"
+                    type="number" onWheel={(e) => e.target.blur()}
                     label="Chat Message Limit"
                     value={chatMessageLimit}
                     onChange={(e) => setChatMessageLimit(Number(e.target.value))}

@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, TextField, Divider,
-  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Stack
+  Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Stack,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { Restore, Save, Bolt, Science } from '@mui/icons-material';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { forceRefreshKey } from '../services/promptProvider';
 import { cleanUpText, CLEANUP_MODEL_INFO } from '../textCleanup';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 const MAX_HISTORY = 5;
@@ -37,6 +39,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
   const [changeNote, setChangeNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [model, setModel] = useState(CLEANUP_MODEL_INFO.model);
+  const [temperature, setTemperature] = useState(CLEANUP_MODEL_INFO.temperature);
 
   // Test run
   const [testInput, setTestInput] = useState('');
@@ -44,7 +48,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
   const [testOutput, setTestOutput] = useState('');
   const [testError, setTestError] = useState('');
 
-  const textRef = useMemo(() => doc(db, 'ai_prompts', 'text_summarizer'), []);
+  const textRef = useMemo(() => doc(db, 'config', 'text_summarizer'), []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -57,6 +61,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
           setDocState({ id: tSnap.id, ...t });
           setSystemPrompt(t.systemPrompt || '');
           setUserPrompt(t.userPrompt || '');
+          if (t.model) setModel(t.model);
+          if (typeof t.temperature === 'number') setTemperature(t.temperature);
         } else {
           setDocState(null);
         }
@@ -72,6 +78,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
     if (docState) {
       setSystemPrompt(docState.systemPrompt || '');
       setUserPrompt(docState.userPrompt || '');
+      setModel(docState.model || CLEANUP_MODEL_INFO.model);
+      setTemperature(typeof docState.temperature === 'number' ? docState.temperature : CLEANUP_MODEL_INFO.temperature);
     }
     setChangeNote('');
     setEditing(false);
@@ -92,7 +100,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         version: curr.version || 1,
         systemPrompt: curr.systemPrompt || '',
         userPrompt: curr.userPrompt || '',
-        updatedAt: now,
+        updatedAt: new Date(),
         updatedBy,
         changeNote: changeNote || 'Updated prompts',
       } : null;
@@ -106,6 +114,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         description: curr.description || 'Prompts used to clean up observation notes via AI.',
         systemPrompt,
         userPrompt,
+        model,
+        temperature,
         version: (curr.version || 1) + 1,
         updatedAt: now,
         updatedBy,
@@ -122,7 +132,8 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       const snap = await getDoc(textRef);
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
-    } catch {
+    } catch (err) {
+      console.error('[AITextCleanupEditor] save failed:', err);
       setError('Failed to save');
     } finally {
       setSaving(false);
@@ -144,7 +155,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
         version: curr.version || 1,
         systemPrompt: curr.systemPrompt || '',
         userPrompt: curr.userPrompt || '',
-        updatedAt: now,
+        updatedAt: new Date(),
         updatedBy,
         changeNote: `Revert to v${versionItem?.version || ''}`,
       };
@@ -219,15 +230,49 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               )}
             </Box>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Science sx={{ fontSize: 18, color: '#64748b' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
                   Model Configuration
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ color: '#64748b', fontFamily: 'monospace' }}>
-                Model: {CLEANUP_MODEL_INFO.model} • Temperature: {CLEANUP_MODEL_INFO.temperature} • Max tokens: {CLEANUP_MODEL_INFO.max_tokens}
-              </Typography>
+              {editing ? (
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <FormControl size="small" sx={{ minWidth: 240 }}>
+                    <InputLabel id="cleanup-model-label">Model</InputLabel>
+                    <Select
+                      labelId="cleanup-model-label"
+                      value={model}
+                      label="Model"
+                      onChange={(e) => setModel(e.target.value)}
+                      disabled={saving}
+                      renderValue={(val) => {
+                        const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                        return found ? found.label : val;
+                      }}
+                    >
+                      {AVAILABLE_MODELS.map((m) => (
+                        <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    type="number"
+                    label="Temperature"
+                    value={temperature}
+                    onChange={(e) => setTemperature(Number(e.target.value))}
+                    onWheel={(e) => e.target.blur()}
+                    disabled={saving}
+                    size="small"
+                    sx={{ width: 120 }}
+                    inputProps={{ min: 0, max: 2, step: 0.1 }}
+                  />
+                </Box>
+              ) : (
+                <Typography variant="body2" sx={{ color: '#64748b', fontFamily: 'monospace' }}>
+                  Model: {model} &bull; Temperature: {temperature}
+                </Typography>
+              )}
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>

@@ -1,0 +1,71 @@
+- main [ref=e1]:
+  - generic [ref=e219]:
+    - generic [ref=e220]:
+      - heading "Applying for Associate AI/Machine Learning Engineer" [level=2] [ref=e221]
+      - img [ref=e223] [cursor=pointer]
+    - generic [ref=e226]:
+      - generic [ref=e229]:
+        - list:
+          - listitem: Personal Information
+          - listitem: Resume
+          - listitem: Questions
+          - listitem: Voluntary Self-ID
+          - listitem: Review your application
+          - listitem: Self-Attest & Submit
+      - generic [ref=e446]:
+        - heading "Voluntary Self-ID" [level=3] [ref=e448]
+        - heading "Notice of Rights" [level=4] [ref=e449]
+        - generic [ref=e450]:
+          - 'link "View ''Know Your Rights: Workplace Discrimination is Illegal''" [ref=e453] [cursor=pointer]':
+            - /url: /mascsr/default/mdf/recruitment/eeoknowyourrights/EEOC_KnowYourRights_English.pdf?cid=01941100-00e7-48f9-ab7c-eeebe5fa1386
+          - button "Why are we asking?" [ref=e459]:
+            - button "Why are we asking?" [ref=e460] [cursor=pointer]:
+              - generic [ref=e462]:
+                - generic: Why are we asking?
+          - generic [ref=e463]:
+            - generic [ref=e464]:
+              - generic [ref=e465]: Gender
+              - button "Help Information" [ref=e468]:
+                - img [ref=e470]
+            - generic [ref=e474]:
+              - log [ref=e476]
+              - generic [ref=e477]:
+                - generic [ref=e478]:
+                  - generic [ref=e479]: "--Select One--"
+                  - combobox "Gender" [ref=e481]
+                - img [ref=e484]
+          - heading "Ethnicity & Race" [level=4] [ref=e489]
+          - generic [ref=e491]:
+            - checkbox "I decline to identify my race and ethnicity" [ref=e492]
+            - generic [ref=e493] [cursor=pointer]: I decline to identify my race and ethnicity
+          - generic [ref=e494]:
+            - text: Ethnicity
+            - generic [ref=e497]:
+              - log [ref=e499]
+              - generic [ref=e500]:
+                - generic [ref=e501]:
+                  - generic [ref=e502]: "--Select One--"
+                  - combobox "Ethnicity" [ref=e504]
+                - img [ref=e507]
+          - generic [ref=e509]:
+            - text: Race
+            - button "" [ref=e511]:
+              - generic [ref=e512]: 
+            - generic [ref=e513]:
+              - generic:
+                - log
+                - generic [ref=e514]:
+                  - generic [ref=e516]: "--Select One--"
+                  - img [ref=e519]
+      - generic [ref=e287]:
+        - button " Previous" [ref=e288] [cursor=pointer]:
+          - generic [ref=e289]:
+            - generic [ref=e290]: 
+            - text: Previous
+        - button "Finish later" [ref=e291] [cursor=pointer]:
+          - generic [ref=e292]: Finish later
+        - button "Next " [ref=e293] [cursor=pointer]:
+          - generic [ref=e327]:
+            - text: Next
+            - generic [ref=e328]: 
+  - region

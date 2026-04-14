@@ -9,7 +9,8 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import useNotify from '../notifications/useNotify';
-import { COACH_MODEL_DISPLAY } from '../../../scripts/config/coachConstants';
+import { COACH_MODEL_INFO } from '../../../scripts/config/coachConstants';
+import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 const SectionCard = ({ title, subtitle, children }) => (
@@ -46,6 +47,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [originalEnabledNudges, setOriginalEnabledNudges] = useState([]);
   const [originalMaxReturnNudges, setOriginalMaxReturnNudges] = useState(1);
   const [originalCoachEnabled, setOriginalCoachEnabled] = useState(true);
+  const [originalModel, setOriginalModel] = useState(COACH_MODEL_INFO.model);
+  const [originalTemperature, setOriginalTemperature] = useState(COACH_MODEL_INFO.temperature);
   
   // Collapsible section states
   const [coachConfigExpanded, setCoachConfigExpanded] = useState(true); // Default to true since it's the main editing section
@@ -59,8 +62,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
   const [runningCoach, setRunningCoach] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
   const [coachError, setCoachError] = useState('');
+  const [model, setModel] = useState(COACH_MODEL_INFO.model);
+  const [temperature, setTemperature] = useState(COACH_MODEL_INFO.temperature);
 
-  const coachRef = useMemo(() => doc(db, 'ai_prompts', `coach_${programId}`), [programId]);
+  const coachRef = useMemo(() => doc(db, 'config', `coach_${programId}`), [programId]);
 
   // Load initial data from Firestore
   useEffect(() => {
@@ -82,6 +87,12 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalEnabledNudges(initialEnabledNudges);
           setOriginalMaxReturnNudges(initialMaxReturnNudges);
           setOriginalCoachEnabled(initialCoachEnabled);
+          const initialModel = data.model || COACH_MODEL_INFO.model;
+          const initialTemp = typeof data.temperature === 'number' ? data.temperature : COACH_MODEL_INFO.temperature;
+          setModel(initialModel);
+          setTemperature(initialTemp);
+          setOriginalModel(initialModel);
+          setOriginalTemperature(initialTemp);
         } else {
           setDocState(null);
           setEnabledNudges([]);
@@ -90,6 +101,10 @@ export default function AICoachEditor({ currentUser, userRole }) {
           setOriginalEnabledNudges([]);
           setOriginalMaxReturnNudges(1);
           setOriginalCoachEnabled(false);
+          setModel(COACH_MODEL_INFO.model);
+          setTemperature(COACH_MODEL_INFO.temperature);
+          setOriginalModel(COACH_MODEL_INFO.model);
+          setOriginalTemperature(COACH_MODEL_INFO.temperature);
           setError('Coach prompt configuration not found for this program');
         }
       } catch {
@@ -146,6 +161,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
         programId,
         introBlock,
         finalPrompt,
+        model,
+        temperature,
         updatedAt: serverTimestamp(),
         updatedBy: {
           uid: currentUser?.uid || '',
@@ -165,6 +182,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
         setOriginalEnabledNudges(enabledNudges);
         setOriginalMaxReturnNudges(maxReturnNudges);
         setOriginalCoachEnabled(coachEnabled);
+        setOriginalModel(model);
+        setOriginalTemperature(temperature);
       }
       
       // Show success notification
@@ -201,13 +220,17 @@ export default function AICoachEditor({ currentUser, userRole }) {
     setEnabledNudges([...originalEnabledNudges]);
     setMaxReturnNudges(originalMaxReturnNudges);
     setCoachEnabled(originalCoachEnabled);
+    setModel(originalModel);
+    setTemperature(originalTemperature);
   };
 
   // Check if there are unsaved changes
-  const hasUnsavedChanges = 
+  const hasUnsavedChanges =
     JSON.stringify(enabledNudges.sort()) !== JSON.stringify(originalEnabledNudges.sort()) ||
     maxReturnNudges !== originalMaxReturnNudges ||
-    coachEnabled !== originalCoachEnabled;
+    coachEnabled !== originalCoachEnabled ||
+    model !== originalModel ||
+    temperature !== originalTemperature;
 
   // Handle Coach test run
   const handleRunCoach = async () => {
@@ -328,7 +351,37 @@ export default function AICoachEditor({ currentUser, userRole }) {
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Coach Nudges</Typography>
-              <Chip label={`Model: ${COACH_MODEL_DISPLAY}`} size="small" color="default" variant="outlined" />
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="coach-model-label">Model</InputLabel>
+                  <Select
+                    labelId="coach-model-label"
+                    value={model}
+                    label="Model"
+                    onChange={(e) => setModel(e.target.value)}
+                    disabled={saving}
+                    renderValue={(val) => {
+                      const found = AVAILABLE_MODELS.find((m) => m.id === val);
+                      return found ? found.label : val;
+                    }}
+                  >
+                    {AVAILABLE_MODELS.map((m) => (
+                      <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  type="number"
+                  label="Temp"
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  onWheel={(e) => e.target.blur()}
+                  disabled={saving}
+                  size="small"
+                  sx={{ width: 80 }}
+                  inputProps={{ min: 0, max: 2, step: 0.1 }}
+                />
+              </Box>
             </Box>
             <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
               Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt.
@@ -362,6 +415,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Maximum Return Nudges</Typography>
             <TextField
               type="number"
+              onWheel={(e) => e.target.blur()}
               value={maxReturnNudges}
               onChange={handleMaxReturnNudgesChange}
               slotProps={{ input: { min: 1, max: ALL_NUDGES.length, step: 1 } }}

@@ -1,0 +1,64 @@
+- main [ref=e1]:
+  - generic [ref=e219]:
+    - generic [ref=e220]:
+      - heading "Applying for Associate AI/Machine Learning Engineer" [level=2] [ref=e221]
+      - img [ref=e223] [cursor=pointer]
+    - generic [ref=e226]:
+      - generic [ref=e229]:
+        - list:
+          - listitem: Personal Information
+          - listitem: Resume
+          - listitem: Questions
+          - listitem: Voluntary Self-ID
+          - listitem: Review your application
+          - listitem: Self-Attest & Submit
+      - generic [ref=e232]:
+        - heading "Resume" [level=3] [ref=e235]
+        - generic [ref=e237]:
+          - generic [ref=e241]:
+            - alert [ref=e297]:
+              - generic [ref=e298]:
+                - img "Success" [ref=e301]:
+                  - img [ref=e302]
+                - generic [ref=e307]:
+                  - generic: Bravo! We have your resume.
+            - generic [ref=e312]:
+              - generic [ref=e313]: 
+              - generic [ref=e314]: LLM_resume.pdf
+              - button "Remove,LLM_resume.pdf,Resume" [ref=e315] [cursor=pointer]:
+                - generic [ref=e316]:
+                  - generic [ref=e317]: 
+                  - generic [ref=e318]: Remove
+          - generic [ref=e319]:
+            - generic [ref=e320]:
+              - text: This employer may use an artificial intelligence algorithm to provide an initial comparison of an applicant’s education, experience, and skills against the education, experience and skill requirements in the job description. This analysis produces a Profile Relevancy score, which is intended to be one of many factors that a potential employer will review in making its interview decisions; there are no cut off scores and all applications are visible to employers.
+              - link "Read more about how these tools collect, store, and retain information and the results of the most recent impartial evaluations." [ref=e321] [cursor=pointer]:
+                - /url: https://www.adp.com/candidate-relevancy-FAQs
+              - text: The Profile Relevancy score for applicants who opt out will be listed as “Not Available.”
+            - generic "I want to opt out from having my resume reviewed by artificial intelligence as part of the application process." [ref=e324]:
+              - checkbox "I want to opt out from having my resume reviewed by artificial intelligence as part of the application process." [checked] [active] [ref=e325]
+              - generic [ref=e326] [cursor=pointer]: I want to opt out from having my resume reviewed by artificial intelligence as part of the application process.
+        - separator [ref=e261]
+        - generic [ref=e264]:
+          - heading "Attachments" [level=3] [ref=e265]
+          - generic [ref=e275] [cursor=pointer]:
+            - generic [ref=e276]: You can add documents, such as a cover letter, work samples, transcripts, and certifications. Drag and drop files
+            - generic [ref=e277]: or
+            - button "You can add documents, such as a cover letter, work samples, transcripts, and certifications. Drag and drop files or Upload attachments. .doc, .docx, .pdf, .gif, .html, .htm, .jpg, .txt, .rtf, .wpd, .wps, .xls, or .xlsx format not exceeding 10 MB each." [ref=e278]:
+              - generic [ref=e280]:
+                - generic:
+                  - img [ref=e282]
+                  - text: Upload attachments
+            - generic [ref=e285]: .doc, .docx, .pdf, .gif, .html, .htm, .jpg, .txt, .rtf, .wpd, .wps, .xls, or .xlsx format not exceeding 10 MB each.
+      - generic [ref=e287]:
+        - button " Previous" [ref=e288] [cursor=pointer]:
+          - generic [ref=e289]:
+            - generic [ref=e290]: 
+            - text: Previous
+        - button "Finish later" [ref=e291] [cursor=pointer]:
+          - generic [ref=e292]: Finish later
+        - button "Next " [ref=e293] [cursor=pointer]:
+          - generic [ref=e327]:
+            - text: Next
+            - generic [ref=e328]: 
+  - region

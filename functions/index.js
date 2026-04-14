@@ -502,13 +502,20 @@ const analyzePhotoVLMHandler = async (data, context) => {
   const studentAge = String(data?.studentAge || "").trim();
 
   let systemPrompt = PHOTO_ANALYSIS_FALLBACK_PROMPT;
+  let photoModel = PHOTO_ANALYSIS_MODEL.model;
+  let photoTemp = PHOTO_ANALYSIS_MODEL.temperature;
+  let photoMaxTokens = PHOTO_ANALYSIS_MODEL.max_tokens;
   try {
-    const promptDoc = await db.collection("ai_prompts").doc("photo_analysis_vlm").get();
-    if (promptDoc.exists && promptDoc.data()?.systemPrompt) {
-      systemPrompt = promptDoc.data().systemPrompt;
+    const promptDoc = await db.collection("config").doc("photo_analysis_vlm").get();
+    if (promptDoc.exists) {
+      const pData = promptDoc.data() || {};
+      if (pData.systemPrompt) systemPrompt = pData.systemPrompt;
+      if (pData.model) photoModel = pData.model;
+      if (typeof pData.temperature === "number") photoTemp = pData.temperature;
+      if (Number.isFinite(pData.max_tokens)) photoMaxTokens = pData.max_tokens;
     }
   } catch (err) {
-    console.warn("[analyzePhotoVLM] Failed to fetch prompt from Firestore, using fallback", err?.message);
+    console.warn("[analyzePhotoVLM] Failed to fetch config from Firestore, using fallback", err?.message);
   }
 
   // Ensure system prompt mentions JSON for response_format: json_object
@@ -534,13 +541,13 @@ const analyzePhotoVLMHandler = async (data, context) => {
   ];
 
   const body = buildChatBody({
-    model: PHOTO_ANALYSIS_MODEL.model,
+    model: photoModel,
     messages: [
       { role: "system", content: enhancedPrompt },
       { role: "user", content: userContent },
     ],
-    temperature: PHOTO_ANALYSIS_MODEL.temperature,
-    max_completion_tokens: PHOTO_ANALYSIS_MODEL.max_tokens,
+    temperature: photoTemp,
+    max_completion_tokens: photoMaxTokens,
     response_format: { type: "json_object" },
   });
 
@@ -1028,6 +1035,7 @@ export const migratePendingUser = functions
 // AI: Text Cleanup (server-side OpenAI invocation)
 // -----------------------------------------------
 const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+// Fallback defaults — used only when Firestore config doc lacks model fields (PEP-139)
 const CLEANUP_MODEL_INFO = { model: MINI_MODEL, temperature: 0, max_tokens: 1000 };
 
 // In-memory TTL cache for prompts to reduce Firestore reads
@@ -1042,16 +1050,19 @@ async function getTextSummarizerPromptsServer({ forceRefresh = false } = {}) {
   if (fresh) return textSummarizerCache.data;
 
   try {
-    const snap = await db.collection("ai_prompts").doc("text_summarizer").get();
-    if (!snap.exists) throw new Error("ai_prompts/text_summarizer doc not found");
+    const snap = await db.collection("config").doc("text_summarizer").get();
+    if (!snap.exists) throw new Error("config/text_summarizer doc not found");
     const data = snap.data() || {};
     if (!data.systemPrompt || !data.userPrompt) {
-      throw new Error("ai_prompts/text_summarizer missing systemPrompt or userPrompt");
+      throw new Error("config/text_summarizer missing systemPrompt or userPrompt");
     }
     const out = {
       systemPrompt: String(data.systemPrompt),
       userPrompt: String(data.userPrompt),
       version: Number.isFinite(data.version) ? data.version : 1,
+      model: data.model || CLEANUP_MODEL_INFO.model,
+      temperature: typeof data.temperature === "number" ? data.temperature : CLEANUP_MODEL_INFO.temperature,
+      max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : CLEANUP_MODEL_INFO.max_tokens,
     };
     textSummarizerCache = { data: out, ts: Date.now() };
     return out;
@@ -1083,19 +1094,19 @@ export const aiTextCleanup = functions
     }
 
     const forceRefresh = !!data?.forceRefresh;
-    const { systemPrompt, userPrompt, version } = await getTextSummarizerPromptsServer({ forceRefresh });
+    const config = await getTextSummarizerPromptsServer({ forceRefresh });
 
-    const renderedUser = String(userPrompt)
+    const renderedUser = String(config.userPrompt)
       .replaceAll("${" + "text}", text);
 
     const body = buildChatBody({
-      model: CLEANUP_MODEL_INFO.model,
+      model: config.model,
       messages: [
-        { role: "system", content: systemPrompt || "" },
+        { role: "system", content: config.systemPrompt || "" },
         { role: "user", content: renderedUser }
       ],
-      temperature: CLEANUP_MODEL_INFO.temperature,
-      max_completion_tokens: CLEANUP_MODEL_INFO.max_tokens,
+      temperature: config.temperature,
+      max_completion_tokens: config.max_tokens,
     });
 
     let response;
@@ -1127,8 +1138,8 @@ export const aiTextCleanup = functions
 
   return {
     cleanedText,
-    model: CLEANUP_MODEL_INFO.model,
-    promptVersion: version || 1,
+    model: config.model,
+    promptVersion: config.version || 1,
   };
 });
 
@@ -1151,7 +1162,7 @@ async function getVoiceContextPromptServer({ forceRefresh = false } = {}) {
   if (fresh) return voicePromptCache.data;
 
   try {
-    const snap = await db.collection("ai_prompts").doc("voice_transcriber").get();
+    const snap = await db.collection("config").doc("voice_transcriber").get();
     const data = snap.exists ? (snap.data() || {}) : {};
     const contextPrompt = String(
       data.contextPrompt ||
@@ -1297,13 +1308,13 @@ async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
     return cached.data;
   }
 
-  const snap = await db.collection("ai_prompts").doc(docId).get();
+  const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
-    throw new Error(`Coach prompt configuration not found in Firestore for doc ${docId}`);
+    throw new Error(`Coach config not found in Firestore for doc ${docId}`);
   }
-  
+
   const data = snap.data() || {};
-  
+
   // Validate and extract enabled/disabled nudges
   const enabledNudges = Array.isArray(data.enabledNudges)
     ? data.enabledNudges.filter((x) => NUDGE_IDS.includes(x))
@@ -1311,12 +1322,12 @@ async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
   const disabledNudges = Array.isArray(data.disabledNudges)
     ? data.disabledNudges.filter((x) => NUDGE_IDS.includes(x))
     : [];
-  
+
   // Extract nudgeBlocks (object with string values)
-  const nudgeBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object") 
-    ? data.nudgeBlocks 
+  const nudgeBlocks = (data.nudgeBlocks && typeof data.nudgeBlocks === "object")
+    ? data.nudgeBlocks
     : {};
-  
+
   // Extract other fields
   const title = typeof data.title === "string" ? data.title : undefined;
   const description = typeof data.description === "string" ? data.description : undefined;
@@ -1324,7 +1335,12 @@ async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
   const introBlock = typeof data.introBlock === "string" ? data.introBlock : undefined;
   const finalPrompt = typeof data.finalPrompt === "string" ? data.finalPrompt : undefined;
   const coachFeatureEnable = data.coach_feature_enable === true; // default false
-  
+
+  // Model config from Firestore with fallback to constants (PEP-139)
+  const model = data.model || COACH_MODEL_INFO.model;
+  const temperature = typeof data.temperature === "number" ? data.temperature : COACH_MODEL_INFO.temperature;
+  const max_tokens = Number.isFinite(data.max_tokens) ? data.max_tokens : COACH_MODEL_INFO.max_tokens;
+
   const result = {
     title,
     description,
@@ -1335,6 +1351,9 @@ async function getCoachConfigServer(docId, { forceRefresh = false } = {}) {
     introBlock,
     finalPrompt,
     coachFeatureEnable,
+    model,
+    temperature,
+    max_tokens,
   };
 
   // Cache the result
@@ -1375,7 +1394,7 @@ export const aiCoachReview = functions
         console.error("[aiCoachReview] missing programId/programIds; returning empty nudges");
         return {
           nudges: [],
-          model: COACH_MODEL_INFO.model,
+          model: COACH_MODEL_INFO.model, // no config loaded yet — use constant
           enabledNudges: [],
           maxReturnNudges: 0,
         };
@@ -1385,7 +1404,7 @@ export const aiCoachReview = functions
       if (programIds.length > 1) {
         return {
           nudges: [],
-          model: COACH_MODEL_INFO.model,
+          model: COACH_MODEL_INFO.model, // no config loaded yet — use constant
           enabledNudges: [],
           maxReturnNudges: 0,
         };
@@ -1402,7 +1421,7 @@ export const aiCoachReview = functions
       } catch {
         return {
           nudges: [],
-          model: COACH_MODEL_INFO.model,
+          model: COACH_MODEL_INFO.model, // config fetch failed — use constant
           enabledNudges: [],
           maxReturnNudges: 0,
         };
@@ -1412,7 +1431,7 @@ export const aiCoachReview = functions
       if (!config.coachFeatureEnable || !config.finalPrompt) {
         return {
           nudges: [],
-          model: COACH_MODEL_INFO.model,
+          model: config.model,
           enabledNudges: config.enabledNudges,
           maxReturnNudges: config.maxReturnNudges,
         };
@@ -1432,13 +1451,13 @@ export const aiCoachReview = functions
       // avoid logging prompt contents in production
 
       const body = buildChatBody({
-        model: COACH_MODEL_INFO.model,
+        model: config.model,
         messages: [
           { role: "system", content: enhancedSystemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: COACH_MODEL_INFO.temperature,
-        max_completion_tokens: COACH_MODEL_INFO.max_tokens,
+        temperature: config.temperature,
+        max_completion_tokens: config.max_tokens,
         response_format: { type: "json_object" },
       });
 
@@ -1502,7 +1521,7 @@ export const aiCoachReview = functions
       return {
         nudges: limitedNudges,
         rawResponse: rawContent,
-        model: COACH_MODEL_INFO.model,
+        model: config.model,
         enabledNudges: config.enabledNudges,
         maxReturnNudges: config.maxReturnNudges,
       };
@@ -1526,63 +1545,45 @@ export const aiCoachReview = functions
 // AI: Baseball Card (Last 6 Weeks summary)
 // -----------------------------------------------
 
-const BASEBALL_PROMPT_DOC = "baseball_card";
-const BASEBALL_CONFIG_DOC = "baseball_card";
+// Unified baseball card config: prompt + model params from config/baseball_card (PEP-139)
 const BASEBALL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-let baseballPromptCache = { data: null, ts: 0 };
-let baseballConfigCache = { data: null, ts: 0 };
-
+let baseballCardCache = { data: null, ts: 0 };
 
 function isFreshCache(cacheEntry) {
   return cacheEntry?.data && (Date.now() - cacheEntry.ts < BASEBALL_CACHE_TTL_MS);
 }
 
-async function getBaseballCardPrompt({ forceRefresh = false } = {}) {
-  if (!forceRefresh && isFreshCache(baseballPromptCache)) return baseballPromptCache.data;
+async function getBaseballCardConfig({ forceRefresh = false } = {}) {
+  if (!forceRefresh && isFreshCache(baseballCardCache)) return baseballCardCache.data;
 
   try {
-    const snap = await db.collection("ai_prompts").doc(BASEBALL_PROMPT_DOC).get();
+    const snap = await db.collection("config").doc("baseball_card").get();
     const data = snap.exists ? (snap.data() || {}) : {};
     const out = {
+      // Prompt fields
       title: String(data.title || ""),
       description: String(data.description || ""),
       systemPrompt: String(data.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK),
       version: Number.isFinite(data.version) ? data.version : 1,
-    };
-    baseballPromptCache = { data: out, ts: Date.now() };
-    return out;
-  } catch (err) {
-    console.warn("[baseballCard] prompt fetch failed, using fallback:", err);
-    const out = {
-      title: "Baseball Card Summary",
-      description: "Coach Pepper’s last 6 weeks summary",
-      systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
-      version: 1,
-    };
-    baseballPromptCache = { data: out, ts: Date.now() };
-    return out;
-  }
-}
-
-async function getBaseballCardConfigServer({ forceRefresh = false } = {}) {
-  if (!forceRefresh && isFreshCache(baseballConfigCache)) return baseballConfigCache.data;
-  try {
-    const snap = await db.collection("config").doc(BASEBALL_CONFIG_DOC).get();
-    const data = snap.exists ? (snap.data() || {}) : {};
-    const out = {
+      // Model config with fallback to defaults
       model: data.model || BASEBALL_CARD_DEFAULTS.model,
       temperature: Number.isFinite(data.temperature) ? data.temperature : BASEBALL_CARD_DEFAULTS.temperature,
       windowDays: Number.isFinite(data.windowDays) ? data.windowDays : BASEBALL_CARD_DEFAULTS.windowDays,
       timezone: data.timezone || BASEBALL_CARD_DEFAULTS.timezone,
       max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : BASEBALL_CARD_DEFAULTS.max_tokens,
     };
-    baseballConfigCache = { data: out, ts: Date.now() };
+    baseballCardCache = { data: out, ts: Date.now() };
     return out;
   } catch (err) {
     console.warn("[baseballCard] config fetch failed, using defaults:", err);
-    const out = { ...BASEBALL_CARD_DEFAULTS };
-    baseballConfigCache = { data: out, ts: Date.now() };
+    const out = {
+      title: "Baseball Card Summary",
+      description: "Coach Pepper’s last 6 weeks summary",
+      systemPrompt: BASEBALL_SYSTEM_PROMPT_FALLBACK,
+      version: 1,
+      ...BASEBALL_CARD_DEFAULTS,
+    };
+    baseballCardCache = { data: out, ts: Date.now() };
     return out;
   }
 }
@@ -2013,8 +2014,7 @@ export const previewBaseballCard = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    const baseConfig = await getBaseballCardConfigServer({ forceRefresh: !!data?.forceRefresh });
-    const basePrompt = await getBaseballCardPrompt({ forceRefresh: !!data?.forceRefresh });
+    const baseConfig = await getBaseballCardConfig({ forceRefresh: !!data?.forceRefresh });
 
     const windowDaysInput = Number(data?.windowDays);
     const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
@@ -2034,8 +2034,8 @@ export const previewBaseballCard = functions
 
     const systemPrompt = typeof data?.systemPrompt === "string" && data.systemPrompt.trim()
       ? data.systemPrompt
-      : (basePrompt.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK);
-    const promptPayload = { ...basePrompt, systemPrompt };
+      : (baseConfig.systemPrompt || BASEBALL_SYSTEM_PROMPT_FALLBACK);
+    const promptPayload = { title: baseConfig.title, description: baseConfig.description, systemPrompt, version: baseConfig.version };
 
     const results = await runBaseballCards({
       studentIds: [studentId],
@@ -2094,8 +2094,7 @@ export const regenerateBaseballCardForStudent = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    const baseConfig = await getBaseballCardConfigServer({ forceRefresh: !!data?.forceRefresh });
-    const basePrompt = await getBaseballCardPrompt({ forceRefresh: !!data?.forceRefresh });
+    const baseConfig = await getBaseballCardConfig({ forceRefresh: !!data?.forceRefresh });
 
     const windowDaysInput = Number(data?.windowDays);
     const windowDays = Number.isFinite(windowDaysInput) && windowDaysInput > 0
@@ -2112,7 +2111,7 @@ export const regenerateBaseballCardForStudent = functions
     await runBaseballCards({
       studentIds: [studentId],
       config: mergedConfig,
-      prompt: basePrompt,
+      prompt: { title: baseConfig.title, description: baseConfig.description, systemPrompt: baseConfig.systemPrompt, version: baseConfig.version },
       windowDays,
       dryRun: false,
       collectResults: false,
@@ -2161,14 +2160,13 @@ export const generateBaseballCards = functions
       return null;
     }
 
-    const config = await getBaseballCardConfigServer();
-    const prompt = await getBaseballCardPrompt();
+    const config = await getBaseballCardConfig();
 
     console.log("[baseballCard] generating for active students");
 
     await runBaseballCards({
       config,
-      prompt,
+      prompt: { title: config.title, description: config.description, systemPrompt: config.systemPrompt, version: config.version },
       windowDays: config.windowDays,
       dryRun: false,
       collectResults: false,
@@ -2259,8 +2257,8 @@ async function getChatConfigServer(programId) {
 
   try {
     const docId = `chat_${programId}`;
-    const snap = await db.collection("ai_prompts").doc(docId).get();
-    
+    const snap = await db.collection("config").doc(docId).get();
+
     if (!snap.exists) {
       console.warn(`[childChat] Chat config not found for ${docId}, using defaults`);
       return defaults;
@@ -3326,31 +3324,11 @@ export const childChat = functions
 // Parent Report Generation
 // -----------------------------------------------
 
+// Unified report config: prompt + model params from config/report_{prog} (PEP-139)
 const REPORT_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
-const reportPromptCache = {};
+const reportConfigCache = {};
 
-const REPORT_CONFIG_DOC = "report_generation";
-let reportConfigCache = { data: null, ts: 0 };
-
-async function getReportConfig({ forceRefresh = false } = {}) {
-  if (!forceRefresh && reportConfigCache.data && (Date.now() - reportConfigCache.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
-    return reportConfigCache.data;
-  }
-  try {
-    const snap = await db.collection("config").doc(REPORT_CONFIG_DOC).get();
-    const data = snap.exists ? (snap.data() || {}) : {};
-    const out = mergeReportConfig(data, REPORT_DEFAULTS);
-    reportConfigCache = { data: out, ts: Date.now() };
-    return out;
-  } catch (err) {
-    console.warn("[report] config fetch failed, using defaults:", err);
-    const out = mergeReportConfig(null, REPORT_DEFAULTS);
-    reportConfigCache = { data: out, ts: Date.now() };
-    return out;
-  }
-}
-
-async function getReportPrompt(programId, { forceRefresh = false } = {}) {
+async function getReportConfig(programId, { forceRefresh = false } = {}) {
   const docId = getReportPromptDocId(programId);
   if (!docId) {
     throw new functions.https.HttpsError(
@@ -3359,40 +3337,50 @@ async function getReportPrompt(programId, { forceRefresh = false } = {}) {
     );
   }
 
-  // Cache assumes current field schema (staticSystemPrompt, dynamicSystemPrompt).
-  // Run migrate-report-prompt-fields.mjs BEFORE deploying updated functions to
-  // avoid stale cache entries with the old systemPrompt shape (PEP-105).
-  const cached = reportPromptCache[docId];
+  const cached = reportConfigCache[docId];
   if (!forceRefresh && cached?.data && (Date.now() - cached.ts < REPORT_PROMPT_CACHE_TTL_MS)) {
     return cached.data;
   }
 
-  const snap = await db.collection("ai_prompts").doc(docId).get();
+  const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
     throw new functions.https.HttpsError(
       "not-found",
-      `Report prompt not found for program: ${programId}. Seed it via scripts/admin/seed-report-prompts.mjs`,
+      `Report config not found for program: ${programId}. Run migrate-ai-prompts-to-config.mjs --apply`,
     );
   }
 
   const data = snap.data() || {};
-  const prompt = {
-    staticSystemPrompt: String(data.staticSystemPrompt || ""),
-    dynamicSystemPrompt: String(data.dynamicSystemPrompt || ""),
-    title: String(data.title || ""),
-    description: String(data.description || ""),
-    version: Number.isFinite(data.version) ? data.version : 1,
-  };
 
-  if (!prompt.staticSystemPrompt) {
+  // Prompt fields
+  const staticSystemPrompt = String(data.staticSystemPrompt || "");
+  const dynamicSystemPrompt = String(data.dynamicSystemPrompt || "");
+  const title = String(data.title || "");
+  const description = String(data.description || "");
+  const version = Number.isFinite(data.version) ? data.version : 1;
+
+  if (!staticSystemPrompt) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      `Report prompt for ${programId} has empty staticSystemPrompt`,
+      `Report config for ${programId} has empty staticSystemPrompt`,
     );
   }
 
-  reportPromptCache[docId] = { data: prompt, ts: Date.now() };
-  return prompt;
+  // Model config with fallback to defaults
+  const out = {
+    staticSystemPrompt,
+    dynamicSystemPrompt,
+    title,
+    description,
+    version,
+    model: data.model || REPORT_DEFAULTS.model,
+    temperature: Number.isFinite(data.temperature) ? data.temperature : REPORT_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : REPORT_DEFAULTS.max_tokens,
+    timezone: data.timezone || REPORT_DEFAULTS.timezone,
+  };
+
+  reportConfigCache[docId] = { data: out, ts: Date.now() };
+  return out;
 }
 
 function fetchStudentNotesForDateRange(studentId, startDate, endDate) {
@@ -3559,15 +3547,14 @@ async function runSingleReport({ studentId, dateRangeStart, dateRangeEnd, reques
     );
   }
 
-  const baseConfig = await getReportConfig();
+  const baseConfig = await getReportConfig(studentInfo.programId);
   const config = configOverrides
     ? mergeReportConfig(configOverrides, baseConfig)
     : baseConfig;
 
-  const basePrompt = await getReportPrompt(studentInfo.programId);
   const prompt = promptOverride
-    ? { ...basePrompt, staticSystemPrompt: promptOverride.staticSystemPrompt ?? basePrompt.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt ?? basePrompt.dynamicSystemPrompt }
-    : basePrompt;
+    ? { ...baseConfig, staticSystemPrompt: promptOverride.staticSystemPrompt || baseConfig.staticSystemPrompt, dynamicSystemPrompt: promptOverride.dynamicSystemPrompt || baseConfig.dynamicSystemPrompt }
+    : baseConfig;
 
   if (!prompt.staticSystemPrompt) {
     throw new functions.https.HttpsError(
@@ -4059,11 +4046,11 @@ async function getReadinessPrompt(programId) {
     return cached.data;
   }
 
-  const snap = await db.collection("ai_prompts").doc(docId).get();
+  const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
     throw new functions.https.HttpsError(
       "not-found",
-      `Readiness prompt not found for program: ${programId}. Seed it via scripts/admin/seed-readiness-prompts.mjs`,
+      `Readiness config not found for program: ${programId}. Run migrate-ai-prompts-to-config.mjs --apply`,
     );
   }
 
@@ -4071,12 +4058,15 @@ async function getReadinessPrompt(programId) {
   const prompt = {
     systemPrompt: String(data.systemPrompt || ""),
     version: Number.isFinite(data.version) ? data.version : 1,
+    model: data.model || READINESS_DEFAULTS.model,
+    temperature: typeof data.temperature === "number" ? data.temperature : READINESS_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : READINESS_DEFAULTS.max_tokens,
   };
 
   if (!prompt.systemPrompt) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      `Readiness prompt for ${programId} has empty systemPrompt`,
+      `Readiness config for ${programId} has empty systemPrompt`,
     );
   }
 
@@ -4154,13 +4144,13 @@ export const checkReportReadiness = functions
     ].join("\n");
 
     const body = buildChatBody({
-      model: READINESS_DEFAULTS.model,
+      model: prompt.model,
       messages: [
         { role: "system", content: systemContent },
         { role: "user", content: userContent },
       ],
-      temperature: READINESS_DEFAULTS.temperature,
-      max_completion_tokens: READINESS_DEFAULTS.max_tokens,
+      temperature: prompt.temperature,
+      max_completion_tokens: prompt.max_tokens,
       response_format: { type: "json_object" },
     });
 
@@ -4203,7 +4193,7 @@ export const checkReportReadiness = functions
       dateRangeStart: startDate,
       dateRangeEnd: endDate,
       programId: studentInfo.programId,
-      model: READINESS_DEFAULTS.model,
+      model: prompt.model,
       status: "ok",
     };
 
@@ -4501,38 +4491,35 @@ export const bulkSyncDrivePermissions = functions
 // Student Profile: Generate profile for a single student (PEP-124)
 // -----------------------------------------------
 
+// Unified profile config: prompt + dimensions + model params from config/profile_{prog} (PEP-139)
 const PROFILE_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-let profilePromptCache = {};
+let profileConfigCache = {};
 
-async function getProfilePrompt(programId) {
+async function getProfileConfig(programId) {
   const docId = `profile_${programId}`;
 
-  const cached = profilePromptCache[docId];
+  const cached = profileConfigCache[docId];
   if (cached?.data && (Date.now() - cached.ts < PROFILE_PROMPT_CACHE_TTL_MS)) {
     return cached.data;
   }
 
-  const snap = await db.collection("ai_prompts").doc(docId).get();
+  const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
-    throw new functions.https.HttpsError("not-found", `Profile prompt not found: ${docId}`);
+    throw new functions.https.HttpsError("not-found", `Profile config not found: ${docId}. Run migrate-ai-prompts-to-config.mjs --apply`);
   }
   const data = snap.data();
-  const prompt = {
-    systemPrompt: data.staticSystemPrompt + (data.dynamicSystemPrompt || ""),
+  const out = {
+    systemPrompt: (data.staticSystemPrompt || "") + (data.dynamicSystemPrompt || ""),
+    dimensions: Array.isArray(data.dimensions) && data.dimensions.length
+      ? data.dimensions
+      : (PROGRAM_DIMENSIONS[programId] || null),
+    model: data.model || PROFILE_DEFAULTS.model,
+    temperature: typeof data.temperature === "number" ? data.temperature : PROFILE_DEFAULTS.temperature,
+    max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : PROFILE_DEFAULTS.max_tokens,
   };
 
-  profilePromptCache[docId] = { data: prompt, ts: Date.now() };
-  return prompt;
-}
-
-async function getProfileDimensions(programId) {
-  const docId = `profile_dimensions_${programId}`;
-  const snap = await db.collection("config").doc(docId).get();
-  if (snap.exists && snap.data()?.dimensions?.length) {
-    return snap.data().dimensions;
-  }
-  // Fall back to hardcoded constants if config doc not seeded yet
-  return PROGRAM_DIMENSIONS[programId] || null;
+  profileConfigCache[docId] = { data: out, ts: Date.now() };
+  return out;
 }
 
 const PROFILE_JSON_WRAPPER = `
@@ -4543,9 +4530,9 @@ Each value must be an object with exactly: { "narrative": string, "confidence": 
 - "gaps": a plain-text description of what is unknown, uncertain, or unobserved about this child in this dimension. Describe specific missing observations or blind spots (e.g., "No observations of independent reading. Social interactions only observed in group settings."). Use an empty string "" if the dimension is well-covered with no obvious gaps.
 Output ONLY the JSON object, nothing else.`;
 
-async function callProfileGeneration(notes, prompt, studentContext, dimensions, openAiKey) {
-  const dimBlock = dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
-  const systemContent = prompt.systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + PROFILE_JSON_WRAPPER;
+async function callProfileGeneration(notes, profileConfig, studentContext, openAiKey) {
+  const dimBlock = profileConfig.dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
+  const systemContent = profileConfig.systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + PROFILE_JSON_WRAPPER;
 
   const userContent = [
     "Generate a student profile from the following observations.",
@@ -4557,13 +4544,13 @@ async function callProfileGeneration(notes, prompt, studentContext, dimensions, 
   ].join("\n");
 
   const body = buildChatBody({
-    model: PROFILE_DEFAULTS.model,
+    model: profileConfig.model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: PROFILE_DEFAULTS.temperature,
-    max_completion_tokens: PROFILE_DEFAULTS.max_tokens,
+    temperature: profileConfig.temperature,
+    max_completion_tokens: profileConfig.max_tokens,
     response_format: { type: "json_object" },
   });
 
@@ -4682,12 +4669,10 @@ export const generateStudentProfile = functions
       throw new functions.https.HttpsError("failed-precondition", `Invalid program: ${studentInfo.programId}`);
     }
 
-    const dimensions = await getProfileDimensions(studentInfo.programId);
-    if (!dimensions?.length) {
+    const profileConfig = await getProfileConfig(studentInfo.programId);
+    if (!profileConfig.dimensions?.length) {
       throw new functions.https.HttpsError("failed-precondition", `No dimensions configured for program: ${studentInfo.programId}`);
     }
-
-    const prompt = await getProfilePrompt(studentInfo.programId);
 
     // Default to 365-day observation window; pass windowDays to override
     const windowDays = data?.windowDays || 365;
@@ -4695,26 +4680,26 @@ export const generateStudentProfile = functions
 
     if (!notes.length) {
       console.log(`[profile] No observations for ${studentId}, writing empty profile`);
-      const emptyEntries = parseProfileResponse({}, dimensions);
+      const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
       await writeProfileDimensions(studentId, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
       return {
         status: "no_notes",
         studentId,
         programId: studentInfo.programId,
-        dimensionCount: dimensions.length,
+        dimensionCount: profileConfig.dimensions.length,
         noteCount: 0,
       };
     }
 
     const formatted = notes.map(formatObservationForPrompt);
-    const { parsed } = await callProfileGeneration(formatted, prompt, {
+    const { parsed } = await callProfileGeneration(formatted, profileConfig, {
       studentName: studentInfo.studentName,
       dob: studentInfo.dob,
       age: studentInfo.age,
       programId: studentInfo.programId,
-    }, dimensions, openAiKey);
+    }, openAiKey);
 
-    const profileEntries = parseProfileResponse(parsed, dimensions);
+    const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
     await writeProfileDimensions(studentId, profileEntries, studentInfo.programId, SOURCE_OBSERVATION);
 
     console.log(`[profile] Generated profile for ${studentId}: ${profileEntries.length} dimensions, ${formatted.length} observations`);
@@ -4804,18 +4789,17 @@ export const backfillStudentProfiles = functions
           continue;
         }
 
-        const dimensions = await getProfileDimensions(studentInfo.programId);
-        if (!dimensions?.length) {
+        const profileConfig = await getProfileConfig(studentInfo.programId);
+        if (!profileConfig.dimensions?.length) {
           errors.push({ studentId: student.id, error: "No dimensions configured" });
           failed++;
           continue;
         }
 
-        const prompt = await getProfilePrompt(studentInfo.programId);
         const notes = await fetchStudentNotesForWindow(student.id, windowDays);
 
         if (!notes.length) {
-          const emptyEntries = parseProfileResponse({}, dimensions);
+          const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
           await writeProfileDimensions(student.id, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
           succeeded++;
           results.push({ studentId: student.id, status: "no_notes" });
@@ -4824,14 +4808,14 @@ export const backfillStudentProfiles = functions
         }
 
         const formatted = notes.map(formatObservationForPrompt);
-        const { parsed } = await callProfileGeneration(formatted, prompt, {
+        const { parsed } = await callProfileGeneration(formatted, profileConfig, {
           studentName: studentInfo.studentName,
           dob: studentInfo.dob,
           age: studentInfo.age,
           programId: studentInfo.programId,
-        }, dimensions, openAiKey);
+        }, openAiKey);
 
-        const profileEntries = parseProfileResponse(parsed, dimensions);
+        const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
         await writeProfileDimensions(student.id, profileEntries, studentInfo.programId, SOURCE_BACKFILL);
         succeeded++;
         results.push({ studentId: student.id, status: "ok", noteCount: formatted.length });

@@ -1,0 +1,119 @@
+- main [ref=e1]:
+  - generic [ref=e796]:
+    - link [ref=e797] [cursor=pointer]:
+      - /url: "javascript: void(0)"
+      - text: Skip to main content
+    - button [ref=e800]:
+      - img [ref=e802]
+    - navigation [ref=e805]:
+      - list [ref=e806]:
+        - listitem [ref=e807]:
+          - link [ref=e808] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e812]
+            - generic [ref=e819]: Sign Out
+        - listitem [ref=e820]:
+          - link [ref=e821] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e825]
+            - generic [ref=e828]: Career Center
+        - listitem [ref=e829]:
+          - link [ref=e830] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e834]
+            - generic [ref=e837]: Current Openings
+        - listitem [ref=e838]:
+          - link [ref=e839] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e843]
+            - generic [ref=e846]: My Profile
+        - listitem [ref=e847]:
+          - link [ref=e848] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e852]
+            - generic [ref=e855]: My Applications
+        - listitem [ref=e856]:
+          - link [ref=e857] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e861]
+            - generic [ref=e864]: Language
+    - generic [ref=e865]:
+      - img [ref=e867]
+      - img [ref=e874]
+      - button [ref=e879] [cursor=pointer]
+      - button [ref=e883] [cursor=pointer]:
+        - img [ref=e885]: TM
+    - generic [ref=e891]:
+      - alert [ref=e894]:
+        - generic [ref=e895]: 
+        - generic [ref=e896]: Thank You!
+        - paragraph [ref=e897]: We have received your application.
+      - generic [ref=e898]:
+        - generic [ref=e899]: Your Feedback Matters
+        - generic [ref=e900]:
+          - button [ref=e901] [cursor=pointer]:
+            - img [ref=e904]
+          - button [ref=e907] [cursor=pointer]:
+            - img [ref=e910]
+          - button [ref=e913] [cursor=pointer]:
+            - img [ref=e916]
+          - button [ref=e919] [cursor=pointer]:
+            - img [ref=e922]
+          - button [ref=e925] [cursor=pointer]:
+            - img [ref=e928]
+      - generic [ref=e934]:
+        - generic [ref=e935]: Complete Your Profile
+        - generic [ref=e936]: Your completed profile allows the recruiters to review your job application and consider you for the next steps of the selection process.
+        - button [ref=e937] [cursor=pointer]:
+          - generic [ref=e938]: Sure, Let's Do It
+      - button [ref=e940] [cursor=pointer]:
+        - generic [ref=e941]: Explore Our Career Center
+  - dialog "ADP BrightJump" [ref=e946]:
+    - heading "ADP BrightJump" [level=2] [ref=e948]: ADP BrightJump
+    - button "Back" [ref=e950] [cursor=pointer]:
+      - generic [ref=e951]:
+        - img [ref=e953]
+        - generic [ref=e956]:
+          - generic: Back
+    - generic [ref=e957]:
+      - generic:
+        - generic [ref=e958]:
+          - generic "Application Submitted" [ref=e959]:
+            - generic [ref=e960]:
+              - img "Success" [ref=e963]:
+                - img [ref=e964]
+              - generic [ref=e969]:
+                - generic: Application Submitted!
+          - generic [ref=e971]:
+            - img "BrightJump by ADP" [ref=e973]
+            - generic [ref=e974]:
+              - generic [ref=e975]:
+                - heading "Join ADP BrightJump's talent pool to unlock your next opportunity." [level=2] [ref=e976]
+                - heading "Access millions of job postings, updated daily AI-assisted tools to optimize your resume and create cover letters Connect with professional career coaches Enable AI to match me to recruiters and job opportunities (Coming Soon)" [level=4] [ref=e977]:
+                  - list [ref=e980]:
+                    - listitem [ref=e981]: Access millions of job postings, updated daily
+                    - listitem [ref=e982]: AI-assisted tools to optimize your resume and create cover letters
+                    - listitem [ref=e983]: Connect with professional career coaches
+                    - listitem [ref=e984]: Enable AI to match me to recruiters and job opportunities (Coming Soon)
+              - link "Learn More Opens in a new tab" [ref=e986] [cursor=pointer]:
+                - /url: https://brightjump.adp.com/public/talent
+                - text: Learn More
+              - button "Create My BrightJump Account" [ref=e988] [cursor=pointer]:
+                - generic [ref=e990]:
+                  - generic: Create My BrightJump Account
+              - link "No, Thanks" [ref=e993] [cursor=pointer]:
+                - generic [ref=e994]:
+                  - generic: No, Thanks
+          - generic [ref=e995]:
+            - text: By creating your account you authorize ADP to use your data in accordance with our
+            - link "Terms of Use Opens in a new tab" [ref=e996] [cursor=pointer]:
+              - /url: https://brightjump.adp.com/public/terms-of-use
+              - text: Terms of Use,
+            - link "Privacy Statement Opens in a new tab" [ref=e997] [cursor=pointer]:
+              - /url: https://brightjump.adp.com/public/terms-of-privacy
+              - text: Privacy Statement,
+            - text: and
+            - link "AI Transparency Statement Opens in a new tab" [ref=e998] [cursor=pointer]:
+              - /url: https://brightjump.adp.com/public/artificial-intelligence-transparency
+              - text: AI Transparency Statement.
+        - region

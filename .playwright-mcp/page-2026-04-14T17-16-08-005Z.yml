@@ -1,0 +1,415 @@
+- generic [active] [ref=e1]:
+  - main [ref=e3]:
+    - generic [ref=e4] [cursor=pointer]:
+      - generic [ref=e5]:
+        - text: ⏰ Your Special offer ends in
+        - strong [ref=e6]: 31m 44s
+        - text: . Try Turbo for 7 days with extra
+        - strong [ref=e7]: 93%
+        - text: "off"
+      - img "arrow" [ref=e9]
+    - generic [ref=e10]:
+      - complementary [ref=e12]:
+        - generic [ref=e13]:
+          - link [ref=e14] [cursor=pointer]:
+            - /url: /jobs/recommend
+          - menu [ref=e16]:
+            - menuitem "menu-item Jobs" [ref=e17] [cursor=pointer]:
+              - link "menu-item Jobs" [ref=e20]:
+                - /url: /jobs/recommend
+                - img "menu-item" [ref=e21]
+                - generic [ref=e22]: Jobs
+            - menuitem "menu-item Resume" [ref=e23] [cursor=pointer]:
+              - link "menu-item Resume" [ref=e25]:
+                - /url: /jobs/resume
+                - img "menu-item" [ref=e26]
+                - generic [ref=e27]: Resume
+            - menuitem "menu-item Profile" [ref=e30] [cursor=pointer]:
+              - link "menu-item Profile" [ref=e32]:
+                - /url: /jobs/profile
+                - img "menu-item" [ref=e33]
+                - generic [ref=e34]: Profile
+            - menuitem "menu-item Agent" [ref=e35] [cursor=pointer]:
+              - link "menu-item Agent" [ref=e37]:
+                - /url: /agent
+                - img "menu-item" [ref=e38]
+                - generic [ref=e39]: Agent
+            - menuitem "menu-item Coaching new" [ref=e40] [cursor=pointer]:
+              - link "menu-item Coaching new" [ref=e42]:
+                - /url: /coaching
+                - img "menu-item" [ref=e43]
+                - generic [ref=e44]: Coaching
+                - img "new" [ref=e46]
+          - generic [ref=e47]:
+            - button "autofill" [ref=e48] [cursor=pointer]:
+              - img "autofill" [ref=e50]
+            - button "message-center" [ref=e51] [cursor=pointer]:
+              - img "message-center" [ref=e53]
+            - button "feedback" [ref=e54] [cursor=pointer]:
+              - img "feedback" [ref=e56]
+            - button "signuot" [ref=e57] [cursor=pointer]:
+              - img "signuot" [ref=e59]
+      - generic [ref=e60] [cursor=pointer]:
+        - img "turbo" [ref=e61]
+        - text: "Turbo for Students: Get Hired Faster!"
+        - img "arrow" [ref=e62]
+      - main [ref=e63]:
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - generic [ref=e67]: JOBS
+            - img "arrow" [ref=e68]
+            - generic [ref=e69]:
+              - link "Recommended" [ref=e70] [cursor=pointer]:
+                - /url: /jobs/recommend
+                - generic [ref=e71]: Recommended
+              - link "Liked 7" [ref=e72] [cursor=pointer]:
+                - /url: /jobs/liked
+                - generic [ref=e73]: Liked
+                - generic [ref=e74]: "7"
+              - link "Applied 325" [ref=e75] [cursor=pointer]:
+                - /url: /jobs/applied
+                - generic [ref=e76]: Applied
+                - generic [ref=e77]: "325"
+              - link "External 1" [ref=e78] [cursor=pointer]:
+                - /url: /jobs/external
+                - generic [ref=e79]: External
+                - generic [ref=e80]: "1"
+          - generic [ref=e84] [cursor=pointer]:
+            - img "search" [ref=e87]
+            - combobox "Search by title or company" [ref=e88]
+        - generic [ref=e90]:
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - generic [ref=e96]:
+                  - button "close detail" [ref=e97] [cursor=pointer]:
+                    - img "close detail" [ref=e99]
+                  - generic [ref=e102]:
+                    - text: 200+
+                    - generic [ref=e103]: applicants
+                - generic [ref=e104]:
+                  - button "not-interest-job" [ref=e106] [cursor=pointer]:
+                    - img "not-interest-job" [ref=e108]
+                  - button "like-job" [ref=e109] [cursor=pointer]:
+                    - img "like-job" [ref=e111]
+                  - button "Apply with Autofill arr-right" [ref=e112] [cursor=pointer]:
+                    - generic [ref=e113]: Apply with Autofill
+                    - img "arr-right" [ref=e114]
+              - generic [ref=e116]:
+                - generic [ref=e120]:
+                  - link "Overview" [ref=e123] [cursor=pointer]:
+                    - /url: "#overview"
+                  - link "Company" [ref=e125] [cursor=pointer]:
+                    - /url: "#company"
+                - generic [ref=e126]:
+                  - button "flag Share" [ref=e128] [cursor=pointer]:
+                    - img "flag" [ref=e129]
+                    - generic [ref=e130]: Share
+                  - button "flag Report Issue" [ref=e132] [cursor=pointer]:
+                    - img "flag" [ref=e133]
+                    - generic [ref=e134]: Report Issue
+                  - link "job-post-link Original Job Post" [ref=e136] [cursor=pointer]:
+                    - /url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=01941100-00e7-48f9-ab7c-eeebe5fa1386&ccId=19000101_000001&source=LI&lang=en_US&selectedMenuKey=CurrentOpenings&jobId=604270
+                    - img "job-post-link" [ref=e137]
+                    - generic [ref=e138]: Original Job Post
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - generic [ref=e141]:
+                  - generic [ref=e144]:
+                    - generic [ref=e145]:
+                      - generic [ref=e146]:
+                        - img "company-logo" [ref=e148]
+                        - heading "ShipERP · Reposted 11 hours ago" [level=2] [ref=e149]:
+                          - generic [ref=e150]: ShipERP
+                          - generic [ref=e151]: · Reposted 11 hours ago
+                      - heading "Associate AI/Machine Learning Engineer" [level=1] [ref=e153]
+                    - generic [ref=e154]:
+                      - generic [ref=e156]:
+                        - img "position" [ref=e157]
+                        - generic [ref=e158]: United States
+                      - generic [ref=e160]:
+                        - img "time" [ref=e161]
+                        - generic [ref=e162]: Contract
+                      - generic [ref=e164]:
+                        - img "remote" [ref=e165]
+                        - generic [ref=e166]: Remote
+                      - generic [ref=e168]:
+                        - img "seniority" [ref=e169]
+                        - generic [ref=e170]: New Grad, Entry Level
+                      - generic [ref=e172]:
+                        - img "date" [ref=e173]
+                        - generic [ref=e174]: 0+ years exp
+                  - generic [ref=e176]:
+                    - generic [ref=e177]:
+                      - progressbar [ref=e178]:
+                        - generic [ref=e186]: 97%
+                      - generic [ref=e187]: STRONG MATCH
+                    - generic [ref=e188]:
+                      - generic [ref=e189]:
+                        - progressbar [ref=e190]:
+                          - generic [ref=e196]: 100%
+                        - generic [ref=e197]: Exp. Level
+                      - generic [ref=e198]:
+                        - progressbar [ref=e199]:
+                          - generic [ref=e205]: 100%
+                        - generic [ref=e206]: Skill
+                      - generic [ref=e207]:
+                        - progressbar [ref=e208]:
+                          - generic [ref=e214]: 51%
+                        - generic [ref=e215]: Industry Exp.
+                - generic [ref=e216]:
+                  - generic [ref=e217]:
+                    - strong [ref=e218]: ShipERP
+                    - text: is hiring an Associate AI / Machine Learning Engineer to design and deliver hands-on AI/ML experiments. This early-career role involves building ML proof of concepts, collaborating with partners, and producing actionable insights from operational data.
+                  - generic [ref=e220]:
+                    - generic [ref=e221]:
+                      - generic [ref=e222]: Professional Services
+                      - generic [ref=e223]: Enterprise Software
+                      - generic [ref=e224]: Information Technology
+                      - generic [ref=e225]: Software
+                      - generic [ref=e226]: Logistics
+                      - generic [ref=e227]: Business Development
+                      - generic [ref=e228]: Enterprise Resource Planning (ERP)
+                      - generic [ref=e229]: Supply Chain Management
+                    - generic [ref=e231]:
+                      - img "check" [ref=e233]
+                      - text: H1B Sponsor Likely
+                      - img "note" [ref=e234]
+              - separator [ref=e235]
+              - generic [ref=e236]:
+                - generic [ref=e237]:
+                  - heading "Insider Connection @ShipERP" [level=2] [ref=e238]
+                  - generic [ref=e239]:
+                    - generic [ref=e240]: 5 email credits available today
+                    - img "note" [ref=e241]
+                - generic [ref=e242]:
+                  - text: Discover valuable connections within the company who might provide insights and potential referrals.
+                  - strong [ref=e243]: Get 3x more responses when you reach out via email instead of LinkedIn.
+                - generic [ref=e244]:
+                  - generic [ref=e245]:
+                    - generic [ref=e247]: Beyond your network
+                    - button "View" [ref=e248] [cursor=pointer]:
+                      - generic [ref=e249]: View
+                    - generic [ref=e250]:
+                      - generic [ref=e254]: A
+                      - generic [ref=e255]:
+                        - generic [ref=e256]: Amanda Meyer
+                        - generic [ref=e257]: Global Human Resources Manager
+                  - generic [ref=e258]:
+                    - generic [ref=e260]: From your previous company
+                    - link "Find More Connections close" [ref=e262] [cursor=pointer]:
+                      - /url: https://www.linkedin.com/search/results/people/?currentCompany=608932&pastCompany=%5B%223638%22%2C%227059310%22%5D
+                      - generic [ref=e263]: Find More Connections
+                      - img "close" [ref=e264]
+                  - generic [ref=e265]:
+                    - generic [ref=e267]: from your School
+                    - link "Find More Connections close" [ref=e269] [cursor=pointer]:
+                      - /url: https://www.linkedin.com/search/results/people/?currentCompany=608932&schoolFilter=%5B%223638%22%2C%22400138%22%5D
+                      - generic [ref=e270]: Find More Connections
+                      - img "close" [ref=e271]
+              - generic [ref=e273]:
+                - generic [ref=e274]: Find Any Email
+                - generic [ref=e275]:
+                  - textbox "Paste any LinkedIn profile URL (e.g., https://www.linkedin.com/in/xxxxx/) to find work emails instantly." [ref=e276]
+                  - button "find-email" [ref=e278] [cursor=pointer]:
+                    - img "find-email" [ref=e280]
+              - generic [ref=e281]:
+                - heading "Responsibilities" [level=2] [ref=e283]
+                - generic [ref=e284]:
+                  - generic [ref=e289]: Build an end-to-end ML proof of concept in MySQL HeatWave covering data ingestion, feature engineering, model training, evaluation, and inference
+                  - generic [ref=e294]: Leverage HeatWave ML where appropriate and evaluate tradeoffs between in-database and external model workflows
+                  - generic [ref=e299]: Develop lightweight Python and/or PHP scripts or services to automate data flows, run experiments, and serve inference results
+                  - generic [ref=e304]: Explore datasets, create features, compare model approaches for regression, classification, and forecasting, and produce clear evaluation metrics
+                  - generic [ref=e309]: Work closely with Oracle, Domo, and internal subject matter experts to absorb best practices and translate them into repeatable implementations
+                  - generic [ref=e314]: Produce architecture diagrams, assumptions, limitations, evaluation results, and an executive summary that communicates business impact
+                  - generic [ref=e319]: Deliver a pragmatic recommendation for next steps including cost estimates, scalability considerations, security and compliance risks, and a prioritized implementation plan
+              - separator [ref=e320]
+              - generic [ref=e321]:
+                - generic [ref=e322]:
+                  - heading "Qualification" [level=2] [ref=e323]
+                  - generic [ref=e324]:
+                    - img "check" [ref=e325]
+                    - generic [ref=e326]: Represents the skills you have
+                - paragraph [ref=e327]:
+                  - text: Find out how your skills align with this job's requirements. If anything seems off, you can easily
+                  - strong [ref=e328]: click on the tags
+                  - text: to select or unselect skills to reflect your actual expertise.
+                - generic [ref=e329]:
+                  - generic [ref=e330] [cursor=pointer]:
+                    - img "check" [ref=e331]
+                    - text: Machine Learning Fundamentals
+                  - generic [ref=e332] [cursor=pointer]:
+                    - img "check" [ref=e333]
+                    - text: Supervised Learning
+                  - generic [ref=e334] [cursor=pointer]: Time Series Forecasting
+                  - generic [ref=e335] [cursor=pointer]:
+                    - img "check" [ref=e336]
+                    - text: Model Evaluation Metrics
+                  - generic [ref=e337] [cursor=pointer]:
+                    - img "check" [ref=e338]
+                    - text: SQL
+                  - generic [ref=e339] [cursor=pointer]:
+                    - img "check" [ref=e340]
+                    - text: Relational Databases
+                  - generic [ref=e341] [cursor=pointer]:
+                    - img "check" [ref=e342]
+                    - text: Python
+                  - generic [ref=e343] [cursor=pointer]:
+                    - img "check" [ref=e344]
+                    - text: PHP
+                  - generic [ref=e345] [cursor=pointer]:
+                    - img "check" [ref=e346]
+                    - text: Curiosity
+                  - generic [ref=e347] [cursor=pointer]:
+                    - img "check" [ref=e348]
+                    - text: Learn quickly
+                  - generic [ref=e349] [cursor=pointer]: Independence
+                - generic [ref=e350]:
+                  - heading "Required" [level=4] [ref=e351]
+                  - generic [ref=e355]: 0–2 years of professional experience or equivalent hands-on projects, internships, or academic work
+                  - generic [ref=e359]: Practical or academic exposure to supervised learning and time series forecasting; familiarity with basic model evaluation metrics
+                  - generic [ref=e363]: Strong SQL skills and comfort with relational data concepts
+                  - generic [ref=e367]: Proficiency in Python for data workflows; familiarity with PHP is a plus
+                  - generic [ref=e371]: Demonstrated curiosity, ability to learn quickly, and willingness to seek mentorship and iterate
+                  - generic [ref=e375]: Ability to document technical work clearly and present findings to both technical and nontechnical stakeholders
+                  - generic [ref=e379]: Able to run experiments, troubleshoot issues, and deliver a demo-ready POC with guidance from senior engineers
+                - generic [ref=e380]:
+                  - heading "Preferred" [level=4] [ref=e381]
+                  - generic [ref=e385]: Prior exposure to HeatWave ML or other in-database analytics platforms
+                  - generic [ref=e389]: Background in SaaS, logistics, operational analytics, or enterprise systems (SAP, ERP, WMS)
+                  - generic [ref=e393]: Experience with OCI, AWS, or GCP for data pipelines and deployment planning
+                  - generic [ref=e397]: Experience or coursework that demonstrates understanding of moving POCs toward production, including cost modeling and monitoring
+                  - generic [ref=e401]: Basic understanding of data security, access controls, and compliance considerations for operational data
+            - separator [ref=e402]
+            - generic [ref=e403]:
+              - heading "Company" [level=2] [ref=e405]
+              - generic [ref=e407]:
+                - generic [ref=e410]:
+                  - generic [ref=e411]:
+                    - generic [ref=e412]:
+                      - heading "ShipERP" [level=2] [ref=e413]
+                      - generic [ref=e414]:
+                        - link "twitter" [ref=e415] [cursor=pointer]:
+                          - /url: https://x.com/ShipERPbyERPIS
+                          - img "twitter" [ref=e416]
+                        - link "twitter" [ref=e417] [cursor=pointer]:
+                          - /url: https://www.linkedin.com/company/608932
+                          - img "twitter" [ref=e418]
+                        - link "twitter" [ref=e419] [cursor=pointer]:
+                          - /url: https://www.crunchbase.com/organization/shiperp
+                          - img "twitter" [ref=e420]
+                    - img "company-logo" [ref=e422]
+                  - generic [ref=e423]: ShipERP is a multi-carrier parcel shipping management software that improves the efficiency of the companies' supply chain.
+                - generic [ref=e426]:
+                  - generic [ref=e427]:
+                    - img "date" [ref=e428]
+                    - text: Founded in 2007
+                  - generic [ref=e429]:
+                    - img "location" [ref=e430]
+                    - generic [ref=e431]: Long Beach, California, USA
+                  - generic [ref=e432]:
+                    - img "people-size" [ref=e433]
+                    - text: 51-200 employees
+                  - generic [ref=e434]:
+                    - img "web-link" [ref=e435]
+                    - link "https://shiperp.com/" [ref=e437] [cursor=pointer]:
+                      - /url: https://shiperp.com/
+              - generic [ref=e438]:
+                - generic [ref=e439]:
+                  - heading "H1B Sponsorship" [level=2] [ref=e441]
+                  - generic [ref=e443]:
+                    - text: ShipERP has a track record of offering H1B sponsorships. Please note that this does not guarantee sponsorship for this specific role. Below presents additional info for your reference.
+                    - generic [ref=e444]: (Data Powered by US Department of Labor)
+                  - generic [ref=e445]:
+                    - generic [ref=e446]:
+                      - generic [ref=e447]: Distribution of Different Job Fields Receiving Sponsorship
+                      - generic [ref=e454]: Represents job field similar to this job
+                    - generic [ref=e455]:
+                      - generic [ref=e456]: Trends of Total Sponsorships
+                      - generic [ref=e457]:
+                        - generic [ref=e458]:
+                          - text: "2025"
+                          - generic [ref=e459]: (10)
+                        - progressbar [ref=e460]
+                      - generic [ref=e464]:
+                        - generic [ref=e465]:
+                          - text: "2024"
+                          - generic [ref=e466]: (24)
+                        - progressbar [ref=e467]
+                      - generic [ref=e471]:
+                        - generic [ref=e472]:
+                          - text: "2023"
+                          - generic [ref=e473]: (18)
+                        - progressbar [ref=e474]
+                      - generic [ref=e478]:
+                        - generic [ref=e479]:
+                          - text: "2022"
+                          - generic [ref=e480]: (5)
+                        - progressbar [ref=e481]
+                      - generic [ref=e485]:
+                        - generic [ref=e486]:
+                          - text: "2021"
+                          - generic [ref=e487]: (6)
+                        - progressbar [ref=e488]
+                      - generic [ref=e492]:
+                        - generic [ref=e493]:
+                          - text: "2020"
+                          - generic [ref=e494]: (26)
+                        - progressbar [ref=e495]
+                - generic [ref=e499]:
+                  - heading "Funding" [level=2] [ref=e501]
+                  - generic [ref=e505]:
+                    - generic [ref=e506]: Current Stage
+                    - text: Growth Stage
+                - generic [ref=e507]:
+                  - heading "Leadership Team" [level=2] [ref=e509]
+                  - generic [ref=e510]:
+                    - generic [ref=e512] [cursor=pointer]:
+                      - img "leader-logo" [ref=e514]
+                      - generic [ref=e515]:
+                        - generic [ref=e516]: Joe Cabrera
+                        - generic [ref=e517]: Partner
+                      - link "linkedin" [ref=e518]:
+                        - /url: https://www.linkedin.com/in/joe-cabrera-1748a01
+                        - img "linkedin" [ref=e519]
+                    - generic [ref=e521] [cursor=pointer]:
+                      - img "leader-logo" [ref=e523]
+                      - generic [ref=e524]:
+                        - generic [ref=e525]: Tony Raimo
+                        - generic [ref=e526]: Partner
+                      - link "linkedin" [ref=e527]:
+                        - /url: https://www.linkedin.com/in/tony-raimo-5960495
+                        - img "linkedin" [ref=e528]
+                - generic [ref=e529]:
+                  - heading "Recent News" [level=2] [ref=e531]
+                  - generic [ref=e532]:
+                    - generic [ref=e534]:
+                      - generic [ref=e535]:
+                        - generic [ref=e536]: mint
+                        - 'link "Rashi Peripherals IPO: GMP reflects decent debut of shares ahead of listing date" [ref=e538] [cursor=pointer]':
+                          - /url: https://www.livemint.com/market/ipo/rashi-peripherals-ipo-gmp-reflects-decent-debut-of-shares-ahead-of-listing-date-11707816172655.html
+                          - generic [ref=e539]: "Rashi Peripherals IPO: GMP reflects decent debut of shares ahead of listing date"
+                      - generic [ref=e540]: 2024-02-13
+                    - generic [ref=e542]:
+                      - generic [ref=e543]:
+                        - generic [ref=e544]: MarTech Cube
+                        - link "Digital CX partnership delivers AI-Powered Results for Enterprises" [ref=e546] [cursor=pointer]:
+                          - /url: https://www.martechcube.com/digital-cx-partnership-delivers-ai-powered-results-for-enterprises/
+                          - generic [ref=e547]: Digital CX partnership delivers AI-Powered Results for Enterprises
+                      - generic [ref=e548]: 2023-12-22
+                - generic [ref=e550]: Company data provided by crunchbase
+          - generic [ref=e556]:
+            - generic [ref=e558]: AI Tools
+            - generic [ref=e559]:
+              - generic [ref=e562] [cursor=pointer]:
+                - paragraph [ref=e563]: Customize Your Resume
+                - paragraph [ref=e564]: Maximize your interview chances
+              - generic [ref=e567] [cursor=pointer]:
+                - paragraph [ref=e568]: Build Cover Letter
+                - paragraph [ref=e569]: Make your application stand out
+              - generic [ref=e572] [cursor=pointer]:
+                - paragraph [ref=e573]: Analyze How Well You Fit
+                - paragraph [ref=e574]: Understand your strength & weakness
+      - generic "Open Orion" [ref=e576] [cursor=pointer]:
+        - img [ref=e578]
+  - alert [ref=e614]

@@ -256,7 +256,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     <TextField
                       placeholder="__"
                       size="small"
-                      type="number"
+                      type="number" onWheel={(e) => e.target.blur()}
                       inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
                       sx={{
                         width: '76px',
@@ -297,7 +297,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                     <TextField
                       placeholder="__"
                       size="small"
-                      type="number"
+                      type="number" onWheel={(e) => e.target.blur()}
                       inputProps={{ min: 0, style: { textAlign: 'center', width: '60px' } }}
                       sx={{
                         width: '76px',
