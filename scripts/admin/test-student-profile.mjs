@@ -104,20 +104,16 @@ async function run() {
     process.exit(1);
   }
 
-  // 2. Get dimensions
-  const dimSnap = await db.collection("config").doc(`profile_dimensions_${programId}`).get();
-  const dimensions = dimSnap.exists ? dimSnap.data().dimensions : PROGRAM_DIMENSIONS[programId];
-  console.log(`Dimensions: ${dimensions.length} (${dimensions.map((d) => d.key).join(", ")})\n`);
-
-  // 3. Get prompt
-  const promptSnap = await db.collection("ai_prompts").doc(`profile_${programId}`).get();
-  if (!promptSnap.exists) {
-    console.error(`Profile prompt not found: ai_prompts/profile_${programId}`);
-    console.error("Run: node scripts/admin/seed-profile-prompts.mjs");
+  // 2. Get config doc (prompt + dimensions + model config) from config/ collection
+  const configSnap = await db.collection("config").doc(`profile_${programId}`).get();
+  if (!configSnap.exists) {
+    console.error(`Profile config not found: config/profile_${programId}`);
     process.exit(1);
   }
-  const promptData = promptSnap.data();
-  const systemPrompt = promptData.staticSystemPrompt + (promptData.dynamicSystemPrompt || "");
+  const configData = configSnap.data();
+  const dimensions = configData.dimensions?.length ? configData.dimensions : PROGRAM_DIMENSIONS[programId];
+  const systemPrompt = configData.staticSystemPrompt + (configData.dynamicSystemPrompt || "");
+  console.log(`Dimensions: ${dimensions.length} (${dimensions.map((d) => d.key).join(", ")})\n`);
 
   // 4. Fetch observations
   const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
@@ -178,7 +174,10 @@ async function run() {
     JSON.stringify(formatted),
   ].join("\n");
 
-  console.log(`\nCalling ${PROFILE_DEFAULTS.model}...`);
+  const model = configData.model || PROFILE_DEFAULTS.model;
+  const temperature = configData.temperature ?? PROFILE_DEFAULTS.temperature;
+  const maxTokens = configData.max_tokens || PROFILE_DEFAULTS.max_tokens;
+  console.log(`\nCalling ${model}...`);
   const startTime = Date.now();
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -188,13 +187,13 @@ async function run() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: PROFILE_DEFAULTS.model,
+      model,
       messages: [
         { role: "system", content: fullSystem },
         { role: "user", content: userContent },
       ],
-      temperature: PROFILE_DEFAULTS.temperature,
-      max_completion_tokens: PROFILE_DEFAULTS.max_tokens,
+      temperature,
+      max_completion_tokens: maxTokens,
       response_format: { type: "json_object" },
     }),
   });
