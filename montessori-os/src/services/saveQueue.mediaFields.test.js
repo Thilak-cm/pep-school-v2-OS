@@ -1,12 +1,8 @@
 /**
- * Tests for PEP-43: copied + handwritten fields on media doc payloads.
+ * Tests for media doc payload fields (PEP-131 — two-step pipeline).
  *
- * These tests verify that deriveMediaPayload correctly includes the new
- * per-image boolean fields in the Firestore document data.
- *
- * Since deriveMediaPayload is tightly coupled to Firebase (setDoc, getDoc,
- * storage upload), we test the doc-building logic by extracting the payload
- * construction into a pure helper: buildMediaDocData.
+ * These tests verify that buildMediaDocData correctly includes
+ * classification and handwriting analysis fields in the Firestore document data.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -77,53 +73,62 @@ test('buildMediaDocData does not include copied/handwritten for PDFs', () => {
   assert.equal(doc.handwritten, undefined, 'PDFs should not have handwritten field');
 });
 
-test('buildMediaDocData includes photoAnalysis when payload has it (PEP-32)', () => {
-  const analysis = {
+test('buildMediaDocData includes flat classification fields for photos (PEP-131)', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'photo',
     handwritten: true,
-    contentCategory: 'student_work',
-    description: 'Cursive writing practice',
-    materialsIdentified: ['lined paper'],
     curriculumArea: 'Language',
-    curriculumSubArea: 'Writing - Cursive',
-    developmentalNotes: 'Good letter formation',
-    writingAnalysis: { handwriting: { rating: 3, note: 'Consistent' } },
-    teacherEdited: false,
-  };
-  const doc = buildMediaDocData({
-    studentId: 'stu1',
-    classroomId: 'cls1',
-    mediaKind: 'photo',
-    photoAnalysis: analysis,
+    description: 'Cursive writing practice',
+    handwritingAnalysis: {
+      developmentalNotes: 'Good letter formation',
+      handwriting: { rating: 3, note: 'Consistent' },
+      spelling: { rating: null, note: 'N/A' },
+      vocabulary: { rating: null, note: 'N/A' },
+      structure: { rating: null, note: 'N/A' },
+      punctuation: { rating: null, note: 'N/A' },
+    },
     source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
     createdBy: 'uid1',
   }, 'media_1', 'students/stu1/media/media_1/original.webp');
 
-  assert.deepEqual(doc.photoAnalysis, analysis, 'photoAnalysis should be persisted');
-  assert.equal(doc.handwritten, true, 'handwritten backward compat derived from photoAnalysis');
+  assert.equal(doc.handwritten, true);
+  assert.equal(doc.curriculumArea, 'Language');
+  assert.equal(doc.description, 'Cursive writing practice');
+  assert.equal(doc.handwritingAnalysis.developmentalNotes, 'Good letter formation');
+  assert.equal(doc.handwritingAnalysis.handwriting.rating, 3);
 });
 
-test('buildMediaDocData omits photoAnalysis when payload lacks it', () => {
+test('buildMediaDocData omits handwritingAnalysis when payload lacks it', () => {
   const doc = buildMediaDocData({
     studentId: 'stu1',
     classroomId: 'cls1',
     mediaKind: 'photo',
+    handwritten: false,
+    curriculumArea: 'Mathematics',
+    description: 'Bead work',
     source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
     createdBy: 'uid1',
   }, 'media_1', 'students/stu1/media/media_1/original.webp');
 
-  assert.equal(doc.photoAnalysis, undefined, 'no photoAnalysis when not in payload');
+  assert.equal(doc.handwritingAnalysis, undefined);
+  assert.equal(doc.curriculumArea, 'Mathematics');
+  assert.equal(doc.description, 'Bead work');
 });
 
-test('buildMediaDocData does not include photoAnalysis for PDFs', () => {
+test('buildMediaDocData does not include photo fields for PDFs', () => {
   const doc = buildMediaDocData({
     studentId: 'stu1',
     classroomId: 'cls1',
     mediaKind: 'pdf',
-    photoAnalysis: { handwritten: false, contentCategory: 'other' },
+    handwritingAnalysis: { developmentalNotes: 'test' },
+    curriculumArea: 'Language',
     source: { contentType: 'application/pdf', size: 2048, extension: 'pdf' },
     createdBy: 'uid1',
     pdfTitle: 'My PDF',
   }, 'media_1', 'students/stu1/media/media_1/original.pdf');
 
-  assert.equal(doc.photoAnalysis, undefined, 'PDFs should not have photoAnalysis');
+  assert.equal(doc.handwritingAnalysis, undefined, 'PDFs should not have handwritingAnalysis');
+  assert.equal(doc.curriculumArea, undefined, 'PDFs should not have curriculumArea');
 });
