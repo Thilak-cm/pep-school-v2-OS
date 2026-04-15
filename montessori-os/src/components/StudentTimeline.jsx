@@ -1201,7 +1201,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                   }}
                                 >
                                   <Box
-                                    onClick={() => openMediaItemPreview(item)}
+                                    onClick={(e) => { e.stopPropagation(); openMediaItemPreview(item); }}
                                     role="button"
                                     tabIndex={0}
                                     onKeyDown={(e) => {
