@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-14T19:25:34.419Z
-App version: 10.5.0
+Generated: 2026-04-15T00:41:29.113Z
+App version: 10.7.0
 
 ## App Snapshot
 
@@ -114,9 +114,8 @@ App version: 10.5.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `ai_prompts`, `placements`, `chats`, `messages`, `history`, `profile`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `profile`
 - Rule-declared paths:
-- `/ai_prompts/{docId}`
 - `/ai_summaries/{summaryId}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
@@ -124,6 +123,7 @@ App version: 10.5.0
 - `/config/{docId}`
 - `/feedback/{feedbackId}`
 - `/history/{historyId}`
+- `/interviews/{interviewId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
 - `/observations/{observationId}`
@@ -138,23 +138,22 @@ App version: 10.5.0
 
 ## Recent Changes
 
+### 10.7.0 (2026-04-15)
+- Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
+- Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
+- Interview helper tests (6 tests) and security rule specs (2 specs) for interview transcript access control (PEP-142)
+
+### 10.6.0 (2026-04-14)
+- Interview question generation prototype — standalone script reads student profile dimensions and baseball card from Firestore, calls OpenAI to generate 7 targeted MCQ/open-ended interview questions with coverage report (PEP-140)
+- Null guard on OpenAI response content to prevent confusing errors on unexpected API response shapes (PEP-140)
+
+### 10.5.1 (2026-04-14)
+- Consolidated all `ai_prompts` docs into `config` collection — each AI feature now has a single config doc with prompts, model, temperature, and operational params (PEP-139)
+- Dynamic model selection dropdowns added to Coach, Text Cleanup, and Baseball Card editors (PEP-139)
+- Cloud Functions read model/temperature from Firestore config docs with fallback to hardcoded constants (PEP-139)
+
 ### 10.5.0 (2026-04-13)
 - Rich AI photo analysis — photos of student work are automatically analyzed by VLM returning curriculum area, handwritten detection, AI-generated description, materials identified, and developmental notes (PEP-32)
 - Cloud Function `analyzePhotoVLM` with structured JSON output, student age context, and Firestore-managed prompt with hardcoded fallback (PEP-32)
 - Photo card UI redesign — 4:3 aspect ratio, overlay pill toggle for Own work/Copied, curriculum and handwritten chips, editable AI description (PEP-32)
-
-### 10.4.0 (2026-04-07)
-- Report-generated markers on student timelines — compact card showing report icon, date, generator name, and note count; tapping opens ReportPreviewDialog (PEP-82)
-- Grouped report markers on classroom timelines — reports grouped by calendar date with expandable student dropdown, each opening the student's report preview (PEP-82)
-- Cloud Function `writeReportDoc` now enriches report docs with `studentId`, `classroomId`, and `kind: 'report'` fields for timeline queries (PEP-82)
-
-### 10.3.0 (2026-04-04)
-- Report readiness checker: standalone Cloud Function `checkReportReadiness` evaluates observation quality before report generation, giving teachers visibility into data gaps (PEP-68)
-- Per-program readiness evaluator prompts for adolescent, elementary, primary, and toddler programs with domain-specific scoring rubrics (PEP-68)
-- Readiness results cached at `students/{studentId}/ai_summaries/report_readiness` with staleness tracking (PEP-68)
-
-### 10.2.0 (2026-03-30)
-- "Context Window" editor UI for report prompts — split system prompt into static and dynamic sections with accordion layout, line counts, and collapsed previews (PEP-105)
-- Version history with revert support for report prompt fields, following the existing AI tool editor pattern (PEP-105)
-- User Message section showing auto-injected student context and observations info blocks (PEP-105)
 
