@@ -44,8 +44,13 @@ import {
   KeyboardArrowDown
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField, startAfter } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
+import { ref, getDownloadURL } from 'firebase/storage';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
+import {
+  planMissingMediaUrlPaths,
+  fetchMediaUrlsWithConcurrency,
+} from '../utils/mediaUrlBatching';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
@@ -152,6 +157,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const [showSearch, setShowSearch] = useState(false);
   const [classroomReports, setClassroomReports] = useState([]);
   const [classroomMediaDocs, setClassroomMediaDocs] = useState([]);
+  const [mediaUrls, setMediaUrls] = useState({});
+  const mediaUrlsRef = useRef({});
+  const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
   const searchInputRef = useRef(null);
@@ -455,6 +463,42 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       }
     };
   }, [classroom, hasClassroomAccess, scopedClassroomsKey, notesReloadToken]);
+
+  // Fetch media URLs for classroom media docs (PEP-33)
+  useEffect(() => {
+    const readyPaths = [];
+    classroomMediaDocs.forEach((doc) => {
+      if (doc.status !== 'ready' || !Array.isArray(doc.media)) return;
+      doc.media.forEach((entry) => {
+        const path = entry?.storagePath;
+        if (path) readyPaths.push(path);
+      });
+    });
+    const missing = planMissingMediaUrlPaths(readyPaths, {
+      mediaUrls: mediaUrlsRef.current,
+      inFlightPaths: mediaUrlInFlightRef.current,
+    });
+    if (missing.length === 0) return;
+    missing.forEach((p) => mediaUrlInFlightRef.current.add(p));
+    fetchMediaUrlsWithConcurrency(
+      missing,
+      async (path) => getDownloadURL(ref(storage, path)),
+      {
+        concurrency: 6,
+        onSuccess: ({ path, url }) => {
+          setMediaUrls((prev) => {
+            if (prev[path] === url) return prev;
+            const next = { ...prev, [path]: url };
+            mediaUrlsRef.current = next;
+            return next;
+          });
+        },
+        onError: ({ path }) => {
+          mediaUrlInFlightRef.current.delete(path);
+        },
+      },
+    );
+  }, [classroomMediaDocs]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -860,6 +904,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           if (student) onNavigateToStudent(student);
         }}
         onNoteClick={() => handleNoteClick(item)}
+        mediaUrls={mediaUrls}
       />
     );
   };
@@ -1953,7 +1998,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
 }
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
-function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick }) {
+function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick, mediaUrls = {} }) {
   const noteTypeInfo = {
     type: getObservationTypeText(note.type),
     icon: getObservationTypeIcon(note.type)
@@ -2058,6 +2103,20 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                 )}
               </Box>
             )}
+            {/* Media thumbnail */}
+            {(() => {
+              const path = note.media?.[0]?.storagePath;
+              const url = path ? mediaUrls[path] : null;
+              if (!url) return null;
+              return (
+                <Box
+                  component="img"
+                  src={url}
+                  alt="Media"
+                  sx={{ mt: 1, width: 140, height: 105, objectFit: 'cover', borderRadius: 1.5, display: 'block' }}
+                />
+              );
+            })()}
           </Box>
         ) : (
           <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
