@@ -374,85 +374,90 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
     // Fetch data sequentially: students first, then notes (to avoid duplicate queries)
     (async () => {
-      // Clean up any existing listener
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-      
-      const students = await fetchStudents();
-      const studentIds = students.map(s => s.id);
-      fetchTeachers(); // Teachers can load in parallel
+      try {
+        // Clean up any existing listener
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
 
-      // Fetch notes, media docs, and reports in parallel, then mark loading done
-      const batchSize = 10;
-      const [notesUnsub] = await Promise.all([
-        fetchNotes(studentIds),
-        // Fetch media docs for all students in classroom
-        (async () => {
-          try {
-            const mediaQueries = [];
-            for (let i = 0; i < studentIds.length; i += batchSize) {
-              const batch = studentIds.slice(i, i + batchSize);
-              mediaQueries.push(
-                query(
-                  collectionGroup(db, 'media'),
-                  where('studentId', 'in', batch),
-                  orderBy('observedAt', 'desc'),
-                  limit(100)
-                )
-              );
-            }
-            const mediaSnapshots = await Promise.all(mediaQueries.map(q => getDocs(q)));
-            const allMedia = [];
-            mediaSnapshots.forEach((snap) => {
-              snap.docs.forEach((d) => {
-                allMedia.push({
-                  id: d.id,
-                  parentStudentId: d.ref.parent?.parent?.id,
-                  docPath: d.ref.path,
-                  ...d.data(),
+        const students = await fetchStudents();
+        const studentIds = students.map(s => s.id);
+        fetchTeachers(); // Teachers can load in parallel
+
+        // Fetch notes, media docs, and reports in parallel, then mark loading done
+        const batchSize = 10;
+        const [notesUnsub] = await Promise.all([
+          fetchNotes(studentIds),
+          // Fetch media docs for all students in classroom
+          (async () => {
+            try {
+              const mediaQueries = [];
+              for (let i = 0; i < studentIds.length; i += batchSize) {
+                const batch = studentIds.slice(i, i + batchSize);
+                mediaQueries.push(
+                  query(
+                    collectionGroup(db, 'media'),
+                    where('studentId', 'in', batch),
+                    orderBy('observedAt', 'desc'),
+                    limit(100)
+                  )
+                );
+              }
+              const mediaSnapshots = await Promise.all(mediaQueries.map(q => getDocs(q)));
+              const allMedia = [];
+              mediaSnapshots.forEach((snap) => {
+                snap.docs.forEach((d) => {
+                  allMedia.push({
+                    id: d.id,
+                    parentStudentId: d.ref.parent?.parent?.id,
+                    docPath: d.ref.path,
+                    ...d.data(),
+                  });
                 });
               });
-            });
-            setClassroomMediaDocs(allMedia);
-          } catch {
-            setClassroomMediaDocs([]);
-          }
-        })(),
-        // Fetch reports for all students in classroom
-        Promise.all(
-          students.map(async (s) => {
-            try {
-              const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
-              return snap.docs
-                .filter((d) => /^report_\d/.test(d.id))
-                .map((d) => {
-                  const data = d.data();
-                  return {
-                    id: d.id,
-                    studentId: s.id,
-                    studentName: s.displayName || s.firstName || 'Unknown Student',
-                    generatedAt: data.generatedAt || null,
-                    generatedByName: data.generatedByName || null,
-                    noteCount: data.noteCount || 0,
-                    reportText: data.reportText || '',
-                    missingInputFlags: data.missingInputFlags || [],
-                    driveDocLink: data.driveDocLink || null,
-                    status: data.status || 'ok',
-                  };
-                })
-                .filter((r) => r.status === 'ok');
+              setClassroomMediaDocs(allMedia);
             } catch {
-              return [];
+              setClassroomMediaDocs([]);
             }
-          })
-        ).then((results) => {
-          setClassroomReports(results.flat());
-        }),
-      ]);
-      unsubscribeRef.current = notesUnsub;
-      setLoading(false);
+          })(),
+          // Fetch reports for all students in classroom
+          Promise.all(
+            students.map(async (s) => {
+              try {
+                const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
+                return snap.docs
+                  .filter((d) => /^report_\d/.test(d.id))
+                  .map((d) => {
+                    const data = d.data();
+                    return {
+                      id: d.id,
+                      studentId: s.id,
+                      studentName: s.displayName || s.firstName || 'Unknown Student',
+                      generatedAt: data.generatedAt || null,
+                      generatedByName: data.generatedByName || null,
+                      noteCount: data.noteCount || 0,
+                      reportText: data.reportText || '',
+                      missingInputFlags: data.missingInputFlags || [],
+                      driveDocLink: data.driveDocLink || null,
+                      status: data.status || 'ok',
+                    };
+                  })
+                  .filter((r) => r.status === 'ok');
+              } catch {
+                return [];
+              }
+            })
+          ).then((results) => {
+            setClassroomReports(results.flat());
+          }),
+        ]);
+        unsubscribeRef.current = notesUnsub;
+      } catch (err) {
+        reportCaughtError(err, 'ClassroomTimeline', 'data fetch IIFE');
+      } finally {
+        setLoading(false);
+      }
     })();
 
     // Cleanup function
@@ -671,12 +676,12 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   // Derive unique curriculum areas for FilterPanel (PEP-33)
   const availableCurriculumAreas = useMemo(() => {
     const areas = new Set();
-    filteredNotes.forEach(note => {
+    classroomMediaDocs.forEach(note => {
       const area = note.photoAnalysis?.curriculumArea;
       if (area) areas.add(area);
     });
     return [...areas].sort();
-  }, [filteredNotes]);
+  }, [classroomMediaDocs]);
 
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {

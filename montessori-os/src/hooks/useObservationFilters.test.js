@@ -19,7 +19,7 @@ function applyFiltersWithCurriculum(observations, filters) {
       // Only apply to media observations with photoAnalysis
       if (obs.type !== 'media') return true;
       const area = obs.photoAnalysis?.curriculumArea;
-      if (!area) return false; // media without curriculum area is excluded when filter is active
+      if (!area) return true; // pass through media without analysis (PDFs, videos, older photos)
       return selectedAreas.has(area);
     });
   }
@@ -43,15 +43,15 @@ describe('curriculum area filter logic', () => {
     assert.equal(result.length, obs.length);
   });
 
-  test('filters media by selected curriculum area', () => {
+  test('filters media by selected curriculum area, keeps unanalyzed media', () => {
     const result = applyFiltersWithCurriculum(obs, { curriculumAreas: ['Mathematics'] });
-    assert.equal(result.length, 4); // 2 math media + text + voice (non-media pass through)
-    assert.ok(result.every(o => o.type !== 'media' || o.photoAnalysis?.curriculumArea === 'Mathematics'));
+    assert.equal(result.length, 6); // 2 math media + text + voice + 2 unanalyzed media (pass through)
+    assert.ok(result.every(o => o.type !== 'media' || !o.photoAnalysis?.curriculumArea || o.photoAnalysis.curriculumArea === 'Mathematics'));
   });
 
   test('multiple curriculum areas selected', () => {
     const result = applyFiltersWithCurriculum(obs, { curriculumAreas: ['Mathematics', 'Language'] });
-    assert.equal(result.length, 5); // 2 math + 1 language + text + voice
+    assert.equal(result.length, 7); // 2 math + 1 language + text + voice + 2 unanalyzed
   });
 
   test('non-media observations always pass through', () => {
@@ -60,14 +60,14 @@ describe('curriculum area filter logic', () => {
     assert.equal(nonMedia.length, 2); // text + voice
   });
 
-  test('media without photoAnalysis excluded when filter active', () => {
+  test('media without photoAnalysis passes through when filter active', () => {
     const result = applyFiltersWithCurriculum(obs, { curriculumAreas: ['Mathematics'] });
-    assert.ok(!result.find(o => o.id === '4')); // no analysis
-    assert.ok(!result.find(o => o.id === '5')); // null curriculumArea
+    assert.ok(result.find(o => o.id === '4')); // no analysis — passes through
+    assert.ok(result.find(o => o.id === '5')); // null curriculumArea — passes through
   });
 
-  test('media with null curriculumArea excluded when filter active', () => {
+  test('media with null curriculumArea passes through when filter active', () => {
     const result = applyFiltersWithCurriculum(obs, { curriculumAreas: ['Language'] });
-    assert.ok(!result.find(o => o.id === '5'));
+    assert.ok(result.find(o => o.id === '5'));
   });
 });

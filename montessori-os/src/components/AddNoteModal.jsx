@@ -1350,7 +1350,7 @@ function AddNoteModal({
         }
       }
     } catch (err) {
-      console.warn('[runPhotoAnalysis] Could not fetch student context', err?.message);
+      reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis student context fetch');
     }
 
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');

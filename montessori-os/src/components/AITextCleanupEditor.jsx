@@ -11,6 +11,7 @@ import { forceRefreshKey } from '../services/promptProvider';
 import { cleanUpText, CLEANUP_MODEL_INFO } from '../textCleanup';
 import { AVAILABLE_MODELS } from '../../../scripts/config/modelConstants';
 import { isSuperAdmin } from '../utils/roleUtils';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 const MAX_HISTORY = 5;
 
@@ -133,7 +134,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
       if (snap.exists()) setDocState({ id: snap.id, ...(snap.data() || {}) });
       setEditing(false);
     } catch (err) {
-      console.error('[AITextCleanupEditor] save failed:', err);
+      reportCaughtError(err, 'AITextCleanupEditor', 'save failed');
       setError('Failed to save');
     } finally {
       setSaving(false);

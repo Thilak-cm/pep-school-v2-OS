@@ -1091,6 +1091,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       observedAt: item?.observedAt || sourceObservation?.observedAt,
                       timestamp: item?.timestamp || sourceObservation?.timestamp,
                       teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
+                      photoAnalysis: sourceObservation.photoAnalysis ?? obs.photoAnalysis,
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
                     url: url || null,
