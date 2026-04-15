@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.8.0 — 2026-04-15
+
+### Changed
+- Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)
+- Flat media doc schema replaces nested `photoAnalysis` object with top-level `handwritten`, `curriculumArea`, `description`, and `handwritingAnalysis` fields (PEP-131)
+- Student timeline lightbox now displays per-dimension handwriting scores (1-5) with notes alongside developmental observations (PEP-131)
+
+### Fixed
+- VLM JSON parse errors now throw descriptive `HttpsError` instead of raw `SyntaxError` (PEP-131)
+
 # 10.7.0 — 2026-04-15
 
 ### Added
