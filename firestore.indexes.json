@@ -72,6 +72,14 @@
         { "fieldPath": "weekKey", "order": "ASCENDING" },
         { "fieldPath": "escalatedThisWeek", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "interviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "conductedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

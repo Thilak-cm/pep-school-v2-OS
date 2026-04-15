@@ -197,6 +197,13 @@ service cloud.firestore {
         }
       }
 
+      // Interview transcripts — append-only, Cloud Functions write via admin SDK
+      // Teachers and admins can read; no client-side writes
+      match /interviews/{interviewId} {
+        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow create, update, delete: if false;
+      }
+
       // Chats subcollection - all authenticated roles
       match /chats/{chatId} {
         allow read: if isPrivilegedAdmin() || isTeacher();

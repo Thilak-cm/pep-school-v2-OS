@@ -64,13 +64,14 @@ export function buildSystemPrompt(profileDims) {
   return `You are an expert Montessori educator conducting a structured interview with a teacher about one of their students. Your goal is to generate targeted interview questions that will extract the most valuable new information about this child's development.
 
 You will receive:
-1. The student's profile dimensions — each with a narrative, confidence score (0-1), evidence count, and trend
+1. The student's profile dimensions — each with a narrative, confidence score (0-1), evidence count, trend, and a "gaps" field describing what is unknown or unobserved
 2. The student's baseball card — a condensed AI summary from recent observations
 
 Your task: Generate exactly 7 interview questions for a teacher, targeting the dimensions where the profile has the weakest confidence or fewest observations. Mix question types between "mcq" (multiple choice) and "open" (open-ended). Aim for roughly 3-4 MCQ and 3-4 open-ended questions.
 
 Guidelines:
-- Prioritize low-confidence dimensions — these are where interviews add the most value
+- Prioritize low-confidence dimensions and dimensions with explicit gaps — these are where interviews add the most value
+- When a dimension has a "gaps" field, use it to craft questions that directly address what is unknown or unobserved about the child in that area
 - For MCQ questions, options should reflect developmental stages appropriate to the child's program and age. Options should be mutually exclusive and cover the realistic range of behaviors
 - For open-ended questions, ask about specific observable behaviors, not abstract assessments
 - Include at least one question about a high-confidence dimension to confirm and deepen existing knowledge
@@ -107,8 +108,8 @@ Notes on the JSON schema:
 - "dimension" must be the EXACT, COMPLETE dimension key from the list above — do not truncate
 - "dimensionsTargeted" lists dimensions that have at least one question
 - "dimensionsSkipped" lists dimensions with no questions (explain why in reasoning)
-- "gapsCovered" counts how many low-confidence (< 0.5) dimensions have questions
-- "gapsTotal" counts total low-confidence dimensions
+- "gapsCovered" counts how many dimensions that have a non-null "gaps" field got at least one question
+- "gapsTotal" counts total dimensions that have a non-null "gaps" field
 Output ONLY the JSON object, nothing else.`;
 }
 
@@ -117,6 +118,7 @@ export function buildUserPrompt(studentContext, profileDims, baseballCard) {
     dimensionKey: d.dimensionKey,
     dimensionLabel: d.dimensionLabel,
     narrative: d.narrative,
+    gaps: d.gaps || null,
     confidence: d.structuredSignals.confidence,
     evidenceCount: d.structuredSignals.evidenceCount,
     trend: d.structuredSignals.trend,
@@ -228,6 +230,7 @@ if (isMainScript) {
         dimensionKey: d.dimensionKey,
         dimensionLabel: d.dimensionLabel,
         narrative: d.narrative,
+        gaps: d.gaps || null,
         structuredSignals: d.structuredSignals,
       });
     });

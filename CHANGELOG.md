@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.7.0 — 2026-04-15
+
+### Added
+- Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
+- Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
+- Interview helper tests (6 tests) and security rule specs (2 specs) for interview transcript access control (PEP-142)
+
+### Changed
+- Question generation script updated to use profile gaps field for targeted interview question selection (PEP-142)
+
 # 10.6.0 — 2026-04-14
 
 ### Added

@@ -184,6 +184,26 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // INTERVIEW TRANSCRIPTS ACCESS CONTROL (Firestore) - Append-only, CF writes, teacher read
+  // ============================================================================
+
+  {
+    name: 'Interview transcripts read allowed for admins and teachers',
+    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Interview transcripts are append-only — no client writes',
+    description: 'allow create, update, delete: if false',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+false/,
+  },
+
+  // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================
 

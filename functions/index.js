@@ -7,8 +7,9 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
-import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, SOURCE_OBSERVATION } from "./config/profileConstants.js";
+import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, SOURCE_INTERVIEW, SOURCE_OBSERVATION } from "./config/profileConstants.js";
 import { parseProfileResponse } from "./utils/profileHelpers.js";
+import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { MINI_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
@@ -1652,6 +1653,24 @@ async function fetchStudentNotesForWindow(studentId, windowDays) {
   });
 
   return notes;
+}
+
+async function fetchStudentInterviews(studentId, windowDays) {
+  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const interviewsRef = db.collection("students").doc(studentId).collection("interviews");
+
+  try {
+    const snap = await interviewsRef
+      .where("status", "==", "completed")
+      .where("conductedAt", ">=", cutoff)
+      .orderBy("conductedAt", "desc")
+      .get();
+
+    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.warn(`[profile] interview fetch failed for ${studentId}:`, err);
+    return [];
+  }
 }
 
 function formatDobForContext(dobValue) {
@@ -4530,18 +4549,29 @@ Each value must be an object with exactly: { "narrative": string, "confidence": 
 - "gaps": a plain-text description of what is unknown, uncertain, or unobserved about this child in this dimension. Describe specific missing observations or blind spots (e.g., "No observations of independent reading. Social interactions only observed in group settings."). Use an empty string "" if the dimension is well-covered with no obvious gaps.
 Output ONLY the JSON object, nothing else.`;
 
-async function callProfileGeneration(notes, profileConfig, studentContext, openAiKey) {
+async function callProfileGeneration(notes, profileConfig, studentContext, openAiKey, interviews = []) {
   const dimBlock = profileConfig.dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
   const systemContent = profileConfig.systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + PROFILE_JSON_WRAPPER;
 
-  const userContent = [
+  const contentParts = [
     "Generate a student profile from the following observations.",
     "",
     `Student: ${JSON.stringify(studentContext)}`,
     "",
     `Observations (${notes.length} notes, JSON array):`,
     JSON.stringify(notes),
-  ].join("\n");
+  ];
+
+  if (interviews.length > 0) {
+    contentParts.push(
+      "",
+      `Interview transcripts (${interviews.length} sessions, JSON array):`,
+      "These are structured teacher interview responses — dimension-targeted questions with MCQ selections and open-ended answers. Treat these as high-signal evidence alongside observations.",
+      JSON.stringify(interviews),
+    );
+  }
+
+  const userContent = contentParts.join("\n");
 
   const body = buildChatBody({
     model: profileConfig.model,
@@ -4676,10 +4706,13 @@ export const generateStudentProfile = functions
 
     // Default to 365-day observation window; pass windowDays to override
     const windowDays = data?.windowDays || 365;
-    const notes = await fetchStudentNotesForWindow(studentId, windowDays);
+    const [notes, rawInterviews] = await Promise.all([
+      fetchStudentNotesForWindow(studentId, windowDays),
+      fetchStudentInterviews(studentId, windowDays),
+    ]);
 
-    if (!notes.length) {
-      console.log(`[profile] No observations for ${studentId}, writing empty profile`);
+    if (!notes.length && !rawInterviews.length) {
+      console.log(`[profile] No observations or interviews for ${studentId}, writing empty profile`);
       const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
       await writeProfileDimensions(studentId, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
       return {
@@ -4688,21 +4721,27 @@ export const generateStudentProfile = functions
         programId: studentInfo.programId,
         dimensionCount: profileConfig.dimensions.length,
         noteCount: 0,
+        interviewCount: 0,
       };
     }
 
     const formatted = notes.map(formatObservationForPrompt);
+    const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+
+    // Determine source type: interview if interviews present, observation otherwise
+    const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_OBSERVATION;
+
     const { parsed } = await callProfileGeneration(formatted, profileConfig, {
       studentName: studentInfo.studentName,
       dob: studentInfo.dob,
       age: studentInfo.age,
       programId: studentInfo.programId,
-    }, openAiKey);
+    }, openAiKey, formattedInterviews);
 
     const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
-    await writeProfileDimensions(studentId, profileEntries, studentInfo.programId, SOURCE_OBSERVATION);
+    await writeProfileDimensions(studentId, profileEntries, studentInfo.programId, sourceType);
 
-    console.log(`[profile] Generated profile for ${studentId}: ${profileEntries.length} dimensions, ${formatted.length} observations`);
+    console.log(`[profile] Generated profile for ${studentId}: ${profileEntries.length} dimensions, ${formatted.length} observations, ${formattedInterviews.length} interviews`);
 
     return {
       status: "ok",
@@ -4710,6 +4749,7 @@ export const generateStudentProfile = functions
       programId: studentInfo.programId,
       dimensionCount: profileEntries.length,
       noteCount: formatted.length,
+      interviewCount: formattedInterviews.length,
       dimensions: profileEntries.map((e) => ({
         key: e.dimensionKey,
         confidence: e.structuredSignals.confidence,
@@ -4796,30 +4836,37 @@ export const backfillStudentProfiles = functions
           continue;
         }
 
-        const notes = await fetchStudentNotesForWindow(student.id, windowDays);
+        const [notes, rawInterviews] = await Promise.all([
+          fetchStudentNotesForWindow(student.id, windowDays),
+          fetchStudentInterviews(student.id, windowDays),
+        ]);
 
-        if (!notes.length) {
+        if (!notes.length && !rawInterviews.length) {
           const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
           await writeProfileDimensions(student.id, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
           succeeded++;
           results.push({ studentId: student.id, status: "no_notes" });
-          console.log(`[backfill] ${student.id}: no notes, wrote empty profile`);
+          console.log(`[backfill] ${student.id}: no notes or interviews, wrote empty profile`);
           continue;
         }
 
         const formatted = notes.map(formatObservationForPrompt);
+        const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+
+        const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_BACKFILL;
+
         const { parsed } = await callProfileGeneration(formatted, profileConfig, {
           studentName: studentInfo.studentName,
           dob: studentInfo.dob,
           age: studentInfo.age,
           programId: studentInfo.programId,
-        }, openAiKey);
+        }, openAiKey, formattedInterviews);
 
         const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
-        await writeProfileDimensions(student.id, profileEntries, studentInfo.programId, SOURCE_BACKFILL);
+        await writeProfileDimensions(student.id, profileEntries, studentInfo.programId, sourceType);
         succeeded++;
-        results.push({ studentId: student.id, status: "ok", noteCount: formatted.length });
-        console.log(`[backfill] ${student.id}: ${profileEntries.length} dimensions, ${formatted.length} notes`);
+        results.push({ studentId: student.id, status: "ok", noteCount: formatted.length, interviewCount: formattedInterviews.length });
+        console.log(`[backfill] ${student.id}: ${profileEntries.length} dimensions, ${formatted.length} notes, ${formattedInterviews.length} interviews`);
       } catch (err) {
         console.error(`[backfill] Failed for ${student.id}:`, err.message);
         errors.push({ studentId: student.id, error: err.message });
