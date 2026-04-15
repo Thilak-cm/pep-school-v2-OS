@@ -44,8 +44,13 @@ import {
   KeyboardArrowDown
 } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField, startAfter } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
+import { ref, getDownloadURL } from 'firebase/storage';
 import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
+import {
+  planMissingMediaUrlPaths,
+  fetchMediaUrlsWithConcurrency,
+} from '../utils/mediaUrlBatching';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
@@ -151,6 +156,10 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [classroomReports, setClassroomReports] = useState([]);
+  const [classroomMediaDocs, setClassroomMediaDocs] = useState([]);
+  const [mediaUrls, setMediaUrls] = useState({});
+  const mediaUrlsRef = useRef({});
+  const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
   const searchInputRef = useRef(null);
@@ -178,6 +187,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       setClassroomNotes([]);
       setClassroomStudents([]);
       setClassroomTeachers([]);
+      setClassroomMediaDocs([]);
       setLoading(false);
       return;
     }
@@ -365,52 +375,90 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
     // Fetch data sequentially: students first, then notes (to avoid duplicate queries)
     (async () => {
-      // Clean up any existing listener
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-      
-      const students = await fetchStudents();
-      const studentIds = students.map(s => s.id);
-      fetchTeachers(); // Teachers can load in parallel
+      try {
+        // Clean up any existing listener
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
 
-      // Fetch notes and reports in parallel, then mark loading done
-      const [notesUnsub] = await Promise.all([
-        fetchNotes(studentIds),
-        // Fetch reports for all students in classroom
-        Promise.all(
-          students.map(async (s) => {
+        const students = await fetchStudents();
+        const studentIds = students.map(s => s.id);
+        fetchTeachers(); // Teachers can load in parallel
+
+        // Fetch notes, media docs, and reports in parallel, then mark loading done
+        const batchSize = 10;
+        const [notesUnsub] = await Promise.all([
+          fetchNotes(studentIds),
+          // Fetch media docs for all students in classroom
+          (async () => {
             try {
-              const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
-              return snap.docs
-                .filter((d) => /^report_\d/.test(d.id))
-                .map((d) => {
-                  const data = d.data();
-                  return {
+              const mediaQueries = [];
+              for (let i = 0; i < studentIds.length; i += batchSize) {
+                const batch = studentIds.slice(i, i + batchSize);
+                mediaQueries.push(
+                  query(
+                    collectionGroup(db, 'media'),
+                    where('studentId', 'in', batch),
+                    orderBy('observedAt', 'desc'),
+                    limit(100)
+                  )
+                );
+              }
+              const mediaSnapshots = await Promise.all(mediaQueries.map(q => getDocs(q)));
+              const allMedia = [];
+              mediaSnapshots.forEach((snap) => {
+                snap.docs.forEach((d) => {
+                  allMedia.push({
                     id: d.id,
-                    studentId: s.id,
-                    studentName: s.displayName || s.firstName || 'Unknown Student',
-                    generatedAt: data.generatedAt || null,
-                    generatedByName: data.generatedByName || null,
-                    noteCount: data.noteCount || 0,
-                    reportText: data.reportText || '',
-                    missingInputFlags: data.missingInputFlags || [],
-                    driveDocLink: data.driveDocLink || null,
-                    status: data.status || 'ok',
-                  };
-                })
-                .filter((r) => r.status === 'ok');
+                    parentStudentId: d.ref.parent?.parent?.id,
+                    docPath: d.ref.path,
+                    ...d.data(),
+                  });
+                });
+              });
+              setClassroomMediaDocs(allMedia);
             } catch {
-              return [];
+              setClassroomMediaDocs([]);
             }
-          })
-        ).then((results) => {
-          setClassroomReports(results.flat());
-        }),
-      ]);
-      unsubscribeRef.current = notesUnsub;
-      setLoading(false);
+          })(),
+          // Fetch reports for all students in classroom
+          Promise.all(
+            students.map(async (s) => {
+              try {
+                const snap = await getDocs(collection(db, 'students', s.id, 'ai_summaries'));
+                return snap.docs
+                  .filter((d) => /^report_\d/.test(d.id))
+                  .map((d) => {
+                    const data = d.data();
+                    return {
+                      id: d.id,
+                      studentId: s.id,
+                      studentName: s.displayName || s.firstName || 'Unknown Student',
+                      generatedAt: data.generatedAt || null,
+                      generatedByName: data.generatedByName || null,
+                      noteCount: data.noteCount || 0,
+                      reportText: data.reportText || '',
+                      missingInputFlags: data.missingInputFlags || [],
+                      driveDocLink: data.driveDocLink || null,
+                      status: data.status || 'ok',
+                    };
+                  })
+                  .filter((r) => r.status === 'ok');
+              } catch {
+                return [];
+              }
+            })
+          ).then((results) => {
+            setClassroomReports(results.flat());
+          }),
+        ]);
+        unsubscribeRef.current = notesUnsub;
+      } catch (err) {
+        reportCaughtError(err, 'ClassroomTimeline', 'data fetch IIFE');
+      } finally {
+        setLoading(false);
+      }
     })();
 
     // Cleanup function
@@ -421,6 +469,42 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       }
     };
   }, [classroom, hasClassroomAccess, scopedClassroomsKey, notesReloadToken]);
+
+  // Fetch media URLs for classroom media docs (PEP-33)
+  useEffect(() => {
+    const readyPaths = [];
+    classroomMediaDocs.forEach((doc) => {
+      if (doc.status !== 'ready' || !Array.isArray(doc.media)) return;
+      doc.media.forEach((entry) => {
+        const path = entry?.storagePath;
+        if (path) readyPaths.push(path);
+      });
+    });
+    const missing = planMissingMediaUrlPaths(readyPaths, {
+      mediaUrls: mediaUrlsRef.current,
+      inFlightPaths: mediaUrlInFlightRef.current,
+    });
+    if (missing.length === 0) return;
+    missing.forEach((p) => mediaUrlInFlightRef.current.add(p));
+    fetchMediaUrlsWithConcurrency(
+      missing,
+      async (path) => getDownloadURL(ref(storage, path)),
+      {
+        concurrency: 6,
+        onSuccess: ({ path, url }) => {
+          setMediaUrls((prev) => {
+            if (prev[path] === url) return prev;
+            const next = { ...prev, [path]: url };
+            mediaUrlsRef.current = next;
+            return next;
+          });
+        },
+        onError: ({ path }) => {
+          mediaUrlInFlightRef.current.delete(path);
+        },
+      },
+    );
+  }, [classroomMediaDocs]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -555,15 +639,28 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
   // Filter notes based on search query (only show notes from students whose names match)
   const filteredNotes = useMemo(() => {
+    // Merge observation notes with media docs, deduplicating by id
+    const seen = new Set();
+    const merged = [...classroomNotes, ...classroomMediaDocs].filter(note => {
+      if (seen.has(note.id)) return false;
+      seen.add(note.id);
+      return true;
+    });
+    merged.sort((a, b) => {
+      const aDate = a.observedAt?.toDate?.() || (a.observedAt?.seconds ? new Date(a.observedAt.seconds * 1000) : new Date(0));
+      const bDate = b.observedAt?.toDate?.() || (b.observedAt?.seconds ? new Date(b.observedAt.seconds * 1000) : new Date(0));
+      return bDate - aDate;
+    });
+
     if (!searchQuery || !searchQuery.trim()) {
-      return classroomNotes;
+      return merged;
     }
-    
+
     const matchingStudentIds = filteredStudents.map(student => student.id);
-    return classroomNotes.filter(note => 
+    return merged.filter(note =>
       matchingStudentIds.includes(note.studentId)
     );
-  }, [classroomNotes, filteredStudents, searchQuery]);
+  }, [classroomNotes, classroomMediaDocs, filteredStudents, searchQuery]);
 
   // Group filtered notes by time periods
   // Apply advanced filters (date, creator, type) on top of search-filtered notes
@@ -576,6 +673,16 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     handleClearFilters,
     toggleFilters
   } = useObservationFilters(filteredNotes);
+
+  // Derive unique curriculum areas for FilterPanel (PEP-33)
+  const availableCurriculumAreas = useMemo(() => {
+    const areas = new Set();
+    classroomMediaDocs.forEach(note => {
+      const area = note.photoAnalysis?.curriculumArea;
+      if (area) areas.add(area);
+    });
+    return [...areas].sort();
+  }, [classroomMediaDocs]);
 
   // Group notes by groupId, then sort
   const groupedAndSortedObservations = useMemo(() => {
@@ -646,19 +753,47 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     return { grouped: filteredGrouped, ungrouped };
   }, [filteredObservations]);
 
-  // All fetched notes — merges grouped & ungrouped by date (pagination is now at the data level)
-  const groupedLimitedNotes = useMemo(() => {
-    const { grouped, ungrouped } = groupedAndSortedObservations;
-    return paginateTimelineItems(grouped, ungrouped, Infinity);
-  }, [groupedAndSortedObservations]);
-
   const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
 
-  const toggleReportGroup = (dateLabel) => {
+  // All fetched notes + report groups — merged chronologically into time buckets
+  const groupedLimitedNotes = useMemo(() => {
+    const { grouped, ungrouped } = groupedAndSortedObservations;
+    const buckets = paginateTimelineItems(grouped, ungrouped, Infinity);
+
+    // Insert report groups into the correct bucket at the right chronological position
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastWeek = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    for (const group of groupedReports) {
+      const reportItem = { ...group, isReportGroup: true };
+      const d = group.date;
+      let bucket;
+      if (d >= todayStart) bucket = buckets.today;
+      else if (d >= lastWeek) bucket = buckets.last7Days;
+      else bucket = buckets.beyond;
+
+      // Insert at correct chronological position (newest first)
+      const idx = bucket.findIndex((item) => {
+        const itemDate = item.isGrouped
+          ? item.earliestObservedAt
+          : item.isReportGroup
+            ? item.date
+            : toDate(item.observedAt || item.timestamp);
+        return d >= itemDate;
+      });
+      if (idx === -1) bucket.push(reportItem);
+      else bucket.splice(idx, 0, reportItem);
+    }
+
+    return buckets;
+  }, [groupedAndSortedObservations, groupedReports]);
+
+  const toggleReportGroup = (groupKey) => {
     setExpandedReportGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(dateLabel)) next.delete(dateLabel);
-      else next.add(dateLabel);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   };
@@ -677,6 +812,107 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const getStudentName = (note) => {
     const student = classroomStudents.find(s => s.id === note.studentId);
     return student?.displayName || student?.firstName || 'Unknown Student';
+  };
+
+  // Render a single timeline item (note, grouped note, or report group)
+  const renderTimelineItem = (item) => {
+    if (item.isReportGroup) {
+      const group = item;
+      const isExpanded = expandedReportGroups.has(group.key);
+      return (
+        <Card
+          key={`report-group-${group.key}`}
+          sx={{
+            borderLeft: '3px solid',
+            borderLeftColor: 'secondary.main',
+            backgroundColor: 'rgba(76, 175, 80, 0.04)',
+            borderRadius: 2,
+          }}
+        >
+          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                {group.dateLabel}
+              </Typography>
+              <Typography
+                variant="caption"
+                color="primary"
+                onClick={() => toggleReportGroup(group.key)}
+                sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
+              >
+                {isExpanded ? 'Hide' : 'See'} students
+                <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              </Typography>
+            </Box>
+            <Collapse in={isExpanded}>
+              <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
+                {group.reports.map((report) => (
+                  <Box
+                    key={`${report.studentId}-${report.id}`}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 0.5,
+                      px: 1,
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="primary"
+                      onClick={() => {
+                        const student = classroomStudents.find(s => s.id === report.studentId);
+                        if (student) onNavigateToStudent(student);
+                      }}
+                      sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      {report.studentName}
+                    </Typography>
+                    <Visibility
+                      onClick={() => setReportPreviewData(report)}
+                      sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Collapse>
+          </CardContent>
+        </Card>
+      );
+    }
+    if (item.isGrouped) {
+      return (
+        <GroupedNoteCard
+          key={item.groupId}
+          groupedNote={item}
+          classroomStudents={classroomStudents}
+          onNoteClick={() => {}}
+          onNavigateToStudent={onNavigateToStudent}
+          lessonTitleById={lessonTitleById}
+        />
+      );
+    }
+    return (
+      <ClassroomNoteCard
+        key={item.id}
+        note={item}
+        studentName={getStudentName(item)}
+        lessonTitleById={lessonTitleById}
+        onStudentClick={() => {
+          const student = classroomStudents.find(s => s.id === item.studentId);
+          if (student) onNavigateToStudent(student);
+        }}
+        onNoteClick={() => handleNoteClick(item)}
+        mediaUrls={mediaUrls}
+      />
+    );
   };
 
   // Handle note click to expand
@@ -824,6 +1060,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
         onToggleFilters={toggleFilters}
+        availableCurriculumAreas={availableCurriculumAreas}
       />
 
       {/* Tabs - Sticky positioned under AppHeader */}
@@ -909,78 +1146,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             </Typography>
           </Box>
 
-          {/* Report Markers */}
-          {groupedReports.length > 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-              {groupedReports.map((group) => {
-                const isExpanded = expandedReportGroups.has(group.dateLabel);
-                return (
-                  <Card
-                    key={`report-group-${group.dateLabel}`}
-                    sx={{
-                      borderLeft: '3px solid',
-                      borderLeftColor: 'secondary.main',
-                      backgroundColor: 'rgba(76, 175, 80, 0.04)',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          {group.dateLabel}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="primary"
-                          onClick={() => toggleReportGroup(group.dateLabel)}
-                          sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
-                        >
-                          {isExpanded ? 'Hide' : 'See'} students
-                          <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-                        </Typography>
-                      </Box>
-                      <Collapse in={isExpanded}>
-                        <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
-                          {group.reports.map((report) => (
-                            <Box
-                              key={`${report.studentId}-${report.id}`}
-                              onClick={() => setReportPreviewData(report)}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                py: 0.5,
-                                px: 1,
-                                borderRadius: 1,
-                                cursor: 'pointer',
-                                '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' },
-                              }}
-                            >
-                              <Typography variant="body2">
-                                {report.studentName}
-                              </Typography>
-                              <Typography variant="caption" color="primary" sx={{ fontWeight: 500 }}>
-                                View
-                              </Typography>
-                            </Box>
-                          ))}
-                        </Box>
-                      </Collapse>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </Box>
-          )}
-
           {/* Notes Timeline */}
-          {filteredObservations.length === 0 ? (
+          {filteredObservations.length === 0 && groupedReports.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
@@ -997,34 +1164,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.today.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.today.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -1037,34 +1177,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.last7Days.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.last7Days.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -1077,34 +1190,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.beyond.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.beyond.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -1918,7 +2004,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
 }
 
 // ClassroomNoteCard component for displaying individual notes in the classroom timeline
-function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick }) {
+function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick, mediaUrls = {} }) {
   const noteTypeInfo = {
     type: getObservationTypeText(note.type),
     icon: getObservationTypeIcon(note.type)
@@ -1992,12 +2078,58 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
         
         {isLesson ? (
           renderLessonSummary(note, !!note.groupDefaults)
+        ) : note.type === 'media' ? (
+          <Box sx={{ mb: 1 }}>
+            {note.text && (
+              <Typography variant="body1" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {note.text}
+              </Typography>
+            )}
+            {note.photoAnalysis?.curriculumArea && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
+                <Chip
+                  label={note.photoAnalysis.curriculumArea}
+                  size="small"
+                  sx={{
+                    bgcolor: '#ecfdf5',
+                    color: '#047857',
+                    fontWeight: 600,
+                    fontSize: '0.68rem',
+                    border: '1px solid #a7f3d0',
+                    height: 20,
+                  }}
+                />
+                {note.photoAnalysis.curriculumSubArea && (
+                  <Chip
+                    label={note.photoAnalysis.curriculumSubArea}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.66rem', height: 20, color: 'text.secondary' }}
+                  />
+                )}
+              </Box>
+            )}
+            {/* Media thumbnail */}
+            {(() => {
+              const path = note.media?.[0]?.storagePath;
+              const url = path ? mediaUrls[path] : null;
+              if (!url) return null;
+              return (
+                <Box
+                  component="img"
+                  src={url}
+                  alt="Media"
+                  sx={{ mt: 1, width: 140, height: 105, objectFit: 'cover', borderRadius: 1.5, display: 'block' }}
+                />
+              );
+            })()}
+          </Box>
         ) : (
           <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {note.text || '(transcribing…)'}
           </Typography>
         )}
-        
+
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />

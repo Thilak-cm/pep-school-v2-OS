@@ -1350,7 +1350,7 @@ function AddNoteModal({
         }
       }
     } catch (err) {
-      console.warn('[runPhotoAnalysis] Could not fetch student context', err?.message);
+      reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis student context fetch');
     }
 
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
@@ -2359,28 +2359,6 @@ function AddNoteModal({
                                     </Box>
                                   </Box>
                                 )}
-                                {/* AI analysis loading indicator — subtle overlay */}
-                                {item.kind === 'photo' && photoAnalysisLoading && !item.photoAnalysis && (
-                                  <Box sx={{
-                                    position: 'absolute',
-                                    bottom: 8,
-                                    right: 8,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 0.5,
-                                    px: 1,
-                                    py: 0.4,
-                                    borderRadius: 2,
-                                    bgcolor: 'rgba(255,255,255,0.92)',
-                                    backdropFilter: 'blur(4px)',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                                  }}>
-                                    <AutoAwesome sx={{ fontSize: 14, color: '#7c3aed', animation: 'pulse 1.5s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 0.4 }, '50%': { opacity: 1 } } }} />
-                                    <Typography sx={{ fontSize: '0.68rem', color: '#7c3aed', fontWeight: 500 }}>
-                                      Analyzing...
-                                    </Typography>
-                                  </Box>
-                                )}
                               </Box>
 
                               {/* Content section */}
@@ -2389,7 +2367,8 @@ function AddNoteModal({
                                 {item.kind === 'photo' && item.photoAnalysis && (
                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     {/* Chips row */}
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                                      <Typography sx={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Curriculum Tags:</Typography>
                                       {item.photoAnalysis.curriculumArea && (
                                         <Chip
                                           label={item.photoAnalysis.curriculumArea}
@@ -2713,20 +2692,50 @@ function AddNoteModal({
                 mt: 1,
               }}
             >
-              <Button
-                variant="contained"
-                onClick={handleCreateMediaNote}
-                fullWidth
-                disabled={
-                  saving ||
-                  mediaUploading ||
-                  (mediaMode === 'pdf' ? !pdfSource : mediaItems.length === 0) ||
-                  selectedStudents.length === 0
-                }
-                sx={{ py: 1.2, fontWeight: 600, borderRadius: 2, textTransform: 'none', fontSize: '0.95rem' }}
-              >
-                Create Media Note
-              </Button>
+              {(() => {
+                const hasUnanalyzedPhotos = mediaMode === 'photo' && photoAnalysisLoading && mediaItems.some((it) => it.kind === 'photo' && !it.photoAnalysis);
+                return (
+                  <Button
+                    variant="contained"
+                    onClick={handleCreateMediaNote}
+                    fullWidth
+                    disabled={
+                      saving ||
+                      mediaUploading ||
+                      hasUnanalyzedPhotos ||
+                      (mediaMode === 'pdf' ? !pdfSource : mediaItems.length === 0) ||
+                      selectedStudents.length === 0
+                    }
+                    sx={{
+                      py: 1.2,
+                      fontWeight: 600,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontSize: '0.95rem',
+                      ...(hasUnanalyzedPhotos && {
+                        background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)',
+                        color: '#6d28d9',
+                        border: '1.5px solid #c4b5fd',
+                        boxShadow: 'none',
+                        '&.Mui-disabled': {
+                          background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)',
+                          color: '#6d28d9',
+                          border: '1.5px solid #c4b5fd',
+                        },
+                      }),
+                    }}
+                    startIcon={hasUnanalyzedPhotos ? (
+                      <AutoAwesome sx={{
+                        fontSize: 18,
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                        '@keyframes pulse': { '0%, 100%': { opacity: 0.4 }, '50%': { opacity: 1 } },
+                      }} />
+                    ) : undefined}
+                  >
+                    {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : 'Create Media Note'}
+                  </Button>
+                );
+              })()}
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
                 <Button
                   variant="text"

@@ -19,7 +19,7 @@ import {
   Checkbox,
   TextField
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, AutoAwesome } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -45,6 +45,7 @@ import {
   planMissingMediaUrlPaths,
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
+import { truncateDescription } from '../utils/photoAnalysisDisplay.js';
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -109,6 +110,16 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     });
     return deduped;
   }, [recentObs, olderObs, mediaDocs, reportDocs]);
+
+  // Derive unique curriculum areas from media docs for FilterPanel (PEP-33)
+  const availableCurriculumAreas = useMemo(() => {
+    const areas = new Set();
+    mediaDocs.forEach(doc => {
+      const area = doc.photoAnalysis?.curriculumArea;
+      if (area) areas.add(area);
+    });
+    return [...areas].sort();
+  }, [mediaDocs]);
 
   const toJsDate = (ts) => {
     if (!ts) return null;
@@ -298,6 +309,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
+      // Carry photoAnalysis from first doc that has it (all share same analysis per PEP-32)
+      if (!group.photoAnalysis && obs.photoAnalysis) {
+        group.photoAnalysis = obs.photoAnalysis;
+      }
       // Merge lesson tag IDs from each media doc in the batch
       if (Array.isArray(obs.linkedLessonObservationId)) {
         obs.linkedLessonObservationId.forEach((id) => {
@@ -976,6 +991,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             onFilterChange={handleFilterChange}
             onClearFilters={handleClearFilters}
             onToggleFilters={toggleFilters}
+            availableCurriculumAreas={availableCurriculumAreas}
           />
 
           {/* Summary */}
@@ -1075,6 +1091,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       observedAt: item?.observedAt || sourceObservation?.observedAt,
                       timestamp: item?.timestamp || sourceObservation?.timestamp,
                       teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
+                      photoAnalysis: sourceObservation.photoAnalysis ?? obs.photoAnalysis,
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
                     url: url || null,
@@ -1082,7 +1099,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   });
                 };
                 return (
-                  <Card key={obs.id} sx={{ ...cardSx, cursor: 'default' }}>
+                  <Card
+                    key={obs.id}
+                    sx={{ ...cardSx, cursor: 'pointer', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)', transform: 'translateY(-1px)' }, transition: 'all 0.2s ease-in-out' }}
+                    onClick={() => { if (mediaItems.length > 0) openMediaItemPreview(mediaItems[0]); }}
+                  >
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
                         <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
@@ -1092,13 +1113,49 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
-                      {buildMediaSummary(obs)}
-                      </Typography>
+                      {!obs.photoAnalysis && (
+                        <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
+                          {buildMediaSummary(obs)}
+                        </Typography>
+                      )}
                       {!obs.batchId && obs.teacherComment && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                           💬 {obs.teacherComment}
                         </Typography>
+                      )}
+
+                      {/* Photo analysis chips + description snippet (PEP-33) */}
+                      {obs.photoAnalysis?.curriculumArea && (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mt: 1 }}>
+                          <Chip
+                            label={obs.photoAnalysis.curriculumArea}
+                            size="small"
+                            sx={{
+                              bgcolor: '#ecfdf5',
+                              color: '#047857',
+                              fontWeight: 600,
+                              fontSize: '0.7rem',
+                              border: '1px solid #a7f3d0',
+                              height: 22,
+                            }}
+                          />
+                          {obs.photoAnalysis.curriculumSubArea && (
+                            <Chip
+                              label={obs.photoAnalysis.curriculumSubArea}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: '0.68rem', height: 20, color: 'text.secondary' }}
+                            />
+                          )}
+                        </Box>
+                      )}
+                      {obs.photoAnalysis?.description && (
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.75 }}>
+                          <AutoAwesome sx={{ fontSize: 13, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
+                          <Typography variant="body2" sx={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
+                            {truncateDescription(obs.photoAnalysis.description)}
+                          </Typography>
+                        </Box>
                       )}
 
                       {mediaItems.length > 0 && (
@@ -1144,7 +1201,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                   }}
                                 >
                                   <Box
-                                    onClick={() => openMediaItemPreview(item)}
+                                    onClick={(e) => { e.stopPropagation(); openMediaItemPreview(item); }}
                                     role="button"
                                     tabIndex={0}
                                     onKeyDown={(e) => {
@@ -1808,6 +1865,70 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               Download URL not ready yet. Please wait for upload to finish.
             </Typography>
           )}
+
+          {/* Photo analysis metadata (PEP-33) */}
+          {mediaPreview?.observation?.photoAnalysis && (() => {
+            const pa = mediaPreview.observation.photoAnalysis;
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                {/* Curriculum chips */}
+                {pa.curriculumArea && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    <Chip label={pa.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
+                    {pa.curriculumSubArea && (
+                      <Chip label={pa.curriculumSubArea} size="small" variant="outlined" sx={{ fontSize: '0.7rem', color: 'text.secondary' }} />
+                    )}
+                    {pa.handwritten && (
+                      <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
+                    )}
+                  </Box>
+                )}
+                {/* AI description */}
+                {pa.description && (
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+                    <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
+                    <Typography variant="body2" sx={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
+                      {pa.description}
+                    </Typography>
+                  </Box>
+                )}
+                {/* Developmental notes */}
+                {pa.developmentalNotes && (
+                  <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5 }}>
+                    {pa.developmentalNotes}
+                  </Typography>
+                )}
+                {/* Materials identified */}
+                {Array.isArray(pa.materialsIdentified) && pa.materialsIdentified.length > 0 && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>Materials:</Typography>
+                    {pa.materialsIdentified.map((mat, i) => (
+                      <Chip key={i} label={mat} size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
+                    ))}
+                  </Box>
+                )}
+                {/* Writing analysis summary */}
+                {pa.writingAnalysis && pa.handwritten && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Writing Analysis</Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {Object.entries(pa.writingAnalysis).map(([dim, val]) => (
+                        val && val.rating != null && (
+                          <Chip
+                            key={dim}
+                            label={`${dim}: ${val.rating}/5`}
+                            size="small"
+                            sx={{ fontSize: '0.68rem', height: 22, bgcolor: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}
+                          />
+                        )
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
+
           {mediaEditMode ? (
             <TextField
               label="Teacher comment"

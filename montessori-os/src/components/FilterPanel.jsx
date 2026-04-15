@@ -40,7 +40,8 @@ const FilterPanel = ({
   totalCount,
   onFilterChange,
   onClearFilters,
-  onToggleFilters
+  onToggleFilters,
+  availableCurriculumAreas = [],
 }) => {
   const [creatorSearch, setCreatorSearch] = useState('');
   
@@ -417,7 +418,48 @@ const FilterPanel = ({
                 {/* Removed helper text per request */}
               </Box>
 
-              {/* Language filter removed to reduce clicks */}
+              {/* Curriculum area filter (PEP-33) */}
+              {availableCurriculumAreas.length > 0 && (
+                <Box>
+                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+                    Curriculum Area
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                    {availableCurriculumAreas.map((area) => {
+                      const isActive = (filters.curriculumAreas || []).includes(area);
+                      return (
+                        <Chip
+                          key={area}
+                          label={area}
+                          size="small"
+                          onClick={() => {
+                            const current = filters.curriculumAreas || [];
+                            const next = isActive
+                              ? current.filter((a) => a !== area)
+                              : [...current, area];
+                            onFilterChange('curriculumAreas', next);
+                          }}
+                          sx={{
+                            fontWeight: 500,
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            ...(isActive ? {
+                              bgcolor: '#047857',
+                              color: '#fff',
+                              '&:hover': { bgcolor: '#065f46' },
+                            } : {
+                              bgcolor: '#ecfdf5',
+                              color: '#047857',
+                              border: '1px solid #a7f3d0',
+                              '&:hover': { bgcolor: '#d1fae5' },
+                            }),
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                </Box>
+              )}
             </Box>
           </Box>
         </Paper>

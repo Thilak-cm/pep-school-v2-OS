@@ -6,9 +6,16 @@
 - Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
 - Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
 - Interview helper tests (6 tests) and security rule specs (2 specs) for interview transcript access control (PEP-142)
+- Curriculum area chips and truncated AI description on StudentTimeline and ClassroomTimeline media cards, with full photo analysis detail in the expanded preview dialog (PEP-33)
+- Curriculum area filter dimension in FilterPanel — multi-select chip group filters media observations by curriculum area while passing through unanalyzed media (PEP-33)
+- Media doc fetching in ClassroomTimeline via collectionGroup query with new composite Firestore index (PEP-33)
 
 ### Changed
 - Question generation script updated to use profile gaps field for targeted interview question selection (PEP-142)
+
+### Fixed
+- Batch-grouped media preview dialog now falls back to the batch group's photoAnalysis when the individual doc lacks it (PEP-33)
+- ClassroomTimeline async IIFE wrapped in try/finally to prevent loading spinner from hanging on fetch errors (PEP-33)
 
 # 10.6.0 — 2026-04-14
 
