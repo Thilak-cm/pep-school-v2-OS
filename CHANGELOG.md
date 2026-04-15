@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.7.0 — 2026-04-15
+
+### Added
+- Curriculum area chips and truncated AI description on StudentTimeline and ClassroomTimeline media cards, with full photo analysis detail in the expanded preview dialog (PEP-33)
+- Curriculum area filter dimension in FilterPanel — multi-select chip group filters media observations by curriculum area while passing through unanalyzed media (PEP-33)
+- Media doc fetching in ClassroomTimeline via collectionGroup query with new composite Firestore index (PEP-33)
+
+### Fixed
+- Batch-grouped media preview dialog now falls back to the batch group's photoAnalysis when the individual doc lacks it (PEP-33)
+- ClassroomTimeline async IIFE wrapped in try/finally to prevent loading spinner from hanging on fetch errors (PEP-33)
+
 # 10.6.0 — 2026-04-14
 
 ### Added

@@ -35,6 +35,7 @@ export function groupReportsByDate(reports) {
     const key = dateKey(report.generatedAt);
     if (!groups[key]) {
       groups[key] = {
+        key,
         date: toDate(report.generatedAt),
         dateLabel: formatDate(report.generatedAt),
         reports: [],

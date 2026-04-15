@@ -11,7 +11,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
     dateFrom: '',
     dateTo: '',
     creators: [], // multi-select
-    types: [] // multi-select (e.g., ['voice', 'text'])
+    types: [], // multi-select (e.g., ['voice', 'text'])
+    curriculumAreas: [] // multi-select curriculum area filter (PEP-33)
   });
 
   // Extract unique creators from observations
@@ -95,7 +96,17 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       filtered = filtered.filter(obs => obs.type === 'report' || selectedTypes.has(obs.type));
     }
 
-    // Language filter removed
+    // Curriculum area filter (PEP-33)
+    if (filters.curriculumAreas && filters.curriculumAreas.length > 0) {
+      const selectedAreas = new Set(filters.curriculumAreas);
+      filtered = filtered.filter(obs => {
+        if (obs.type !== 'media') return true;
+        const area = obs.photoAnalysis?.curriculumArea;
+        if (!area) return true; // pass through media without analysis (PDFs, videos, older photos)
+        return selectedAreas.has(area);
+      });
+    }
+
     return filtered;
   };
 
@@ -109,7 +120,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       filters.dateFrom ||
       filters.dateTo ||
       (filters.creators && filters.creators.length > 0) ||
-      (filters.types && filters.types.length > 0)
+      (filters.types && filters.types.length > 0) ||
+      (filters.curriculumAreas && filters.curriculumAreas.length > 0)
     );
   }, [filters]);
 
@@ -126,7 +138,8 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       dateFrom: '',
       dateTo: '',
       creators: [],
-      types: []
+      types: [],
+      curriculumAreas: []
     });
   };
 
