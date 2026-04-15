@@ -703,13 +703,41 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     return { grouped: filteredGrouped, ungrouped };
   }, [filteredObservations]);
 
-  // All fetched notes — merges grouped & ungrouped by date (pagination is now at the data level)
+  const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
+
+  // All fetched notes + report groups — merged chronologically into time buckets
   const groupedLimitedNotes = useMemo(() => {
     const { grouped, ungrouped } = groupedAndSortedObservations;
-    return paginateTimelineItems(grouped, ungrouped, Infinity);
-  }, [groupedAndSortedObservations]);
+    const buckets = paginateTimelineItems(grouped, ungrouped, Infinity);
 
-  const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
+    // Insert report groups into the correct bucket at the right chronological position
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastWeek = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    for (const group of groupedReports) {
+      const reportItem = { ...group, isReportGroup: true };
+      const d = group.date;
+      let bucket;
+      if (d >= todayStart) bucket = buckets.today;
+      else if (d >= lastWeek) bucket = buckets.last7Days;
+      else bucket = buckets.beyond;
+
+      // Insert at correct chronological position (newest first)
+      const idx = bucket.findIndex((item) => {
+        const itemDate = item.isGrouped
+          ? item.earliestObservedAt
+          : item.isReportGroup
+            ? item.date
+            : toDate(item.observedAt || item.timestamp);
+        return d >= itemDate;
+      });
+      if (idx === -1) bucket.push(reportItem);
+      else bucket.splice(idx, 0, reportItem);
+    }
+
+    return buckets;
+  }, [groupedAndSortedObservations, groupedReports]);
 
   const toggleReportGroup = (groupKey) => {
     setExpandedReportGroups((prev) => {
@@ -734,6 +762,106 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const getStudentName = (note) => {
     const student = classroomStudents.find(s => s.id === note.studentId);
     return student?.displayName || student?.firstName || 'Unknown Student';
+  };
+
+  // Render a single timeline item (note, grouped note, or report group)
+  const renderTimelineItem = (item) => {
+    if (item.isReportGroup) {
+      const group = item;
+      const isExpanded = expandedReportGroups.has(group.key);
+      return (
+        <Card
+          key={`report-group-${group.key}`}
+          sx={{
+            borderLeft: '3px solid',
+            borderLeftColor: 'secondary.main',
+            backgroundColor: 'rgba(76, 175, 80, 0.04)',
+            borderRadius: 2,
+          }}
+        >
+          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                {group.dateLabel}
+              </Typography>
+              <Typography
+                variant="caption"
+                color="primary"
+                onClick={() => toggleReportGroup(group.key)}
+                sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
+              >
+                {isExpanded ? 'Hide' : 'See'} students
+                <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              </Typography>
+            </Box>
+            <Collapse in={isExpanded}>
+              <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
+                {group.reports.map((report) => (
+                  <Box
+                    key={`${report.studentId}-${report.id}`}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 0.5,
+                      px: 1,
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="primary"
+                      onClick={() => {
+                        const student = classroomStudents.find(s => s.id === report.studentId);
+                        if (student) onNavigateToStudent(student);
+                      }}
+                      sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      {report.studentName}
+                    </Typography>
+                    <Visibility
+                      onClick={() => setReportPreviewData(report)}
+                      sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Collapse>
+          </CardContent>
+        </Card>
+      );
+    }
+    if (item.isGrouped) {
+      return (
+        <GroupedNoteCard
+          key={item.groupId}
+          groupedNote={item}
+          classroomStudents={classroomStudents}
+          onNoteClick={() => {}}
+          onNavigateToStudent={onNavigateToStudent}
+          lessonTitleById={lessonTitleById}
+        />
+      );
+    }
+    return (
+      <ClassroomNoteCard
+        key={item.id}
+        note={item}
+        studentName={getStudentName(item)}
+        lessonTitleById={lessonTitleById}
+        onStudentClick={() => {
+          const student = classroomStudents.find(s => s.id === item.studentId);
+          if (student) onNavigateToStudent(student);
+        }}
+        onNoteClick={() => handleNoteClick(item)}
+      />
+    );
   };
 
   // Handle note click to expand
@@ -967,84 +1095,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             </Typography>
           </Box>
 
-          {/* Report Markers */}
-          {groupedReports.length > 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-              {groupedReports.map((group) => {
-                const isExpanded = expandedReportGroups.has(group.key);
-                return (
-                  <Card
-                    key={`report-group-${group.key}`}
-                    sx={{
-                      borderLeft: '3px solid',
-                      borderLeftColor: 'secondary.main',
-                      backgroundColor: 'rgba(76, 175, 80, 0.04)',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ml: 3.5, mt: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          {group.dateLabel}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="primary"
-                          onClick={() => toggleReportGroup(group.key)}
-                          sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
-                        >
-                          {isExpanded ? 'Hide' : 'See'} students
-                          <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-                        </Typography>
-                      </Box>
-                      <Collapse in={isExpanded}>
-                        <Box sx={{ ml: 3.5, mt: 0.75, display: 'flex', flexDirection: 'column' }}>
-                          {group.reports.map((report) => (
-                            <Box
-                              key={`${report.studentId}-${report.id}`}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                py: 0.5,
-                                px: 1,
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="body2"
-                                color="primary"
-                                onClick={() => {
-                                  const student = classroomStudents.find(s => s.id === report.studentId);
-                                  if (student) onNavigateToStudent(student);
-                                }}
-                                sx={{ cursor: 'pointer', textDecoration: 'underline' }}
-                              >
-                                {report.studentName}
-                              </Typography>
-                              <Visibility
-                                onClick={() => setReportPreviewData(report)}
-                                sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                              />
-                            </Box>
-                          ))}
-                        </Box>
-                      </Collapse>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </Box>
-          )}
-
           {/* Notes Timeline */}
-          {filteredObservations.length === 0 ? (
+          {filteredObservations.length === 0 && groupedReports.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchQuery ? `No students or observations found for "${searchQuery}"` : 'No activity here yet'}
@@ -1061,34 +1113,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.today.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.today.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -1101,34 +1126,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.last7Days.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.last7Days.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -1141,34 +1139,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                     </Typography>
                     <Divider sx={{ flex: 1 }} />
                   </Box>
-                  {groupedLimitedNotes.beyond.map((item) => {
-                    if (item.isGrouped) {
-                      return (
-                        <GroupedNoteCard
-                          key={item.groupId}
-                          groupedNote={item}
-                          classroomStudents={classroomStudents}
-                          onNoteClick={() => { /* grouped note dialog removed */ }}
-                          onNavigateToStudent={onNavigateToStudent}
-                          lessonTitleById={lessonTitleById}
-                        />
-                      );
-                    } else {
-                      return (
-                        <ClassroomNoteCard
-                          key={item.id}
-                          note={item}
-                          studentName={getStudentName(item)}
-                          lessonTitleById={lessonTitleById}
-                          onStudentClick={() => {
-                            const student = classroomStudents.find(s => s.id === item.studentId);
-                            if (student) onNavigateToStudent(student);
-                          }}
-                          onNoteClick={() => handleNoteClick(item)}
-                        />
-                      );
-                    }
-                  })}
+                  {groupedLimitedNotes.beyond.map((item) => renderTimelineItem(item))}
                 </>
               )}
 
@@ -2058,9 +2029,11 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
           renderLessonSummary(note, !!note.groupDefaults)
         ) : note.type === 'media' ? (
           <Box sx={{ mb: 1 }}>
-            <Typography variant="body1" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {note.text || '(media note)'}
-            </Typography>
+            {note.text && (
+              <Typography variant="body1" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {note.text}
+              </Typography>
+            )}
             {note.photoAnalysis?.curriculumArea && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
                 <Chip
