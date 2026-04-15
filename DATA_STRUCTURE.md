@@ -468,27 +468,19 @@ interface MediaDoc {
 
   // Per-image metadata (photos only)
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
-  handwritten?: boolean;         // VLM-inferred: true if image contains handwriting (default false)
-                                 // Backward-compat field derived from photoAnalysis.handwritten
+  handwritten?: boolean;         // VLM classification: true if image contains handwriting (default false)
+  curriculumArea?: string | null; // VLM classification: e.g., "Mathematics", "Language", "Sensorial"
+  description?: string | null;   // VLM classification: 1-2 sentence description of the photo
 
-  // AI photo analysis (photos only, PEP-32)
-  photoAnalysis?: {
-    handwritten: boolean;
-    contentCategory: 'student_work' | 'other';
-    description: string | null;            // AI-generated description of the photo
-    materialsIdentified: string[];         // Montessori materials visible in the photo
-    curriculumArea: string | null;         // e.g., "Mathematics", "Language", "Sensorial"
-    curriculumSubArea: string | null;      // e.g., "Decimal System - Dynamic Addition"
-    developmentalNotes: string | null;     // What the work reveals about the child's development
-    writingAnalysis: {                     // Only present when handwritten=true
-      handwriting: { rating: number | null; note: string | null };
-      spelling:    { rating: number | null; note: string | null };
-      vocabulary:  { rating: number | null; note: string | null };
-      structure:   { rating: number | null; note: string | null };
-      punctuation: { rating: number | null; note: string | null };
-    } | null;
-    teacherEdited: boolean;                // true if teacher edited the AI description
-  };
+  // Handwriting analysis (photos only, PEP-131 — only present when handwritten=true)
+  handwritingAnalysis?: {
+    developmentalNotes: string;            // Age-contextualized developmental observation
+    handwriting: { rating: number | null; note: string };
+    spelling:    { rating: number | null; note: string };
+    vocabulary:  { rating: number | null; note: string };
+    structure:   { rating: number | null; note: string };
+    punctuation: { rating: number | null; note: string };
+  } | null;
 
   // AI features
   pdfTitle?: string;             // AI-extracted title (PDFs only)
@@ -510,8 +502,8 @@ Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
-- `handwritten` is a VLM-inferred boolean per photo (default `false`). Backward-compatible field derived from `photoAnalysis.handwritten`.
-- `photoAnalysis` is the full structured VLM analysis (PEP-32). Set automatically by the `analyzePhotoVLM` Cloud Function (gpt-5.4-mini) after photo capture. Rich fields (`description`, `curriculumArea`, `materialsIdentified`, etc.) are only populated when `contentCategory` is `student_work`. The `description` field is shown to teachers for optional editing; if edited, `teacherEdited` is set to `true`.
+- `handwritten`, `curriculumArea`, and `description` are set by the classification VLM call (gpt-5.4-nano) on every photo upload.
+- `handwritingAnalysis` is set by the handwriting analysis VLM call (gpt-5.4) only when `handwritten` is `true`. Contains age-calibrated dimensional scores (1-5) with per-dimension notes. Ratings can be `null` when insufficient evidence exists for a dimension.
 
 ---
 
@@ -679,7 +671,8 @@ Current documents
 - `profile_{program}` — per-program student profile generation prompts + dimensions + model config
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
-- `photo_analysis_vlm` — prompts + model config for photo VLM analysis
+- `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
+- `handwriting_analysis` — prompts + model config for handwriting analysis (Call 2, gpt-5.4)
 - `telegram_bot` — Telegram bot configuration
 
 `config/lessonNote`
