@@ -2416,7 +2416,7 @@ function AddNoteModal({
                                         multiline
                                         minRows={2}
                                         size="small"
-                                        placeholder="AI-generated description"
+                                        label="Coach Pepper's Description"
                                         InputProps={{
                                           sx: { fontSize: '0.82rem', lineHeight: 1.5, color: '#334155' },
                                           startAdornment: (
