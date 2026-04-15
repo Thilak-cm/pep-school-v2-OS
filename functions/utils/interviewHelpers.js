@@ -37,7 +37,7 @@ export function formatInterviewForPrompt(interview) {
     };
 
     if (ex.questionType === "mcq") {
-      const hasAnswer = ex.selectedOption != null && Array.isArray(ex.options);
+      const hasAnswer = ex.selectedOption != null && Array.isArray(ex.options) && ex.selectedOption >= 0 && ex.selectedOption < ex.options.length;
       base.selectedOptionText = hasAnswer
         ? ex.options[ex.selectedOption]
         : null;

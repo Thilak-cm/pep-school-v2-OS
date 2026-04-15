@@ -1661,6 +1661,7 @@ async function fetchStudentInterviews(studentId, windowDays) {
 
   try {
     const snap = await interviewsRef
+      .where("status", "==", "completed")
       .where("conductedAt", ">=", cutoff)
       .orderBy("conductedAt", "desc")
       .get();
@@ -4725,9 +4726,7 @@ export const generateStudentProfile = functions
     }
 
     const formatted = notes.map(formatObservationForPrompt);
-    const formattedInterviews = rawInterviews
-      .filter((iv) => iv.status === "completed")
-      .map(formatInterviewForPrompt);
+    const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
     // Determine source type: interview if interviews present, observation otherwise
     const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_OBSERVATION;
@@ -4852,9 +4851,7 @@ export const backfillStudentProfiles = functions
         }
 
         const formatted = notes.map(formatObservationForPrompt);
-        const formattedInterviews = rawInterviews
-          .filter((iv) => iv.status === "completed")
-          .map(formatInterviewForPrompt);
+        const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
         const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_BACKFILL;
 
