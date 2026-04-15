@@ -187,6 +187,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       setClassroomNotes([]);
       setClassroomStudents([]);
       setClassroomTeachers([]);
+      setClassroomMediaDocs([]);
       setLoading(false);
       return;
     }
