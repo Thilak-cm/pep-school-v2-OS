@@ -534,7 +534,11 @@ async function runVLMCall(systemPrompt, userContent, modelInfo) {
     throw new functions.https.HttpsError("internal", "AI returned no content");
   }
 
-  return JSON.parse(rawContent);
+  try {
+    return JSON.parse(rawContent);
+  } catch {
+    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+  }
 }
 
 const analyzePhotoVLMHandler = async (data, context) => {

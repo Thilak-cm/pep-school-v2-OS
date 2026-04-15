@@ -9,7 +9,6 @@ import {
   parseHandwritingAnalysis,
   buildMediaFields,
   WRITING_DIMENSIONS,
-  CLASSIFICATION_DEFAULTS,
 } from './photoAnalysis.js';
 
 /* ------------------------------------------------------------------ */

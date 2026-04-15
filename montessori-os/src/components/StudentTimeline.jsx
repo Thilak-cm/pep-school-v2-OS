@@ -46,6 +46,7 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import { truncateDescription } from '../utils/photoAnalysisDisplay.js';
+import { WRITING_DIMENSIONS } from '../utils/photoAnalysis.js';
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -1900,7 +1901,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     )}
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Handwriting Analysis</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                      {['handwriting', 'spelling', 'vocabulary', 'structure', 'punctuation'].map((dim) => {
+                      {WRITING_DIMENSIONS.map((dim) => {
                         const val = ha[dim];
                         if (!val || val.rating == null) return null;
                         return (
