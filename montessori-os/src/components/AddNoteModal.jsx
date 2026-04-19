@@ -52,7 +52,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { parsePhotoAnalysis } from '../utils/photoAnalysis.js';
+import { parseClassification, parseHandwritingAnalysis, buildMediaFields } from '../utils/photoAnalysis.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -729,7 +729,7 @@ function AddNoteModal({
     if (photoAnalysisLoading) return;
     if (selectedStudents.length !== 1) return; // need exactly one student for context
 
-    const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.photoAnalysis && !photoAnalysisFailedRef.current.has(it.id));
+    const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.analyzed && !photoAnalysisFailedRef.current.has(it.id));
     if (unanalyzed.length === 0) return;
 
     runPhotoAnalysis(unanalyzed, selectedStudents[0]).catch((error) => {
@@ -1370,11 +1370,14 @@ function AddNoteModal({
         studentAge,
       });
 
-      // Response is a single analysis for the batch of photos
-      const analysis = parsePhotoAnalysis(res.data);
+      // Response contains flat classification + optional handwritingAnalysis
+      const data = res.data || {};
+      const classification = parseClassification(data);
+      const analysis = parseHandwritingAnalysis(data.handwritingAnalysis);
+      const mediaFields = buildMediaFields(classification, analysis);
       setMediaItems((prev) => prev.map((it) => {
         if (images.some((img) => img.itemId === it.id)) {
-          return { ...it, photoAnalysis: analysis, handwritten: analysis.handwritten };
+          return { ...it, ...mediaFields, analyzed: true };
         }
         return it;
       }));
@@ -1718,8 +1721,10 @@ function AddNoteModal({
             pdfEssence: item.kind === 'pdf' ? String(pdfEssence || '').trim() : '',
             ...(item.kind === 'photo' ? {
               copied: item.copied === true,
-              handwritten: item.photoAnalysis?.handwritten === true || item.handwritten === true,
-              ...(item.photoAnalysis ? { photoAnalysis: item.photoAnalysis } : {}),
+              handwritten: item.handwritten === true,
+              curriculumArea: item.curriculumArea || null,
+              description: item.description || null,
+              ...(item.handwritingAnalysis ? { handwritingAnalysis: item.handwritingAnalysis } : {}),
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
@@ -2364,14 +2369,13 @@ function AddNoteModal({
                               {/* Content section */}
                               <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                                 {/* AI analysis results */}
-                                {item.kind === 'photo' && item.photoAnalysis && (
+                                {item.kind === 'photo' && item.analyzed && (
                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     {/* Chips row */}
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-                                      <Typography sx={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Curriculum Tags:</Typography>
-                                      {item.photoAnalysis.curriculumArea && (
+                                      {item.curriculumArea && (
                                         <Chip
-                                          label={item.photoAnalysis.curriculumArea}
+                                          label={item.curriculumArea}
                                           size="small"
                                           sx={{
                                             bgcolor: '#ecfdf5',
@@ -2382,7 +2386,7 @@ function AddNoteModal({
                                           }}
                                         />
                                       )}
-                                      {item.photoAnalysis.handwritten && (
+                                      {item.handwritten && (
                                         <Chip
                                           label="Handwritten"
                                           size="small"
@@ -2397,14 +2401,14 @@ function AddNoteModal({
                                       )}
                                     </Box>
                                     {/* AI description */}
-                                    {item.photoAnalysis.description && (
+                                    {item.description && (
                                       <TextField
-                                        value={item.photoAnalysis.description}
+                                        value={item.description}
                                         onChange={(e) => {
                                           const newDesc = e.target.value;
                                           setMediaItems((prev) => prev.map((it) =>
                                             it.id === item.id
-                                              ? { ...it, photoAnalysis: { ...it.photoAnalysis, description: newDesc, teacherEdited: true } }
+                                              ? { ...it, description: newDesc }
                                               : it
                                           ));
                                         }}
@@ -2412,7 +2416,7 @@ function AddNoteModal({
                                         multiline
                                         minRows={2}
                                         size="small"
-                                        placeholder="AI-generated description"
+                                        label="Coach Pepper's Description"
                                         InputProps={{
                                           sx: { fontSize: '0.82rem', lineHeight: 1.5, color: '#334155' },
                                           startAdornment: (
@@ -2626,7 +2630,7 @@ function AddNoteModal({
               </Box>
 
               <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
-                {mediaMode === 'photo' && mediaItems.some((it) => it.kind === 'photo' && !it.photoAnalysis) && selectedStudents.length === 0 && (
+                {mediaMode === 'photo' && mediaItems.some((it) => it.kind === 'photo' && !it.analyzed) && selectedStudents.length === 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 1.5, mb: 1, bgcolor: '#fef3c7', borderRadius: 1.5, border: '1px solid #fbbf24' }}>
                     <AutoAwesome sx={{ fontSize: 18, color: '#d97706' }} />
                     <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 500 }}>
@@ -2693,7 +2697,7 @@ function AddNoteModal({
               }}
             >
               {(() => {
-                const hasUnanalyzedPhotos = mediaMode === 'photo' && photoAnalysisLoading && mediaItems.some((it) => it.kind === 'photo' && !it.photoAnalysis);
+                const hasUnanalyzedPhotos = mediaMode === 'photo' && photoAnalysisLoading && mediaItems.some((it) => it.kind === 'photo' && !it.analyzed);
                 return (
                   <Button
                     variant="contained"

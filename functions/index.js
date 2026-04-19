@@ -11,7 +11,7 @@ import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, 
 import { parseProfileResponse } from "./utils/profileHelpers.js";
 import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
-import { MINI_MODEL } from "./config/modelConstants.js";
+import { MINI_MODEL, NANO_MODEL, FRONTIER_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
@@ -288,50 +288,36 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
-const PHOTO_ANALYSIS_MODEL = { model: MINI_MODEL, temperature: 0.2, max_tokens: 1000 };
-const PHOTO_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori classroom photo analyst. When given a photo of student work, analyze it in the context of the specific child's age and developmental stage.
+// Two-step photo analysis pipeline (PEP-131)
+// Call 1 (gpt-5.4-nano): classification & tagging — runs on every photo
+// Call 2 (gpt-5.4): handwriting analysis — runs only when handwritten: true
+const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 300 };
+const HANDWRITING_ANALYSIS_MODEL = { model: FRONTIER_MODEL, temperature: 0.3, max_tokens: 800 };
 
-IMPORTANT: The user message will include the child's name and age. Use their age to calibrate your developmental assessment — what is impressive for a 3-year-old is expected for a 6-year-old. Your ratings, curriculum mapping, and developmental notes should all reflect age-appropriate expectations.
+const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly three fields:
 
-Fields:
-- handwritten (boolean): whether the image contains handwriting (letters, numbers, or words written by hand)
-- contentCategory (string): "student_work" if it shows a child's individual work product, otherwise "other"
-- description (string|null): 1-2 sentence description of what's in the photo. Null if not student_work.
-- materialsIdentified (string[]): Montessori materials visible (e.g., "golden beads", "pink tower", "moveable alphabet"). Empty array if none identified or not student_work.
-- curriculumArea (string|null): broad Montessori curriculum area (e.g., "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural"). Null if not student_work.
-- curriculumSubArea (string|null): specific topic within the area (e.g., "Decimal System - Dynamic Addition", "Writing - Cursive Introduction"). Null if not student_work.
-- developmentalNotes (string|null): brief age-contextualized observation about what the work reveals about the child's development. Reference what is typical or advanced for their age. Null if not student_work.
-- writingAnalysis (object|null): only when handwritten is true AND contentCategory is student_work. Contains five dimensions, each with rating (1-5 integer or null if insufficient evidence) and note (short string). Ratings should be calibrated to the child's age — a 3 on handwriting means different things for a 3-year-old vs a 6-year-old. Dimensions: handwriting, spelling, vocabulary, structure, punctuation. Null when handwritten is false.
+- handwritten (boolean): true if the image contains handwriting (letters, numbers, or words written by hand)
+- curriculumArea (string|null): broad Montessori curriculum area. One of: "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural Studies", "Art & Music". Null if not identifiable as student work.
+- description (string|null): 1-2 sentence description of what's in the photo. Null if not student work.
 
-Respond with ONLY valid JSON matching this structure:
-{
-  "handwritten": false,
-  "contentCategory": "student_work",
-  "description": "A child's addition work using golden beads with number cards laid out on a mat.",
-  "materialsIdentified": ["golden beads", "number cards"],
-  "curriculumArea": "Mathematics",
-  "curriculumSubArea": "Decimal System - Dynamic Addition",
-  "developmentalNotes": "Shows understanding of place value and can compose 4-digit numbers.",
-  "writingAnalysis": null
-}
+Respond with ONLY valid JSON. Example:
+{ "handwritten": false, "curriculumArea": "Mathematics", "description": "A child's addition work using golden beads with number cards laid out on a mat." }`;
 
-Second example — handwritten student work with writing analysis:
-{
-  "handwritten": true,
-  "contentCategory": "student_work",
-  "description": "Child practicing cursive lowercase letters a through g on lined paper.",
-  "materialsIdentified": ["lined writing paper", "pencil"],
-  "curriculumArea": "Language",
-  "curriculumSubArea": "Writing - Cursive Introduction",
-  "developmentalNotes": "Consistent letter formation with appropriate sizing within lines.",
-  "writingAnalysis": {
-    "handwriting": { "rating": 3, "note": "Consistent sizing, some pressure variation" },
-    "spelling": { "rating": null, "note": "Not enough text to evaluate" },
-    "vocabulary": { "rating": null, "note": "Not applicable for letter practice" },
-    "structure": { "rating": null, "note": "Not applicable for letter practice" },
-    "punctuation": { "rating": null, "note": "Not applicable for letter practice" }
-  }
-}`;
+const HANDWRITING_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori handwriting analyst. Evaluate the handwritten student work in the photo with age-calibrated developmental assessment.
+
+The user message includes the child's name and age. All ratings and notes must reflect age-appropriate expectations — a rating of 3 means the child is meeting typical expectations for their specific age.
+
+Return JSON with these fields:
+- developmentalNotes (string): 1-2 sentence age-contextualized observation about what the writing reveals about the child's development.
+- handwriting: { rating: 1-5 integer or null, note: string } — letter formation, sizing, spacing, pressure
+- spelling: { rating: 1-5 integer or null, note: string } — spelling accuracy for age
+- vocabulary: { rating: 1-5 integer or null, note: string } — word choice complexity for age
+- structure: { rating: 1-5 integer or null, note: string } — sentence/paragraph organization
+- punctuation: { rating: 1-5 integer or null, note: string } — punctuation usage for age
+
+Use null for rating when there is insufficient evidence to evaluate a dimension (e.g., single-letter practice cannot be rated for spelling).
+
+Respond with ONLY valid JSON.`;
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 /**
@@ -468,8 +454,93 @@ export const extractPdfEssence = functions
   });
 
 // -------------------------------------------------
-// VLM: Photo analysis for media notes (PEP-32, formerly PEP-43 handwriting detection)
+// VLM: Two-step photo analysis pipeline (PEP-131)
+// Step 1: Classification & tagging (gpt-5.4-nano) — every photo
+// Step 2: Handwriting analysis (gpt-5.4) — only when handwritten
 // -------------------------------------------------
+
+/**
+ * Load config from Firestore with fallback defaults.
+ * Returns { systemPrompt, model, temperature, max_tokens }.
+ */
+async function loadPhotoConfig(docId, fallbackPrompt, fallbackModel) {
+  let systemPrompt = fallbackPrompt;
+  let model = fallbackModel.model;
+  let temperature = fallbackModel.temperature;
+  let maxTokens = fallbackModel.max_tokens;
+  try {
+    const doc = await db.collection("config").doc(docId).get();
+    if (doc.exists) {
+      const d = doc.data() || {};
+      if (d.systemPrompt) systemPrompt = d.systemPrompt;
+      if (d.model) model = d.model;
+      if (typeof d.temperature === "number") temperature = d.temperature;
+      if (Number.isFinite(d.max_tokens)) maxTokens = d.max_tokens;
+    }
+  } catch (err) {
+    console.warn(`[loadPhotoConfig] Failed to fetch config/${docId}, using fallback`, err?.message);
+  }
+  return { systemPrompt, model, temperature, maxTokens };
+}
+
+/**
+ * Run a VLM call with image(s) and return parsed JSON.
+ */
+async function runVLMCall(systemPrompt, userContent, modelInfo) {
+  const openAiKey = getOpenAiKey();
+  if (!openAiKey) {
+    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  }
+
+  const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
+    ? systemPrompt
+    : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
+
+  const body = buildChatBody({
+    model: modelInfo.model,
+    messages: [
+      { role: "system", content: enhancedPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature: modelInfo.temperature,
+    max_completion_tokens: modelInfo.maxTokens,
+    response_format: { type: "json_object" },
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[runVLMCall] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("[runVLMCall] OpenAI error", response.status, errText?.slice?.(0, 300));
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  if (!rawContent) {
+    throw new functions.https.HttpsError("internal", "AI returned no content");
+  }
+
+  try {
+    return JSON.parse(rawContent);
+  } catch {
+    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+  }
+}
+
 const analyzePhotoVLMHandler = async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
@@ -502,93 +573,63 @@ const analyzePhotoVLMHandler = async (data, context) => {
   const studentName = String(data?.studentName || "").trim();
   const studentAge = String(data?.studentAge || "").trim();
 
-  let systemPrompt = PHOTO_ANALYSIS_FALLBACK_PROMPT;
-  let photoModel = PHOTO_ANALYSIS_MODEL.model;
-  let photoTemp = PHOTO_ANALYSIS_MODEL.temperature;
-  let photoMaxTokens = PHOTO_ANALYSIS_MODEL.max_tokens;
+  const imageContent = images.map((img) => ({
+    type: "image_url",
+    image_url: { url: `data:${img.contentType};base64,${img.base64}` },
+  }));
+
+  // --- Step 1: Classification (gpt-5.4-nano) ---
+  const classConfig = await loadPhotoConfig(
+    "photo_classification", CLASSIFICATION_FALLBACK_PROMPT, PHOTO_CLASSIFICATION_MODEL
+  );
+
+  const classUserContent = [
+    { type: "text", text: "Classify this classroom photo." },
+    ...imageContent,
+  ];
+
+  let classification;
   try {
-    const promptDoc = await db.collection("config").doc("photo_analysis_vlm").get();
-    if (promptDoc.exists) {
-      const pData = promptDoc.data() || {};
-      if (pData.systemPrompt) systemPrompt = pData.systemPrompt;
-      if (pData.model) photoModel = pData.model;
-      if (typeof pData.temperature === "number") photoTemp = pData.temperature;
-      if (Number.isFinite(pData.max_tokens)) photoMaxTokens = pData.max_tokens;
-    }
+    classification = await runVLMCall(classConfig.systemPrompt, classUserContent, classConfig);
   } catch (err) {
-    console.warn("[analyzePhotoVLM] Failed to fetch config from Firestore, using fallback", err?.message);
+    console.warn("[analyzePhotoVLM] Classification failed, returning defaults", err?.message);
+    return { handwritten: false, curriculumArea: null, description: null, handwritingAnalysis: null };
   }
 
-  // Ensure system prompt mentions JSON for response_format: json_object
-  const enhancedPrompt = systemPrompt.includes("JSON") || systemPrompt.includes("json")
-    ? systemPrompt
-    : systemPrompt + "\n\nIMPORTANT: You must respond with valid JSON only.";
+  const handwritten = classification?.handwritten === true;
+  const curriculumArea = typeof classification?.curriculumArea === "string" ? classification.curriculumArea : null;
+  const description = typeof classification?.description === "string" ? classification.description : null;
 
-  const openAiKey = getOpenAiKey();
-  if (!openAiKey) {
-    throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+  // If not handwritten, return classification only — no Call 2
+  if (!handwritten) {
+    return { handwritten, curriculumArea, description, handwritingAnalysis: null };
   }
 
-  // Build user message: text context + all image(s)
-  let contextText = "Analyze this classroom photo.";
+  // --- Step 2: Handwriting Analysis (gpt-5.4, only when handwritten) ---
+  const analysisConfig = await loadPhotoConfig(
+    "handwriting_analysis", HANDWRITING_ANALYSIS_FALLBACK_PROMPT, HANDWRITING_ANALYSIS_MODEL
+  );
+
+  let contextText = "Analyze this student's handwriting.";
   if (studentName) {
-    contextText = `Analyze this classroom photo. Student: ${studentName}`;
+    contextText = `Analyze this student's handwriting. Student: ${studentName}`;
     if (studentAge) contextText += `, Age: ${studentAge}`;
     contextText += ".";
   }
-  const userContent = [
+
+  const analysisUserContent = [
     { type: "text", text: contextText },
-    ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.contentType};base64,${img.base64}` } })),
+    ...imageContent,
   ];
 
-  const body = buildChatBody({
-    model: photoModel,
-    messages: [
-      { role: "system", content: enhancedPrompt },
-      { role: "user", content: userContent },
-    ],
-    temperature: photoTemp,
-    max_completion_tokens: photoMaxTokens,
-    response_format: { type: "json_object" },
-  });
-
-  let response;
+  let handwritingAnalysis = null;
   try {
-    response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openAiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    handwritingAnalysis = await runVLMCall(analysisConfig.systemPrompt, analysisUserContent, analysisConfig);
   } catch (err) {
-    console.error("[analyzePhotoVLM] network error", err);
-    throw new functions.https.HttpsError("unavailable", "AI service unavailable");
+    console.warn("[analyzePhotoVLM] Handwriting analysis failed, returning classification only", err?.message);
   }
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("[analyzePhotoVLM] OpenAI error", response.status, errText?.slice?.(0, 300));
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const rawContent = json?.choices?.[0]?.message?.content?.trim();
-  if (!rawContent) {
-    throw new functions.https.HttpsError("internal", "AI returned no content");
-  }
-
-  // Parse JSON response with graceful fallback
-  let analysis;
-  try {
-    analysis = JSON.parse(rawContent);
-  } catch {
-    console.warn("[analyzePhotoVLM] Failed to parse JSON response, returning defaults", rawContent?.slice?.(0, 200));
-    return { handwritten: false, contentCategory: "other" };
-  }
-
-  return analysis;
+  return { handwritten, curriculumArea, description, handwritingAnalysis };
 };
 
 const photoVLMRunWith = { timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] };

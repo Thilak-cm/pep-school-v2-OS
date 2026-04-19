@@ -101,7 +101,7 @@ export const useObservationFilters = (observations = [], noteTypeFilter = null) 
       const selectedAreas = new Set(filters.curriculumAreas);
       filtered = filtered.filter(obs => {
         if (obs.type !== 'media') return true;
-        const area = obs.photoAnalysis?.curriculumArea;
+        const area = obs.curriculumArea;
         if (!area) return true; // pass through media without analysis (PDFs, videos, older photos)
         return selectedAreas.has(area);
       });

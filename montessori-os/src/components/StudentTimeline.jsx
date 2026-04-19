@@ -46,6 +46,7 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import { truncateDescription } from '../utils/photoAnalysisDisplay.js';
+import { WRITING_DIMENSIONS } from '../utils/photoAnalysis.js';
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -115,7 +116,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const availableCurriculumAreas = useMemo(() => {
     const areas = new Set();
     mediaDocs.forEach(doc => {
-      const area = doc.photoAnalysis?.curriculumArea;
+      const area = doc.curriculumArea;
       if (area) areas.add(area);
     });
     return [...areas].sort();
@@ -309,9 +310,12 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
-      // Carry photoAnalysis from first doc that has it (all share same analysis per PEP-32)
-      if (!group.photoAnalysis && obs.photoAnalysis) {
-        group.photoAnalysis = obs.photoAnalysis;
+      // Carry classification + analysis fields from first doc that has them (PEP-131)
+      if (!group.curriculumArea && obs.curriculumArea) {
+        group.curriculumArea = obs.curriculumArea;
+        group.description = obs.description;
+        group.handwritten = obs.handwritten;
+        group.handwritingAnalysis = obs.handwritingAnalysis;
       }
       // Merge lesson tag IDs from each media doc in the batch
       if (Array.isArray(obs.linkedLessonObservationId)) {
@@ -1091,7 +1095,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       observedAt: item?.observedAt || sourceObservation?.observedAt,
                       timestamp: item?.timestamp || sourceObservation?.timestamp,
                       teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
-                      photoAnalysis: sourceObservation.photoAnalysis ?? obs.photoAnalysis,
+                      curriculumArea: sourceObservation.curriculumArea ?? obs.curriculumArea,
+                      description: sourceObservation.description ?? obs.description,
+                      handwritten: sourceObservation.handwritten ?? obs.handwritten,
+                      handwritingAnalysis: sourceObservation.handwritingAnalysis ?? obs.handwritingAnalysis,
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
                     url: url || null,
@@ -1113,7 +1120,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      {!obs.photoAnalysis && (
+                      {!obs.curriculumArea && !obs.description && (
                         <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                           {buildMediaSummary(obs)}
                         </Typography>
@@ -1124,11 +1131,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
 
-                      {/* Photo analysis chips + description snippet (PEP-33) */}
-                      {obs.photoAnalysis?.curriculumArea && (
+                      {/* Photo classification chips + description snippet (PEP-131) */}
+                      {obs.curriculumArea && (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mt: 1 }}>
                           <Chip
-                            label={obs.photoAnalysis.curriculumArea}
+                            label={obs.curriculumArea}
                             size="small"
                             sx={{
                               bgcolor: '#ecfdf5',
@@ -1139,21 +1146,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               height: 22,
                             }}
                           />
-                          {obs.photoAnalysis.curriculumSubArea && (
-                            <Chip
-                              label={obs.photoAnalysis.curriculumSubArea}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: '0.68rem', height: 20, color: 'text.secondary' }}
-                            />
-                          )}
                         </Box>
                       )}
-                      {obs.photoAnalysis?.description && (
+                      {obs.description && (
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.75 }}>
                           <AutoAwesome sx={{ fontSize: 13, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
                           <Typography variant="body2" sx={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
-                            {truncateDescription(obs.photoAnalysis.description)}
+                            {truncateDescription(obs.description)}
                           </Typography>
                         </Box>
                       )}
@@ -1866,62 +1865,60 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             </Typography>
           )}
 
-          {/* Photo analysis metadata (PEP-33) */}
-          {mediaPreview?.observation?.photoAnalysis && (() => {
-            const pa = mediaPreview.observation.photoAnalysis;
+          {/* Photo analysis metadata (PEP-131) */}
+          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.description || mediaPreview.observation.handwritingAnalysis) && (() => {
+            const obs = mediaPreview.observation;
+            const ha = obs.handwritingAnalysis;
             return (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                {/* Curriculum chips */}
-                {pa.curriculumArea && (
+                {/* Classification chips */}
+                {(obs.curriculumArea || obs.handwritten) && (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                    <Chip label={pa.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
-                    {pa.curriculumSubArea && (
-                      <Chip label={pa.curriculumSubArea} size="small" variant="outlined" sx={{ fontSize: '0.7rem', color: 'text.secondary' }} />
+                    {obs.curriculumArea && (
+                      <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
                     )}
-                    {pa.handwritten && (
+                    {obs.handwritten && (
                       <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
                     )}
                   </Box>
                 )}
                 {/* AI description */}
-                {pa.description && (
+                {obs.description && (
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
                     <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
                     <Typography variant="body2" sx={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
-                      {pa.description}
+                      {obs.description}
                     </Typography>
                   </Box>
                 )}
-                {/* Developmental notes */}
-                {pa.developmentalNotes && (
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5 }}>
-                    {pa.developmentalNotes}
-                  </Typography>
-                )}
-                {/* Materials identified */}
-                {Array.isArray(pa.materialsIdentified) && pa.materialsIdentified.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>Materials:</Typography>
-                    {pa.materialsIdentified.map((mat, i) => (
-                      <Chip key={i} label={mat} size="small" variant="outlined" sx={{ fontSize: '0.68rem', height: 20 }} />
-                    ))}
-                  </Box>
-                )}
-                {/* Writing analysis summary */}
-                {pa.writingAnalysis && pa.handwritten && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Writing Analysis</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {Object.entries(pa.writingAnalysis).map(([dim, val]) => (
-                        val && val.rating != null && (
-                          <Chip
-                            key={dim}
-                            label={`${dim}: ${val.rating}/5`}
-                            size="small"
-                            sx={{ fontSize: '0.68rem', height: 22, bgcolor: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}
-                          />
-                        )
-                      ))}
+                {/* Handwriting analysis — developmental notes + dimension scores with notes */}
+                {ha && obs.handwritten && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {ha.developmentalNotes && (
+                      <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5 }}>
+                        {ha.developmentalNotes}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Handwriting Analysis</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                      {WRITING_DIMENSIONS.map((dim) => {
+                        const val = ha[dim];
+                        if (!val || val.rating == null) return null;
+                        return (
+                          <Box key={dim} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+                            <Chip
+                              label={`${dim}: ${val.rating}/5`}
+                              size="small"
+                              sx={{ fontSize: '0.68rem', height: 22, bgcolor: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff', flexShrink: 0 }}
+                            />
+                            {val.note && (
+                              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4, pt: 0.2 }}>
+                                {val.note}
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      })}
                     </Box>
                   </Box>
                 )}

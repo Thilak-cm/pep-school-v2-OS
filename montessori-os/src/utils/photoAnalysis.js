@@ -1,85 +1,99 @@
 /**
- * Pure helpers for parsing and validating VLM photo analysis responses (PEP-32).
+ * Pure helpers for parsing and validating two-step photo analysis responses (PEP-131).
+ * Call 1 (classification): parseClassification — handwritten, curriculumArea, description
+ * Call 2 (handwriting analysis): parseHandwritingAnalysis — developmentalNotes + 5 dimensions
  * No Firebase dependencies — safe to import in tests.
  */
 
-const VALID_CATEGORIES = new Set(['student_work', 'other']);
+export const WRITING_DIMENSIONS = ['handwriting', 'spelling', 'vocabulary', 'structure', 'punctuation'];
 
-const WRITING_DIMENSIONS = ['handwriting', 'spelling', 'vocabulary', 'structure', 'punctuation'];
-
-export const PHOTO_ANALYSIS_DEFAULTS = Object.freeze({
+export const CLASSIFICATION_DEFAULTS = Object.freeze({
   handwritten: false,
-  contentCategory: 'other',
-  description: null,
-  materialsIdentified: [],
   curriculumArea: null,
-  curriculumSubArea: null,
-  developmentalNotes: null,
-  writingAnalysis: null,
-  teacherEdited: false,
+  description: null,
 });
+
+/* ------------------------------------------------------------------ */
+/*  Internal helpers                                                   */
+/* ------------------------------------------------------------------ */
+
+function tryParse(input) {
+  if (!input) return null;
+  if (typeof input === 'object') return input;
+  if (typeof input === 'string') {
+    try { return JSON.parse(input); } catch { return null; }
+  }
+  return null;
+}
 
 function parseDimension(dim) {
   if (!dim || typeof dim !== 'object') return { rating: null, note: null };
-  const rating = typeof dim.rating === 'number' && dim.rating >= 1 && dim.rating <= 5
-    ? dim.rating : null;
+  const r = dim.rating;
+  const rating = typeof r === 'number' && Number.isInteger(r) && r >= 1 && r <= 5 ? r : null;
   const note = typeof dim.note === 'string' ? dim.note : null;
   return { rating, note };
 }
 
-function parseWritingAnalysis(wa) {
-  if (!wa || typeof wa !== 'object') return null;
-  const result = {};
+/* ------------------------------------------------------------------ */
+/*  parseClassification  (Call 1 — gpt-5.4-nano)                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse and validate a classification response from Call 1.
+ * Accepts a JSON string or pre-parsed object.
+ * Returns { handwritten, curriculumArea, description }.
+ */
+export function parseClassification(input) {
+  const parsed = tryParse(input);
+  if (!parsed) return { ...CLASSIFICATION_DEFAULTS };
+
+  const handwritten = parsed.handwritten === true;
+  const curriculumArea = typeof parsed.curriculumArea === 'string' && parsed.curriculumArea
+    ? parsed.curriculumArea : null;
+  const description = typeof parsed.description === 'string' && parsed.description
+    ? parsed.description : null;
+
+  return { handwritten, curriculumArea, description };
+}
+
+/* ------------------------------------------------------------------ */
+/*  parseHandwritingAnalysis  (Call 2 — gpt-5.4)                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse and validate a handwriting analysis response from Call 2.
+ * Accepts a JSON string or pre-parsed object.
+ * Returns { developmentalNotes, handwriting, spelling, vocabulary, structure, punctuation }
+ * or null if input is empty/invalid.
+ */
+export function parseHandwritingAnalysis(input) {
+  const parsed = tryParse(input);
+  if (!parsed) return null;
+
+  const developmentalNotes = typeof parsed.developmentalNotes === 'string'
+    ? parsed.developmentalNotes : null;
+
+  const result = { developmentalNotes };
   for (const dim of WRITING_DIMENSIONS) {
-    result[dim] = parseDimension(wa[dim]);
+    result[dim] = parseDimension(parsed[dim]);
   }
   return result;
 }
 
+/* ------------------------------------------------------------------ */
+/*  buildMediaFields — combines classification + analysis             */
+/* ------------------------------------------------------------------ */
+
 /**
- * Parse and validate a VLM photo analysis response.
- * Accepts a JSON string or an already-parsed object.
- * Returns a validated object with defaults for missing/invalid fields.
+ * Combine parsed classification and analysis into flat media doc fields.
+ * Returns { handwritten, curriculumArea, description, handwritingAnalysis }.
  */
-export function parsePhotoAnalysis(input) {
-  if (!input) return { ...PHOTO_ANALYSIS_DEFAULTS };
-
-  let parsed;
-  if (typeof input === 'string') {
-    try {
-      parsed = JSON.parse(input);
-    } catch {
-      return { ...PHOTO_ANALYSIS_DEFAULTS };
-    }
-  } else if (typeof input === 'object') {
-    parsed = input;
-  } else {
-    return { ...PHOTO_ANALYSIS_DEFAULTS };
-  }
-
-  const handwritten = parsed.handwritten === true;
-  const contentCategory = VALID_CATEGORIES.has(parsed.contentCategory)
-    ? parsed.contentCategory : 'other';
-
-  const description = typeof parsed.description === 'string' ? parsed.description : null;
-  const materialsIdentified = Array.isArray(parsed.materialsIdentified)
-    ? parsed.materialsIdentified.filter((m) => typeof m === 'string') : [];
-  const curriculumArea = typeof parsed.curriculumArea === 'string' ? parsed.curriculumArea : null;
-  const curriculumSubArea = typeof parsed.curriculumSubArea === 'string' ? parsed.curriculumSubArea : null;
-  const developmentalNotes = typeof parsed.developmentalNotes === 'string' ? parsed.developmentalNotes : null;
-
-  // Only include writingAnalysis when handwritten is true
-  const writingAnalysis = handwritten ? parseWritingAnalysis(parsed.writingAnalysis) : null;
-
+export function buildMediaFields(classification, analysis) {
+  const cls = classification || CLASSIFICATION_DEFAULTS;
   return {
-    handwritten,
-    contentCategory,
-    description,
-    materialsIdentified,
-    curriculumArea,
-    curriculumSubArea,
-    developmentalNotes,
-    writingAnalysis,
-    teacherEdited: parsed?.teacherEdited === true,
+    handwritten: cls.handwritten === true,
+    curriculumArea: cls.curriculumArea || null,
+    description: cls.description || null,
+    handwritingAnalysis: cls.handwritten === true ? (analysis || null) : null,
   };
 }

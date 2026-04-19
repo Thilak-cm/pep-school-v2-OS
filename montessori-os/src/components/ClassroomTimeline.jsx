@@ -678,7 +678,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const availableCurriculumAreas = useMemo(() => {
     const areas = new Set();
     classroomMediaDocs.forEach(note => {
-      const area = note.photoAnalysis?.curriculumArea;
+      const area = note.curriculumArea;
       if (area) areas.add(area);
     });
     return [...areas].sort();
@@ -2085,10 +2085,10 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                 {note.text}
               </Typography>
             )}
-            {note.photoAnalysis?.curriculumArea && (
+            {note.curriculumArea && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
                 <Chip
-                  label={note.photoAnalysis.curriculumArea}
+                  label={note.curriculumArea}
                   size="small"
                   sx={{
                     bgcolor: '#ecfdf5',
@@ -2099,14 +2099,6 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                     height: 20,
                   }}
                 />
-                {note.photoAnalysis.curriculumSubArea && (
-                  <Chip
-                    label={note.photoAnalysis.curriculumSubArea}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: '0.66rem', height: 20, color: 'text.secondary' }}
-                  />
-                )}
               </Box>
             )}
             {/* Media thumbnail */}
