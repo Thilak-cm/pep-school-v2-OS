@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-15T00:41:29.113Z
-App version: 10.7.0
+Generated: 2026-04-19T22:49:55.137Z
+App version: 10.8.0
 
 ## App Snapshot
 
@@ -138,6 +138,11 @@ App version: 10.7.0
 
 ## Recent Changes
 
+### 10.8.0 (2026-04-15)
+- Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)
+- Flat media doc schema replaces nested `photoAnalysis` object with top-level `handwritten`, `curriculumArea`, `description`, and `handwritingAnalysis` fields (PEP-131)
+- Student timeline lightbox now displays per-dimension handwriting scores (1-5) with notes alongside developmental observations (PEP-131)
+
 ### 10.7.0 (2026-04-15)
 - Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
 - Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
@@ -151,9 +156,4 @@ App version: 10.7.0
 - Consolidated all `ai_prompts` docs into `config` collection — each AI feature now has a single config doc with prompts, model, temperature, and operational params (PEP-139)
 - Dynamic model selection dropdowns added to Coach, Text Cleanup, and Baseball Card editors (PEP-139)
 - Cloud Functions read model/temperature from Firestore config docs with fallback to hardcoded constants (PEP-139)
-
-### 10.5.0 (2026-04-13)
-- Rich AI photo analysis — photos of student work are automatically analyzed by VLM returning curriculum area, handwritten detection, AI-generated description, materials identified, and developmental notes (PEP-32)
-- Cloud Function `analyzePhotoVLM` with structured JSON output, student age context, and Firestore-managed prompt with hardcoded fallback (PEP-32)
-- Photo card UI redesign — 4:3 aspect ratio, overlay pill toggle for Own work/Copied, curriculum and handwritten chips, editable AI description (PEP-32)
 
