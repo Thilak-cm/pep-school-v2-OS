@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { Home, Settings, Notifications } from '@mui/icons-material';
+import { Home, Settings, Notifications, Inbox } from '@mui/icons-material';
 
 const FOOTER_HEIGHT = 64;
 
@@ -16,8 +16,10 @@ function AppFooter({ onHome, onNavigate, active = null }) {
       onHome();
     } else if (target === 'settings' && onNavigate) {
       onNavigate('settings');
-    } else if (target === 'notifications' && onNavigate) {
-      onNavigate('notifications');
+    } else if (target === 'alerts' && onNavigate) {
+      onNavigate('alerts');
+    } else if (target === 'interviews' && onNavigate) {
+      onNavigate('interviews');
     }
   };
 
@@ -102,10 +104,16 @@ function AppFooter({ onHome, onNavigate, active = null }) {
             onClick={() => handleClickSelected('settings')}
           />
           <BottomNavigationAction
-            label="Notifications"
-            value="notifications"
+            label="Alerts"
+            value="alerts"
             icon={<Notifications />}
-            onClick={() => handleClickSelected('notifications')}
+            onClick={() => handleClickSelected('alerts')}
+          />
+          <BottomNavigationAction
+            label="Interviews"
+            value="interviews"
+            icon={<Inbox />}
+            onClick={() => handleClickSelected('interviews')}
           />
           <BottomNavigationAction
             label="Home"
