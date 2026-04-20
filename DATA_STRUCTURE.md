@@ -470,18 +470,6 @@ interface MediaDoc {
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
   handwritten?: boolean;         // VLM classification: true if image contains handwriting (default false)
   curriculumArea?: string | null; // VLM classification: e.g., "Mathematics", "Language", "Sensorial"
-  description?: string | null;   // VLM classification: 1-2 sentence description of the photo
-
-  // Handwriting analysis (photos only, PEP-131 — only present when handwritten=true)
-  handwritingAnalysis?: {
-    developmentalNotes: string;            // Age-contextualized developmental observation
-    handwriting: { rating: number | null; note: string };
-    spelling:    { rating: number | null; note: string };
-    vocabulary:  { rating: number | null; note: string };
-    structure:   { rating: number | null; note: string };
-    punctuation: { rating: number | null; note: string };
-  } | null;
-
   // AI features
   pdfTitle?: string;             // AI-extracted title (PDFs only)
   essence_text?: string;         // AI-extracted essence summary (PDFs only)
@@ -502,8 +490,8 @@ Notes
 - Media ID format: `media_<itemId>` where `itemId` is generated client-side.
 - Photos are converted to WebP client-side before upload.
 - `copied` is a teacher-set boolean toggle per photo (default `false`). Set during media upload.
-- `handwritten`, `curriculumArea`, and `description` are set by the classification VLM call (gpt-5.4-nano) on every photo upload.
-- `handwritingAnalysis` is set by the handwriting analysis VLM call (gpt-5.4) only when `handwritten` is `true`. Contains age-calibrated dimensional scores (1-5) with per-dimension notes. Ratings can be `null` when insufficient evidence exists for a dimension.
+- `handwritten` and `curriculumArea` are set by the per-photo classification VLM call (gpt-5.4-nano) on every photo upload (PEP-146). Each photo in a batch gets its own independent classification via parallel calls.
+- `handwritten` flags photos for downstream batch handwriting analysis at weekly plan generation time (PEP-132). No per-upload handwriting analysis is performed.
 
 ---
 

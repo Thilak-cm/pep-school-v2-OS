@@ -86,7 +86,7 @@ export function mapVLMResultsToMediaItems(results, mediaItems) {
   return mediaItems.map((item) => {
     const r = resultMap.get(item.id);
     if (!r) return item;
-    const fields = buildMediaFields(parseClassification(r));
+    const fields = buildMediaFields(r);
     return { ...item, ...fields, analyzed: true };
   });
 }

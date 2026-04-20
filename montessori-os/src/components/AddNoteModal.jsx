@@ -1694,8 +1694,6 @@ function AddNoteModal({
               copied: item.copied === true,
               handwritten: item.handwritten === true,
               curriculumArea: item.curriculumArea || null,
-              description: item.description || null,
-              ...(item.handwritingAnalysis ? { handwritingAnalysis: item.handwritingAnalysis } : {}),
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
@@ -2371,33 +2369,6 @@ function AddNoteModal({
                                         />
                                       )}
                                     </Box>
-                                    {/* AI description */}
-                                    {item.description && (
-                                      <TextField
-                                        value={item.description}
-                                        onChange={(e) => {
-                                          const newDesc = e.target.value;
-                                          setMediaItems((prev) => prev.map((it) =>
-                                            it.id === item.id
-                                              ? { ...it, description: newDesc }
-                                              : it
-                                          ));
-                                        }}
-                                        fullWidth
-                                        multiline
-                                        minRows={2}
-                                        size="small"
-                                        label="Coach Pepper's Description"
-                                        InputProps={{
-                                          sx: { fontSize: '0.82rem', lineHeight: 1.5, color: '#334155' },
-                                          startAdornment: (
-                                            <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
-                                              <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa' }} />
-                                            </InputAdornment>
-                                          ),
-                                        }}
-                                      />
-                                    )}
                                   </Box>
                                 )}
 

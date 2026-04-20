@@ -299,6 +299,7 @@ const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos
 
 Respond with ONLY valid JSON. Example:
 { "handwritten": false, "curriculumArea": "Mathematics" }`;
+
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 /**
