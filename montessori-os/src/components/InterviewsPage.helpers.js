@@ -76,7 +76,7 @@ export const MOCK_INTERVIEWS = [
 
 // Required fields for every interview entry
 export const REQUIRED_FIELDS = ['id', 'studentId', 'studentName', 'classroomName', 'status', 'teacherName'];
-export const VALID_STATUSES = ['upcoming', 'completed'];
+export const VALID_STATUSES = ['upcoming', 'scheduled', 'completed']; // 'scheduled' used by PEP-122 (weekly scheduling)
 
 // --- Filter functions ---
 
@@ -115,8 +115,10 @@ export function getAlertInterviews(interviews) {
 export function formatLastInterviewed(isoDate) {
   if (!isoDate) return 'Never interviewed';
   const then = new Date(isoDate);
+  if (isNaN(then.getTime())) return 'Never interviewed';
   const now = new Date();
   const diffMs = now - then;
+  if (diffMs < 0) return 'Upcoming';
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return '1 day ago';

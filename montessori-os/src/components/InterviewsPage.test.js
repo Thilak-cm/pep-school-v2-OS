@@ -73,6 +73,20 @@ test('partitionInterviews handles all-upcoming list', () => {
   assert.equal(completed.length, 0);
 });
 
+test('partitionInterviews handles all-completed list', () => {
+  const all = [{ status: 'completed' }, { status: 'completed' }];
+  const { upcoming, completed } = partitionInterviews(all);
+  assert.equal(upcoming.length, 0);
+  assert.equal(completed.length, 2);
+});
+
+test('partitionInterviews buckets scheduled into upcoming', () => {
+  const items = [{ status: 'scheduled' }, { status: 'completed' }];
+  const { upcoming, completed } = partitionInterviews(items);
+  assert.equal(upcoming.length, 1);
+  assert.equal(completed.length, 1);
+});
+
 // --- getAlertInterviews ---
 
 test('getAlertInterviews returns only entries with hasAlert true', () => {
@@ -105,4 +119,13 @@ test('formatLastInterviewed returns "1 day ago" for yesterday', () => {
 test('formatLastInterviewed returns "X days ago" for older dates', () => {
   const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
   assert.equal(formatLastInterviewed(fiveDaysAgo), '5 days ago');
+});
+
+test('formatLastInterviewed returns "Upcoming" for future dates', () => {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  assert.equal(formatLastInterviewed(tomorrow), 'Upcoming');
+});
+
+test('formatLastInterviewed returns "Never interviewed" for invalid date strings', () => {
+  assert.equal(formatLastInterviewed('not-a-date'), 'Never interviewed');
 });

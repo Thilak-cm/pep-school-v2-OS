@@ -89,7 +89,8 @@ function InterviewCard({ interview }) {
   );
 }
 
-function InterviewsPage() {
+// eslint-disable-next-line no-unused-vars
+function InterviewsPage({ currentUser, userRole, manageableClassrooms }) {
   const { upcoming, completed } = useMemo(
     () => partitionInterviews(MOCK_INTERVIEWS),
     []
