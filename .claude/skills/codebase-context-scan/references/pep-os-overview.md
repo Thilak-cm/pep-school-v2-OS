@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-19T22:49:55.137Z
-App version: 10.8.0
+Generated: 2026-04-20T22:29:33.859Z
+App version: 10.9.0
 
 ## App Snapshot
 
@@ -92,8 +92,8 @@ App version: 10.8.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 20
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 23
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -138,6 +138,11 @@ App version: 10.8.0
 
 ## Recent Changes
 
+### 10.9.0 (2026-04-19)
+- Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
+- `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
+- Renamed "Notifications" footer tab to "Alerts" (PEP-11)
+
 ### 10.8.0 (2026-04-15)
 - Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)
 - Flat media doc schema replaces nested `photoAnalysis` object with top-level `handwritten`, `curriculumArea`, `description`, and `handwritingAnalysis` fields (PEP-131)
@@ -151,9 +156,4 @@ App version: 10.8.0
 ### 10.6.0 (2026-04-14)
 - Interview question generation prototype — standalone script reads student profile dimensions and baseball card from Firestore, calls OpenAI to generate 7 targeted MCQ/open-ended interview questions with coverage report (PEP-140)
 - Null guard on OpenAI response content to prevent confusing errors on unexpected API response shapes (PEP-140)
-
-### 10.5.1 (2026-04-14)
-- Consolidated all `ai_prompts` docs into `config` collection — each AI feature now has a single config doc with prompts, model, temperature, and operational params (PEP-139)
-- Dynamic model selection dropdowns added to Coach, Text Cleanup, and Baseball Card editors (PEP-139)
-- Cloud Functions read model/temperature from Firestore config docs with fallback to hardcoded constants (PEP-139)
 
