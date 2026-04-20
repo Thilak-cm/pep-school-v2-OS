@@ -1,8 +1,9 @@
 /**
- * Tests for media doc payload fields (PEP-131 — two-step pipeline).
+ * Tests for media doc payload fields (PEP-131 → PEP-146).
  *
  * These tests verify that buildMediaDocData correctly includes
- * classification and handwriting analysis fields in the Firestore document data.
+ * classification fields in the Firestore document data.
+ * handwritingAnalysis removed in PEP-146 — deferred to PEP-132 batch analysis.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,7 +74,25 @@ test('buildMediaDocData does not include copied/handwritten for PDFs', () => {
   assert.equal(doc.handwritten, undefined, 'PDFs should not have handwritten field');
 });
 
-test('buildMediaDocData includes flat classification fields for photos (PEP-131)', () => {
+test('buildMediaDocData includes flat classification fields for photos (PEP-146)', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'photo',
+    handwritten: true,
+    curriculumArea: 'Language',
+    description: 'Cursive writing practice',
+    source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
+    createdBy: 'uid1',
+  }, 'media_1', 'students/stu1/media/media_1/original.webp');
+
+  assert.equal(doc.handwritten, true);
+  assert.equal(doc.curriculumArea, 'Language');
+  assert.equal(doc.description, 'Cursive writing practice');
+  assert.equal(doc.handwritingAnalysis, undefined, 'handwritingAnalysis should not be present (PEP-146)');
+});
+
+test('buildMediaDocData omits handwritingAnalysis even when payload includes it', () => {
   const doc = buildMediaDocData({
     studentId: 'stu1',
     classroomId: 'cls1',
@@ -84,37 +103,14 @@ test('buildMediaDocData includes flat classification fields for photos (PEP-131)
     handwritingAnalysis: {
       developmentalNotes: 'Good letter formation',
       handwriting: { rating: 3, note: 'Consistent' },
-      spelling: { rating: null, note: 'N/A' },
-      vocabulary: { rating: null, note: 'N/A' },
-      structure: { rating: null, note: 'N/A' },
-      punctuation: { rating: null, note: 'N/A' },
     },
     source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
     createdBy: 'uid1',
   }, 'media_1', 'students/stu1/media/media_1/original.webp');
 
-  assert.equal(doc.handwritten, true);
+  assert.equal(doc.handwritingAnalysis, undefined, 'handwritingAnalysis should never be written (PEP-146)');
   assert.equal(doc.curriculumArea, 'Language');
   assert.equal(doc.description, 'Cursive writing practice');
-  assert.equal(doc.handwritingAnalysis.developmentalNotes, 'Good letter formation');
-  assert.equal(doc.handwritingAnalysis.handwriting.rating, 3);
-});
-
-test('buildMediaDocData omits handwritingAnalysis when payload lacks it', () => {
-  const doc = buildMediaDocData({
-    studentId: 'stu1',
-    classroomId: 'cls1',
-    mediaKind: 'photo',
-    handwritten: false,
-    curriculumArea: 'Mathematics',
-    description: 'Bead work',
-    source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
-    createdBy: 'uid1',
-  }, 'media_1', 'students/stu1/media/media_1/original.webp');
-
-  assert.equal(doc.handwritingAnalysis, undefined);
-  assert.equal(doc.curriculumArea, 'Mathematics');
-  assert.equal(doc.description, 'Bead work');
 });
 
 test('buildMediaDocData does not include photo fields for PDFs', () => {
