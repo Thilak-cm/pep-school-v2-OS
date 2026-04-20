@@ -55,6 +55,7 @@ function ClassroomStudentPicker({
   voiceLoading = false,
   suggestedStudents = [],
   disabledStudentIds = [], // IDs to grey out and disable selection
+  maxSelectable, // when set, disable unselected students once limit is reached
 }) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -355,7 +356,9 @@ function ClassroomStudentPicker({
   };
 
   // Helper: is this student disabled?
-  const isDisabled = (studentId) => disabledStudentIds?.includes?.(studentId);
+  const isDisabled = (studentId) =>
+    disabledStudentIds?.includes?.(studentId) ||
+    (maxSelectable != null && selectedStudents.length >= maxSelectable && !selectedStudents.includes(studentId));
 
   // Handle student selection
   const handleStudentToggle = (studentId) => {
@@ -1220,7 +1223,7 @@ function ClassroomStudentPicker({
                           </ListItemIcon>
                           <ListItemText
                             primary={disabled
-                              ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                              ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ''}`
                               : getStudentName(student)}
                             secondary={`${student.classroom_name}`}
                           />
@@ -1333,7 +1336,7 @@ function ClassroomStudentPicker({
                                   </ListItemIcon>
                                   <ListItemText
                                     primary={disabled
-                                      ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                      ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ''}`
                                       : getStudentName(student)}
                                   />
                                 </ListItemButton>
