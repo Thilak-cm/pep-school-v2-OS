@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.9.0 — 2026-04-19
+
+### Added
+- Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
+- `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
+
+### Changed
+- Renamed "Notifications" footer tab to "Alerts" (PEP-11)
+
 # 10.8.0 — 2026-04-15
 
 ### Changed
