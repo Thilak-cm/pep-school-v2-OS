@@ -19,7 +19,7 @@ import {
   Checkbox,
   TextField
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, AutoAwesome } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -45,7 +45,6 @@ import {
   planMissingMediaUrlPaths,
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
-import { truncateDescription } from '../utils/photoAnalysisDisplay.js';
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -315,9 +314,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         if (!group.curriculumAreas.includes(obs.curriculumArea)) {
           group.curriculumAreas.push(obs.curriculumArea);
         }
-      }
-      if (!group.description && obs.description) {
-        group.description = obs.description;
       }
       if (obs.handwritten) group.handwritten = true;
       // Merge lesson tag IDs from each media doc in the batch
@@ -1099,7 +1095,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       timestamp: item?.timestamp || sourceObservation?.timestamp,
                       teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
                       curriculumArea: sourceObservation.curriculumArea ?? obs.curriculumArea,
-                      description: sourceObservation.description ?? obs.description,
                       handwritten: sourceObservation.handwritten ?? obs.handwritten,
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
@@ -1122,7 +1117,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && !obs.description && (
+                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && (
                         <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                           {buildMediaSummary(obs)}
                         </Typography>
@@ -1151,14 +1146,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               }}
                             />
                           ))}
-                        </Box>
-                      )}
-                      {obs.description && (
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.75 }}>
-                          <AutoAwesome sx={{ fontSize: 13, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
-                          <Typography variant="body2" sx={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
-                            {truncateDescription(obs.description)}
-                          </Typography>
                         </Box>
                       )}
 
@@ -1871,29 +1858,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           )}
 
           {/* Photo classification metadata (PEP-146) */}
-          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.description) && (() => {
+          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten) && (() => {
             const obs = mediaPreview.observation;
             return (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                {/* Classification chips */}
-                {(obs.curriculumArea || obs.handwritten) && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                    {obs.curriculumArea && (
-                      <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
-                    )}
-                    {obs.handwritten && (
-                      <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
-                    )}
-                  </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                {obs.curriculumArea && (
+                  <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
                 )}
-                {/* AI description */}
-                {obs.description && (
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
-                    <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa', mt: 0.25, flexShrink: 0 }} />
-                    <Typography variant="body2" sx={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
-                      {obs.description}
-                    </Typography>
-                  </Box>
+                {obs.handwritten && (
+                  <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
                 )}
               </Box>
             );

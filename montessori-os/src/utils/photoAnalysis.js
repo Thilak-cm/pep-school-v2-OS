@@ -1,6 +1,6 @@
 /**
  * Pure helpers for parsing photo classification responses (PEP-131 → PEP-146).
- * Call 1 (classification): parseClassification — handwritten, curriculumArea, description
+ * Call 1 (classification): parseClassification — handwritten, curriculumArea
  * Call 2 (handwriting analysis) removed in PEP-146 — deferred to PEP-132 batch analysis.
  * No Firebase dependencies — safe to import in tests.
  */
@@ -8,7 +8,6 @@
 export const CLASSIFICATION_DEFAULTS = Object.freeze({
   handwritten: false,
   curriculumArea: null,
-  description: null,
 });
 
 /* ------------------------------------------------------------------ */
@@ -31,7 +30,7 @@ function tryParse(input) {
 /**
  * Parse and validate a classification response from Call 1.
  * Accepts a JSON string or pre-parsed object.
- * Returns { handwritten, curriculumArea, description }.
+ * Returns { handwritten, curriculumArea }.
  */
 export function parseClassification(input) {
   const parsed = tryParse(input);
@@ -40,10 +39,8 @@ export function parseClassification(input) {
   const handwritten = parsed.handwritten === true;
   const curriculumArea = typeof parsed.curriculumArea === 'string' && parsed.curriculumArea
     ? parsed.curriculumArea : null;
-  const description = typeof parsed.description === 'string' && parsed.description
-    ? parsed.description : null;
 
-  return { handwritten, curriculumArea, description };
+  return { handwritten, curriculumArea };
 }
 
 /* ------------------------------------------------------------------ */
@@ -52,14 +49,13 @@ export function parseClassification(input) {
 
 /**
  * Convert parsed classification into flat media doc fields.
- * Returns { handwritten, curriculumArea, description }.
+ * Returns { handwritten, curriculumArea }.
  */
 export function buildMediaFields(classification) {
   const cls = classification || CLASSIFICATION_DEFAULTS;
   return {
     handwritten: cls.handwritten === true,
     curriculumArea: cls.curriculumArea || null,
-    description: cls.description || null,
   };
 }
 
@@ -71,7 +67,7 @@ export function buildMediaFields(classification) {
  * Map per-photo VLM results (from CF) back to media items by itemId.
  * Returns a new array with classification fields merged onto matching items.
  *
- * @param {Array|null} results - CF response `results` array: [{ itemId, handwritten, curriculumArea, description }]
+ * @param {Array|null} results - CF response `results` array: [{ itemId, handwritten, curriculumArea }]
  * @param {Array} mediaItems - Current media items array (each has `.id`)
  * @returns {Array} New media items array with classification fields merged
  */
