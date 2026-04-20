@@ -49,6 +49,7 @@ import { isSuperAdmin } from './utils/roleUtils';
 import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import SettingsPage from './components/SettingsPage.jsx';
 import NotificationsPage, { clearNotificationsCache } from './components/NotificationsPage.jsx';
+import InterviewsPage from './components/InterviewsPage.jsx';
 import ConfigHomePage from './components/ConfigHomePage.jsx';
 import BulkUploadPage from './components/BulkUploadPage.jsx';
 import LessonNoteConfigEditor from './components/LessonNoteConfigEditor.jsx';
@@ -59,7 +60,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null); // 'superadmin' | 'classroomadmin' | 'teacher'
   const [manageableClassrooms, setManageableClassrooms] = useState([]); // classroomIds scoped for classroom admins
-  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'notifications' | 'baseballCardConfig' | 'bulkUpload'
+  const [screen, setScreen] = useState('loading'); // 'loading' | 'landingPage' | 'classroomList' | 'classroomTimeline' | 'studentDashboard' | 'studentStats' | 'timeline' | 'childChat' | 'profile' | 'stats' | 'feedback' | 'feedbackTimeline' | 'addUser' | 'graduateStudents' | 'classroomNotesReview' | 'config' | 'configLessonNotes' | 'configAiTools' | 'aiTextEditor' | 'aiVoiceEditor' | 'aiCoachEditor' | 'chatCommandCentre' | 'studentAliases' | 'settings' | 'alerts' | 'interviews' | 'baseballCardConfig' | 'bulkUpload'
   const [usersAccessView, setUsersAccessView] = useState('home'); // 'home' | 'add' | 'manage'
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -342,7 +343,8 @@ function App() {
   else if (screen === 'lessonNotes') pageTitle = 'Adding Lesson Note';
   else if (screen === 'studentAliases') pageTitle = 'My Student Groups';
   else if (screen === 'settings') pageTitle = 'Settings';
-  else if (screen === 'notifications') pageTitle = 'Notifications';
+  else if (screen === 'alerts') pageTitle = 'Alerts';
+  else if (screen === 'interviews') pageTitle = 'Interviews';
   else if (screen === 'studentStats') {
     const studentName = selectedStudent?.displayName || selectedStudent?.name ||
                        `${selectedStudent?.firstName || ''} ${selectedStudent?.lastName || ''}`.trim() || 'Student';
@@ -408,7 +410,9 @@ function App() {
         return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'settings':
         return () => { setSelectedStudent(null); setScreen('landingPage'); };
-      case 'notifications':
+      case 'alerts':
+        return () => { setSelectedStudent(null); setScreen('landingPage'); };
+      case 'interviews':
         return () => { setSelectedStudent(null); setScreen('landingPage'); };
       case 'lessonNotes':
         return () => {
@@ -431,14 +435,18 @@ function App() {
   };
 
   const backNavigation = getBackNavigation();
-  const showBackButton = screen !== 'landingPage' && screen !== 'notifications' && screen !== 'settings';
+  const showBackButton = screen !== 'landingPage' && screen !== 'alerts' && screen !== 'interviews' && screen !== 'settings';
   const handleNavigation = (path) => {
     if (path === 'settings') {
       setScreen('settings');
       return;
     }
-    if (path === 'notifications') {
-      setScreen('notifications');
+    if (path === 'alerts') {
+      setScreen('alerts');
+      return;
+    }
+    if (path === 'interviews') {
+      setScreen('interviews');
       return;
     }
 
@@ -752,8 +760,16 @@ function App() {
                     />
                   )}
 
-                  {screen === 'notifications' && (
+                  {screen === 'alerts' && (
                     <NotificationsPage />
+                  )}
+
+                  {screen === 'interviews' && (
+                    <InterviewsPage
+                      currentUser={user}
+                      userRole={role}
+                      manageableClassrooms={manageableClassrooms}
+                    />
                   )}
 
                   {screen === 'timeline' && (
@@ -955,7 +971,8 @@ function App() {
                 screen !== 'baseballCardConfig' &&
                 screen !== 'reportGenConfig' &&
                 screen !== 'bulkUpload' &&
-                screen !== 'notifications' && (
+                screen !== 'alerts' &&
+                screen !== 'interviews' && (
                 <AddNoteFab 
                   showLabel 
                   onClick={() => setAddNoteOpen(true)} 
@@ -1000,9 +1017,11 @@ function App() {
                       ? 'home'
                       : screen === 'settings'
                         ? 'settings'
-                        : screen === 'notifications'
-                          ? 'notifications'
-                          : null
+                        : screen === 'alerts'
+                          ? 'alerts'
+                          : screen === 'interviews'
+                            ? 'interviews'
+                            : null
                   }
                 />
               )}
