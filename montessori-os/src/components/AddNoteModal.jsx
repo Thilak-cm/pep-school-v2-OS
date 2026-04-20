@@ -52,7 +52,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { parseClassification, parseHandwritingAnalysis, buildMediaFields } from '../utils/photoAnalysis.js';
+import { mapVLMResultsToMediaItems } from '../utils/photoAnalysis.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -369,6 +369,7 @@ function AddNoteModal({
   const pdfWorkerSetupRef = useRef(false);
   const [photoAnalysisLoading, setPhotoAnalysisLoading] = useState(false);
   const photoAnalysisFailedRef = useRef(new Set());
+  const photoStudentPickerRef = useRef(null);
 
   // Coach UI state (Duration-only MVP)
   const [coachNudges, setCoachNudges] = useState([]);
@@ -732,7 +733,7 @@ function AddNoteModal({
     const unanalyzed = mediaItems.filter((it) => it.kind === 'photo' && !it.analyzed && !photoAnalysisFailedRef.current.has(it.id));
     if (unanalyzed.length === 0) return;
 
-    runPhotoAnalysis(unanalyzed, selectedStudents[0]).catch((error) => {
+    runPhotoAnalysis(unanalyzed).catch((error) => {
       reportCaughtError(error, 'AddNoteModal', 'empty promise catch at runPhotoAnalysis');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1327,35 +1328,13 @@ function AddNoteModal({
       reader.readAsDataURL(blob);
     });
 
-  const runPhotoAnalysis = async (items, studentId) => {
+  const runPhotoAnalysis = async (items) => {
     const photoItems = items.filter((it) => it.kind === 'photo' && it.source?.blob);
     if (photoItems.length === 0) return;
     setPhotoAnalysisLoading(true);
 
-    // Fetch student context (name + age) for the VLM prompt
-    let studentName = '';
-    let studentAge = '';
-    try {
-      const stuDoc = await getDoc(doc(db, 'students', studentId));
-      if (stuDoc.exists()) {
-        const stu = stuDoc.data();
-        studentName = stu.displayName || `${stu.firstName || ''} ${stu.lastName || ''}`.trim();
-        if (stu.dateOfBirth?.toDate) {
-          const dob = stu.dateOfBirth.toDate();
-          const now = new Date();
-          const years = now.getFullYear() - dob.getFullYear();
-          const months = now.getMonth() - dob.getMonth() + (now.getDate() < dob.getDate() ? -1 : 0);
-          const totalMonths = years * 12 + months;
-          studentAge = `${Math.floor(totalMonths / 12)} years ${totalMonths % 12} months`;
-        }
-      }
-    } catch (err) {
-      reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis student context fetch');
-    }
-
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
     try {
-      // Encode all photos and send in a single VLM call
       const images = await Promise.all(
         photoItems.map(async (item) => ({
           itemId: item.id,
@@ -1365,22 +1344,14 @@ function AddNoteModal({
       );
 
       const res = await vlmFn({
-        images: images.map(({ imageBase64, contentType }) => ({ imageBase64, contentType })),
-        studentName,
-        studentAge,
+        images: images.map(({ itemId, imageBase64, contentType }) => ({ itemId, imageBase64, contentType })),
       });
 
-      // Response contains flat classification + optional handwritingAnalysis
+      // Response contains per-photo classification results (PEP-146)
       const data = res.data || {};
-      const classification = parseClassification(data);
-      const analysis = parseHandwritingAnalysis(data.handwritingAnalysis);
-      const mediaFields = buildMediaFields(classification, analysis);
-      setMediaItems((prev) => prev.map((it) => {
-        if (images.some((img) => img.itemId === it.id)) {
-          return { ...it, ...mediaFields, analyzed: true };
-        }
-        return it;
-      }));
+      const results = Array.isArray(data.results) ? data.results : [];
+      setMediaItems((prev) => mapVLMResultsToMediaItems(results, prev));
+      notify.success('Photo analysis complete! You may save the note now.');
     } catch (err) {
       reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis VLM call failed');
       photoItems.forEach((it) => photoAnalysisFailedRef.current.add(it.id));
@@ -1723,8 +1694,6 @@ function AddNoteModal({
               copied: item.copied === true,
               handwritten: item.handwritten === true,
               curriculumArea: item.curriculumArea || null,
-              description: item.description || null,
-              ...(item.handwritingAnalysis ? { handwritingAnalysis: item.handwritingAnalysis } : {}),
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
@@ -2400,33 +2369,6 @@ function AddNoteModal({
                                         />
                                       )}
                                     </Box>
-                                    {/* AI description */}
-                                    {item.description && (
-                                      <TextField
-                                        value={item.description}
-                                        onChange={(e) => {
-                                          const newDesc = e.target.value;
-                                          setMediaItems((prev) => prev.map((it) =>
-                                            it.id === item.id
-                                              ? { ...it, description: newDesc }
-                                              : it
-                                          ));
-                                        }}
-                                        fullWidth
-                                        multiline
-                                        minRows={2}
-                                        size="small"
-                                        label="Coach Pepper's Description"
-                                        InputProps={{
-                                          sx: { fontSize: '0.82rem', lineHeight: 1.5, color: '#334155' },
-                                          startAdornment: (
-                                            <InputAdornment position="start" sx={{ mr: 0.5, alignSelf: 'flex-start', mt: 1 }}>
-                                              <AutoAwesome sx={{ fontSize: 14, color: '#a78bfa' }} />
-                                            </InputAdornment>
-                                          ),
-                                        }}
-                                      />
-                                    )}
                                   </Box>
                                 )}
 
@@ -2630,20 +2572,14 @@ function AddNoteModal({
               </Box>
 
               <Box sx={{ flex: 1, minHeight: { xs: 'auto', md: 320 } }}>
-                {mediaMode === 'photo' && mediaItems.some((it) => it.kind === 'photo' && !it.analyzed) && selectedStudents.length === 0 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, px: 1.5, mb: 1, bgcolor: '#fef3c7', borderRadius: 1.5, border: '1px solid #fbbf24' }}>
-                    <AutoAwesome sx={{ fontSize: 18, color: '#d97706' }} />
-                    <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 500 }}>
-                      Coach Pepper needs you to select a student to analyze this photo.
-                    </Typography>
-                  </Box>
-                )}
                 <ClassroomStudentPicker
+                  ref={photoStudentPickerRef}
                   selectedStudents={selectedStudents}
                   onStudentsChange={handleStudentsChange}
                   currentUser={currentUser}
                   userRole={userRole}
                   disabledStudentIds={[]}
+                  maxSelectable={1}
                   textData={null}
                   voiceData={null}
                 />
@@ -2698,17 +2634,18 @@ function AddNoteModal({
             >
               {(() => {
                 const hasUnanalyzedPhotos = mediaMode === 'photo' && photoAnalysisLoading && mediaItems.some((it) => it.kind === 'photo' && !it.analyzed);
+                const hasMedia = mediaMode === 'pdf' ? !!pdfSource : mediaItems.length > 0;
+                const needsStudent = hasMedia && selectedStudents.length === 0;
                 return (
                   <Button
                     variant="contained"
-                    onClick={handleCreateMediaNote}
+                    onClick={needsStudent ? () => photoStudentPickerRef.current?.focusSearch() : handleCreateMediaNote}
                     fullWidth
                     disabled={
                       saving ||
                       mediaUploading ||
                       hasUnanalyzedPhotos ||
-                      (mediaMode === 'pdf' ? !pdfSource : mediaItems.length === 0) ||
-                      selectedStudents.length === 0
+                      !hasMedia
                     }
                     sx={{
                       py: 1.2,
@@ -2727,6 +2664,16 @@ function AddNoteModal({
                           border: '1.5px solid #c4b5fd',
                         },
                       }),
+                      ...(needsStudent && {
+                        bgcolor: '#fef3c7',
+                        color: '#92400e',
+                        border: '1.5px solid #fbbf24',
+                        boxShadow: 'none',
+                        '&:hover': {
+                          bgcolor: '#fde68a',
+                          border: '1.5px solid #f59e0b',
+                        },
+                      }),
                     }}
                     startIcon={hasUnanalyzedPhotos ? (
                       <AutoAwesome sx={{
@@ -2736,7 +2683,7 @@ function AddNoteModal({
                       }} />
                     ) : undefined}
                   >
-                    {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : 'Create Media Note'}
+                    {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : needsStudent ? 'Select a student above' : 'Create Media Note'}
                   </Button>
                 );
               })()}

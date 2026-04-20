@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { 
   TextField, 
   CircularProgress, 
@@ -42,7 +42,7 @@ Props:
   selectedStudents: array of student UIDs
   onStudentsChange: (array) => void
 */
-function ClassroomStudentPicker({
+const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
   selectedStudents,
   onStudentsChange,
   currentUser,
@@ -55,7 +55,8 @@ function ClassroomStudentPicker({
   voiceLoading = false,
   suggestedStudents = [],
   disabledStudentIds = [], // IDs to grey out and disable selection
-}) {
+  maxSelectable, // when set, disable unselected students once limit is reached
+}, ref) {
   const [classrooms, setClassrooms] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,7 +68,15 @@ function ClassroomStudentPicker({
   const [aliases, setAliases] = useState([]);
   const [expandedAliases, setExpandedAliases] = useState({});
   const [showBrowseSection, setShowBrowseSection] = useState(false);
-  
+  const searchInputRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    focusSearch: () => {
+      searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => searchInputRef.current?.focus(), 350);
+    },
+  }));
+
   // Edit mode state for text
   const [isEditing, setIsEditing] = useState(false);
   const [editableText, setEditableText] = useState('');
@@ -355,7 +364,9 @@ function ClassroomStudentPicker({
   };
 
   // Helper: is this student disabled?
-  const isDisabled = (studentId) => disabledStudentIds?.includes?.(studentId);
+  const isDisabled = (studentId) =>
+    disabledStudentIds?.includes?.(studentId) ||
+    (maxSelectable != null && selectedStudents.length >= maxSelectable && !selectedStudents.includes(studentId));
 
   // Handle student selection
   const handleStudentToggle = (studentId) => {
@@ -1039,6 +1050,7 @@ function ClassroomStudentPicker({
       <Box>
         <Box sx={{ position: 'relative', mb: 2 }}>
           <TextField
+            inputRef={searchInputRef}
             fullWidth
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -1220,7 +1232,7 @@ function ClassroomStudentPicker({
                           </ListItemIcon>
                           <ListItemText
                             primary={disabled
-                              ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                              ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ' (only 1 student per photo note)'}`
                               : getStudentName(student)}
                             secondary={`${student.classroom_name}`}
                           />
@@ -1333,7 +1345,7 @@ function ClassroomStudentPicker({
                                   </ListItemIcon>
                                   <ListItemText
                                     primary={disabled
-                                      ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
+                                      ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ' (only 1 student per photo note)'}`
                                       : getStudentName(student)}
                                   />
                                 </ListItemButton>
@@ -1398,6 +1410,6 @@ function ClassroomStudentPicker({
       {/* Bottom summary removed to avoid redundancy */}
     </Box>
   );
-}
+});
 
 export default ClassroomStudentPicker; 
