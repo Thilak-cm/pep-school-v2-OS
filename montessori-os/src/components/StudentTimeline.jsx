@@ -46,7 +46,6 @@ import {
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import { truncateDescription } from '../utils/photoAnalysisDisplay.js';
-import { WRITING_DIMENSIONS } from '../utils/photoAnalysis.js';
 import ExportWizard from './ExportWizard';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -310,13 +309,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         group.mediaCount += 1;
         group.mediaItems.push(item);
       });
-      // Carry classification + analysis fields from first doc that has them (PEP-131)
-      if (!group.curriculumArea && obs.curriculumArea) {
-        group.curriculumArea = obs.curriculumArea;
-        group.description = obs.description;
-        group.handwritten = obs.handwritten;
-        group.handwritingAnalysis = obs.handwritingAnalysis;
+      // Collect per-photo classification fields into the group (PEP-146)
+      if (obs.curriculumArea) {
+        if (!group.curriculumAreas) group.curriculumAreas = [];
+        if (!group.curriculumAreas.includes(obs.curriculumArea)) {
+          group.curriculumAreas.push(obs.curriculumArea);
+        }
       }
+      if (!group.description && obs.description) {
+        group.description = obs.description;
+      }
+      if (obs.handwritten) group.handwritten = true;
       // Merge lesson tag IDs from each media doc in the batch
       if (Array.isArray(obs.linkedLessonObservationId)) {
         obs.linkedLessonObservationId.forEach((id) => {
@@ -1098,7 +1101,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       curriculumArea: sourceObservation.curriculumArea ?? obs.curriculumArea,
                       description: sourceObservation.description ?? obs.description,
                       handwritten: sourceObservation.handwritten ?? obs.handwritten,
-                      handwritingAnalysis: sourceObservation.handwritingAnalysis ?? obs.handwritingAnalysis,
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
                     url: url || null,
@@ -1120,7 +1122,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      {!obs.curriculumArea && !obs.description && (
+                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && !obs.description && (
                         <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                           {buildMediaSummary(obs)}
                         </Typography>
@@ -1131,21 +1133,24 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
 
-                      {/* Photo classification chips + description snippet (PEP-131) */}
-                      {obs.curriculumArea && (
+                      {/* Photo classification chips (PEP-146: per-photo, multiple for batches) */}
+                      {(obs.curriculumAreas?.length > 0 || obs.curriculumArea) && (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mt: 1 }}>
-                          <Chip
-                            label={obs.curriculumArea}
-                            size="small"
-                            sx={{
-                              bgcolor: '#ecfdf5',
-                              color: '#047857',
-                              fontWeight: 600,
-                              fontSize: '0.7rem',
-                              border: '1px solid #a7f3d0',
-                              height: 22,
-                            }}
-                          />
+                          {(obs.curriculumAreas || [obs.curriculumArea]).filter(Boolean).map((area) => (
+                            <Chip
+                              key={area}
+                              label={area}
+                              size="small"
+                              sx={{
+                                bgcolor: '#ecfdf5',
+                                color: '#047857',
+                                fontWeight: 600,
+                                fontSize: '0.7rem',
+                                border: '1px solid #a7f3d0',
+                                height: 22,
+                              }}
+                            />
+                          ))}
                         </Box>
                       )}
                       {obs.description && (
@@ -1865,10 +1870,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             </Typography>
           )}
 
-          {/* Photo analysis metadata (PEP-131) */}
-          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.description || mediaPreview.observation.handwritingAnalysis) && (() => {
+          {/* Photo classification metadata (PEP-146) */}
+          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.description) && (() => {
             const obs = mediaPreview.observation;
-            const ha = obs.handwritingAnalysis;
             return (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
                 {/* Classification chips */}
@@ -1889,37 +1893,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <Typography variant="body2" sx={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
                       {obs.description}
                     </Typography>
-                  </Box>
-                )}
-                {/* Handwriting analysis — developmental notes + dimension scores with notes */}
-                {ha && obs.handwritten && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {ha.developmentalNotes && (
-                      <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5 }}>
-                        {ha.developmentalNotes}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Handwriting Analysis</Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                      {WRITING_DIMENSIONS.map((dim) => {
-                        const val = ha[dim];
-                        if (!val || val.rating == null) return null;
-                        return (
-                          <Box key={dim} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
-                            <Chip
-                              label={`${dim}: ${val.rating}/5`}
-                              size="small"
-                              sx={{ fontSize: '0.68rem', height: 22, bgcolor: '#faf5ff', color: '#7c3aed', border: '1px solid #e9d5ff', flexShrink: 0 }}
-                            />
-                            {val.note && (
-                              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4, pt: 0.2 }}>
-                                {val.note}
-                              </Typography>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </Box>
                   </Box>
                 )}
               </Box>

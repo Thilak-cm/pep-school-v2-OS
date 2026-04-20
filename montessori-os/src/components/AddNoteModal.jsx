@@ -52,7 +52,7 @@ import useTranscriptStudentSuggestions from '../hooks/useTranscriptStudentSugges
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { parseClassification, parseHandwritingAnalysis, buildMediaFields } from '../utils/photoAnalysis.js';
+import { mapVLMResultsToMediaItems } from '../utils/photoAnalysis.js';
 
 // Confetti Animation Component
 const confettiFall = keyframes`
@@ -1355,7 +1355,7 @@ function AddNoteModal({
 
     const vlmFn = httpsCallable(cloudFunctions, 'analyzePhotoVLM');
     try {
-      // Encode all photos and send in a single VLM call
+      // Encode all photos with itemId for per-photo classification (PEP-146)
       const images = await Promise.all(
         photoItems.map(async (item) => ({
           itemId: item.id,
@@ -1365,22 +1365,15 @@ function AddNoteModal({
       );
 
       const res = await vlmFn({
-        images: images.map(({ imageBase64, contentType }) => ({ imageBase64, contentType })),
+        images: images.map(({ itemId, imageBase64, contentType }) => ({ itemId, imageBase64, contentType })),
         studentName,
         studentAge,
       });
 
-      // Response contains flat classification + optional handwritingAnalysis
+      // Response contains per-photo classification results (PEP-146)
       const data = res.data || {};
-      const classification = parseClassification(data);
-      const analysis = parseHandwritingAnalysis(data.handwritingAnalysis);
-      const mediaFields = buildMediaFields(classification, analysis);
-      setMediaItems((prev) => prev.map((it) => {
-        if (images.some((img) => img.itemId === it.id)) {
-          return { ...it, ...mediaFields, analyzed: true };
-        }
-        return it;
-      }));
+      const results = Array.isArray(data.results) ? data.results : [];
+      setMediaItems((prev) => mapVLMResultsToMediaItems(results, prev));
     } catch (err) {
       reportCaughtError(err, 'AddNoteModal', 'runPhotoAnalysis VLM call failed');
       photoItems.forEach((it) => photoAnalysisFailedRef.current.add(it.id));
@@ -2644,6 +2637,7 @@ function AddNoteModal({
                   currentUser={currentUser}
                   userRole={userRole}
                   disabledStudentIds={[]}
+                  maxSelectable={1}
                   textData={null}
                   voiceData={null}
                 />

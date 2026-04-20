@@ -41,7 +41,6 @@ export function buildMediaDocData(payload, mediaId, storagePath) {
       handwritten: payload.handwritten === true,
       curriculumArea: payload.curriculumArea || null,
       description: payload.description || null,
-      ...(payload.handwritingAnalysis ? { handwritingAnalysis: payload.handwritingAnalysis } : {}),
     } : {}),
     ...(Array.isArray(payload.linkedLessonObservationId) && payload.linkedLessonObservationId.length > 0
       ? { linkedLessonObservationId: payload.linkedLessonObservationId } : {}),

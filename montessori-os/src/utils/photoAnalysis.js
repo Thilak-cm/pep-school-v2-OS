@@ -1,11 +1,9 @@
 /**
- * Pure helpers for parsing and validating two-step photo analysis responses (PEP-131).
+ * Pure helpers for parsing photo classification responses (PEP-131 → PEP-146).
  * Call 1 (classification): parseClassification — handwritten, curriculumArea, description
- * Call 2 (handwriting analysis): parseHandwritingAnalysis — developmentalNotes + 5 dimensions
+ * Call 2 (handwriting analysis) removed in PEP-146 — deferred to PEP-132 batch analysis.
  * No Firebase dependencies — safe to import in tests.
  */
-
-export const WRITING_DIMENSIONS = ['handwriting', 'spelling', 'vocabulary', 'structure', 'punctuation'];
 
 export const CLASSIFICATION_DEFAULTS = Object.freeze({
   handwritten: false,
@@ -24,14 +22,6 @@ function tryParse(input) {
     try { return JSON.parse(input); } catch { return null; }
   }
   return null;
-}
-
-function parseDimension(dim) {
-  if (!dim || typeof dim !== 'object') return { rating: null, note: null };
-  const r = dim.rating;
-  const rating = typeof r === 'number' && Number.isInteger(r) && r >= 1 && r <= 5 ? r : null;
-  const note = typeof dim.note === 'string' ? dim.note : null;
-  return { rating, note };
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,43 +47,50 @@ export function parseClassification(input) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  parseHandwritingAnalysis  (Call 2 — gpt-5.4)                      */
+/*  buildMediaFields — classification only (PEP-146)                  */
 /* ------------------------------------------------------------------ */
 
 /**
- * Parse and validate a handwriting analysis response from Call 2.
- * Accepts a JSON string or pre-parsed object.
- * Returns { developmentalNotes, handwriting, spelling, vocabulary, structure, punctuation }
- * or null if input is empty/invalid.
+ * Convert parsed classification into flat media doc fields.
+ * Returns { handwritten, curriculumArea, description }.
  */
-export function parseHandwritingAnalysis(input) {
-  const parsed = tryParse(input);
-  if (!parsed) return null;
-
-  const developmentalNotes = typeof parsed.developmentalNotes === 'string'
-    ? parsed.developmentalNotes : null;
-
-  const result = { developmentalNotes };
-  for (const dim of WRITING_DIMENSIONS) {
-    result[dim] = parseDimension(parsed[dim]);
-  }
-  return result;
-}
-
-/* ------------------------------------------------------------------ */
-/*  buildMediaFields — combines classification + analysis             */
-/* ------------------------------------------------------------------ */
-
-/**
- * Combine parsed classification and analysis into flat media doc fields.
- * Returns { handwritten, curriculumArea, description, handwritingAnalysis }.
- */
-export function buildMediaFields(classification, analysis) {
+export function buildMediaFields(classification) {
   const cls = classification || CLASSIFICATION_DEFAULTS;
   return {
     handwritten: cls.handwritten === true,
     curriculumArea: cls.curriculumArea || null,
     description: cls.description || null,
-    handwritingAnalysis: cls.handwritten === true ? (analysis || null) : null,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  mapVLMResultsToMediaItems — per-photo result mapping (PEP-146)    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Map per-photo VLM results (from CF) back to media items by itemId.
+ * Returns a new array with classification fields merged onto matching items.
+ *
+ * @param {Array|null} results - CF response `results` array: [{ itemId, handwritten, curriculumArea, description }]
+ * @param {Array} mediaItems - Current media items array (each has `.id`)
+ * @returns {Array} New media items array with classification fields merged
+ */
+export function mapVLMResultsToMediaItems(results, mediaItems) {
+  if (!Array.isArray(results) || results.length === 0) {
+    return [...mediaItems];
+  }
+
+  const resultMap = new Map();
+  for (const r of results) {
+    if (r && r.itemId) {
+      resultMap.set(r.itemId, r);
+    }
+  }
+
+  return mediaItems.map((item) => {
+    const r = resultMap.get(item.id);
+    if (!r) return item;
+    const fields = buildMediaFields(parseClassification(r));
+    return { ...item, ...fields, analyzed: true };
+  });
 }
