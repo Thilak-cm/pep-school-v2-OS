@@ -8,6 +8,14 @@
 
 ### Changed
 - Renamed "Notifications" footer tab to "Alerts" (PEP-11)
+- Per-photo VLM classification — each photo in a batch now gets its own independent curriculum area and handwritten flag via parallel nano calls, replacing the single-classification-for-all approach (PEP-146)
+- Call 2 (handwriting analysis) removed from upload-time pipeline — handwriting intelligence deferred to batch analysis at weekly plan generation (PEP-146)
+- Student timeline batch groups now show multiple curriculum area chips (one per unique area) instead of copying from the first photo (PEP-146)
+- Media doc schema simplified: `description` and `handwritingAnalysis` fields no longer written at upload time (PEP-146)
+
+### Fixed
+- Dead student context Firestore fetch removed from photo analysis flow — eliminated unnecessary read latency (PEP-146)
+- Student picker now shows "(only 1 student per photo note)" label when maxSelectable limit is reached (PEP-146)
 
 # 10.8.0 — 2026-04-15
 

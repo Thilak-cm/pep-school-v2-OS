@@ -142,6 +142,9 @@ App version: 10.9.0
 - Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
 - `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
 - Renamed "Notifications" footer tab to "Alerts" (PEP-11)
+- Per-photo VLM classification — each photo in a batch now gets its own independent curriculum area and handwritten flag via parallel nano calls, replacing the single-classification-for-all approach (PEP-146)
+- Call 2 (handwriting analysis) removed from upload-time pipeline — handwriting intelligence deferred to batch analysis at weekly plan generation (PEP-146)
+- Student timeline batch groups now show multiple curriculum area chips (one per unique area) instead of copying from the first photo (PEP-146)
 
 ### 10.8.0 (2026-04-15)
 - Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)

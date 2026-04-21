@@ -11,7 +11,7 @@ import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, 
 import { parseProfileResponse } from "./utils/profileHelpers.js";
 import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
-import { MINI_MODEL, NANO_MODEL, FRONTIER_MODEL } from "./config/modelConstants.js";
+import { MINI_MODEL, NANO_MODEL } from "./config/modelConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "./config/baseballCardPrompt.js";
 import { CHAT_MODEL_INFO, DEFAULT_CHAT_MESSAGE_LIMIT, DEFAULT_OBSERVATION_LIMIT, CHAT_SYSTEM_PROMPT } from "./config/chatConstants.js";
 import { getIstIsoWeekKey } from "./utils/weekKey.js";
@@ -288,36 +288,18 @@ export const createAuthUserAndProfile = functions
 // -------------------------------------------------
 const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
-// Two-step photo analysis pipeline (PEP-131)
-// Call 1 (gpt-5.4-nano): classification & tagging — runs on every photo
-// Call 2 (gpt-5.4): handwriting analysis — runs only when handwritten: true
-const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 300 };
-const HANDWRITING_ANALYSIS_MODEL = { model: FRONTIER_MODEL, temperature: 0.3, max_tokens: 800 };
+// Per-photo classification (PEP-146): Call 1 only (gpt-5.4-nano)
+// Call 2 (handwriting analysis) removed — deferred to PEP-132 batch analysis
+const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 150 };
 
-const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly three fields:
+const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly two fields:
 
 - handwritten (boolean): true if the image contains handwriting (letters, numbers, or words written by hand)
 - curriculumArea (string|null): broad Montessori curriculum area. One of: "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural Studies", "Art & Music". Null if not identifiable as student work.
-- description (string|null): 1-2 sentence description of what's in the photo. Null if not student work.
 
 Respond with ONLY valid JSON. Example:
-{ "handwritten": false, "curriculumArea": "Mathematics", "description": "A child's addition work using golden beads with number cards laid out on a mat." }`;
+{ "handwritten": false, "curriculumArea": "Mathematics" }`;
 
-const HANDWRITING_ANALYSIS_FALLBACK_PROMPT = `You are a Montessori handwriting analyst. Evaluate the handwritten student work in the photo with age-calibrated developmental assessment.
-
-The user message includes the child's name and age. All ratings and notes must reflect age-appropriate expectations — a rating of 3 means the child is meeting typical expectations for their specific age.
-
-Return JSON with these fields:
-- developmentalNotes (string): 1-2 sentence age-contextualized observation about what the writing reveals about the child's development.
-- handwriting: { rating: 1-5 integer or null, note: string } — letter formation, sizing, spacing, pressure
-- spelling: { rating: 1-5 integer or null, note: string } — spelling accuracy for age
-- vocabulary: { rating: 1-5 integer or null, note: string } — word choice complexity for age
-- structure: { rating: 1-5 integer or null, note: string } — sentence/paragraph organization
-- punctuation: { rating: 1-5 integer or null, note: string } — punctuation usage for age
-
-Use null for rating when there is insufficient evidence to evaluate a dimension (e.g., single-letter practice cannot be rated for spelling).
-
-Respond with ONLY valid JSON.`;
 const MAX_PDF_TEXT_LENGTH = 15000;
 
 /**
@@ -550,13 +532,14 @@ const analyzePhotoVLMHandler = async (data, context) => {
   let images = [];
   if (Array.isArray(data?.images) && data.images.length > 0) {
     images = data.images.map((img) => ({
+      itemId: String(img.itemId || ""),
       base64: String(img.imageBase64 || "").trim(),
       contentType: String(img.contentType || "image/webp").trim(),
     })).filter((img) => img.base64);
   } else {
     const imageBase64 = String(data?.imageBase64 || "").trim();
     if (imageBase64) {
-      images = [{ base64: imageBase64, contentType: String(data?.contentType || "image/webp").trim() }];
+      images = [{ itemId: "", base64: imageBase64, contentType: String(data?.contentType || "image/webp").trim() }];
     }
   }
   if (images.length === 0) {
@@ -570,66 +553,47 @@ const analyzePhotoVLMHandler = async (data, context) => {
     throw new functions.https.HttpsError("invalid-argument", "Images too large; maximum 10 MB total");
   }
 
-  const studentName = String(data?.studentName || "").trim();
-  const studentAge = String(data?.studentAge || "").trim();
-
-  const imageContent = images.map((img) => ({
-    type: "image_url",
-    image_url: { url: `data:${img.contentType};base64,${img.base64}` },
-  }));
-
-  // --- Step 1: Classification (gpt-5.4-nano) ---
+  // --- Per-photo classification (PEP-146) ---
+  // Run Call 1 (gpt-5.4-nano) independently per photo in parallel.
+  // Call 2 (handwriting analysis) removed — deferred to PEP-132 batch analysis.
   const classConfig = await loadPhotoConfig(
     "photo_classification", CLASSIFICATION_FALLBACK_PROMPT, PHOTO_CLASSIFICATION_MODEL
   );
 
-  const classUserContent = [
-    { type: "text", text: "Classify this classroom photo." },
-    ...imageContent,
-  ];
+  const results = await Promise.all(images.map(async (img) => {
+    const imageContent = [{
+      type: "image_url",
+      image_url: { url: `data:${img.contentType};base64,${img.base64}` },
+    }];
+    const classUserContent = [
+      { type: "text", text: "Classify this classroom photo." },
+      ...imageContent,
+    ];
 
-  let classification;
-  try {
-    classification = await runVLMCall(classConfig.systemPrompt, classUserContent, classConfig);
-  } catch (err) {
-    console.warn("[analyzePhotoVLM] Classification failed, returning defaults", err?.message);
-    return { handwritten: false, curriculumArea: null, description: null, handwritingAnalysis: null };
-  }
+    try {
+      const classification = await runVLMCall(
+        classConfig.systemPrompt, classUserContent, classConfig
+      );
+      return {
+        itemId: img.itemId,
+        handwritten: classification?.handwritten === true,
+        curriculumArea: typeof classification?.curriculumArea === "string"
+          ? classification.curriculumArea : null,
+      };
+    } catch (err) {
+      console.warn(
+        `[analyzePhotoVLM] Classification failed for item ${img.itemId}`,
+        err?.message
+      );
+      return {
+        itemId: img.itemId,
+        handwritten: false,
+        curriculumArea: null,
+      };
+    }
+  }));
 
-  const handwritten = classification?.handwritten === true;
-  const curriculumArea = typeof classification?.curriculumArea === "string" ? classification.curriculumArea : null;
-  const description = typeof classification?.description === "string" ? classification.description : null;
-
-  // If not handwritten, return classification only — no Call 2
-  if (!handwritten) {
-    return { handwritten, curriculumArea, description, handwritingAnalysis: null };
-  }
-
-  // --- Step 2: Handwriting Analysis (gpt-5.4, only when handwritten) ---
-  const analysisConfig = await loadPhotoConfig(
-    "handwriting_analysis", HANDWRITING_ANALYSIS_FALLBACK_PROMPT, HANDWRITING_ANALYSIS_MODEL
-  );
-
-  let contextText = "Analyze this student's handwriting.";
-  if (studentName) {
-    contextText = `Analyze this student's handwriting. Student: ${studentName}`;
-    if (studentAge) contextText += `, Age: ${studentAge}`;
-    contextText += ".";
-  }
-
-  const analysisUserContent = [
-    { type: "text", text: contextText },
-    ...imageContent,
-  ];
-
-  let handwritingAnalysis = null;
-  try {
-    handwritingAnalysis = await runVLMCall(analysisConfig.systemPrompt, analysisUserContent, analysisConfig);
-  } catch (err) {
-    console.warn("[analyzePhotoVLM] Handwriting analysis failed, returning classification only", err?.message);
-  }
-
-  return { handwritten, curriculumArea, description, handwritingAnalysis };
+  return { results };
 };
 
 const photoVLMRunWith = { timeoutSeconds: 60, memory: "512MB", secrets: [OPENAI_API_KEY] };
