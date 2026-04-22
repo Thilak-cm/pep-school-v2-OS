@@ -3214,6 +3214,8 @@ export const childChat = functions
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
+    const requestStartedAtMs = Date.now();
+
     try {
       // Get student's programId via classroom to fetch program-specific config
       const studentDoc = await db.collection("students").doc(studentId).get();
@@ -3303,6 +3305,22 @@ export const childChat = functions
 
       if (!fullContent || !fullContent.trim()) {
         throw new functions.https.HttpsError("internal", "AI returned no content");
+      }
+
+      // Check if the user pressed Stop while we were waiting for OpenAI
+      const refreshedChatDoc = await db
+        .collection("students")
+        .doc(studentId)
+        .collection("chats")
+        .doc(chatId)
+        .get();
+      const cancelledAt = refreshedChatDoc.data()?.cancelledAt;
+      if (cancelledAt) {
+        const cancelledMs = cancelledAt.toMillis?.() ?? (cancelledAt.seconds * 1000);
+        if (cancelledMs > requestStartedAtMs) {
+          console.log(`[childChat] skipping assistant write — cancelled at ${cancelledMs}, request started at ${requestStartedAtMs}`);
+          return { chatId, cancelled: true, success: true };
+        }
       }
 
       // Save assistant response with model info

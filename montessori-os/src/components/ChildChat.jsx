@@ -88,6 +88,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const animationFrameRef = useRef(null);
   const streamRef = useRef(null);
   const discardRef = useRef(false);
+  const stoppedRef = useRef(false);
   
   const MAX_RECORDING_TIME = 300; // 5 minutes
 
@@ -125,9 +126,10 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   useEffect(() => {
     if (!assistantPending) return;
     const timer = setTimeout(() => {
+      stoppedRef.current = true;
       setAssistantPending(false);
       lastPendingUserTimestampRef.current = null;
-      setError('Response may have arrived — try scrolling up or refreshing.');
+      setError('Response timed out. Please try again.');
     }, ASSISTANT_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [assistantPending]);
@@ -349,6 +351,21 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           // If we're in first message flow and real messages arrive, remove temp messages
           if (isFirstMessageFlow && messagesList.length > 0) {
             setIsFirstMessageFlow(false);
+          }
+
+          // If the user pressed Stop, suppress any new assistant messages that arrive
+          if (stoppedRef.current) {
+            setMessages((prev) => {
+              // Keep existing messages, but filter out any new assistant messages
+              // that weren't in the previous state (i.e., arrived after Stop)
+              const prevIds = new Set(prev.map((m) => m.id));
+              const suppressed = messagesList.filter(
+                (m) => prevIds.has(m.id) || m.role !== 'assistant'
+              );
+              return suppressed;
+            });
+            setMessagesLoading(false);
+            return;
           }
 
           setMessages(messagesList);
@@ -792,6 +809,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     const isFirstMessage = selectedChatId === null;
     let localTempChatId = null;
 
+    stoppedRef.current = false;
     setSending(true);
     setAssistantPending(true);
     setError('');
@@ -989,11 +1007,21 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   };
 
   // Handle stop / force-exit while waiting for assistant response
-  const handleStopResponse = () => {
+  const handleStopResponse = async () => {
+    stoppedRef.current = true;
     setAssistantPending(false);
     setSending(false);
     lastPendingUserTimestampRef.current = null;
-    setError('Stopped waiting — the response may still arrive shortly.');
+
+    // Write cancellation flag to Firestore so the Cloud Function skips the assistant write
+    if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
+      try {
+        const chatRef = doc(db, 'students', student.id, 'chats', selectedChatId);
+        await updateDoc(chatRef, { cancelledAt: serverTimestamp() });
+      } catch (_err) {
+        reportCaughtError(_err, 'ChildChat', 'cancelledAt write failed');
+      }
+    }
   };
 
   // Cleanup on unmount
