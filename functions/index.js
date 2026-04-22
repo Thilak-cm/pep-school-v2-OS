@@ -3314,11 +3314,11 @@ export const childChat = functions
         .collection("chats")
         .doc(chatId)
         .get();
-      const cancelledAt = refreshedChatDoc.data()?.cancelledAt;
-      if (cancelledAt) {
-        const cancelledMs = cancelledAt.toMillis?.() ?? (cancelledAt.seconds * 1000);
+      const cancelledResponseAt = refreshedChatDoc.data()?.cancelledResponseAt;
+      if (cancelledResponseAt) {
+        const cancelledMs = cancelledResponseAt.toMillis?.() ?? (cancelledResponseAt.seconds * 1000);
         if (cancelledMs > requestStartedAtMs) {
-          console.log(`[childChat] skipping assistant write — cancelled at ${cancelledMs}, request started at ${requestStartedAtMs}`);
+          console.log(`[childChat] skipping assistant write — cancelledResponseAt ${cancelledMs}, request started at ${requestStartedAtMs}`);
           return { chatId, cancelled: true, success: true };
         }
       }

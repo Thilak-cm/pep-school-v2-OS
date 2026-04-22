@@ -65,14 +65,14 @@ export const collectInlineMatches = (text) => {
  * Determine whether the Cloud Function should skip writing the assistant
  * message because the user pressed Stop after the request started.
  *
- * @param {object|null} cancelledAt  Firestore Timestamp (or null)
+ * @param {object|null} cancelledResponseAt  Firestore Timestamp (or null)
  * @param {number} requestStartedAtMs  epoch-ms when the CF began processing
  * @returns {boolean} true → skip the write
  */
-export const shouldSkipCancelledChat = (cancelledAt, requestStartedAtMs) => {
-  if (!cancelledAt) return false;
-  const cancelledMs = cancelledAt.toMillis?.()
-    ?? (cancelledAt.seconds != null ? cancelledAt.seconds * 1000 : 0);
+export const shouldSkipCancelledResponse = (cancelledResponseAt, requestStartedAtMs) => {
+  if (!cancelledResponseAt) return false;
+  const cancelledMs = cancelledResponseAt.toMillis?.()
+    ?? (cancelledResponseAt.seconds != null ? cancelledResponseAt.seconds * 1000 : 0);
   return cancelledMs > requestStartedAtMs;
 };
 

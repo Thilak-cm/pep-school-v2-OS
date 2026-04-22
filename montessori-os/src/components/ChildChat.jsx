@@ -1018,7 +1018,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
       try {
         const chatRef = doc(db, 'students', student.id, 'chats', selectedChatId);
-        await updateDoc(chatRef, { cancelledAt: serverTimestamp() });
+        await updateDoc(chatRef, { cancelledResponseAt: serverTimestamp() });
       } catch (_err) {
         reportCaughtError(_err, 'ChildChat', 'cancelledAt write failed');
       }
