@@ -354,15 +354,15 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           }
 
           // If the user pressed Stop, suppress any new assistant messages that arrive
+          // but preserve local-only messages (like the "interrupted" indicator)
           if (stoppedRef.current) {
             setMessages((prev) => {
-              // Keep existing messages, but filter out any new assistant messages
-              // that weren't in the previous state (i.e., arrived after Stop)
               const prevIds = new Set(prev.map((m) => m.id));
-              const suppressed = messagesList.filter(
+              const localOnly = prev.filter((m) => m.id.startsWith('interrupted-'));
+              const fromFirestore = messagesList.filter(
                 (m) => prevIds.has(m.id) || m.role !== 'assistant'
               );
-              return suppressed;
+              return [...fromFirestore, ...localOnly];
             });
             setMessagesLoading(false);
             return;
@@ -1013,6 +1013,17 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     setSending(false);
     lastPendingUserTimestampRef.current = null;
 
+    // Show an "interrupted" indicator in the chat
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `interrupted-${Date.now()}`,
+        role: 'interrupted',
+        content: '',
+        timestamp: Timestamp.now(),
+      },
+    ]);
+
     // Write cancellation flag to Firestore so the Cloud Function skips the assistant write
     if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
       try {
@@ -1518,6 +1529,18 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               >
                 {message.role === 'user' ? (
                   <UserBubble message={message} formatTimestamp={formatTimestamp} />
+                ) : message.role === 'interrupted' ? (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.disabled',
+                      fontStyle: 'italic',
+                      display: 'block',
+                      py: 0.5,
+                    }}
+                  >
+                    Response interrupted
+                  </Typography>
                 ) : (
                   <AssistantBubble message={message} formatTimestamp={formatTimestamp} />
                 )}
