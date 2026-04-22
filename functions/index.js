@@ -3214,8 +3214,6 @@ export const childChat = functions
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
-    const requestStartedAtMs = Date.now();
-
     try {
       // Get student's programId via classroom to fetch program-specific config
       const studentDoc = await db.collection("students").doc(studentId).get();
@@ -3293,7 +3291,7 @@ export const childChat = functions
       const authorName = userData?.displayName || userData?.name || context.auth.token?.name || null;
 
       // Save user message with author information
-      await saveChatMessage(studentId, chatId, "user", message, null, authorId, authorName);
+      const userMessageId = await saveChatMessage(studentId, chatId, "user", message, null, authorId, authorName);
 
       // Run LLM inference (streams internally, returns full content)
       const fullContent = await runChildChat(
@@ -3308,19 +3306,17 @@ export const childChat = functions
       }
 
       // Check if the user pressed Stop while we were waiting for OpenAI
-      const refreshedChatDoc = await db
+      const userMsgDoc = await db
         .collection("students")
         .doc(studentId)
         .collection("chats")
         .doc(chatId)
+        .collection("messages")
+        .doc(userMessageId)
         .get();
-      const cancelledResponseAt = refreshedChatDoc.data()?.cancelledResponseAt;
-      if (cancelledResponseAt) {
-        const cancelledMs = cancelledResponseAt.toMillis?.() ?? (cancelledResponseAt.seconds * 1000);
-        if (cancelledMs > requestStartedAtMs) {
-          console.log(`[childChat] skipping assistant write — cancelledResponseAt ${cancelledMs}, request started at ${requestStartedAtMs}`);
-          return { chatId, cancelled: true, success: true };
-        }
+      if (userMsgDoc.data()?.cancelledResponseAt) {
+        console.log(`[childChat] skipping assistant write — user message ${userMessageId} was cancelled`);
+        return { chatId, cancelled: true, success: true };
       }
 
       // Save assistant response with model info

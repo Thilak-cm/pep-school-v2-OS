@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { stripQuotes, ASSISTANT_TIMEOUT_MS, collectInlineMatches, classifyLine, shouldSkipCancelledResponse } from './chatUtils.js';
+import { stripQuotes, ASSISTANT_TIMEOUT_MS, collectInlineMatches, classifyLine } from './chatUtils.js';
 
 // --- stripQuotes ---
 
@@ -172,39 +172,4 @@ test('classifyLine trims leading whitespace', () => {
   const result = classifyLine('   ## Indented heading');
   assert.equal(result.type, 'h2');
   assert.equal(result.content, 'Indented heading');
-});
-
-// --- shouldSkipCancelledResponse ---
-
-test('shouldSkipCancelledResponse returns false when cancelledResponseAt is null', () => {
-  assert.equal(shouldSkipCancelledResponse(null, 1000), false);
-});
-
-test('shouldSkipCancelledResponse returns false when cancelledResponseAt is undefined', () => {
-  assert.equal(shouldSkipCancelledResponse(undefined, 1000), false);
-});
-
-test('shouldSkipCancelledResponse returns true when cancelledResponseAt is after request start (toMillis)', () => {
-  const cancelledResponseAt = { toMillis: () => 2000 };
-  assert.equal(shouldSkipCancelledResponse(cancelledResponseAt, 1000), true);
-});
-
-test('shouldSkipCancelledResponse returns false when cancelledResponseAt is before request start (toMillis)', () => {
-  const cancelledResponseAt = { toMillis: () => 500 };
-  assert.equal(shouldSkipCancelledResponse(cancelledResponseAt, 1000), false);
-});
-
-test('shouldSkipCancelledResponse returns true when cancelledResponseAt uses seconds field (Firestore Timestamp shape)', () => {
-  const cancelledResponseAt = { seconds: 2 }; // 2000ms
-  assert.equal(shouldSkipCancelledResponse(cancelledResponseAt, 1000), true);
-});
-
-test('shouldSkipCancelledResponse returns false for stale cancellation (seconds before request)', () => {
-  const cancelledResponseAt = { seconds: 0 }; // 0ms
-  assert.equal(shouldSkipCancelledResponse(cancelledResponseAt, 1000), false);
-});
-
-test('shouldSkipCancelledResponse returns false when cancelledResponseAt equals request start exactly', () => {
-  const cancelledResponseAt = { toMillis: () => 1000 };
-  assert.equal(shouldSkipCancelledResponse(cancelledResponseAt, 1000), false);
 });

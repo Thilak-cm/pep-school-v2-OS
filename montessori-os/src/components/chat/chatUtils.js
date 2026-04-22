@@ -61,21 +61,6 @@ export const collectInlineMatches = (text) => {
  * Classify a line of text for block-level markdown rendering.
  * Returns { type, content } where type is 'h1'|'h2'|'h3'|'ul'|'ol'|'blank'|'paragraph'.
  */
-/**
- * Determine whether the Cloud Function should skip writing the assistant
- * message because the user pressed Stop after the request started.
- *
- * @param {object|null} cancelledResponseAt  Firestore Timestamp (or null)
- * @param {number} requestStartedAtMs  epoch-ms when the CF began processing
- * @returns {boolean} true → skip the write
- */
-export const shouldSkipCancelledResponse = (cancelledResponseAt, requestStartedAtMs) => {
-  if (!cancelledResponseAt) return false;
-  const cancelledMs = cancelledResponseAt.toMillis?.()
-    ?? (cancelledResponseAt.seconds != null ? cancelledResponseAt.seconds * 1000 : 0);
-  return cancelledMs > requestStartedAtMs;
-};
-
 export const classifyLine = (line) => {
   const trimmed = line.trim();
   if (!trimmed) return { type: 'blank', content: '' };

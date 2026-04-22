@@ -1014,13 +1014,16 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     setSending(false);
     lastPendingUserTimestampRef.current = null;
 
-    // Write cancellation flag to Firestore so the Cloud Function skips the assistant write
+    // Write cancellation flag to the last user message doc so the CF skips the assistant write
     if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
-      try {
-        const chatRef = doc(db, 'students', student.id, 'chats', selectedChatId);
-        await updateDoc(chatRef, { cancelledResponseAt: serverTimestamp() });
-      } catch (_err) {
-        reportCaughtError(_err, 'ChildChat', 'cancelledAt write failed');
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user' && !m.id.startsWith('temp-'));
+      if (lastUserMsg) {
+        try {
+          const msgRef = doc(db, 'students', student.id, 'chats', selectedChatId, 'messages', lastUserMsg.id);
+          await updateDoc(msgRef, { cancelledResponseAt: serverTimestamp() });
+        } catch (_err) {
+          reportCaughtError(_err, 'ChildChat', 'cancelledResponseAt write failed');
+        }
       }
     }
   };
