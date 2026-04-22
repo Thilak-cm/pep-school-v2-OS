@@ -11,6 +11,7 @@ import {
   SOUL_DEFAULTS, VALID_PROGRAMS,
   buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
   buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  extractGuidelinesSuggestions, stripGuidelinesSuggestions,
 } from "./utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
@@ -4608,16 +4609,21 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
   }
 
-  // Write soul doc
+  // Extract structured guidelines suggestions before stripping YAML from narrative
+  const guidelinesSuggestions = extractGuidelinesSuggestions(soulContent);
+  const narrativeContent = stripGuidelinesSuggestions(soulContent);
+
+  // Write soul doc (narrative without YAML block)
   const soulDoc = buildSoulDoc({
-    content: soulContent,
+    content: narrativeContent,
     programId,
     observationCount,
     interviewCount,
     lastObservationAt: lastObsAt,
     lastInterviewAt: lastInterviewAt,
   });
-  soulDoc.hasEmergentObservations = hasEmergentObservations(soulContent);
+  soulDoc.hasEmergentObservations = hasEmergentObservations(narrativeContent);
+  soulDoc.guidelinesSuggestions = guidelinesSuggestions;
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
   batch.set(soulRef, soulDoc);

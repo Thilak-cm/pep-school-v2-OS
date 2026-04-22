@@ -43,13 +43,28 @@ Structure guidelines:
 - Include a "## Emergent Observations" section at the end for any signals that don't fit the guidelines categories — interests, behaviors, or patterns that are noteworthy but not captured by existing developmental areas
 - If a guidelines area has no observations, omit the section entirely — do not write "no data available"
 
+## Emergent observations and guidelines suggestions
+
+After the Emergent Observations narrative, if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
+
+Format:
+
+\`\`\`yaml
+guidelines_suggestions:
+  - area: "Proposed Skill Area Name"
+    discipline: "Existing or New Discipline Name"
+    rationale: "Why this area matters for this child based on observed patterns"
+\`\`\`
+
+If there are no emergent patterns worth suggesting, omit the YAML block entirely. Only propose areas that show a clear, recurring signal across multiple observations — not one-off events.
+
 ## Continuity and stability
 
 If a previous soul is provided, use it as a reference for continuity. A child's developmental narrative should not change dramatically week-to-week — significant drift from the previous version is a quality concern. Update sections where new evidence warrants it, preserve sections that remain accurate, and note meaningful changes or developments.
 
 ## Important
 
-Output ONLY the markdown narrative. No JSON wrapping, no metadata, no preamble — just the soul document starting with the first ## heading.`;
+Output ONLY the markdown narrative (starting with the first ## heading), optionally followed by the YAML guidelines_suggestions block at the very end. No JSON wrapping, no other metadata, no preamble.`;
 }
 
 /**
@@ -111,6 +126,58 @@ export function parseSoulResponse(rawContent) {
     throw new Error("Soul generation returned empty content");
   }
   return content;
+}
+
+/**
+ * Extract guidelines suggestions from the YAML block at the end of a soul response.
+ * Returns an array of suggestion objects, or empty array if no block found.
+ *
+ * @param {string} soulContent - Full soul content (narrative + optional YAML block)
+ * @returns {Array<{area: string, discipline: string, rationale: string}>}
+ */
+export function extractGuidelinesSuggestions(soulContent) {
+  const yamlMatch = soulContent.match(/```yaml\s*\n([\s\S]*?)```/);
+  if (!yamlMatch) return [];
+
+  const yamlBlock = yamlMatch[1];
+  // Simple YAML parser for our specific format — no dependency needed
+  const suggestions = [];
+  let current = null;
+
+  for (const line of yamlBlock.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- area:")) {
+      if (current) suggestions.push(current);
+      current = { area: extractYamlValue(trimmed, "area"), discipline: "", rationale: "" };
+    } else if (trimmed.startsWith("discipline:") && current) {
+      current.discipline = extractYamlValue(trimmed, "discipline");
+    } else if (trimmed.startsWith("rationale:") && current) {
+      current.rationale = extractYamlValue(trimmed, "rationale");
+    }
+  }
+  if (current) suggestions.push(current);
+
+  return suggestions.filter((s) => s.area);
+}
+
+function extractYamlValue(line, key) {
+  const after = line.slice(line.indexOf(key + ":") + key.length + 1).trim();
+  // Strip surrounding quotes
+  if ((after.startsWith("\"") && after.endsWith("\"")) || (after.startsWith("'") && after.endsWith("'"))) {
+    return after.slice(1, -1);
+  }
+  return after;
+}
+
+/**
+ * Strip the YAML guidelines_suggestions block from soul content,
+ * returning just the narrative markdown.
+ *
+ * @param {string} soulContent - Full soul content with optional YAML block
+ * @returns {string} Narrative content without YAML block
+ */
+export function stripGuidelinesSuggestions(soulContent) {
+  return soulContent.replace(/\n*```yaml\s*\nguidelines_suggestions:[\s\S]*?```\s*$/, "").trim();
 }
 
 /**

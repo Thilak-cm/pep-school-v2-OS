@@ -214,3 +214,68 @@ test("hasEmergentObservations returns false when no emergent section", async () 
   const soul = "## Mathematics\nGood.\n\n## Social\nFine.";
   assert.equal(hasEmergentObservations(soul), false);
 });
+
+// ---------------------------------------------------------------------------
+// extractGuidelinesSuggestions
+// ---------------------------------------------------------------------------
+
+test("extractGuidelinesSuggestions parses YAML block", async () => {
+  const { extractGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
+  const soul = `## Emergent Observations
+
+Shows interest in insects.
+
+\`\`\`yaml
+guidelines_suggestions:
+  - area: "Kinesthetic & Maker Learning"
+    discipline: "Health & Wellbeing"
+    rationale: "Repeated pattern across science and enterprise"
+  - area: "Competitive Sport & Identity"
+    discipline: "Health & Wellbeing"
+    rationale: "Cricket central to self-concept"
+\`\`\``;
+
+  const suggestions = extractGuidelinesSuggestions(soul);
+  assert.equal(suggestions.length, 2);
+  assert.equal(suggestions[0].area, "Kinesthetic & Maker Learning");
+  assert.equal(suggestions[0].discipline, "Health & Wellbeing");
+  assert.ok(suggestions[0].rationale.includes("science"));
+  assert.equal(suggestions[1].area, "Competitive Sport & Identity");
+});
+
+test("extractGuidelinesSuggestions returns empty array when no YAML block", async () => {
+  const { extractGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.\n\n## Emergent Observations\nSome text.";
+  assert.deepStrictEqual(extractGuidelinesSuggestions(soul), []);
+});
+
+// ---------------------------------------------------------------------------
+// stripGuidelinesSuggestions
+// ---------------------------------------------------------------------------
+
+test("stripGuidelinesSuggestions removes YAML block from content", async () => {
+  const { stripGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
+  const soul = `## Mathematics
+Good.
+
+## Emergent Observations
+Shows interest.
+
+\`\`\`yaml
+guidelines_suggestions:
+  - area: "Test"
+    discipline: "Test"
+    rationale: "Test"
+\`\`\``;
+
+  const stripped = stripGuidelinesSuggestions(soul);
+  assert.ok(!stripped.includes("```yaml"), "YAML block should be removed");
+  assert.ok(stripped.includes("Shows interest"), "narrative should be preserved");
+  assert.ok(stripped.includes("## Mathematics"), "other sections preserved");
+});
+
+test("stripGuidelinesSuggestions returns content as-is when no YAML block", async () => {
+  const { stripGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.";
+  assert.equal(stripGuidelinesSuggestions(soul), soul);
+});

@@ -15,6 +15,7 @@ import {
   SOUL_DEFAULTS, VALID_PROGRAMS,
   buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
   buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  extractGuidelinesSuggestions, stripGuidelinesSuggestions,
 } from "../../functions/utils/soulHelpers.js";
 
 if (!admin.apps.length) {
@@ -213,7 +214,9 @@ async function run() {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`Response received in ${elapsed}s\n`);
 
-  const soulContent = parseSoulResponse(rawContent);
+  const fullContent = parseSoulResponse(rawContent);
+  const guidelinesSuggestions = extractGuidelinesSuggestions(fullContent);
+  const soulContent = stripGuidelinesSuggestions(fullContent);
 
   // 7. Print results
   console.log("=".repeat(80));
@@ -224,6 +227,12 @@ async function run() {
   console.log();
   console.log("=".repeat(80));
   console.log(`Emergent observations: ${hasEmergentObservations(soulContent) ? "YES" : "No"}`);
+  if (guidelinesSuggestions.length > 0) {
+    console.log(`Guidelines suggestions: ${guidelinesSuggestions.length}`);
+    for (const s of guidelinesSuggestions) {
+      console.log(`  - ${s.area} → ${s.discipline}: ${s.rationale}`);
+    }
+  }
   console.log("=".repeat(80));
 
   // 8. Optionally write to Firestore
@@ -253,6 +262,7 @@ async function run() {
       lastInterviewAt: null,
     });
     soulDoc.hasEmergentObservations = hasEmergentObservations(soulContent);
+    soulDoc.guidelinesSuggestions = guidelinesSuggestions;
     soulDoc.createdAt = prevSoulSnap.exists ? (prevSoulSnap.data().createdAt || now) : now;
     soulDoc.updatedAt = now;
     batch.set(soulRef, soulDoc);
