@@ -60,6 +60,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const [devMode, setDevMode] = useState(false); // Default OFF - includes observations in context
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [interrupted, setInterrupted] = useState(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -358,11 +359,9 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           if (stoppedRef.current) {
             setMessages((prev) => {
               const prevIds = new Set(prev.map((m) => m.id));
-              const localOnly = prev.filter((m) => m.id.startsWith('interrupted-'));
-              const fromFirestore = messagesList.filter(
+              return messagesList.filter(
                 (m) => prevIds.has(m.id) || m.role !== 'assistant'
               );
-              return [...fromFirestore, ...localOnly];
             });
             setMessagesLoading(false);
             return;
@@ -810,6 +809,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     let localTempChatId = null;
 
     stoppedRef.current = false;
+    setInterrupted(false);
     setSending(true);
     setAssistantPending(true);
     setError('');
@@ -1009,20 +1009,10 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   // Handle stop / force-exit while waiting for assistant response
   const handleStopResponse = async () => {
     stoppedRef.current = true;
+    setInterrupted(true);
     setAssistantPending(false);
     setSending(false);
     lastPendingUserTimestampRef.current = null;
-
-    // Show an "interrupted" indicator in the chat
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `interrupted-${Date.now()}`,
-        role: 'interrupted',
-        content: '',
-        timestamp: Timestamp.now(),
-      },
-    ]);
 
     // Write cancellation flag to Firestore so the Cloud Function skips the assistant write
     if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
@@ -1517,30 +1507,33 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           </Box>
         ) : (
           <>
-            {messages.map((message) => (
+            {messages.map((message, idx) => (
               <Box
                 key={message.id}
                 sx={{
                   display: 'flex',
-                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  flexDirection: 'column',
+                  alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
                   position: 'relative',
                   width: '100%',
                 }}
               >
                 {message.role === 'user' ? (
-                  <UserBubble message={message} formatTimestamp={formatTimestamp} />
-                ) : message.role === 'interrupted' ? (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: 'text.disabled',
-                      fontStyle: 'italic',
-                      display: 'block',
-                      py: 0.5,
-                    }}
-                  >
-                    Response interrupted
-                  </Typography>
+                  <>
+                    <UserBubble message={message} formatTimestamp={formatTimestamp} />
+                    {interrupted && idx === messages.length - 1 && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'text.disabled',
+                          fontStyle: 'italic',
+                          mt: 0.5,
+                        }}
+                      >
+                        Response interrupted
+                      </Typography>
+                    )}
+                  </>
                 ) : (
                   <AssistantBubble message={message} formatTimestamp={formatTimestamp} />
                 )}
