@@ -6,7 +6,7 @@ import { FRONTIER_MODEL } from "./modelConstants.js";
 export const HANDWRITING_ANALYSIS_DEFAULTS = {
   model: FRONTIER_MODEL,
   temperature: 0.3,
-  max_tokens: 800,
+  max_tokens: 2000,
   minSamples: 3,
 };
 
