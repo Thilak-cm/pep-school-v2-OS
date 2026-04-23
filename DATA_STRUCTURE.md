@@ -24,8 +24,10 @@
 - `students/{studentId}/media/{mediaId}`               // uploaded photos, videos, PDFs
 - `students/{studentId}/chats/{chatId}`                // AI chat conversations
 - `students/{studentId}/chats/{chatId}/messages/{messageId}` // chat messages
-- `students/{studentId}/profile/{dimensionId}`         // AI-generated student profile dimensions (PEP-124)
-- `students/{studentId}/profile/{dimensionId}/history/{timestamp}` // version history per dimension
+- `students/{studentId}/ai_summaries/soul`             // AI-generated student soul narrative (PEP-149)
+- `students/{studentId}/ai_summaries/soul/history/{timestamp}` // weekly soul snapshots
+- `students/{studentId}/ai_summaries/guidelines`       // per-student evaluation guide (PEP-149)
+- `students/{studentId}/ai_summaries/guidelines/history/{timestamp}` // guideline evolution audit trail
 - `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
@@ -233,8 +235,10 @@ Subcollections
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
 - `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
-- `profile/{dimensionId}` – AI-generated student profile dimensions (PEP-124). One doc per developmental dimension. Shape: `{ dimensionKey: string, dimensionLabel: string, programId: ProgramId, narrative: string, gaps: string, structuredSignals: { confidence: number (0-1), evidenceCount: number, trend: 'emerging' | 'developing' | 'stable' | 'declining', lastSourceType: 'backfill' | 'interview' | 'observation' }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `gaps` field (PEP-141) is a plain-text description of what is unknown or unobserved for this dimension; empty string when well-covered, fallback text when no data exists. Dimension keys are program-specific (e.g., `independence_practical_life` for primary, `enterprise_applied` for adolescent). Dimensions and prompts consolidated in `config/profile_{program}` (PEP-139).
-- `profile/{dimensionId}/history/{timestamp}` – Version history for each profile dimension. Shape: `{ narrative: string, gaps: string, structuredSignals: {...}, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically when a dimension is updated — the previous state is snapshotted before overwrite.
+- `ai_summaries/soul` – AI-generated student soul narrative (PEP-149). A free-form markdown document representing the AI's understanding of who this child is. Regenerated weekly from ALL observations and interviews. Shape: `{ content: string (markdown narrative with ## section headers), programId: ProgramId, hasEmergentObservations: boolean, guidelinesSuggestions: Array<{ area: string, discipline: string, rationale: string }> | null, sourceStats: { observationCount: number, interviewCount: number, lastGeneratedAt: Timestamp, lastObservationAt: Timestamp | null, lastInterviewAt: Timestamp | null }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `guidelinesSuggestions` array contains AI-proposed new skill areas extracted from the soul generation response — consumed by the guideline approval flow (PEP-151). Section headers are informed by the student's guidelines doc, not hardcoded. The `hasEmergentObservations` flag is true when the soul contains non-empty content under `## Emergent Observations` — signals that don't fit existing guidelines categories.
+- `ai_summaries/soul/history/{timestamp}` – Weekly soul snapshots. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically before each weekly regeneration — the previous soul is snapshotted before overwrite.
+- `ai_summaries/guidelines` – Per-student evaluation guide (PEP-149). Seeded from `config/soul_template_{program}` on first soul generation, then evolves independently per student. The AI agent reads this to know what developmental areas to explore and what benchmarks to look for. Shape: `{ content: string (markdown with ## Discipline, ### Skill Area, - Benchmark structure), programId: ProgramId, seededFrom: string (e.g., "config/soul_template_adolescent"), createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`.
+- `ai_summaries/guidelines/history/{timestamp}` – Guideline evolution audit trail. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Tracks agent-proposed or admin edits to the per-student guidelines.
 - `interviews/{interviewId}` – Immutable interview transcripts (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
@@ -656,7 +660,7 @@ Current documents
 - `coach_{program}` — per-program Coach nudge configuration (program ∈ toddler | primary | elementary | adolescent)
 - `chat_{program}` — per-program AI chat configuration
 - `report_{program}` — per-program parent progress report prompts + model config
-- `profile_{program}` — per-program student profile generation prompts + dimensions + model config
+- `soul_template_{program}` — per-program soul template markdown (developmental areas, skill areas, benchmarks from report cards)
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)

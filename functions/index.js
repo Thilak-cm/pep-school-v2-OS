@@ -7,8 +7,12 @@ import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 // import { v4 as uuidv4 } from "uuid";
 import { COACH_MODEL_INFO } from "./config/coachConstants.js";
-import { PROFILE_DEFAULTS, PROGRAM_DIMENSIONS, VALID_PROGRAMS, SOURCE_BACKFILL, SOURCE_INTERVIEW, SOURCE_OBSERVATION } from "./config/profileConstants.js";
-import { parseProfileResponse } from "./utils/profileHelpers.js";
+import {
+  SOUL_DEFAULTS, VALID_PROGRAMS,
+  buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
+  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  extractGuidelinesSuggestions, stripGuidelinesSuggestions,
+} from "./utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
 import { BASEBALL_CARD_DEFAULTS } from "./config/baseballCardConstants.js";
 import { MINI_MODEL, NANO_MODEL } from "./config/modelConstants.js";
@@ -4511,82 +4515,53 @@ export const bulkSyncDrivePermissions = functions
     };
   });
 
+
 // -----------------------------------------------
-// Student Profile: Generate profile for a single student (PEP-124)
+// Student Soul: Generate soul narrative for a single student (PEP-149)
+// Replaces the old per-dimension profile system (PEP-124)
 // -----------------------------------------------
 
-// Unified profile config: prompt + dimensions + model params from config/profile_{prog} (PEP-139)
-const PROFILE_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-let profileConfigCache = {};
+const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let soulTemplateCache = {};
 
-async function getProfileConfig(programId) {
-  const docId = `profile_${programId}`;
+async function getSoulTemplateConfig(programId) {
+  const docId = `soul_template_${programId}`;
 
-  const cached = profileConfigCache[docId];
-  if (cached?.data && (Date.now() - cached.ts < PROFILE_PROMPT_CACHE_TTL_MS)) {
+  const cached = soulTemplateCache[docId];
+  if (cached?.data && (Date.now() - cached.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
     return cached.data;
   }
 
   const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
-    throw new functions.https.HttpsError("not-found", `Profile config not found: ${docId}. Run migrate-ai-prompts-to-config.mjs --apply`);
+    throw new functions.https.HttpsError("not-found", `Soul template not found: ${docId}. Run seed-soul-templates.mjs`);
   }
   const data = snap.data();
+  if (!data.markdown || typeof data.markdown !== "string") {
+    throw new functions.https.HttpsError("failed-precondition", `Soul template ${docId} has no markdown content`);
+  }
+
   const out = {
-    systemPrompt: (data.staticSystemPrompt || "") + (data.dynamicSystemPrompt || ""),
-    dimensions: Array.isArray(data.dimensions) && data.dimensions.length
-      ? data.dimensions
-      : (PROGRAM_DIMENSIONS[programId] || null),
-    model: data.model || PROFILE_DEFAULTS.model,
-    temperature: typeof data.temperature === "number" ? data.temperature : PROFILE_DEFAULTS.temperature,
-    max_tokens: Number.isFinite(data.max_tokens) ? data.max_tokens : PROFILE_DEFAULTS.max_tokens,
+    markdown: data.markdown,
+    programId: data.programId || programId,
   };
 
-  profileConfigCache[docId] = { data: out, ts: Date.now() };
+  soulTemplateCache[docId] = { data: out, ts: Date.now() };
   return out;
 }
 
-const PROFILE_JSON_WRAPPER = `
-
-IMPORTANT: You must output your response as a JSON object.
-Each key must be one of the dimension keys listed above.
-Each value must be an object with exactly: { "narrative": string, "confidence": number, "evidenceCount": number, "trend": string, "gaps": string }
-- "gaps": a plain-text description of what is unknown, uncertain, or unobserved about this child in this dimension. Describe specific missing observations or blind spots (e.g., "No observations of independent reading. Social interactions only observed in group settings."). Use an empty string "" if the dimension is well-covered with no obvious gaps.
-Output ONLY the JSON object, nothing else.`;
-
-async function callProfileGeneration(notes, profileConfig, studentContext, openAiKey, interviews = []) {
-  const dimBlock = profileConfig.dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
-  const systemContent = profileConfig.systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + PROFILE_JSON_WRAPPER;
-
-  const contentParts = [
-    "Generate a student profile from the following observations.",
-    "",
-    `Student: ${JSON.stringify(studentContext)}`,
-    "",
-    `Observations (${notes.length} notes, JSON array):`,
-    JSON.stringify(notes),
-  ];
-
-  if (interviews.length > 0) {
-    contentParts.push(
-      "",
-      `Interview transcripts (${interviews.length} sessions, JSON array):`,
-      "These are structured teacher interview responses — dimension-targeted questions with MCQ selections and open-ended answers. Treat these as high-signal evidence alongside observations.",
-      JSON.stringify(interviews),
-    );
-  }
-
-  const userContent = contentParts.join("\n");
+async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, openAiKey) {
+  const systemContent = buildSoulSystemPrompt(guidelinesContent);
+  const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
   const body = buildChatBody({
-    model: profileConfig.model,
+    model: SOUL_DEFAULTS.model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: profileConfig.temperature,
-    max_completion_tokens: profileConfig.max_tokens,
-    response_format: { type: "json_object" },
+    temperature: SOUL_DEFAULTS.temperature,
+    max_completion_tokens: SOUL_DEFAULTS.max_tokens,
   });
 
   let response;
@@ -4600,13 +4575,13 @@ async function callProfileGeneration(notes, profileConfig, studentContext, openA
       body: JSON.stringify(body),
     });
   } catch (e) {
-    console.error("[profile] network error", e);
+    console.error("[soul] network error", e);
     throw new functions.https.HttpsError("unavailable", "AI service unavailable");
   }
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    console.error("[profile] OpenAI error", response.status, errText?.slice?.(0, 400));
+    console.error("[soul] OpenAI error", response.status, errText?.slice?.(0, 400));
     throw new functions.https.HttpsError("internal", `AI error: ${response.status}`);
   }
 
@@ -4616,59 +4591,60 @@ async function callProfileGeneration(notes, profileConfig, studentContext, openA
     throw new functions.https.HttpsError("internal", "AI returned no content");
   }
 
-  let parsed;
   try {
-    parsed = JSON.parse(rawContent);
+    return parseSoulResponse(rawContent);
   } catch (err) {
-    console.error("[profile] JSON parse error", err, rawContent?.slice?.(0, 500));
-    throw new functions.https.HttpsError("internal", "AI returned invalid JSON");
+    throw new functions.https.HttpsError("internal", err.message);
   }
-
-  return { parsed, rawContent };
 }
 
-async function writeProfileDimensions(studentId, profileEntries, programId, sourceType) {
-  const profileRef = db.collection("students").doc(studentId).collection("profile");
+async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt) {
+  const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
+  const soulRef = aiSummariesRef.doc("soul");
+  const guidelinesRef = aiSummariesRef.doc("guidelines");
   const now = Timestamp.now();
   const batch = db.batch();
 
-  // Read all existing dimension docs in parallel
-  const existingDocs = await Promise.all(
-    profileEntries.map((entry) => profileRef.doc(entry.dimensionKey).get()),
-  );
+  // Read existing soul + guidelines in parallel
+  const [existingSoul, existingGuidelines] = await Promise.all([soulRef.get(), guidelinesRef.get()]);
 
-  for (let i = 0; i < profileEntries.length; i++) {
-    const entry = profileEntries[i];
-    const existing = existingDocs[i];
-    const dimRef = profileRef.doc(entry.dimensionKey);
+  // Snapshot previous soul to history before overwrite
+  if (existingSoul.exists) {
+    const prevData = existingSoul.data();
+    const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
+    batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
+  }
 
-    // If doc exists, snapshot current state to history before overwriting
-    if (existing.exists) {
-      const historyRef = dimRef.collection("history").doc(now.toMillis().toString());
-      const prevData = existing.data();
-      batch.set(historyRef, {
-        narrative: prevData.narrative || "",
-        structuredSignals: prevData.structuredSignals || {},
-        updatedAt: prevData.updatedAt || now,
-        updatedBy: prevData.updatedBy || "unknown",
-        reason: `Superseded by ${sourceType} on ${new Date().toISOString().split("T")[0]}`,
-      });
-    }
+  // Extract structured guidelines suggestions before stripping YAML from narrative
+  const guidelinesSuggestions = extractGuidelinesSuggestions(soulContent);
+  const narrativeContent = stripGuidelinesSuggestions(soulContent);
 
-    batch.set(dimRef, {
-      dimensionKey: entry.dimensionKey,
-      dimensionLabel: entry.dimensionLabel,
+  // Write soul doc (narrative without YAML block)
+  const soulDoc = buildSoulDoc({
+    content: narrativeContent,
+    programId,
+    observationCount,
+    interviewCount,
+    lastObservationAt: lastObsAt,
+    lastInterviewAt: lastInterviewAt,
+  });
+  soulDoc.hasEmergentObservations = hasEmergentObservations(narrativeContent);
+  soulDoc.guidelinesSuggestions = guidelinesSuggestions;
+  soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
+  soulDoc.updatedAt = now;
+  batch.set(soulRef, soulDoc);
+
+  // Seed guidelines from template on first run (don't overwrite existing)
+  if (!existingGuidelines.exists) {
+    const guidelinesDoc = buildGuidelinesDoc({
+      content: templateConfig.markdown,
       programId,
-      narrative: entry.narrative,
-      gaps: entry.gaps || "",
-      structuredSignals: {
-        ...entry.structuredSignals,
-        lastSourceType: sourceType,
-      },
-      createdAt: existing.exists ? (existing.data().createdAt || now) : now,
-      updatedAt: now,
-      updatedBy: `cloud-function:${sourceType}`,
+      templateDocId: `config/soul_template_${programId}`,
     });
+    guidelinesDoc.createdAt = now;
+    guidelinesDoc.updatedAt = now;
+    batch.set(guidelinesRef, guidelinesDoc);
+    console.log(`[soul] Seeded guidelines for ${studentId} from soul_template_${programId}`);
   }
 
   await batch.commit();
@@ -4682,13 +4658,11 @@ export const generateStudentProfile = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    // Fail fast if OpenAI key is missing — before any Firestore reads
     const openAiKey = getOpenAiKey();
     if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
     }
 
-    // Only superadmins can trigger profile generation
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
     if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can generate profiles");
@@ -4704,10 +4678,7 @@ export const generateStudentProfile = functions
       throw new functions.https.HttpsError("failed-precondition", `Invalid program: ${studentInfo.programId}`);
     }
 
-    const profileConfig = await getProfileConfig(studentInfo.programId);
-    if (!profileConfig.dimensions?.length) {
-      throw new functions.https.HttpsError("failed-precondition", `No dimensions configured for program: ${studentInfo.programId}`);
-    }
+    const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
 
     // Default to 365-day observation window; pass windowDays to override
     const windowDays = data?.windowDays || 365;
@@ -4716,15 +4687,31 @@ export const generateStudentProfile = functions
       fetchStudentInterviews(studentId, windowDays),
     ]);
 
+    // Read existing guidelines (if any) to use as the reference lens
+    const guidelinesSnap = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("guidelines").get();
+    const guidelinesContent = guidelinesSnap.exists
+      ? guidelinesSnap.data().content
+      : templateConfig.markdown;
+
+    // Read previous soul for continuity
+    const prevSoulSnap = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("soul").get();
+    const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+
     if (!notes.length && !rawInterviews.length) {
-      console.log(`[profile] No observations or interviews for ${studentId}, writing empty profile`);
-      const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
-      await writeProfileDimensions(studentId, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
+      console.log(`[soul] No observations or interviews for ${studentId}, writing empty soul`);
+      await writeSoulAndGuidelines(
+        studentId,
+        "No observations or interviews available yet.",
+        studentInfo.programId,
+        templateConfig,
+        0, 0, null, null,
+      );
       return {
         status: "no_notes",
         studentId,
         programId: studentInfo.programId,
-        dimensionCount: profileConfig.dimensions.length,
         noteCount: 0,
         interviewCount: 0,
       };
@@ -4733,38 +4720,37 @@ export const generateStudentProfile = functions
     const formatted = notes.map(formatObservationForPrompt);
     const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
-    // Determine source type: interview if interviews present, observation otherwise
-    const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_OBSERVATION;
+    // Find latest timestamps for sourceStats
+    const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
+    const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
+      ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
+      : null;
 
-    const { parsed } = await callProfileGeneration(formatted, profileConfig, {
-      studentName: studentInfo.studentName,
-      dob: studentInfo.dob,
-      age: studentInfo.age,
-      programId: studentInfo.programId,
-    }, openAiKey, formattedInterviews);
+    const soulContent = await callSoulGeneration(
+      formatted, formattedInterviews, guidelinesContent,
+      { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+      previousSoul, openAiKey,
+    );
 
-    const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
-    await writeProfileDimensions(studentId, profileEntries, studentInfo.programId, sourceType);
+    await writeSoulAndGuidelines(
+      studentId, soulContent, studentInfo.programId, templateConfig,
+      formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+    );
 
-    console.log(`[profile] Generated profile for ${studentId}: ${profileEntries.length} dimensions, ${formatted.length} observations, ${formattedInterviews.length} interviews`);
+    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews`);
 
     return {
       status: "ok",
       studentId,
       programId: studentInfo.programId,
-      dimensionCount: profileEntries.length,
       noteCount: formatted.length,
       interviewCount: formattedInterviews.length,
-      dimensions: profileEntries.map((e) => ({
-        key: e.dimensionKey,
-        confidence: e.structuredSignals.confidence,
-        evidenceCount: e.structuredSignals.evidenceCount,
-      })),
+      hasEmergentObservations: hasEmergentObservations(stripGuidelinesSuggestions(soulContent)),
     };
   });
 
 // -----------------------------------------------
-// Student Profile: Bulk backfill for all active students (PEP-124)
+// Student Soul: Bulk backfill for all active students (PEP-149)
 // -----------------------------------------------
 
 export const backfillStudentProfiles = functions
@@ -4775,7 +4761,6 @@ export const backfillStudentProfiles = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    // Fail fast if OpenAI key is missing — before any Firestore reads
     const openAiKey = getOpenAiKey();
     if (!openAiKey) {
       throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
@@ -4786,7 +4771,6 @@ export const backfillStudentProfiles = functions
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can run backfill");
     }
 
-    // Pagination params
     const windowDays = data?.windowDays || 365;
     const dryRun = data?.dryRun === true;
     const batchSize = Math.min(Number(data?.batchSize) || 10, 25);
@@ -4834,44 +4818,54 @@ export const backfillStudentProfiles = functions
           continue;
         }
 
-        const profileConfig = await getProfileConfig(studentInfo.programId);
-        if (!profileConfig.dimensions?.length) {
-          errors.push({ studentId: student.id, error: "No dimensions configured" });
-          failed++;
-          continue;
-        }
+        const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
 
         const [notes, rawInterviews] = await Promise.all([
           fetchStudentNotesForWindow(student.id, windowDays),
           fetchStudentInterviews(student.id, windowDays),
         ]);
 
+        // Read existing guidelines + previous soul
+        const aiSummariesRef = db.collection("students").doc(student.id).collection("ai_summaries");
+        const [guidelinesSnap, prevSoulSnap] = await Promise.all([
+          aiSummariesRef.doc("guidelines").get(),
+          aiSummariesRef.doc("soul").get(),
+        ]);
+        const guidelinesContent = guidelinesSnap.exists ? guidelinesSnap.data().content : templateConfig.markdown;
+        const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+
         if (!notes.length && !rawInterviews.length) {
-          const emptyEntries = parseProfileResponse({}, profileConfig.dimensions);
-          await writeProfileDimensions(student.id, emptyEntries, studentInfo.programId, SOURCE_BACKFILL);
+          await writeSoulAndGuidelines(
+            student.id, "No observations or interviews available yet.",
+            studentInfo.programId, templateConfig, 0, 0, null, null,
+          );
           succeeded++;
           results.push({ studentId: student.id, status: "no_notes" });
-          console.log(`[backfill] ${student.id}: no notes or interviews, wrote empty profile`);
+          console.log(`[backfill] ${student.id}: no notes or interviews, wrote empty soul`);
           continue;
         }
 
         const formatted = notes.map(formatObservationForPrompt);
         const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
 
-        const sourceType = formattedInterviews.length > 0 ? SOURCE_INTERVIEW : SOURCE_BACKFILL;
+        const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
+        const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
+          ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
+          : null;
 
-        const { parsed } = await callProfileGeneration(formatted, profileConfig, {
-          studentName: studentInfo.studentName,
-          dob: studentInfo.dob,
-          age: studentInfo.age,
-          programId: studentInfo.programId,
-        }, openAiKey, formattedInterviews);
+        const soulContent = await callSoulGeneration(
+          formatted, formattedInterviews, guidelinesContent,
+          { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+          previousSoul, openAiKey,
+        );
 
-        const profileEntries = parseProfileResponse(parsed, profileConfig.dimensions);
-        await writeProfileDimensions(student.id, profileEntries, studentInfo.programId, sourceType);
+        await writeSoulAndGuidelines(
+          student.id, soulContent, studentInfo.programId, templateConfig,
+          formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
+        );
         succeeded++;
         results.push({ studentId: student.id, status: "ok", noteCount: formatted.length, interviewCount: formattedInterviews.length });
-        console.log(`[backfill] ${student.id}: ${profileEntries.length} dimensions, ${formatted.length} notes, ${formattedInterviews.length} interviews`);
+        console.log(`[backfill] ${student.id}: ${formatted.length} notes, ${formattedInterviews.length} interviews`);
       } catch (err) {
         console.error(`[backfill] Failed for ${student.id}:`, err.message);
         errors.push({ studentId: student.id, error: err.message });
@@ -4884,4 +4878,3 @@ export const backfillStudentProfiles = functions
     console.log(`[backfill] Batch complete: ${succeeded}/${processed} succeeded, ${failed} failed, hasMore=${hasMore}`);
     return { status: "ok", processed, succeeded, failed, errors, results, lastStudentId, hasMore };
   });
-

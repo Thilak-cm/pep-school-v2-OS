@@ -148,39 +148,24 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
-  // STUDENT PROFILE ACCESS CONTROL (Firestore) - AI-only writes, superadmin read only
+  // AI SUMMARIES HISTORY ACCESS CONTROL (Firestore) - Soul/guidelines history, superadmin only
+  // PEP-149: Soul + guidelines docs live under ai_summaries; history subcollection for audit trail
   // ============================================================================
 
   {
-    name: 'Student profile read restricted to superadmin only',
-    description: 'allow read: if isSuperAdmin()',
+    name: 'AI summaries history read restricted to superadmin only',
+    description: 'allow read: if isSuperAdmin() on ai_summaries/{summaryId}/history/{historyId}',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+    pattern: /match\s+\/ai_summaries\/\{summaryId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
   },
 
   {
-    name: 'Student profile write restricted to superadmin only (Cloud Functions use admin SDK)',
-    description: 'allow create, update, delete: if isSuperAdmin()',
+    name: 'AI summaries history write restricted to superadmin only',
+    description: 'allow create, update, delete: if isSuperAdmin() on ai_summaries/{summaryId}/history/{historyId}',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
-  },
-
-  {
-    name: 'Student profile history read restricted to superadmin only',
-    description: 'allow read: if isSuperAdmin()',
-    file: 'firestore',
-    criticality: 'important',
-    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin\s*\(\s*\)/,
-  },
-
-  {
-    name: 'Student profile history write restricted to superadmin only',
-    description: 'allow create, update, delete: if isSuperAdmin()',
-    file: 'firestore',
-    criticality: 'important',
-    pattern: /match\s+\/profile\/\{dimensionId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+    pattern: /match\s+\/ai_summaries\/\{summaryId\}[\s\S]*?match\s+\/history\/\{historyId\}[\s\S]*?allow\s+create,\s*update,\s*delete:\s*if\s+isSuperAdmin\s*\(\s*\)/,
   },
 
   // ============================================================================

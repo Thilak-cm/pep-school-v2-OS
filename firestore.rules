@@ -178,19 +178,13 @@ service cloud.firestore {
         allow delete: if canManagePlacement();
       }
 
-      // AI summaries (e.g., baseball card) stored per student
+      // AI summaries (baseball card, reports, signals, soul, guidelines) stored per student
       match /ai_summaries/{summaryId} {
         allow read: if isPrivilegedAdmin() || isTeacher();
         allow create, update, delete: if isSuperAdmin();
-      }
 
-      // Profile subcollection - AI-generated student profile dimensions
-      // Cloud Functions use admin SDK (bypasses rules); superadmin for manual edits
-      match /profile/{dimensionId} {
-        allow read: if isSuperAdmin();
-        allow create, update, delete: if isSuperAdmin();
-
-        // Version history for each dimension
+        // Version history for soul and guidelines (PEP-149)
+        // Cloud Functions write via admin SDK; superadmin for manual review
         match /history/{historyId} {
           allow read: if isSuperAdmin();
           allow create, update, delete: if isSuperAdmin();

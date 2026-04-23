@@ -1,17 +1,23 @@
 /**
- * Test generateStudentProfile for a single student.
+ * Test soul generation for a single student (PEP-149).
  *
  * Usage:
  *   node scripts/admin/test-student-profile.mjs <studentId>
- *   node scripts/admin/test-student-profile.mjs 2025-ALL-001
- *   node scripts/admin/test-student-profile.mjs 2025-ALL-001 --window=90
+ *   node scripts/admin/test-student-profile.mjs 2025-ADO-001
+ *   node scripts/admin/test-student-profile.mjs 2025-ADO-001 --window=90
+ *   node scripts/admin/test-student-profile.mjs 2025-ADO-001 --write
  *
  * This bypasses the callable auth gate by directly invoking the same logic
  * the Cloud Function uses, via the admin SDK (which has full access).
  */
 import admin from "firebase-admin";
-import { PROGRAM_DIMENSIONS, VALID_PROGRAMS, PROFILE_DEFAULTS } from "../../functions/config/profileConstants.js";
-import { parseProfileResponse } from "../../functions/utils/profileHelpers.js";
+import {
+  SOUL_DEFAULTS, VALID_PROGRAMS,
+  buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
+  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  extractGuidelinesSuggestions, stripGuidelinesSuggestions,
+} from "../../functions/utils/soulHelpers.js";
+import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers.js";
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -79,7 +85,7 @@ const windowFlag = args.find((a) => a.startsWith("--window="));
 const windowDays = windowFlag ? parseInt(windowFlag.split("=")[1], 10) : 365;
 
 if (!studentId) {
-  console.error("Usage: node scripts/admin/test-student-profile.mjs <studentId> [--window=365]");
+  console.error("Usage: node scripts/admin/test-student-profile.mjs <studentId> [--window=365] [--write]");
   process.exit(1);
 }
 
@@ -104,18 +110,32 @@ async function run() {
     process.exit(1);
   }
 
-  // 2. Get config doc (prompt + dimensions + model config) from config/ collection
-  const configSnap = await db.collection("config").doc(`profile_${programId}`).get();
-  if (!configSnap.exists) {
-    console.error(`Profile config not found: config/profile_${programId}`);
+  // 2. Get soul template from config
+  const templateSnap = await db.collection("config").doc(`soul_template_${programId}`).get();
+  if (!templateSnap.exists) {
+    console.error(`Soul template not found: config/soul_template_${programId}. Run seed-soul-templates.mjs --apply first.`);
     process.exit(1);
   }
-  const configData = configSnap.data();
-  const dimensions = configData.dimensions?.length ? configData.dimensions : PROGRAM_DIMENSIONS[programId];
-  const systemPrompt = configData.staticSystemPrompt + (configData.dynamicSystemPrompt || "");
-  console.log(`Dimensions: ${dimensions.length} (${dimensions.map((d) => d.key).join(", ")})\n`);
+  const templateMarkdown = templateSnap.data().markdown;
+  console.log(`Template loaded: ${templateMarkdown.split("\n").length} lines\n`);
 
-  // 4. Fetch observations
+  // 3. Read existing guidelines (or use template)
+  const guidelinesSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("guidelines").get();
+  const guidelinesContent = guidelinesSnap.exists
+    ? guidelinesSnap.data().content
+    : templateMarkdown;
+  console.log(`Guidelines: ${guidelinesSnap.exists ? "per-student (existing)" : "from template (first run)"}`);
+
+  // 4. Read previous soul for continuity
+  const prevSoulSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("soul").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+  if (previousSoul) {
+    console.log(`Previous soul: ${previousSoul.split("\n").length} lines`);
+  }
+
+  // 5. Fetch observations
   const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const notesMap = new Map();
   const obsRef = db.collection("students").doc(studentId).collection("observations");
@@ -140,23 +160,34 @@ async function run() {
   console.log(`Observations found: ${notes.length}`);
 
   if (!notes.length) {
-    console.log("No observations — would write empty profile. Exiting.");
+    console.log("No observations — would write empty soul. Exiting.");
     process.exit(0);
   }
 
   const formatted = notes.map(formatObservationForPrompt);
 
-  // 5. Call OpenAI
+  // 5b. Fetch interviews
+  const interviewsRef = db.collection("students").doc(studentId).collection("interviews");
+  let rawInterviews = [];
+  try {
+    const interviewSnap = await interviewsRef
+      .where("status", "==", "completed")
+      .where("conductedAt", ">=", cutoff)
+      .orderBy("conductedAt", "desc")
+      .get();
+    rawInterviews = interviewSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.warn(`[interviews] fetch failed: ${err.message}`);
+  }
+  const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+  console.log(`Interviews found: ${rawInterviews.length}`);
+
+  // 6. Call OpenAI
   const openAiKey = process.env.OPENAI_API_KEY;
   if (!openAiKey) {
     console.error("Set OPENAI_API_KEY environment variable");
     process.exit(1);
   }
-
-  const dimBlock = dimensions.map((d) => `- ${d.key}: ${d.label} — ${d.description}`).join("\n");
-  const jsonWrapper = `\n\nIMPORTANT: You must output your response as a JSON object.\nEach key must be one of the dimension keys listed above.\nEach value must be an object with exactly: { "narrative": string, "confidence": number, "evidenceCount": number, "trend": string, "gaps": string }\n- "gaps": a plain-text description of what is unknown, uncertain, or unobserved about this child in this dimension. Describe specific missing observations or blind spots (e.g., "No observations of independent reading. Social interactions only observed in group settings."). Use an empty string "" if the dimension is well-covered with no obvious gaps.\nOutput ONLY the JSON object, nothing else.`;
-
-  const fullSystem = systemPrompt + "\n\nDimension keys for this student's program:\n" + dimBlock + jsonWrapper;
 
   const studentContext = {
     studentName,
@@ -165,18 +196,10 @@ async function run() {
     programId,
   };
 
-  const userContent = [
-    "Generate a student profile from the following observations.",
-    "",
-    `Student: ${JSON.stringify(studentContext)}`,
-    "",
-    `Observations (${formatted.length} notes, JSON array):`,
-    JSON.stringify(formatted),
-  ].join("\n");
+  const systemContent = buildSoulSystemPrompt(guidelinesContent);
+  const userContent = buildSoulUserPrompt(studentContext, formatted, formattedInterviews, previousSoul);
 
-  const model = configData.model || PROFILE_DEFAULTS.model;
-  const temperature = configData.temperature ?? PROFILE_DEFAULTS.temperature;
-  const maxTokens = configData.max_tokens || PROFILE_DEFAULTS.max_tokens;
+  const model = SOUL_DEFAULTS.model;
   console.log(`\nCalling ${model}...`);
   const startTime = Date.now();
 
@@ -189,12 +212,11 @@ async function run() {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: fullSystem },
+        { role: "system", content: systemContent },
         { role: "user", content: userContent },
       ],
-      temperature,
-      max_completion_tokens: maxTokens,
-      response_format: { type: "json_object" },
+      temperature: SOUL_DEFAULTS.temperature,
+      max_completion_tokens: SOUL_DEFAULTS.max_tokens,
     }),
   });
 
@@ -209,55 +231,79 @@ async function run() {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`Response received in ${elapsed}s\n`);
 
-  const parsed = JSON.parse(rawContent);
-  const profileEntries = parseProfileResponse(parsed, dimensions);
+  const fullContent = parseSoulResponse(rawContent);
+  const guidelinesSuggestions = extractGuidelinesSuggestions(fullContent);
+  const soulContent = stripGuidelinesSuggestions(fullContent);
 
-  // 6. Print results
+  // 7. Print results
   console.log("=".repeat(80));
-  console.log(`PROFILE: ${studentName} (${programId})`);
+  console.log(`SOUL: ${studentName} (${programId})`);
   console.log("=".repeat(80));
-
-  for (const entry of profileEntries) {
-    const sig = entry.structuredSignals;
-    console.log(`\n--- ${entry.dimensionLabel} (${entry.dimensionKey}) ---`);
-    console.log(`Confidence: ${sig.confidence} | Evidence: ${sig.evidenceCount} | Trend: ${sig.trend}`);
-    console.log(`\n${entry.narrative}`);
-    if (entry.gaps) {
-      console.log(`\nGaps: ${entry.gaps}`);
+  console.log();
+  console.log(soulContent);
+  console.log();
+  console.log("=".repeat(80));
+  console.log(`Emergent observations: ${hasEmergentObservations(soulContent) ? "YES" : "No"}`);
+  if (guidelinesSuggestions.length > 0) {
+    console.log(`Guidelines suggestions: ${guidelinesSuggestions.length}`);
+    for (const s of guidelinesSuggestions) {
+      console.log(`  - ${s.area} → ${s.discipline}: ${s.rationale}`);
     }
-    console.log();
   }
+  console.log("=".repeat(80));
 
-  // 7. Optionally write to Firestore
+  // 8. Optionally write to Firestore
   const writeFlag = args.includes("--write");
   if (writeFlag) {
-    console.log("\nWriting profile to Firestore...");
-    const profileRef = db.collection("students").doc(studentId).collection("profile");
+    console.log("\nWriting soul + guidelines to Firestore...");
+    const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
+    const soulRef = aiSummariesRef.doc("soul");
+    const guidelinesRef = aiSummariesRef.doc("guidelines");
     const now = admin.firestore.Timestamp.now();
     const batch = db.batch();
 
-    for (const entry of profileEntries) {
-      const dimRef = profileRef.doc(entry.dimensionKey);
-      batch.set(dimRef, {
-        dimensionKey: entry.dimensionKey,
-        dimensionLabel: entry.dimensionLabel,
+    // Snapshot previous soul to history
+    if (prevSoulSnap.exists) {
+      const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
+      batch.set(historyRef, buildHistorySnapshot(prevSoulSnap.data(), "Admin script regeneration"));
+    }
+
+    // Write soul
+    const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
+    const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
+      ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
+      : null;
+    const soulDoc = buildSoulDoc({
+      content: soulContent,
+      programId,
+      observationCount: formatted.length,
+      interviewCount: formattedInterviews.length,
+      lastObservationAt: lastObsAt,
+      lastInterviewAt,
+    });
+    soulDoc.hasEmergentObservations = hasEmergentObservations(soulContent);
+    soulDoc.guidelinesSuggestions = guidelinesSuggestions;
+    soulDoc.createdAt = prevSoulSnap.exists ? (prevSoulSnap.data().createdAt || now) : now;
+    soulDoc.updatedAt = now;
+    batch.set(soulRef, soulDoc);
+
+    // Seed guidelines if missing
+    if (!guidelinesSnap.exists) {
+      const guidelinesDoc = buildGuidelinesDoc({
+        content: templateMarkdown,
         programId,
-        narrative: entry.narrative,
-        gaps: entry.gaps || "",
-        structuredSignals: {
-          ...entry.structuredSignals,
-          lastSourceType: "backfill",
-        },
-        createdAt: now,
-        updatedAt: now,
-        updatedBy: "admin-script:test-student-profile",
+        templateDocId: `config/soul_template_${programId}`,
       });
+      guidelinesDoc.createdAt = now;
+      guidelinesDoc.updatedAt = now;
+      batch.set(guidelinesRef, guidelinesDoc);
+      console.log(`  Seeded guidelines from soul_template_${programId}`);
     }
 
     await batch.commit();
-    console.log(`Written ${profileEntries.length} dimension docs to students/${studentId}/profile/`);
+    console.log(`  Written soul to students/${studentId}/ai_summaries/soul`);
   } else {
-    console.log("\nDry run — profile NOT written to Firestore.");
+    console.log("\nDry run — soul NOT written to Firestore.");
     console.log("Add --write to persist: node scripts/admin/test-student-profile.mjs " + studentId + " --write");
   }
 }
