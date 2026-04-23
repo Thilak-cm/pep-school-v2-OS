@@ -203,7 +203,7 @@ After the audit loop passes, run a browser smoke check for UI changes before pro
 
 Absorbed from the former `/version-update` skill. Runs inline before committing.
 
-1. **Decide bump type** from the commit prefix, Linear issue labels, and diff scope. Do NOT ask the user — decide autonomously using these rules derived from codebase history:
+1. **Decide bump type** from the commit prefix, Linear issue labels, and diff scope. **Always ask the user** which bump type to apply (patch, minor, or major). Present your recommendation with reasoning, but wait for explicit confirmation before proceeding. Use these rules to inform your recommendation:
 
    **patch** (default) — the vast majority of changes:
    - Bugfixes (`fix:` commits, labels like `Bug`, `Fix`)
@@ -393,7 +393,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
-3. **Major version bump only** — patch and minor are decided autonomously; major requires confirmation
+3. **All version bumps** — present recommendation with reasoning, wait for user to confirm bump type (patch/minor/major)
 4. **Changelog entry** — show for review before committing
 5. **Before pushing + opening PR** — confirm user is ready to ship
 6. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)

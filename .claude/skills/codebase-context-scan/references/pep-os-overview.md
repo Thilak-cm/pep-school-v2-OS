@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-04-23T01:16:32.980Z
+Generated: 2026-04-23T04:06:40.997Z
 App version: 10.10.0
 
 ## App Snapshot
@@ -141,6 +141,11 @@ App version: 10.10.0
 - Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
 - Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
 - Soul history snapshots — previous soul is archived before each weekly regeneration (PEP-149)
+
+### 10.9.1 (2026-04-22)
+- Stop button in student chat now truly cancels the AI response — writes `cancelledResponseAt` to the user message doc so the Cloud Function skips the assistant write (PEP-96)
+- Client-side `stoppedRef` suppression prevents late-arriving assistant messages from rendering after Stop is pressed (PEP-96)
+- "Response interrupted" label shown below the user message when a response is cancelled (PEP-96)
 
 ### 10.9.0 (2026-04-19)
 - Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)

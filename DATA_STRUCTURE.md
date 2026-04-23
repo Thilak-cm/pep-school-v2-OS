@@ -436,11 +436,12 @@ interface MessageDoc {
   // User messages only
   authorId?: string;                // uid of the teacher
   authorName?: string;              // display name of the teacher
+  cancelledResponseAt?: Timestamp;  // set when user presses Stop — CF skips assistant write
 }
 ```
 
 Notes
-- Messages are append-only; no edits or deletes at the message level.
+- Messages are append-only except for `cancelledResponseAt`, which may be set on a user message after creation (stop button). No other updates or deletes allowed.
 - `messageCount` on the parent chat doc is incremented by 2 per exchange (user + assistant).
 - When the parent chat is hard-deleted by `cleanupDeletedChats`, all messages are recursively deleted.
 

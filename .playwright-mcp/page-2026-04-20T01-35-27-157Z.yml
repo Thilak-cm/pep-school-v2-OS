@@ -1,0 +1,25 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - banner [ref=e5]:
+      - generic [ref=e7]:
+        - heading "Alerts" [level=1] [ref=e236]
+        - img "Pep School Logo" [ref=e10]
+    - generic [ref=e238]:
+      - progressbar [ref=e239]:
+        - img [ref=e240]
+      - paragraph [ref=e242]: Coach Pepper is gathering notifications...
+    - generic [ref=e91]:
+      - button "Settings" [ref=e92] [cursor=pointer]:
+        - img [ref=e93]
+        - generic [ref=e95]: Settings
+      - button "Alerts" [active] [ref=e96] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e99]: Alerts
+      - button "Interviews" [ref=e100] [cursor=pointer]:
+        - img [ref=e101]
+        - generic [ref=e103]: Interviews
+      - button "Home" [ref=e104] [cursor=pointer]:
+        - img [ref=e105]
+        - generic [ref=e107]: Home
+  - iframe [ref=e108]:
+    

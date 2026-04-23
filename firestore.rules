@@ -207,8 +207,10 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read: if isPrivilegedAdmin() || isTeacher();
           allow create: if isPrivilegedAdmin() || isTeacher();
-          // Messages are immutable - no updates or deletes allowed
-          allow update, delete: if false;
+          // Messages are immutable except for cancelledResponseAt (stop button)
+          allow update: if (isPrivilegedAdmin() || isTeacher())
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelledResponseAt']);
+          allow delete: if false;
         }
       }
 

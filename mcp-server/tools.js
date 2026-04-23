@@ -111,6 +111,21 @@ export const TOOL_DEFINITIONS = [
       properties: {},
     },
   },
+  {
+    name: "get_media_stats",
+    description:
+      "Aggregate stats across all student media docs. Returns total media count, handwritten count, curriculum area breakdown, per-student counts, and per-classroom counts. Optionally filter by classroomId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        classroomId: {
+          type: "string",
+          description:
+            "Optional classroom ID to scope stats to (e.g., allstars). If omitted, returns stats across all classrooms.",
+        },
+      },
+    },
+  },
 ];
 
 // --- Tool Handlers ---
@@ -304,6 +319,88 @@ export async function handleListConfig(db) {
   });
 
   return results;
+}
+
+export async function handleGetMediaStats(db, params) {
+  const { classroomId } = params || {};
+
+  // Get students, optionally scoped to classroom
+  let studentQuery = db.collection("students").where("isActive", "==", true);
+  if (classroomId) {
+    studentQuery = studentQuery.where("classroomId", "==", classroomId);
+  }
+  const studentSnap = await studentQuery.get();
+
+  let totalMedia = 0;
+  let handwrittenCount = 0;
+  const curriculumAreas = {};
+  const perStudent = [];
+  const perClassroom = {};
+
+  for (const studentDoc of studentSnap.docs) {
+    const student = studentDoc.data();
+    const mediaSnap = await db
+      .collection("students")
+      .doc(studentDoc.id)
+      .collection("media")
+      .get();
+
+    let studentTotal = 0;
+    let studentHandwritten = 0;
+    const studentAreas = {};
+
+    mediaSnap.forEach((doc) => {
+      const d = doc.data();
+      studentTotal++;
+      totalMedia++;
+
+      if (d.handwritten === true) {
+        handwrittenCount++;
+        studentHandwritten++;
+      }
+
+      const area = d.curriculumArea || "unclassified";
+      curriculumAreas[area] = (curriculumAreas[area] || 0) + 1;
+      studentAreas[area] = (studentAreas[area] || 0) + 1;
+    });
+
+    if (studentTotal > 0) {
+      perStudent.push({
+        id: studentDoc.id,
+        displayName: student.displayName,
+        classroomId: student.classroomId,
+        totalMedia: studentTotal,
+        handwritten: studentHandwritten,
+        curriculumAreas: studentAreas,
+      });
+    }
+
+    // Aggregate per classroom
+    const cId = student.classroomId || "unknown";
+    if (!perClassroom[cId]) {
+      perClassroom[cId] = { totalMedia: 0, handwritten: 0 };
+    }
+    perClassroom[cId].totalMedia += studentTotal;
+    perClassroom[cId].handwritten += studentHandwritten;
+  }
+
+  // Sort per-student by total media descending
+  perStudent.sort((a, b) => b.totalMedia - a.totalMedia);
+
+  return {
+    totalMedia,
+    handwrittenCount,
+    notHandwritten: totalMedia - handwrittenCount,
+    handwrittenPercent:
+      totalMedia > 0
+        ? Math.round((handwrittenCount / totalMedia) * 100 * 10) / 10
+        : 0,
+    curriculumAreas,
+    perClassroom,
+    perStudent,
+    studentsWithMedia: perStudent.length,
+    studentsScanned: studentSnap.size,
+  };
 }
 
 export async function handleListClassrooms(db) {

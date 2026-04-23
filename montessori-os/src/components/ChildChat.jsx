@@ -25,6 +25,7 @@ import {
   orderBy,
   getDocs,
   onSnapshot,
+  addDoc,
   Timestamp,
   doc,
   updateDoc,
@@ -35,7 +36,7 @@ import { db, cloudFunctions, auth } from '../firebase';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { stripQuotes, ASSISTANT_TIMEOUT_MS } from './chat/chatUtils';
+import { stripQuotes, ASSISTANT_TIMEOUT_MS, filterMessagesAfterStop } from './chat/chatUtils';
 import { UserBubble, AssistantBubble } from './chat/MessageBubble';
 import TypingIndicator from './chat/TypingIndicator';
 import ScrollToBottomFab from './chat/ScrollToBottomFab';
@@ -88,6 +89,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const animationFrameRef = useRef(null);
   const streamRef = useRef(null);
   const discardRef = useRef(false);
+  const stoppedRef = useRef(false);
+  const lastSentUserMsgIdRef = useRef(null);
   
   const MAX_RECORDING_TIME = 300; // 5 minutes
 
@@ -125,9 +128,10 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   useEffect(() => {
     if (!assistantPending) return;
     const timer = setTimeout(() => {
+      stoppedRef.current = true;
       setAssistantPending(false);
       lastPendingUserTimestampRef.current = null;
-      setError('Response may have arrived — try scrolling up or refreshing.');
+      setError('Response timed out. Please try again.');
     }, ASSISTANT_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [assistantPending]);
@@ -343,12 +347,21 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               timestamp: data.timestamp || null,
               authorName: data.authorName || null,
               model: data.model || null,
+              cancelledResponseAt: data.cancelledResponseAt || null,
             });
           });
 
           // If we're in first message flow and real messages arrive, remove temp messages
           if (isFirstMessageFlow && messagesList.length > 0) {
             setIsFirstMessageFlow(false);
+          }
+
+          // If the user pressed Stop, suppress any new assistant messages that arrive
+          // but preserve local-only messages (like the "interrupted" indicator)
+          if (stoppedRef.current) {
+            setMessages((prev) => filterMessagesAfterStop(prev, messagesList));
+            setMessagesLoading(false);
+            return;
           }
 
           setMessages(messagesList);
@@ -369,6 +382,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             if (hasAssistantAfterPending) {
               setAssistantPending(false);
               lastPendingUserTimestampRef.current = null;
+              lastSentUserMsgIdRef.current = null;
             }
           }
 
@@ -789,63 +803,57 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
       return;
     }
 
-    const isFirstMessage = selectedChatId === null;
-    let localTempChatId = null;
-
+    stoppedRef.current = false;
     setSending(true);
     setAssistantPending(true);
     setError('');
-
-    // For first message flow: create optimistic chat
-    if (isFirstMessage) {
-      localTempChatId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setIsFirstMessageFlow(true);
-      setSelectedChatId(localTempChatId); // Switch to chat view immediately
-    }
-
-    // Optimistically add user message
-    const tempUserMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content: messageText,
-      timestamp: Timestamp.now(),
-      authorName: auth.currentUser?.displayName || null,
-    };
-    lastPendingUserTimestampRef.current = tempUserMessage.timestamp;
-    setMessages((prev) => [...prev, tempUserMessage]);
     setInputMessage('');
 
+    let chatId = selectedChatId;
+
     try {
+      // If no chat selected, create one in Firestore directly
+      if (!chatId) {
+        const chatsRef = collection(db, 'students', student.id, 'chats');
+        const chatDoc = await addDoc(chatsRef, {
+          name: 'New Chat',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastMessagePreview: '',
+          messageCount: 0,
+          deleted: false,
+        });
+        chatId = chatDoc.id;
+        setSelectedChatId(chatId);
+      }
+
+      // Write user message directly to Firestore
+      const messagesRef = collection(db, 'students', student.id, 'chats', chatId, 'messages');
+      const userMsgDoc = await addDoc(messagesRef, {
+        role: 'user',
+        content: messageText,
+        timestamp: Timestamp.now(),
+        authorId: auth.currentUser?.uid || null,
+        authorName: auth.currentUser?.displayName || null,
+      });
+      lastPendingUserTimestampRef.current = Timestamp.now();
+      lastSentUserMsgIdRef.current = { id: userMsgDoc.id, chatId };
+
+      // onSnapshot will pick up the user message immediately — no temp messages needed.
+      // Now call CF with IDs — it only does the LLM call + assistant write.
       const childChatFn = httpsCallable(cloudFunctions, 'childChat');
       const result = await childChatFn({
         studentId: student.id,
+        chatId,
+        userMessageId: userMsgDoc.id,
         message: messageText,
-        chatId: isFirstMessage ? null : selectedChatId, // null = auto-create/find
-        forceNewChat: isFirstMessage, // Force new chat when in landing page mode
-        devMode: devMode, // When true, excludes observations from context to reduce token usage
+        devMode: devMode,
       });
 
       const responseData = result.data;
 
-      if (!responseData.success) {
+      if (!responseData.success && !responseData.cancelled) {
         throw new Error(responseData.error || 'Failed to send message');
-      }
-
-      // Update selectedChatId if a new chat was created
-      if (responseData.chatId) {
-        if (isFirstMessageFlow && responseData.chatId !== localTempChatId) {
-          // Update from temp to real chatId
-          setSelectedChatId(responseData.chatId);
-          // Don't clear isFirstMessageFlow yet - wait for real messages to arrive
-        } else if (!isFirstMessageFlow && responseData.chatId !== selectedChatId) {
-          setSelectedChatId(responseData.chatId);
-        }
-      }
-
-      // Remove temp message only for existing chats (real message will come via listener)
-      // For first message flow, keep temp message visible until real messages arrive
-      if (!isFirstMessageFlow) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
       }
 
       // Scroll to bottom
@@ -853,21 +861,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         scrollToBottom();
       }, 100);
     } catch (err) {
-
-      // For first message flow: keep user message visible, return to landing
-      if (isFirstMessageFlow) {
-        // Keep temp message visible (don't remove it)
-        setAssistantPending(false);
-        lastPendingUserTimestampRef.current = null;
-        // Return to landing page
-        setSelectedChatId(null);
-        setIsFirstMessageFlow(false);
-      } else {
-        // For existing chats: remove temp message (existing behavior)
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
-        setAssistantPending(false);
-        lastPendingUserTimestampRef.current = null;
-      }
+      setAssistantPending(false);
+      lastPendingUserTimestampRef.current = null;
 
       // Restore input message
       setInputMessage(messageText);
@@ -890,6 +885,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
   // Handle create new chat
   const handleCreateNewChat = () => {
+    stoppedRef.current = false;
+    lastSentUserMsgIdRef.current = null;
     setSelectedChatId(null);
     setMessages([]);
     setInputMessage('');
@@ -899,6 +896,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
   // Handle chat selection
   const handleSelectChat = (chatId) => {
+    stoppedRef.current = false;
+    lastSentUserMsgIdRef.current = null;
     setSelectedChatId(chatId);
     setChatDropdownOpen(false);
     hasManuallySelectedChatRef.current = true; // Mark as manual selection
@@ -989,11 +988,26 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   };
 
   // Handle stop / force-exit while waiting for assistant response
-  const handleStopResponse = () => {
+  const handleStopResponse = async () => {
+    stoppedRef.current = true;
     setAssistantPending(false);
     setSending(false);
     lastPendingUserTimestampRef.current = null;
-    setError('Stopped waiting — the response may still arrive shortly.');
+
+    // Write cancellation flag to the last user message doc so the CF skips the assistant write.
+    // Use the ref (set immediately after addDoc) instead of messages state, which may not
+    // contain the user message yet if Stop is pressed before onSnapshot fires.
+    const lastSent = lastSentUserMsgIdRef.current;
+    lastSentUserMsgIdRef.current = null;
+    if (student?.id && lastSent && lastSent.chatId) {
+      try {
+        const msgRef = doc(db, 'students', student.id, 'chats', lastSent.chatId, 'messages', lastSent.id);
+        await updateDoc(msgRef, { cancelledResponseAt: serverTimestamp() });
+      } catch (_err) {
+        reportCaughtError(_err, 'ChildChat', 'cancelledResponseAt write failed');
+        setError('Could not cancel — a response may still arrive.');
+      }
+    }
   };
 
   // Cleanup on unmount
@@ -1483,13 +1497,28 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 key={message.id}
                 sx={{
                   display: 'flex',
-                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  flexDirection: 'column',
+                  alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
                   position: 'relative',
                   width: '100%',
                 }}
               >
                 {message.role === 'user' ? (
-                  <UserBubble message={message} formatTimestamp={formatTimestamp} />
+                  <>
+                    <UserBubble message={message} formatTimestamp={formatTimestamp} />
+                    {message.cancelledResponseAt && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'text.disabled',
+                          fontStyle: 'italic',
+                          mt: 0.5,
+                        }}
+                      >
+                        Response interrupted
+                      </Typography>
+                    )}
+                  </>
                 ) : (
                   <AssistantBubble message={message} formatTimestamp={formatTimestamp} />
                 )}

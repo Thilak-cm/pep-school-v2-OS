@@ -104,7 +104,13 @@ This skill covers:
 - Move the issue to `Done`
 - Do not change assignee unless the user asks
 
-### Phase 5: Codebase Overview Refresh (Prompt)
+### Phase 5: Cleanup Artifacts
+
+Remove ephemeral artifacts that accumulate during development and testing:
+
+1. Delete `.playwright-mcp/` directory if it exists — `rm -rf .playwright-mcp/`
+
+### Phase 6: Codebase Overview Refresh (Prompt)
 
 The codebase just changed. The high-level overview may be stale.
 
@@ -140,4 +146,5 @@ Ask for explicit approval at these points:
 3. Local dev branch is up to date with the merged changes
 4. Feature branch was deleted (local + remote)
 5. Linear issue was commented and moved to `Done`
-6. User was prompted to refresh codebase overview
+6. `.playwright-mcp/` cleaned up if present
+7. User was prompted to refresh codebase overview

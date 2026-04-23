@@ -17,6 +17,14 @@
 ### Removed
 - `profileConstants.js` dimension definitions, `profileHelpers.js` structured parsing, and associated tests — replaced by `soulHelpers.js` (PEP-149)
 
+# 10.9.1 — 2026-04-22
+
+### Fixed
+- Stop button in student chat now truly cancels the AI response — writes `cancelledResponseAt` to the user message doc so the Cloud Function skips the assistant write (PEP-96)
+- Client-side `stoppedRef` suppression prevents late-arriving assistant messages from rendering after Stop is pressed (PEP-96)
+- "Response interrupted" label shown below the user message when a response is cancelled (PEP-96)
+- Removed misleading "response may still arrive" warning — stop means stop (PEP-96)
+
 # 10.9.0 — 2026-04-19
 
 ### Added

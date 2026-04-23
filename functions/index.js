@@ -3147,6 +3147,9 @@ export const childChatStream = functions
         return;
       }
 
+      // TODO(PEP-96): When childChatStream is activated, port the cancelledResponseAt
+      // check from childChat to skip the assistant write if the user pressed Stop.
+
       // Save assistant response with model info
       const messageId = await saveChatMessage(studentId, chatId, "assistant", fullContent, chatConfig.model);
 
@@ -3203,7 +3206,8 @@ export const childChat = functions
     // Validate parameters
     const studentId = String(data?.studentId || "").trim();
     const message = String(data?.message || "").trim();
-    let chatId = data?.chatId ? String(data.chatId).trim() : null;
+    const chatId = data?.chatId ? String(data.chatId).trim() : null;
+    const userMessageId = data?.userMessageId ? String(data.userMessageId).trim() : null;
 
     if (!studentId) {
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
@@ -3211,6 +3215,14 @@ export const childChat = functions
 
     if (!message) {
       throw new functions.https.HttpsError("invalid-argument", "Please enter a message before sending.");
+    }
+
+    if (!chatId) {
+      throw new functions.https.HttpsError("invalid-argument", "chatId is required");
+    }
+
+    if (!userMessageId) {
+      throw new functions.https.HttpsError("invalid-argument", "userMessageId is required");
     }
 
     const openAiKey = getOpenAiKey();
@@ -3241,14 +3253,7 @@ export const childChat = functions
       const classroomData = classroomDoc.data();
       const programId = classroomData?.programId || "primary"; // Default to primary if missing
 
-      // Handle chatId: if not provided or forceNewChat is true, create new chat
-      const forceNewChat = Boolean(data?.forceNewChat);
-      if (!chatId || forceNewChat) {
-        // Always create new chat when forceNewChat is true or no chatId provided
-        chatId = await createChat(studentId);
-      }
-
-      // Verify chat exists
+      // Verify chat exists (client creates chat + user message before calling this)
       const chatDoc = await db
         .collection("students")
         .doc(studentId)
@@ -3289,13 +3294,7 @@ export const childChat = functions
       // Check if this is the first message in the chat
       const isFirstMessage = (chatData.messageCount || 0) === 0;
 
-      // Get author information from user document
-      const userData = userDoc.data();
-      const authorId = context.auth.uid;
-      const authorName = userData?.displayName || userData?.name || context.auth.token?.name || null;
-
-      // Save user message with author information
-      await saveChatMessage(studentId, chatId, "user", message, null, authorId, authorName);
+      // User message already written by client — userMessageId passed in
 
       // Run LLM inference (streams internally, returns full content)
       const fullContent = await runChildChat(
@@ -3309,12 +3308,36 @@ export const childChat = functions
         throw new functions.https.HttpsError("internal", "AI returned no content");
       }
 
+      // Check if the user pressed Stop while we were waiting for OpenAI
+      const userMsgDoc = await db
+        .collection("students")
+        .doc(studentId)
+        .collection("chats")
+        .doc(chatId)
+        .collection("messages")
+        .doc(userMessageId)
+        .get();
+      if (userMsgDoc.data()?.cancelledResponseAt) {
+        // Still update metadata for the user message the client already wrote
+        const cancelledCount = (chatData.messageCount || 0) + 1;
+        let chatName = chatData.name || "New Chat";
+        if (isFirstMessage) {
+          chatName = await generateChatName(message);
+        }
+        await updateChatMetadata(studentId, chatId, {
+          name: chatName,
+          lastMessagePreview: message.substring(0, 100),
+          messageCount: cancelledCount,
+        });
+        return { chatId, cancelled: true, success: true };
+      }
+
       // Save assistant response with model info
       const messageId = await saveChatMessage(studentId, chatId, "assistant", fullContent, chatConfig.model);
 
       // Update chat metadata
       const lastMessagePreview = fullContent.substring(0, 100);
-      const newMessageCount = (chatData.messageCount || 0) + 2; // User message + assistant response
+      const newMessageCount = (chatData.messageCount || 0) + 2; // chatData.messageCount is pre-write; +1 for user msg (client-written) + 1 for assistant msg
 
       // If first message, generate chat name
       let chatName = chatData.name || "New Chat";
