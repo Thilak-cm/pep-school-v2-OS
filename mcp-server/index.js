@@ -31,6 +31,7 @@ import {
   handleListClassrooms,
   handleGetConfig,
   handleListConfig,
+  handleGetMediaStats,
 } from "./tools.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -97,6 +98,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "list_config":
         result = await handleListConfig(db);
+        break;
+      case "get_media_stats":
+        result = await handleGetMediaStats(db, params);
         break;
       default:
         return {
