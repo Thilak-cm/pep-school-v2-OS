@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.10.0 — 2026-04-22
+
+### Added
+- Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
+- Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
+- Soul history snapshots — previous soul is archived before each weekly regeneration (PEP-149)
+- Structured guidelines suggestions — soul generation extracts AI-proposed new skill areas for the guideline approval flow (PEP-149)
+- Soul template seed script and four program-level template files sourced from Rahul's report card benchmarks (PEP-149)
+
+### Changed
+- `generateStudentProfile` and `backfillStudentProfiles` Cloud Functions refactored from dimension-based profile writes to soul/guidelines generation (PEP-149)
+- Admin test script now fetches interviews alongside observations for full-parity soul generation (PEP-149)
+- Firestore security rules: added history subcollection (superadmin-only), removed deprecated `ai_prompts` and `profile` rules (PEP-149)
+
+### Removed
+- `profileConstants.js` dimension definitions, `profileHelpers.js` structured parsing, and associated tests — replaced by `soulHelpers.js` (PEP-149)
+
 # 10.9.0 — 2026-04-19
 
 ### Added
