@@ -4591,7 +4591,11 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
     throw new functions.https.HttpsError("internal", "AI returned no content");
   }
 
-  return parseSoulResponse(rawContent);
+  try {
+    return parseSoulResponse(rawContent);
+  } catch (err) {
+    throw new functions.https.HttpsError("internal", err.message);
+  }
 }
 
 async function writeSoulAndGuidelines(studentId, soulContent, programId, templateConfig, observationCount, interviewCount, lastObsAt, lastInterviewAt) {
@@ -4601,8 +4605,10 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   const now = Timestamp.now();
   const batch = db.batch();
 
-  // Read existing soul doc for history snapshot
-  const existingSoul = await soulRef.get();
+  // Read existing soul + guidelines in parallel
+  const [existingSoul, existingGuidelines] = await Promise.all([soulRef.get(), guidelinesRef.get()]);
+
+  // Snapshot previous soul to history before overwrite
   if (existingSoul.exists) {
     const prevData = existingSoul.data();
     const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
@@ -4629,7 +4635,6 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   batch.set(soulRef, soulDoc);
 
   // Seed guidelines from template on first run (don't overwrite existing)
-  const existingGuidelines = await guidelinesRef.get();
   if (!existingGuidelines.exists) {
     const guidelinesDoc = buildGuidelinesDoc({
       content: templateConfig.markdown,
@@ -4740,7 +4745,7 @@ export const generateStudentProfile = functions
       programId: studentInfo.programId,
       noteCount: formatted.length,
       interviewCount: formattedInterviews.length,
-      hasEmergentObservations: hasEmergentObservations(soulContent),
+      hasEmergentObservations: hasEmergentObservations(stripGuidelinesSuggestions(soulContent)),
     };
   });
 

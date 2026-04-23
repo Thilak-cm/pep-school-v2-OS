@@ -160,7 +160,7 @@
 
 ### Cognitive skills (Cognitive)
 
-- Focuses on tasks and pays attention to releevant stimuli, for example, instructions from a educator.
+- Focuses on tasks and pays attention to relevant stimuli, for example, instructions from a educator.
 - Recognises external cues that need an immediate response, for example, starting and stopping an activity.
 - Repeats tasks in the correct sequence.
 - Follows one-step simple instructions.

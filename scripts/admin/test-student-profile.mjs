@@ -17,6 +17,7 @@ import {
   buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
   extractGuidelinesSuggestions, stripGuidelinesSuggestions,
 } from "../../functions/utils/soulHelpers.js";
+import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers.js";
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -165,6 +166,22 @@ async function run() {
 
   const formatted = notes.map(formatObservationForPrompt);
 
+  // 5b. Fetch interviews
+  const interviewsRef = db.collection("students").doc(studentId).collection("interviews");
+  let rawInterviews = [];
+  try {
+    const interviewSnap = await interviewsRef
+      .where("status", "==", "completed")
+      .where("conductedAt", ">=", cutoff)
+      .orderBy("conductedAt", "desc")
+      .get();
+    rawInterviews = interviewSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.warn(`[interviews] fetch failed: ${err.message}`);
+  }
+  const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+  console.log(`Interviews found: ${rawInterviews.length}`);
+
   // 6. Call OpenAI
   const openAiKey = process.env.OPENAI_API_KEY;
   if (!openAiKey) {
@@ -180,7 +197,7 @@ async function run() {
   };
 
   const systemContent = buildSoulSystemPrompt(guidelinesContent);
-  const userContent = buildSoulUserPrompt(studentContext, formatted, [], previousSoul);
+  const userContent = buildSoulUserPrompt(studentContext, formatted, formattedInterviews, previousSoul);
 
   const model = SOUL_DEFAULTS.model;
   console.log(`\nCalling ${model}...`);
@@ -253,13 +270,16 @@ async function run() {
 
     // Write soul
     const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
+    const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
+      ? (rawInterviews[0].conductedAt.toDate ? rawInterviews[0].conductedAt.toDate() : new Date(rawInterviews[0].conductedAt))
+      : null;
     const soulDoc = buildSoulDoc({
       content: soulContent,
       programId,
       observationCount: formatted.length,
-      interviewCount: 0,
+      interviewCount: formattedInterviews.length,
       lastObservationAt: lastObsAt,
-      lastInterviewAt: null,
+      lastInterviewAt,
     });
     soulDoc.hasEmergentObservations = hasEmergentObservations(soulContent);
     soulDoc.guidelinesSuggestions = guidelinesSuggestions;

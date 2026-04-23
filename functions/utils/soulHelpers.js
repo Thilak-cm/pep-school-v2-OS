@@ -157,7 +157,13 @@ export function extractGuidelinesSuggestions(soulContent) {
   }
   if (current) suggestions.push(current);
 
-  return suggestions.filter((s) => s.area);
+  const valid = suggestions.filter((s) => s.area);
+  for (const s of valid) {
+    if (!s.discipline || !s.rationale) {
+      console.warn(`[soul] Guidelines suggestion for "${s.area}" has empty ${!s.discipline ? "discipline" : "rationale"} — LLM may have used an unexpected YAML format`);
+    }
+  }
+  return valid;
 }
 
 function extractYamlValue(line, key) {
