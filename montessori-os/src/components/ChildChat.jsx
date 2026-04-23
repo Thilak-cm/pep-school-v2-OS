@@ -61,7 +61,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const [devMode, setDevMode] = useState(false); // Default OFF - includes observations in context
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [interrupted, setInterrupted] = useState(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -347,6 +346,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               timestamp: data.timestamp || null,
               authorName: data.authorName || null,
               model: data.model || null,
+              cancelledResponseAt: data.cancelledResponseAt || null,
             });
           });
 
@@ -807,7 +807,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     }
 
     stoppedRef.current = false;
-    setInterrupted(false);
     setSending(true);
     setAssistantPending(true);
     setError('');
@@ -989,7 +988,6 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   // Handle stop / force-exit while waiting for assistant response
   const handleStopResponse = async () => {
     stoppedRef.current = true;
-    setInterrupted(true);
     setAssistantPending(false);
     setSending(false);
     lastPendingUserTimestampRef.current = null;
@@ -1490,7 +1488,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           </Box>
         ) : (
           <>
-            {messages.map((message, idx) => (
+            {messages.map((message) => (
               <Box
                 key={message.id}
                 sx={{
@@ -1504,7 +1502,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 {message.role === 'user' ? (
                   <>
                     <UserBubble message={message} formatTimestamp={formatTimestamp} />
-                    {interrupted && idx === messages.length - 1 && (
+                    {message.cancelledResponseAt && (
                       <Typography
                         variant="caption"
                         sx={{
