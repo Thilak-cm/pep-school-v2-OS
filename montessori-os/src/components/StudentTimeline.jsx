@@ -17,9 +17,10 @@ import {
   Tab,
   IconButton,
   Checkbox,
-  TextField
+  TextField,
+  Skeleton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -80,6 +81,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
   const [mediaUrls, setMediaUrls] = useState({});
   const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
+  const [mediaImageLoaded, setMediaImageLoaded] = useState(false);
   const [mediaEditMode, setMediaEditMode] = useState(false);
   const [mediaEditComment, setMediaEditComment] = useState('');
   const [mediaEditSaving, setMediaEditSaving] = useState(false);
@@ -652,12 +654,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     setDetailDialogOpen(true);
   };
 
-  const handleMediaClick = (observation) => {
+  const handleMediaClick = (observation, list = null, index = -1) => {
     const firstItem = buildMediaItemsForObservation(observation)[0] || null;
     const sourceObservation = firstItem?.sourceObservation || observation;
     if (!sourceObservation) return;
     const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
     const url = path ? mediaUrls[path] : null;
+    setMediaImageLoaded(false);
     setMediaPreview({
       observation: {
         ...sourceObservation,
@@ -667,6 +670,34 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       },
       url: url || null,
       fullscreen: false,
+      carouselList: list,
+      carouselIndex: index,
+    });
+  };
+
+  const navigateMediaPreview = (direction) => {
+    if (!mediaPreview?.carouselList) return;
+    const newIndex = mediaPreview.carouselIndex + direction;
+    if (newIndex < 0 || newIndex >= mediaPreview.carouselList.length) return;
+    const obs = mediaPreview.carouselList[newIndex];
+    const firstItem = buildMediaItemsForObservation(obs)[0] || null;
+    const sourceObservation = firstItem?.sourceObservation || obs;
+    if (!sourceObservation) return;
+    const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
+    const url = path ? mediaUrls[path] : null;
+    setMediaEditMode(false);
+    setMediaImageLoaded(false);
+    setMediaPreview({
+      observation: {
+        ...sourceObservation,
+        mediaKind: firstItem?.mediaKind || sourceObservation.mediaKind,
+        status: firstItem?.status || sourceObservation.status,
+        media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation.media) ? sourceObservation.media : []),
+      },
+      url: url || null,
+      fullscreen: false,
+      carouselList: mediaPreview.carouselList,
+      carouselIndex: newIndex,
     });
   };
 
@@ -1644,7 +1675,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)' },
                 gap: 1
               }}>
-                {photosVideos.map((obs) => {
+                {photosVideos.map((obs, idx) => {
                   const path = obs.media?.[0]?.storagePath;
                   const url = path ? mediaUrls[path] : null;
                   const isPending = obs.status === 'pending_upload';
@@ -1660,7 +1691,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           toggleMediaSelection(obs);
                           return;
                         }
-                        if (isReady) handleMediaClick(obs);
+                        if (isReady) handleMediaClick(obs, photosVideos, idx);
                       }}
                       sx={{
                         cursor: mediaSelectMode ? 'pointer' : (isReady ? 'pointer' : 'default'),
@@ -1834,28 +1865,83 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         maxWidth={mediaPreview?.fullscreen ? false : 'sm'}
         fullWidth={!mediaPreview?.fullscreen}
       >
-        <DialogTitle>
-          <Typography variant="h6" component="span">Media</Typography>
-        </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (
-            <Box
-              component="img"
-              src={mediaPreview.url}
-              alt="Media"
-              sx={{ width: '100%', borderRadius: 2, maxHeight: 420, objectFit: 'contain' }}
-            />
-          )}
-          {mediaPreview?.observation?.mediaKind === 'video' && mediaPreview?.url && (
-            <Box sx={{ width: '100%' }}>
-              <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
+          {/* Media display with carousel arrows */}
+          <Box sx={{ position: 'relative' }}>
+            <Box>
+              {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (
+                <>
+                  {!mediaImageLoaded && (
+                    <Skeleton
+                      variant="rounded"
+                      sx={{ width: '100%', height: 420, borderRadius: 2 }}
+                      animation="wave"
+                    />
+                  )}
+                  <Box
+                    component="img"
+                    src={mediaPreview.url}
+                    alt="Media"
+                    onLoad={() => setMediaImageLoaded(true)}
+                    sx={{
+                      width: '100%',
+                      borderRadius: 2,
+                      maxHeight: 420,
+                      objectFit: 'contain',
+                      display: mediaImageLoaded ? 'block' : 'none',
+                    }}
+                  />
+                </>
+              )}
+              {mediaPreview?.observation?.mediaKind === 'video' && mediaPreview?.url && (
+                <Box sx={{ width: '100%' }}>
+                  <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+                </Box>
+              )}
+              {(!mediaPreview?.url) && (
+                <Typography variant="body2" color="text.secondary">
+                  Download URL not ready yet. Please wait for upload to finish.
+                </Typography>
+              )}
             </Box>
-          )}
-          {(!mediaPreview?.url) && (
-            <Typography variant="body2" color="text.secondary">
-              Download URL not ready yet. Please wait for upload to finish.
-            </Typography>
-          )}
+            {/* Carousel navigation arrows */}
+            {mediaPreview?.carouselList && mediaPreview.carouselList.length > 1 && (
+              <>
+                <IconButton
+                  onClick={() => navigateMediaPreview(-1)}
+                  disabled={mediaPreview.carouselIndex <= 0}
+                  sx={{
+                    position: 'absolute',
+                    left: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    bgcolor: 'rgba(255,255,255,0.7)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+                    '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.3)' },
+                  }}
+                  size="small"
+                >
+                  <ChevronLeft />
+                </IconButton>
+                <IconButton
+                  onClick={() => navigateMediaPreview(1)}
+                  disabled={mediaPreview.carouselIndex >= mediaPreview.carouselList.length - 1}
+                  sx={{
+                    position: 'absolute',
+                    right: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    bgcolor: 'rgba(255,255,255,0.7)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+                    '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.3)' },
+                  }}
+                  size="small"
+                >
+                  <ChevronRight />
+                </IconButton>
+              </>
+            )}
+          </Box>
 
           {/* Photo classification metadata (PEP-146) */}
           {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten) && (() => {
@@ -1956,7 +2042,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
               onClick={() => {
                 if (!previewCanDelete) return;
                 setSelectedObservation(mediaPreview.observation);
-                setMediaPreview(null);
+                // Navigate carousel to next image, or close if none left
+                if (mediaPreview.carouselList && mediaPreview.carouselList.length > 1) {
+                  const list = mediaPreview.carouselList.filter((_, i) => i !== mediaPreview.carouselIndex);
+                  const nextIndex = mediaPreview.carouselIndex >= list.length ? list.length - 1 : mediaPreview.carouselIndex;
+                  const nextObs = list[nextIndex];
+                  const firstItem = buildMediaItemsForObservation(nextObs)[0] || null;
+                  const src = firstItem?.sourceObservation || nextObs;
+                  const path = firstItem?.storagePath || src?.media?.[0]?.storagePath;
+                  const url = path ? mediaUrls[path] : null;
+                  setMediaEditMode(false);
+                  setMediaPreview({
+                    observation: {
+                      ...src,
+                      mediaKind: firstItem?.mediaKind || src?.mediaKind,
+                      status: firstItem?.status || src?.status,
+                      media: path ? [{ storagePath: path }] : (Array.isArray(src?.media) ? src.media : []),
+                    },
+                    url: url || null,
+                    fullscreen: false,
+                    carouselList: list,
+                    carouselIndex: nextIndex,
+                  });
+                } else {
+                  setMediaPreview(null);
+                }
                 setDeleteConfirmOpen(true);
               }}
             >

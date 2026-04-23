@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.10.1 — 2026-04-23
+
+### Added
+- Media expanded view carousel — left/right arrow navigation between photos in the media grid dialog
+- Skeleton loading state during image transitions in media carousel
+
+### Changed
+- Removed redundant "Media" header from expanded media preview dialog
+- Delete in carousel navigates to the next image instead of closing the dialog
+
 # 10.10.0 — 2026-04-22
 
 ### Added
