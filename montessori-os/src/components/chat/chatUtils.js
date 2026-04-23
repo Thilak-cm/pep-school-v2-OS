@@ -61,6 +61,18 @@ export const collectInlineMatches = (text) => {
  * Classify a line of text for block-level markdown rendering.
  * Returns { type, content } where type is 'h1'|'h2'|'h3'|'ul'|'ol'|'blank'|'paragraph'.
  */
+/**
+ * Filter incoming messages after the user pressed Stop.
+ * Keeps messages already known (by id) and any non-assistant messages.
+ * Suppresses new assistant messages that arrive after cancellation.
+ */
+export const filterMessagesAfterStop = (prevMessages, incomingMessages) => {
+  const prevIds = new Set(prevMessages.map((m) => m.id));
+  return incomingMessages.filter(
+    (m) => prevIds.has(m.id) || m.role !== 'assistant'
+  );
+};
+
 export const classifyLine = (line) => {
   const trimmed = line.trim();
   if (!trimmed) return { type: 'blank', content: '' };
