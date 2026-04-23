@@ -173,3 +173,49 @@ test('classifyLine trims leading whitespace', () => {
   assert.equal(result.type, 'h2');
   assert.equal(result.content, 'Indented heading');
 });
+
+// --- filterMessagesAfterStop (PEP-96) ---
+
+import { filterMessagesAfterStop } from './chatUtils.js';
+
+test('filterMessagesAfterStop suppresses new assistant messages', () => {
+  const prev = [
+    { id: 'u1', role: 'user', content: 'hi' },
+  ];
+  const incoming = [
+    { id: 'u1', role: 'user', content: 'hi' },
+    { id: 'a1', role: 'assistant', content: 'hello back' },
+  ];
+  const result = filterMessagesAfterStop(prev, incoming);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 'u1');
+});
+
+test('filterMessagesAfterStop keeps already-known assistant messages', () => {
+  const prev = [
+    { id: 'u1', role: 'user', content: 'hi' },
+    { id: 'a1', role: 'assistant', content: 'hello' },
+  ];
+  const incoming = [
+    { id: 'u1', role: 'user', content: 'hi' },
+    { id: 'a1', role: 'assistant', content: 'hello' },
+    { id: 'a2', role: 'assistant', content: 'new one' },
+  ];
+  const result = filterMessagesAfterStop(prev, incoming);
+  assert.equal(result.length, 2);
+  assert.deepEqual(result.map(m => m.id), ['u1', 'a1']);
+});
+
+test('filterMessagesAfterStop always passes through new user messages', () => {
+  const prev = [
+    { id: 'u1', role: 'user', content: 'hi' },
+  ];
+  const incoming = [
+    { id: 'u1', role: 'user', content: 'hi' },
+    { id: 'u2', role: 'user', content: 'another' },
+    { id: 'a1', role: 'assistant', content: 'response' },
+  ];
+  const result = filterMessagesAfterStop(prev, incoming);
+  assert.equal(result.length, 2);
+  assert.deepEqual(result.map(m => m.id), ['u1', 'u2']);
+});

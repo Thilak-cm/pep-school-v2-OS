@@ -36,7 +36,7 @@ import { db, cloudFunctions, auth } from '../firebase';
 import { translateAudioToEnglish, validateAudioForTranscription } from '../whisperSTT';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { stripQuotes, ASSISTANT_TIMEOUT_MS } from './chat/chatUtils';
+import { stripQuotes, ASSISTANT_TIMEOUT_MS, filterMessagesAfterStop } from './chat/chatUtils';
 import { UserBubble, AssistantBubble } from './chat/MessageBubble';
 import TypingIndicator from './chat/TypingIndicator';
 import ScrollToBottomFab from './chat/ScrollToBottomFab';
@@ -90,6 +90,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const streamRef = useRef(null);
   const discardRef = useRef(false);
   const stoppedRef = useRef(false);
+  const lastSentUserMsgIdRef = useRef(null);
   
   const MAX_RECORDING_TIME = 300; // 5 minutes
 
@@ -358,12 +359,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           // If the user pressed Stop, suppress any new assistant messages that arrive
           // but preserve local-only messages (like the "interrupted" indicator)
           if (stoppedRef.current) {
-            setMessages((prev) => {
-              const prevIds = new Set(prev.map((m) => m.id));
-              return messagesList.filter(
-                (m) => prevIds.has(m.id) || m.role !== 'assistant'
-              );
-            });
+            setMessages((prev) => filterMessagesAfterStop(prev, messagesList));
             setMessagesLoading(false);
             return;
           }
@@ -386,6 +382,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             if (hasAssistantAfterPending) {
               setAssistantPending(false);
               lastPendingUserTimestampRef.current = null;
+              lastSentUserMsgIdRef.current = null;
             }
           }
 
@@ -840,6 +837,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         authorName: auth.currentUser?.displayName || null,
       });
       lastPendingUserTimestampRef.current = Timestamp.now();
+      lastSentUserMsgIdRef.current = { id: userMsgDoc.id, chatId };
 
       // onSnapshot will pick up the user message immediately — no temp messages needed.
       // Now call CF with IDs — it only does the LLM call + assistant write.
@@ -887,6 +885,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
   // Handle create new chat
   const handleCreateNewChat = () => {
+    stoppedRef.current = false;
+    lastSentUserMsgIdRef.current = null;
     setSelectedChatId(null);
     setMessages([]);
     setInputMessage('');
@@ -896,6 +896,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
 
   // Handle chat selection
   const handleSelectChat = (chatId) => {
+    stoppedRef.current = false;
+    lastSentUserMsgIdRef.current = null;
     setSelectedChatId(chatId);
     setChatDropdownOpen(false);
     hasManuallySelectedChatRef.current = true; // Mark as manual selection
@@ -992,16 +994,18 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     setSending(false);
     lastPendingUserTimestampRef.current = null;
 
-    // Write cancellation flag to the last user message doc so the CF skips the assistant write
-    if (student?.id && selectedChatId) {
-      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
-      if (lastUserMsg) {
-        try {
-          const msgRef = doc(db, 'students', student.id, 'chats', selectedChatId, 'messages', lastUserMsg.id);
-          await updateDoc(msgRef, { cancelledResponseAt: serverTimestamp() });
-        } catch (_err) {
-          reportCaughtError(_err, 'ChildChat', 'cancelledResponseAt write failed');
-        }
+    // Write cancellation flag to the last user message doc so the CF skips the assistant write.
+    // Use the ref (set immediately after addDoc) instead of messages state, which may not
+    // contain the user message yet if Stop is pressed before onSnapshot fires.
+    const lastSent = lastSentUserMsgIdRef.current;
+    lastSentUserMsgIdRef.current = null;
+    if (student?.id && lastSent && lastSent.chatId) {
+      try {
+        const msgRef = doc(db, 'students', student.id, 'chats', lastSent.chatId, 'messages', lastSent.id);
+        await updateDoc(msgRef, { cancelledResponseAt: serverTimestamp() });
+      } catch (_err) {
+        reportCaughtError(_err, 'ChildChat', 'cancelledResponseAt write failed');
+        setError('Could not cancel — a response may still arrive.');
       }
     }
   };

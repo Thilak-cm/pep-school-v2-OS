@@ -3143,6 +3143,9 @@ export const childChatStream = functions
         return;
       }
 
+      // TODO(PEP-96): When childChatStream is activated, port the cancelledResponseAt
+      // check from childChat to skip the assistant write if the user pressed Stop.
+
       // Save assistant response with model info
       const messageId = await saveChatMessage(studentId, chatId, "assistant", fullContent, chatConfig.model);
 
@@ -3311,7 +3314,6 @@ export const childChat = functions
         .doc(userMessageId)
         .get();
       if (userMsgDoc.data()?.cancelledResponseAt) {
-        console.log(`[childChat] skipping assistant write — user message ${userMessageId} was cancelled`);
         return { chatId, cancelled: true, success: true };
       }
 
@@ -3320,7 +3322,7 @@ export const childChat = functions
 
       // Update chat metadata
       const lastMessagePreview = fullContent.substring(0, 100);
-      const newMessageCount = (chatData.messageCount || 0) + 2; // user msg already counted by client write, +2 keeps parity
+      const newMessageCount = (chatData.messageCount || 0) + 2; // chatData.messageCount is pre-write; +1 for user msg (client-written) + 1 for assistant msg
 
       // If first message, generate chat name
       let chatName = chatData.name || "New Chat";
