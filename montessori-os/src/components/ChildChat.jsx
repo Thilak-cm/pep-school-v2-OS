@@ -25,6 +25,7 @@ import {
   orderBy,
   getDocs,
   onSnapshot,
+  addDoc,
   Timestamp,
   doc,
   updateDoc,
@@ -805,65 +806,57 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
       return;
     }
 
-    const isFirstMessage = selectedChatId === null;
-    let localTempChatId = null;
-
     stoppedRef.current = false;
     setInterrupted(false);
     setSending(true);
     setAssistantPending(true);
     setError('');
-
-    // For first message flow: create optimistic chat
-    if (isFirstMessage) {
-      localTempChatId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setIsFirstMessageFlow(true);
-      setSelectedChatId(localTempChatId); // Switch to chat view immediately
-    }
-
-    // Optimistically add user message
-    const tempUserMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content: messageText,
-      timestamp: Timestamp.now(),
-      authorName: auth.currentUser?.displayName || null,
-    };
-    lastPendingUserTimestampRef.current = tempUserMessage.timestamp;
-    setMessages((prev) => [...prev, tempUserMessage]);
     setInputMessage('');
 
+    let chatId = selectedChatId;
+
     try {
+      // If no chat selected, create one in Firestore directly
+      if (!chatId) {
+        const chatsRef = collection(db, 'students', student.id, 'chats');
+        const chatDoc = await addDoc(chatsRef, {
+          name: 'New Chat',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastMessagePreview: '',
+          messageCount: 0,
+          deleted: false,
+        });
+        chatId = chatDoc.id;
+        setSelectedChatId(chatId);
+      }
+
+      // Write user message directly to Firestore
+      const messagesRef = collection(db, 'students', student.id, 'chats', chatId, 'messages');
+      const userMsgDoc = await addDoc(messagesRef, {
+        role: 'user',
+        content: messageText,
+        timestamp: Timestamp.now(),
+        authorId: auth.currentUser?.uid || null,
+        authorName: auth.currentUser?.displayName || null,
+      });
+      lastPendingUserTimestampRef.current = Timestamp.now();
+
+      // onSnapshot will pick up the user message immediately — no temp messages needed.
+      // Now call CF with IDs — it only does the LLM call + assistant write.
       const childChatFn = httpsCallable(cloudFunctions, 'childChat');
       const result = await childChatFn({
         studentId: student.id,
+        chatId,
+        userMessageId: userMsgDoc.id,
         message: messageText,
-        chatId: isFirstMessage ? null : selectedChatId, // null = auto-create/find
-        forceNewChat: isFirstMessage, // Force new chat when in landing page mode
-        devMode: devMode, // When true, excludes observations from context to reduce token usage
+        devMode: devMode,
       });
 
       const responseData = result.data;
 
-      if (!responseData.success) {
+      if (!responseData.success && !responseData.cancelled) {
         throw new Error(responseData.error || 'Failed to send message');
-      }
-
-      // Update selectedChatId if a new chat was created
-      if (responseData.chatId) {
-        if (isFirstMessageFlow && responseData.chatId !== localTempChatId) {
-          // Update from temp to real chatId
-          setSelectedChatId(responseData.chatId);
-          // Don't clear isFirstMessageFlow yet - wait for real messages to arrive
-        } else if (!isFirstMessageFlow && responseData.chatId !== selectedChatId) {
-          setSelectedChatId(responseData.chatId);
-        }
-      }
-
-      // Remove temp message only for existing chats (real message will come via listener)
-      // For first message flow, keep temp message visible until real messages arrive
-      if (!isFirstMessageFlow) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
       }
 
       // Scroll to bottom
@@ -871,21 +864,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         scrollToBottom();
       }, 100);
     } catch (err) {
-
-      // For first message flow: keep user message visible, return to landing
-      if (isFirstMessageFlow) {
-        // Keep temp message visible (don't remove it)
-        setAssistantPending(false);
-        lastPendingUserTimestampRef.current = null;
-        // Return to landing page
-        setSelectedChatId(null);
-        setIsFirstMessageFlow(false);
-      } else {
-        // For existing chats: remove temp message (existing behavior)
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
-        setAssistantPending(false);
-        lastPendingUserTimestampRef.current = null;
-      }
+      setAssistantPending(false);
+      lastPendingUserTimestampRef.current = null;
 
       // Restore input message
       setInputMessage(messageText);
@@ -1015,8 +995,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     lastPendingUserTimestampRef.current = null;
 
     // Write cancellation flag to the last user message doc so the CF skips the assistant write
-    if (student?.id && selectedChatId && !selectedChatId.startsWith('temp-')) {
-      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user' && !m.id.startsWith('temp-'));
+    if (student?.id && selectedChatId) {
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
       if (lastUserMsg) {
         try {
           const msgRef = doc(db, 'students', student.id, 'chats', selectedChatId, 'messages', lastUserMsg.id);
