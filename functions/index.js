@@ -3314,6 +3314,17 @@ export const childChat = functions
         .doc(userMessageId)
         .get();
       if (userMsgDoc.data()?.cancelledResponseAt) {
+        // Still update metadata for the user message the client already wrote
+        const cancelledCount = (chatData.messageCount || 0) + 1;
+        let chatName = chatData.name || "New Chat";
+        if (isFirstMessage) {
+          chatName = await generateChatName(message);
+        }
+        await updateChatMetadata(studentId, chatId, {
+          name: chatName,
+          lastMessagePreview: message.substring(0, 100),
+          messageCount: cancelledCount,
+        });
         return { chatId, cancelled: true, success: true };
       }
 
