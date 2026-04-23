@@ -136,7 +136,7 @@ export function parseSoulResponse(rawContent) {
  * @returns {Array<{area: string, discipline: string, rationale: string}>}
  */
 export function extractGuidelinesSuggestions(soulContent) {
-  const yamlMatch = soulContent.match(/```yaml\s*\n([\s\S]*?)```/);
+  const yamlMatch = soulContent.match(/```yaml\s*\n(guidelines_suggestions:[\s\S]*?)```/);
   if (!yamlMatch) return [];
 
   const yamlBlock = yamlMatch[1];
