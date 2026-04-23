@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-20T22:29:33.859Z
-App version: 10.9.0
+Generated: 2026-04-23T04:06:40.997Z
+App version: 10.9.1
 
 ## App Snapshot
 
@@ -138,13 +138,15 @@ App version: 10.9.0
 
 ## Recent Changes
 
+### 10.9.1 (2026-04-22)
+- Stop button in student chat now truly cancels the AI response — writes `cancelledResponseAt` to the user message doc so the Cloud Function skips the assistant write (PEP-96)
+- Client-side `stoppedRef` suppression prevents late-arriving assistant messages from rendering after Stop is pressed (PEP-96)
+- "Response interrupted" label shown below the user message when a response is cancelled (PEP-96)
+
 ### 10.9.0 (2026-04-19)
 - Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
 - `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
 - Renamed "Notifications" footer tab to "Alerts" (PEP-11)
-- Per-photo VLM classification — each photo in a batch now gets its own independent curriculum area and handwritten flag via parallel nano calls, replacing the single-classification-for-all approach (PEP-146)
-- Call 2 (handwriting analysis) removed from upload-time pipeline — handwriting intelligence deferred to batch analysis at weekly plan generation (PEP-146)
-- Student timeline batch groups now show multiple curriculum area chips (one per unique area) instead of copying from the first photo (PEP-146)
 
 ### 10.8.0 (2026-04-15)
 - Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)
@@ -155,8 +157,4 @@ App version: 10.9.0
 - Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
 - Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
 - Interview helper tests (6 tests) and security rule specs (2 specs) for interview transcript access control (PEP-142)
-
-### 10.6.0 (2026-04-14)
-- Interview question generation prototype — standalone script reads student profile dimensions and baseball card from Firestore, calls OpenAI to generate 7 targeted MCQ/open-ended interview questions with coverage report (PEP-140)
-- Null guard on OpenAI response content to prevent confusing errors on unexpected API response shapes (PEP-140)
 
