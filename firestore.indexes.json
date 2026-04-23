@@ -88,6 +88,15 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "conductedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "media",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "handwritten", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

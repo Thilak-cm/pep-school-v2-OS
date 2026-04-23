@@ -162,23 +162,52 @@ describe("parseWritingAnalysisResponse", () => {
 // AC2: threshold gate (tested via pure logic, not CF invocation)
 // ---------------------------------------------------------------------------
 
-describe("threshold gate", () => {
-  it("should skip when count < minSamples", () => {
-    const count = 2;
-    const minSamples = 3;
-    assert.ok(count < minSamples);
+describe("buildBatchWritingPrompt edge cases", () => {
+  it("handles single media doc", () => {
+    const media = [{
+      id: "m1",
+      observedAt: new Date("2026-04-01"),
+      teacherComment: null,
+      copied: false,
+      curriculumArea: "Language",
+      createdByName: "Yamini",
+      storagePath: "students/s1/media/m1/original.webp",
+    }];
+    const student = { displayName: "Test", dateOfBirth: new Date("2020-01-01") };
+    const prompt = buildBatchWritingPrompt(media, student, null, new Date("2026-04-10"));
+    assert.ok(prompt.includes("[Image 1 of 1"));
+    assert.ok(prompt.includes("Total samples: 1"));
+    assert.ok(!prompt.includes("[Image 2"));
   });
 
-  it("should proceed when count >= minSamples", () => {
-    const count = 3;
-    const minSamples = 3;
-    assert.ok(count >= minSamples);
+  it("handles student with no dateOfBirth", () => {
+    const media = [{
+      id: "m1",
+      observedAt: new Date("2026-04-01"),
+      teacherComment: null,
+      copied: false,
+      curriculumArea: null,
+      createdByName: null,
+      storagePath: null,
+    }];
+    const student = { displayName: "Unknown", dateOfBirth: null };
+    const prompt = buildBatchWritingPrompt(media, student, null, new Date("2026-04-10"));
+    assert.ok(prompt.includes("Age: unknown"));
   });
 
-  it("should proceed when count > minSamples", () => {
-    const count = 9;
-    const minSamples = 3;
-    assert.ok(count >= minSamples);
+  it("shows Copied: No when copied is false", () => {
+    const media = [{
+      id: "m1",
+      observedAt: new Date("2026-04-01"),
+      teacherComment: null,
+      copied: false,
+      curriculumArea: "Math",
+      createdByName: "Priya",
+      storagePath: null,
+    }];
+    const student = { displayName: "Test", dateOfBirth: new Date("2020-06-15") };
+    const prompt = buildBatchWritingPrompt(media, student, null, new Date("2026-04-10"));
+    assert.ok(prompt.includes("Copied: No"));
   });
 });
 

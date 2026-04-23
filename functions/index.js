@@ -2347,10 +2347,16 @@ async function downloadImageAsBase64(storagePath) {
 
 export const batchAnalyzeWriting = functions
   .region("asia-south1")
-  .runWith({ timeoutSeconds: 120, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    // Superadmin-only: internal callable invoked by backend cron
+    const callerSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Superadmin access required");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -2361,7 +2367,7 @@ export const batchAnalyzeWriting = functions
 
     const config = await getHandwritingAnalysisConfig();
 
-    // AC1: Query unprocessed handwritten media
+    // AC1: Query unprocessed handwritten media (batchAnalyzedAt marker-based filtering)
     const mediaDocs = await fetchUnprocessedHandwriting(studentId);
 
     // AC2: Threshold gate
@@ -2381,7 +2387,7 @@ export const batchAnalyzeWriting = functions
       dateOfBirth: dob,
     };
 
-    // AC1: Fetch previous analysis for longitudinal context
+    // Fetch previous analysis for longitudinal context in prompt
     const prevAnalysisSnap = await db.collection("students").doc(studentId)
       .collection("ai_summaries").doc("writing_analysis").get();
     const previousAnalysis = prevAnalysisSnap.exists ? prevAnalysisSnap.data() : null;
@@ -2401,6 +2407,7 @@ export const batchAnalyzeWriting = functions
     }
 
     // Add each image with its annotation
+    let successfulDownloads = 0;
     for (let i = 0; i < mediaDocs.length; i++) {
       const doc = mediaDocs[i];
       // Find annotation lines for this image
@@ -2417,11 +2424,22 @@ export const batchAnalyzeWriting = functions
         try {
           const imagePart = await downloadImageAsBase64(doc.storagePath);
           userContent.push(imagePart);
+          successfulDownloads++;
         } catch (err) {
           console.warn(`[batchWriting] Failed to download ${doc.storagePath}:`, err?.message);
           userContent.push({ type: "text", text: `[Image could not be loaded: ${doc.storagePath}]` });
         }
       }
+    }
+
+    // Guard: don't call VLM if too few images loaded successfully
+    if (successfulDownloads < config.minSamples) {
+      return {
+        status: "skipped",
+        reason: "insufficient_images_loaded",
+        successfulDownloads,
+        totalDocs: mediaDocs.length,
+      };
     }
 
     // AC4: Run VLM call
@@ -2434,13 +2452,13 @@ export const batchAnalyzeWriting = functions
       });
     } catch (err) {
       console.error("[batchWriting] VLM call failed:", err?.message);
-      return { status: "error", error: err?.message || "VLM call failed" };
+      throw new functions.https.HttpsError("internal", err?.message || "VLM call failed");
     }
 
     const parsed = parseWritingAnalysisResponse(vlmResult);
     if (!parsed) {
       console.error("[batchWriting] Failed to parse VLM response:", vlmResult);
-      return { status: "error", error: "Failed to parse VLM response" };
+      throw new functions.https.HttpsError("internal", "Failed to parse VLM response");
     }
 
     // Build output document
@@ -2453,7 +2471,7 @@ export const batchAnalyzeWriting = functions
       sampleCount: mediaDocs.length,
       copiedCount,
       studentAge: age,
-      generatedAt: new Date(),
+      generatedAt: Timestamp.now(),
       sourceMediaIds,
       model: config.model,
       status: "completed",
@@ -2463,13 +2481,11 @@ export const batchAnalyzeWriting = functions
       return { status: "completed", dryRun: true, analysis: analysisDoc };
     }
 
-    // AC5: Write to Firestore (overwrite)
-    await db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("writing_analysis")
-      .set(analysisDoc);
-
-    // AC6: Mark processed media docs (batch write, all-or-nothing)
+    // Atomic write: analysis doc + mark processed media docs in one batch
     const batch = db.batch();
+    const analysisRef = db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("writing_analysis");
+    batch.set(analysisRef, analysisDoc);
     for (const doc of mediaDocs) {
       const mediaRef = db.collection("students").doc(studentId).collection("media").doc(doc.id);
       batch.update(mediaRef, { batchAnalyzedAt: Timestamp.now() });

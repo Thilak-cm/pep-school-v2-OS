@@ -12,7 +12,6 @@
  * Requires: OPENAI_API_KEY environment variable
  */
 import admin from "firebase-admin";
-import { FRONTIER_MODEL } from "../../functions/config/modelConstants.js";
 import { HANDWRITING_ANALYSIS_DEFAULTS, HANDWRITING_ANALYSIS_FALLBACK_PROMPT } from "../../functions/config/handwritingAnalysisFallbacks.js";
 import { buildBatchWritingPrompt, calculateAge, parseWritingAnalysisResponse } from "../../functions/utils/handwritingAnalysisHelpers.js";
 
