@@ -46,7 +46,7 @@ describe('PEP-115: Dead bulk report code removal', () => {
   });
 
   it('runWithConcurrency helper should still exist (used by baseball cards)', () => {
-    const src = readFileSync(resolve(root, 'functions/index.js'), 'utf8');
+    const src = readFileSync(resolve(root, 'functions/ai/baseballCard.js'), 'utf8');
     assert.equal(src.includes('runWithConcurrency'), true, 'runWithConcurrency must be preserved');
   });
 });
