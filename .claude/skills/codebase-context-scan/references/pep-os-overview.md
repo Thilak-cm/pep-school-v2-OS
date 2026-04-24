@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-24T02:18:29.363Z
-App version: 10.10.1
+Generated: 2026-04-24T13:34:08.201Z
+App version: 10.11.1
 
 ## App Snapshot
 
@@ -137,6 +137,15 @@ App version: 10.10.1
 
 ## Recent Changes
 
+### 10.11.1 (2026-04-24)
+- Modularized Cloud Functions: split monolithic functions/index.js (~4900 lines) into domain modules — ai/, auth/, chat/, classroom/, media/, reports/, students/, shared/ (PEP-154)
+- Removed debug logging artifacts from chat streaming hot path
+
+### 10.11.0 (2026-04-23)
+- Batch writing analysis Cloud Function — accumulates unprocessed handwritten media docs per student and runs a combined VLM analysis producing rubric ratings, narrative summary, trends, and recommendations (PEP-132)
+- Configurable minimum sample threshold via Firestore `config/handwriting_analysis` doc with 5-min TTL cache (PEP-132)
+- Longitudinal context — previous analysis is injected into the prompt so the VLM can detect trajectory changes across cycles (PEP-132)
+
 ### 10.10.1 (2026-04-23)
 - Media expanded view carousel — left/right arrow navigation between photos in the media grid dialog
 - Skeleton loading state during image transitions in media carousel
@@ -146,14 +155,4 @@ App version: 10.10.1
 - Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
 - Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
 - Soul history snapshots — previous soul is archived before each weekly regeneration (PEP-149)
-
-### 10.9.1 (2026-04-22)
-- Stop button in student chat now truly cancels the AI response — writes `cancelledResponseAt` to the user message doc so the Cloud Function skips the assistant write (PEP-96)
-- Client-side `stoppedRef` suppression prevents late-arriving assistant messages from rendering after Stop is pressed (PEP-96)
-- "Response interrupted" label shown below the user message when a response is cancelled (PEP-96)
-
-### 10.9.0 (2026-04-19)
-- Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
-- `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
-- Renamed "Notifications" footer tab to "Alerts" (PEP-11)
 
