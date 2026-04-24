@@ -40,12 +40,13 @@ Structure guidelines:
 - Use ## headings for major developmental areas (e.g., "## Social-Emotional Development", "## Mathematics")
 - Write 2-5 sentences per section describing what you observe about this child
 - Note specific examples from observations when they illuminate a pattern
-- Include a "## Emergent Observations" section at the end for any signals that don't fit the guidelines categories — interests, behaviors, or patterns that are noteworthy but not captured by existing developmental areas
+- Include a "## Emergent Observations" section for any signals that don't fit the guidelines categories — interests, behaviors, or patterns that are noteworthy but not captured by existing developmental areas
+- After Emergent Observations, include a "## Areas Needing Further Exploration" section that identifies developmental areas where evidence is thin, absent, comes from a single source or teacher, or is stale (old observations with no recent data). You have free range to note any information need — do not limit yourself to guidelines categories. Focus on what would be most valuable to explore next to build a fuller picture of this child.
 - If a guidelines area has no observations, omit the section entirely — do not write "no data available"
 
 ## Emergent observations and guidelines suggestions
 
-After the Emergent Observations narrative, if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
+At the very end of the document (after all narrative sections including Areas Needing Further Exploration), if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
 
 Format:
 
@@ -256,6 +257,19 @@ export function buildHistorySnapshot(prevDoc, reason) {
  */
 export function hasEmergentObservations(soulContent) {
   const match = soulContent.match(/##\s*Emergent Observations\s*\n([\s\S]*?)(?=\n##\s|\s*$)/i);
+  if (!match) return false;
+  return match[1].trim().length > 0;
+}
+
+/**
+ * Check if a soul narrative contains non-empty information gaps.
+ * Used to flag students whose soul identifies thin/absent evidence areas.
+ *
+ * @param {string} soulContent - Markdown soul content
+ * @returns {boolean} True if Areas Needing Further Exploration section has content
+ */
+export function hasInformationGaps(soulContent) {
+  const match = soulContent.match(/##\s*Areas Needing Further Exploration\s*\n([\s\S]*?)(?=\n##\s|\s*$)/i);
   if (!match) return false;
   return match[1].trim().length > 0;
 }

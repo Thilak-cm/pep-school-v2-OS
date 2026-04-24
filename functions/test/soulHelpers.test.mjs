@@ -279,3 +279,34 @@ test("stripGuidelinesSuggestions returns content as-is when no YAML block", asyn
   const soul = "## Mathematics\nGood.";
   assert.equal(stripGuidelinesSuggestions(soul), soul);
 });
+
+// ---------------------------------------------------------------------------
+// hasInformationGaps (PEP-162)
+// ---------------------------------------------------------------------------
+
+test("hasInformationGaps detects non-empty gaps section", async () => {
+  const { hasInformationGaps } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.\n\n## Emergent Observations\nInsects.\n\n## Areas Needing Further Exploration\nSocial-emotional development has only one observation from a single teacher.";
+  assert.equal(hasInformationGaps(soul), true);
+});
+
+test("hasInformationGaps returns false for empty gaps section", async () => {
+  const { hasInformationGaps } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.\n\n## Areas Needing Further Exploration\n";
+  assert.equal(hasInformationGaps(soul), false);
+});
+
+test("hasInformationGaps returns false when no gaps section", async () => {
+  const { hasInformationGaps } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.\n\n## Emergent Observations\nSome text.";
+  assert.equal(hasInformationGaps(soul), false);
+});
+
+test("buildSoulSystemPrompt includes gaps instruction", async () => {
+  const { buildSoulSystemPrompt } = await import("../utils/soulHelpers.js");
+  const prompt = buildSoulSystemPrompt("## Test Guidelines");
+  assert.ok(
+    prompt.includes("Areas Needing Further Exploration"),
+    "should instruct LLM to produce an Areas Needing Further Exploration section",
+  );
+});
