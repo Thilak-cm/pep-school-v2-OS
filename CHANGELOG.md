@@ -1,5 +1,10 @@
 # Changelog
 
+# 10.11.2 — 2026-04-24
+
+### Changed
+- Modularized App.jsx: extracted screen config (screenConfig.js), screen renderer (ScreenRenderer.jsx), and navigation state (useNavigationState hook), reducing App.jsx from ~1037 to ~313 lines (PEP-161)
+
 # 10.11.1 — 2026-04-24
 
 ### Changed
