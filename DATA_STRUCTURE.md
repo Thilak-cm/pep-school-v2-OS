@@ -29,6 +29,7 @@
 - `students/{studentId}/ai_summaries/guidelines`       // per-student evaluation guide (PEP-149)
 - `students/{studentId}/ai_summaries/guidelines/history/{timestamp}` // guideline evolution audit trail
 - `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
+- `students/{studentId}/ai_summaries/writing_analysis`  // batch handwriting analysis (PEP-132)
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
  - `config/{docId}`
@@ -234,6 +235,7 @@ Subcollections
 - `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string }`.
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
 - `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
+- `ai_summaries/writing_analysis` – batch handwriting analysis (PEP-132). Overwritten each cycle. Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, status: "completed" }`. Consumed by the weekly plan generator (PEP-128).
 - `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
 - `ai_summaries/soul` – AI-generated student soul narrative (PEP-149). A free-form markdown document representing the AI's understanding of who this child is. Regenerated weekly from ALL observations and interviews. Shape: `{ content: string (markdown narrative with ## section headers), programId: ProgramId, hasEmergentObservations: boolean, hasInformationGaps: boolean, guidelinesSuggestions: Array<{ area: string, discipline: string, rationale: string }> | null, sourceStats: { observationCount: number, interviewCount: number, lastGeneratedAt: Timestamp, lastObservationAt: Timestamp | null, lastInterviewAt: Timestamp | null }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `guidelinesSuggestions` array contains AI-proposed new skill areas extracted from the soul generation response — consumed by the guideline approval flow (PEP-151). Section headers are informed by the student's guidelines doc, not hardcoded. The `hasEmergentObservations` flag is true when the soul contains non-empty content under `## Emergent Observations` — signals that don't fit existing guidelines categories. The `hasInformationGaps` flag (PEP-162) is true when the soul contains non-empty content under `## Areas Needing Further Exploration` — identifies developmental areas where evidence is thin, absent, single-sourced, or stale.
 - `ai_summaries/soul/history/{timestamp}` – Weekly soul snapshots. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically before each weekly regeneration — the previous soul is snapshotted before overwrite.
@@ -480,6 +482,7 @@ interface MediaDoc {
   essence_text?: string;         // AI-extracted essence summary (PDFs only)
 
   batchId?: string;              // shared across multi-file uploads in one session
+  batchAnalyzedAt?: Timestamp;   // set by batchAnalyzeWriting CF when this doc is included in a batch analysis (PEP-132)
 
   // Timestamps & creator
   observedAt: Timestamp;         // server time
@@ -665,7 +668,7 @@ Current documents
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
-- `handwriting_analysis` — prompts + model config for handwriting analysis (Call 2, gpt-5.4)
+- `handwriting_analysis` — prompts + model config for batch writing analysis (PEP-132). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number, minSamples: number }`. Fallback defaults in `functions/config/handwritingAnalysisFallbacks.js`.
 - `telegram_bot` — Telegram bot configuration
 
 `config/lessonNote`

@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.11.0 — 2026-04-23
+
+### Added
+- Batch writing analysis Cloud Function — accumulates unprocessed handwritten media docs per student and runs a combined VLM analysis producing rubric ratings, narrative summary, trends, and recommendations (PEP-132)
+- Configurable minimum sample threshold via Firestore `config/handwriting_analysis` doc with 5-min TTL cache (PEP-132)
+- Longitudinal context — previous analysis is injected into the prompt so the VLM can detect trajectory changes across cycles (PEP-132)
+- Admin test script for end-to-end local testing with dry-run support (PEP-132)
+- Composite Firestore index for `media` subcollection (handwritten + status + observedAt) (PEP-132)
+
 # 10.10.1 — 2026-04-23
 
 ### Added
