@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-23T04:06:40.997Z
-App version: 10.10.0
+Generated: 2026-04-24T00:17:06.709Z
+App version: 10.11.0
 
 ## App Snapshot
 
@@ -137,6 +137,11 @@ App version: 10.10.0
 
 ## Recent Changes
 
+### 10.11.0 (2026-04-23)
+- Batch writing analysis Cloud Function — accumulates unprocessed handwritten media docs per student and runs a combined VLM analysis producing rubric ratings, narrative summary, trends, and recommendations (PEP-132)
+- Configurable minimum sample threshold via Firestore `config/handwriting_analysis` doc with 5-min TTL cache (PEP-132)
+- Longitudinal context — previous analysis is injected into the prompt so the VLM can detect trajectory changes across cycles (PEP-132)
+
 ### 10.10.0 (2026-04-22)
 - Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
 - Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
@@ -151,14 +156,4 @@ App version: 10.10.0
 - Interviews footer tab — scaffold page showing upcoming and completed interview cards with student info, alert flags, and relative timestamps (PEP-11)
 - `formatLastInterviewed` guards for future dates and invalid ISO strings (PEP-11)
 - Renamed "Notifications" footer tab to "Alerts" (PEP-11)
-
-### 10.8.0 (2026-04-15)
-- Two-step photo VLM pipeline — cheap classification call (gpt-5.4-nano) on every photo for curriculum tags and description, expensive handwriting analysis call (gpt-5.4) only when handwriting is detected (PEP-131)
-- Flat media doc schema replaces nested `photoAnalysis` object with top-level `handwritten`, `curriculumArea`, `description`, and `handwritingAnalysis` fields (PEP-131)
-- Student timeline lightbox now displays per-dimension handwriting scores (1-5) with notes alongside developmental observations (PEP-131)
-
-### 10.7.0 (2026-04-15)
-- Interview transcript storage schema — immutable `interviews` subcollection under students with append-only Firestore security rules, composite index, and DATA_STRUCTURE.md documentation (PEP-142)
-- Profile generation now consumes interview transcripts alongside observations — server-side status filtering, formatted interview context for LLM, SOURCE_INTERVIEW tracking (PEP-142)
-- Interview helper tests (6 tests) and security rule specs (2 specs) for interview transcript access control (PEP-142)
 
