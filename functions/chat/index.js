@@ -534,9 +534,6 @@ async function streamChildChat(contextPack, model, temperature, max_tokens, send
             const delta = json.choices?.[0]?.delta?.content;
             if (delta) {
               fullContent += delta;
-              // #region agent log
-              console.log(JSON.stringify({location:"functions/index.js:1847",message:"OpenAI delta received",data:{deltaLength:delta.length,deltaPreview:delta.substring(0,50),fullContentLength:fullContent.length},timestamp:Date.now(),sessionId:"debug-session",runId:"run1",hypothesisId:"H1"}));
-              // #endregion
               // Send chunk to client immediately
               sendChunk(delta, false);
             }
@@ -805,24 +802,15 @@ export const childChatStream = functions
     // For chunks with newlines, we send multiple data: lines (SSE spec: they're concatenated)
     const sendChunk = (chunk, done = false) => {
       if (done) {
-        // #region agent log
-        console.log(JSON.stringify({location:"functions/index.js:2116",message:"Sending [DONE] chunk",data:{},timestamp:Date.now(),sessionId:"debug-session",runId:"run1",hypothesisId:"H1"}));
-        // #endregion
         res.write("data: [DONE]\n\n");
       } else if (chunk) {
         // Handle newlines: split into multiple data: lines per SSE spec
         // Multiple data: lines in one message are concatenated with \n by the client
         const lines = chunk.split("\n");
-        // #region agent log
-        console.log(JSON.stringify({location:"functions/index.js:2120",message:"sendChunk called",data:{chunkLength:chunk.length,chunkPreview:chunk.substring(0,50),linesCount:lines.length},timestamp:Date.now(),sessionId:"debug-session",runId:"run1",hypothesisId:"H1"}));
-        // #endregion
         for (let i = 0; i < lines.length; i++) {
           res.write(`data: ${lines[i]}\n`);
         }
         res.write("\n"); // End of SSE message (double newline)
-        // #region agent log
-        console.log(JSON.stringify({location:"functions/index.js:2124",message:"SSE chunk written to response",data:{totalBytesWritten:chunk.length+lines.length*8},timestamp:Date.now(),sessionId:"debug-session",runId:"run1",hypothesisId:"H1"}));
-        // #endregion
       }
       // Force immediate send - don't wait for buffer to fill
       // Cloud Functions should handle this, but we ensure chunks are sent immediately
