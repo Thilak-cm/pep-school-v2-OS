@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.11.1 — 2026-04-24
+
+### Changed
+- Modularized Cloud Functions: split monolithic functions/index.js (~4900 lines) into domain modules — ai/, auth/, chat/, classroom/, media/, reports/, students/, shared/ (PEP-154)
+- Removed debug logging artifacts from chat streaming hot path
+
 # 10.11.0 — 2026-04-23
 
 ### Added
