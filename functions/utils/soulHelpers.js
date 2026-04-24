@@ -46,7 +46,7 @@ Structure guidelines:
 
 ## Emergent observations and guidelines suggestions
 
-After the Emergent Observations narrative, if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
+At the very end of the document (after all narrative sections including Areas Needing Further Exploration), if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
 
 Format:
 

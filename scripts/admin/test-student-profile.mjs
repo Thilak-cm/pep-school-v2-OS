@@ -14,7 +14,7 @@ import admin from "firebase-admin";
 import {
   SOUL_DEFAULTS, VALID_PROGRAMS,
   buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
-  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations, hasInformationGaps,
   extractGuidelinesSuggestions, stripGuidelinesSuggestions,
 } from "../../functions/utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers.js";
@@ -244,6 +244,7 @@ async function run() {
   console.log();
   console.log("=".repeat(80));
   console.log(`Emergent observations: ${hasEmergentObservations(soulContent) ? "YES" : "No"}`);
+  console.log(`Information gaps: ${hasInformationGaps(soulContent) ? "YES" : "No"}`);
   if (guidelinesSuggestions.length > 0) {
     console.log(`Guidelines suggestions: ${guidelinesSuggestions.length}`);
     for (const s of guidelinesSuggestions) {
@@ -282,6 +283,7 @@ async function run() {
       lastInterviewAt,
     });
     soulDoc.hasEmergentObservations = hasEmergentObservations(soulContent);
+    soulDoc.hasInformationGaps = hasInformationGaps(soulContent);
     soulDoc.guidelinesSuggestions = guidelinesSuggestions;
     soulDoc.createdAt = prevSoulSnap.exists ? (prevSoulSnap.data().createdAt || now) : now;
     soulDoc.updatedAt = now;
