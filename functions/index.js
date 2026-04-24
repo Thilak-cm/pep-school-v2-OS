@@ -4784,6 +4784,21 @@ export const bulkSyncDrivePermissions = functions
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let soulTemplateCache = {};
+let soulConfigCache = { data: null, ts: 0 };
+
+async function getSoulConfig() {
+  if (soulConfigCache.data && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
+    return soulConfigCache.data;
+  }
+  const snap = await db.collection("config").doc("soul_generation").get();
+  if (!snap.exists) {
+    console.log("[soul] No config/soul_generation doc — using hardcoded defaults");
+    return null;
+  }
+  const data = snap.data();
+  soulConfigCache = { data, ts: Date.now() };
+  return data;
+}
 
 async function getSoulTemplateConfig(programId) {
   const docId = `soul_template_${programId}`;
@@ -4812,17 +4827,28 @@ async function getSoulTemplateConfig(programId) {
 }
 
 async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, openAiKey) {
-  const systemContent = buildSoulSystemPrompt(guidelinesContent);
+  // Read instruction prompt + model settings from Firestore, fall back to hardcoded
+  const soulConfig = await getSoulConfig();
+  const systemPromptTemplate = soulConfig?.systemPrompt || null;
+  const model = soulConfig?.model || SOUL_DEFAULTS.model;
+  const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
+  const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
+
+  // If Firestore has a systemPrompt with ${guidelinesContent} placeholder, inject guidelines.
+  // Otherwise fall back to the hardcoded buildSoulSystemPrompt().
+  const systemContent = systemPromptTemplate
+    ? systemPromptTemplate.replace("${guidelinesContent}", guidelinesContent)
+    : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
   const body = buildChatBody({
-    model: SOUL_DEFAULTS.model,
+    model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: SOUL_DEFAULTS.temperature,
-    max_completion_tokens: SOUL_DEFAULTS.max_tokens,
+    temperature,
+    max_completion_tokens: maxTokens,
   });
 
   let response;
