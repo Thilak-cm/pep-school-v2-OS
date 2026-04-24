@@ -20,32 +20,37 @@ import { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import { initSaveQueue } from './services/saveQueue';
 import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS } from './screenConfig.js';
 import ScreenRenderer from './ScreenRenderer.jsx';
+import { useNavigationState } from './hooks/useNavigationState.js';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [manageableClassrooms, setManageableClassrooms] = useState([]);
-  const [screen, setScreen] = useState('loading');
-  const [usersAccessView, setUsersAccessView] = useState('home');
-  const [selectedClassroom, setSelectedClassroom] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [pendingViewReportId, setPendingViewReportId] = useState(null);
+  const [_unauthorized, setUnauthorized] = useState(false);
+  const [addNoteOpen, setAddNoteOpen] = useState(false);
+  const [prefilledFeedback, setPrefilledFeedback] = useState('');
+
+  const {
+    screen, setScreen,
+    selectedClassroom, setSelectedClassroom,
+    selectedStudent, setSelectedStudent,
+    usersAccessView, setUsersAccessView,
+    studentDashboardReturnScreen, setStudentDashboardReturnScreen,
+    studentDashboardNoteType, setStudentDashboardNoteType,
+    timelineFilter, setTimelineFilter,
+    lessonNotesReturnScreen, setLessonNotesReturnScreen,
+    lessonNoteInitialSelection, setLessonNoteInitialSelection,
+    lessonNoteEditObservation, setLessonNoteEditObservation,
+    timelineTitleAsDashboard, setTimelineTitleAsDashboard,
+    pendingViewReportId, setPendingViewReportId,
+  } = useNavigationState();
+
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
     setSelectedStudent((prev) => prev?.id === sid ? prev : { id: sid });
     setPendingViewReportId(docId);
     setScreen('studentReports');
   }, []);
-  const [_unauthorized, setUnauthorized] = useState(false);
-  const [addNoteOpen, setAddNoteOpen] = useState(false);
-  const [timelineFilter, setTimelineFilter] = useState(null);
-  const [lessonNotesReturnScreen, setLessonNotesReturnScreen] = useState('timeline');
-  const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
-  const [studentDashboardNoteType, setStudentDashboardNoteType] = useState('textVoice');
-  const [lessonNoteInitialSelection, setLessonNoteInitialSelection] = useState({ classroomId: null, studentId: null });
-  const [lessonNoteEditObservation, setLessonNoteEditObservation] = useState(null);
-  const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
-  const [prefilledFeedback, setPrefilledFeedback] = useState('');
 
   const isTeacher = role === 'teacher';
   const isSuperAdminUser = isSuperAdmin(role);

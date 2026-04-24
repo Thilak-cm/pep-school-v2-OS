@@ -76,31 +76,84 @@ describe("getBackNavigation", () => {
     assert.equal(getBackNavigation("landingPage", {}, {}), null);
   });
 
-  it("returns a function for classroomList", () => {
-    const fn = getBackNavigation("classroomList", {}, {});
-    assert.equal(typeof fn, "function");
+  it("classroomList navigates to landing and clears student", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("classroomList", {}, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
   });
 
-  it("returns a function for studentDashboard", () => {
-    const fn = getBackNavigation("studentDashboard", { studentDashboardReturnScreen: "classroomTimeline" }, {});
-    assert.equal(typeof fn, "function");
+  it("studentDashboard navigates to return screen", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(v) };
+    const fn = getBackNavigation("studentDashboard", { studentDashboardReturnScreen: "classroomTimeline" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, ["classroomTimeline"]);
   });
 
-  it("returns a function for config screens", () => {
-    for (const screen of ["configLessonNotes", "configAiTools", "aiTextEditor", "aiCoachEditor"]) {
-      const fn = getBackNavigation(screen, {}, {});
-      assert.equal(typeof fn, "function", `Expected function for ${screen}`);
+  it("studentDashboard defaults to classroomTimeline when no return screen", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(v) };
+    const fn = getBackNavigation("studentDashboard", {}, setters);
+    fn();
+    assert.deepStrictEqual(calls, ["classroomTimeline"]);
+  });
+
+  it("config screens navigate to their parent", () => {
+    const cases = [
+      ["configLessonNotes", "config"],
+      ["configAiTools", "config"],
+      ["aiTextEditor", "configAiTools"],
+      ["aiCoachEditor", "configAiTools"],
+      ["config", "settings"],
+    ];
+    for (const [screen, expected] of cases) {
+      const calls = [];
+      const setters = { setScreen: (v) => calls.push(v) };
+      getBackNavigation(screen, {}, setters)();
+      assert.deepStrictEqual(calls, [expected], `${screen} should navigate to ${expected}`);
     }
   });
 
-  it("returns correct handler for addUser with home view", () => {
-    const fn = getBackNavigation("addUser", { usersAccessView: "home" }, {});
-    assert.equal(typeof fn, "function");
+  it("addUser with home view navigates to landing", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("addUser", { usersAccessView: "home" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
   });
 
-  it("returns correct handler for addUser with non-home view", () => {
-    const fn = getBackNavigation("addUser", { usersAccessView: "manage" }, {});
-    assert.equal(typeof fn, "function");
+  it("addUser with non-home view resets to home view", () => {
+    const calls = [];
+    const setters = { setUsersAccessView: (v) => calls.push(v) };
+    const fn = getBackNavigation("addUser", { usersAccessView: "manage" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, ["home"]);
+  });
+
+  it("lessonNotes navigates to return screen and clears student if landing", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("lessonNotes", { lessonNotesReturnScreen: "landingPage" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
+  });
+
+  it("lessonNotes navigates to return screen without clearing student", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("lessonNotes", { lessonNotesReturnScreen: "classroomTimeline" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setScreen", "classroomTimeline"]]);
+  });
+
+  it("graduateStudents navigates to addUser and resets view", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setUsersAccessView: (v) => calls.push(["setUsersAccessView", v]) };
+    const fn = getBackNavigation("graduateStudents", {}, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setScreen", "addUser"], ["setUsersAccessView", "home"]]);
   });
 });
 
