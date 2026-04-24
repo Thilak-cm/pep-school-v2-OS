@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-24T13:34:08.201Z
-App version: 10.11.1
+Generated: 2026-04-24T20:38:10.641Z
+App version: 10.11.2
 
 ## App Snapshot
 
@@ -137,6 +137,9 @@ App version: 10.11.1
 
 ## Recent Changes
 
+### 10.11.2 (2026-04-24)
+- Modularized App.jsx: extracted screen config (screenConfig.js), screen renderer (ScreenRenderer.jsx), and navigation state (useNavigationState hook), reducing App.jsx from ~1037 to ~313 lines (PEP-161)
+
 ### 10.11.1 (2026-04-24)
 - Modularized Cloud Functions: split monolithic functions/index.js (~4900 lines) into domain modules — ai/, auth/, chat/, classroom/, media/, reports/, students/, shared/ (PEP-154)
 - Removed debug logging artifacts from chat streaming hot path
@@ -150,9 +153,4 @@ App version: 10.11.1
 - Media expanded view carousel — left/right arrow navigation between photos in the media grid dialog
 - Skeleton loading state during image transitions in media carousel
 - Removed redundant "Media" header from expanded media preview dialog
-
-### 10.10.0 (2026-04-22)
-- Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
-- Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
-- Soul history snapshots — previous soul is archived before each weekly regeneration (PEP-149)
 
