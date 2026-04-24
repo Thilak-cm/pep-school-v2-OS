@@ -10,7 +10,7 @@ import { COACH_MODEL_INFO } from "./config/coachConstants.js";
 import {
   SOUL_DEFAULTS, VALID_PROGRAMS,
   buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
-  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations,
+  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations, hasInformationGaps,
   extractGuidelinesSuggestions, stripGuidelinesSuggestions,
 } from "./utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "./utils/interviewHelpers.js";
@@ -4652,6 +4652,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     lastInterviewAt: lastInterviewAt,
   });
   soulDoc.hasEmergentObservations = hasEmergentObservations(narrativeContent);
+  soulDoc.hasInformationGaps = hasInformationGaps(narrativeContent);
   soulDoc.guidelinesSuggestions = guidelinesSuggestions;
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
@@ -4769,6 +4770,7 @@ export const generateStudentProfile = functions
       noteCount: formatted.length,
       interviewCount: formattedInterviews.length,
       hasEmergentObservations: hasEmergentObservations(stripGuidelinesSuggestions(soulContent)),
+      hasInformationGaps: hasInformationGaps(stripGuidelinesSuggestions(soulContent)),
     };
   });
 
