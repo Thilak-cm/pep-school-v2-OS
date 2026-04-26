@@ -6,7 +6,8 @@
   "scripts": {
     "deploy": "npx firebase deploy",
     "deploy:functions": "npx firebase deploy --only functions",
-    "deploy:hosting": "npx firebase deploy --only hosting",
+    "deploy:hosting": "npx firebase deploy --only hosting:app",
+    "deploy:testbench": "npm --prefix testbench run build && npx firebase deploy --only hosting:testbench",
     "deploy:firestore": "npx firebase deploy --only firestore:rules,firestore:indexes",
     "test:security": "node --test tests/security/*.test.js",
     "test:security:firestore": "node --test tests/security/firestore.rules.test.js",
