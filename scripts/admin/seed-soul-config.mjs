@@ -51,12 +51,12 @@ At the very end of the document (after all narrative sections including Areas Ne
 
 Format:
 
-\\\`\\\`\\\`yaml
+\`\`\`yaml
 guidelines_suggestions:
   - area: "Proposed Skill Area Name"
     discipline: "Existing or New Discipline Name"
     rationale: "Why this area matters for this child based on observed patterns"
-\\\`\\\`\\\`
+\`\`\`
 
 If there are no emergent patterns worth suggesting, omit the YAML block entirely. Only propose areas that show a clear, recurring signal across multiple observations — not one-off events.
 
