@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.12.0 — 2026-04-26
+
+### Added
+- Prompt Test Bench — standalone desktop-first web app for superadmins to iterate on AI prompts, compare 2+ output variations side-by-side, rate them, and save run history (PEP-163)
+- Handwriting analysis and soul generation features active; text cleanup, AI coach, baseball card, and report generation shown as coming soon (PEP-163)
+- `testBenchRun` Cloud Function for executing prompt variations against real student data with superadmin-only access (PEP-163)
+- Soul generation instruction prompt migrated from hardcoded to Firestore `config/soul_generation` with fallback to defaults (PEP-163)
+- Separate Firebase Hosting site (`pep-os-testbench`) with dedicated CI/CD workflow (PEP-163)
+- Firestore security rules for `testbench` collection (superadmin read/create, immutable) (PEP-163)
+- Seed script for soul generation config (`scripts/admin/seed-soul-config.mjs`) (PEP-163)
+
 # 10.11.0 — 2026-04-23
 
 ### Added

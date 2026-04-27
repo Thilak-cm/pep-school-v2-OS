@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "pep-os"
+  },
+  "targets": {
+    "pep-os": {
+      "hosting": {
+        "app": ["pep-os"],
+        "testbench": ["pep-os-testbench"]
+      }
+    }
   }
 }

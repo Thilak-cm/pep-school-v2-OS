@@ -182,6 +182,35 @@ test('Firestore Rules - Classroom scoping functions present', () => {
   );
 });
 
+test('Firestore Rules - Testbench collection is superadmin-only and immutable', () => {
+  const testbenchMatch = rulesContent.match(
+    /match\s+\/testbench\/\{runId\}[\s\S]*?(?=match\s+\/|$)/
+  )?.[0];
+  assert.ok(testbenchMatch, 'Testbench collection rules not found');
+
+  // Superadmin can read and create
+  assert.ok(
+    testbenchMatch.includes('isSuperAdmin'),
+    'Testbench rules missing isSuperAdmin check'
+  );
+  assert.ok(
+    testbenchMatch.includes('allow read, create'),
+    'Testbench missing read/create rule'
+  );
+
+  // No update or delete allowed
+  assert.ok(
+    testbenchMatch.includes('allow update, delete: if false'),
+    'Testbench docs should be immutable (update, delete: if false)'
+  );
+
+  // Teacher should NOT be mentioned (no teacher access)
+  assert.ok(
+    !testbenchMatch.includes('isTeacher'),
+    'Testbench should not grant teacher access'
+  );
+});
+
 test('Firestore Rules - Teachers cannot escalate privileges', () => {
   // Teachers should not appear in create/update/delete rules for sensitive collections
   const userMatch = rulesContent.match(/match\s+\/users\/\{uid\}[\s\S]*?(?=match\s+\/|$)/)?.[0];

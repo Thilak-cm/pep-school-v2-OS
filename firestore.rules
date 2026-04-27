@@ -512,6 +512,13 @@ service cloud.firestore {
         );
     }
 
+    // Testbench collection — prompt test bench run results
+    // - Only super admins can read/create; runs are immutable once saved
+    match /testbench/{runId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // Temporarily removed default deny to test if it's blocking teacher access
     // match /{document=**} {
     //   allow read, write: if false;

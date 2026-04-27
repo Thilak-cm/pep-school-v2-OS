@@ -3,12 +3,9 @@
 
 import { FRONTIER_MODEL } from "../config/modelConstants.js";
 
-// Hard requirement: use latest frontier model for soul generation
-// This is high-stakes data processing — not configurable downward
-export const SOUL_MODEL = FRONTIER_MODEL;
-
+// Fallback defaults — used when config/soul_generation doc is missing
 export const SOUL_DEFAULTS = {
-  model: SOUL_MODEL,
+  model: FRONTIER_MODEL,
   temperature: 0,
   max_tokens: 12000,
 };

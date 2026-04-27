@@ -6,11 +6,11 @@ import { FRONTIER_MODEL } from "../config/modelConstants.js";
 // Soul model constants
 // ---------------------------------------------------------------------------
 
-test("SOUL_MODEL is the frontier model", async () => {
-  const { SOUL_MODEL } = await import("../utils/soulHelpers.js");
-  assert.equal(SOUL_MODEL, FRONTIER_MODEL, "SOUL_MODEL must match FRONTIER_MODEL");
-  assert.ok(!SOUL_MODEL.includes("mini"), "SOUL_MODEL should not be a mini model");
-  assert.ok(!SOUL_MODEL.includes("nano"), "SOUL_MODEL should not be a nano model");
+test("SOUL_DEFAULTS.model is the frontier model", async () => {
+  const { SOUL_DEFAULTS } = await import("../utils/soulHelpers.js");
+  assert.equal(SOUL_DEFAULTS.model, FRONTIER_MODEL, "SOUL_DEFAULTS.model must match FRONTIER_MODEL");
+  assert.ok(!SOUL_DEFAULTS.model.includes("mini"), "SOUL_DEFAULTS.model should not be a mini model");
+  assert.ok(!SOUL_DEFAULTS.model.includes("nano"), "SOUL_DEFAULTS.model should not be a nano model");
 });
 
 test("SOUL_DEFAULTS has expected shape", async () => {

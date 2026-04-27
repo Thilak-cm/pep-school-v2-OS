@@ -4784,6 +4784,22 @@ export const bulkSyncDrivePermissions = functions
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let soulTemplateCache = {};
+let soulConfigCache = { data: null, ts: 0 };
+
+async function getSoulConfig() {
+  if (soulConfigCache.ts && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
+    return soulConfigCache.data;
+  }
+  const snap = await db.collection("config").doc("soul_generation").get();
+  if (!snap.exists) {
+    console.log("[soul] No config/soul_generation doc — using hardcoded defaults");
+    soulConfigCache = { data: null, ts: Date.now() };
+    return null;
+  }
+  const data = snap.data();
+  soulConfigCache = { data, ts: Date.now() };
+  return data;
+}
 
 async function getSoulTemplateConfig(programId) {
   const docId = `soul_template_${programId}`;
@@ -4812,17 +4828,30 @@ async function getSoulTemplateConfig(programId) {
 }
 
 async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, openAiKey) {
-  const systemContent = buildSoulSystemPrompt(guidelinesContent);
+  // Read instruction prompt + model settings from Firestore, fall back to hardcoded
+  const soulConfig = await getSoulConfig();
+  const systemPromptTemplate = soulConfig?.systemPrompt || null;
+  const model = soulConfig?.model || SOUL_DEFAULTS.model;
+  const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
+  const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
+
+  // If Firestore has a systemPrompt with ${guidelinesContent} placeholder, inject guidelines.
+  // Otherwise fall back to the hardcoded buildSoulSystemPrompt().
+  const systemContent = systemPromptTemplate
+    ? (systemPromptTemplate.includes("${guidelinesContent}")
+      ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
+      : systemPromptTemplate + "\n\n" + guidelinesContent)
+    : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
   const body = buildChatBody({
-    model: SOUL_DEFAULTS.model,
+    model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: SOUL_DEFAULTS.temperature,
-    max_completion_tokens: SOUL_DEFAULTS.max_tokens,
+    temperature,
+    max_completion_tokens: maxTokens,
   });
 
   let response;
@@ -5141,3 +5170,236 @@ export const backfillStudentProfiles = functions
     console.log(`[backfill] Batch complete: ${succeeded}/${processed} succeeded, ${failed} failed, hasMore=${hasMore}`);
     return { status: "ok", processed, succeeded, failed, errors, results, lastStudentId, hasMore };
   });
+
+// -----------------------------------------------
+// Test Bench: Run prompt variations for evaluation (PEP-163)
+// -----------------------------------------------
+
+export const testBenchRun = functions
+  .region("asia-south1")
+  .runWith({ timeoutSeconds: 300, memory: "1GB", secrets: [OPENAI_API_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const callerSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Superadmin access required");
+    }
+
+    const feature = String(data?.feature || "").trim();
+    const studentId = String(data?.studentId || "").trim();
+    const systemPrompt = String(data?.systemPrompt || "").trim();
+    const model = String(data?.model || "gpt-5.4").trim();
+    const temperature = typeof data?.temperature === "number" ? data.temperature : 0.3;
+    const maxTokens = data?.max_tokens || 2000;
+
+    if (!feature || !studentId || !systemPrompt) {
+      throw new functions.https.HttpsError("invalid-argument", "feature, studentId, and systemPrompt are required");
+    }
+
+    const openAiKey = getOpenAiKey();
+    if (!openAiKey) {
+      throw new functions.https.HttpsError("failed-precondition", "OpenAI key not configured");
+    }
+
+    console.log(`[testBench] Running ${feature} for ${studentId}, model=${model}, temp=${temperature}`);
+
+    if (feature === "handwriting_analysis") {
+      return await testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey });
+    } else if (feature === "soul_generation") {
+      const guidelinesContent = String(data?.guidelinesContent || "").trim();
+      const windowDays = data?.windowDays || 365;
+      const includeInterviews = data?.includeInterviews !== false;
+      return await testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey });
+    }
+
+    throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
+  });
+
+async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey }) {
+  // Gather same data as batchAnalyzeWriting but skip the threshold gate and use caller's prompt
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
+  }
+  const studentData = studentSnap.data();
+  const dob = studentData.dateOfBirth?.toDate?.() ?? (studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null);
+  const student = { displayName: studentData.displayName || studentId, dateOfBirth: dob };
+
+  // Fetch ALL handwritten media (not just unprocessed — test bench needs full set)
+  const mediaSnap = await db.collection("students").doc(studentId)
+    .collection("media")
+    .where("handwritten", "==", true)
+    .orderBy("observedAt", "asc")
+    .get();
+
+  if (mediaSnap.empty) {
+    return { output: "No handwritten media found for this student.", totalTokens: 0 };
+  }
+
+  const mediaDocs = mediaSnap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      observedAt: data.observedAt?.toDate?.() ?? (data.observedAt ? new Date(data.observedAt) : null),
+      teacherComment: data.teacherComment || null,
+      copied: data.copied === true,
+      curriculumArea: data.curriculumArea || null,
+      createdByName: data.createdByName || null,
+      storagePath: data.media?.[0]?.storagePath || null,
+    };
+  });
+
+  const prevAnalysisSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("writing_analysis").get();
+  const previousAnalysis = prevAnalysisSnap.exists ? prevAnalysisSnap.data() : null;
+
+  const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, new Date());
+
+  // Build multimodal user content with images
+  const userContent = [];
+  const promptLines = promptText.split("\n");
+  const firstImageIdx = promptLines.findIndex((l) => l.startsWith("[Image "));
+  if (firstImageIdx > 0) {
+    userContent.push({ type: "text", text: promptLines.slice(0, firstImageIdx).join("\n") });
+  }
+
+  for (let i = 0; i < mediaDocs.length; i++) {
+    const doc = mediaDocs[i];
+    const imageHeader = `[Image ${i + 1} of ${mediaDocs.length}`;
+    const startIdx = promptLines.findIndex((l) => l.startsWith(imageHeader));
+    const nextImageIdx = i < mediaDocs.length - 1
+      ? promptLines.findIndex((l, idx) => idx > startIdx && l.startsWith(`[Image ${i + 2}`))
+      : promptLines.length;
+    const annotationText = promptLines.slice(startIdx, nextImageIdx).join("\n").trim();
+    userContent.push({ type: "text", text: annotationText });
+
+    if (doc.storagePath) {
+      try {
+        const imagePart = await downloadImageAsBase64(doc.storagePath);
+        userContent.push(imagePart);
+      } catch (err) {
+        console.warn(`[testBench] Failed to download ${doc.storagePath}:`, err?.message);
+        userContent.push({ type: "text", text: `[Image could not be loaded]` });
+      }
+    }
+  }
+
+  // Call LLM directly — do NOT use runVLMCall (it forces JSON output)
+  const body = buildChatBody({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature,
+    max_completion_tokens: maxTokens,
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[testBenchHandwriting] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  const totalTokens = json?.usage?.total_tokens || 0;
+
+  return { output: rawContent || "(empty response)", totalTokens };
+}
+
+async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey }) {
+  const studentInfo = await getStudentWithProgram(studentId);
+
+  // If no guidelines provided, load from student or template
+  if (!guidelinesContent) {
+    const guidelinesSnap = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("guidelines").get();
+    if (guidelinesSnap.exists) {
+      guidelinesContent = guidelinesSnap.data().content;
+    } else {
+      const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
+      guidelinesContent = templateConfig.markdown;
+    }
+  }
+
+  // Inject guidelines into instruction prompt via placeholder
+  const finalSystemPrompt = systemPrompt.includes("${guidelinesContent}")
+    ? systemPrompt.replace("${guidelinesContent}", () => guidelinesContent)
+    : systemPrompt + "\n\n" + guidelinesContent;
+
+  // Gather observations + interviews
+  const [notes, rawInterviews] = await Promise.all([
+    fetchStudentNotesForWindow(studentId, windowDays),
+    includeInterviews ? fetchStudentInterviews(studentId, windowDays) : Promise.resolve([]),
+  ]);
+
+  const formatted = notes.map(formatObservationForPrompt);
+  const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+
+  // Read previous soul for continuity
+  const prevSoulSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("soul").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+
+  const userContent = buildSoulUserPrompt(
+    { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+    formatted,
+    formattedInterviews,
+    previousSoul,
+  );
+
+  // Call LLM with caller-supplied prompt + model settings
+  const body = buildChatBody({
+    model,
+    messages: [
+      { role: "system", content: finalSystemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature,
+    max_completion_tokens: maxTokens,
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[testBenchSoul] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  const totalTokens = json?.usage?.total_tokens || 0;
+
+  return { output: rawContent || "(empty response)", totalTokens };
+}

@@ -1,0 +1,42 @@
+import { useState } from "react";
+import Box from "@mui/material/Box";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { auth } from "./firebase.js";
+import AuthGate from "./components/AuthGate.jsx";
+import FeaturePicker from "./components/FeaturePicker.jsx";
+import FeatureWorkbench from "./components/FeatureWorkbench.jsx";
+
+export default function App() {
+  const [selectedFeature, setSelectedFeature] = useState(null);
+
+  return (
+    <AuthGate>
+      <Box sx={{ minHeight: "100vh" }}>
+        <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Toolbar>
+            {selectedFeature && (
+              <IconButton edge="start" sx={{ mr: 1 }} onClick={() => setSelectedFeature(null)}>
+                <ArrowBackIcon />
+              </IconButton>
+            )}
+            <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1 }}>
+              {selectedFeature ? selectedFeature.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Test Bench"}
+            </Typography>
+            <Button size="small" onClick={() => auth.signOut()}>Sign Out</Button>
+          </Toolbar>
+        </AppBar>
+
+        {!selectedFeature ? (
+          <FeaturePicker onSelect={setSelectedFeature} />
+        ) : (
+          <FeatureWorkbench featureId={selectedFeature} />
+        )}
+      </Box>
+    </AuthGate>
+  );
+}

@@ -33,6 +33,7 @@
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
  - `config/{docId}`
+- `testbench/{runId}`                                  // prompt test bench run history (PEP-163)
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -665,6 +666,7 @@ Current documents
 - `chat_{program}` — per-program AI chat configuration
 - `report_{program}` — per-program parent progress report prompts + model config
 - `soul_template_{program}` — per-program soul template markdown (developmental areas, skill areas, benchmarks from report cards)
+- `soul_generation` — soul generation instruction prompt + model config (PEP-163). Shape: `{ systemPrompt: string, model: string, temperature: number, max_tokens: number }`. Fallback defaults in `functions/utils/soulHelpers.js:SOUL_DEFAULTS`.
 - `readiness_{program}` — per-program report readiness checker prompts + model config
 - `baseball_card` — prompts + model config for student baseball card generation
 - `photo_classification` — prompts + model config for photo classification (Call 1, gpt-5.4-nano)
@@ -921,3 +923,38 @@ Migration/backfill (branches)
 - Denormalized `classroomId` and `branchId` on observations avoids extra reads in queries and security rules
 - Cached creator name/email prevents n+1 user lookups in UI and reports
 - Feedback system provides user input channel while maintaining security through user ownership and super-admin-only moderation
+
+---
+
+## 🧪 Test Bench (`/testbench/{runId}`)
+Purpose: Stores prompt test bench run history — each doc captures a comparison session where a superadmin tested prompt variations against real student data (PEP-163).
+
+```typescript
+interface TestBenchRun {
+  feature: string;                // e.g., "soul_generation", "handwriting_analysis"
+  studentId: string;
+  studentName: string;
+  timestamp: Timestamp;
+  variants: Array<{
+    name: string;                 // e.g., "Variant A"
+    prompt: {
+      systemPrompt: string;
+      guidelinesContent?: string; // soul generation only
+      model: string;
+      temperature: number;
+      max_tokens: number;
+    };
+    output: string;
+    rating: number;               // 1-10
+    notes: string;
+  }>;
+  ranBy: {
+    uid: string;
+    name: string;
+  };
+}
+```
+
+Security
+- Read + Create: super admins only (`isSuperAdmin()`)
+- Update + Delete: denied (runs are immutable once saved)
