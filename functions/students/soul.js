@@ -221,7 +221,7 @@ export const generateStudentProfile = functions
     const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
 
     // Default to 365-day observation window; pass windowDays to override
-    const windowDays = data?.windowDays || 365;
+    const windowDays = data?.windowDays ?? 365;
     const [notes, rawInterviews] = await Promise.all([
       fetchStudentNotesForWindow(studentId, windowDays),
       fetchStudentInterviews(studentId, windowDays),
@@ -312,7 +312,7 @@ export const backfillStudentProfiles = functions
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can run backfill");
     }
 
-    const windowDays = data?.windowDays || 365;
+    const windowDays = data?.windowDays ?? 365;
     const dryRun = data?.dryRun === true;
     const batchSize = Math.min(Number(data?.batchSize) || 10, 25);
     const startAfter = data?.startAfter || null;
