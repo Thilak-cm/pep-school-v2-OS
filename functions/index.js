@@ -4787,12 +4787,13 @@ let soulTemplateCache = {};
 let soulConfigCache = { data: null, ts: 0 };
 
 async function getSoulConfig() {
-  if (soulConfigCache.data && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
+  if (soulConfigCache.ts && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
     return soulConfigCache.data;
   }
   const snap = await db.collection("config").doc("soul_generation").get();
   if (!snap.exists) {
     console.log("[soul] No config/soul_generation doc — using hardcoded defaults");
+    soulConfigCache = { data: null, ts: Date.now() };
     return null;
   }
   const data = snap.data();
@@ -4837,7 +4838,7 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   // If Firestore has a systemPrompt with ${guidelinesContent} placeholder, inject guidelines.
   // Otherwise fall back to the hardcoded buildSoulSystemPrompt().
   const systemContent = systemPromptTemplate
-    ? systemPromptTemplate.replace("${guidelinesContent}", guidelinesContent)
+    ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
     : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
@@ -5328,7 +5329,7 @@ async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model
 
   // Inject guidelines into instruction prompt via placeholder
   const finalSystemPrompt = systemPrompt.includes("${guidelinesContent}")
-    ? systemPrompt.replace("${guidelinesContent}", guidelinesContent)
+    ? systemPrompt.replace("${guidelinesContent}", () => guidelinesContent)
     : systemPrompt + "\n\n" + guidelinesContent;
 
   // Gather observations + interviews
