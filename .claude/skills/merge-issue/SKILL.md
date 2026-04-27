@@ -110,18 +110,9 @@ Remove ephemeral artifacts that accumulate during development and testing:
 
 1. Delete `.playwright-mcp/` directory if it exists — `rm -rf .playwright-mcp/`
 
-### Phase 6: Codebase Overview Refresh (Prompt)
+### Phase 6: Codebase Overview Refresh (Automatic)
 
-The codebase just changed. The high-level overview may be stale.
-
-1. Ask the user:
-   ```
-   Codebase has changed after merging PEP-{id}. Refresh the overview?
-   Options: Yes, run /codebase-context-scan | Skip for now
-   ```
-
-2. If yes: invoke the `codebase-context-scan` skill
-3. If skip: no action (user can run it later)
+The codebase just changed. Automatically invoke the `codebase-context-scan` skill to keep the overview fresh. No user prompt needed.
 
 ## Human Approval Gates (Do Not Skip)
 
@@ -147,4 +138,4 @@ Ask for explicit approval at these points:
 4. Feature branch was deleted (local + remote)
 5. Linear issue was commented and moved to `Done`
 6. `.playwright-mcp/` cleaned up if present
-7. User was prompted to refresh codebase overview
+7. Codebase overview refreshed automatically
