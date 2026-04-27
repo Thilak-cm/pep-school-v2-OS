@@ -38,7 +38,7 @@ const MODELS = [
   { id: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
 ];
 
-const MAX_COLUMNS = 4;
+const SCROLL_AFTER = 4; // columns become fixed-width and scroll after this count
 
 function createVariant(config, idx) {
   return {
@@ -94,7 +94,6 @@ export default function FeatureWorkbench({ featureId }) {
   }, []);
 
   function addColumn() {
-    if (variants.length >= MAX_COLUMNS) return;
     const base = variants[0];
     const idx = variants.length;
     setVariants((prev) => [...prev, createVariant(base, idx)]);
@@ -251,7 +250,8 @@ export default function FeatureWorkbench({ featureId }) {
           <Box
             key={idx}
             sx={{
-              flex: `1 0 ${100 / variants.length - 2}%`,
+              flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto",
+              width: variants.length > SCROLL_AFTER ? 450 : undefined,
               minWidth: 350,
               border: 1,
               borderColor: "divider",
@@ -357,7 +357,7 @@ export default function FeatureWorkbench({ featureId }) {
         ))}
 
         {/* Add column button */}
-        {variants.length < MAX_COLUMNS && (
+        {(
           <Box
             sx={{
               minWidth: 80,
