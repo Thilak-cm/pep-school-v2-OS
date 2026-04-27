@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey } from "../shared/openai.js";
+import { FRONTIER_MODEL } from "../config/modelConstants.js";
 import { testBenchSoul } from "../students/soul.js";
 import { testBenchHandwriting } from "../ai/handwriting.js";
 
@@ -24,7 +25,7 @@ export const testBenchRun = functions
     const feature = String(data?.feature || "").trim();
     const studentId = String(data?.studentId || "").trim();
     const systemPrompt = String(data?.systemPrompt || "").trim();
-    const model = String(data?.model || "gpt-5.4").trim();
+    const model = String(data?.model || FRONTIER_MODEL).trim();
     const temperature = typeof data?.temperature === "number" ? data.temperature : 0.3;
     const maxTokens = data?.max_tokens || 2000;
 
@@ -43,7 +44,7 @@ export const testBenchRun = functions
       return await testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey });
     } else if (feature === "soul_generation") {
       const guidelinesContent = String(data?.guidelinesContent || "").trim();
-      const windowDays = data?.windowDays || 365;
+      const windowDays = data?.windowDays ?? 365;
       const includeInterviews = data?.includeInterviews !== false;
       return await testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey });
     }

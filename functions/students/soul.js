@@ -31,6 +31,8 @@ import {
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let soulTemplateCache = {};
+// Missing-doc result (null) is cached for TTL to avoid Firestore hammering.
+// If config/soul_generation is seeded mid-session, it takes up to 5 min to take effect.
 let soulConfigCache = { data: null, ts: 0 };
 
 async function getSoulConfig() {
