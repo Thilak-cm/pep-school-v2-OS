@@ -142,8 +142,8 @@ async function getStudentContext(studentId) {
     const data = snap.data() || {};
     const fallbackName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
     const studentName = data.displayName || data.name || fallbackName || "Unknown student";
-    const dob = formatDobForContext(data.dob);
-    const age = calculateAgeFromDob(data.dob);
+    const dob = formatDobForContext(data.dateOfBirth);
+    const age = calculateAgeFromDob(data.dateOfBirth);
     return { studentName, dob, age };
   } catch (err) {
     console.warn(`[studentHelpers] failed to fetch student context for ${studentId}:`, err);
@@ -169,8 +169,8 @@ async function getStudentWithProgram(studentId) {
 
   const fallbackName = [studentData.firstName, studentData.lastName].filter(Boolean).join(" ").trim();
   const studentName = studentData.displayName || studentData.name || fallbackName || "Unknown student";
-  const dob = formatDobForContext(studentData.dob);
-  const age = calculateAgeFromDob(studentData.dob);
+  const dob = formatDobForContext(studentData.dateOfBirth);
+  const age = calculateAgeFromDob(studentData.dateOfBirth);
 
   return { studentName, dob, age, programId, classroomId };
 }
