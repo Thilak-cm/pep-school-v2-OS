@@ -5204,7 +5204,7 @@ export const testBenchRun = functions
     console.log(`[testBench] Running ${feature} for ${studentId}, model=${model}, temp=${temperature}`);
 
     if (feature === "handwriting_analysis") {
-      return await testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens });
+      return await testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey });
     } else if (feature === "soul_generation") {
       const guidelinesContent = String(data?.guidelinesContent || "").trim();
       const windowDays = data?.windowDays || 365;
@@ -5215,7 +5215,7 @@ export const testBenchRun = functions
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
   });
 
-async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens }) {
+async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey }) {
   // Gather same data as batchAnalyzeWriting but skip the threshold gate and use caller's prompt
   const studentSnap = await db.collection("students").doc(studentId).get();
   if (!studentSnap.exists) {
@@ -5273,10 +5273,42 @@ async function testBenchHandwriting({ studentId, systemPrompt, model, temperatur
     }
   }
 
-  // Run VLM with caller-supplied prompt
-  const vlmResult = await runVLMCall(systemPrompt, userContent, { model, temperature, maxTokens });
+  // Call LLM directly — do NOT use runVLMCall (it forces JSON output)
+  const body = buildChatBody({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature,
+    max_completion_tokens: maxTokens,
+  });
 
-  return { output: typeof vlmResult === "string" ? vlmResult : JSON.stringify(vlmResult, null, 2), totalTokens: 0 };
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[testBenchHandwriting] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  const totalTokens = json?.usage?.total_tokens || 0;
+
+  return { output: rawContent || "(empty response)", totalTokens };
 }
 
 async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey }) {
@@ -5331,14 +5363,20 @@ async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model
     max_completion_tokens: maxTokens,
   });
 
-  const response = await fetch(CHAT_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${openAiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[testBenchSoul] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
+  }
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");

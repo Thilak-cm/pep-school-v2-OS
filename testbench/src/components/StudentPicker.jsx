@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { collection, getDocs, query, where, limit as firestoreLimit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, limit as firestoreLimit } from "firebase/firestore";
 import { db } from "../firebase.js";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
@@ -63,46 +63,51 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
     if (isHandwriting || loadedMore) return;
     setLoading(true);
 
-    const program = programFilter || "primary";
-    const currentIds = new Set(students.map((s) => s.id));
+    try {
+      const program = programFilter || "primary";
+      const currentIds = new Set(students.map((s) => s.id));
 
-    // Build classroom lookup for this program
-    const classroomsSnap = await getDocs(collection(db, "classrooms"));
-    const classroomMap = {};
-    for (const doc of classroomsSnap.docs) {
-      const data = doc.data();
-      if (data.programId === program) {
-        classroomMap[doc.id] = { name: data.name || doc.id, programId: data.programId };
+      // Build classroom lookup for this program
+      const classroomsSnap = await getDocs(collection(db, "classrooms"));
+      const classroomMap = {};
+      for (const doc of classroomsSnap.docs) {
+        const data = doc.data();
+        if (data.programId === program) {
+          classroomMap[doc.id] = { name: data.name || doc.id, programId: data.programId };
+        }
       }
-    }
 
-    // Fetch students from matching classrooms
-    const classroomIds = Object.keys(classroomMap);
-    const extra = [];
+      // Fetch students from matching classrooms
+      const classroomIds = Object.keys(classroomMap);
+      const extra = [];
 
-    for (const cid of classroomIds) {
-      if (extra.length >= 5) break;
-      const studentsSnap = await getDocs(
-        query(collection(db, "students"), where("classroomId", "==", cid), firestoreLimit(10))
-      );
-      for (const studentDoc of studentsSnap.docs) {
-        if (currentIds.has(studentDoc.id)) continue;
-        const data = studentDoc.data();
-        if (data.status === "graduated") continue;
-        extra.push({
-          id: studentDoc.id,
-          displayName: data.displayName || studentDoc.id,
-          classroomId: cid,
-          classroomName: classroomMap[cid]?.name || cid,
-        });
+      for (const cid of classroomIds) {
         if (extra.length >= 5) break;
+        const studentsSnap = await getDocs(
+          query(collection(db, "students"), where("classroomId", "==", cid), firestoreLimit(10))
+        );
+        for (const studentDoc of studentsSnap.docs) {
+          if (currentIds.has(studentDoc.id)) continue;
+          const data = studentDoc.data();
+          if (data.status === "graduated") continue;
+          extra.push({
+            id: studentDoc.id,
+            displayName: data.displayName || studentDoc.id,
+            classroomId: cid,
+            classroomName: classroomMap[cid]?.name || cid,
+          });
+          if (extra.length >= 5) break;
+        }
       }
-    }
 
-    setStudents((prev) => [...prev, ...extra]);
-    setLoadedMore(true);
-    setCanLoadMore(false);
-    setLoading(false);
+      setStudents((prev) => [...prev, ...extra]);
+      setLoadedMore(true);
+      setCanLoadMore(false);
+    } catch (err) {
+      console.error("Failed to load more students:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [students, programFilter, isHandwriting, loadedMore]);
 
   return (

@@ -148,6 +148,26 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // TESTBENCH COLLECTION (Firestore) - Prompt test bench results, superadmin only, immutable
+  // ============================================================================
+
+  {
+    name: 'Testbench read/create restricted to superadmin only',
+    description: 'allow read, create: if isSuperAdmin()',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+read,\s*create:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Testbench docs are immutable — no update or delete',
+    description: 'allow update, delete: if false',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update,\s*delete:\s*if\s+false/,
+  },
+
+  // ============================================================================
   // AI SUMMARIES HISTORY ACCESS CONTROL (Firestore) - Soul/guidelines history, superadmin only
   // PEP-149: Soul + guidelines docs live under ai_summaries; history subcollection for audit trail
   // ============================================================================

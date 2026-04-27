@@ -84,7 +84,11 @@ export default function FeatureWorkbench({ featureId }) {
 
   const handleConfigLoaded = useCallback((config) => {
     if (typeof config === "function") {
-      setBaseConfig((prev) => config(prev));
+      setBaseConfig((prev) => {
+        const updated = config(prev ?? {});
+        setVariants((vs) => vs.map((v) => ({ ...v, guidelinesContent: updated.guidelinesContent ?? v.guidelinesContent })));
+        return updated;
+      });
       return;
     }
     setBaseConfig(config);
@@ -342,7 +346,7 @@ export default function FeatureWorkbench({ featureId }) {
             )}
 
             {/* Output */}
-            <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} />
+            <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
 
             {/* Rating */}
             {v.output && (

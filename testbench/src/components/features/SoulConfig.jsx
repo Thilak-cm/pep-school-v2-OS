@@ -32,37 +32,43 @@ export default function SoulConfig({ selectedStudent, onConfigLoaded, onProgramC
 
   async function loadConfig(programId) {
     setLoading(true);
+    try {
+      // Load instruction prompt from config/soul_generation
+      const soulConfigSnap = await getDoc(doc(db, "config", "soul_generation"));
+      const soulConfig = soulConfigSnap.exists() ? soulConfigSnap.data() : {};
 
-    // Load instruction prompt from config/soul_generation
-    const soulConfigSnap = await getDoc(doc(db, "config", "soul_generation"));
-    const soulConfig = soulConfigSnap.exists() ? soulConfigSnap.data() : {};
+      // Load program template as fallback guidelines
+      const templateSnap = await getDoc(doc(db, "config", `soul_template_${programId}`));
+      const templateGuidelines = templateSnap.exists() ? templateSnap.data().markdown || "" : "";
 
-    // Load program template as fallback guidelines
-    const templateSnap = await getDoc(doc(db, "config", `soul_template_${programId}`));
-    const templateGuidelines = templateSnap.exists() ? templateSnap.data().markdown || "" : "";
-
-    onConfigLoaded({
-      systemPrompt: soulConfig.systemPrompt || "",
-      guidelinesContent: templateGuidelines,
-      model: soulConfig.model || "gpt-5.4",
-      temperature: soulConfig.temperature ?? 0,
-      max_tokens: soulConfig.max_tokens || 12000,
-      windowDays,
-      includeInterviews,
-    });
-
-    setLoading(false);
+      onConfigLoaded({
+        systemPrompt: soulConfig.systemPrompt || "",
+        guidelinesContent: templateGuidelines,
+        model: soulConfig.model || "gpt-5.4",
+        temperature: soulConfig.temperature ?? 0,
+        max_tokens: soulConfig.max_tokens || 12000,
+        windowDays,
+      });
+    } catch (err) {
+      console.error("[SoulConfig] loadConfig failed:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function loadStudentGuidelines(studentId) {
-    const guidelinesSnap = await getDoc(
-      doc(db, "students", studentId, "ai_summaries", "guidelines")
-    );
-    if (guidelinesSnap.exists()) {
-      const content = guidelinesSnap.data().content;
-      if (content) {
-        onConfigLoaded((prev) => ({ ...prev, guidelinesContent: content }));
+    try {
+      const guidelinesSnap = await getDoc(
+        doc(db, "students", studentId, "ai_summaries", "guidelines")
+      );
+      if (guidelinesSnap.exists()) {
+        const content = guidelinesSnap.data().content;
+        if (content) {
+          onConfigLoaded((prev) => ({ ...prev, guidelinesContent: content }));
+        }
       }
+    } catch (err) {
+      console.error("[SoulConfig] loadStudentGuidelines failed:", err);
     }
   }
 
@@ -89,7 +95,7 @@ export default function SoulConfig({ selectedStudent, onConfigLoaded, onProgramC
         <Typography variant="body2" color="text.secondary">Window:</Typography>
         <Slider
           value={windowDays}
-          onChange={(_, v) => setWindowDays(v)}
+          onChange={(_, v) => { setWindowDays(v); onConfigLoaded((prev) => ({ ...prev, windowDays: v })); }}
           min={30}
           max={365}
           step={30}

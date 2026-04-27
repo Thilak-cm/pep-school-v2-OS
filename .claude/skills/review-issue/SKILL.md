@@ -240,8 +240,7 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
      - {concise, user-facing description of changes from the diff and issue}
      ```
    - Only include sections (Added, Changed, Fixed) that apply
-   - Show changelog entry to user for review before proceeding
-   - Apply any requested edits
+   - Apply the changelog entry directly — no user review needed
 
 ### Phase 5b: Update DATA_STRUCTURE.md (Conditional)
 
@@ -394,10 +393,8 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 1. **Before fixing** — after showing the audit report, confirm user wants to proceed with fixes (or review manually)
 2. **After 3 failed fix loops** — surface remaining findings, ask user to intervene
 3. **All version bumps** — present recommendation with reasoning, wait for user to confirm bump type (patch/minor/major)
-4. **Changelog entry** — show for review before committing
-5. **Before pushing + opening PR** — confirm user is ready to ship
-6. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)
-7. **After 3 failed Devin review loops** — surface remaining findings, ask user whether to proceed or review manually
+4. **Before fixing Devin's findings** — show Devin's review summary, confirm user wants auto-fix (or handle manually)
+5. **After 3 failed Devin review loops** — surface remaining findings, ask user whether to proceed or review manually
 
 ## Guardrails
 

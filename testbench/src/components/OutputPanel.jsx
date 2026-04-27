@@ -1,10 +1,34 @@
+import { useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
+import ReactMarkdown from "react-markdown";
 
-export default function OutputPanel({ output, loading, error, meta }) {
+function formatOutput(output, featureId) {
+  if (featureId === "soul_generation") {
+    return <ReactMarkdown>{output}</ReactMarkdown>;
+  }
+
+  if (featureId === "handwriting_analysis") {
+    try {
+      const parsed = JSON.parse(output);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return output;
+    }
+  }
+
+  return output;
+}
+
+export default function OutputPanel({ output, loading, error, meta, featureId }) {
+  const rendered = useMemo(() => {
+    if (!output) return null;
+    return formatOutput(output, featureId);
+  }, [output, featureId]);
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 200, p: 3 }}>
@@ -30,6 +54,8 @@ export default function OutputPanel({ output, loading, error, meta }) {
     );
   }
 
+  const isSoul = featureId === "soul_generation";
+
   return (
     <Box>
       {meta && (
@@ -45,14 +71,12 @@ export default function OutputPanel({ output, loading, error, meta }) {
           p: 2,
           maxHeight: 500,
           overflow: "auto",
-          fontFamily: "monospace",
-          fontSize: 13,
-          lineHeight: 1.6,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
+          ...(isSoul
+            ? { fontSize: 14, lineHeight: 1.7, "& h1,& h2,& h3": { mt: 2, mb: 1 }, "& ul,& ol": { pl: 3 } }
+            : { fontFamily: "monospace", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" }),
         }}
       >
-        {output}
+        {rendered}
       </Paper>
     </Box>
   );
