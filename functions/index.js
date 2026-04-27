@@ -70,3 +70,6 @@ export {
   generateStudentProfile,
   backfillStudentProfiles,
 } from "./students/soul.js";
+
+// Test Bench
+export { testBenchRun } from "./testbench/index.js";

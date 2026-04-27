@@ -31,6 +31,22 @@ import {
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let soulTemplateCache = {};
+let soulConfigCache = { data: null, ts: 0 };
+
+async function getSoulConfig() {
+  if (soulConfigCache.ts && (Date.now() - soulConfigCache.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
+    return soulConfigCache.data;
+  }
+  const snap = await db.collection("config").doc("soul_generation").get();
+  if (!snap.exists) {
+    console.log("[soul] No config/soul_generation doc — using hardcoded defaults");
+    soulConfigCache = { data: null, ts: Date.now() };
+    return null;
+  }
+  const data = snap.data();
+  soulConfigCache = { data, ts: Date.now() };
+  return data;
+}
 
 async function getSoulTemplateConfig(programId) {
   const docId = `soul_template_${programId}`;
@@ -59,17 +75,30 @@ async function getSoulTemplateConfig(programId) {
 }
 
 async function callSoulGeneration(observations, interviews, guidelinesContent, studentContext, previousSoul, openAiKey) {
-  const systemContent = buildSoulSystemPrompt(guidelinesContent);
+  // Read instruction prompt + model settings from Firestore, fall back to hardcoded
+  const soulConfig = await getSoulConfig();
+  const systemPromptTemplate = soulConfig?.systemPrompt || null;
+  const model = soulConfig?.model || SOUL_DEFAULTS.model;
+  const temperature = soulConfig?.temperature ?? SOUL_DEFAULTS.temperature;
+  const maxTokens = soulConfig?.max_tokens || SOUL_DEFAULTS.max_tokens;
+
+  // If Firestore has a systemPrompt with ${guidelinesContent} placeholder, inject guidelines.
+  // Otherwise fall back to the hardcoded buildSoulSystemPrompt().
+  const systemContent = systemPromptTemplate
+    ? (systemPromptTemplate.includes("${guidelinesContent}")
+      ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
+      : systemPromptTemplate + "\n\n" + guidelinesContent)
+    : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
   const body = buildChatBody({
-    model: SOUL_DEFAULTS.model,
+    model,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userContent },
     ],
-    temperature: SOUL_DEFAULTS.temperature,
-    max_completion_tokens: SOUL_DEFAULTS.max_tokens,
+    temperature,
+    max_completion_tokens: maxTokens,
   });
 
   let response;
@@ -388,3 +417,86 @@ export const backfillStudentProfiles = functions
     console.log(`[backfill] Batch complete: ${succeeded}/${processed} succeeded, ${failed} failed, hasMore=${hasMore}`);
     return { status: "ok", processed, succeeded, failed, errors, results, lastStudentId, hasMore };
   });
+
+// -----------------------------------------------
+// Test Bench: Soul generation with caller-supplied prompt (PEP-163)
+// -----------------------------------------------
+
+export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey }) {
+  const studentInfo = await getStudentWithProgram(studentId);
+
+  // If no guidelines provided, load from student or template
+  if (!guidelinesContent) {
+    const guidelinesSnap = await db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("guidelines").get();
+    if (guidelinesSnap.exists) {
+      guidelinesContent = guidelinesSnap.data().content;
+    } else {
+      const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
+      guidelinesContent = templateConfig.markdown;
+    }
+  }
+
+  // Inject guidelines into instruction prompt via placeholder
+  const finalSystemPrompt = systemPrompt.includes("${guidelinesContent}")
+    ? systemPrompt.replace("${guidelinesContent}", () => guidelinesContent)
+    : systemPrompt + "\n\n" + guidelinesContent;
+
+  // Gather observations + interviews
+  const [notes, rawInterviews] = await Promise.all([
+    fetchStudentNotesForWindow(studentId, windowDays),
+    includeInterviews ? fetchStudentInterviews(studentId, windowDays) : Promise.resolve([]),
+  ]);
+
+  const formatted = notes.map(formatObservationForPrompt);
+  const formattedInterviews = rawInterviews.map(formatInterviewForPrompt);
+
+  // Read previous soul for continuity
+  const prevSoulSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("soul").get();
+  const previousSoul = prevSoulSnap.exists ? prevSoulSnap.data().content : null;
+
+  const userContent = buildSoulUserPrompt(
+    { studentName: studentInfo.studentName, dob: studentInfo.dob, age: studentInfo.age, programId: studentInfo.programId },
+    formatted,
+    formattedInterviews,
+    previousSoul,
+  );
+
+  // Call LLM with caller-supplied prompt + model settings
+  const body = buildChatBody({
+    model,
+    messages: [
+      { role: "system", content: finalSystemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature,
+    max_completion_tokens: maxTokens,
+  });
+
+  let response;
+  try {
+    response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[testBenchSoul] network error", err);
+    throw new functions.https.HttpsError("unavailable", "AI service unavailable: " + (err.message || "network error"));
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+  }
+
+  const json = await response.json();
+  const rawContent = json?.choices?.[0]?.message?.content?.trim();
+  const totalTokens = json?.usage?.total_tokens || 0;
+
+  return { output: rawContent || "(empty response)", totalTokens };
+}
