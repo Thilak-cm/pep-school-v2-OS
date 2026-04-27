@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 
 // eslint-disable-next-line no-undef
-const sourceUrl = new URL("./index.js", import.meta.url);
+const sourceUrl = new URL("./reports/index.js", import.meta.url);
 
 // --- PEP-101: Idempotent draft report export — structural tests ---
 
