@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../firebase.js";
@@ -69,6 +69,18 @@ export default function FeatureWorkbench({ featureId }) {
   const [confirmClose, setConfirmClose] = useState(null); // index of variant pending close confirmation
 
   const isSoul = featureId === "soul_generation";
+
+  // Warn on page refresh/close if any variant has edits or output
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      const hasWork = variants.some((v) => v.dirty || v.output);
+      if (hasWork) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [variants]);
 
   const handleConfigLoaded = useCallback((config) => {
     if (typeof config === "function") {
