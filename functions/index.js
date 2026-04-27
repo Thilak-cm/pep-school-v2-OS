@@ -4838,7 +4838,9 @@ async function callSoulGeneration(observations, interviews, guidelinesContent, s
   // If Firestore has a systemPrompt with ${guidelinesContent} placeholder, inject guidelines.
   // Otherwise fall back to the hardcoded buildSoulSystemPrompt().
   const systemContent = systemPromptTemplate
-    ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
+    ? (systemPromptTemplate.includes("${guidelinesContent}")
+      ? systemPromptTemplate.replace("${guidelinesContent}", () => guidelinesContent)
+      : systemPromptTemplate + "\n\n" + guidelinesContent)
     : buildSoulSystemPrompt(guidelinesContent);
   const userContent = buildSoulUserPrompt(studentContext, observations, interviews, previousSoul);
 
@@ -5237,7 +5239,18 @@ async function testBenchHandwriting({ studentId, systemPrompt, model, temperatur
     return { output: "No handwritten media found for this student.", totalTokens: 0 };
   }
 
-  const mediaDocs = mediaSnap.docs.map((d) => ({ id: d.id, ...d.data(), storagePath: d.data().media?.[0]?.storagePath }));
+  const mediaDocs = mediaSnap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      observedAt: data.observedAt?.toDate?.() ?? (data.observedAt ? new Date(data.observedAt) : null),
+      teacherComment: data.teacherComment || null,
+      copied: data.copied === true,
+      curriculumArea: data.curriculumArea || null,
+      createdByName: data.createdByName || null,
+      storagePath: data.media?.[0]?.storagePath || null,
+    };
+  });
 
   const prevAnalysisSnap = await db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("writing_analysis").get();
