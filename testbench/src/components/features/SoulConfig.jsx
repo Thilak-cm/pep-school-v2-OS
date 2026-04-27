@@ -9,6 +9,7 @@ import Switch from "@mui/material/Switch";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
+import Tooltip from "@mui/material/Tooltip";
 
 const PROGRAMS = ["toddler", "primary", "elementary", "adolescent"];
 
@@ -90,7 +91,7 @@ export default function SoulConfig({ selectedStudent, onConfigLoaded, onProgramC
           value={windowDays}
           onChange={(_, v) => setWindowDays(v)}
           min={30}
-          max={730}
+          max={365}
           step={30}
           valueLabelDisplay="auto"
           sx={{ width: 150 }}
@@ -98,10 +99,12 @@ export default function SoulConfig({ selectedStudent, onConfigLoaded, onProgramC
         <Typography variant="body2">{windowDays}d</Typography>
       </Box>
 
-      <FormControlLabel
-        control={<Switch checked={includeInterviews} onChange={(e) => setIncludeInterviews(e.target.checked)} size="small" />}
-        label={<Typography variant="body2">Include interviews</Typography>}
-      />
+      <Tooltip title="No interviews live yet" arrow>
+        <FormControlLabel
+          control={<Switch checked={false} disabled size="small" />}
+          label={<Typography variant="body2" color="text.disabled">Include interviews</Typography>}
+        />
+      </Tooltip>
     </Box>
   );
 }

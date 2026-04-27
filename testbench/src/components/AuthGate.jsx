@@ -10,24 +10,28 @@ import CircularProgress from "@mui/material/CircularProgress";
 export default function AuthGate({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       if (!u) {
         setUser(null);
         setRole(null);
-        setLoading(false);
+        setAuthLoading(false);
+        setRoleLoading(false);
         return;
       }
       setUser(u);
+      setAuthLoading(false);
+      setRoleLoading(true);
       const snap = await getDoc(doc(db, "users", u.uid));
       setRole(snap.exists() ? snap.data().role : null);
-      setLoading(false);
+      setRoleLoading(false);
     });
   }, []);
 
-  if (loading) {
+  if (authLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
         <CircularProgress />
@@ -43,6 +47,15 @@ export default function AuthGate({ children }) {
         <Button variant="contained" size="large" onClick={() => signInWithPopup(auth, provider)}>
           Sign in with Google
         </Button>
+      </Box>
+    );
+  }
+
+  if (roleLoading) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "100vh", gap: 2 }}>
+        <CircularProgress size={28} />
+        <Typography color="text.secondary">Checking authorization...</Typography>
       </Box>
     );
   }

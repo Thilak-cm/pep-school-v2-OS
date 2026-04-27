@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../firebase.js";
@@ -10,11 +10,20 @@ import Divider from "@mui/material/Divider";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Slider from "@mui/material/Slider";
+import TextField from "@mui/material/TextField";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogActions from "@mui/material/DialogActions";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import EditIcon from "@mui/icons-material/Edit";
+import CheckIcon from "@mui/icons-material/Check";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import SaveIcon from "@mui/icons-material/Save";
-import UploadIcon from "@mui/icons-material/Upload";
 import StudentPicker from "./StudentPicker.jsx";
 import PromptEditor from "./PromptEditor.jsx";
 import OutputPanel from "./OutputPanel.jsx";
@@ -31,8 +40,9 @@ const MODELS = [
 
 const MAX_COLUMNS = 4;
 
-function createVariant(config) {
+function createVariant(config, idx) {
   return {
+    name: `Variant ${String.fromCharCode(65 + (idx || 0))}`,
     systemPrompt: config?.systemPrompt || "",
     guidelinesContent: config?.guidelinesContent || "",
     model: config?.model || "gpt-5.4",
@@ -44,43 +54,59 @@ function createVariant(config) {
     loading: false,
     rating: 5,
     notes: "",
+    dirty: false,
   };
 }
 
 export default function FeatureWorkbench({ featureId }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [variants, setVariants] = useState([createVariant(), createVariant()]);
+  const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
   const [baseConfig, setBaseConfig] = useState(null);
   const [programFilter, setProgramFilter] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [editingName, setEditingName] = useState(null); // index of variant being renamed
+  const [confirmClose, setConfirmClose] = useState(null); // index of variant pending close confirmation
 
   const isSoul = featureId === "soul_generation";
 
   const handleConfigLoaded = useCallback((config) => {
-    // If config is a function (updater), handle the SoulConfig pattern
     if (typeof config === "function") {
       setBaseConfig((prev) => config(prev));
       return;
     }
     setBaseConfig(config);
     setVariants((prev) => prev.map((v, i) =>
-      i === 0 ? { ...v, ...config } : { ...v, systemPrompt: config.systemPrompt, guidelinesContent: config.guidelinesContent || "" }
+      i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, guidelinesContent: config.guidelinesContent || "", dirty: false }
     ));
   }, []);
 
   function addColumn() {
     if (variants.length >= MAX_COLUMNS) return;
     const base = variants[0];
-    setVariants((prev) => [...prev, createVariant(base)]);
+    const idx = variants.length;
+    setVariants((prev) => [...prev, createVariant(base, idx)]);
   }
 
-  function removeColumn(idx) {
+  function tryRemoveColumn(idx) {
     if (variants.length <= 1) return;
-    setVariants((prev) => prev.filter((_, i) => i !== idx));
+    const v = variants[idx];
+    if (v.dirty || v.output) {
+      setConfirmClose(idx);
+    } else {
+      setVariants((prev) => prev.filter((_, i) => i !== idx));
+    }
+  }
+
+  function confirmRemoveColumn() {
+    if (confirmClose !== null) {
+      setVariants((prev) => prev.filter((_, i) => i !== confirmClose));
+      setConfirmClose(null);
+    }
   }
 
   function updateVariant(idx, field, value) {
-    setVariants((prev) => prev.map((v, i) => i === idx ? { ...v, [field]: value } : v));
+    setVariants((prev) => prev.map((v, i) => i === idx ? { ...v, [field]: value, dirty: true } : v));
   }
 
   async function runAll() {
@@ -105,7 +131,7 @@ export default function FeatureWorkbench({ featureId }) {
         if (isSoul) {
           payload.guidelinesContent = v.guidelinesContent;
           payload.windowDays = baseConfig?.windowDays || 365;
-          payload.includeInterviews = baseConfig?.includeInterviews ?? true;
+          payload.includeInterviews = false; // no interviews live yet
         }
         const result = await testBenchRun(payload);
         const latencyMs = Date.now() - start;
@@ -146,6 +172,7 @@ export default function FeatureWorkbench({ featureId }) {
         studentName: selectedStudent.displayName,
         timestamp: Timestamp.now(),
         variants: variants.map((v) => ({
+          name: v.name,
           prompt: {
             systemPrompt: v.systemPrompt,
             guidelinesContent: v.guidelinesContent || undefined,
@@ -159,13 +186,16 @@ export default function FeatureWorkbench({ featureId }) {
         })),
         ranBy: { uid: user?.uid, name: user?.displayName || user?.email },
       });
+      setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
+    } catch (err) {
+      setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1600, mx: "auto" }}>
+    <Box sx={{ p: 3 }}>
       {/* Setup bar */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
         <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
@@ -220,13 +250,37 @@ export default function FeatureWorkbench({ featureId }) {
               gap: 2,
             }}
           >
-            {/* Column header */}
+            {/* Column header with editable name */}
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Variant {String.fromCharCode(65 + idx)}
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                {editingName === idx ? (
+                  <>
+                    <TextField
+                      size="small"
+                      value={v.name}
+                      onChange={(e) => updateVariant(idx, "name", e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") setEditingName(null); }}
+                      autoFocus
+                      sx={{ width: 180 }}
+                      slotProps={{ input: { sx: { fontWeight: 700 } } }}
+                    />
+                    <IconButton size="small" onClick={() => setEditingName(null)} color="primary">
+                      <CheckIcon fontSize="small" />
+                    </IconButton>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {v.name}
+                    </Typography>
+                    <IconButton size="small" onClick={() => setEditingName(idx)} sx={{ color: "primary.main" }}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </>
+                )}
+              </Box>
               {variants.length > 1 && (
-                <IconButton size="small" onClick={() => removeColumn(idx)}>
+                <IconButton size="small" onClick={() => tryRemoveColumn(idx)}>
                   <CloseIcon fontSize="small" />
                 </IconButton>
               )}
@@ -294,23 +348,56 @@ export default function FeatureWorkbench({ featureId }) {
         {variants.length < MAX_COLUMNS && (
           <Box
             sx={{
-              minWidth: 60,
+              minWidth: 80,
+              flexShrink: 0,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              border: 1,
+              gap: 1,
+              border: 2,
               borderColor: "divider",
               borderRadius: 2,
               borderStyle: "dashed",
               cursor: "pointer",
-              "&:hover": { borderColor: "primary.main" },
+              position: "sticky",
+              right: 0,
+              bgcolor: "background.default",
+              "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
             }}
             onClick={addColumn}
           >
             <AddIcon color="action" />
+            <Typography variant="caption" color="text.secondary">Add</Typography>
           </Box>
         )}
       </Box>
+
+      {/* Close confirmation dialog */}
+      <Dialog open={confirmClose !== null} onClose={() => setConfirmClose(null)}>
+        <DialogTitle>Close variant?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This variant has unsaved changes{variants[confirmClose]?.output ? " and output" : ""}. Closing it will discard everything.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmClose(null)}>Cancel</Button>
+          <Button onClick={confirmRemoveColumn} color="error">Discard</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Save feedback snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={snackbar.severity} variant="filled" onClose={() => setSnackbar((s) => ({ ...s, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
