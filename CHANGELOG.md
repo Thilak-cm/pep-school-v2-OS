@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.12.1 — 2026-04-26
+
+### Changed
+- Merged alt-dev refactored Cloud Functions modules into dev, placing PEP-163 test bench code into domain modules (PEP-169)
+- Test bench dispatcher uses `FRONTIER_MODEL` constant instead of hardcoded model string
+- Barrel export test uses `before()` hook instead of shared mutable state
+- Soul config cache documents intentional null-caching behavior
+
+### Fixed
+- Report export test path updated for modularized structure (`reports/index.js`)
+- `windowDays` parameter uses nullish coalescing to respect explicit zero
+
 # 10.12.0 — 2026-04-26
 
 ### Added
