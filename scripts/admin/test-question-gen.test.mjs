@@ -9,7 +9,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSystemPrompt, buildUserPrompt, parseQuestionResponse } from "./interview-agent-core.mjs";
+import { buildSystemPrompt, buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
 
 // --- Fixtures ---
 
@@ -105,6 +105,30 @@ const GUIDELINES_AREAS = [
   "Social-Emotional Development",
 ];
 
+// Turn-by-turn response fixtures (matches the actual system prompt output format)
+const FIRST_TURN_RESPONSE = {
+  explorationAreas: [
+    { area: "Mathematics", rationale: "Only 4 observations, all guide-prompted — independent engagement is unknown" },
+    { area: "Sciences & Technology", rationale: "No observations in physical sciences or technology projects" },
+  ],
+  question: {
+    text: "How often does Arjun choose math materials on his own during work period?",
+    type: "mcq",
+    area: "Mathematics",
+    options: ["Rarely — needs prompting", "Sometimes — once or twice a week", "Often — daily choice", "Frequently — seeks advanced challenges"],
+  },
+};
+
+const SUBSEQUENT_TURN_RESPONSE = {
+  thinking: "Teacher says Arjun rarely chooses math independently. Follow up on what happens when he does engage — does he show competence or avoidance?",
+  question: {
+    text: "When Arjun does work with math materials, how does he handle challenges or errors?",
+    type: "open",
+    area: "Mathematics",
+  },
+};
+
+// Batch response fixture (for parseQuestionResponse — offline evaluation format)
 const VALID_LLM_RESPONSE = {
   questions: [
     { id: 1, text: "How often does Arjun choose math materials on his own during work period?", type: "mcq", area: "Mathematics", rationale: "Soul notes only 4 math observations, all guide-prompted. Need to assess independent engagement.", options: ["Rarely — needs prompting", "Sometimes — once or twice a week", "Often — daily choice", "Frequently — seeks advanced challenges"] },
@@ -279,6 +303,54 @@ describe("parseQuestionResponse", () => {
     assert.throws(
       () => parseQuestionResponse(JSON.stringify({ coverageReport: {} }), GUIDELINES_AREAS),
       /must contain a "questions" array/,
+    );
+  });
+});
+
+describe("parseTurnResponse", () => {
+  it("parses a valid first-turn response with explorationAreas", () => {
+    const result = parseTurnResponse(JSON.stringify(FIRST_TURN_RESPONSE), GUIDELINES_AREAS);
+    assert.ok(result.question, "Should have a question object");
+    assert.equal(result.question.text.length > 0, true, "Question text should be non-empty");
+    assert.equal(result.question.type, "mcq");
+    assert.equal(result.question.area, "Mathematics");
+    assert.ok(Array.isArray(result.explorationAreas), "Should have explorationAreas on first turn");
+    assert.equal(result.explorationAreas.length, 2);
+    assert.equal(result.thinking, null, "First turn should not have thinking");
+    assert.equal(result.warnings.length, 0);
+  });
+
+  it("parses a valid subsequent-turn response with thinking", () => {
+    const result = parseTurnResponse(JSON.stringify(SUBSEQUENT_TURN_RESPONSE), GUIDELINES_AREAS);
+    assert.ok(result.question, "Should have a question object");
+    assert.equal(result.question.type, "open");
+    assert.equal(result.question.options, undefined, "Open question should not have options");
+    assert.ok(result.thinking, "Subsequent turn should have thinking");
+    assert.equal(result.explorationAreas, null, "Subsequent turn should not have explorationAreas");
+    assert.equal(result.warnings.length, 0);
+  });
+
+  it("warns for unknown area", () => {
+    const modified = { ...FIRST_TURN_RESPONSE, question: { ...FIRST_TURN_RESPONSE.question, area: "Cosmic Education" } };
+    const result = parseTurnResponse(JSON.stringify(modified), GUIDELINES_AREAS);
+    assert.ok(result.warnings.length > 0, "Should warn for unknown area");
+    assert.ok(result.warnings[0].includes("Cosmic Education"));
+  });
+
+  it("strips spurious options from open questions", () => {
+    const modified = { ...SUBSEQUENT_TURN_RESPONSE, question: { ...SUBSEQUENT_TURN_RESPONSE.question, options: ["A", "B"] } };
+    const result = parseTurnResponse(JSON.stringify(modified), GUIDELINES_AREAS);
+    assert.equal(result.question.options, undefined, "Should strip options from open questions");
+  });
+
+  it("throws on invalid JSON", () => {
+    assert.throws(() => parseTurnResponse("not json", GUIDELINES_AREAS), /Failed to parse/);
+  });
+
+  it("throws when question object is missing", () => {
+    assert.throws(
+      () => parseTurnResponse(JSON.stringify({ thinking: "hmm" }), GUIDELINES_AREAS),
+      /must contain a "question" object/,
     );
   });
 });
