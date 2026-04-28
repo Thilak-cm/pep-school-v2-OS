@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-27T04:23:25.968Z
-App version: 10.12.0
+Generated: 2026-04-28T00:46:19.936Z
+App version: 10.12.1
 
 ## App Snapshot
 
@@ -138,23 +138,20 @@ App version: 10.12.0
 
 ## Recent Changes
 
+### 10.12.1 (2026-04-26)
+- Merged alt-dev refactored Cloud Functions modules into dev, placing PEP-163 test bench code into domain modules (PEP-169)
+- Test bench dispatcher uses `FRONTIER_MODEL` constant instead of hardcoded model string
+- Barrel export test uses `before()` hook instead of shared mutable state
+
 ### 10.12.0 (2026-04-26)
 - Prompt Test Bench — standalone desktop-first web app for superadmins to iterate on AI prompts, compare 2+ output variations side-by-side, rate them, and save run history (PEP-163)
 - Handwriting analysis and soul generation features active; text cleanup, AI coach, baseball card, and report generation shown as coming soon (PEP-163)
 - `testBenchRun` Cloud Function for executing prompt variations against real student data with superadmin-only access (PEP-163)
 
-### 10.11.0 (2026-04-23)
-- Batch writing analysis Cloud Function — accumulates unprocessed handwritten media docs per student and runs a combined VLM analysis producing rubric ratings, narrative summary, trends, and recommendations (PEP-132)
-- Configurable minimum sample threshold via Firestore `config/handwriting_analysis` doc with 5-min TTL cache (PEP-132)
-- Longitudinal context — previous analysis is injected into the prompt so the VLM can detect trajectory changes across cycles (PEP-132)
+### 10.11.2 (2026-04-24)
+- Modularized App.jsx: extracted screen config (screenConfig.js), screen renderer (ScreenRenderer.jsx), and navigation state (useNavigationState hook), reducing App.jsx from ~1037 to ~313 lines (PEP-161)
 
-### 10.10.1 (2026-04-23)
-- Media expanded view carousel — left/right arrow navigation between photos in the media grid dialog
-- Skeleton loading state during image transitions in media carousel
-- Removed redundant "Media" header from expanded media preview dialog
-
-### 10.10.0 (2026-04-22)
-- Soul narrative system — replaces structured per-dimension profiles with a free-form markdown soul doc per student, regenerated weekly from all observations and interviews (PEP-149)
-- Per-student guidelines doc seeded from program-level soul templates (toddler, primary, elementary, adolescent), evolves independently per student (PEP-149)
-- Soul history snapshots — previous soul is archived before each weekly regeneration (PEP-149)
+### 10.11.1 (2026-04-24)
+- Modularized Cloud Functions: split monolithic functions/index.js (~4900 lines) into domain modules — ai/, auth/, chat/, classroom/, media/, reports/, students/, shared/ (PEP-154)
+- Removed debug logging artifacts from chat streaming hot path
 
