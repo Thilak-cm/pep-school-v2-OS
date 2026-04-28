@@ -1,84 +1,11 @@
 /**
- * InterviewsPage helpers — mock data and pure filter functions.
- * Will be replaced with real Firestore data when PEP-122 (scheduling) lands.
+ * InterviewsPage helpers — filter and formatting functions.
+ * Will be populated with real Firestore logic when PEP-122 (scheduling) lands.
  */
-
-// --- Mock interview data (scaffold only) ---
-
-export const MOCK_INTERVIEWS = [
-  {
-    id: 'mock-1',
-    studentId: '2025-ADO-001',
-    studentName: 'Aarav Deshmukh',
-    classroomName: 'Periwinkle',
-    status: 'upcoming',
-    lastInterviewedAt: '2026-04-14T10:30:00+05:30',
-    teacherName: 'Ms. Priya',
-    exchangeCount: 0,
-    hasAlert: true,
-  },
-  {
-    id: 'mock-2',
-    studentId: '2025-ADO-002',
-    studentName: 'Meera Kulkarni',
-    classroomName: 'Periwinkle',
-    status: 'upcoming',
-    lastInterviewedAt: '2026-04-07T09:15:00+05:30',
-    teacherName: 'Ms. Priya',
-    exchangeCount: 0,
-    hasAlert: false,
-  },
-  {
-    id: 'mock-3',
-    studentId: '2025-ADO-003',
-    studentName: 'Rohan Iyer',
-    classroomName: 'Allstars',
-    status: 'upcoming',
-    lastInterviewedAt: null,
-    teacherName: 'Mr. Karthik',
-    exchangeCount: 0,
-    hasAlert: false,
-  },
-  {
-    id: 'mock-4',
-    studentId: '2025-ADO-004',
-    studentName: 'Ananya Bhat',
-    classroomName: 'Periwinkle',
-    status: 'completed',
-    lastInterviewedAt: '2026-04-17T11:00:00+05:30',
-    teacherName: 'Ms. Priya',
-    exchangeCount: 7,
-    hasAlert: false,
-  },
-  {
-    id: 'mock-5',
-    studentId: '2025-ADO-005',
-    studentName: 'Kabir Nair',
-    classroomName: 'Allstars',
-    status: 'completed',
-    lastInterviewedAt: '2026-04-16T14:20:00+05:30',
-    teacherName: 'Mr. Karthik',
-    exchangeCount: 9,
-    hasAlert: true,
-  },
-  {
-    id: 'mock-6',
-    studentId: '2025-ADO-006',
-    studentName: 'Diya Menon',
-    classroomName: 'Allstars',
-    status: 'upcoming',
-    lastInterviewedAt: '2026-04-10T08:45:00+05:30',
-    teacherName: 'Mr. Karthik',
-    exchangeCount: 0,
-    hasAlert: false,
-  },
-];
 
 // Required fields for every interview entry
 export const REQUIRED_FIELDS = ['id', 'studentId', 'studentName', 'classroomName', 'status', 'teacherName'];
-export const VALID_STATUSES = ['upcoming', 'scheduled', 'completed']; // 'scheduled' used by PEP-122 (weekly scheduling)
-
-// --- Filter functions ---
+export const VALID_STATUSES = ['upcoming', 'scheduled', 'completed'];
 
 /**
  * Partition interviews into upcoming and completed lists.

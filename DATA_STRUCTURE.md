@@ -388,7 +388,16 @@ interface InterviewTranscript {
   durationMinutes: number | null;  // session duration (null if abandoned mid-session)
   areasCovered: string[];          // guideline ## headers covered — e.g. ["Mathematics", "Sciences & Technology"]
 
+  // Agent's initial exploration plan — generated at cold start, persists as
+  // session direction. Logged for auditability and soul rebuild context.
+  explorationAreas: ExplorationArea[];
+
   exchanges: InterviewExchange[];  // ordered Q&A pairs, appended turn by turn
+}
+
+interface ExplorationArea {
+  area: string;                    // short area name (e.g. "Math independence & self-regulation")
+  rationale: string;               // why — what's thin, missing, or worth deepening in the soul
 }
 
 interface InterviewExchange {
@@ -397,6 +406,7 @@ interface InterviewExchange {
   questionType: 'mcq' | 'open';
   area: string;                    // guideline area (## header) this question targets
   rationale: string;               // agent's reasoning for choosing this question
+  thinking: string | null;         // agent's internal chain-of-thought before generating this question (null for Q1). NOT shown to teacher — persisted for debugging + soul rebuild context
   options: string[] | null;        // MCQ choices (null for open)
   selectedOption: number | null;   // MCQ index into options (null for open or unanswered)
   responseText: string | null;     // raw transcribed voice / typed text (null for MCQ-only or unanswered)
