@@ -1,4 +1,0 @@
-pip>=24.0
-pandas>=2.3.1
-openpyxl>=3.1.2
-

@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.12.2 — 2026-04-27
+
+### Changed
+- Interview transcript schema redesigned for turn-by-turn agent model: added `explorationAreas`, `endReason`, `durationMinutes`, `areasCovered`, `thinking`/`rationale` on exchanges, replaced `dimensionsCovered` with guideline-area-based `areasCovered` (PEP-125)
+- Question generation prototype rewritten for soul-based prompting: reads `ai_summaries/soul` + `guidelines` + baseball card instead of old profile dimensions, interactive CLI simulates turn-by-turn interview flow (PEP-125)
+- Extracted pure prompt-building and response-parsing helpers into `interview-agent-core.mjs` for testability (PEP-125)
+- InterviewsPage simplified to "Coming soon" placeholder pending PEP-143 agent implementation (PEP-125)
+
+### Fixed
+- Removed outdated one-time migration scripts, raw data files, and unused coach examples (PEP-125)
+- Removed dead `buildMigrationPayload` test suite after deleting `reportMigrationUtils.js` (PEP-125)
+
 # 10.12.1 — 2026-04-26
 
 ### Changed
