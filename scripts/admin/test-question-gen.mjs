@@ -8,6 +8,9 @@
  * 3. Agent generates next question based on conversation history
  * 4. Repeat until user types "exit"
  *
+ * Pure prompt-building and response-parsing helpers live in
+ * interview-agent-core.mjs (imported by tests).
+ *
  * Usage:
  *   node scripts/admin/test-question-gen.mjs <studentId>
  *
@@ -16,6 +19,7 @@
 import admin from "firebase-admin";
 import readline from "node:readline";
 import { FRONTIER_MODEL } from "../../functions/config/modelConstants.js";
+import { buildSystemPrompt } from "./interview-agent-core.mjs";
 
 // ---------------------------------------------------------------------------
 // Firebase init
@@ -46,67 +50,6 @@ function calculateAge(dobValue) {
 
 function ask(rl, prompt) {
   return new Promise((resolve) => rl.question(prompt, resolve));
-}
-
-// ---------------------------------------------------------------------------
-// Prompt builders
-// ---------------------------------------------------------------------------
-
-function buildSystemPrompt(guidelines, soul, baseballCard, studentContext) {
-  return `You are an expert Montessori interview agent conducting a live, turn-by-turn interview with a teacher about one of their students. You generate ONE question at a time, adapting based on the teacher's responses.
-
-STUDENT CONTEXT:
-Name: ${studentContext.studentName}
-Age: ${studentContext.age}
-Program: ${studentContext.programId}
-
-SOUL NARRATIVE (AI-generated understanding of this child):
-${soul}
-
-GUIDELINES (evaluation framework — ## headers are developmental areas):
-${guidelines}
-
-${baseballCard ? `BASEBALL CARD (recent ${baseballCard.windowDays}-day summary, ${baseballCard.noteCount} observations):\n${baseballCard.summary}${baseballCard.coverageGaps?.length ? `\nCoverage gaps: ${baseballCard.coverageGaps.join(", ")}` : ""}` : "No baseball card available."}
-
-YOUR BEHAVIOUR:
-- On the FIRST turn, output TWO exploration areas for this interview session (a loose agenda — areas where you want to learn more, based on gaps in the soul or thin evidence). Then output your first question.
-- On SUBSEQUENT turns, read the teacher's answer, then generate the next question. You may:
-  - Follow up on the same topic if the answer was interesting or incomplete
-  - Switch to your second exploration area
-  - Go somewhere entirely new if the conversation reveals something unexpected
-- You have FREE RANGE in question-asking. The only constraint: stay within this student's developmental context. Goal is to learn more about the student.
-- Frame questions naturally — as a colleague asking a fellow teacher, not as an examiner
-- Mix question types: some open-ended, some multiple-choice when developmental stages are useful
-- Keep questions specific and observable — ask about behaviours, not abstractions
-
-OUTPUT FORMAT (strict JSON):
-
-First turn:
-{
-  "explorationAreas": [
-    { "area": "Short area name", "rationale": "Why this area — what's thin, missing, or worth deepening" },
-    { "area": "Short area name", "rationale": "Why this area" }
-  ],
-  "question": {
-    "text": "The question to ask the teacher",
-    "type": "open" or "mcq",
-    "area": "Which developmental area this targets",
-    "options": ["A", "B", "C", "D"]  // ONLY for mcq, OMIT for open
-  }
-}
-
-Subsequent turns:
-{
-  "thinking": "Brief internal reasoning about what to ask next and why (1-2 sentences)",
-  "question": {
-    "text": "The next question",
-    "type": "open" or "mcq",
-    "area": "Which developmental area this targets",
-    "options": ["A", "B", "C", "D"]  // ONLY for mcq, OMIT for open
-  }
-}
-
-Output ONLY valid JSON, nothing else.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +91,12 @@ async function callLLM(messages) {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const rawContent = json?.choices?.[0]?.message?.content?.trim();
 
-  return { rawContent, elapsed, usage: json.usage };
+  if (!rawContent) {
+    console.error("Empty response from OpenAI — unexpected response shape");
+    process.exit(1);
+  }
+
+  return { rawContent, elapsed };
 }
 
 // ---------------------------------------------------------------------------
@@ -217,12 +165,12 @@ async function run() {
   messages.push({ role: "user", content: "Begin the interview. Generate your exploration areas and first question." });
 
   console.log(`\nPreparing interview (cold start)...`);
-  const { rawContent, elapsed, usage } = await callLLM(messages);
+  const { rawContent, elapsed } = await callLLM(messages);
   messages.push({ role: "assistant", content: rawContent });
 
   let parsed;
   try { parsed = JSON.parse(rawContent); } catch {
-    console.error("Failed to parse LLM response:", rawContent.slice(0, 300));
+    console.error("Failed to parse LLM response:", (rawContent || "").slice(0, 300));
     process.exit(1);
   }
 
@@ -258,13 +206,13 @@ async function run() {
 
     // Get next question
     qNum++;
-    process.stdout.write(`\nThinking...`);
+    process.stdout.write("Thinking...");
     const next = await callLLM(messages);
     messages.push({ role: "assistant", content: next.rawContent });
 
     let nextParsed;
     try { nextParsed = JSON.parse(next.rawContent); } catch {
-      console.error("\nFailed to parse:", next.rawContent.slice(0, 300));
+      console.error("\nFailed to parse:", (next.rawContent || "").slice(0, 300));
       continue;
     }
 

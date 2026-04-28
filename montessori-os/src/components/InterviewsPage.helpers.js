@@ -1,11 +1,11 @@
 /**
  * InterviewsPage helpers — filter and formatting functions.
  * Will be populated with real Firestore logic when PEP-122 (scheduling) lands.
+ *
+ * Note: Firestore interview status is 'active' | 'completed' | 'abandoned'
+ * (see DATA_STRUCTURE.md). UI-layer statuses ('upcoming', 'scheduled') are
+ * derived by PEP-122's scheduling logic, not stored in Firestore.
  */
-
-// Required fields for every interview entry
-export const REQUIRED_FIELDS = ['id', 'studentId', 'studentName', 'classroomName', 'status', 'teacherName'];
-export const VALID_STATUSES = ['upcoming', 'scheduled', 'completed'];
 
 /**
  * Partition interviews into upcoming and completed lists.

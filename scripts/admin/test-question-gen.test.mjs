@@ -1,5 +1,5 @@
 /**
- * Tests for the question generation prototype (test-question-gen.mjs).
+ * Tests for the interview agent core helpers (interview-agent-core.mjs).
  *
  * Validates soul-based prompting: the prototype reads soul narrative +
  * guidelines markdown + recent interviews + baseball card (not old profile
@@ -9,7 +9,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSystemPrompt, buildUserPrompt, parseQuestionResponse } from "./test-question-gen.mjs";
+import { buildSystemPrompt, buildUserPrompt, parseQuestionResponse } from "./interview-agent-core.mjs";
 
 // --- Fixtures ---
 
@@ -93,8 +93,7 @@ const SAMPLE_BASEBALL_CARD = {
 
 const SAMPLE_STUDENT_CONTEXT = {
   studentName: "Arjun S",
-  dob: "2013-05-12",
-  age: "13 years 0 months old",
+  age: "13y 0m",
   programId: "adolescent",
 };
 
@@ -129,40 +128,40 @@ const VALID_LLM_RESPONSE = {
 
 describe("buildSystemPrompt", () => {
   it("includes role definition and JSON output schema", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
-    assert.ok(prompt.includes("interview questions"), "Should mention interview questions");
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
+    assert.ok(prompt.includes("interview"), "Should mention interview");
     assert.ok(prompt.includes("Montessori"), "Should reference Montessori context");
-    assert.ok(prompt.includes('"questions"'), "Should include output schema for questions array");
+    assert.ok(prompt.includes('"question"'), "Should include output schema for question object");
     assert.ok(prompt.includes("JSON"), "Should instruct JSON output");
   });
 
   it("includes guidelines areas (## headers) in the prompt", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
     for (const area of GUIDELINES_AREAS) {
       assert.ok(prompt.includes(area), `Should include guidelines area: ${area}`);
     }
   });
 
   it("references soul narrative as context source", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
     assert.ok(prompt.includes("soul") || prompt.includes("narrative"), "Should reference soul/narrative as input");
   });
 
   it("instructs area-based targeting (not dimension keys)", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
     assert.ok(prompt.includes("area"), "Should use 'area' terminology");
     assert.ok(!prompt.includes("dimensionKey"), "Should NOT reference dimensionKey");
     assert.ok(!prompt.includes("dimension_key"), "Should NOT reference dimension_key");
   });
 
   it("specifies open and mcq question types", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
     assert.ok(prompt.includes("mcq"), "Should mention mcq type");
     assert.ok(prompt.includes("open"), "Should mention open type");
   });
 
   it("instructs avoiding recently covered areas from prior interviews", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES);
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
     assert.ok(
       prompt.includes("recent") || prompt.includes("already") || prompt.includes("avoid"),
       "Should instruct deduplication against recent interviews"
@@ -175,7 +174,7 @@ describe("buildUserPrompt", () => {
     const prompt = buildUserPrompt(SAMPLE_STUDENT_CONTEXT, SAMPLE_SOUL, SAMPLE_GUIDELINES, SAMPLE_INTERVIEWS, SAMPLE_BASEBALL_CARD);
     assert.ok(prompt.includes("Arjun"), "Should include student name");
     assert.ok(prompt.includes("adolescent"), "Should include program");
-    assert.ok(prompt.includes("13 years"), "Should include age");
+    assert.ok(prompt.includes("13y"), "Should include age");
   });
 
   it("includes soul narrative content", () => {
@@ -212,7 +211,7 @@ describe("buildUserPrompt", () => {
   it("handles empty interviews array", () => {
     const prompt = buildUserPrompt(SAMPLE_STUDENT_CONTEXT, SAMPLE_SOUL, SAMPLE_GUIDELINES, [], SAMPLE_BASEBALL_CARD);
     assert.ok(prompt.includes("Arjun"), "Should still include student context");
-    assert.ok(prompt.includes("No recent interviews") || prompt.includes("no prior interviews") || !prompt.includes("Priya"), "Should handle no interviews");
+    assert.ok(prompt.includes("No recent interviews") || !prompt.includes("Priya"), "Should handle no interviews");
   });
 });
 
