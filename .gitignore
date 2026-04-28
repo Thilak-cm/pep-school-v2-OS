@@ -101,3 +101,6 @@ pep_ai_scoping.md
 prd.md
 
 .runtimeconfig.json
+
+# Playwright MCP session artifacts
+.playwright-mcp/

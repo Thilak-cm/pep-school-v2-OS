@@ -8,6 +8,8 @@ on:
       - master
     paths:
       - 'montessori-os/**'
+      - 'functions/config/**'
+      - 'scripts/config/**'
       - 'firebase.json'
       - '.firebaserc'
 jobs:

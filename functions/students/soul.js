@@ -31,6 +31,8 @@ import {
 
 const SOUL_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let soulTemplateCache = {};
+// Missing-doc result (null) is cached for TTL to avoid Firestore hammering.
+// If config/soul_generation is seeded mid-session, it takes up to 5 min to take effect.
 let soulConfigCache = { data: null, ts: 0 };
 
 async function getSoulConfig() {
@@ -219,7 +221,7 @@ export const generateStudentProfile = functions
     const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
 
     // Default to 365-day observation window; pass windowDays to override
-    const windowDays = data?.windowDays || 365;
+    const windowDays = data?.windowDays ?? 365;
     const [notes, rawInterviews] = await Promise.all([
       fetchStudentNotesForWindow(studentId, windowDays),
       fetchStudentInterviews(studentId, windowDays),
@@ -310,7 +312,7 @@ export const backfillStudentProfiles = functions
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can run backfill");
     }
 
-    const windowDays = data?.windowDays || 365;
+    const windowDays = data?.windowDays ?? 365;
     const dryRun = data?.dryRun === true;
     const batchSize = Math.min(Number(data?.batchSize) || 10, 25);
     const startAfter = data?.startAfter || null;
