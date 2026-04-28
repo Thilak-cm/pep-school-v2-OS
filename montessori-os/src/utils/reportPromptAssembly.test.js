@@ -1,8 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { assembleReportSystemContent } from '../../../functions/utils/reportHelpers.js';
-import { buildMigrationPayload } from '../../../scripts/config/reportMigrationUtils.js';
-
 describe('assembleReportSystemContent', () => {
   const JSON_WRAPPER = '\n\nIMPORTANT: Output JSON only.';
 
@@ -61,46 +59,3 @@ describe('assembleReportSystemContent', () => {
   });
 });
 
-describe('buildMigrationPayload', () => {
-  it('transforms systemPrompt to staticSystemPrompt + empty dynamicSystemPrompt', () => {
-    const result = buildMigrationPayload({
-      systemPrompt: 'Original prompt content',
-      title: 'Report Title',
-      description: 'Report desc',
-      version: 1,
-    });
-    assert.equal(result.status, 'migrate');
-    assert.equal(result.payload.staticSystemPrompt, 'Original prompt content');
-    assert.equal(result.payload.dynamicSystemPrompt, '');
-    assert.ok(!('systemPrompt' in result.payload), 'legacy systemPrompt should not be in payload');
-  });
-
-  it('skips doc that already has staticSystemPrompt (idempotency)', () => {
-    const result = buildMigrationPayload({
-      staticSystemPrompt: 'Already migrated',
-      dynamicSystemPrompt: '',
-    });
-    assert.equal(result.status, 'skip');
-    assert.equal(result.reason, 'already-migrated');
-  });
-
-  it('handles empty systemPrompt gracefully', () => {
-    const result = buildMigrationPayload({ systemPrompt: '', title: 'Empty' });
-    assert.equal(result.status, 'migrate');
-    assert.equal(result.payload.staticSystemPrompt, '');
-    assert.equal(result.payload.dynamicSystemPrompt, '');
-  });
-
-  it('handles missing systemPrompt field and returns warning', () => {
-    const result = buildMigrationPayload({ title: 'No SP' });
-    assert.equal(result.status, 'migrate');
-    assert.equal(result.payload.staticSystemPrompt, '');
-    assert.equal(result.payload.dynamicSystemPrompt, '');
-    assert.ok(result.warning, 'should have a warning for missing systemPrompt');
-  });
-
-  it('skips when data is null/undefined', () => {
-    assert.equal(buildMigrationPayload(null).status, 'skip');
-    assert.equal(buildMigrationPayload(undefined).status, 'skip');
-  });
-});
