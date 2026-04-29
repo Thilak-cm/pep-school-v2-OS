@@ -497,6 +497,45 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
           }
         }
 
+        // Fetch media docs (separate subcollection) and merge into allObservations
+        if (needsObservations && !cachedObservations) {
+          try {
+            if (isClassroomAdmin) {
+              const allowedStudentIds = studentsData.map(s => s.id);
+              const batchSize = 10;
+              for (let i = 0; i < allowedStudentIds.length; i += batchSize) {
+                const batch = allowedStudentIds.slice(i, i + batchSize);
+                if (batch.length === 0) continue;
+                const mediaQuery = query(
+                  collectionGroup(db, 'media'),
+                  where('studentId', 'in', batch)
+                );
+                const mediaSnap = await getDocs(mediaQuery);
+                mediaSnap.docs.forEach(doc => {
+                  const data = doc.data();
+                  if (data.status === 'ready') {
+                    allObservations.push({ id: doc.id, ...data });
+                  }
+                });
+              }
+            } else {
+              const mediaQuery = query(
+                collectionGroup(db, 'media'),
+                orderBy('observedAt', 'desc')
+              );
+              const mediaSnap = await getDocs(mediaQuery);
+              mediaSnap.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.status === 'ready') {
+                  allObservations.push({ id: doc.id, ...data });
+                }
+              });
+            }
+          } catch (_mediaError) {
+            // Media fetch failure shouldn't break stats — just skip media counts
+          }
+        }
+
         // Sort by observedAt client-side (only if we just fetched, cache is already sorted)
         if (allObservations.length > 0 && !cachedObservations) {
           allObservations.sort((a, b) => {
@@ -922,7 +961,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const countsByClassroom = new Map();
     const ensureCounts = (classroomId) => {
       if (!countsByClassroom.has(classroomId)) {
-        countsByClassroom.set(classroomId, { observationNotes: 0, lessonNotes: 0 });
+        countsByClassroom.set(classroomId, { observationNotes: 0, lessonNotes: 0, mediaNotes: 0 });
       }
       return countsByClassroom.get(classroomId);
     };
@@ -935,19 +974,22 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       const counts = ensureCounts(classroomId);
       if (isLessonNoteFast(obs)) {
         counts.lessonNotes += 1;
+      } else if (obs?.type === 'media') {
+        counts.mediaNotes += 1;
       } else {
         counts.observationNotes += 1;
       }
     });
 
     return (classrooms || []).map((classroom) => {
-      const counts = countsByClassroom.get(classroom.id) || { observationNotes: 0, lessonNotes: 0 };
+      const counts = countsByClassroom.get(classroom.id) || { observationNotes: 0, lessonNotes: 0, mediaNotes: 0 };
       return {
         id: classroom.id,
         name: classroom.name,
         branchId: classroom.branchId,
         thisWeekObservationNotes: counts.observationNotes,
-        thisWeekLessonNotes: counts.lessonNotes
+        thisWeekLessonNotes: counts.lessonNotes,
+        thisWeekMediaNotes: counts.mediaNotes
       };
     });
   }, [classroomTimePeriod, stats?.allObservations, students, classrooms, getObservationDateFast, isLessonNoteFast]);
@@ -992,11 +1034,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const lessonNotes = filteredObservationsForPie.filter(isLessonNote);
     const voiceNotes = filteredObservationsForPie.filter(isVoiceNote);
     const textNotes = filteredObservationsForPie.filter(isTextNote);
+    const mediaNotes = filteredObservationsForPie.filter(obs => obs?.type === 'media');
 
     return [
       { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' },
       { name: 'Text', value: textNotes.length, color: '#f59e0b' },
-      { name: 'Lesson', value: lessonNotes.length, color: '#059669' }
+      { name: 'Lesson', value: lessonNotes.length, color: '#059669' },
+      { name: 'Media', value: mediaNotes.length, color: '#ec4899' }
     ];
   }, [filteredObservationsForPie]);
 
@@ -1322,7 +1366,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const data = filteredClassroomStats.map(classroom => ({
       name: classroom.name,
       Observations: classroom.thisWeekObservationNotes ?? classroom.thisWeekObservations ?? 0,
-      'Lesson Notes': classroom.thisWeekLessonNotes ?? 0
+      'Lesson Notes': classroom.thisWeekLessonNotes ?? 0,
+      'Media Notes': classroom.thisWeekMediaNotes ?? 0
     }));
 
     // Don't render chart until mounted AND has data
@@ -1376,7 +1421,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 if (active && payload && payload.length) {
                   const observationsValue = payload.find(item => item.dataKey === 'Observations')?.value ?? 0;
                   const lessonNotesValue = payload.find(item => item.dataKey === 'Lesson Notes')?.value ?? 0;
-                  const notesCount = observationsValue + lessonNotesValue;
+                  const mediaNotesValue = payload.find(item => item.dataKey === 'Media Notes')?.value ?? 0;
+                  const notesCount = observationsValue + lessonNotesValue + mediaNotesValue;
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
@@ -1398,6 +1444,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         <Typography sx={{ fontSize: '12px', color: '#059669' }}>
                           Lesson Notes: {lessonNotesValue}
                         </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#ec4899' }}>
+                          Media Notes: {mediaNotesValue}
+                        </Typography>
                       </Box>
                     </Box>
                   );
@@ -1407,6 +1456,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             />
               <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} />
               <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} />
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
@@ -1433,6 +1483,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Lesson Notes
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                Media Notes
               </Typography>
             </Box>
           </Box>
