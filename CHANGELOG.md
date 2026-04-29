@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.14.0 — 2026-04-29
+
+### Added
+- Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
+- Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
+- Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
+- Compact square action buttons (Timeline, Reports, Coach) replace full-width navigation cards on StudentDashboard
+
+### Changed
+- AddNoteFab simplified to always-circular variant, removed `showLabel` prop
+- BaseballCardSnapshotCard maxHeight default increased from 54vh to 70vh
+- Media fetch in StatsPage uses batched studentId queries for all roles, using existing composite index
+
+### Fixed
+- Pie chart media classification now uses mutually exclusive filter chain to prevent double-counting
+- StudentDashboard chart query time-bounded to match baseball card window instead of unbounded limit
+
 # 10.13.0 — 2026-04-29
 
 ### Added
