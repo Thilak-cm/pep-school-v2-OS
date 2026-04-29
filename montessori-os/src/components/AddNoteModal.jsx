@@ -1694,6 +1694,7 @@ function AddNoteModal({
               copied: item.copied === true,
               handwritten: item.handwritten === true,
               curriculumArea: item.curriculumArea || null,
+              materialsIdentified: Array.isArray(item.materialsIdentified) ? item.materialsIdentified : [],
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),

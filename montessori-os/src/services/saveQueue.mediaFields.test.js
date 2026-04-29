@@ -91,6 +91,45 @@ test('buildMediaDocData includes curriculumArea for photos (PEP-146)', () => {
   assert.equal(doc.handwritingAnalysis, undefined, 'handwritingAnalysis should not be present (PEP-146)');
 });
 
+test('buildMediaDocData includes materialsIdentified for photos (PEP-37)', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'photo',
+    materialsIdentified: ['Pink Tower', 'Brown Stair'],
+    source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
+    createdBy: 'uid1',
+  }, 'media_1', 'students/stu1/media/media_1/original.webp');
+
+  assert.deepEqual(doc.materialsIdentified, ['Pink Tower', 'Brown Stair']);
+});
+
+test('buildMediaDocData defaults materialsIdentified to empty array for photos (PEP-37)', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'photo',
+    source: { contentType: 'image/webp', size: 1024, extension: 'webp' },
+    createdBy: 'uid1',
+  }, 'media_1', 'students/stu1/media/media_1/original.webp');
+
+  assert.deepEqual(doc.materialsIdentified, []);
+});
+
+test('buildMediaDocData does not include materialsIdentified for PDFs', () => {
+  const doc = buildMediaDocData({
+    studentId: 'stu1',
+    classroomId: 'cls1',
+    mediaKind: 'pdf',
+    materialsIdentified: ['Pink Tower'],
+    source: { contentType: 'application/pdf', size: 2048, extension: 'pdf' },
+    createdBy: 'uid1',
+    pdfTitle: 'My PDF',
+  }, 'media_1', 'students/stu1/media/media_1/original.pdf');
+
+  assert.equal(doc.materialsIdentified, undefined);
+});
+
 test('buildMediaDocData does not include photo fields for PDFs', () => {
   const doc = buildMediaDocData({
     studentId: 'stu1',

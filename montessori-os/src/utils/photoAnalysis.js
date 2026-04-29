@@ -8,6 +8,7 @@
 export const CLASSIFICATION_DEFAULTS = Object.freeze({
   handwritten: false,
   curriculumArea: null,
+  materialsIdentified: [],
 });
 
 /* ------------------------------------------------------------------ */
@@ -39,8 +40,11 @@ export function parseClassification(input) {
   const handwritten = parsed.handwritten === true;
   const curriculumArea = typeof parsed.curriculumArea === 'string' && parsed.curriculumArea
     ? parsed.curriculumArea : null;
+  const materialsIdentified = Array.isArray(parsed.materialsIdentified)
+    ? parsed.materialsIdentified.filter(s => typeof s === 'string')
+    : [];
 
-  return { handwritten, curriculumArea };
+  return { handwritten, curriculumArea, materialsIdentified };
 }
 
 /* ------------------------------------------------------------------ */
@@ -56,6 +60,7 @@ export function buildMediaFields(classification) {
   return {
     handwritten: cls.handwritten === true,
     curriculumArea: cls.curriculumArea || null,
+    materialsIdentified: Array.isArray(cls.materialsIdentified) ? cls.materialsIdentified : [],
   };
 }
 
