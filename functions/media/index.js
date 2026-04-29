@@ -12,11 +12,10 @@ const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 22
 // Call 2 (handwriting analysis) removed — deferred to PEP-132 batch analysis
 const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 400 };
 
-const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly four fields:
+const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly three fields:
 
 - handwritten (boolean): true if the image contains handwriting (letters, numbers, or words written by hand)
 - curriculumArea (string|null): broad Montessori curriculum area. Null if not identifiable as student work.
-- description (string|null): 1-2 sentence description of what's in the photo. Null if not student work.
 - materialsIdentified (string[]): Montessori materials visible in the photo, using standard Montessori names. Empty array [] if no specific materials are identifiable.
 
 Respond with ONLY valid JSON.`;
@@ -162,7 +161,7 @@ const analyzePhotoVLMHandler = async (data, context) => {
         curriculumArea: typeof classification?.curriculumArea === "string"
           ? classification.curriculumArea : null,
         materialsIdentified: Array.isArray(classification?.materialsIdentified)
-          ? classification.materialsIdentified.filter((s) => typeof s === "string")
+          ? classification.materialsIdentified.filter((s, i, arr) => typeof s === "string" && arr.indexOf(s) === i)
           : [],
       };
     } catch (err) {

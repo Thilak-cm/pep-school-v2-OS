@@ -31,7 +31,7 @@ function tryParse(input) {
 /**
  * Parse and validate a classification response from Call 1.
  * Accepts a JSON string or pre-parsed object.
- * Returns { handwritten, curriculumArea }.
+ * Returns { handwritten, curriculumArea, materialsIdentified }.
  */
 export function parseClassification(input) {
   const parsed = tryParse(input);
@@ -41,7 +41,7 @@ export function parseClassification(input) {
   const curriculumArea = typeof parsed.curriculumArea === 'string' && parsed.curriculumArea
     ? parsed.curriculumArea : null;
   const materialsIdentified = Array.isArray(parsed.materialsIdentified)
-    ? parsed.materialsIdentified.filter(s => typeof s === 'string')
+    ? parsed.materialsIdentified.filter((s, i, arr) => typeof s === 'string' && arr.indexOf(s) === i)
     : [];
 
   return { handwritten, curriculumArea, materialsIdentified };
@@ -53,7 +53,7 @@ export function parseClassification(input) {
 
 /**
  * Convert parsed classification into flat media doc fields.
- * Returns { handwritten, curriculumArea }.
+ * Returns { handwritten, curriculumArea, materialsIdentified }.
  */
 export function buildMediaFields(classification) {
   const cls = classification || CLASSIFICATION_DEFAULTS;
@@ -72,7 +72,7 @@ export function buildMediaFields(classification) {
  * Map per-photo VLM results (from CF) back to media items by itemId.
  * Returns a new array with classification fields merged onto matching items.
  *
- * @param {Array|null} results - CF response `results` array: [{ itemId, handwritten, curriculumArea }]
+ * @param {Array|null} results - CF response `results` array: [{ itemId, handwritten, curriculumArea, materialsIdentified }]
  * @param {Array} mediaItems - Current media items array (each has `.id`)
  * @returns {Array} New media items array with classification fields merged
  */

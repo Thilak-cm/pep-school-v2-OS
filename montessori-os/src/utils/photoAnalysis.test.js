@@ -1,7 +1,7 @@
 /**
  * Tests for photoAnalysis parser (PEP-131 → PEP-146).
  * Call 1 only: parseClassification (gpt-5.4-nano per photo).
- * Returns { handwritten, curriculumArea } — description removed in PEP-146.
+ * Returns { handwritten, curriculumArea, materialsIdentified } — description removed in PEP-146.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -120,6 +120,15 @@ describe('parseClassification', () => {
       materialsIdentified: ['Golden Beads', 123, null, 'Number Cards'],
     });
     assert.deepEqual(result.materialsIdentified, ['Golden Beads', 'Number Cards']);
+  });
+
+  test('deduplicates materialsIdentified entries', () => {
+    const result = parseClassification({
+      handwritten: false,
+      curriculumArea: 'Sensorial',
+      materialsIdentified: ['Pink Tower', 'Brown Stair', 'Pink Tower'],
+    });
+    assert.deepEqual(result.materialsIdentified, ['Pink Tower', 'Brown Stair']);
   });
 
   test('output has exactly three top-level keys', () => {

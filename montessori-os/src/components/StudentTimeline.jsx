@@ -1157,7 +1157,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           {getTeacherDisplayName(obs)}
                         </Typography>
                       </Box>
-                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && (
+                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && !(obs.materialsIdentified?.length > 0) && (
                         <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
                           {buildMediaSummary(obs)}
                         </Typography>
