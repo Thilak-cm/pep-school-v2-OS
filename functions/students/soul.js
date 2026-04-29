@@ -9,11 +9,12 @@ import {
   parseSoulResponse,
   buildSoulDoc,
   buildGuidelinesDoc,
+  buildOpenQuestionsDoc,
   buildHistorySnapshot,
   hasEmergentObservations,
   hasInformationGaps,
   extractGuidelinesSuggestions,
-  stripGuidelinesSuggestions,
+  extractOpenQuestions,
 } from "../utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "../utils/interviewHelpers.js";
 import {
@@ -141,11 +142,14 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
   const soulRef = aiSummariesRef.doc("soul");
   const guidelinesRef = aiSummariesRef.doc("guidelines");
+  const openQuestionsRef = aiSummariesRef.doc("open_questions");
   const now = Timestamp.now();
   const batch = db.batch();
 
-  // Read existing soul + guidelines in parallel
-  const [existingSoul, existingGuidelines] = await Promise.all([soulRef.get(), guidelinesRef.get()]);
+  // Read existing soul + guidelines + open_questions in parallel
+  const [existingSoul, existingGuidelines, existingOpenQuestions] = await Promise.all([
+    soulRef.get(), guidelinesRef.get(), openQuestionsRef.get(),
+  ]);
 
   // Snapshot previous soul to history before overwrite
   if (existingSoul.exists) {
@@ -154,11 +158,18 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
   }
 
-  // Extract structured guidelines suggestions before stripping YAML from narrative
-  const guidelinesSuggestions = extractGuidelinesSuggestions(soulContent);
-  const narrativeContent = stripGuidelinesSuggestions(soulContent);
+  // Snapshot previous open_questions to history before overwrite
+  if (existingOpenQuestions.exists) {
+    const prevData = existingOpenQuestions.data();
+    const historyRef = openQuestionsRef.collection("history").doc(now.toMillis().toString());
+    batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
+  }
 
-  // Write soul doc (narrative without YAML block)
+  // Extract structured data from LLM response — each extractor only touches its own block
+  const { suggestions: guidelinesSuggestions, content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
+  const { questions: openQuestions, content: narrativeContent } = extractOpenQuestions(withoutYaml);
+
+  // Write soul doc (narrative without fenced blocks)
   const soulDoc = buildSoulDoc({
     content: narrativeContent,
     programId,
@@ -173,6 +184,15 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
   batch.set(soulRef, soulDoc);
+
+  // Write open_questions doc
+  const oqDoc = buildOpenQuestionsDoc({ questions: openQuestions, programId });
+  oqDoc.createdAt = existingOpenQuestions.exists ? (existingOpenQuestions.data().createdAt || now) : now;
+  oqDoc.updatedAt = now;
+  batch.set(openQuestionsRef, oqDoc);
+  if (openQuestions.length) {
+    console.log(`[soul] Generated ${openQuestions.length} open questions for ${studentId}`);
+  }
 
   // Seed guidelines from template on first run (don't overwrite existing)
   if (!existingGuidelines.exists) {
@@ -277,7 +297,11 @@ export const generateStudentProfile = functions
       formatted.length, formattedInterviews.length, lastObsAt, lastInterviewAt,
     );
 
-    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews`);
+    // Extract narrative for boolean flags (strip both fenced blocks)
+    const { content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
+    const { questions: openQuestions, content: narrative } = extractOpenQuestions(withoutYaml);
+
+    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews, ${openQuestions.length} open questions`);
 
     return {
       status: "ok",
@@ -285,8 +309,9 @@ export const generateStudentProfile = functions
       programId: studentInfo.programId,
       noteCount: formatted.length,
       interviewCount: formattedInterviews.length,
-      hasEmergentObservations: hasEmergentObservations(stripGuidelinesSuggestions(soulContent)),
-      hasInformationGaps: hasInformationGaps(stripGuidelinesSuggestions(soulContent)),
+      hasEmergentObservations: hasEmergentObservations(narrative),
+      hasInformationGaps: hasInformationGaps(narrative),
+      openQuestionCount: openQuestions.length,
     };
   });
 

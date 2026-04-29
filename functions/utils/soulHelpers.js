@@ -56,6 +56,25 @@ guidelines_suggestions:
 
 If there are no emergent patterns worth suggesting, omit the YAML block entirely. Only propose areas that show a clear, recurring signal across multiple observations — not one-off events.
 
+## Open questions for interviews
+
+After the guidelines_suggestions block (or after Areas Needing Further Exploration if no suggestions), append a fenced block of ~50 open questions that teachers could be asked about this child during interviews. These questions should:
+- Cover all developmental areas where evidence is thin, contradictory, or from a single source
+- Explore emergent observations and interests that need deeper investigation
+- Probe areas where the child's experience or progress is unclear
+- Range from specific ("Does Aria choose the bead chain independently or only when directed?") to broad ("How does this child navigate conflict with peers?")
+- Be phrased as questions a knowledgeable interviewer would ask a teacher
+
+Format:
+
+\`\`\`open_questions
+1. Question text here?
+2. Another question?
+...
+\`\`\`
+
+Generate as many questions as the evidence warrants (aim for ~50). If the child has very limited data, generate fewer but still aim for at least 10-15 questions covering the gaps. Always include this block — even with limited data there are always questions worth asking.
+
 ## Continuity and stability
 
 If a previous soul is provided, use it as a reference for continuity. A child's developmental narrative should not change dramatically week-to-week — significant drift from the previous version is a quality concern. Update sections where new evidence warrants it, preserve sections that remain accurate, and note meaningful changes or developments.
@@ -127,15 +146,15 @@ export function parseSoulResponse(rawContent) {
 }
 
 /**
- * Extract guidelines suggestions from the YAML block at the end of a soul response.
- * Returns an array of suggestion objects, or empty array if no block found.
+ * Extract guidelines suggestions from the YAML block at the end of a soul response,
+ * and return the content with the YAML block removed.
  *
  * @param {string} soulContent - Full soul content (narrative + optional YAML block)
- * @returns {Array<{area: string, discipline: string, rationale: string}>}
+ * @returns {{suggestions: Array<{area: string, discipline: string, rationale: string}>, content: string}}
  */
 export function extractGuidelinesSuggestions(soulContent) {
   const yamlMatch = soulContent.match(/```yaml\s*\n(guidelines_suggestions:[\s\S]*?)```/);
-  if (!yamlMatch) return [];
+  if (!yamlMatch) return { suggestions: [], content: soulContent };
 
   const yamlBlock = yamlMatch[1];
   // Simple YAML parser for our specific format — no dependency needed
@@ -161,7 +180,11 @@ export function extractGuidelinesSuggestions(soulContent) {
       console.warn(`[soul] Guidelines suggestion for "${s.area}" has empty ${!s.discipline ? "discipline" : "rationale"} — LLM may have used an unexpected YAML format`);
     }
   }
-  return valid;
+
+  // Strip the YAML block from content
+  const content = soulContent.replace(/\n*```yaml\s*\nguidelines_suggestions:[\s\S]*?```/, "").trim();
+
+  return { suggestions: valid, content };
 }
 
 function extractYamlValue(line, key) {
@@ -174,14 +197,44 @@ function extractYamlValue(line, key) {
 }
 
 /**
- * Strip the YAML guidelines_suggestions block from soul content,
- * returning just the narrative markdown.
+ * Extract open questions from the fenced block at the end of a soul response,
+ * and return the content with the block removed.
  *
- * @param {string} soulContent - Full soul content with optional YAML block
- * @returns {string} Narrative content without YAML block
+ * @param {string} soulContent - Full soul content (narrative + optional open_questions block)
+ * @returns {{questions: string[], content: string}}
  */
-export function stripGuidelinesSuggestions(soulContent) {
-  return soulContent.replace(/\n*```yaml\s*\nguidelines_suggestions:[\s\S]*?```\s*$/, "").trim();
+export function extractOpenQuestions(soulContent) {
+  const match = soulContent.match(/\n*```open_questions\s*\n([\s\S]*?)```/);
+  if (!match) return { questions: [], content: soulContent };
+
+  const block = match[1].trim();
+  const questions = block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/^\d+\.\s*/, "").replace(/^[-*]\s*/, "").trim())
+    .filter((q) => q.length > 0);
+
+  const content = soulContent.replace(/\n*```open_questions\s*\n[\s\S]*?```\s*/, "").trim();
+
+  return { questions, content };
+}
+
+/**
+ * Build the Firestore document shape for an open_questions doc.
+ *
+ * @param {Object} params
+ * @param {string[]} params.questions - Array of question strings
+ * @param {string} params.programId
+ * @returns {Object} Open questions document fields
+ */
+export function buildOpenQuestionsDoc({ questions, programId }) {
+  return {
+    questions,
+    questionCount: questions.length,
+    programId,
+    updatedBy: "cloud-function:soul-generate",
+  };
 }
 
 /**
