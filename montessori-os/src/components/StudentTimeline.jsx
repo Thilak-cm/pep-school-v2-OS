@@ -20,7 +20,7 @@ import {
   TextField,
   Skeleton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, ChevronLeft, ChevronRight } from '@mui/icons-material';
+import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, ChevronLeft, ChevronRight, AutoAwesome } from '@mui/icons-material';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -1947,16 +1947,22 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten || (Array.isArray(mediaPreview.observation.materialsIdentified) && mediaPreview.observation.materialsIdentified.length > 0)) && (() => {
             const obs = mediaPreview.observation;
             return (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                {obs.curriculumArea && (
-                  <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0' }} />
-                )}
-                {obs.handwritten && (
-                  <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
-                )}
-                {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                  <Chip key={mat} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d' }} />
-                ))}
+              <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', p: 1.5 }}>
+                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                  <AutoAwesome sx={{ fontSize: 12 }} />
+                  Coach Pepper AI
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
+                  {obs.curriculumArea && (
+                    <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0', height: 24 }} />
+                  )}
+                  {obs.handwritten && (
+                    <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe', height: 24 }} />
+                  )}
+                  {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
+                    <Chip key={mat} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d', height: 24 }} />
+                  ))}
+                </Box>
               </Box>
             );
           })()}
