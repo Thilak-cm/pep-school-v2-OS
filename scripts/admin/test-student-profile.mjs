@@ -280,13 +280,6 @@ async function run() {
       batch.set(historyRef, buildHistorySnapshot(prevSoulSnap.data(), "Admin script regeneration"));
     }
 
-    // Snapshot previous open_questions to history
-    const prevOqSnap = await openQuestionsRef.get();
-    if (prevOqSnap.exists) {
-      const historyRef = openQuestionsRef.collection("history").doc(now.toMillis().toString());
-      batch.set(historyRef, buildHistorySnapshot(prevOqSnap.data(), "Admin script regeneration"));
-    }
-
     // Write soul
     const lastObsAt = notes.length ? chooseObservationTimestamp(notes[0]) : null;
     const lastInterviewAt = rawInterviews.length && rawInterviews[0].conductedAt
@@ -307,9 +300,8 @@ async function run() {
     soulDoc.updatedAt = now;
     batch.set(soulRef, soulDoc);
 
-    // Write open_questions
+    // Write open_questions (full overwrite, no archiving)
     const oqDoc = buildOpenQuestionsDoc({ questions: openQuestions, programId });
-    oqDoc.createdAt = prevOqSnap.exists ? (prevOqSnap.data().createdAt || now) : now;
     oqDoc.updatedAt = now;
     batch.set(openQuestionsRef, oqDoc);
 

@@ -146,22 +146,13 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   const now = Timestamp.now();
   const batch = db.batch();
 
-  // Read existing soul + guidelines + open_questions in parallel
-  const [existingSoul, existingGuidelines, existingOpenQuestions] = await Promise.all([
-    soulRef.get(), guidelinesRef.get(), openQuestionsRef.get(),
-  ]);
+  // Read existing soul + guidelines in parallel
+  const [existingSoul, existingGuidelines] = await Promise.all([soulRef.get(), guidelinesRef.get()]);
 
   // Snapshot previous soul to history before overwrite
   if (existingSoul.exists) {
     const prevData = existingSoul.data();
     const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
-    batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
-  }
-
-  // Snapshot previous open_questions to history before overwrite
-  if (existingOpenQuestions.exists) {
-    const prevData = existingOpenQuestions.data();
-    const historyRef = openQuestionsRef.collection("history").doc(now.toMillis().toString());
     batch.set(historyRef, buildHistorySnapshot(prevData, `Weekly regeneration on ${new Date().toISOString().split("T")[0]}`));
   }
 
@@ -185,9 +176,8 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
   soulDoc.updatedAt = now;
   batch.set(soulRef, soulDoc);
 
-  // Write open_questions doc
+  // Write open_questions doc (full overwrite, no archiving)
   const oqDoc = buildOpenQuestionsDoc({ questions: openQuestions, programId });
-  oqDoc.createdAt = existingOpenQuestions.exists ? (existingOpenQuestions.data().createdAt || now) : now;
   oqDoc.updatedAt = now;
   batch.set(openQuestionsRef, oqDoc);
   if (openQuestions.length) {
