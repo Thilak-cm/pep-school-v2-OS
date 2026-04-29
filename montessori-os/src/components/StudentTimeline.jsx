@@ -1188,7 +1188,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           ))}
                           {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
                             <Chip
-                              key={mat}
+                              key={`mat-${mat}`}
                               label={mat}
                               size="small"
                               sx={{
@@ -1984,7 +1984,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe', height: 24 }} />
                   )}
                   {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                    <Chip key={mat} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d', height: 24 }} />
+                    <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d', height: 24 }} />
                   ))}
                 </Box>
               </Box>

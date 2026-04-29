@@ -2103,7 +2103,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                 )}
                 {Array.isArray(note.materialsIdentified) && note.materialsIdentified.map((mat) => (
                   <Chip
-                    key={mat}
+                    key={`mat-${mat}`}
                     label={mat}
                     size="small"
                     sx={{

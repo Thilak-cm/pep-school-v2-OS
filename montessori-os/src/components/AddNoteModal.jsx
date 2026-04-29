@@ -2353,7 +2353,7 @@ function AddNoteModal({
                                         <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #bfdbfe', height: 24 }} />
                                       )}
                                       {Array.isArray(item.materialsIdentified) && item.materialsIdentified.map((mat) => (
-                                        <Chip key={mat} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #fcd34d', height: 24 }} />
+                                        <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #fcd34d', height: 24 }} />
                                       ))}
                                     </Box>
                                   </Box>
