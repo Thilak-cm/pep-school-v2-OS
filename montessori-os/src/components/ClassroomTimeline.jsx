@@ -2085,20 +2085,37 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                 {note.text}
               </Typography>
             )}
-            {note.curriculumArea && (
+            {(note.curriculumArea || note.materialsIdentified?.length > 0) && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
-                <Chip
-                  label={note.curriculumArea}
-                  size="small"
-                  sx={{
-                    bgcolor: '#ecfdf5',
-                    color: '#047857',
-                    fontWeight: 600,
-                    fontSize: '0.68rem',
-                    border: '1px solid #a7f3d0',
-                    height: 20,
-                  }}
-                />
+                {note.curriculumArea && (
+                  <Chip
+                    label={note.curriculumArea}
+                    size="small"
+                    sx={{
+                      bgcolor: '#ecfdf5',
+                      color: '#047857',
+                      fontWeight: 600,
+                      fontSize: '0.68rem',
+                      border: '1px solid #a7f3d0',
+                      height: 20,
+                    }}
+                  />
+                )}
+                {Array.isArray(note.materialsIdentified) && note.materialsIdentified.map((mat) => (
+                  <Chip
+                    key={mat}
+                    label={mat}
+                    size="small"
+                    sx={{
+                      bgcolor: '#fef3c7',
+                      color: '#92400e',
+                      fontWeight: 600,
+                      fontSize: '0.68rem',
+                      border: '1px solid #fcd34d',
+                      height: 20,
+                    }}
+                  />
+                ))}
               </Box>
             )}
             {/* Media thumbnail */}

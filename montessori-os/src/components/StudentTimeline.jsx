@@ -318,6 +318,14 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         }
       }
       if (obs.handwritten) group.handwritten = true;
+      if (Array.isArray(obs.materialsIdentified)) {
+        if (!group.materialsIdentified) group.materialsIdentified = [];
+        obs.materialsIdentified.forEach((mat) => {
+          if (mat && !group.materialsIdentified.includes(mat)) {
+            group.materialsIdentified.push(mat);
+          }
+        });
+      }
       // Merge lesson tag IDs from each media doc in the batch
       if (Array.isArray(obs.linkedLessonObservationId)) {
         obs.linkedLessonObservationId.forEach((id) => {
@@ -1127,6 +1135,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
                       curriculumArea: sourceObservation.curriculumArea ?? obs.curriculumArea,
                       handwritten: sourceObservation.handwritten ?? obs.handwritten,
+                      materialsIdentified: sourceObservation.materialsIdentified || obs.materialsIdentified || [],
                       media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
                     },
                     url: url || null,
@@ -1159,9 +1168,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
 
-                      {/* Photo classification chips (PEP-146: per-photo, multiple for batches) */}
-                      {(obs.curriculumAreas?.length > 0 || obs.curriculumArea) && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mt: 1 }}>
+                      {/* Photo classification chips (PEP-146, PEP-37) */}
+                      {(obs.curriculumAreas?.length > 0 || obs.curriculumArea || obs.materialsIdentified?.length > 0) && (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.6, mt: 1 }}>
                           {(obs.curriculumAreas || [obs.curriculumArea]).filter(Boolean).map((area) => (
                             <Chip
                               key={area}
@@ -1173,6 +1182,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                 fontWeight: 600,
                                 fontSize: '0.7rem',
                                 border: '1px solid #a7f3d0',
+                                height: 22,
+                              }}
+                            />
+                          ))}
+                          {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
+                            <Chip
+                              key={mat}
+                              label={mat}
+                              size="small"
+                              sx={{
+                                bgcolor: '#fef3c7',
+                                color: '#92400e',
+                                fontWeight: 600,
+                                fontSize: '0.7rem',
+                                border: '1px solid #fcd34d',
                                 height: 22,
                               }}
                             />
