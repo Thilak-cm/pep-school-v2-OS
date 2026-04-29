@@ -1943,8 +1943,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             )}
           </Box>
 
-          {/* Photo classification metadata (PEP-146) */}
-          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten) && (() => {
+          {/* Photo classification metadata (PEP-146, PEP-37) */}
+          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten || (Array.isArray(mediaPreview.observation.materialsIdentified) && mediaPreview.observation.materialsIdentified.length > 0)) && (() => {
             const obs = mediaPreview.observation;
             return (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
@@ -1954,6 +1954,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 {obs.handwritten && (
                   <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe' }} />
                 )}
+                {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
+                  <Chip key={mat} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d' }} />
+                ))}
               </Box>
             );
           })()}

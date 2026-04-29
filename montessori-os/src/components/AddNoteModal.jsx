@@ -2369,6 +2369,20 @@ function AddNoteModal({
                                           }}
                                         />
                                       )}
+                                      {Array.isArray(item.materialsIdentified) && item.materialsIdentified.map((mat) => (
+                                        <Chip
+                                          key={mat}
+                                          label={mat}
+                                          size="small"
+                                          sx={{
+                                            bgcolor: '#fef3c7',
+                                            color: '#92400e',
+                                            fontWeight: 600,
+                                            fontSize: '0.72rem',
+                                            border: '1px solid #fcd34d',
+                                          }}
+                                        />
+                                      ))}
                                     </Box>
                                   </Box>
                                 )}
