@@ -1,5 +1,20 @@
 # Changelog
 
+# 10.13.0 — 2026-04-29
+
+### Added
+- Material identification in photo analysis: VLM pipeline now identifies Montessori materials visible in classroom photos and returns them as `materialsIdentified` array (PEP-37)
+- Material chips displayed on student timeline cards, classroom timeline cards, and media preview views with amber styling distinct from curriculum area chips (PEP-37)
+- "Coach Pepper AI" branded section in media note views separates AI analysis from user input (PEP-37)
+
+### Changed
+- Photo classification prompt expanded from 2 to 3 fields (added `materialsIdentified`), token budget raised 150→400 (PEP-37)
+- `curriculumArea` no longer constrained to fixed enum — VLM uses free-range classification (PEP-37)
+
+### Fixed
+- Generic media summary text no longer shown redundantly alongside material/curriculum chips on student timeline (PEP-37)
+- VLM material arrays deduplicated at write-time to prevent duplicate React keys (PEP-37)
+
 # 10.12.2 — 2026-04-27
 
 ### Changed
