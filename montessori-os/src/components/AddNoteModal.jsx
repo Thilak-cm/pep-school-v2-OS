@@ -1694,6 +1694,7 @@ function AddNoteModal({
               copied: item.copied === true,
               handwritten: item.handwritten === true,
               curriculumArea: item.curriculumArea || null,
+              materialsIdentified: Array.isArray(item.materialsIdentified) ? item.materialsIdentified : [],
             } : {}),
             ...(canTagMediaLesson ? { linkedLessonObservationId: mediaTaggedLessonIds } : {}),
             ...(canTagMediaLesson ? { lessonBacklinkIds: mediaTaggedLessonIds } : {}),
@@ -2338,36 +2339,22 @@ function AddNoteModal({
                               {/* Content section */}
                               <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                                 {/* AI analysis results */}
-                                {item.kind === 'photo' && item.analyzed && (
-                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    {/* Chips row */}
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                                {item.kind === 'photo' && item.analyzed && (item.curriculumArea || item.handwritten || (Array.isArray(item.materialsIdentified) && item.materialsIdentified.length > 0)) && (
+                                  <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', p: 1.25 }}>
+                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                                      <AutoAwesome sx={{ fontSize: 12 }} />
+                                      Coach Pepper's Image Analysis
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
                                       {item.curriculumArea && (
-                                        <Chip
-                                          label={item.curriculumArea}
-                                          size="small"
-                                          sx={{
-                                            bgcolor: '#ecfdf5',
-                                            color: '#047857',
-                                            fontWeight: 600,
-                                            fontSize: '0.72rem',
-                                            border: '1px solid #a7f3d0',
-                                          }}
-                                        />
+                                        <Chip label={item.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #a7f3d0', height: 24 }} />
                                       )}
                                       {item.handwritten && (
-                                        <Chip
-                                          label="Handwritten"
-                                          size="small"
-                                          sx={{
-                                            bgcolor: '#eff6ff',
-                                            color: '#1d4ed8',
-                                            fontWeight: 600,
-                                            fontSize: '0.72rem',
-                                            border: '1px solid #bfdbfe',
-                                          }}
-                                        />
+                                        <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #bfdbfe', height: 24 }} />
                                       )}
+                                      {Array.isArray(item.materialsIdentified) && item.materialsIdentified.map((mat) => (
+                                        <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #fcd34d', height: 24 }} />
+                                      ))}
                                     </Box>
                                   </Box>
                                 )}
