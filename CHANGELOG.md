@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.12.3 — 2026-04-29
+
+### Added
+- Soul generation now produces ~50 open questions per student in a fenced `open_questions` block, written to `ai_summaries/open_questions` (PEP-173)
+- New `extractOpenQuestions` parser and `buildOpenQuestionsDoc` helper following existing extractor patterns (PEP-173)
+
+### Changed
+- `extractGuidelinesSuggestions` now returns both suggestions and cleaned content (combined extract+strip), replacing the separate `stripGuidelinesSuggestions` function (PEP-173)
+- Admin test script updated to display and persist open questions (PEP-173)
+
 # 10.12.2 — 2026-04-27
 
 ### Changed

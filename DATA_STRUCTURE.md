@@ -30,6 +30,7 @@
 - `students/{studentId}/ai_summaries/guidelines/history/{timestamp}` // guideline evolution audit trail
 - `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
 - `students/{studentId}/ai_summaries/writing_analysis`  // batch handwriting analysis (PEP-132)
+- `students/{studentId}/ai_summaries/open_questions`    // AI-generated interview question bank (PEP-173)
 - `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
 - `feedback/{feedbackId}`
  - `config/{docId}`
@@ -242,6 +243,7 @@ Subcollections
 - `ai_summaries/soul/history/{timestamp}` – Weekly soul snapshots. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically before each weekly regeneration — the previous soul is snapshotted before overwrite.
 - `ai_summaries/guidelines` – Per-student evaluation guide (PEP-149). Seeded from `config/soul_template_{program}` on first soul generation, then evolves independently per student. The AI agent reads this to know what developmental areas to explore and what benchmarks to look for. Shape: `{ content: string (markdown with ## Discipline, ### Skill Area, - Benchmark structure), programId: ProgramId, seededFrom: string (e.g., "config/soul_template_adolescent"), createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`.
 - `ai_summaries/guidelines/history/{timestamp}` – Guideline evolution audit trail. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Tracks agent-proposed or admin edits to the per-student guidelines.
+- `ai_summaries/open_questions` – AI-generated bank of open questions for teacher interviews (PEP-173). Generated alongside the soul during weekly regeneration — overwritten in place (no history archival; questions are fully regenerated from current context each time). Shape: `{ questions: string[], questionCount: number, programId: ProgramId, updatedBy: string, createdAt: Timestamp, updatedAt: Timestamp }`. The questions are extracted from a `\`\`\`open_questions` fenced block in the soul LLM response, covering developmental areas where evidence is thin or needs deeper investigation. Consumed by the AI interview agent (PEP-172/PEP-176).
 - `interviews/{interviewId}` – Immutable interview transcripts (see below).
 - `chats/{chatId}` – AI chat conversations per student (see below).
 - `chats/{chatId}/messages/{messageId}` – individual messages within a chat (see below).
