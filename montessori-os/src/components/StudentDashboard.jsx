@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Typography,
+  CircularProgress,
   IconButton,
   Button,
   Stack,
@@ -133,6 +134,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [showScrollFade, setShowScrollFade] = useState(false);
   const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
   const [chartObservations, setChartObservations] = useState([]);
+  const [chartLoading, setChartLoading] = useState(true);
   const coverageConfettiTimerRef = useRef(null);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
 
@@ -276,9 +278,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   useEffect(() => {
     if (!studentId) {
       setChartObservations([]);
+      setChartLoading(false);
       return;
     }
     let active = true;
+    setChartLoading(true);
     const fetchChartObs = async () => {
       try {
         const obsQuery = query(
@@ -292,6 +296,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         setChartObservations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch {
         if (active) setChartObservations([]);
+      } finally {
+        if (active) setChartLoading(false);
       }
     };
     fetchChartObs();
@@ -621,7 +627,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         onSummaryScroll={updateScrollFade}
         showScrollFade={showScrollFade}
         footer={
-          weeklyChartData.length > 0 && (
+          chartLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
+              <CircularProgress size={24} sx={{ color: '#4f46e5' }} />
+            </Box>
+          ) : weeklyChartData.length > 0 ? (
             <Box>
               <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e293b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
@@ -678,7 +688,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 </ResponsiveContainer>
               </Box>
             </Box>
-          )
+          ) : null
         }
       />
       {regenError && (
