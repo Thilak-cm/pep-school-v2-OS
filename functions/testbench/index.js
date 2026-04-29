@@ -4,6 +4,7 @@ import { OPENAI_API_KEY, getOpenAiKey } from "../shared/openai.js";
 import { FRONTIER_MODEL } from "../config/modelConstants.js";
 import { testBenchSoul } from "../students/soul.js";
 import { testBenchHandwriting } from "../ai/handwriting.js";
+import { testBenchInterviewTurn } from "./interviewQuestions.js";
 
 // -----------------------------------------------
 // Test Bench: Run prompt variations for evaluation (PEP-163)
@@ -47,6 +48,12 @@ export const testBenchRun = functions
       const windowDays = data?.windowDays ?? 365;
       const includeInterviews = data?.includeInterviews !== false;
       return await testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey });
+    } else if (feature === "interview_question_gen") {
+      const messages = Array.isArray(data?.messages) ? data.messages : [];
+      if (messages.length === 0) {
+        throw new functions.https.HttpsError("invalid-argument", "messages array is required for interview_question_gen");
+      }
+      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey });
     }
 
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
