@@ -14,8 +14,9 @@ import admin from "firebase-admin";
 import {
   SOUL_DEFAULTS, VALID_PROGRAMS,
   buildSoulSystemPrompt, buildSoulUserPrompt, parseSoulResponse,
-  buildSoulDoc, buildGuidelinesDoc, buildHistorySnapshot, hasEmergentObservations, hasInformationGaps,
-  extractGuidelinesSuggestions, stripGuidelinesSuggestions,
+  buildSoulDoc, buildGuidelinesDoc, buildOpenQuestionsDoc, buildHistorySnapshot,
+  hasEmergentObservations, hasInformationGaps,
+  extractGuidelinesSuggestions, extractOpenQuestions,
 } from "../../functions/utils/soulHelpers.js";
 import { formatInterviewForPrompt } from "../../functions/utils/interviewHelpers.js";
 
@@ -232,8 +233,8 @@ async function run() {
   console.log(`Response received in ${elapsed}s\n`);
 
   const fullContent = parseSoulResponse(rawContent);
-  const guidelinesSuggestions = extractGuidelinesSuggestions(fullContent);
-  const soulContent = stripGuidelinesSuggestions(fullContent);
+  const { suggestions: guidelinesSuggestions, content: withoutYaml } = extractGuidelinesSuggestions(fullContent);
+  const { questions: openQuestions, content: soulContent } = extractOpenQuestions(withoutYaml);
 
   // 7. Print results
   console.log("=".repeat(80));
@@ -251,15 +252,25 @@ async function run() {
       console.log(`  - ${s.area} → ${s.discipline}: ${s.rationale}`);
     }
   }
+  if (openQuestions.length > 0) {
+    console.log(`Open questions: ${openQuestions.length}`);
+    for (const q of openQuestions.slice(0, 10)) {
+      console.log(`  - ${q}`);
+    }
+    if (openQuestions.length > 10) {
+      console.log(`  ... and ${openQuestions.length - 10} more`);
+    }
+  }
   console.log("=".repeat(80));
 
   // 8. Optionally write to Firestore
   const writeFlag = args.includes("--write");
   if (writeFlag) {
-    console.log("\nWriting soul + guidelines to Firestore...");
+    console.log("\nWriting soul + open_questions + guidelines to Firestore...");
     const aiSummariesRef = db.collection("students").doc(studentId).collection("ai_summaries");
     const soulRef = aiSummariesRef.doc("soul");
     const guidelinesRef = aiSummariesRef.doc("guidelines");
+    const openQuestionsRef = aiSummariesRef.doc("open_questions");
     const now = admin.firestore.Timestamp.now();
     const batch = db.batch();
 
@@ -267,6 +278,13 @@ async function run() {
     if (prevSoulSnap.exists) {
       const historyRef = soulRef.collection("history").doc(now.toMillis().toString());
       batch.set(historyRef, buildHistorySnapshot(prevSoulSnap.data(), "Admin script regeneration"));
+    }
+
+    // Snapshot previous open_questions to history
+    const prevOqSnap = await openQuestionsRef.get();
+    if (prevOqSnap.exists) {
+      const historyRef = openQuestionsRef.collection("history").doc(now.toMillis().toString());
+      batch.set(historyRef, buildHistorySnapshot(prevOqSnap.data(), "Admin script regeneration"));
     }
 
     // Write soul
@@ -289,6 +307,12 @@ async function run() {
     soulDoc.updatedAt = now;
     batch.set(soulRef, soulDoc);
 
+    // Write open_questions
+    const oqDoc = buildOpenQuestionsDoc({ questions: openQuestions, programId });
+    oqDoc.createdAt = prevOqSnap.exists ? (prevOqSnap.data().createdAt || now) : now;
+    oqDoc.updatedAt = now;
+    batch.set(openQuestionsRef, oqDoc);
+
     // Seed guidelines if missing
     if (!guidelinesSnap.exists) {
       const guidelinesDoc = buildGuidelinesDoc({
@@ -304,6 +328,7 @@ async function run() {
 
     await batch.commit();
     console.log(`  Written soul to students/${studentId}/ai_summaries/soul`);
+    console.log(`  Written ${openQuestions.length} open questions to students/${studentId}/ai_summaries/open_questions`);
   } else {
     console.log("\nDry run — soul NOT written to Firestore.");
     console.log("Add --write to persist: node scripts/admin/test-student-profile.mjs " + studentId + " --write");
