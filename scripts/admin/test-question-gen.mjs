@@ -155,8 +155,14 @@ async function run() {
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
   console.log(`Baseball card: ${baseballCard ? "loaded" : "none"}`);
 
-  // 5. Build system prompt
-  const systemPrompt = buildSystemPrompt(guidelines, soul, baseballCard, studentContext);
+  // 5. Load open questions
+  const oqSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("open_questions").get();
+  const openQuestions = oqSnap.exists ? oqSnap.data().questions : null;
+  console.log(`Open questions: ${openQuestions ? `${openQuestions.length} loaded` : "none"}`);
+
+  // 6. Build system prompt
+  const systemPrompt = buildSystemPrompt(guidelines, soul, baseballCard, studentContext, openQuestions);
 
   // 6. Start conversation
   const messages = [{ role: "system", content: systemPrompt }];

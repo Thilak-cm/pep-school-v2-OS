@@ -112,10 +112,9 @@ const FIRST_TURN_RESPONSE = {
     { area: "Sciences & Technology", rationale: "No observations in physical sciences or technology projects" },
   ],
   question: {
-    text: "How often does Arjun choose math materials on his own during work period?",
-    type: "mcq",
+    text: "When Arjun has free choice during work period, how often do you see him gravitate toward math materials on his own — and what does that look like?",
+    type: "open",
     area: "Mathematics",
-    options: ["Rarely — needs prompting", "Sometimes — once or twice a week", "Often — daily choice", "Frequently — seeks advanced challenges"],
   },
 };
 
@@ -178,10 +177,24 @@ describe("buildSystemPrompt", () => {
     assert.ok(!prompt.includes("dimension_key"), "Should NOT reference dimension_key");
   });
 
-  it("specifies open and mcq question types", () => {
+  it("specifies open-only questions with pushback for vague answers", () => {
     const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("mcq"), "Should mention mcq type");
     assert.ok(prompt.includes("open"), "Should mention open type");
+    assert.ok(prompt.includes("NEVER fall back to multiple-choice"), "Should instruct against MCQ fallback");
+    assert.ok(prompt.includes("Rephrase"), "Should instruct rephrasing for vague answers");
+  });
+
+  it("includes open questions bank when provided", () => {
+    const questions = ["How does Arjun handle frustration?", "What does independent work look like for him?"];
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT, questions);
+    assert.ok(prompt.includes("OPEN QUESTIONS BANK"), "Should include questions bank header");
+    assert.ok(prompt.includes("How does Arjun handle frustration?"), "Should include question text");
+    assert.ok(prompt.includes("2 pre-generated"), "Should show question count");
+  });
+
+  it("omits open questions bank when not provided", () => {
+    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
+    assert.ok(!prompt.includes("OPEN QUESTIONS BANK"), "Should not include questions bank when empty");
   });
 
   it("instructs avoiding recently covered areas from prior interviews", () => {
@@ -312,7 +325,7 @@ describe("parseTurnResponse", () => {
     const result = parseTurnResponse(JSON.stringify(FIRST_TURN_RESPONSE), GUIDELINES_AREAS);
     assert.ok(result.question, "Should have a question object");
     assert.equal(result.question.text.length > 0, true, "Question text should be non-empty");
-    assert.equal(result.question.type, "mcq");
+    assert.equal(result.question.type, "open");
     assert.equal(result.question.area, "Mathematics");
     assert.ok(Array.isArray(result.explorationAreas), "Should have explorationAreas on first turn");
     assert.equal(result.explorationAreas.length, 2);

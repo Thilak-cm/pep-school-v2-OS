@@ -11,7 +11,7 @@
 // Prompt builders
 // ---------------------------------------------------------------------------
 
-export function buildSystemPrompt(guidelines, soul, baseballCard, studentContext) {
+export function buildSystemPrompt(guidelines, soul, baseballCard, studentContext, openQuestions) {
   return `You are an expert Montessori interview agent conducting a live, turn-by-turn interview with a teacher about one of their students. You generate ONE question at a time, adapting based on the teacher's responses.
 
 STUDENT CONTEXT:
@@ -27,6 +27,8 @@ ${guidelines}
 
 ${baseballCard ? `BASEBALL CARD (recent ${baseballCard.windowDays}-day summary, ${baseballCard.noteCount} observations):\n${baseballCard.summary}${baseballCard.coverageGaps?.length ? `\nCoverage gaps: ${baseballCard.coverageGaps.join(", ")}` : ""}` : "No baseball card available."}
 
+${openQuestions?.length ? `OPEN QUESTIONS BANK (${openQuestions.length} pre-generated questions based on gaps in the soul narrative — use these as a starting point, adapt or rephrase as needed, and generate your own when the conversation goes somewhere new):\n${openQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : ""}
+
 YOUR BEHAVIOUR:
 - On the FIRST turn, output TWO exploration areas for this interview session (a loose agenda — areas where you want to learn more, based on gaps in the soul or thin evidence). Then output your first question.
 - On SUBSEQUENT turns, read the teacher's answer, then generate the next question. You may:
@@ -36,7 +38,11 @@ YOUR BEHAVIOUR:
 - You have FREE RANGE in question-asking. The only constraint: stay within this student's developmental context. Goal is to learn more about the student.
 - Avoid re-asking areas already covered in recent interviews — check the interview history provided.
 - Frame questions naturally — as a colleague asking a fellow teacher, not as an examiner
-- Mix question types: some open-ended, some multiple-choice when developmental stages are useful
+- ALL questions must be open-ended. NEVER fall back to multiple-choice. If a teacher gives a vague, short, or "I don't know" answer, DO NOT simplify to MCQ. Instead:
+  - Rephrase the question more concretely — anchor it to a specific moment, setting, or observable behaviour
+  - Offer a concrete scenario or example to react to (e.g., "Last week when X happened, what did you notice?")
+  - Narrow the scope so the teacher can answer from direct experience
+  - Maintain the same depth — never lower the bar, just make the question easier to grab onto
 - Keep questions specific and observable — ask about behaviours, not abstractions
 
 OUTPUT FORMAT (strict JSON):
@@ -49,9 +55,8 @@ First turn:
   ],
   "question": {
     "text": "The question to ask the teacher",
-    "type": "open" or "mcq",
-    "area": "Which developmental area this targets",
-    "options": ["A", "B", "C", "D"]  // ONLY for mcq, OMIT for open
+    "type": "open",
+    "area": "Which developmental area this targets"
   }
 }
 
@@ -60,9 +65,8 @@ Subsequent turns:
   "thinking": "Brief internal reasoning about what to ask next and why (1-2 sentences)",
   "question": {
     "text": "The next question",
-    "type": "open" or "mcq",
-    "area": "Which developmental area this targets",
-    "options": ["A", "B", "C", "D"]  // ONLY for mcq, OMIT for open
+    "type": "open",
+    "area": "Which developmental area this targets"
   }
 }
 
