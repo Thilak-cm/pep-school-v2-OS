@@ -609,6 +609,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
       <BaseballCardSnapshotCard
+        minHeight="55vh"
         noteCount={cardNoteCount}
         windowDays={cardWindowDays}
         coverage={renderCoverageRow()}
