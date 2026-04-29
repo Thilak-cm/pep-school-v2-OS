@@ -31,6 +31,7 @@ import PromptEditor from "./PromptEditor.jsx";
 import OutputPanel from "./OutputPanel.jsx";
 import RatingWidget from "./RatingWidget.jsx";
 import ConversationPanel from "./ConversationPanel.jsx";
+import LLMContextPipeline from "./LLMContextPipeline.jsx";
 import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
@@ -81,6 +82,13 @@ export default function FeatureWorkbench({ featureId }) {
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
   const [studentContextData, setStudentContextData] = useState(null);
+
+  // Auto-select Aakash for interview mode
+  useEffect(() => {
+    if (isInterview && !selectedStudent) {
+      setSelectedStudent({ id: "2025-ADO-001", displayName: "Aakash Arulkumar", classroomId: "allstars", classroomName: "Allstars" });
+    }
+  }, [isInterview]);
 
   // Warn on page refresh/close if any variant has edits or output
   useEffect(() => {
@@ -376,7 +384,9 @@ export default function FeatureWorkbench({ featureId }) {
     <Box sx={{ p: 3 }}>
       {/* Setup bar */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
+        {!isInterview && (
+          <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
+        )}
 
         {featureId === "handwriting_analysis" && (
           <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
@@ -440,6 +450,13 @@ export default function FeatureWorkbench({ featureId }) {
           </Button>
         </Box>
       </Box>
+
+      {/* Interview: full-width LLM context pipeline */}
+      {isInterview && studentContextData && (
+        <Box sx={{ mb: 3 }}>
+          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} />
+        </Box>
+      )}
 
       <Divider sx={{ mb: 3 }} />
 
@@ -564,7 +581,7 @@ export default function FeatureWorkbench({ featureId }) {
 
             {/* Prompt editor(s) */}
             <PromptEditor
-              label="System Prompt"
+              label={isInterview ? "Instruction Template" : "System Prompt"}
               value={v.systemPrompt}
               onChange={(val) => updateVariant(idx, "systemPrompt", val)}
               rows={isSoul || isInterview ? 10 : 14}
