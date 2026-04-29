@@ -216,10 +216,10 @@ test("hasEmergentObservations returns false when no emergent section", async () 
 });
 
 // ---------------------------------------------------------------------------
-// extractGuidelinesSuggestions
+// extractGuidelinesSuggestions (combined extract + strip) (PEP-173)
 // ---------------------------------------------------------------------------
 
-test("extractGuidelinesSuggestions parses YAML block", async () => {
+test("extractGuidelinesSuggestions parses YAML block and returns cleaned content", async () => {
   const { extractGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
   const soul = `## Emergent Observations
 
@@ -235,49 +235,125 @@ guidelines_suggestions:
     rationale: "Cricket central to self-concept"
 \`\`\``;
 
-  const suggestions = extractGuidelinesSuggestions(soul);
+  const { suggestions, content } = extractGuidelinesSuggestions(soul);
   assert.equal(suggestions.length, 2);
   assert.equal(suggestions[0].area, "Kinesthetic & Maker Learning");
   assert.equal(suggestions[0].discipline, "Health & Wellbeing");
   assert.ok(suggestions[0].rationale.includes("science"));
   assert.equal(suggestions[1].area, "Competitive Sport & Identity");
+  assert.ok(!content.includes("```yaml"), "YAML block should be removed from content");
+  assert.ok(content.includes("Shows interest in insects"), "narrative should be preserved");
 });
 
-test("extractGuidelinesSuggestions returns empty array when no YAML block", async () => {
+test("extractGuidelinesSuggestions returns empty suggestions and unchanged content when no YAML block", async () => {
   const { extractGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
   const soul = "## Mathematics\nGood.\n\n## Emergent Observations\nSome text.";
-  assert.deepStrictEqual(extractGuidelinesSuggestions(soul), []);
+  const { suggestions, content } = extractGuidelinesSuggestions(soul);
+  assert.deepStrictEqual(suggestions, []);
+  assert.equal(content, soul);
 });
 
 // ---------------------------------------------------------------------------
-// stripGuidelinesSuggestions
+// extractOpenQuestions (PEP-173)
 // ---------------------------------------------------------------------------
 
-test("stripGuidelinesSuggestions removes YAML block from content", async () => {
-  const { stripGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
+test("extractOpenQuestions parses fenced block and returns cleaned content", async () => {
+  const { extractOpenQuestions } = await import("../utils/soulHelpers.js");
+  const soul = `## Mathematics
+Good progress.
+
+## Areas Needing Further Exploration
+Social-emotional gaps.
+
+\`\`\`open_questions
+1. How does the child respond when frustrated during group work?
+2. What types of reading material does the child choose independently?
+3. Has the child shown interest in measurement activities?
+\`\`\``;
+
+  const { questions, content } = extractOpenQuestions(soul);
+  assert.equal(questions.length, 3);
+  assert.ok(questions[0].includes("frustrated during group work"));
+  assert.ok(questions[1].includes("reading material"));
+  assert.ok(questions[2].includes("measurement activities"));
+  assert.ok(!content.includes("```open_questions"), "fenced block should be removed from content");
+  assert.ok(content.includes("Social-emotional gaps"), "narrative should be preserved");
+  assert.ok(content.includes("## Mathematics"), "other sections preserved");
+});
+
+test("extractOpenQuestions returns empty array when no block present", async () => {
+  const { extractOpenQuestions } = await import("../utils/soulHelpers.js");
+  const soul = "## Mathematics\nGood.\n\n## Emergent Observations\nSome text.";
+  const { questions, content } = extractOpenQuestions(soul);
+  assert.deepStrictEqual(questions, []);
+  assert.equal(content, soul);
+});
+
+test("extractOpenQuestions handles empty fenced block", async () => {
+  const { extractOpenQuestions } = await import("../utils/soulHelpers.js");
+  const soul = `## Mathematics\nGood.\n\n\`\`\`open_questions\n\`\`\``;
+  const { questions, content } = extractOpenQuestions(soul);
+  assert.deepStrictEqual(questions, []);
+  assert.ok(!content.includes("```open_questions"));
+});
+
+test("extractOpenQuestions strips numbering prefixes from questions", async () => {
+  const { extractOpenQuestions } = await import("../utils/soulHelpers.js");
+  const soul = `## Test\n\n\`\`\`open_questions\n1. First question?\n2. Second question?\n- Third question?\n\`\`\``;
+  const { questions } = extractOpenQuestions(soul);
+  assert.equal(questions.length, 3);
+  assert.equal(questions[0], "First question?");
+  assert.equal(questions[1], "Second question?");
+  assert.equal(questions[2], "Third question?");
+});
+
+test("extractOpenQuestions coexists with guidelines_suggestions YAML block", async () => {
+  const { extractOpenQuestions, extractGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
   const soul = `## Mathematics
 Good.
 
-## Emergent Observations
-Shows interest.
-
 \`\`\`yaml
 guidelines_suggestions:
-  - area: "Test"
-    discipline: "Test"
-    rationale: "Test"
+  - area: "Test Area"
+    discipline: "Test Discipline"
+    rationale: "Test Rationale"
+\`\`\`
+
+\`\`\`open_questions
+1. How does the child handle peer conflict?
+2. What is their approach to multi-step math problems?
 \`\`\``;
 
-  const stripped = stripGuidelinesSuggestions(soul);
-  assert.ok(!stripped.includes("```yaml"), "YAML block should be removed");
-  assert.ok(stripped.includes("Shows interest"), "narrative should be preserved");
-  assert.ok(stripped.includes("## Mathematics"), "other sections preserved");
+  const oq = extractOpenQuestions(soul);
+  assert.equal(oq.questions.length, 2);
+  assert.ok(oq.content.includes("```yaml"), "guidelines YAML block should NOT be removed by extractOpenQuestions");
+
+  const gs = extractGuidelinesSuggestions(soul);
+  assert.equal(gs.suggestions.length, 1);
+  assert.ok(gs.content.includes("```open_questions"), "open_questions block should NOT be removed by extractGuidelinesSuggestions");
 });
 
-test("stripGuidelinesSuggestions returns content as-is when no YAML block", async () => {
-  const { stripGuidelinesSuggestions } = await import("../utils/soulHelpers.js");
-  const soul = "## Mathematics\nGood.";
-  assert.equal(stripGuidelinesSuggestions(soul), soul);
+// ---------------------------------------------------------------------------
+// buildOpenQuestionsDoc (PEP-173)
+// ---------------------------------------------------------------------------
+
+test("buildOpenQuestionsDoc returns correct shape", async () => {
+  const { buildOpenQuestionsDoc } = await import("../utils/soulHelpers.js");
+  const questions = ["How does the child handle frustration?", "What reading materials do they choose?"];
+  const doc = buildOpenQuestionsDoc({ questions, programId: "primary" });
+
+  assert.deepStrictEqual(doc.questions, questions);
+  assert.equal(doc.questionCount, 2);
+  assert.equal(doc.programId, "primary");
+  assert.equal(doc.updatedBy, "cloud-function:soul-generate");
+});
+
+test("buildOpenQuestionsDoc handles empty questions array", async () => {
+  const { buildOpenQuestionsDoc } = await import("../utils/soulHelpers.js");
+  const doc = buildOpenQuestionsDoc({ questions: [], programId: "toddler" });
+
+  assert.deepStrictEqual(doc.questions, []);
+  assert.equal(doc.questionCount, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -308,5 +384,18 @@ test("buildSoulSystemPrompt includes gaps instruction", async () => {
   assert.ok(
     prompt.includes("Areas Needing Further Exploration"),
     "should instruct LLM to produce an Areas Needing Further Exploration section",
+  );
+});
+
+test("buildSoulSystemPrompt includes open_questions instruction (PEP-173)", async () => {
+  const { buildSoulSystemPrompt } = await import("../utils/soulHelpers.js");
+  const prompt = buildSoulSystemPrompt("## Test Guidelines");
+  assert.ok(
+    prompt.includes("open_questions"),
+    "should instruct LLM to produce an open_questions fenced block",
+  );
+  assert.ok(
+    prompt.includes("```open_questions"),
+    "should include the fenced block format example",
   );
 });
