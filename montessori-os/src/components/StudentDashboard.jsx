@@ -18,7 +18,6 @@ import {
 import { keyframes } from '@emotion/react';
 import {
   Notes as NotesIcon,
-  WarningAmber as WarningIcon,
   Chat as ChatIcon,
   CheckCircleOutline,
   InfoOutlined,
@@ -285,11 +284,13 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     setChartLoading(true);
     const fetchChartObs = async () => {
       try {
+        const windowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : 42;
+        const windowStart = Timestamp.fromDate(new Date(Date.now() - (windowDays + 7) * 24 * 60 * 60 * 1000));
         const obsQuery = query(
           collectionGroup(db, 'observations'),
           where('studentId', '==', studentId),
-          orderBy('observedAt', 'desc'),
-          limit(200)
+          where('observedAt', '>=', windowStart),
+          orderBy('observedAt', 'desc')
         );
         const snap = await getDocs(obsQuery);
         if (!active) return;
@@ -302,15 +303,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     };
     fetchChartObs();
     return () => { active = false; };
-  }, [studentId]);
+  }, [studentId, cardConfig?.windowDays]);
 
-  const getObservationDate = (obs) => {
+  const getObservationDate = React.useCallback((obs) => {
     if (obs.observedAt?.toDate) return obs.observedAt.toDate();
     if (obs.createdAt?.toDate) return obs.createdAt.toDate();
     if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
     if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
     return new Date(0);
-  };
+  }, []);
 
   const weeklyChartData = useMemo(() => {
     const now = new Date();
@@ -332,7 +333,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       data.push({ period: label, count });
     }
     return data;
-  }, [chartObservations, cardConfig?.windowDays]);
+  }, [chartObservations, cardConfig?.windowDays, getObservationDate]);
 
   const peakPerWeek = useMemo(() => {
     if (!weeklyChartData.length) return 0;

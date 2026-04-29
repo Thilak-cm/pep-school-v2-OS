@@ -7,7 +7,6 @@ import { Add } from '@mui/icons-material';
  * 
  * Props:
  *  - onClick: function to invoke when FAB is pressed
- *  - showLabel: boolean – if true, shows "Add Note" label next to the plus icon (extended variant)
  *  - sx: additional MUI sx overrides
  */
 const AddNoteFab = ({ onClick, sx = {} }) => {

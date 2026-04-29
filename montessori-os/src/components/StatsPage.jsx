@@ -500,28 +500,14 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         // Fetch media docs (separate subcollection) and merge into allObservations
         if (needsObservations && !cachedObservations) {
           try {
-            if (isClassroomAdmin) {
-              const allowedStudentIds = studentsData.map(s => s.id);
-              const batchSize = 10;
-              for (let i = 0; i < allowedStudentIds.length; i += batchSize) {
-                const batch = allowedStudentIds.slice(i, i + batchSize);
-                if (batch.length === 0) continue;
-                const mediaQuery = query(
-                  collectionGroup(db, 'media'),
-                  where('studentId', 'in', batch)
-                );
-                const mediaSnap = await getDocs(mediaQuery);
-                mediaSnap.docs.forEach(doc => {
-                  const data = doc.data();
-                  if (data.status === 'ready') {
-                    allObservations.push({ id: doc.id, ...data });
-                  }
-                });
-              }
-            } else {
+            const mediaStudentIds = studentsData.map(s => s.id);
+            const batchSize = 10;
+            for (let i = 0; i < mediaStudentIds.length; i += batchSize) {
+              const batch = mediaStudentIds.slice(i, i + batchSize);
+              if (batch.length === 0) continue;
               const mediaQuery = query(
                 collectionGroup(db, 'media'),
-                orderBy('observedAt', 'desc')
+                where('studentId', 'in', batch)
               );
               const mediaSnap = await getDocs(mediaQuery);
               mediaSnap.docs.forEach(doc => {
@@ -533,6 +519,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             }
           } catch (_mediaError) {
             // Media fetch failure shouldn't break stats — just skip media counts
+            if (import.meta.env.DEV) console.warn('[StatsPage] media fetch failed', _mediaError);
           }
         }
 
@@ -1034,7 +1021,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const lessonNotes = filteredObservationsForPie.filter(isLessonNote);
     const voiceNotes = filteredObservationsForPie.filter(isVoiceNote);
     const textNotes = filteredObservationsForPie.filter(isTextNote);
-    const mediaNotes = filteredObservationsForPie.filter(obs => obs?.type === 'media');
+    const mediaNotes = filteredObservationsForPie.filter(obs =>
+      !isLessonNote(obs) && !isVoiceNote(obs) && !isTextNote(obs) && obs?.type === 'media');
 
     return [
       { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' },
