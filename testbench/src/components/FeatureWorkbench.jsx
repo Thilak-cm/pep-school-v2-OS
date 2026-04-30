@@ -74,6 +74,7 @@ export default function FeatureWorkbench({ featureId }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [editingName, setEditingName] = useState(null); // index of variant being renamed
   const [confirmClose, setConfirmClose] = useState(null); // index of variant pending close confirmation
+  const [pendingLoadRun, setPendingLoadRun] = useState(null); // run pending load confirmation
 
   const isSoul = featureId === "soul_generation";
   const isInterview = featureId === "interview_question_gen";
@@ -369,6 +370,7 @@ export default function FeatureWorkbench({ featureId }) {
             systemPrompt: v.systemPrompt,
             model: v.model,
             temperature: v.temperature,
+            max_tokens: v.max_tokens,
           },
           output: v.output || "",
           ...(isInterview && conversations[idx] ? { conversation: conversations[idx] } : {}),
@@ -387,6 +389,15 @@ export default function FeatureWorkbench({ featureId }) {
   }
 
   function loadRun(run) {
+    const hasWork = variants.some((v) => v.dirty || v.output);
+    if (hasWork) {
+      setPendingLoadRun(run);
+      return;
+    }
+    applyLoadRun(run);
+  }
+
+  function applyLoadRun(run) {
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
 
@@ -396,6 +407,7 @@ export default function FeatureWorkbench({ featureId }) {
       systemPrompt: v.prompt?.systemPrompt || "",
       model: v.prompt?.model || "gpt-5.4",
       temperature: v.prompt?.temperature ?? 0.3,
+      max_tokens: v.prompt?.max_tokens || 2000,
       output: v.output || null,
       rating: v.rating ?? 5,
       notes: v.notes || "",
@@ -436,12 +448,14 @@ export default function FeatureWorkbench({ featureId }) {
         )}
         {isInterview && (
           <>
-            <Chip
-              label={`Student: ${selectedStudent?.displayName ?? "Loading…"}`}
-              color="primary"
-              variant="outlined"
-              sx={{ alignSelf: "center" }}
-            />
+            {selectedStudent && (
+              <Chip
+                label={`Student: ${selectedStudent.displayName}`}
+                color="primary"
+                variant="outlined"
+                sx={{ alignSelf: "center" }}
+              />
+            )}
             <InterviewQuestionConfig
               selectedStudent={selectedStudent}
               onConfigLoaded={handleConfigLoaded}
@@ -693,6 +707,20 @@ export default function FeatureWorkbench({ featureId }) {
         <DialogActions>
           <Button onClick={() => setConfirmClose(null)}>Cancel</Button>
           <Button onClick={confirmRemoveColumn} color="error">Discard</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Load run confirmation dialog */}
+      <Dialog open={pendingLoadRun !== null} onClose={() => setPendingLoadRun(null)}>
+        <DialogTitle>Load saved run?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You have unsaved work. Loading a saved run will discard your current variants and output.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingLoadRun(null)}>Cancel</Button>
+          <Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button>
         </DialogActions>
       </Dialog>
 

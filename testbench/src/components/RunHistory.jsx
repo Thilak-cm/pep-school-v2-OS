@@ -8,14 +8,17 @@ import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
+import Alert from "@mui/material/Alert";
 
 export default function RunHistory({ open, onClose, featureId, onLoad }) {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
+    setFetchError(null);
     const q = query(
       collection(db, "testbench"),
       where("feature", "==", featureId),
@@ -23,7 +26,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
     );
     getDocs(q)
       .then((snap) => setRuns(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
-      .catch((err) => console.error("Failed to load run history:", err))
+      .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
   }, [open, featureId]);
 
@@ -50,36 +53,41 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
 
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}><CircularProgress /></Box>
+        ) : fetchError ? (
+          <Alert severity="error" sx={{ mt: 2 }}>Failed to load history: {fetchError}</Alert>
         ) : runs.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>No saved runs yet.</Typography>
         ) : (
           <Box sx={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-            {runs.map((run) => (
-              <Box
-                key={run.id}
-                onClick={() => { onLoad(run); onClose(); }}
-                sx={{
-                  p: 1.5,
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 1.5,
-                  cursor: "pointer",
-                  "&:hover": { bgcolor: "action.hover", borderColor: "primary.main" },
-                }}
-              >
-                <Typography variant="subtitle2" noWrap>{run.studentName}</Typography>
-                <Typography variant="caption" color="text.secondary">{formatDate(run.timestamp)}</Typography>
-                <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
-                  <Chip label={`${run.variants?.length ?? 0} variants`} size="small" variant="outlined" />
-                  {avgRating(run.variants) && (
-                    <Chip label={`Avg ${avgRating(run.variants)}/10`} size="small" variant="outlined" />
-                  )}
-                  {run.ranBy?.name && (
-                    <Chip label={run.ranBy.name.split(" ")[0]} size="small" variant="outlined" />
-                  )}
+            {runs.map((run) => {
+              const avg = avgRating(run.variants);
+              return (
+                <Box
+                  key={run.id}
+                  onClick={() => { onLoad(run); onClose(); }}
+                  sx={{
+                    p: 1.5,
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 1.5,
+                    cursor: "pointer",
+                    "&:hover": { bgcolor: "action.hover", borderColor: "primary.main" },
+                  }}
+                >
+                  <Typography variant="subtitle2" noWrap>{run.studentName}</Typography>
+                  <Typography variant="caption" color="text.secondary">{formatDate(run.timestamp)}</Typography>
+                  <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
+                    <Chip label={`${run.variants?.length ?? 0} variants`} size="small" variant="outlined" />
+                    {avg && (
+                      <Chip label={`Avg ${avg}/10`} size="small" variant="outlined" />
+                    )}
+                    {run.ranBy?.name && (
+                      <Chip label={run.ranBy.name.split(" ")[0]} size="small" variant="outlined" />
+                    )}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         )}
       </Box>
