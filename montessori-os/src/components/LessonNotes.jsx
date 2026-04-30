@@ -81,7 +81,7 @@ const buildGroupId = () => `group_${Date.now().toString(36)}_${Math.random().toS
 
 const ratingButtonStyles = (value, selected) => {
   const active = selected === value;
-  const color = LESSON_RATING_COLORS[value] || 'var(--grey-600)';
+  const color = LESSON_RATING_COLORS[value] || '#475569'; // hex required — downstream ${color}14 concatenation
   const wide = value === 'partial';
   return {
     variant: active ? 'contained' : 'outlined',
