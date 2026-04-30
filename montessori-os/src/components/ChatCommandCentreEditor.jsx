@@ -220,7 +220,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         </ListItemButton>
         <Collapse in={configExpanded}>
           <CardContent>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 3 }}>
               Configure branch settings, model parameters, and context limits
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -304,7 +304,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
               {/* Context Limits */}
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Context Limits</Typography>
-                <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
                   Configure how many messages and observations to include in chat context
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -355,7 +355,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
         </ListItemButton>
         <Collapse in={promptExpanded}>
           <CardContent>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
               The system prompt that defines Coach Pepper's behavior in conversations
             </Typography>
             <TextField
@@ -388,7 +388,7 @@ export default function ChatCommandCentreEditor({ currentUser, userRole }) {
           startIcon={saving ? <CircularProgress size={16} /> : <Save />}
           onClick={handleSave}
           disabled={!hasChanges || saving}
-          sx={{ textTransform: 'none', minWidth: '100px', backgroundColor: '#4f46e5', '&:hover': { backgroundColor: '#4338ca' } }}
+          sx={{ textTransform: 'none', minWidth: '100px', backgroundColor: 'var(--color-primary)', '&:hover': { backgroundColor: 'var(--color-primary-dark)' } }}
         >
           {saving ? 'Saving...' : 'Save'}
         </Button>

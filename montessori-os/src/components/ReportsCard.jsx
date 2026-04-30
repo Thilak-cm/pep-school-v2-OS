@@ -32,19 +32,19 @@ export default function ReportsCard({ studentId, onClick }) {
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-              <Avatar sx={{ bgcolor: '#059669', width: 48, height: 48 }}>
+              <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 48, height: 48 }}>
                 <ReportIcon />
               </Avatar>
               <Box>
-                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+                <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 700 }}>
                     Reports
                   </Typography>
-                <Typography variant="body2" sx={{ color: '#64748b' }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                   View and generate student reports
                 </Typography>
               </Box>
             </Box>
-            <ArrowForward sx={{ color: '#94a3b8' }} />
+            <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
           </Box>
         </CardContent>
       </CardActionArea>

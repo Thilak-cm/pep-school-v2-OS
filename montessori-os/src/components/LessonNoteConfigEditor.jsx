@@ -49,7 +49,7 @@ const PROGRAM_LABELS = {
 const TAB_SX = {
   minHeight: 48,
   '& .MuiTab-root': { textTransform: 'none', minHeight: 48, fontWeight: 600 },
-  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' }
+  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: 'var(--color-primary)' }
 };
 
 const LessonNoteConfigEditor = ({ userRole }) => {
@@ -376,7 +376,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
             sx={{
               borderRadius: 1,
               backgroundColor: 'white',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             }}
           >

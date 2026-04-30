@@ -240,10 +240,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(voiceActive && {
-                        backgroundColor: '#4f46e5',
+                        backgroundColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4338ca',
+                          backgroundColor: 'var(--color-primary-dark)',
                         },
                         '&::after': {
                           content: '""',
@@ -291,10 +291,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(textActive && {
-                        backgroundColor: '#059669',
+                        backgroundColor: 'var(--color-secondary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#047857',
+                          backgroundColor: 'var(--color-secondary-dark)',
                         },
                         '&::after': {
                           content: '""',
@@ -342,10 +342,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(lessonActive && {
-                        backgroundColor: '#6366f1',
+                        backgroundColor: 'var(--color-primary-light)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4f46e5',
+                          backgroundColor: 'var(--color-primary)',
                         },
                         '&::after': {
                           content: '""',
@@ -393,10 +393,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(mediaActive && {
-                        backgroundColor: '#0ea5e9',
+                        backgroundColor: 'var(--color-sky)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#0284c7',
+                          backgroundColor: 'var(--color-blue-sky)',
                         },
                         '&::after': {
                           content: '""',
@@ -444,14 +444,14 @@ const FilterPanel = ({
                             fontSize: '0.75rem',
                             cursor: 'pointer',
                             ...(isActive ? {
-                              bgcolor: '#047857',
+                              bgcolor: 'var(--color-secondary-dark)',
                               color: '#fff',
-                              '&:hover': { bgcolor: '#065f46' },
+                              '&:hover': { bgcolor: 'var(--color-green-deep)' },
                             } : {
-                              bgcolor: '#ecfdf5',
-                              color: '#047857',
-                              border: '1px solid #a7f3d0',
-                              '&:hover': { bgcolor: '#d1fae5' },
+                              bgcolor: 'var(--color-green-bg)',
+                              color: 'var(--color-secondary-dark)',
+                              border: '1px solid var(--color-green-mint)',
+                              '&:hover': { bgcolor: 'var(--color-green-bg-mist)' },
                             }),
                           }}
                         />

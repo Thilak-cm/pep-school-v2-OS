@@ -95,7 +95,7 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {Object.entries(groupDefaults).map(([dimension, rating]) => {
-              const color = LESSON_RATING_COLORS[rating] || '#475569';
+              const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
               return (
                 <Chip
                   key={`group-default-${dimension}`}
@@ -117,7 +117,7 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
             return (
               <Chip
                 key={`${note.id}-${dimension.name}`}
@@ -949,7 +949,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         backgroundColor: 'white',
         borderRadius: 1,
         p: 2,
-        borderBottom: '1px solid #e2e8f0'
+        borderBottom: '1px solid var(--color-border)'
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
           {/* Expanding pill search */}
@@ -982,16 +982,16 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                   borderRadius: 999,
                   px: 0.75,
                   py: 0,
-                  backgroundColor: '#f8fafc',
+                  backgroundColor: 'var(--color-bg)',
                   '& .MuiOutlinedInput-notchedOutline': {
                     borderRadius: 999,
-                    borderColor: '#e2e8f0',
+                    borderColor: 'var(--color-border)',
                   },
                   '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#cbd5e1',
+                    borderColor: 'var(--grey-300)',
                   },
                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#94a3b8',
+                    borderColor: 'var(--color-text-faint)',
                   },
                   '& .MuiInputBase-input': {
                     p: 0.5,
@@ -1008,18 +1008,18 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                   width: '100%',
                   height: 36,
                   borderRadius: 999,
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: '#f8fafc',
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-bg)',
                   px: 1.25,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'flex-start',
                   gap: 0.75,
-                  color: '#64748b',
+                  color: 'var(--color-text-soft)',
                   transition: 'background-color 150ms ease, border-color 150ms ease',
                   '&:hover': {
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#cbd5e1',
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--grey-300)',
                   },
                 }}
               >
@@ -1071,7 +1071,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        borderBottom: '1px solid #e2e8f0'
+        borderBottom: '1px solid var(--color-border)'
       }}>
         <Tabs 
           value={activeTab} 
@@ -1420,7 +1420,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         },
         transition: 'all 0.2s ease-in-out',
         position: 'relative',
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--color-border)',
         backgroundColor: 'white',
         borderRadius: 2
       }}
@@ -1439,7 +1439,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         borderRadius: 1,
         px: 1,
         py: 0.5,
-        border: '1px solid #e2e8f0'
+        border: '1px solid var(--color-border)'
       }}>
         {noteTypeInfo.icon}
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
@@ -1747,7 +1747,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                         sx={{
                           borderRadius: 1,
                           '&:hover': {
-                            backgroundColor: '#f8fafc'
+                            backgroundColor: 'var(--color-bg)'
                           }
                         }}
                       >
@@ -1802,8 +1802,8 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                         mb: 1.5,
                         p: 2,
                         borderRadius: 2,
-                        border: '1px solid #e2e8f0',
-                        backgroundColor: '#f8fafc'
+                        border: '1px solid var(--color-border)',
+                        backgroundColor: 'var(--color-bg)'
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
@@ -1819,8 +1819,8 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                               sx={{ 
                                 height: 20, 
                                 fontSize: '0.65rem',
-                                backgroundColor: '#e0e7ff',
-                                color: '#4f46e5'
+                                backgroundColor: 'var(--color-indigo-bg-light)',
+                                color: 'var(--color-primary)'
                               }} 
                             />
                           )}
@@ -1851,7 +1851,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                               const defaultRating = groupDefaults[dimension];
                               const isCustom = studentRating && studentRating !== defaultRating;
                               const displayRating = studentRating || defaultRating || 'na';
-                              const color = LESSON_RATING_COLORS[displayRating] || '#475569';
+                              const color = LESSON_RATING_COLORS[displayRating] || 'var(--grey-600)';
                               
                               return (
                                 <Chip
@@ -2037,7 +2037,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
         borderRadius: 1,
         px: 1,
         py: 0.5,
-        border: '1px solid #e2e8f0'
+        border: '1px solid var(--color-border)'
       }}>
         {noteTypeInfo.icon}
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
@@ -2092,11 +2092,11 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                     label={note.curriculumArea}
                     size="small"
                     sx={{
-                      bgcolor: '#ecfdf5',
-                      color: '#047857',
+                      bgcolor: 'var(--color-green-bg)',
+                      color: 'var(--color-secondary-dark)',
                       fontWeight: 600,
                       fontSize: '0.68rem',
-                      border: '1px solid #a7f3d0',
+                      border: '1px solid var(--color-green-mint)',
                       height: 20,
                     }}
                   />
@@ -2107,11 +2107,11 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
                     label={mat}
                     size="small"
                     sx={{
-                      bgcolor: '#fef3c7',
-                      color: '#92400e',
+                      bgcolor: 'var(--color-amber-bg)',
+                      color: 'var(--color-amber-text)',
                       fontWeight: 600,
                       fontSize: '0.68rem',
-                      border: '1px solid #fcd34d',
+                      border: '1px solid var(--color-amber-gold)',
                       height: 20,
                     }}
                   />

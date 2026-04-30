@@ -384,10 +384,10 @@ export default function ReportsPage({
           sx={{
             textTransform: 'none',
             borderRadius: 2,
-            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+            background: 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-dark) 100%)',
             boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
             '&:hover': {
-              background: 'linear-gradient(135deg, #047857 0%, #065f46 100%)',
+              background: 'linear-gradient(135deg, var(--color-secondary-dark) 0%, var(--color-green-deep) 100%)',
             },
           }}
         >
@@ -400,7 +400,7 @@ export default function ReportsPage({
         sx={{
           borderRadius: 3,
           p: 2,
-          background: 'linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%)',
+          background: 'linear-gradient(135deg, var(--color-indigo-bg) 0%, var(--color-green-bg-light) 100%)',
           border: '1px solid rgba(99, 102, 241, 0.2)',
           boxShadow: '0 2px 8px rgba(99, 102, 241, 0.08)',
         }}
@@ -417,17 +417,17 @@ export default function ReportsPage({
               bgcolor: 'rgba(99, 102, 241, 0.12)',
             }}
           >
-            <ReadinessIcon sx={{ fontSize: 16, color: '#4f46e5' }} />
+            <ReadinessIcon sx={{ fontSize: 16, color: 'var(--color-primary)' }} />
           </Box>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#312e81', letterSpacing: '-0.01em' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)', letterSpacing: '-0.01em' }}>
             Report Readiness
           </Typography>
         </Stack>
 
         {readinessLoading && !readiness && (
           <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}>
-            <CircularProgress size={16} sx={{ color: '#4f46e5' }} />
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
+            <CircularProgress size={16} sx={{ color: 'var(--color-primary)' }} />
+            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
               Loading readiness data...
             </Typography>
           </Stack>
@@ -449,11 +449,11 @@ export default function ReportsPage({
             </Stack>
             {readiness.missingInputFlags?.length > 0 && (
               <Box sx={{ mt: 0.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#b45309', display: 'block', mb: 0.25 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'var(--color-amber-dark)', display: 'block', mb: 0.25 }}>
                   Missing data
                 </Typography>
                 {readiness.missingInputFlags.map((flag, i) => (
-                  <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6, pl: 1 }}>
+                  <Typography key={i} variant="caption" sx={{ display: 'block', color: 'var(--color-amber-dark)', lineHeight: 1.6, pl: 1 }}>
                     {flag}
                   </Typography>
                 ))}
@@ -471,8 +471,8 @@ export default function ReportsPage({
                 borderRadius: 2,
                 alignSelf: 'flex-start',
                 borderColor: 'rgba(99, 102, 241, 0.4)',
-                color: '#4f46e5',
-                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+                color: 'var(--color-primary)',
+                '&:hover': { borderColor: 'var(--color-primary)', bgcolor: 'rgba(99, 102, 241, 0.04)' },
               }}
             >
               {readinessLoading ? 'Checking...' : 'Re-run check'}
@@ -484,7 +484,7 @@ export default function ReportsPage({
           </Alert>
         ) : !readinessLoading ? (
           <Stack spacing={1} alignItems="flex-start">
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
+            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
               Report readiness check not run yet!
             </Typography>
             <Button
@@ -498,8 +498,8 @@ export default function ReportsPage({
                 fontSize: '0.8rem',
                 borderRadius: 2,
                 borderColor: 'rgba(99, 102, 241, 0.4)',
-                color: '#4f46e5',
-                '&:hover': { borderColor: '#4f46e5', bgcolor: 'rgba(99, 102, 241, 0.04)' },
+                color: 'var(--color-primary)',
+                '&:hover': { borderColor: 'var(--color-primary)', bgcolor: 'rgba(99, 102, 241, 0.04)' },
               }}
             >
               {readinessLoading ? 'Checking...' : 'Check report readiness'}
@@ -526,11 +526,11 @@ export default function ReportsPage({
 
       {!loading && reports.length === 0 && exportingCount === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <ReportIcon sx={{ fontSize: 48, color: '#cbd5e1', mb: 1 }} />
-          <Typography variant="body1" sx={{ color: '#94a3b8' }}>
+          <ReportIcon sx={{ fontSize: 48, color: 'var(--grey-300)', mb: 1 }} />
+          <Typography variant="body1" sx={{ color: 'var(--color-text-faint)' }}>
             No reports yet
           </Typography>
-          <Typography variant="body2" sx={{ color: '#cbd5e1', mt: 0.5 }}>
+          <Typography variant="body2" sx={{ color: 'var(--grey-300)', mt: 0.5 }}>
             Generate a report to see it here
           </Typography>
         </Box>
@@ -546,7 +546,7 @@ export default function ReportsPage({
               key={report.id}
               sx={{
                 borderRadius: 2,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 1,
                 '&:hover': { backgroundColor: 'rgba(5, 150, 105, 0.04)' },
                 py: 1,
@@ -558,7 +558,7 @@ export default function ReportsPage({
               {/* Top row: date/author left, notes + actions right */}
               <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
                     {formatReportDate(report.generatedAt)}
                   </Typography>
                   {report.generatedByName && (
@@ -580,7 +580,7 @@ export default function ReportsPage({
                   <IconButton
                     size="small"
                     onClick={() => handleViewReport(report)}
-                    sx={{ color: '#4f46e5' }}
+                    sx={{ color: 'var(--color-primary)' }}
                     aria-label={`View report from ${formatReportDate(report.generatedAt)}`}
                   >
                     <ViewIcon fontSize="small" />
@@ -590,7 +590,7 @@ export default function ReportsPage({
                       size="small"
                       onClick={() => handleDeleteClick(report)}
                       disabled={deletingIds.has(report.id)}
-                      sx={{ color: '#ef4444' }}
+                      sx={{ color: 'var(--color-error-light)' }}
                       aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
                     >
                       <DeleteIcon fontSize="small" />
@@ -637,7 +637,7 @@ export default function ReportsPage({
               <Collapse in={isExpanded && hasMissing}>
                 <Box sx={{ mt: 0.75, pl: 0.5 }}>
                   {report.missingInputFlags?.map((flag, i) => (
-                    <Typography key={i} variant="caption" sx={{ display: 'block', color: '#b45309', lineHeight: 1.6 }}>
+                    <Typography key={i} variant="caption" sx={{ display: 'block', color: 'var(--color-amber-dark)', lineHeight: 1.6 }}>
                       • {flag}
                     </Typography>
                   ))}

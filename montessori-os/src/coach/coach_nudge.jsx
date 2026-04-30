@@ -190,7 +190,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
         return (
           <Box key={id} sx={{ mb: 2.25 }}>
             {copy && (
-              <Typography variant="subtitle2" sx={{ mb: 0.75, color: '#1e293b', fontWeight: 600 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'var(--color-text)', fontWeight: 600 }}>
                 {copy}
               </Typography>
             )}
@@ -262,7 +262,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                         width: '76px',
                         '& .MuiOutlinedInput-root': {
                           '& fieldset': {
-                            borderColor: invalid ? '#d32f2f' : '#d0d7de',
+                            borderColor: invalid ? 'var(--color-red-darker)' : 'var(--color-neutral-dark)',
                           },
                           borderRadius: 1.25,
                         },
@@ -291,7 +291,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                       }}
                       error={invalid && oneFilled}
                     />
-                    <Typography variant="body1" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                    <Typography variant="body1" sx={{ color: 'var(--color-neutral-muted)', fontWeight: 500 }}>
                       /
                     </Typography>
                     <TextField
@@ -303,7 +303,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
                         width: '76px',
                         '& .MuiOutlinedInput-root': {
                           '& fieldset': {
-                            borderColor: invalid ? '#d32f2f' : '#d0d7de',
+                            borderColor: invalid ? 'var(--color-red-darker)' : 'var(--color-neutral-dark)',
                           },
                           borderRadius: 1.25,
                         },
@@ -365,25 +365,25 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
         );
       })}
 
-      <Typography variant="subtitle2" sx={{ mb: 0.75, color: '#1e293b', fontWeight: 700 }}>
+      <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'var(--color-text)', fontWeight: 700 }}>
         Final note
       </Typography>
       <Box aria-label="Updated note preview" sx={{
         mb: 2,
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--color-border)',
         borderRadius: 2,
         p: 1.25,
         backgroundColor: '#fff'
       }}>
-        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#0f172a' }}>
+        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'var(--grey-900)' }}>
           {previewParts.originalPreview}
         </Typography>
         {/* faint divider between original and appended content */}
         {appendedLines.length > 0 && (
-          <Box sx={{ my: 1, borderTop: '1px dashed #e2e8f0' }} />
+          <Box sx={{ my: 1, borderTop: '1px dashed var(--color-border)' }} />
         )}
         {appendedLines.length > 0 && (
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#0f172a' }}>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'var(--grey-900)' }}>
             {appendedLines.join('\n')}
           </Typography>
         )}
@@ -411,8 +411,8 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
             fontSize: '0.88rem',
             whiteSpace: 'nowrap',
             borderRadius: 1.5,
-            borderColor: '#cbd5e1',
-            color: '#4f46e5'
+            borderColor: 'var(--grey-300)',
+            color: 'var(--color-primary)'
           }}
         >
           Save without nudge

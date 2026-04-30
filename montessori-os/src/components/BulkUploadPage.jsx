@@ -663,11 +663,11 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             <Typography variant="h6">Review & Upload</Typography>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <StatBox label="Rows to upload" value={reviewRows.length} color="#2196f3" />
-              <StatBox label="Matched students" value={matchResults.filter((m) => m.accepted).length} color="#4caf50" />
-              <StatBox label="Skipped (rejected)" value={matchResults.filter((m) => m.rejected).length} color="#9e9e9e" />
+              <StatBox label="Rows to upload" value={reviewRows.length} color="var(--color-mui-blue)" />
+              <StatBox label="Matched students" value={matchResults.filter((m) => m.accepted).length} color="var(--color-mui-green)" />
+              <StatBox label="Skipped (rejected)" value={matchResults.filter((m) => m.rejected).length} color="var(--color-mui-grey)" />
               {duplicateCount > 0 && (
-                <StatBox label="Potential duplicates" value={duplicateCount} color="#ff9800" />
+                <StatBox label="Potential duplicates" value={duplicateCount} color="var(--color-mui-orange)" />
               )}
             </Box>
 
@@ -722,13 +722,13 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <StatBox label="Imported" value={results.imported} color="#4caf50" />
-              {results.failed > 0 && <StatBox label="Failed" value={results.failed} color="#f44336" />}
+              <StatBox label="Imported" value={results.imported} color="var(--color-mui-green)" />
+              {results.failed > 0 && <StatBox label="Failed" value={results.failed} color="var(--color-mui-red)" />}
               {results.duplicatesAllowed > 0 && (
-                <StatBox label="Duplicates (allowed)" value={results.duplicatesAllowed} color="#ff9800" />
+                <StatBox label="Duplicates (allowed)" value={results.duplicatesAllowed} color="var(--color-mui-orange)" />
               )}
               {results.skipped > 0 && (
-                <StatBox label="Skipped (rejected names)" value={results.skipped} color="#9e9e9e" />
+                <StatBox label="Skipped (rejected names)" value={results.skipped} color="var(--color-mui-grey)" />
               )}
             </Box>
 

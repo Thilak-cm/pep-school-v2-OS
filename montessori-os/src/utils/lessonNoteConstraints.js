@@ -25,10 +25,10 @@ export const LESSON_PROGRAM_DIMENSIONS = {
 };
 
 export const LESSON_RATING_OPTIONS = [
-  { value: 'yes', label: 'Yes', color: '#0f766e' },
-  { value: 'partial', label: 'Partially', color: '#ca8a04' },
-  { value: 'no', label: 'No', color: '#dc2626' },
-  { value: 'na', label: 'N/A', color: '#475569' }
+  { value: 'yes', label: 'Yes', color: 'var(--color-teal-dark)' },
+  { value: 'partial', label: 'Partially', color: 'var(--color-amber-accent)' },
+  { value: 'no', label: 'No', color: 'var(--color-error)' },
+  { value: 'na', label: 'N/A', color: 'var(--grey-600)' }
 ];
 
 export const LESSON_RATING_LABELS = {
@@ -39,10 +39,10 @@ export const LESSON_RATING_LABELS = {
 };
 
 export const LESSON_RATING_COLORS = {
-  yes: '#0f766e',
-  partial: '#ca8a04',
-  no: '#dc2626',
-  na: '#475569'
+  yes: 'var(--color-teal-dark)',
+  partial: 'var(--color-amber-accent)',
+  no: 'var(--color-error)',
+  na: 'var(--grey-600)'
 };
 
 export const LESSON_ATTENDANCE_LABELS = {
@@ -51,8 +51,8 @@ export const LESSON_ATTENDANCE_LABELS = {
 };
 
 export const LESSON_ATTENDANCE_COLORS = {
-  present: '#0f766e',
-  absent: '#c2410c'
+  present: 'var(--color-teal-dark)',
+  absent: 'var(--color-orange-darker)'
 };
 
 export const deriveDimensionKeyFromProgram = (programId = 'primary') => {

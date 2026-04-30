@@ -240,8 +240,8 @@ const StudentStatsPage = ({ student }) => {
 
   // Memoize pie chart data to prevent re-renders when time period changes
   const pieChartData = useMemo(() => [
-    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' },
-    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' }
+    { name: 'Voice Notes', value: stats.voiceNotes, color: 'var(--color-info)' },
+    { name: 'Text Notes', value: stats.textNotes, color: 'var(--color-warning)' }
   ], [stats.voiceNotes, stats.textNotes]);
 
   // Custom label to show % inside each pie slice - memoized to prevent flickering
@@ -260,7 +260,7 @@ const StudentStatsPage = ({ student }) => {
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
     const label = `${Math.round(percent * 100)}%`;
     return (
-      <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
+      <text x={x} y={y} fill="var(--color-paper)" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
         {label}
       </text>
     );
@@ -285,7 +285,7 @@ const StudentStatsPage = ({ student }) => {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Activity Trend Chart */}
-          <Card sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Card sx={{ borderRadius: 2, border: '1px solid var(--color-border)' }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ 
                 display: 'flex', 
@@ -334,12 +334,12 @@ const StudentStatsPage = ({ student }) => {
                       fontWeight: 600,
                       px: 2,
                       py: 1,
-                      borderColor: '#e2e8f0',
+                      borderColor: 'var(--color-border)',
                       '&.Mui-selected': {
-                        backgroundColor: '#4f46e5',
+                        backgroundColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4338ca'
+                          backgroundColor: 'var(--color-primary-dark)'
                         }
                       }
                     }
@@ -371,15 +371,15 @@ const StudentStatsPage = ({ student }) => {
                 <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-chart-grid)" />
                       <XAxis 
                         dataKey="period" 
-                        tick={{ fontSize: 12, fill: '#64748b' }}
-                        axisLine={{ stroke: '#e2e8f0' }}
+                        tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
                       />
                       <YAxis 
-                        tick={{ fontSize: 12, fill: '#64748b' }}
-                        axisLine={{ stroke: '#e2e8f0' }}
+                        tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
                         tickLine={false}
                         width={40}
                         tickFormatter={(value) => Math.round(value)}
@@ -387,7 +387,7 @@ const StudentStatsPage = ({ student }) => {
                       <RechartsTooltip 
                         contentStyle={{ 
                           backgroundColor: 'white',
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           borderRadius: 8,
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }}
@@ -396,15 +396,15 @@ const StudentStatsPage = ({ student }) => {
                             return (
                               <Box sx={{
                                 backgroundColor: 'white',
-                                border: '1px solid #e2e8f0',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: 2,
                                 p: 1.5,
                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                               }}>
-                                <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
+                                <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-primary)' }}>
                                   {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
                                 </Typography>
-                                <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
+                                <Typography sx={{ fontSize: '12px', color: 'var(--color-text-soft)' }}>
                                   Time: {payload[0].payload.period}
                                 </Typography>
                               </Box>
@@ -416,9 +416,9 @@ const StudentStatsPage = ({ student }) => {
                       <Line 
                         type="monotone" 
                         dataKey="count" 
-                        stroke="#4f46e5" 
+                        stroke="var(--color-primary)" 
                         strokeWidth={3}
-                        dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }}
+                        dot={{ fill: 'var(--color-primary)', strokeWidth: 2, r: 4 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -428,7 +428,7 @@ const StudentStatsPage = ({ student }) => {
           </Card>
 
           {/* Note Distribution Card */}
-          <Card sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Card sx={{ borderRadius: 2, border: '1px solid var(--color-border)' }}>
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 All Time Note Distribution
@@ -454,7 +454,7 @@ const StudentStatsPage = ({ student }) => {
                         <Cell 
                           key={`cell-${entry.name}-${entry.value}`}
                           fill={entry.color}
-                          stroke="#ffffff"
+                          stroke="var(--color-paper)"
                           strokeWidth={2}
                         />
                       ))}
@@ -462,7 +462,7 @@ const StudentStatsPage = ({ student }) => {
                     <RechartsTooltip 
                       contentStyle={{ 
                         backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
+                        border: '1px solid var(--color-border)',
                         borderRadius: 8,
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                       }}

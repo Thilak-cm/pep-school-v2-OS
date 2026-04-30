@@ -16,7 +16,7 @@ const ProfilePage = ({ user, role }) => {
     .toUpperCase();
 
   const roleLabel = getRoleLabel(role);
-  const roleColor = isSuperAdmin(role) ? '#dc2626' : (isClassroomAdmin(role) ? '#ea580c' : '#4f46e5');
+  const roleColor = isSuperAdmin(role) ? 'var(--color-error)' : (isClassroomAdmin(role) ? 'var(--color-orange-dark)' : 'var(--color-primary)');
 
   return (
     <Box sx={{ 
@@ -27,7 +27,7 @@ const ProfilePage = ({ user, role }) => {
     }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
+        <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
           Profile
         </Typography>
       </Box>
@@ -38,7 +38,7 @@ const ProfilePage = ({ user, role }) => {
         sx={{
           p: 2.5,
           borderRadius: 2,
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--color-border)',
           backgroundColor: 'white',
           textAlign: 'center'
         }}
@@ -52,16 +52,16 @@ const ProfilePage = ({ user, role }) => {
               height: 88,
               fontSize: '1.5rem',
               fontWeight: 700,
-              bgcolor: '#4f46e5'
+              bgcolor: 'var(--color-primary)'
             }}
           >
             {initials}
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--color-text)' }}>
               {user?.displayName || 'Pep School user'}
             </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
               {user?.email}
             </Typography>
             <Typography 

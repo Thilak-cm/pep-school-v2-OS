@@ -533,9 +533,9 @@ function FeedbackTimeline({ currentUser, userRole }) {
                 </Typography>
                 <Typography variant="body1" sx={{ 
                   p: 2, 
-                  backgroundColor: '#f8fafc', 
+                  backgroundColor: 'var(--color-bg)', 
                   borderRadius: 2, 
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   lineHeight: 1.6
                 }}>
                   {selectedFeedback.message}
@@ -622,9 +622,9 @@ function FeedbackTimeline({ currentUser, userRole }) {
                         <Typography variant="body2" color="text.secondary">Admin Notes:</Typography>
                         <Typography variant="body1" sx={{ 
                           p: 2, 
-                          backgroundColor: '#f8fafc', 
+                          backgroundColor: 'var(--color-bg)', 
                           borderRadius: 2, 
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           fontStyle: 'italic'
                         }}>
                           {selectedFeedback.adminNotes}
