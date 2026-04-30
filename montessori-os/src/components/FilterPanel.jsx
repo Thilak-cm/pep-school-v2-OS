@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search, Mic, EditNote, Close, MenuBook, PermMedia } from '@mui/icons-material';
+import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -123,7 +123,7 @@ const FilterPanel = ({
                   size="small"
                   onClick={onToggleFilters}
                 >
-                  <Close fontSize="small" />
+                  <Close size={20} />
                 </IconButton>
               </Box>
             </Box>
@@ -179,7 +179,7 @@ const FilterPanel = ({
                           ...params.InputProps,
                           startAdornment: (
                             <>
-                              <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 20 }} />
+                              <Search size={20} sx={{ color: 'text.secondary', mr: 1 }} />
                               {params.InputProps.startAdornment}
                             </>
                           )

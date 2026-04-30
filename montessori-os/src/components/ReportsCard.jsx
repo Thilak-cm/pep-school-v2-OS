@@ -7,10 +7,7 @@ import {
   Typography,
   Avatar,
 } from '@mui/material';
-import {
-  Description as ReportIcon,
-  ArrowForward,
-} from '@mui/icons-material';
+import { FileText as ReportIcon, ArrowRight as ArrowForward } from '../icons';
 import { trackEvent } from '../utils/analytics';
 
 export default function ReportsCard({ studentId, onClick }) {

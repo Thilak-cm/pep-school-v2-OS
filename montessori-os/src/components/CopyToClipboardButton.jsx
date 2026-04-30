@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IconButton, Tooltip, Zoom, Box } from '@mui/material';
-import { ContentCopy, Check } from '@mui/icons-material';
+import { Copy as ContentCopy, Check } from '../icons';
 /**
  * Small copy-to-clipboard button with success feedback.
  * Props:

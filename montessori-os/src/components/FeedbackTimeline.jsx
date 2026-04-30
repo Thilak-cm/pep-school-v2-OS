@@ -23,24 +23,8 @@ import {
   TextField as MuiTextField,
   Collapse
 } from '@mui/material';
+import { Search, Filter as FilterList, Pencil as Edit, Save, XCircle as Cancel, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, User as Person, Clock as AccessTime, ShieldCheck as AdminPanelSettings, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { formatTimestamp as formatDateWithTime } from '../utils/dateFormat';
-import { 
-  Search, 
-  FilterList, 
-  Edit, 
-  Save, 
-  Cancel,
-  BugReport,
-  Lightbulb,
-  Brush,
-  Speed,
-  Chat,
-  Person,
-  AccessTime,
-  AdminPanelSettings,
-  ExpandMore,
-  ExpandLess
-} from '@mui/icons-material';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchFeedback } from '../utils/fuzzySearch';
@@ -452,11 +436,11 @@ function FeedbackTimeline({ currentUser, userRole }) {
                           
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Person sx={{ fontSize: 16 }} />
+                              <Person size={16} />
                               {feedback.userDisplayName || feedback.userEmail}
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <AccessTime sx={{ fontSize: 16 }} />
+                              <AccessTime size={16} />
                               {formatTimestamp(feedback.timestamp)}
                             </Box>
                           </Box>

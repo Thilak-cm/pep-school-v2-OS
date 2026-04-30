@@ -15,7 +15,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { CalendarToday, Close, Download } from '@mui/icons-material';
+import { Calendar as CalendarToday, X as Close, Download } from '../icons';
 import { NOTE_KIND, filterObservationsForExport } from '../utils/export';
 
 const noteOptions = [

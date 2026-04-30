@@ -5,7 +5,7 @@ import {
   Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
   ListItemButton, Collapse, Chip
 } from '@mui/material';
-import { Settings, ExpandMore, ExpandLess, Save, Chat, Cancel } from '@mui/icons-material';
+import { Settings, ChevronDown as ExpandMore, ChevronUp as ExpandLess, Save, MessageCircle as Chat, XCircle as Cancel } from '../icons';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';

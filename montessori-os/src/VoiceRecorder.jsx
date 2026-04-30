@@ -19,24 +19,7 @@ import {
   LinearProgress,
   TextField
 } from '@mui/material';
-import {
-  Mic,
-  Stop,
-  PlayArrow,
-  Pause,
-  Refresh,
-  ContentCopy,
-  CheckCircle,
-  Error,
-  Warning,
-  Close,
-  InfoOutlined,
-  Delete,
-  Edit,
-  ArrowForward,
-  ArrowBack,
-  AutoFixHigh
-} from '@mui/icons-material';
+import { Mic, Square as Stop, Play as PlayArrow, Pause, RefreshCw as Refresh, Copy as ContentCopy, CircleCheck as CheckCircle, CircleAlert as Error, TriangleAlert as Warning, X as Close, Info as InfoOutlined, Trash2 as Delete, Pencil as Edit, ArrowRight as ArrowForward, ArrowLeft as ArrowBack, Sparkles as AutoFixHigh } from './icons';
 import Popover from '@mui/material/Popover';
 import Checkbox from '@mui/material/Checkbox';
 import { reportCaughtError } from './utils/reportCaughtError.js';
@@ -797,7 +780,7 @@ const VoiceRecorder = ({
                 gap: 1
               }}
             >
-              <CheckCircle sx={{ fontSize: 16 }} />
+              <CheckCircle size={16} />
               Transcription
             </Typography>
           </Box>

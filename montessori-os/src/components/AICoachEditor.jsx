@@ -4,7 +4,7 @@ import {
   Alert, CircularProgress, Chip, ListItemButton, Collapse,
   FormControl, InputLabel, Select, MenuItem, FormControlLabel, Switch
 } from '@mui/material';
-import { Settings, Bolt, ExpandMore, ExpandLess, Save, Cancel } from '@mui/icons-material';
+import { Settings, Zap as Bolt, ChevronDown as ExpandMore, ChevronUp as ExpandLess, Save, XCircle as Cancel } from '../icons';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, cloudFunctions } from '../firebase';
 import { httpsCallable } from 'firebase/functions';

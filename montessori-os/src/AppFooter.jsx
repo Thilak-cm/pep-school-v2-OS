@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { Home, Settings, Notifications, Inbox } from '@mui/icons-material';
+import { Home, Settings, Bell as Notifications, Inbox } from './icons';
 
 const FOOTER_HEIGHT = 64;
 

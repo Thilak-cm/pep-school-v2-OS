@@ -21,17 +21,7 @@ import {
   Stack,
   InputAdornment
 } from '@mui/material';
-import { 
-  ExpandMore, 
-  ExpandLess,
-  Person,
-  Group,
-  Edit,
-  Close,
-  CheckCircle,
-  AutoFixHigh,
-  Refresh
-} from '@mui/icons-material';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, User as Person, Users as Group, Pencil as Edit, X as Close, CircleCheck as CheckCircle, Sparkles as AutoFixHigh, RefreshCw as Refresh, Search } from '../icons';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { cleanUpText } from '../textCleanup';
@@ -595,7 +585,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 gap: 1
               }}
             >
-              <CheckCircle sx={{ fontSize: 16 }} />
+              <CheckCircle size={16} />
               Transcription
             </Typography>
           </Box>
@@ -833,7 +823,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 gap: 1
               }}
             >
-              <CheckCircle sx={{ fontSize: 16 }} />
+              <CheckCircle size={16} />
               Text Note
             </Typography>
           </Box>
@@ -1036,7 +1026,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                   key={id}
                   label={label}
                   onDelete={() => handleRemoveStudent(id)}
-                  deleteIcon={<Close fontSize="small" />}
+                  deleteIcon={<Close size={20} />}
                   color="primary"
                   variant="outlined"
                 />
@@ -1058,9 +1048,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <Typography variant="body2" sx={{ lineHeight: 1 }}>
-                    🔍
-                  </Typography>
+                  <Search size={18} />
                 </InputAdornment>
               ),
             }}

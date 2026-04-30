@@ -5,9 +5,7 @@ import {
   Box,
   Container
 } from "@mui/material";
-import { 
-  ArrowBack
-} from "@mui/icons-material";
+import { ArrowLeft as ArrowBack } from './icons';
 
 function AppHeader({ title = '', onBack, showBackButton = false }) {
   return (

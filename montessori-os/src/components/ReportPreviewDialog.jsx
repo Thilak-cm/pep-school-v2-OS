@@ -12,7 +12,7 @@ import {
   Divider,
   Popover,
 } from '@mui/material';
-import { Close, Description as ReportIcon, CloudUpload as ExportIcon, WarningAmber } from '@mui/icons-material';
+import { X as Close, FileText as ReportIcon, Upload as ExportIcon, TriangleAlert as WarningAmber } from '../icons';
 import { parseReportSections, renderSectionContent } from '../utils/reportUtils';
 
 export default function ReportPreviewDialog({
@@ -80,7 +80,7 @@ export default function ReportPreviewDialog({
         }}
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <ReportIcon sx={{ color: 'var(--color-primary)', fontSize: 24 }} />
+          <ReportIcon size={24} sx={{ color: 'var(--color-primary)' }} />
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {studentLabel}'s Report
@@ -96,7 +96,7 @@ export default function ReportPreviewDialog({
           </Box>
         </Stack>
         <IconButton onClick={onClose} size="small">
-          <Close fontSize="small" />
+          <Close size={20} />
         </IconButton>
       </Box>
 
@@ -107,7 +107,7 @@ export default function ReportPreviewDialog({
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<WarningAmber sx={{ fontSize: 18 }} />}
+                startIcon={<WarningAmber size={18} />}
                 onClick={(e) => setFlagsAnchorEl(e.currentTarget)}
                 sx={{
                   textTransform: 'none',
@@ -136,7 +136,7 @@ export default function ReportPreviewDialog({
               >
                 <Stack spacing={1.25}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <WarningAmber sx={{ fontSize: 20, color: 'var(--color-warning)' }} />
+                    <WarningAmber size={20} sx={{ color: 'var(--color-warning)' }} />
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'var(--color-amber-text)' }}>
                       Missing inputs
                     </Typography>

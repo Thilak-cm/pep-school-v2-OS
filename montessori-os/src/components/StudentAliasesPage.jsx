@@ -23,15 +23,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import {
-  Add,
-  Edit,
-  Delete,
-  Group,
-  Search,
-  Save,
-  Close
-} from '@mui/icons-material';
+import { Plus as Add, Pencil as Edit, Trash2 as Delete, Users as Group, Search, Save, X as Close } from '../icons';
 import {
   collection,
   deleteField,
@@ -453,7 +445,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
                 onChange={(e) => setFormSearch(e.target.value)}
                 disabled={!selectedClassroomId}
                 InputProps={{
-                  startAdornment: <Search fontSize="small" sx={{ mr: 1, color: 'var(--color-text-faint)' }} />
+                  startAdornment: <Search size={20} sx={{ mr: 1, color: 'var(--color-text-faint)' }} />
                 }}
               />
               <Paper

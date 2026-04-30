@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Card, CardContent, CardActionArea, Typography, Avatar } from '@mui/material';
-import { Description, GraphicEq, Psychology, AutoAwesome, Chat, Assessment } from '@mui/icons-material';
+import { FileText as Description, AudioLines as GraphicEq, Brain as Psychology, Sparkles as AutoAwesome, MessageCircle as Chat, ClipboardList as Assessment } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 export default function AIHomePage({ userRole, onOpenTextEditor, onOpenVoiceEditor, onOpenCoachEditor, onOpenBaseballCardConfig, onOpenChatCommandCentre, onOpenReportGenConfig }) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Fab } from '@mui/material';
-import { Add } from '@mui/icons-material';
+import { Plus as Add } from '../icons';
 
 /**
  * Floating action button for adding a new observation note.

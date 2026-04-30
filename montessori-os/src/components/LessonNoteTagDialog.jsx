@@ -10,7 +10,7 @@ import {
   Dialog,
   Button,
 } from '@mui/material';
-import { Close } from '@mui/icons-material';
+import { X as Close } from '../icons';
 function LessonNoteTagDialog({
   open,
   onClose,
@@ -95,7 +95,7 @@ function LessonNoteTagDialog({
             onClick={onClose}
             sx={{ alignSelf: 'flex-start' }}
           >
-            <Close fontSize="small" />
+            <Close size={20} />
           </IconButton>
         </Box>
         <TextField

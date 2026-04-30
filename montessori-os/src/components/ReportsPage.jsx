@@ -18,14 +18,7 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-import {
-  Description as ReportIcon,
-  Visibility as ViewIcon,
-  Add as AddIcon,
-  DeleteOutline as DeleteIcon,
-  ExpandMore as ExpandMoreIcon,
-  FactCheck as ReadinessIcon,
-} from '@mui/icons-material';
+import { FileText as ReportIcon, Eye as ViewIcon, Plus as AddIcon, Trash2 as DeleteIcon, ChevronDown as ExpandMoreIcon, ListChecks as ReadinessIcon, User } from '../icons';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -417,7 +410,7 @@ export default function ReportsPage({
               bgcolor: 'rgba(99, 102, 241, 0.12)',
             }}
           >
-            <ReadinessIcon sx={{ fontSize: 16, color: 'var(--color-primary)' }} />
+            <ReadinessIcon size={16} sx={{ color: 'var(--color-primary)' }} />
           </Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)', letterSpacing: '-0.01em' }}>
             Report Readiness
@@ -462,7 +455,7 @@ export default function ReportsPage({
             <Button
               size="small"
               variant="outlined"
-              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon size={16} />}
               onClick={() => setRerunConfirmOpen(true)}
               disabled={readinessLoading}
               sx={{
@@ -490,7 +483,7 @@ export default function ReportsPage({
             <Button
               size="small"
               variant="outlined"
-              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon sx={{ fontSize: 16 }} />}
+              startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon size={16} />}
               onClick={() => handleCheckReadiness({})}
               disabled={readinessLoading}
               sx={{
@@ -526,7 +519,7 @@ export default function ReportsPage({
 
       {!loading && reports.length === 0 && exportingCount === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <ReportIcon sx={{ fontSize: 48, color: 'var(--grey-300)', mb: 1 }} />
+          <ReportIcon size={48} sx={{ color: 'var(--grey-300)', mb: 1 }} />
           <Typography variant="body1" sx={{ color: 'var(--color-text-faint)' }}>
             No reports yet
           </Typography>
@@ -563,7 +556,7 @@ export default function ReportsPage({
                   </Typography>
                   {report.generatedByName && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                      <span role="img" aria-label="teacher" style={{ fontSize: '14px' }}>👩‍🏫</span>
+                      <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                         {report.generatedByName}
                       </Typography>
@@ -583,7 +576,7 @@ export default function ReportsPage({
                     sx={{ color: 'var(--color-primary)' }}
                     aria-label={`View report from ${formatReportDate(report.generatedAt)}`}
                   >
-                    <ViewIcon fontSize="small" />
+                    <ViewIcon size={20} />
                   </IconButton>
                   {isAdminRole(userRole) && (
                     <IconButton
@@ -593,7 +586,7 @@ export default function ReportsPage({
                       sx={{ color: 'var(--color-error-light)' }}
                       aria-label={`Delete report from ${formatReportDate(report.generatedAt)}`}
                     >
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon size={20} />
                     </IconButton>
                   )}
                 </Stack>

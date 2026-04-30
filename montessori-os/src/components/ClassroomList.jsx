@@ -13,7 +13,7 @@ import {
   Button,
   Collapse,
 } from '@mui/material';
-import { School, Group, ArrowForward, Search, Person, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, Search, User as Person, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -524,7 +524,7 @@ const handleStudentClick = (student) => {
                     {classroom.name || 'Untitled classroom'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                    <Group sx={{ fontSize: 16, color: 'var(--color-text-soft)' }} />
+                    <Group size={16} sx={{ color: 'var(--color-text-soft)' }} />
                     <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                       {studentTotal} students
                     </Typography>
@@ -614,7 +614,7 @@ const handleStudentClick = (student) => {
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Search fontSize="small" />
+              <Search size={20} />
             </InputAdornment>
           ),
         }}
@@ -695,7 +695,7 @@ const handleStudentClick = (student) => {
               backgroundColor: 'var(--color-bg)',
               border: '2px dashed var(--grey-300)'
             }}>
-              <School sx={{ fontSize: 48, color: 'var(--color-text-faint)', mb: 2 }} />
+              <School size={48} sx={{ color: 'var(--color-text-faint)', mb: 2 }} />
               <Typography variant="h6" sx={{ color: 'var(--grey-600)', mb: 1 }}>
                 {userRole === 'teacher' ? 'No classrooms assigned' : 'No classrooms found'}
               </Typography>
@@ -764,7 +764,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
         {/* Classroom */}
         {classroomName && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <School sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <School size={14} sx={{ color: 'text.secondary' }} />
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
               {classroomName}
             </Typography>

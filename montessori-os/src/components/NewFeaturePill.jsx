@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box } from '@mui/material';
-import { AutoFixHigh } from '@mui/icons-material';
+import { Sparkles as AutoFixHigh } from '../icons';
 
 /**
  * Small gradient pill for temporary "New Feature" highlighting.

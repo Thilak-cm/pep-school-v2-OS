@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Card, CardContent, Stack, Typography, IconButton, Chip } from '@mui/material';
-import { Refresh } from '@mui/icons-material';
+import { RefreshCw as Refresh } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardBody from './BaseballCardBody';
 
@@ -124,7 +124,7 @@ export default function BaseballCardSnapshotCard({
                 }}
                 aria-label="Regenerate student summary"
               >
-                <Refresh sx={{ fontSize: 20 }} />
+                <Refresh size={20} />
               </IconButton>
             )}
             {topRightActions}

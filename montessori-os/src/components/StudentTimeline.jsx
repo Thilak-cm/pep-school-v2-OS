@@ -20,7 +20,7 @@ import {
   TextField,
   Skeleton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, ChevronLeft, ChevronRight, AutoAwesome } from '@mui/icons-material';
+import { Clock as AccessTime, Trash2 as Delete, Filter as FilterList, Download, Mic as KeyboardVoice, BookOpen as MenuBook, Type as TextFields, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, CirclePlay as PlayCircleFilled, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -1094,7 +1094,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+                          <Description size={18} sx={{ color: 'secondary.main' }} />
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             Report generated
                           </Typography>
@@ -1150,9 +1150,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   >
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                          👩‍🏫
-                        </span>
+                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                           {getTeacherDisplayName(obs)}
                         </Typography>
@@ -1164,7 +1162,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       )}
                       {!obs.batchId && obs.teacherComment && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                          💬 {obs.teacherComment}
+                          <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {obs.teacherComment}
                         </Typography>
                       )}
 
@@ -1295,7 +1293,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                             justifyContent: 'center',
                                           }}
                                         >
-                                          <PlayCircleFilled sx={{ color: 'var(--color-paper)', fontSize: 34 }} />
+                                          <PlayCircleFilled size={34} sx={{ color: 'var(--color-paper)' }} />
                                         </Box>
                                       </>
                                     )}
@@ -1338,7 +1336,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           size="small"
                                           label="Pending"
                                           color="warning"
-                                          icon={<CloudUpload sx={{ fontSize: 14 }} />}
+                                          icon={<CloudUpload size={14} />}
                                         />
                                       )}
                                       {item.status === 'failed' && (
@@ -1346,7 +1344,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           size="small"
                                           label="Failed"
                                           color="error"
-                                          icon={<ErrorOutline sx={{ fontSize: 14 }} />}
+                                          icon={<ErrorOutline size={14} />}
                                         />
                                       )}
                                     </Box>
@@ -1363,7 +1361,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                         mt: 0.5,
                                       }}
                                     >
-                                      💬 {item.teacherComment}
+                                      <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {item.teacherComment}
                                     </Typography>
                                   )}
                                 </Box>
@@ -1391,7 +1389,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       )}
 
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <AccessTime size={14} sx={{ color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1410,7 +1408,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     aria-label={`View details for lesson note from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
                   >
                     <Chip
-                      icon={<MenuBook sx={{ fontSize: 16 }} />}
+                      icon={<MenuBook size={16} />}
                       label="Lesson Note"
                       size="small"
                       variant="outlined"
@@ -1425,9 +1423,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     />
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                          👩‍🏫
-                        </span>
+                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                           {getTeacherDisplayName(obs)}
                         </Typography>
@@ -1441,7 +1437,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <AccessTime size={14} sx={{ color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1460,8 +1456,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 >
                   <Chip
                     icon={obs.type === 'voice'
-                      ? <KeyboardVoice sx={{ fontSize: 16 }} />
-                      : <TextFields sx={{ fontSize: 16 }} />}
+                      ? <KeyboardVoice size={16} />
+                      : <TextFields size={16} />}
                     label="Observation"
                     size="small"
                     variant="outlined"
@@ -1476,9 +1472,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   />
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                      <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                        👩‍🏫
-                      </span>
+                      <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                         {getTeacherDisplayName(obs)}
                       </Typography>
@@ -1503,7 +1497,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      <AccessTime size={14} sx={{ color: 'text.secondary' }} />
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(obs.observedAt || obs.timestamp)}
                       </Typography>
@@ -1626,10 +1620,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             const docs = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() === 'pdf');
             const renderStatusChip = (obs) => {
               if (obs.status === 'pending_upload') {
-                return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload sx={{ fontSize: 16 }} />} />;
+                return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload size={16} />} />;
               }
               if (obs.status === 'failed') {
-                return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline sx={{ fontSize: 16 }} />} />;
+                return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline size={16} />} />;
               }
               return null;
             };
@@ -1973,7 +1967,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             return (
               <Box sx={{ bgcolor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', p: 1.5 }}>
                 <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                  <AutoAwesome sx={{ fontSize: 12 }} />
+                  <AutoAwesome size={12} />
                   Coach Pepper AI
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
@@ -2004,7 +1998,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           ) : (
             <Typography variant="body2" color="text.secondary">
               {mediaPreview?.observation?.teacherComment
-                ? `💬 ${mediaPreview.observation.teacherComment}`
+                ? `<MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> ${mediaPreview.observation.teacherComment}`
                 : 'No comment added.'}
             </Typography>
           )}
