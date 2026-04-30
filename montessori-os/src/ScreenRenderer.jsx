@@ -102,7 +102,6 @@ export default function ScreenRenderer({ screen, ctx }) {
             ctx.setTimelineFilter(noteType || null);
             ctx.setScreen("timeline");
           }}
-          onOpenStats={() => ctx.setScreen("studentStats")}
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReports")}

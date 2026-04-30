@@ -80,7 +80,7 @@ export default function BaseballCardSnapshotCard({
   onSummaryScroll,
   showScrollFade,
   minHeight,
-  maxHeight = '54vh'
+  maxHeight = '70vh'
 }) {
   const resolvedWindowDays = Number.isFinite(windowDays)
     ? windowDays

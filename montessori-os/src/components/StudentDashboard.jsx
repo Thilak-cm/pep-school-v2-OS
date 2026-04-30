@@ -1,12 +1,9 @@
 // StudentDashboard.jsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
-  Avatar,
-  CardActionArea,
+  CircularProgress,
   IconButton,
   Button,
   Stack,
@@ -21,15 +18,13 @@ import {
 import { keyframes } from '@emotion/react';
 import {
   Notes as NotesIcon,
-  BarChart as BarChartIcon,
-  WarningAmber as WarningIcon,
-  ArrowForward,
   Chat as ChatIcon,
   CheckCircleOutline,
   InfoOutlined,
   Refresh,
   FlagRounded,
-  CheckCircle
+  CheckCircle,
+  Assessment as ReportsIcon
 } from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -37,8 +32,8 @@ import { db, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
-import ReportsCard from './ReportsCard';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 
 const confettiFall = keyframes`
@@ -118,8 +113,7 @@ function ConfettiAnimation({ count = 50, small = false }) {
     </Box>
   );
 }
-function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
-  const [notesLast7Days, setNotesLast7Days] = useState(null); // null = loading, number = count
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -138,6 +132,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
   const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
+  const [chartObservations, setChartObservations] = useState([]);
+  const [chartLoading, setChartLoading] = useState(true);
   const coverageConfettiTimerRef = useRef(null);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
 
@@ -277,64 +273,72 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
     return () => { active = false; };
   }, [studentId, reloadKey]);
 
-  // Fetch notes count for past 7 days
+  // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
     if (!studentId) {
-      setNotesLast7Days(null);
+      setChartObservations([]);
+      setChartLoading(false);
       return;
     }
-
-    const fetchNotesCount = async () => {
+    let active = true;
+    setChartLoading(true);
+    const fetchChartObs = async () => {
       try {
-        const sevenDaysAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-        
-        // Query observations for this student from past 7 days only (server-side filter)
-        // Limit to 1000 max - if student has more than 1000 notes in 7 days, count will be approximate
-        const observationsQuery = query(
+        const windowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : 42;
+        const windowStart = Timestamp.fromDate(new Date(Date.now() - (windowDays + 7) * 24 * 60 * 60 * 1000));
+        const obsQuery = query(
           collectionGroup(db, 'observations'),
           where('studentId', '==', studentId),
-          where('observedAt', '>=', sevenDaysAgo),
-          orderBy('observedAt', 'desc'),
-          limit(1000) // Cap at 1000 - should be plenty for 7 days, prevents excessive reads
+          where('observedAt', '>=', windowStart),
+          orderBy('observedAt', 'desc')
         );
-
-        const observationsSnap = await getDocs(observationsQuery);
-        // Count is just the number of documents returned (already filtered by Firestore)
-        const count = observationsSnap.docs.length;
-
-        setNotesLast7Days(count);
-      } catch (error) {
-        // If index error, try fallback query without date filter (less efficient but works)
-        if (error.code === 'failed-precondition' && error.message?.includes('index')) {
-          try {
-            const fallbackQuery = query(
-              collectionGroup(db, 'observations'),
-              where('studentId', '==', studentId),
-              orderBy('observedAt', 'desc'),
-              limit(100) // Only check last 100 observations as fallback
-            );
-            const fallbackSnap = await getDocs(fallbackQuery);
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            const count = fallbackSnap.docs.filter(doc => {
-              const obs = doc.data();
-              const obsDate = obs.observedAt?.toDate ? obs.observedAt.toDate() : 
-                           obs.createdAt?.toDate ? obs.createdAt.toDate() :
-                           obs.observedAt?.seconds ? new Date(obs.observedAt.seconds * 1000) :
-                           obs.createdAt?.seconds ? new Date(obs.createdAt.seconds * 1000) : null;
-              return obsDate && obsDate >= sevenDaysAgo;
-            }).length;
-            setNotesLast7Days(count);
-          } catch {
-            setNotesLast7Days(null);
-          }
-        } else {
-          setNotesLast7Days(null); // Set to null on error to avoid showing false alert
-        }
+        const snap = await getDocs(obsQuery);
+        if (!active) return;
+        setChartObservations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch {
+        if (active) setChartObservations([]);
+      } finally {
+        if (active) setChartLoading(false);
       }
     };
+    fetchChartObs();
+    return () => { active = false; };
+  }, [studentId, cardConfig?.windowDays]);
 
-    fetchNotesCount();
-  }, [studentId]);
+  const getObservationDate = React.useCallback((obs) => {
+    if (obs.observedAt?.toDate) return obs.observedAt.toDate();
+    if (obs.createdAt?.toDate) return obs.createdAt.toDate();
+    if (obs.observedAt?.seconds) return new Date(obs.observedAt.seconds * 1000);
+    if (obs.createdAt?.seconds) return new Date(obs.createdAt.seconds * 1000);
+    return new Date(0);
+  }, []);
+
+  const weeklyChartData = useMemo(() => {
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weekCount = Math.max(1, Math.round((Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : 42) / 7));
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const data = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    for (let i = weekCount - 1; i >= 0; i--) {
+      const weekEnd = new Date(endOfToday.getTime() - i * 7 * dayMs);
+      const weekStart = new Date(weekEnd.getTime() - 7 * dayMs);
+      const count = chartObservations.filter(obs => {
+        const d = getObservationDate(obs);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+      const label = `W${Math.ceil(weekStart.getDate() / 7)} ${monthNames[weekStart.getMonth()]}`;
+      data.push({ period: label, count });
+    }
+    return data;
+  }, [chartObservations, cardConfig?.windowDays, getObservationDate]);
+
+  const peakPerWeek = useMemo(() => {
+    if (!weeklyChartData.length) return 0;
+    return Math.max(...weeklyChartData.map(d => d.count));
+  }, [weeklyChartData]);
 
   useEffect(() => {
     let active = true;
@@ -606,6 +610,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
       <BaseballCardSnapshotCard
+        minHeight="55vh"
         noteCount={cardNoteCount}
         windowDays={cardWindowDays}
         coverage={renderCoverageRow()}
@@ -623,6 +628,70 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         summaryScrollRef={summaryScrollRef}
         onSummaryScroll={updateScrollFade}
         showScrollFade={showScrollFade}
+        footer={
+          chartLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
+              <CircularProgress size={24} sx={{ color: '#4f46e5' }} />
+            </Box>
+          ) : weeklyChartData.length > 0 ? (
+            <Box>
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e293b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Notes over time
+                </Typography>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8' }}>
+                  peak: {peakPerWeek}/wk
+                </Typography>
+              </Stack>
+              <Box sx={{ height: 120, width: '100%', ml: -1 }}>
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 9, fill: '#94a3b8' }}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 9, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={30}
+                      tickFormatter={(v) => Math.round(v)}
+                      allowDecimals={false}
+                    />
+                    <RechartsTooltip
+                      content={({ active, payload }) => {
+                        if (active && payload?.length) {
+                          return (
+                            <Box sx={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1.5, py: 0.75, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
+                                {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                                {payload[0].payload.period}
+                              </Typography>
+                            </Box>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#4f46e5"
+                      strokeWidth={2.5}
+                      dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }}
+                      activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+            </Box>
+          ) : null
+        }
       />
       {regenError && (
         <Typography variant="body2" color="error">
@@ -807,133 +876,46 @@ function StudentDashboard({ student, onOpenTimeline, onOpenStats, onOpenFeedback
         </Box>
       </Popover>
 
-      <ReportsCard studentId={studentId} onClick={onOpenReports} />
-
-      <Card
-        sx={{
-          borderRadius: 2,
-          '&:hover': { boxShadow: '0 8px 24px rgba(0,0,0,0.12)', transform: 'translateY(-2px)' },
-          transition: 'all 0.2s ease-in-out',
-        }}
-      >
-        <CardActionArea
-          onClick={() => {
-            trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {});
-            onOpenTimeline?.(initialNoteType);
-          }}
-          sx={{ p: 0 }}
-      >
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-              <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
-                  <NotesIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                    Timeline
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
-                    View student's observations and lesson notes here
-                  </Typography>
-                </Box>
-              </Box>
-              <ArrowForward sx={{ color: '#94a3b8' }} />
-            </Box>
-        </CardContent>
-      </CardActionArea>
-    </Card>
-
-    {/* AI Chat Card */}
-    <Card
-        sx={{
-          borderRadius: 2,
-          '&:hover': {
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            transform: 'translateY(-2px)',
-          },
-          transition: 'all 0.2s ease-in-out',
-        }}
-      >
-        <CardActionArea
-          onClick={() => {
-            trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {});
-            onOpenChat?.();
-          }}
-          sx={{ p: 0 }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-                <Avatar sx={{ bgcolor: '#6366f1', width: 48, height: 48 }}>
-                  <ChatIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
-                      Chat with Coach Pepper
-                    </Typography>
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
-                    Ask questions about {getStudentName(student)}'s development
-                  </Typography>
-                </Box>
-              </Box>
-              <ArrowForward sx={{ color: '#94a3b8' }} />
-            </Box>
-          </CardContent>
-        </CardActionArea>
-      </Card>
-
-    <Card
-      sx={{
-        borderRadius: 2,
-        '&:hover': {
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          transform: 'translateY(-2px)',
-        },
-        transition: 'all 0.2s ease-in-out',
-      }}
-    >
-      <CardActionArea
-        onClick={() => {
-          trackEvent('student_dashboard_card_click', { card: 'stats', studentId }).catch(() => {});
-          onOpenStats?.();
-        }}
-        sx={{ p: 0 }}
-      >
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-              <Avatar sx={{ bgcolor: '#f59e0b', width: 56, height: 56 }}>
-                <BarChartIcon />
-              </Avatar>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
-                  Statistics
-                </Typography>
-                {notesLast7Days !== null && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                    {notesLast7Days === 0 && (
-                      <WarningIcon sx={{ fontSize: 16, color: '#dc2626' }} />
-                    )}
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: '#64748b',
-                        fontWeight: 500,
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      Monitor notes activity for {getStudentName(student)}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-            <ArrowForward sx={{ color: '#94a3b8' }} />
+      {/* Square action buttons */}
+      <Stack direction="row" spacing={1.5} justifyContent="flex-start">
+        {[
+          { label: 'Timeline', icon: <NotesIcon sx={{ fontSize: 22 }} />, color: '#4f46e5', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
+          { label: 'Reports', icon: <ReportsIcon sx={{ fontSize: 22 }} />, color: '#059669', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
+          { label: 'Coach', icon: <ChatIcon sx={{ fontSize: 22 }} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
+        ].map((btn) => (
+          <Box
+            key={btn.label}
+            onClick={btn.onClick}
+            sx={{
+              width: 72,
+              height: 72,
+              borderRadius: 2.5,
+              border: '1px solid #e2e8f0',
+              backgroundColor: btn.bg,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.5,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                borderColor: btn.color,
+              },
+              '&:active': {
+                transform: 'scale(0.96)',
+              }
+            }}
+          >
+            <Box sx={{ color: btn.color }}>{btn.icon}</Box>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', letterSpacing: '0.02em' }}>
+              {btn.label}
+            </Typography>
           </Box>
-        </CardContent>
-      </CardActionArea>
-    </Card>
+        ))}
+      </Stack>
   </Box>
   );
 }
