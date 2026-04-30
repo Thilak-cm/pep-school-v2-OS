@@ -469,7 +469,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Box
               component="pre"
               sx={{
-                fontFamily: 'monospace',
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 p: 1.5,
                 bgcolor: 'var(--color-bg)',
@@ -545,7 +545,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Box
               component="pre"
               sx={{
-                fontFamily: 'monospace',
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 p: 1.5,
                 bgcolor: 'var(--color-bg)',
@@ -575,7 +575,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               setCoachResult(null);
             }}
             disabled={runningCoach || saving}
-            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
+            sx={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}
           />
           
           {coachError && (
@@ -604,7 +604,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                   <Box
                     component="pre"
                     sx={{
-                      fontFamily: 'monospace',
+                      fontFamily: 'var(--font-mono)',
                       whiteSpace: 'pre-wrap',
                       p: 1.5,
                       bgcolor: 'var(--color-paper)',

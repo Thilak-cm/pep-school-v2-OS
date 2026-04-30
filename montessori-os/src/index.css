@@ -142,8 +142,6 @@
   --radius-pill: 999px;
 
   /* ── Typography ── */
-  --font-display: 'Schoolbell', cursive;
-  --font-ui: 'Inter Tight', sans-serif;
   --font-body: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }

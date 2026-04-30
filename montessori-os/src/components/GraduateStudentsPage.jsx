@@ -225,7 +225,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Backdrop open={submitting} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+      <Backdrop open={submitting} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}> {/* #fff intentional — contrast on dark backdrop overlay */}
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <CircularProgress color="inherit" size={28} />
           <Typography variant="body2" sx={{ textAlign: 'center' }}>

@@ -270,7 +270,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                   />
                 </Box>
               ) : (
-                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontFamily: 'monospace' }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontFamily: 'var(--font-mono)' }}>
                   Model: {model} &bull; Temperature: {temperature}
                 </Typography>
               )}
@@ -281,13 +281,13 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                 <>
                   <Box>
                     <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>System Prompt</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
+                    <Box component="pre" sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
                       {systemPrompt || '—'}
                     </Box>
                   </Box>
                   <Box>
                     <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>User Prompt (supports ${'{text}'})</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
+                    <Box component="pre" sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
                       {userPrompt || '—'}
                     </Box>
                   </Box>

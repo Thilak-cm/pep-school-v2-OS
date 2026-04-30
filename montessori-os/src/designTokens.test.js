@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -69,30 +69,16 @@ describe('AC1: CSS custom properties in index.css', () => {
 
   it('defines font tokens', () => {
     css = readSrcFile('index.css');
-    for (const f of ['--font-display', '--font-ui', '--font-body', '--font-mono']) {
+    for (const f of ['--font-body', '--font-mono']) {
       assert.ok(css.includes(f), `Missing CSS var: ${f}`);
     }
   });
 });
 
-// ── AC2: Google Fonts loaded for Schoolbell + Inter Tight ──
+// ── AC2: Google Fonts loaded ──
 describe('AC2: Google Fonts loaded', () => {
-  let html;
-  it('index.html loads Schoolbell', () => {
-    html = readFile('index.html');
-    assert.ok(html.includes('Schoolbell'), 'Schoolbell font not loaded in index.html');
-  });
-
-  it('index.html loads Inter Tight', () => {
-    html = readFile('index.html');
-    assert.ok(
-      html.includes('Inter+Tight') || html.includes('Inter Tight'),
-      'Inter Tight font not loaded in index.html'
-    );
-  });
-
   it('index.html loads Inter', () => {
-    html = readFile('index.html');
+    const html = readFile('index.html');
     // Must match "Inter" but not only via "Inter Tight" or "Inter+Tight"
     // Check for the standalone Inter family parameter
     assert.ok(
@@ -150,6 +136,49 @@ describe('AC4: No raw hex in components (full migration)', () => {
       !main.includes('createTheme'),
       'main.jsx should not define createTheme inline (extracted to theme.js)'
     );
+  });
+
+  it('no TARGET_HEXES remain in component or page files', () => {
+    // Collect all .jsx files to scan
+    const componentsDir = join(__dirname, 'components');
+    const coachDir = join(__dirname, 'coach');
+    const filesToScan = [];
+
+    // src/components/**/*.jsx (recursive)
+    const scanDir = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) scanDir(join(dir, entry.name));
+        else if (entry.name.endsWith('.jsx')) filesToScan.push(join(dir, entry.name));
+      }
+    };
+    scanDir(componentsDir);
+
+    // src/coach/*.jsx
+    try {
+      for (const f of readdirSync(coachDir)) {
+        if (f.endsWith('.jsx')) filesToScan.push(join(coachDir, f));
+      }
+    } catch { /* coach dir may not exist */ }
+
+    // Root src/*.jsx files
+    for (const f of readdirSync(__dirname)) {
+      if (f.endsWith('.jsx')) filesToScan.push(join(__dirname, f));
+    }
+
+    const violations = [];
+    for (const filePath of filesToScan) {
+      // Skip theme.js (legitimately contains hex for MUI)
+      if (filePath.endsWith('theme.js')) continue;
+      const content = readFileSync(filePath, 'utf-8');
+      for (const hex of TARGET_HEXES) {
+        // Case-insensitive match for the hex value (not inside a comment)
+        if (content.toLowerCase().includes(hex.toLowerCase())) {
+          const relName = filePath.split('/').slice(-2).join('/');
+          violations.push(`${relName} contains ${hex}`);
+        }
+      }
+    }
+    assert.deepStrictEqual(violations, [], `Raw hex values found in component files:\n${violations.join('\n')}`);
   });
 });
 

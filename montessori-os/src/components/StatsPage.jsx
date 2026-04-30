@@ -2004,7 +2004,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                             fontWeight: 400,
                             color: 'var(--grey-900)',
                             lineHeight: 1,
-                            fontFamily: 'Inter, system-ui, sans-serif'
+                            fontFamily: 'var(--font-body)'
                           }}
                         >
                           {pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0).toLocaleString()}

@@ -612,7 +612,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
             <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: 13 }}>
               Student name, date of birth, and age are injected from the student profile at generation time.
             </Typography>
-            <Box sx={{ backgroundColor: 'var(--color-bg)', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'monospace', fontSize: 12, color: 'var(--grey-600)' }}>
+            <Box sx={{ backgroundColor: 'var(--color-bg)', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--grey-600)' }}>
               {'Student: {"studentName":"Aarav Sharma","dob":"15 March 2019","age":"6 years 11 months"}'}
             </Box>
           </Box>

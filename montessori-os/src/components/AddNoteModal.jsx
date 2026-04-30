@@ -2274,7 +2274,7 @@ function AddNoteModal({
                                     backgroundColor: 'rgba(255,255,255,0.9)',
                                     backdropFilter: 'blur(4px)',
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                                    '&:hover': { backgroundColor: '#fff' },
+                                    '&:hover': { backgroundColor: 'var(--color-paper)' },
                                   }}
                                 >
                                   <Close sx={{ fontSize: 16 }} />
@@ -2307,7 +2307,7 @@ function AddNoteModal({
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         bgcolor: !item.copied ? 'rgba(22, 163, 74, 0.92)' : 'rgba(255,255,255,0.75)',
-                                        color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
+                                        color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
                                       <Brush sx={{ fontSize: 13 }} />
@@ -2326,7 +2326,7 @@ function AddNoteModal({
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         bgcolor: item.copied ? 'rgba(245, 158, 11, 0.92)' : 'rgba(255,255,255,0.75)',
-                                        color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
+                                        color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
                                       <ContentCopy sx={{ fontSize: 13 }} />

@@ -191,7 +191,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
                   Model Configuration
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontFamily: 'monospace' }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontFamily: 'var(--font-mono)' }}>
                 Model: {WHISPER_MODEL_INFO.model}
               </Typography>
             </Box>
@@ -201,7 +201,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
                 <>
                   <Box>
                     <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>Context Prompt</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
+                    <Box component="pre" sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
                       {contextPrompt || '—'}
                     </Box>
                   </Box>

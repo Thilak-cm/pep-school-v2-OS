@@ -373,7 +373,7 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
         border: '1px solid var(--color-border)',
         borderRadius: 2,
         p: 1.25,
-        backgroundColor: '#fff'
+        backgroundColor: 'var(--color-paper)'
       }}>
         <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'var(--grey-900)' }}>
           {previewParts.originalPreview}

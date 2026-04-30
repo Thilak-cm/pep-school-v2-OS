@@ -96,7 +96,7 @@ export default function BaseballCardSnapshotCard({
       sx={{
         borderRadius: 2,
         border: '1px solid var(--color-border)',
-        background: 'linear-gradient(135deg, var(--color-bg) 0%, #fff 100%)',
+        background: 'linear-gradient(135deg, var(--color-bg) 0%, var(--color-paper) 100%)',
         minHeight,
         maxHeight,
         display: 'flex',

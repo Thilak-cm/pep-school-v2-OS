@@ -44,11 +44,11 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           sx={{ 
             fontWeight: 700,
             color: 'primary.main',
-            fontFamily: 'monospace',
+            fontFamily: 'var(--font-mono)',
             fontSize: '1.1rem'
           }}
         >
-          v10.14.0
+          v10.14.1
         </Typography>
       </Box>
     );
@@ -88,7 +88,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           fontSize: 'inherit'
         }}
       >
-        v10.14.0
+        v10.14.1
       </Typography>
     </Box>
   );

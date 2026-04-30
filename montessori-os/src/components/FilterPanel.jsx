@@ -445,7 +445,7 @@ const FilterPanel = ({
                             cursor: 'pointer',
                             ...(isActive ? {
                               bgcolor: 'var(--color-secondary-dark)',
-                              color: '#fff',
+                              color: '#fff', // #fff intentional — contrast text on dynamic colored background
                               '&:hover': { bgcolor: 'var(--color-green-deep)' },
                             } : {
                               bgcolor: 'var(--color-green-bg)',

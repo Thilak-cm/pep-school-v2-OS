@@ -206,7 +206,7 @@ function PerformanceSummaryCard({
                       fontWeight: 400,
                       color: 'var(--grey-900)',
                       lineHeight: 1,
-                      fontFamily: 'Inter, system-ui, sans-serif'
+                      fontFamily: 'var(--font-body)'
                     }}
                   >
                     {formatNumber(totalStudents)}

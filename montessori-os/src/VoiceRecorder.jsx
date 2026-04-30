@@ -587,7 +587,7 @@ const VoiceRecorder = ({
               fontWeight: '700',
               color: isRecording ? 'var(--color-error)' : 'var(--color-text)',
               marginBottom: '12px',
-              fontFamily: 'monospace'
+              fontFamily: 'var(--font-mono)'
             }}
           >
             {formatTime(recordingTime)} / {formatTime(MAX_RECORDING_TIME)}

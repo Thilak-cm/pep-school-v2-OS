@@ -88,8 +88,8 @@ const ratingButtonStyles = (value, selected) => {
     sx: {
       minWidth: wide ? 40 : 40,
       borderColor: color,
-      color: active ? '#fff' : color,
-      backgroundColor: active ? color : '#fff',
+      color: active ? '#fff' : color, // #fff intentional — contrast text on dynamic colored pill
+      backgroundColor: active ? color : '#fff', // #fff intentional — light background for inactive pill needs fixed white
       fontWeight: 700,
       textTransform: 'none',
       borderRadius: 2,
