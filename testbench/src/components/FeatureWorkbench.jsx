@@ -11,6 +11,7 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
+import Chip from "@mui/material/Chip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Dialog from "@mui/material/Dialog";
@@ -23,13 +24,17 @@ import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
 import StudentPicker from "./StudentPicker.jsx";
 import PromptEditor from "./PromptEditor.jsx";
 import OutputPanel from "./OutputPanel.jsx";
 import RatingWidget from "./RatingWidget.jsx";
+import ConversationPanel from "./ConversationPanel.jsx";
+import LLMContextPipeline from "./LLMContextPipeline.jsx";
 import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
+import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
 
 const MODELS = [
   { id: "gpt-5.4", label: "GPT-5.4" },
@@ -69,6 +74,22 @@ export default function FeatureWorkbench({ featureId }) {
   const [confirmClose, setConfirmClose] = useState(null); // index of variant pending close confirmation
 
   const isSoul = featureId === "soul_generation";
+  const isInterview = featureId === "interview_question_gen";
+
+  // Interview-specific state
+  const [conversations, setConversations] = useState({}); // { [variantIdx]: Turn[] }
+  const [teacherInput, setTeacherInput] = useState("");
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [interviewEnded, setInterviewEnded] = useState(false);
+  const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
+  const [studentContextData, setStudentContextData] = useState(null);
+
+  // Auto-select Aakash for interview mode
+  useEffect(() => {
+    if (isInterview && !selectedStudent) {
+      setSelectedStudent({ id: "2025-ADO-001", displayName: "Aakash Arulkumar", classroomId: "allstars", classroomName: "Allstars" });
+    }
+  }, [isInterview]);
 
   // Warn on page refresh/close if any variant has edits or output
   useEffect(() => {
@@ -176,6 +197,159 @@ export default function FeatureWorkbench({ featureId }) {
     });
   }
 
+  // --- Interview-mode functions ---
+
+  async function startInterview() {
+    if (!selectedStudent) return;
+    setInterviewStarted(true);
+
+    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
+    const newConversations = {};
+
+    // Mark all variants as loading
+    setVariants((prev) => prev.map((v) => ({ ...v, loading: true, error: null })));
+
+    const promises = variants.map(async (v, idx) => {
+      const start = Date.now();
+      try {
+        const result = await testBenchRun({
+          feature: featureId,
+          studentId: selectedStudent.id,
+          systemPrompt: v.systemPrompt,
+          messages: [{ role: "user", content: kickoffMessage }],
+          model: v.model,
+          temperature: v.temperature,
+          max_tokens: v.max_tokens,
+        });
+        const latencyMs = Date.now() - start;
+        let parsed;
+        try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
+        newConversations[idx] = [{
+          type: "question",
+          question: parsed.question || null,
+          explorationAreas: parsed.explorationAreas || null,
+          thinking: null,
+          rawContent: result.data.output,
+          meta: { tokens: result.data.totalTokens, latencyMs },
+        }];
+        return { idx, error: null };
+      } catch (err) {
+        newConversations[idx] = [];
+        return { idx, error: err.message || "Unknown error" };
+      }
+    });
+
+    const results = await Promise.all(promises);
+    setConversations(newConversations);
+    setVariants((prev) => {
+      const next = [...prev];
+      for (const r of results) {
+        next[r.idx] = { ...next[r.idx], loading: false, error: r.error || null, dirty: true };
+      }
+      return next;
+    });
+  }
+
+  async function sendAnswer() {
+    if (!teacherInput.trim() || !selectedStudent) return;
+    const answer = teacherInput.trim();
+    setTeacherInput("");
+
+    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
+
+    // Snapshot conversations before state update to avoid stale closure
+    const conversationsSnapshot = { ...conversations };
+
+    // Add answer to all conversations and mark loading
+    setConversations((prev) => {
+      const updated = { ...prev };
+      for (const idx of Object.keys(updated)) {
+        updated[idx] = [...updated[idx], { type: "answer", answer }];
+      }
+      return updated;
+    });
+    setVariants((prev) => prev.map((v) => ({ ...v, loading: true, error: null })));
+
+    // Build messages from snapshot (not stale closure)
+    function getSnapshotMessages(idx) {
+      const turns = conversationsSnapshot[idx] || [];
+      const messages = [];
+      for (const turn of turns) {
+        if (turn.type === "question") {
+          messages.push({ role: "assistant", content: turn.rawContent });
+        } else if (turn.type === "answer") {
+          messages.push({ role: "user", content: turn.answer });
+        }
+      }
+      return messages;
+    }
+
+    const promises = variants.map(async (v, idx) => {
+      const start = Date.now();
+      try {
+        // Build messages from conversation snapshot + new answer
+        const prevMessages = [
+          { role: "user", content: kickoffMessage },
+          ...getSnapshotMessages(idx),
+          { role: "user", content: answer },
+        ];
+        const result = await testBenchRun({
+          feature: featureId,
+          studentId: selectedStudent.id,
+          systemPrompt: v.systemPrompt,
+          messages: prevMessages,
+          model: v.model,
+          temperature: v.temperature,
+          max_tokens: v.max_tokens,
+        });
+        const latencyMs = Date.now() - start;
+        let parsed;
+        try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
+        return {
+          idx,
+          turn: {
+            type: "question",
+            question: parsed.question || null,
+            explorationAreas: null,
+            thinking: parsed.thinking || null,
+            rawContent: result.data.output,
+            meta: { tokens: result.data.totalTokens, latencyMs },
+          },
+          error: null,
+        };
+      } catch (err) {
+        return { idx, turn: null, error: err.message || "Unknown error" };
+      }
+    });
+
+    const results = await Promise.all(promises);
+    setConversations((prev) => {
+      const updated = { ...prev };
+      for (const r of results) {
+        if (r.turn) {
+          updated[r.idx] = [...(updated[r.idx] || []), r.turn];
+        }
+      }
+      return updated;
+    });
+    setVariants((prev) => {
+      const next = [...prev];
+      for (const r of results) {
+        next[r.idx] = { ...next[r.idx], loading: false, error: r.error || null, dirty: true };
+      }
+      return next;
+    });
+  }
+
+  function endInterview() {
+    setInterviewEnded(true);
+    setVariants((prev) => prev.map((v) => ({
+      ...v,
+      loading: false,
+      output: JSON.stringify(conversations, null, 2),
+    })));
+  }
+
   async function saveRun() {
     if (!selectedStudent) return;
     setSaving(true);
@@ -186,7 +360,7 @@ export default function FeatureWorkbench({ featureId }) {
         studentId: selectedStudent.id,
         studentName: selectedStudent.displayName,
         timestamp: Timestamp.now(),
-        variants: variants.map((v) => ({
+        variants: variants.map((v, idx) => ({
           name: v.name,
           prompt: {
             systemPrompt: v.systemPrompt,
@@ -196,9 +370,11 @@ export default function FeatureWorkbench({ featureId }) {
             max_tokens: v.max_tokens,
           },
           output: v.output || "",
+          ...(isInterview && conversations[idx] ? { conversation: conversations[idx] } : {}),
           rating: v.rating,
           notes: v.notes,
         })),
+        ...(isInterview ? { kickoffMessage } : {}),
         ranBy: { uid: user?.uid, name: user?.displayName || user?.email },
       });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
@@ -213,7 +389,9 @@ export default function FeatureWorkbench({ featureId }) {
     <Box sx={{ p: 3 }}>
       {/* Setup bar */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
+        {!isInterview && (
+          <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
+        )}
 
         {featureId === "handwriting_analysis" && (
           <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
@@ -225,28 +403,84 @@ export default function FeatureWorkbench({ featureId }) {
             onProgramChange={setProgramFilter}
           />
         )}
+        {isInterview && (
+          <InterviewQuestionConfig
+            selectedStudent={selectedStudent}
+            onConfigLoaded={handleConfigLoaded}
+            onStudentContextLoaded={setStudentContextData}
+          />
+        )}
 
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-          <Button
-            variant="contained"
-            startIcon={<PlayArrowIcon />}
-            onClick={runAll}
-            disabled={!selectedStudent || variants.some((v) => v.loading)}
-          >
-            Run All
-          </Button>
+          {isInterview ? (
+            <>
+              {!interviewStarted ? (
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={startInterview}
+                  disabled={!selectedStudent || variants.some((v) => v.loading)}
+                >
+                  Start Interview
+                </Button>
+              ) : !interviewEnded ? (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<StopIcon />}
+                  onClick={endInterview}
+                  disabled={variants.some((v) => v.loading)}
+                >
+                  End Interview
+                </Button>
+              ) : (
+                <Chip label="Session Ended" color="default" variant="outlined" />
+              )}
+            </>
+          ) : (
+            <Button
+              variant="contained"
+              startIcon={<PlayArrowIcon />}
+              onClick={runAll}
+              disabled={!selectedStudent || variants.some((v) => v.loading)}
+            >
+              Run All
+            </Button>
+          )}
           <Button
             variant="outlined"
             startIcon={<SaveIcon />}
             onClick={saveRun}
-            disabled={saving || !variants.some((v) => v.output)}
+            disabled={saving || !(isInterview ? Object.values(conversations).some((c) => c?.length > 0) : variants.some((v) => v.output))}
           >
             {saving ? "Saving..." : "Save Run"}
           </Button>
         </Box>
       </Box>
 
+      {/* Interview: full-width LLM context pipeline */}
+      {isInterview && studentContextData && (
+        <Box sx={{ mb: 3 }}>
+          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} kickoffMessage={kickoffMessage} />
+        </Box>
+      )}
+
       <Divider sx={{ mb: 3 }} />
+
+      {/* Interview: kickoff message */}
+      {isInterview && (
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            label="Kickoff Message"
+            value={kickoffMessage}
+            onChange={(e) => setKickoffMessage(e.target.value)}
+            size="small"
+            fullWidth
+            disabled={interviewStarted}
+            helperText="First user message sent to start the interview"
+          />
+        </Box>
+      )}
 
       {/* Comparison columns */}
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
@@ -329,10 +563,10 @@ export default function FeatureWorkbench({ featureId }) {
 
             {/* Prompt editor(s) */}
             <PromptEditor
-              label="System Prompt"
+              label={isInterview ? "Instruction Template" : "System Prompt"}
               value={v.systemPrompt}
               onChange={(val) => updateVariant(idx, "systemPrompt", val)}
-              rows={isSoul ? 10 : 14}
+              rows={isSoul || isInterview ? 10 : 14}
             />
             {isSoul && (
               <PromptEditor
@@ -345,11 +579,24 @@ export default function FeatureWorkbench({ featureId }) {
               />
             )}
 
-            {/* Output */}
-            <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
+            {/* Output / Conversation */}
+            {isInterview ? (
+              <ConversationPanel
+                turns={conversations[idx] || []}
+                loading={v.loading}
+                error={v.error}
+                teacherInput={teacherInput}
+                onTeacherInputChange={setTeacherInput}
+                onSendAnswer={sendAnswer}
+                inputDisabled={variants.some((vr) => vr.loading)}
+                ended={interviewEnded}
+              />
+            ) : (
+              <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
+            )}
 
             {/* Rating */}
-            {v.output && (
+            {(isInterview ? (conversations[idx]?.length > 0 && !v.loading) : v.output) && (
               <RatingWidget
                 rating={v.rating}
                 notes={v.notes}

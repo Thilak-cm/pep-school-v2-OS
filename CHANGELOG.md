@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.13.0 — 2026-04-30
+
+### Added
+- Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
+- `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
+- Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
+- LLM context pipeline visualization showing all data blocks injected into the system prompt at runtime (PEP-172)
+
+### Changed
+- Interview prompt assembly consolidated: CLI prototype and Cloud Function both use template-based `assembleSystemPrompt` from `functions/testbench/interviewQuestions.js` (PEP-172)
+- Removed `buildSystemPrompt` from `interview-agent-core.mjs` — replaced by template approach (PEP-172)
+- Interview agent always uses open-ended questions with pushback for vague answers; MCQ fallback removed (PEP-175)
+
 # 10.12.3 — 2026-04-29
 
 ### Added

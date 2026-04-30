@@ -9,7 +9,8 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSystemPrompt, buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
+import { buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
+import { assembleSystemPrompt } from "../../functions/testbench/promptAssembly.js";
 
 // --- Fixtures ---
 
@@ -112,10 +113,9 @@ const FIRST_TURN_RESPONSE = {
     { area: "Sciences & Technology", rationale: "No observations in physical sciences or technology projects" },
   ],
   question: {
-    text: "How often does Arjun choose math materials on his own during work period?",
-    type: "mcq",
+    text: "When Arjun has free choice during work period, how often do you see him gravitate toward math materials on his own — and what does that look like?",
+    type: "open",
     area: "Mathematics",
-    options: ["Rarely — needs prompting", "Sometimes — once or twice a week", "Often — daily choice", "Frequently — seeks advanced challenges"],
   },
 };
 
@@ -150,46 +150,81 @@ const VALID_LLM_RESPONSE = {
 
 // --- Tests ---
 
-describe("buildSystemPrompt", () => {
-  it("includes role definition and JSON output schema", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("interview"), "Should mention interview");
-    assert.ok(prompt.includes("Montessori"), "Should reference Montessori context");
-    assert.ok(prompt.includes('"question"'), "Should include output schema for question object");
-    assert.ok(prompt.includes("JSON"), "Should instruct JSON output");
+describe("assembleSystemPrompt (template-based)", () => {
+  const TEMPLATE = `You are an interview agent for \${studentName} (\${age}, \${programId}).
+
+SOUL NARRATIVE:
+\${soul}
+
+GUIDELINES:
+\${guidelines}
+
+\${baseballCard}
+
+\${openQuestions}
+
+Ask questions.`;
+
+  it("replaces all student context placeholders", () => {
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: SAMPLE_STUDENT_CONTEXT.studentName,
+      age: SAMPLE_STUDENT_CONTEXT.age,
+      programId: SAMPLE_STUDENT_CONTEXT.programId,
+      soul: SAMPLE_SOUL,
+      guidelines: SAMPLE_GUIDELINES,
+      baseballCard: SAMPLE_BASEBALL_CARD,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("Arjun"), "Should include student name");
+    assert.ok(result.includes("13y"), "Should include age");
+    assert.ok(result.includes("adolescent"), "Should include program");
   });
 
-  it("includes guidelines areas (## headers) in the prompt", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    for (const area of GUIDELINES_AREAS) {
-      assert.ok(prompt.includes(area), `Should include guidelines area: ${area}`);
-    }
+  it("injects baseball card with coverage gaps", () => {
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: SAMPLE_BASEBALL_CARD,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("BASEBALL CARD"), "Should include baseball card header");
+    assert.ok(result.includes("Mathematics, Sciences & Technology"), "Should include coverage gaps");
   });
 
-  it("references soul narrative as context source", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("soul") || prompt.includes("narrative"), "Should reference soul/narrative as input");
+  it("includes open questions bank when provided", () => {
+    const questions = ["How does Arjun handle frustration?", "What does independent work look like for him?"];
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: null,
+      openQuestions: questions,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("OPEN QUESTIONS BANK"), "Should include questions bank header");
+    assert.ok(result.includes("How does Arjun handle frustration?"), "Should include question text");
+    assert.ok(result.includes("2 pre-generated"), "Should show question count");
   });
 
-  it("instructs area-based targeting (not dimension keys)", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("area"), "Should use 'area' terminology");
-    assert.ok(!prompt.includes("dimensionKey"), "Should NOT reference dimensionKey");
-    assert.ok(!prompt.includes("dimension_key"), "Should NOT reference dimension_key");
-  });
-
-  it("specifies open and mcq question types", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("mcq"), "Should mention mcq type");
-    assert.ok(prompt.includes("open"), "Should mention open type");
-  });
-
-  it("instructs avoiding recently covered areas from prior interviews", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(
-      prompt.includes("recent") || prompt.includes("already") || prompt.includes("avoid"),
-      "Should instruct deduplication against recent interviews"
-    );
+  it("omits open questions bank when not provided", () => {
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: null,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(!result.includes("OPEN QUESTIONS BANK"), "Should not include questions bank when empty");
   });
 });
 
@@ -312,7 +347,7 @@ describe("parseTurnResponse", () => {
     const result = parseTurnResponse(JSON.stringify(FIRST_TURN_RESPONSE), GUIDELINES_AREAS);
     assert.ok(result.question, "Should have a question object");
     assert.equal(result.question.text.length > 0, true, "Question text should be non-empty");
-    assert.equal(result.question.type, "mcq");
+    assert.equal(result.question.type, "open");
     assert.equal(result.question.area, "Mathematics");
     assert.ok(Array.isArray(result.explorationAreas), "Should have explorationAreas on first turn");
     assert.equal(result.explorationAreas.length, 2);

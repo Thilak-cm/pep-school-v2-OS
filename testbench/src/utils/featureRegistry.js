@@ -14,6 +14,13 @@ export const FEATURES = [
     status: "active",
   },
   {
+    id: "interview_question_gen",
+    label: "Interview Question Gen",
+    description: "Simulate turn-by-turn interview sessions and compare question generation across prompt variants",
+    configDoc: "interview_question_gen",
+    status: "active",
+  },
+  {
     id: "text_cleanup",
     label: "Text Cleanup",
     description: "Compare observation text cleanup prompts",

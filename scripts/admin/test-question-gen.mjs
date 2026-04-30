@@ -19,7 +19,7 @@
 import admin from "firebase-admin";
 import readline from "node:readline";
 import { FRONTIER_MODEL } from "../../functions/config/modelConstants.js";
-import { buildSystemPrompt } from "./interview-agent-core.mjs";
+import { assembleSystemPrompt } from "../../functions/testbench/promptAssembly.js";
 
 // ---------------------------------------------------------------------------
 // Firebase init
@@ -45,7 +45,10 @@ function calculateAge(dobValue) {
   let months = now.getMonth() - d.getMonth();
   if (now.getDate() < d.getDate()) months--;
   if (months < 0) { years--; months += 12; }
-  return `${years}y ${months}m`;
+  const parts = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? "year" : "years"}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? "month" : "months"}`);
+  return parts.length > 0 ? `${parts.join(" ")} old` : "age unavailable";
 }
 
 function ask(rl, prompt) {
@@ -155,10 +158,34 @@ async function run() {
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
   console.log(`Baseball card: ${baseballCard ? "loaded" : "none"}`);
 
-  // 5. Build system prompt
-  const systemPrompt = buildSystemPrompt(guidelines, soul, baseballCard, studentContext);
+  // 5. Load open questions
+  const oqSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("open_questions").get();
+  const openQuestions = oqSnap.exists ? oqSnap.data().questions : null;
+  console.log(`Open questions: ${openQuestions ? `${openQuestions.length} loaded` : "none"}`);
 
-  // 6. Start conversation
+  // 6. Load prompt template from Firestore config
+  const configSnap = await db.collection("config").doc("interview_question_gen").get();
+  if (!configSnap.exists || !configSnap.data().systemPrompt) {
+    console.error("No interview_question_gen config found in Firestore. Seed config/interview_question_gen with a systemPrompt field.");
+    process.exit(1);
+  }
+  const template = configSnap.data().systemPrompt;
+  console.log(`Prompt template: ${template.length} chars`);
+
+  // 7. Assemble system prompt from template + student data
+  const systemPrompt = assembleSystemPrompt(template, {
+    studentName: studentContext.studentName,
+    age: studentContext.age,
+    programId: studentContext.programId,
+    soul,
+    guidelines,
+    baseballCard,
+    openQuestions,
+    priorInterviews: [],
+  });
+
+  // 8. Start conversation
   const messages = [{ role: "system", content: systemPrompt }];
 
   // First turn — no user message needed, just ask for Q1

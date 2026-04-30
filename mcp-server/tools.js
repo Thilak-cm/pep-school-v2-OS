@@ -59,6 +59,26 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_ai_summary",
+    description:
+      "Fetch any AI-generated summary document from a student's ai_summaries subcollection. Known doc IDs: soul (narrative profile), guidelines (evaluation guide), open_questions (interview question bank), report_readiness (observation quality check), writing_analysis (handwriting analysis), signals (severity/red-flag tracking). Returns all fields from the document.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        studentId: {
+          type: "string",
+          description: "Student document ID.",
+        },
+        docId: {
+          type: "string",
+          description:
+            "Document ID within ai_summaries (e.g., soul, guidelines, open_questions, report_readiness, writing_analysis, signals).",
+        },
+      },
+      required: ["studentId", "docId"],
+    },
+  },
+  {
     name: "list_students",
     description:
       "List all active students in a classroom. Specify either classroomId (document ID) or classroomName (display name).",
@@ -243,6 +263,30 @@ export async function handleGetBaseballCard(db, params) {
     status: d.status || null,
     sourceNoteIds: d.sourceNoteIds || null,
   };
+}
+
+export async function handleGetAiSummary(db, params) {
+  const { studentId, docId } = params;
+
+  const doc = await db
+    .collection("students")
+    .doc(studentId)
+    .collection("ai_summaries")
+    .doc(docId)
+    .get();
+
+  if (!doc.exists) return null;
+
+  const d = doc.data();
+  const result = { id: doc.id };
+  for (const [key, value] of Object.entries(d)) {
+    if (value?.toDate) {
+      result[key] = value.toDate().toISOString();
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 export async function handleListStudents(db, params) {

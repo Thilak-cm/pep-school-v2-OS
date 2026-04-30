@@ -4,6 +4,7 @@ import {
   handleGetStudent,
   handleGetObservations,
   handleGetBaseballCard,
+  handleGetAiSummary,
   handleListStudents,
   handleListClassrooms,
   TOOL_DEFINITIONS,
@@ -84,17 +85,21 @@ function createMockDb(collections = {}) {
 // --- Tool Definitions ---
 
 describe("TOOL_DEFINITIONS", () => {
-  it("should export exactly 5 tools", () => {
-    assert.equal(TOOL_DEFINITIONS.length, 5);
+  it("should export exactly 9 tools", () => {
+    assert.equal(TOOL_DEFINITIONS.length, 9);
   });
 
   it("should have correct tool names", () => {
     const names = TOOL_DEFINITIONS.map((t) => t.name).sort();
     assert.deepEqual(names, [
+      "get_ai_summary",
       "get_baseball_card",
+      "get_config",
+      "get_media_stats",
       "get_observations",
       "get_student",
       "list_classrooms",
+      "list_config",
       "list_students",
     ]);
   });
@@ -274,6 +279,62 @@ describe("handleGetBaseballCard", () => {
     const db = createMockDb({});
     const result = await handleGetBaseballCard(db, {
       studentId: "2025-ALL-001",
+    });
+    assert.equal(result, null);
+  });
+});
+
+// --- get_ai_summary ---
+
+describe("handleGetAiSummary", () => {
+  it("should return soul document with serialized timestamps", async () => {
+    const soul = mockDoc("soul", {
+      content: "## Mathematics\nStrong progress.",
+      programId: "primary",
+      hasEmergentObservations: true,
+      hasInformationGaps: false,
+      createdAt: { toDate: () => new Date("2026-04-01") },
+      updatedAt: { toDate: () => new Date("2026-04-28") },
+      updatedBy: "cloud-function:soul-generate",
+    });
+    const db = createMockDb({
+      "students/2025-ALL-001/ai_summaries": [soul],
+    });
+    const result = await handleGetAiSummary(db, {
+      studentId: "2025-ALL-001",
+      docId: "soul",
+    });
+    assert.ok(result);
+    assert.equal(result.id, "soul");
+    assert.ok(result.content.includes("Mathematics"));
+    assert.equal(result.hasEmergentObservations, true);
+    assert.equal(typeof result.createdAt, "string");
+  });
+
+  it("should return open_questions document", async () => {
+    const oq = mockDoc("open_questions", {
+      questions: ["How does the child handle frustration?", "What reading materials?"],
+      questionCount: 2,
+      programId: "primary",
+      updatedBy: "cloud-function:soul-generate",
+    });
+    const db = createMockDb({
+      "students/2025-ALL-001/ai_summaries": [oq],
+    });
+    const result = await handleGetAiSummary(db, {
+      studentId: "2025-ALL-001",
+      docId: "open_questions",
+    });
+    assert.ok(result);
+    assert.equal(result.questions.length, 2);
+    assert.equal(result.questionCount, 2);
+  });
+
+  it("should return null when doc does not exist", async () => {
+    const db = createMockDb({});
+    const result = await handleGetAiSummary(db, {
+      studentId: "2025-ALL-001",
+      docId: "nonexistent",
     });
     assert.equal(result, null);
   });

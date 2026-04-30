@@ -27,6 +27,7 @@ import {
   handleGetStudent,
   handleGetObservations,
   handleGetBaseballCard,
+  handleGetAiSummary,
   handleListStudents,
   handleListClassrooms,
   handleGetConfig,
@@ -86,6 +87,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "get_baseball_card":
         result = await handleGetBaseballCard(db, params);
+        break;
+      case "get_ai_summary":
+        result = await handleGetAiSummary(db, params);
         break;
       case "list_students":
         result = await handleListStudents(db, params);
