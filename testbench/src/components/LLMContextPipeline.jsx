@@ -86,7 +86,7 @@ function FlowArrow() {
  * - studentContext: { soul, guidelines, baseballCard, openQuestions } | null
  * - selectedStudent: { id, displayName, classroomId, classroomName } | null
  */
-export default function LLMContextPipeline({ studentContext, selectedStudent }) {
+export default function LLMContextPipeline({ studentContext, selectedStudent, kickoffMessage }) {
   if (!selectedStudent || !studentContext) {
     return (
       <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
@@ -106,13 +106,13 @@ export default function LLMContextPipeline({ studentContext, selectedStudent }) 
     : null;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, bgcolor: "background.default" }}>
+    <Paper variant="outlined" sx={{ p: 2, bgcolor: "background.default", maxWidth: 640, mx: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
         <Typography variant="subtitle1" fontWeight={700}>
-          LLM Context Window
+          Prompt Assembly
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          — what gets assembled into the system prompt at runtime
+          — data injected into the system prompt at runtime
         </Typography>
       </Box>
 
@@ -175,6 +175,34 @@ export default function LLMContextPipeline({ studentContext, selectedStudent }) 
           content="Prior interviews are loaded by the Cloud Function at runtime.\nAll completed sessions within 365 days are injected for dedup."
           charCount={null}
         />
+
+        <FlowArrow />
+
+        <Paper
+          variant="outlined"
+          sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1.5, borderRadius: 2, borderStyle: "dashed", borderColor: "primary.main" }}
+        >
+          <Chip label="7" size="small" color="primary" sx={{ fontWeight: 700, minWidth: 28, height: 24 }} />
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600}>Instruction Template</Typography>
+            <Typography variant="caption" color="text.secondary">editable per variant below</Typography>
+          </Box>
+        </Paper>
+
+        <FlowArrow />
+
+        <Paper
+          variant="outlined"
+          sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1.5, borderRadius: 2 }}
+        >
+          <Chip label="8" size="small" color="secondary" sx={{ fontWeight: 700, minWidth: 28, height: 24 }} />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" fontWeight={600}>Kickoff Message</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, fontFamily: "monospace", fontSize: 11 }}>
+              {kickoffMessage || "—"}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
     </Paper>
   );

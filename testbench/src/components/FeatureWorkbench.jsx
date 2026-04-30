@@ -11,6 +11,7 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
+import Chip from "@mui/material/Chip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Dialog from "@mui/material/Dialog";
@@ -23,7 +24,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import SendIcon from "@mui/icons-material/Send";
 import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
 import StudentPicker from "./StudentPicker.jsx";
@@ -337,7 +337,10 @@ export default function FeatureWorkbench({ featureId }) {
     });
   }
 
+  const [interviewEnded, setInterviewEnded] = useState(false);
+
   function endInterview() {
+    setInterviewEnded(true);
     setVariants((prev) => prev.map((v) => ({
       ...v,
       loading: false,
@@ -418,7 +421,7 @@ export default function FeatureWorkbench({ featureId }) {
                 >
                   Start Interview
                 </Button>
-              ) : (
+              ) : !interviewEnded ? (
                 <Button
                   variant="outlined"
                   color="error"
@@ -428,6 +431,8 @@ export default function FeatureWorkbench({ featureId }) {
                 >
                   End Interview
                 </Button>
+              ) : (
+                <Chip label="Session Ended" color="default" variant="outlined" />
               )}
             </>
           ) : (
@@ -454,49 +459,24 @@ export default function FeatureWorkbench({ featureId }) {
       {/* Interview: full-width LLM context pipeline */}
       {isInterview && studentContextData && (
         <Box sx={{ mb: 3 }}>
-          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} />
+          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} kickoffMessage={kickoffMessage} />
         </Box>
       )}
 
       <Divider sx={{ mb: 3 }} />
 
-      {/* Interview: kickoff message + shared teacher input */}
+      {/* Interview: kickoff message */}
       {isInterview && (
-        <Box sx={{ mb: 3, display: "flex", gap: 2, alignItems: "flex-end" }}>
+        <Box sx={{ mb: 3 }}>
           <TextField
             label="Kickoff Message"
             value={kickoffMessage}
             onChange={(e) => setKickoffMessage(e.target.value)}
             size="small"
-            sx={{ flex: 1 }}
+            fullWidth
             disabled={interviewStarted}
             helperText="First user message sent to start the interview"
           />
-          {interviewStarted && (
-            <>
-              <TextField
-                label="Teacher's Answer"
-                value={teacherInput}
-                onChange={(e) => setTeacherInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAnswer(); } }}
-                size="small"
-                sx={{ flex: 2 }}
-                placeholder="Type teacher's response (shared across all variants)..."
-                disabled={variants.some((v) => v.loading)}
-                multiline
-                maxRows={3}
-              />
-              <Button
-                variant="contained"
-                startIcon={<SendIcon />}
-                onClick={sendAnswer}
-                disabled={!teacherInput.trim() || variants.some((v) => v.loading)}
-                sx={{ minWidth: 100 }}
-              >
-                Send
-              </Button>
-            </>
-          )}
         </Box>
       )}
 
@@ -599,7 +579,16 @@ export default function FeatureWorkbench({ featureId }) {
 
             {/* Output / Conversation */}
             {isInterview ? (
-              <ConversationPanel turns={conversations[idx] || []} loading={v.loading} error={v.error} />
+              <ConversationPanel
+                turns={conversations[idx] || []}
+                loading={v.loading}
+                error={v.error}
+                teacherInput={teacherInput}
+                onTeacherInputChange={setTeacherInput}
+                onSendAnswer={sendAnswer}
+                inputDisabled={variants.some((vr) => vr.loading)}
+                ended={interviewEnded}
+              />
             ) : (
               <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
             )}
