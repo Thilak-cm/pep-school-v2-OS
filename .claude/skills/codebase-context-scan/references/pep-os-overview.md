@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-28T00:46:19.936Z
-App version: 10.12.1
+Generated: 2026-04-30T15:00:55.665Z
+App version: 10.13.0
 
 ## App Snapshot
 
@@ -138,20 +138,23 @@ App version: 10.12.1
 
 ## Recent Changes
 
+### 10.13.0 (2026-04-30)
+- Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
+- `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
+- Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
+
+### 10.12.3 (2026-04-29)
+- Soul generation now produces ~50 open questions per student in a fenced `open_questions` block, written to `ai_summaries/open_questions` (PEP-173)
+- New `extractOpenQuestions` parser and `buildOpenQuestionsDoc` helper following existing extractor patterns (PEP-173)
+- `extractGuidelinesSuggestions` now returns both suggestions and cleaned content (combined extract+strip), replacing the separate `stripGuidelinesSuggestions` function (PEP-173)
+
+### 10.12.2 (2026-04-27)
+- Interview transcript schema redesigned for turn-by-turn agent model: added `explorationAreas`, `endReason`, `durationMinutes`, `areasCovered`, `thinking`/`rationale` on exchanges, replaced `dimensionsCovered` with guideline-area-based `areasCovered` (PEP-125)
+- Question generation prototype rewritten for soul-based prompting: reads `ai_summaries/soul` + `guidelines` + baseball card instead of old profile dimensions, interactive CLI simulates turn-by-turn interview flow (PEP-125)
+- Extracted pure prompt-building and response-parsing helpers into `interview-agent-core.mjs` for testability (PEP-125)
+
 ### 10.12.1 (2026-04-26)
 - Merged alt-dev refactored Cloud Functions modules into dev, placing PEP-163 test bench code into domain modules (PEP-169)
 - Test bench dispatcher uses `FRONTIER_MODEL` constant instead of hardcoded model string
 - Barrel export test uses `before()` hook instead of shared mutable state
-
-### 10.12.0 (2026-04-26)
-- Prompt Test Bench — standalone desktop-first web app for superadmins to iterate on AI prompts, compare 2+ output variations side-by-side, rate them, and save run history (PEP-163)
-- Handwriting analysis and soul generation features active; text cleanup, AI coach, baseball card, and report generation shown as coming soon (PEP-163)
-- `testBenchRun` Cloud Function for executing prompt variations against real student data with superadmin-only access (PEP-163)
-
-### 10.11.2 (2026-04-24)
-- Modularized App.jsx: extracted screen config (screenConfig.js), screen renderer (ScreenRenderer.jsx), and navigation state (useNavigationState hook), reducing App.jsx from ~1037 to ~313 lines (PEP-161)
-
-### 10.11.1 (2026-04-24)
-- Modularized Cloud Functions: split monolithic functions/index.js (~4900 lines) into domain modules — ai/, auth/, chat/, classroom/, media/, reports/, students/, shared/ (PEP-154)
-- Removed debug logging artifacts from chat streaming hot path
 
