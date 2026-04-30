@@ -38,6 +38,7 @@ export default function InterviewQuestionConfig({ selectedStudent, onConfigLoade
       });
     } catch (err) {
       console.error("[InterviewQuestionConfig] loadConfig failed:", err);
+      onConfigLoaded({ systemPrompt: "", model: "gpt-5.4", temperature: 0.7, max_tokens: 1000 });
     } finally {
       setLoading(false);
     }
@@ -61,6 +62,7 @@ export default function InterviewQuestionConfig({ selectedStudent, onConfigLoade
       onStudentContextLoaded?.(ctx);
     } catch (err) {
       console.error("[InterviewQuestionConfig] loadStudentContext failed:", err);
+      onStudentContextLoaded?.(null);
     }
   }
 

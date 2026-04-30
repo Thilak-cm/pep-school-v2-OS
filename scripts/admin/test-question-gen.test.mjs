@@ -9,7 +9,8 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSystemPrompt, buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
+import { buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
+import { assembleSystemPrompt } from "../../functions/testbench/interviewQuestions.js";
 
 // --- Fixtures ---
 
@@ -149,60 +150,81 @@ const VALID_LLM_RESPONSE = {
 
 // --- Tests ---
 
-describe("buildSystemPrompt", () => {
-  it("includes role definition and JSON output schema", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("interview"), "Should mention interview");
-    assert.ok(prompt.includes("Montessori"), "Should reference Montessori context");
-    assert.ok(prompt.includes('"question"'), "Should include output schema for question object");
-    assert.ok(prompt.includes("JSON"), "Should instruct JSON output");
+describe("assembleSystemPrompt (template-based)", () => {
+  const TEMPLATE = `You are an interview agent for \${studentName} (\${age}, \${programId}).
+
+SOUL NARRATIVE:
+\${soul}
+
+GUIDELINES:
+\${guidelines}
+
+\${baseballCard}
+
+\${openQuestions}
+
+Ask questions.`;
+
+  it("replaces all student context placeholders", () => {
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: SAMPLE_STUDENT_CONTEXT.studentName,
+      age: SAMPLE_STUDENT_CONTEXT.age,
+      programId: SAMPLE_STUDENT_CONTEXT.programId,
+      soul: SAMPLE_SOUL,
+      guidelines: SAMPLE_GUIDELINES,
+      baseballCard: SAMPLE_BASEBALL_CARD,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("Arjun"), "Should include student name");
+    assert.ok(result.includes("13y"), "Should include age");
+    assert.ok(result.includes("adolescent"), "Should include program");
   });
 
-  it("includes guidelines areas (## headers) in the prompt", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    for (const area of GUIDELINES_AREAS) {
-      assert.ok(prompt.includes(area), `Should include guidelines area: ${area}`);
-    }
-  });
-
-  it("references soul narrative as context source", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("soul") || prompt.includes("narrative"), "Should reference soul/narrative as input");
-  });
-
-  it("instructs area-based targeting (not dimension keys)", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("area"), "Should use 'area' terminology");
-    assert.ok(!prompt.includes("dimensionKey"), "Should NOT reference dimensionKey");
-    assert.ok(!prompt.includes("dimension_key"), "Should NOT reference dimension_key");
-  });
-
-  it("specifies open-only questions with pushback for vague answers", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(prompt.includes("open"), "Should mention open type");
-    assert.ok(prompt.includes("NEVER fall back to multiple-choice"), "Should instruct against MCQ fallback");
-    assert.ok(prompt.includes("Rephrase"), "Should instruct rephrasing for vague answers");
+  it("injects baseball card with coverage gaps", () => {
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: SAMPLE_BASEBALL_CARD,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("BASEBALL CARD"), "Should include baseball card header");
+    assert.ok(result.includes("Mathematics, Sciences & Technology"), "Should include coverage gaps");
   });
 
   it("includes open questions bank when provided", () => {
     const questions = ["How does Arjun handle frustration?", "What does independent work look like for him?"];
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT, questions);
-    assert.ok(prompt.includes("OPEN QUESTIONS BANK"), "Should include questions bank header");
-    assert.ok(prompt.includes("How does Arjun handle frustration?"), "Should include question text");
-    assert.ok(prompt.includes("2 pre-generated"), "Should show question count");
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: null,
+      openQuestions: questions,
+      priorInterviews: [],
+    });
+    assert.ok(result.includes("OPEN QUESTIONS BANK"), "Should include questions bank header");
+    assert.ok(result.includes("How does Arjun handle frustration?"), "Should include question text");
+    assert.ok(result.includes("2 pre-generated"), "Should show question count");
   });
 
   it("omits open questions bank when not provided", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(!prompt.includes("OPEN QUESTIONS BANK"), "Should not include questions bank when empty");
-  });
-
-  it("instructs avoiding recently covered areas from prior interviews", () => {
-    const prompt = buildSystemPrompt(SAMPLE_GUIDELINES, SAMPLE_SOUL, SAMPLE_BASEBALL_CARD, SAMPLE_STUDENT_CONTEXT);
-    assert.ok(
-      prompt.includes("recent") || prompt.includes("already") || prompt.includes("avoid"),
-      "Should instruct deduplication against recent interviews"
-    );
+    const result = assembleSystemPrompt(TEMPLATE, {
+      studentName: "Test",
+      age: "5y",
+      programId: "primary",
+      soul: "soul",
+      guidelines: "guidelines",
+      baseballCard: null,
+      openQuestions: null,
+      priorInterviews: [],
+    });
+    assert.ok(!result.includes("OPEN QUESTIONS BANK"), "Should not include questions bank when empty");
   });
 });
 

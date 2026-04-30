@@ -80,6 +80,7 @@ export default function FeatureWorkbench({ featureId }) {
   const [conversations, setConversations] = useState({}); // { [variantIdx]: Turn[] }
   const [teacherInput, setTeacherInput] = useState("");
   const [interviewStarted, setInterviewStarted] = useState(false);
+  const [interviewEnded, setInterviewEnded] = useState(false);
   const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
   const [studentContextData, setStudentContextData] = useState(null);
 
@@ -198,20 +199,6 @@ export default function FeatureWorkbench({ featureId }) {
 
   // --- Interview-mode functions ---
 
-  function getMessagesForVariant(idx) {
-    // Build messages array from conversation turns
-    const turns = conversations[idx] || [];
-    const messages = [];
-    for (const turn of turns) {
-      if (turn.type === "question") {
-        messages.push({ role: "assistant", content: turn.rawContent });
-      } else if (turn.type === "answer") {
-        messages.push({ role: "user", content: turn.answer });
-      }
-    }
-    return messages;
-  }
-
   async function startInterview() {
     if (!selectedStudent) return;
     setInterviewStarted(true);
@@ -270,6 +257,9 @@ export default function FeatureWorkbench({ featureId }) {
 
     const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
 
+    // Snapshot conversations before state update to avoid stale closure
+    const conversationsSnapshot = { ...conversations };
+
     // Add answer to all conversations and mark loading
     setConversations((prev) => {
       const updated = { ...prev };
@@ -280,13 +270,27 @@ export default function FeatureWorkbench({ featureId }) {
     });
     setVariants((prev) => prev.map((v) => ({ ...v, loading: true, error: null })));
 
+    // Build messages from snapshot (not stale closure)
+    function getSnapshotMessages(idx) {
+      const turns = conversationsSnapshot[idx] || [];
+      const messages = [];
+      for (const turn of turns) {
+        if (turn.type === "question") {
+          messages.push({ role: "assistant", content: turn.rawContent });
+        } else if (turn.type === "answer") {
+          messages.push({ role: "user", content: turn.answer });
+        }
+      }
+      return messages;
+    }
+
     const promises = variants.map(async (v, idx) => {
       const start = Date.now();
       try {
-        // Build messages from conversation history + new answer
+        // Build messages from conversation snapshot + new answer
         const prevMessages = [
           { role: "user", content: kickoffMessage },
-          ...getMessagesForVariant(idx),
+          ...getSnapshotMessages(idx),
           { role: "user", content: answer },
         ];
         const result = await testBenchRun({
@@ -336,8 +340,6 @@ export default function FeatureWorkbench({ featureId }) {
       return next;
     });
   }
-
-  const [interviewEnded, setInterviewEnded] = useState(false);
 
   function endInterview() {
     setInterviewEnded(true);

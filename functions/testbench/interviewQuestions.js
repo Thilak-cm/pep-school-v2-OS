@@ -45,20 +45,6 @@ function assembleSystemPrompt(template, { studentName, age, programId, soul, gui
 }
 
 /**
- * Calculate age string from a DOB value (Firestore Timestamp, Date, or string).
- */
-function calculateAge(dobValue) {
-  if (!dobValue) return "age unavailable";
-  const d = typeof dobValue.toDate === "function" ? dobValue.toDate() : new Date(dobValue);
-  const now = new Date();
-  let years = now.getFullYear() - d.getFullYear();
-  let months = now.getMonth() - d.getMonth();
-  if (now.getDate() < d.getDate()) months--;
-  if (months < 0) { years--; months += 12; }
-  return `${years}y ${months}m`;
-}
-
-/**
  * Run a single interview turn for the test bench.
  *
  * @param {Object} params
@@ -83,16 +69,16 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
     fetchStudentInterviews(studentId, 365),
   ]);
 
-  const soul = soulSnap.exists ? soulSnap.data().content : null;
-  const guidelines = guidelinesSnap.exists ? guidelinesSnap.data().content : null;
+  const soul = soulSnap.exists ? soulSnap.data()?.content ?? null : null;
+  const guidelines = guidelinesSnap.exists ? guidelinesSnap.data()?.content ?? null : null;
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
-  const openQuestions = oqSnap.exists ? oqSnap.data().questions : null;
+  const openQuestions = oqSnap.exists ? oqSnap.data()?.questions ?? null : null;
   const priorInterviews = rawInterviews.map(formatInterviewForPrompt);
 
   // 2. Assemble the full system prompt
   const assembledPrompt = assembleSystemPrompt(systemPrompt, {
-    studentName: studentInfo.displayName,
-    age: calculateAge(studentInfo.dob),
+    studentName: studentInfo.studentName,
+    age: studentInfo.age,
     programId: studentInfo.programId,
     soul,
     guidelines,
@@ -108,7 +94,6 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   ];
 
   // 4. Call OpenAI
-  const startTime = Date.now();
   const response = await fetch(CHAT_ENDPOINT, {
     method: "POST",
     headers: {
@@ -137,8 +122,6 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   if (!output) {
     throw new Error("OpenAI returned empty response");
   }
-
-  console.log(`[testBenchInterview] ${studentId} — ${totalTokens} tokens, ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
 
   return { output, totalTokens };
 }
