@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.14.0 — 2026-04-29
+
+### Added
+- Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
+- Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
+- Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
+- Compact square action buttons (Timeline, Reports, Coach) replace full-width navigation cards on StudentDashboard
+
+### Changed
+- AddNoteFab simplified to always-circular variant, removed `showLabel` prop
+- BaseballCardSnapshotCard maxHeight default increased from 54vh to 70vh
+- Media fetch in StatsPage uses batched studentId queries for all roles, using existing composite index
+
+### Fixed
+- Pie chart media classification now uses mutually exclusive filter chain to prevent double-counting
+- StudentDashboard chart query time-bounded to match baseball card window instead of unbounded limit
+
 # 10.13.0 — 2026-04-30
 
 ### Added
@@ -7,11 +24,20 @@
 - `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
 - Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
 - LLM context pipeline visualization showing all data blocks injected into the system prompt at runtime (PEP-172)
+- Material identification in photo analysis: VLM pipeline now identifies Montessori materials visible in classroom photos and returns them as `materialsIdentified` array (PEP-37)
+- Material chips displayed on student timeline cards, classroom timeline cards, and media preview views with amber styling distinct from curriculum area chips (PEP-37)
+- "Coach Pepper AI" branded section in media note views separates AI analysis from user input (PEP-37)
 
 ### Changed
 - Interview prompt assembly consolidated: CLI prototype and Cloud Function both use template-based `assembleSystemPrompt` from `functions/testbench/interviewQuestions.js` (PEP-172)
 - Removed `buildSystemPrompt` from `interview-agent-core.mjs` — replaced by template approach (PEP-172)
 - Interview agent always uses open-ended questions with pushback for vague answers; MCQ fallback removed (PEP-175)
+- Photo classification prompt expanded from 2 to 3 fields (added `materialsIdentified`), token budget raised 150→400 (PEP-37)
+- `curriculumArea` no longer constrained to fixed enum — VLM uses free-range classification (PEP-37)
+
+### Fixed
+- Generic media summary text no longer shown redundantly alongside material/curriculum chips on student timeline (PEP-37)
+- VLM material arrays deduplicated at write-time to prevent duplicate React keys (PEP-37)
 
 # 10.12.3 — 2026-04-29
 

@@ -10,15 +10,15 @@ const PDF_TITLE_MODEL = { model: MINI_MODEL, temperature: 0.4, max_tokens: 48 };
 const PDF_ESSENCE_MODEL = { model: MINI_MODEL, temperature: 0.35, max_tokens: 220 };
 // Per-photo classification (PEP-146): Call 1 only (gpt-5.4-nano)
 // Call 2 (handwriting analysis) removed — deferred to PEP-132 batch analysis
-const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 150 };
+const PHOTO_CLASSIFICATION_MODEL = { model: NANO_MODEL, temperature: 0.2, max_tokens: 400 };
 
-const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly two fields:
+const CLASSIFICATION_FALLBACK_PROMPT = `You classify Montessori classroom photos. Return JSON with exactly three fields:
 
 - handwritten (boolean): true if the image contains handwriting (letters, numbers, or words written by hand)
-- curriculumArea (string|null): broad Montessori curriculum area. One of: "Mathematics", "Language", "Sensorial", "Practical Life", "Cultural Studies", "Art & Music". Null if not identifiable as student work.
+- curriculumArea (string|null): broad Montessori curriculum area. Null if not identifiable as student work.
+- materialsIdentified (string[]): Montessori materials visible in the photo, using standard Montessori names. Empty array [] if no specific materials are identifiable.
 
-Respond with ONLY valid JSON. Example:
-{ "handwritten": false, "curriculumArea": "Mathematics" }`;
+Respond with ONLY valid JSON.`;
 
 const MAX_PDF_TEXT_LENGTH = 15000;
 
@@ -160,6 +160,9 @@ const analyzePhotoVLMHandler = async (data, context) => {
         handwritten: classification?.handwritten === true,
         curriculumArea: typeof classification?.curriculumArea === "string"
           ? classification.curriculumArea : null,
+        materialsIdentified: Array.isArray(classification?.materialsIdentified)
+          ? classification.materialsIdentified.filter((s, i, arr) => typeof s === "string" && arr.indexOf(s) === i)
+          : [],
       };
     } catch (err) {
       console.warn(
@@ -170,6 +173,7 @@ const analyzePhotoVLMHandler = async (data, context) => {
         itemId: img.itemId,
         handwritten: false,
         curriculumArea: null,
+        materialsIdentified: [],
       };
     }
   }));

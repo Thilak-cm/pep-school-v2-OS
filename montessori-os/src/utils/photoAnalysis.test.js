@@ -1,7 +1,7 @@
 /**
  * Tests for photoAnalysis parser (PEP-131 → PEP-146).
  * Call 1 only: parseClassification (gpt-5.4-nano per photo).
- * Returns { handwritten, curriculumArea } — description removed in PEP-146.
+ * Returns { handwritten, curriculumArea, materialsIdentified } — description removed in PEP-146.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,20 +79,62 @@ describe('parseClassification', () => {
     const result = parseClassification({
       handwritten: false,
       contentCategory: 'student_work',
-      materialsIdentified: ['pink tower'],
       curriculumArea: 'Sensorial',
       description: 'Pink tower',
     });
     assert.equal(result.curriculumArea, 'Sensorial');
     assert.equal(result.contentCategory, undefined);
-    assert.equal(result.materialsIdentified, undefined);
     assert.equal(result.description, undefined);
   });
 
-  test('output has exactly two top-level keys', () => {
+  test('parses materialsIdentified array', () => {
+    const result = parseClassification({
+      handwritten: false,
+      curriculumArea: 'Sensorial',
+      materialsIdentified: ['Pink Tower', 'Brown Stair'],
+    });
+    assert.deepEqual(result.materialsIdentified, ['Pink Tower', 'Brown Stair']);
+  });
+
+  test('returns empty array when materialsIdentified is missing', () => {
+    const result = parseClassification({
+      handwritten: true,
+      curriculumArea: 'Language',
+    });
+    assert.deepEqual(result.materialsIdentified, []);
+  });
+
+  test('returns empty array when materialsIdentified is null', () => {
+    const result = parseClassification({
+      handwritten: false,
+      curriculumArea: null,
+      materialsIdentified: null,
+    });
+    assert.deepEqual(result.materialsIdentified, []);
+  });
+
+  test('filters non-string entries from materialsIdentified', () => {
+    const result = parseClassification({
+      handwritten: false,
+      curriculumArea: 'Mathematics',
+      materialsIdentified: ['Golden Beads', 123, null, 'Number Cards'],
+    });
+    assert.deepEqual(result.materialsIdentified, ['Golden Beads', 'Number Cards']);
+  });
+
+  test('deduplicates materialsIdentified entries', () => {
+    const result = parseClassification({
+      handwritten: false,
+      curriculumArea: 'Sensorial',
+      materialsIdentified: ['Pink Tower', 'Brown Stair', 'Pink Tower'],
+    });
+    assert.deepEqual(result.materialsIdentified, ['Pink Tower', 'Brown Stair']);
+  });
+
+  test('output has exactly three top-level keys', () => {
     const result = parseClassification({ handwritten: true, curriculumArea: 'Language' });
     const keys = Object.keys(result).sort();
-    assert.deepEqual(keys, ['curriculumArea', 'handwritten']);
+    assert.deepEqual(keys, ['curriculumArea', 'handwritten', 'materialsIdentified']);
   });
 });
 
@@ -118,10 +160,24 @@ describe('buildMediaFields', () => {
     assert.equal(result.curriculumArea, null);
   });
 
-  test('output has exactly two top-level keys', () => {
+  test('includes materialsIdentified in output', () => {
+    const result = buildMediaFields({
+      handwritten: false,
+      curriculumArea: 'Mathematics',
+      materialsIdentified: ['Golden Beads'],
+    });
+    assert.deepEqual(result.materialsIdentified, ['Golden Beads']);
+  });
+
+  test('defaults materialsIdentified to empty array', () => {
+    const result = buildMediaFields({ handwritten: true, curriculumArea: 'Language' });
+    assert.deepEqual(result.materialsIdentified, []);
+  });
+
+  test('output has exactly three top-level keys', () => {
     const result = buildMediaFields({ handwritten: true, curriculumArea: 'Language' });
     const keys = Object.keys(result).sort();
-    assert.deepEqual(keys, ['curriculumArea', 'handwritten']);
+    assert.deepEqual(keys, ['curriculumArea', 'handwritten', 'materialsIdentified']);
   });
 });
 
@@ -170,5 +226,15 @@ describe('mapVLMResultsToMediaItems', () => {
     const mediaItems = [{ id: 'a', source: {} }];
     const mapped = mapVLMResultsToMediaItems(results, mediaItems);
     assert.equal(mapped[0].analyzed, undefined);
+  });
+
+  test('maps materialsIdentified to media items', () => {
+    const results = [
+      { itemId: 'a', handwritten: false, curriculumArea: 'Sensorial', materialsIdentified: ['Pink Tower', 'Brown Stair'] },
+    ];
+    const mediaItems = [{ id: 'a', source: {} }];
+    const mapped = mapVLMResultsToMediaItems(results, mediaItems);
+    assert.deepEqual(mapped[0].materialsIdentified, ['Pink Tower', 'Brown Stair']);
+    assert.equal(mapped[0].analyzed, true);
   });
 });

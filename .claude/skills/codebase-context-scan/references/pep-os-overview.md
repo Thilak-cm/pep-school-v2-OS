@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-30T15:00:55.665Z
-App version: 10.13.0
+Generated: 2026-04-30T00:10:28.601Z
+App version: 10.14.0
 
 ## App Snapshot
 
@@ -57,14 +57,15 @@ App version: 10.13.0
 - `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 6
-- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `UpdateNotification`
+- Count: 7
+- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
 - `montessori-os/src/components/BaseballCardSnapshotCard.jsx`
 - `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
 - `montessori-os/src/components/StatsPage.jsx`
+- `montessori-os/src/components/StatsPage.noteTypes.test.js`
 - `montessori-os/src/components/UpdateNotification.jsx`
 
 ### AI Tools and Chat (`ai-tools-and-chat`)
@@ -138,15 +139,15 @@ App version: 10.13.0
 
 ## Recent Changes
 
-### 10.13.0 (2026-04-30)
-- Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
-- `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
-- Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
+### 10.14.0 (2026-04-29)
+- Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
+- Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
+- Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
 
-### 10.12.3 (2026-04-29)
-- Soul generation now produces ~50 open questions per student in a fenced `open_questions` block, written to `ai_summaries/open_questions` (PEP-173)
-- New `extractOpenQuestions` parser and `buildOpenQuestionsDoc` helper following existing extractor patterns (PEP-173)
-- `extractGuidelinesSuggestions` now returns both suggestions and cleaned content (combined extract+strip), replacing the separate `stripGuidelinesSuggestions` function (PEP-173)
+### 10.13.0 (2026-04-29)
+- Material identification in photo analysis: VLM pipeline now identifies Montessori materials visible in classroom photos and returns them as `materialsIdentified` array (PEP-37)
+- Material chips displayed on student timeline cards, classroom timeline cards, and media preview views with amber styling distinct from curriculum area chips (PEP-37)
+- "Coach Pepper AI" branded section in media note views separates AI analysis from user input (PEP-37)
 
 ### 10.12.2 (2026-04-27)
 - Interview transcript schema redesigned for turn-by-turn agent model: added `explorationAreas`, `endReason`, `durationMinutes`, `areasCovered`, `thinking`/`rationale` on exchanges, replaced `dimensionsCovered` with guideline-area-based `areasCovered` (PEP-125)

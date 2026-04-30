@@ -277,7 +277,6 @@ function App() {
 
                 {!FAB_HIDDEN_SCREENS.has(screen) && (
                   <AddNoteFab
-                    showLabel
                     onClick={() => setAddNoteOpen(true)}
                     sx={{
                       bottom: { xs: 80, sm: 80 },

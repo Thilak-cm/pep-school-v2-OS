@@ -510,7 +510,8 @@ interface MediaDoc {
   // Per-image metadata (photos only)
   copied?: boolean;              // Teacher-set: true if student work is copied (default false)
   handwritten?: boolean;         // VLM classification: true if image contains handwriting (default false)
-  curriculumArea?: string | null; // VLM classification: e.g., "Mathematics", "Language", "Sensorial"
+  curriculumArea?: string | null; // VLM classification: broad Montessori curriculum area (freeform string)
+  materialsIdentified?: string[]; // VLM classification: Montessori materials visible in photo (PEP-37, deduplicated at write-time)
   // AI features
   pdfTitle?: string;             // AI-extracted title (PDFs only)
   essence_text?: string;         // AI-extracted essence summary (PDFs only)
