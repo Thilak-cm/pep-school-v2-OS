@@ -149,7 +149,7 @@ function NoteExpansionDialog({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
+            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
             return (
               <Chip
                 key={`${observation.id}-${dimension.name}`}

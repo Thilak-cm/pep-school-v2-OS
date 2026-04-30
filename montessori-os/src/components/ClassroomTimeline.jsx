@@ -95,7 +95,7 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {Object.entries(groupDefaults).map(([dimension, rating]) => {
-              const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
+              const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
               return (
                 <Chip
                   key={`group-default-${dimension}`}
@@ -117,7 +117,7 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
+            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
             return (
               <Chip
                 key={`${note.id}-${dimension.name}`}
@@ -1851,7 +1851,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                               const defaultRating = groupDefaults[dimension];
                               const isCustom = studentRating && studentRating !== defaultRating;
                               const displayRating = studentRating || defaultRating || 'na';
-                              const color = LESSON_RATING_COLORS[displayRating] || 'var(--grey-600)';
+                              const color = LESSON_RATING_COLORS[displayRating] || '#475569'; // hex required — downstream ${color}22 concatenation
                               
                               return (
                                 <Chip
