@@ -117,7 +117,7 @@ export default function FeatureWorkbench({ featureId }) {
     }
     setBaseConfig(config);
     setVariants((prev) => prev.map((v, i) =>
-      i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, guidelinesContent: config.guidelinesContent || "", dirty: false }
+      i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, guidelinesContent: config.guidelinesContent || "", max_tokens: config.max_tokens || v.max_tokens, dirty: false }
     ));
   }, []);
 
@@ -151,7 +151,7 @@ export default function FeatureWorkbench({ featureId }) {
   async function runAll() {
     if (!selectedStudent) return;
 
-    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
+    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun", { timeout: 300000 });
 
     const updated = variants.map((v) => ({ ...v, loading: true, output: null, error: null, outputMeta: null }));
     setVariants(updated);
@@ -206,7 +206,7 @@ export default function FeatureWorkbench({ featureId }) {
     if (!selectedStudent) return;
     setInterviewStarted(true);
 
-    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
+    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun", { timeout: 300000 });
     const newConversations = {};
 
     // Mark all variants as loading
@@ -258,7 +258,7 @@ export default function FeatureWorkbench({ featureId }) {
     const answer = teacherInput.trim();
     setTeacherInput("");
 
-    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun");
+    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun", { timeout: 300000 });
 
     // Snapshot conversations before state update to avoid stale closure
     const conversationsSnapshot = { ...conversations };

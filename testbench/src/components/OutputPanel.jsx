@@ -69,7 +69,6 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
         variant="outlined"
         sx={{
           p: 2,
-          maxHeight: 500,
           overflow: "auto",
           ...(isSoul
             ? { fontSize: 14, lineHeight: 1.7, "& h1,& h2,& h3": { mt: 2, mb: 1 }, "& ul,& ol": { pl: 3 } }
