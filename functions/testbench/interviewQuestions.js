@@ -9,40 +9,7 @@ import { db } from "../shared/firebase.js";
 import { CHAT_ENDPOINT, buildChatBody } from "../shared/openai.js";
 import { fetchStudentInterviews, getStudentWithProgram } from "../shared/studentHelpers.js";
 import { formatInterviewForPrompt } from "../utils/interviewHelpers.js";
-
-/**
- * Replace ${placeholder} tokens in the system prompt template with student data.
- */
-function assembleSystemPrompt(template, { studentName, age, programId, soul, guidelines, baseballCard, openQuestions, priorInterviews }) {
-  let prompt = template;
-
-  // Simple token replacements
-  prompt = prompt.replace(/\$\{studentName\}/g, studentName || "Unknown");
-  prompt = prompt.replace(/\$\{age\}/g, age || "age unavailable");
-  prompt = prompt.replace(/\$\{programId\}/g, programId || "unknown");
-  prompt = prompt.replace(/\$\{soul\}/g, soul || "No soul narrative available.");
-  prompt = prompt.replace(/\$\{guidelines\}/g, guidelines || "No guidelines available.");
-
-  // Baseball card — build formatted block or fallback
-  const bcBlock = baseballCard
-    ? `BASEBALL CARD (recent ${baseballCard.windowDays}-day summary, ${baseballCard.noteCount} observations):\n${baseballCard.summary}${baseballCard.coverageGaps?.length ? `\nCoverage gaps: ${baseballCard.coverageGaps.join(", ")}` : ""}`
-    : "No baseball card available.";
-  prompt = prompt.replace(/\$\{baseballCard\}/g, bcBlock);
-
-  // Open questions — build numbered list or empty
-  const oqBlock = openQuestions?.length
-    ? `OPEN QUESTIONS BANK (${openQuestions.length} pre-generated questions based on gaps in the soul narrative — use these as a starting point, adapt or rephrase as needed, and generate your own when the conversation goes somewhere new):\n${openQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
-    : "";
-  prompt = prompt.replace(/\$\{openQuestions\}/g, oqBlock);
-
-  // Prior interviews — append if available
-  if (priorInterviews?.length) {
-    const interviewBlock = `\nPRIOR INTERVIEW TRANSCRIPTS (${priorInterviews.length} completed sessions — avoid re-asking areas already covered):\n${JSON.stringify(priorInterviews, null, 2)}`;
-    prompt += interviewBlock;
-  }
-
-  return prompt;
-}
+import { assembleSystemPrompt } from "./promptAssembly.js";
 
 /**
  * Run a single interview turn for the test bench.
@@ -126,5 +93,5 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   return { output, totalTokens };
 }
 
-// Export for testing
-export { assembleSystemPrompt };
+// Re-export for consumers that import from this module
+export { assembleSystemPrompt } from "./promptAssembly.js";

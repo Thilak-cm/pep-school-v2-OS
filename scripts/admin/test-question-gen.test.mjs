@@ -10,7 +10,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildUserPrompt, parseTurnResponse, parseQuestionResponse } from "./interview-agent-core.mjs";
-import { assembleSystemPrompt } from "../../functions/testbench/interviewQuestions.js";
+import { assembleSystemPrompt } from "../../functions/testbench/promptAssembly.js";
 
 // --- Fixtures ---
 

@@ -19,7 +19,7 @@
 import admin from "firebase-admin";
 import readline from "node:readline";
 import { FRONTIER_MODEL } from "../../functions/config/modelConstants.js";
-import { assembleSystemPrompt } from "../../functions/testbench/interviewQuestions.js";
+import { assembleSystemPrompt } from "../../functions/testbench/promptAssembly.js";
 
 // ---------------------------------------------------------------------------
 // Firebase init

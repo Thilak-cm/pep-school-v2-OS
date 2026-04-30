@@ -8,7 +8,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { assembleSystemPrompt } from "./interviewQuestions.js";
+import { assembleSystemPrompt } from "./promptAssembly.js";
 
 const TEMPLATE = `You are an interview agent.
 
