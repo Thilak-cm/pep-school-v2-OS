@@ -60,7 +60,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
         sx={{
           height: FOOTER_HEIGHT,
           backgroundColor: 'white',
-          borderTop: '1px solid #e2e8f0',
+          borderTop: '1px solid var(--color-border)',
           boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.08)',
           display: 'flex',
           alignItems: 'center',
@@ -78,7 +78,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
             backgroundColor: 'transparent',
             '& .MuiBottomNavigationAction-root': {
               minWidth: 0,
-              color: '#64748b',
+              color: 'var(--color-text-soft)',
               paddingTop: 0.5,
               paddingBottom: 0.5,
               outline: 'none',
@@ -93,7 +93,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
               }
             },
             '& .Mui-selected': {
-              color: '#4f46e5'
+              color: 'var(--color-primary)'
             }
           }}
         >

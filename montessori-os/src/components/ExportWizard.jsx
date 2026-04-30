@@ -282,7 +282,7 @@ function ExportWizard({
           </Box>
         </Box>
 
-        <Box ref={summaryRef} sx={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 2, p: 2 }}>
+        <Box ref={summaryRef} sx={{ backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 2, p: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Preview
           </Typography>

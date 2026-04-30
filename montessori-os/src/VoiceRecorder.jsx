@@ -497,7 +497,7 @@ const VoiceRecorder = ({
         width: '100%',
         borderRadius: variant === 'card' ? '16px' : 0,
         boxShadow: variant === 'card' ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',
-        border: variant === 'card' ? '1px solid #e2e8f0' : 'none',
+        border: variant === 'card' ? '1px solid var(--color-border)' : 'none',
         overflow: 'hidden',
         position: 'relative',
         backgroundColor: 'transparent',
@@ -512,7 +512,7 @@ const VoiceRecorder = ({
             position: 'absolute',
             top: 8,
             left: 8,
-            color: '#64748b',
+            color: 'var(--color-text-soft)',
             zIndex: 2,
             '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
           }}
@@ -521,13 +521,13 @@ const VoiceRecorder = ({
         </IconButton>
       )}
       {/* Header */}
-      <CardContent sx={{ pb: 2, textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+      <CardContent sx={{ pb: 2, textAlign: 'center', borderBottom: '1px solid var(--color-surface)' }}>
         <Typography
           variant="h6"
           component="h3"
           sx={{
             margin: '0 0 8px 0',
-            color: '#1e293b',
+            color: 'var(--color-text)',
             fontWeight: '600'
           }}
         >
@@ -539,7 +539,7 @@ const VoiceRecorder = ({
             variant="body1"
             sx={{
               mt: 1.2,
-              color: '#0f172a'
+              color: 'var(--grey-900)'
             }}
           >
             Speak in{' '}
@@ -577,7 +577,7 @@ const VoiceRecorder = ({
           sx={{
             padding: 3,
             textAlign: 'center',
-            backgroundColor: isRecording ? '#fef3f2' : '#f8fafc'
+            backgroundColor: isRecording ? 'var(--color-red-bg-light)' : 'var(--color-bg)'
           }}
         >
           <Typography
@@ -585,9 +585,9 @@ const VoiceRecorder = ({
             sx={{
               fontSize: '2rem',
               fontWeight: '700',
-              color: isRecording ? '#dc2626' : '#1e293b',
+              color: isRecording ? 'var(--color-error)' : 'var(--color-text)',
               marginBottom: '12px',
-              fontFamily: 'monospace'
+              fontFamily: 'var(--font-mono)'
             }}
           >
             {formatTime(recordingTime)} / {formatTime(MAX_RECORDING_TIME)}
@@ -608,7 +608,7 @@ const VoiceRecorder = ({
                 sx={{
                   width: '12px',
                   height: '12px',
-                  backgroundColor: isPaused ? '#94a3b8' : '#dc2626',
+                  backgroundColor: isPaused ? 'var(--color-text-faint)' : 'var(--color-error)',
                   borderRadius: '50%',
                   animation: isPaused ? 'none' : 'pulse 2s ease-in-out infinite',
                   '@keyframes pulse': {
@@ -625,7 +625,7 @@ const VoiceRecorder = ({
               />
               <Typography
                 sx={{
-                  color: isPaused ? '#64748b' : '#dc2626',
+                  color: isPaused ? 'var(--color-text-soft)' : 'var(--color-error)',
                   fontSize: '0.9rem',
                   fontWeight: '500'
                 }}
@@ -675,7 +675,7 @@ const VoiceRecorder = ({
                 onClick={startRecording}
                 startIcon={<Mic />}
                 sx={{
-                  backgroundColor: '#4f46e5',
+                  backgroundColor: 'var(--color-primary)',
                   color: 'white',
                   padding: '16px 32px',
                   fontSize: '1rem',
@@ -684,7 +684,7 @@ const VoiceRecorder = ({
                   boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: '#4338ca',
+                    backgroundColor: 'var(--color-primary-dark)',
                     transform: 'translateY(-1px)',
                   },
                   transition: 'all 0.2s ease'
@@ -702,7 +702,7 @@ const VoiceRecorder = ({
                       onClick={resumeRecording}
                       startIcon={<PlayArrow />}
                       sx={{
-                        backgroundColor: '#0ea5e9',
+                        backgroundColor: 'var(--color-sky)',
                         color: 'white',
                         padding: '12px 24px',
                         fontSize: '1rem',
@@ -711,7 +711,7 @@ const VoiceRecorder = ({
                         boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
                         textTransform: 'none',
                         '&:hover': {
-                          backgroundColor: '#0284c7',
+                          backgroundColor: 'var(--color-blue-sky)',
                           transform: 'translateY(-1px)',
                         },
                         transition: 'all 0.2s ease'
@@ -725,16 +725,16 @@ const VoiceRecorder = ({
                       onClick={pauseRecording}
                       startIcon={<Pause />}
                       sx={{
-                        borderColor: '#64748b',
-                        color: '#64748b',
+                        borderColor: 'var(--color-text-soft)',
+                        color: 'var(--color-text-soft)',
                         padding: '12px 24px',
                         fontSize: '1rem',
                         fontWeight: '600',
                         borderRadius: '12px',
                         textTransform: 'none',
                         '&:hover': {
-                          borderColor: '#475569',
-                          color: '#475569',
+                          borderColor: 'var(--grey-600)',
+                          color: 'var(--grey-600)',
                           transform: 'translateY(-1px)',
                         },
                         transition: 'all 0.2s ease'
@@ -751,7 +751,7 @@ const VoiceRecorder = ({
                   onClick={stopRecording}
                   startIcon={<Stop />}
                   sx={{
-                    backgroundColor: '#dc2626',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
                     padding: '12px 24px',
                     fontSize: '1rem',
@@ -760,7 +760,7 @@ const VoiceRecorder = ({
                     boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
                     textTransform: 'none',
                     '&:hover': {
-                      backgroundColor: '#b91c1c',
+                      backgroundColor: 'var(--color-error-dark)',
                       transform: 'translateY(-1px)',
                     },
                     transition: 'all 0.2s ease'
@@ -779,8 +779,8 @@ const VoiceRecorder = ({
         <Box
           sx={{
             padding: 3,
-            backgroundColor: '#f0f9ff',
-            borderTop: '1px solid #e2e8f0'
+            backgroundColor: 'var(--color-blue-bg-light)',
+            borderTop: '1px solid var(--color-border)'
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -789,7 +789,7 @@ const VoiceRecorder = ({
               component="h4"
               sx={{
                 margin: 0,
-                color: '#1e293b',
+                color: 'var(--color-text)',
                 fontSize: '1rem',
                 fontWeight: '600',
                 display: 'flex',
@@ -809,14 +809,14 @@ const VoiceRecorder = ({
                 padding: 3,
                 backgroundColor: 'white',
                 borderRadius: '8px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
               }}
             >
               {/* Show progress bar if we have determinate progress */}
               {transcriptionProgress.total > 0 && transcriptionProgress.current > 0 ? (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'var(--color-text)' }}>
                       Converting speech to text...
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -829,9 +829,9 @@ const VoiceRecorder = ({
                     sx={{ 
                       height: 8, 
                       borderRadius: 4,
-                      backgroundColor: '#e2e8f0',
+                      backgroundColor: 'var(--color-border)',
                       '& .MuiLinearProgress-bar': {
-                        backgroundColor: '#059669'
+                        backgroundColor: 'var(--color-secondary)'
                       }
                     }}
                   />
@@ -840,8 +840,8 @@ const VoiceRecorder = ({
                 /* Show spinner if no determinate progress */
                 <Box sx={{ textAlign: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 1 }}>
-                    <CircularProgress size={20} sx={{ color: '#059669' }} />
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                    <CircularProgress size={20} sx={{ color: 'var(--color-secondary)' }} />
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'var(--color-text)' }}>
                       Converting speech to text...
                     </Typography>
                   </Box>
@@ -874,12 +874,12 @@ const VoiceRecorder = ({
                   startIcon={<Refresh />}
                   size="small"
                   sx={{
-                    backgroundColor: '#dc2626',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
                     textTransform: 'none',
                     mr: 1,
                     '&:hover': {
-                      backgroundColor: '#b91c1c',
+                      backgroundColor: 'var(--color-error-dark)',
                     }
                   }}
                 >
@@ -891,12 +891,12 @@ const VoiceRecorder = ({
                   startIcon={<Refresh />}
                   size="small"
                   sx={{
-                    borderColor: '#64748b',
-                    color: '#64748b',
+                    borderColor: 'var(--color-text-soft)',
+                    color: 'var(--color-text-soft)',
                     textTransform: 'none',
                     '&:hover': {
-                      borderColor: '#475569',
-                      color: '#475569',
+                      borderColor: 'var(--grey-600)',
+                      color: 'var(--grey-600)',
                     }
                   }}
                 >
@@ -912,7 +912,7 @@ const VoiceRecorder = ({
                 padding: 2,
                 backgroundColor: 'white',
                 borderRadius: '8px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 marginBottom: 2
               }}
             >
@@ -933,7 +933,7 @@ const VoiceRecorder = ({
               ) : (
                 <Typography
                   sx={{
-                    color: '#1e293b',
+                    color: 'var(--color-text)',
                     fontSize: '0.875rem',
                     lineHeight: '1.6',
                     whiteSpace: 'pre-wrap',
@@ -975,17 +975,17 @@ const VoiceRecorder = ({
                     startIcon={cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
                     sx={{
                       textTransform: 'none',
-                      backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                      backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
                       color: 'white',
                       boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
                       '&:hover': {
-                        backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                        backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
                         boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
                       },
                       '&.Mui-disabled': {
                         backgroundImage: 'none',
-                        backgroundColor: '#e2e8f0',
-                        color: '#64748b',
+                        backgroundColor: 'var(--color-border)',
+                        color: 'var(--color-text-soft)',
                         boxShadow: 'none'
                       }
                     }}
@@ -996,7 +996,7 @@ const VoiceRecorder = ({
                     <Button 
                       variant="text" 
                       onClick={handleUndoClean} 
-                      sx={{ color: '#64748b', textTransform: 'none' }}
+                      sx={{ color: 'var(--color-text-soft)', textTransform: 'none' }}
                     >
                       Undo
                     </Button>
@@ -1022,11 +1022,11 @@ const VoiceRecorder = ({
                       startIcon={<Close />}
                       size="small"
                       sx={{
-                        backgroundColor: '#dc2626',
+                        backgroundColor: 'var(--color-error)',
                         color: 'white',
                         textTransform: 'none',
                         '&:hover': {
-                          backgroundColor: '#b91c1c',
+                          backgroundColor: 'var(--color-error-dark)',
                         }
                       }}
                     >
@@ -1041,11 +1041,11 @@ const VoiceRecorder = ({
                       size="small"
                       disabled={!editableText.trim()}
                       sx={{
-                        backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
+                        backgroundColor: editableText.trim() ? 'var(--color-secondary)' : 'var(--grey-300)',
                         color: 'white',
                         textTransform: 'none',
                         '&:hover': {
-                          backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
+                          backgroundColor: editableText.trim() ? 'var(--color-secondary-dark)' : 'var(--grey-300)',
                         }
                       }}
                     >
@@ -1060,14 +1060,14 @@ const VoiceRecorder = ({
                       startIcon={<Refresh />}
                       size="small"
                       sx={{
-                        borderColor: '#cbd5e1',
-                        color: '#475569',
+                        borderColor: 'var(--grey-300)',
+                        color: 'var(--grey-600)',
                         backgroundColor: 'white',
                         textTransform: 'none',
                         '&:hover': {
-                          borderColor: '#94a3b8',
-                          backgroundColor: '#f8fafc',
-                          color: '#334155',
+                          borderColor: 'var(--color-text-faint)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--grey-700)',
                         }
                       }}
                     >
@@ -1079,14 +1079,14 @@ const VoiceRecorder = ({
                       startIcon={<Edit />}
                       size="small"
                       sx={{
-                        borderColor: '#cbd5e1',
-                        color: '#475569',
+                        borderColor: 'var(--grey-300)',
+                        color: 'var(--grey-600)',
                         backgroundColor: 'white',
                         textTransform: 'none',
                         '&:hover': {
-                          borderColor: '#94a3b8',
-                          backgroundColor: '#f8fafc',
-                          color: '#334155',
+                          borderColor: 'var(--color-text-faint)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--grey-700)',
                         }
                       }}
                     >
@@ -1110,7 +1110,7 @@ const VoiceRecorder = ({
                   }}
                   endIcon={<ArrowForward />}
                   sx={{
-                    backgroundColor: '#4f46e5',
+                    backgroundColor: 'var(--color-primary)',
                     color: 'white',
                     padding: '12px 24px',
                     fontSize: '0.9rem',
@@ -1118,7 +1118,7 @@ const VoiceRecorder = ({
                     borderRadius: '8px',
                     textTransform: 'none',
                     '&:hover': {
-                      backgroundColor: '#4338ca',
+                      backgroundColor: 'var(--color-primary-dark)',
                     }
                   }}
                   // No longer blocked by language selection
@@ -1147,7 +1147,7 @@ const VoiceRecorder = ({
         }}
       >
         <Box sx={{ p: 3, textAlign: 'center' }}>
-          <Typography variant="h6" sx={{ mb: 2, color: '#1e293b' }}>
+          <Typography variant="h6" sx={{ mb: 2, color: 'var(--color-text)' }}>
             Cancel Edit?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -1158,12 +1158,12 @@ const VoiceRecorder = ({
               variant="outlined"
               onClick={dismissCancelConfirm}
               sx={{
-                borderColor: '#64748b',
-                color: '#64748b',
+                borderColor: 'var(--color-text-soft)',
+                color: 'var(--color-text-soft)',
                 textTransform: 'none',
                 '&:hover': {
-                  borderColor: '#475569',
-                  color: '#475569',
+                  borderColor: 'var(--grey-600)',
+                  color: 'var(--grey-600)',
                 }
               }}
             >
@@ -1174,11 +1174,11 @@ const VoiceRecorder = ({
               color="error"
               onClick={confirmCancelEdit}
               sx={{
-                backgroundColor: '#dc2626',
+                backgroundColor: 'var(--color-error)',
                 color: 'white',
                 textTransform: 'none',
                 '&:hover': {
-                  backgroundColor: '#b91c1c',
+                  backgroundColor: 'var(--color-error-dark)',
                 }
               }}
             >
@@ -1205,8 +1205,8 @@ const VoiceRecorderWrapper = (props) => {
       position: 'absolute', 
       top: 12, 
       right: 12, 
-      color: '#1e293b', 
-      '&:hover': { backgroundColor: '#f1f5f9' },
+      color: 'var(--color-text)', 
+      '&:hover': { backgroundColor: 'var(--color-surface)' },
       zIndex: 2
     };
     const closeIconSx = DialogProps.closeIconSx || { fontSize: 28 };

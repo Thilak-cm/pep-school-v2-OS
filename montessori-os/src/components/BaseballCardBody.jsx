@@ -41,13 +41,13 @@ export default function BaseballCardBody({
           <CircularProgress
             size={40}
             sx={{
-              color: '#4f46e5',
+              color: 'var(--color-primary)',
               '& .MuiCircularProgress-circle': {
                 strokeLinecap: 'round',
               }
             }}
           />
-          <Typography variant="body1" sx={{ color: '#64748b', textAlign: 'center' }}>
+          <Typography variant="body1" sx={{ color: 'var(--color-text-soft)', textAlign: 'center' }}>
             {message}
           </Typography>
         </Box>
@@ -103,7 +103,7 @@ export default function BaseballCardBody({
         <Typography
           variant="body2"
           sx={{
-            color: '#334155',
+            color: 'var(--grey-700)',
             whiteSpace: 'pre-line',
           }}
         >

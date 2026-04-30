@@ -67,14 +67,14 @@ function PerformanceSummaryCard({
       sx={{
         borderRadius: 2,
         backgroundColor: 'white',
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--color-border)',
         boxShadow: 'none',
         ...sx
       }}
     >
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Stack spacing={2}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--color-text)', fontSize: '0.875rem' }}>
             Performance Summary for the last 42 days
           </Typography>
 
@@ -161,7 +161,7 @@ function PerformanceSummaryCard({
                     <RechartsTooltip 
                       contentStyle={{ 
                         backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
+                        border: '1px solid var(--color-border)',
                         borderRadius: 8,
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                       }}
@@ -192,7 +192,7 @@ function PerformanceSummaryCard({
                       display: 'block',
                       fontSize: '11px',
                       fontWeight: 400,
-                      color: '#94a3b8',
+                      color: 'var(--color-text-faint)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.5px',
                       mb: 1
@@ -204,9 +204,9 @@ function PerformanceSummaryCard({
                     sx={{
                       fontSize: '32px',
                       fontWeight: 400,
-                      color: '#0f172a',
+                      color: 'var(--grey-900)',
                       lineHeight: 1,
-                      fontFamily: 'Inter, system-ui, sans-serif'
+                      fontFamily: 'var(--font-body)'
                     }}
                   >
                     {formatNumber(totalStudents)}

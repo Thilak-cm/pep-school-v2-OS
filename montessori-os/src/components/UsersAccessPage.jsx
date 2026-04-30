@@ -69,7 +69,7 @@ const MOBILE_CONTAINER_SX = {
 const TAB_SX = {
   minHeight: 48,
   '& .MuiTab-root': { textTransform: 'none', minHeight: 48, fontWeight: 600 },
-  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: '#4f46e5' }
+  '& .MuiTabs-indicator': { height: 3, borderRadius: 2, backgroundColor: 'var(--color-primary)' }
 };
 
 // ============================================================================
@@ -1275,7 +1275,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     ];
     const index = Math.max(0, items.findIndex(i => i.key === value));
     return (
-      <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
+      <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid var(--color-border)' }}>
         <Tabs value={index} onChange={(e, newIndex) => onChange(items[newIndex]?.key || 'teacher')} variant="fullWidth" sx={TAB_SX}>
           {items.map((it) => (
             <Tab key={it.key} icon={it.icon} iconPosition="start" label={it.label} aria-label={it.label} />
@@ -1346,16 +1346,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           mb: 1.5,
           backgroundColor: 'white',
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--color-border)',
           '&:hover': {
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'var(--color-bg)',
             boxShadow: '0 4px 12px rgba(79, 70, 229, 0.15)',
-            borderColor: '#4f46e5',
+            borderColor: 'var(--color-primary)',
             transform: 'translateY(-1px)',
           },
           '&.Mui-disabled': {
             opacity: 0.6,
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'var(--color-bg)',
           },
           transition: 'all 0.2s ease-in-out',
         }}
@@ -1364,13 +1364,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           {isTeacher ? (
             <Avatar 
               src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=ffffff&size=40&format=png`}
-              sx={{ backgroundColor: '#4f46e5', fontSize: '0.875rem', fontWeight: 600 }}
+              sx={{ backgroundColor: 'var(--color-primary)', fontSize: '0.875rem', fontWeight: 600 }}
             >
               {initials}
             </Avatar>
           ) : (
             <Avatar sx={{ 
-              backgroundColor: '#4f46e5',
+              backgroundColor: 'var(--color-primary)',
               color: 'white',
               fontWeight: 600,
               fontSize: '0.875rem'
@@ -1431,7 +1431,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   return (
     <Box sx={MOBILE_CONTAINER_SX}>
-      <Box sx={{ flex: 1, p:1, pb: 6, backgroundColor: '#f8fafc' }}>
+      <Box sx={{ flex: 1, p:1, pb: 6, backgroundColor: 'var(--color-bg)' }}>
         {error && view !== 'home' && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>
         )}
@@ -1444,7 +1444,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 <CardActionArea onClick={() => { setView('add'); onViewChange && onViewChange('add'); }} sx={{ p: 0 }}>
                   <CardContent sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: '#4f46e5', width: 56, height: 56 }}><PersonAdd /></Avatar>
+                      <Avatar sx={{ bgcolor: 'var(--color-primary)', width: 56, height: 56 }}><PersonAdd /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Add Users</Typography>
                         <Typography variant="body2" color="text.secondary">Create classroom admins, teachers, or students</Typography>
@@ -1465,7 +1465,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 >
                   <CardContent sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: '#059669', width: 56, height: 56 }}><ManageAccounts /></Avatar>
+                      <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 56, height: 56 }}><ManageAccounts /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Manage Users</Typography>
                         <Typography variant="body2" color="text.secondary">Update teacher, classroom admin, or student info</Typography>
@@ -1480,7 +1480,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 <CardActionArea onClick={() => onNavigateGraduate && onNavigateGraduate()} sx={{ p: 0 }}>
                   <CardContent sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: '#10b981', width: 56, height: 56 }}><School /></Avatar>
+                      <Avatar sx={{ bgcolor: 'var(--color-secondary-light)', width: 56, height: 56 }}><School /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Graduate Students</Typography>
                         <Typography variant="body2" color="text.secondary">Move selected students to a new classroom with history</Typography>
@@ -1495,7 +1495,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
         {/* Manage header with tabs */}
         {view === 'manage' && (
-          <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', mb: 2 }}>
+          <Box sx={{ backgroundColor: 'white', borderRadius: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid var(--color-border)', mb: 2 }}>
             <Tabs
               value={Math.max(0, ([
                 'teachers',
@@ -1691,7 +1691,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                           size="small"
                           label="Super Admin"
                           sx={{
-                            backgroundColor: '#4f46e5',
+                            backgroundColor: 'var(--color-primary)',
                             color: 'white',
                             fontWeight: 500
                           }}
@@ -1737,8 +1737,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                             size="small"
                             label={getClassroomLabel(classroomId)}
                             sx={{
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--grey-600)',
                               fontWeight: 500,
                               fontSize: '0.75rem'
                             }}
@@ -1805,8 +1805,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                             size="small"
                             label={clsLabel}
                             sx={{
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--grey-600)',
                               fontWeight: 500,
                               fontSize: '0.75rem'
                             }}
@@ -1851,10 +1851,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             >
               <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
                 <Box sx={{ mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--grey-900)' }}>
                     Add Users
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
                     Create teachers, classroom admins, or students and assign them to classrooms.
                   </Typography>
                 </Box>
@@ -1911,7 +1911,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                           backgroundColor: 'white',
                           p: 0.75,
                           borderRadius: 1.5,
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           maxHeight: 184,
                           overflowY: 'auto'
                         }}
@@ -1959,7 +1959,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                               backgroundColor: 'white',
                               p: 0.75,
                               borderRadius: 1.5,
-                              border: '1px solid #e2e8f0',
+                              border: '1px solid var(--color-border)',
                               maxHeight: 184,
                               overflowY: 'auto'
                             }}
@@ -2028,7 +2028,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                         backgroundColor: 'white',
                         p: 0.75,
                         borderRadius: 1.5,
-                        border: '1px solid #e2e8f0',
+                        border: '1px solid var(--color-border)',
                         maxHeight: 184,
                         overflowY: 'auto'
                       }}
@@ -2066,10 +2066,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch</Typography>
                       <Box
                         sx={{
-                          backgroundColor: '#f8fafc',
+                          backgroundColor: 'var(--color-bg)',
                           p: 1.5,
                           borderRadius: 1.5,
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                         }}
                       >
                         <Typography variant="body2" color="text.secondary">
@@ -2426,7 +2426,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             <Avatar sx={{ 
               width: 56, 
               height: 56, 
-              backgroundColor: '#4f46e5',
+              backgroundColor: 'var(--color-primary)',
               fontSize: '1.25rem',
               fontWeight: 600
             }}>
@@ -2440,8 +2440,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 size="small" 
                 label={getClassroomLabel(selectedStudent?.classroomId || '')} 
                 sx={{ 
-                  backgroundColor: '#f1f5f9',
-                  color: '#475569',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--grey-600)',
                   fontWeight: 500
                 }} 
               />

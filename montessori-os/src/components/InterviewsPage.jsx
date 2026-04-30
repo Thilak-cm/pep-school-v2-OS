@@ -12,23 +12,23 @@ function InterviewsPage({ currentUser, userRole, manageableClassrooms }) {
           p: 4,
           mt: 6,
           borderRadius: 3,
-          border: '1px solid #e0e7ff',
-          bgcolor: '#f5f3ff',
+          border: '1px solid var(--color-indigo-bg-light)',
+          bgcolor: 'var(--color-violet-bg)',
           textAlign: 'center',
           maxWidth: 360,
           width: '100%',
         }}
       >
         <Stack spacing={1.5} alignItems="center">
-          <AutoAwesome sx={{ fontSize: 36, color: '#4f46e5' }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#312e81' }}>
+          <AutoAwesome sx={{ fontSize: 36, color: 'var(--color-primary)' }} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)' }}>
             AI Interviews
           </Typography>
-          <Typography variant="body2" sx={{ color: '#6366f1', lineHeight: 1.6 }}>
+          <Typography variant="body2" sx={{ color: 'var(--color-primary-light)', lineHeight: 1.6 }}>
             Our latest feature — Coach Pepper will conduct personalized interviews
             with you about each child, building a deeper understanding over time.
           </Typography>
-          <Typography variant="caption" sx={{ color: '#a5b4fc', fontWeight: 600, mt: 1 }}>
+          <Typography variant="caption" sx={{ color: 'var(--color-indigo-soft)', fontWeight: 600, mt: 1 }}>
             Coming soon
           </Typography>
         </Stack>

@@ -95,8 +95,8 @@ export default function BaseballCardSnapshotCard({
     <Card
       sx={{
         borderRadius: 2,
-        border: '1px solid #e2e8f0',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #fff 100%)',
+        border: '1px solid var(--color-border)',
+        background: 'linear-gradient(135deg, var(--color-bg) 0%, var(--color-paper) 100%)',
         minHeight,
         maxHeight,
         display: 'flex',
@@ -115,8 +115,8 @@ export default function BaseballCardSnapshotCard({
                 sx={{
                   width: 40,
                   height: 40,
-                  border: '1px solid #a5b4fc',
-                  color: '#4f46e5',
+                  border: '1px solid var(--color-indigo-soft)',
+                  color: 'var(--color-primary)',
                   backgroundColor: 'rgba(79, 70, 229, 0.06)',
                   '&:hover': {
                     backgroundColor: 'rgba(79, 70, 229, 0.12)'
@@ -133,10 +133,10 @@ export default function BaseballCardSnapshotCard({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box>
-              <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 700 }}>
+              <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 700 }}>
                 {title}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                 {Number.isFinite(noteCount) ? noteCount : '-'} notes over last {resolvedWindowDays} days
               </Typography>
               {(coverage || ageString) && (
@@ -162,7 +162,7 @@ export default function BaseballCardSnapshotCard({
                         fontSize: '0.75rem',
                         fontWeight: 600,
                         backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                        color: '#4f46e5',
+                        color: 'var(--color-primary)',
                         border: '1px solid rgba(79, 70, 229, 0.2)',
                         '& .MuiChip-label': {
                           px: 1
@@ -216,7 +216,7 @@ export default function BaseballCardSnapshotCard({
             sx={{
               mt: 1.5,
               pt: 1.5,
-              borderTop: '1px solid #e2e8f0',
+              borderTop: '1px solid var(--color-border)',
               flexShrink: 0
             }}
           >

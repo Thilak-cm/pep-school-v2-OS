@@ -66,24 +66,24 @@ const confettiFall = keyframes`
   }
 `;
 
-const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+const confettiColors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink-dark)', 'var(--color-info)', 'var(--color-violet)'];
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 const IMAGE_FILE_EXTENSION_RE = /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp)$/i;
 const HEIF_FILE_EXTENSION_RE = /\.(heic|heif)$/i;
 const HEIF_MIME_RE = /^image\/hei(f|c)$/i;
 const POLISH_BUTTON_SX = {
   textTransform: 'none',
-  backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+  backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
   color: 'white',
   boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
   '&:hover': {
-    backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+    backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
     boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
   },
   '&.Mui-disabled': {
     backgroundImage: 'none',
-    backgroundColor: '#e2e8f0',
-    color: '#64748b',
+    backgroundColor: 'var(--color-border)',
+    color: 'var(--color-text-soft)',
     boxShadow: 'none'
   }
 };
@@ -286,7 +286,7 @@ function TextInput({
             {cleanedOnce ? 'Polished' : (cleaning ? 'Polishing…' : 'Polish with AI')}
           </Button>
           {cleanedOnce && prevText && (
-            <Button variant="text" onClick={handleUndoClean} sx={{ color: '#64748b' }}>
+            <Button variant="text" onClick={handleUndoClean} sx={{ color: 'var(--color-text-soft)' }}>
               Undo
             </Button>
           )}
@@ -296,9 +296,9 @@ function TextInput({
           onClick={handleSave}
           disabled={!text.trim()}
           sx={{
-            backgroundColor: text.trim() ? '#4f46e5' : '#cbd5e1',
+            backgroundColor: text.trim() ? 'var(--color-primary)' : 'var(--grey-300)',
             '&:hover': { 
-              backgroundColor: text.trim() ? '#4338ca' : '#cbd5e1'
+              backgroundColor: text.trim() ? 'var(--color-primary-dark)' : 'var(--grey-300)'
             }
           }}
         >
@@ -1937,7 +1937,7 @@ function AddNoteModal({
                 }
               }}
               sx={{
-                color: '#64748b',
+                color: 'var(--color-text-soft)',
                 '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' }
               }}
               size="small"
@@ -1950,8 +1950,8 @@ function AddNoteModal({
             aria-label="Close"
             onClick={() => requestClose('closeButton')}
             sx={{
-              color: '#1e293b',
-              '&:hover': { backgroundColor: '#f1f5f9' }
+              color: 'var(--color-text)',
+              '&:hover': { backgroundColor: 'var(--color-surface)' }
             }}
             size="small"
           >
@@ -1996,24 +1996,24 @@ function AddNoteModal({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 2,
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
                   cursor: 'pointer',
                   backgroundColor: 'white',
                   '&:hover': { 
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #4f46e5'
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-primary)'
                   }
                 }}
                 onClick={handleSelectVoice}
                 aria-label="Add voice note"
               >
-                <KeyboardVoice sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <KeyboardVoice sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
                       Voice Note
                     </Typography>
                   </Box>
@@ -2028,24 +2028,24 @@ function AddNoteModal({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 2,
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   borderRadius: 2,
                   p: 2,
                   width: '100%',
                   cursor: 'pointer',
                   backgroundColor: 'white',
                   '&:hover': { 
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #4f46e5'
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-primary)'
                   }
                 }}
                 onClick={handleSelectLesson}
                 aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <MenuBook sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
                       Lesson Note
                     </Typography>
                   </Box>
@@ -2068,17 +2068,17 @@ function AddNoteModal({
                   cursor: 'pointer',
                   backgroundColor: 'white',
                   '&:hover': {
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #4f46e5'
+                    backgroundColor: 'var(--color-bg)',
+                    border: '1px solid var(--color-primary)'
                   }
                 }}
                 onClick={() => handleSelectMedia('photo')}
                 aria-label="Add media note"
               >
-                <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: '#1e293b' }}>
+                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
                       Media Note
                     </Typography>
                   </Box>
@@ -2147,7 +2147,7 @@ function AddNoteModal({
 
                 <Box
                   sx={{
-                    border: '1px dashed #cbd5e1',
+                    border: '1px dashed var(--grey-300)',
                     borderRadius: 2,
                     p: 2,
                     minHeight: 140,
@@ -2156,7 +2156,7 @@ function AddNoteModal({
                     justifyContent: 'center',
                     flexDirection: 'column',
                     gap: 1,
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: 'var(--color-bg)',
                     cursor: 'pointer',
                   }}
                   onClick={() => mediaFileInputRef.current?.click()}
@@ -2212,7 +2212,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                        <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose a file
                         </Typography>
@@ -2231,7 +2231,7 @@ function AddNoteModal({
                               sx={{
                                 borderRadius: 3,
                                 border: '1px solid',
-                                borderColor: '#e2e8f0',
+                                borderColor: 'var(--color-border)',
                                 backgroundColor: 'background.paper',
                                 overflow: 'hidden',
                               }}
@@ -2246,7 +2246,7 @@ function AddNoteModal({
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  backgroundColor: '#f1f5f9'
+                                  backgroundColor: 'var(--color-surface)'
                                 }}
                               >
                                 {item.previewUrl ? (
@@ -2274,7 +2274,7 @@ function AddNoteModal({
                                     backgroundColor: 'rgba(255,255,255,0.9)',
                                     backdropFilter: 'blur(4px)',
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                                    '&:hover': { backgroundColor: '#fff' },
+                                    '&:hover': { backgroundColor: 'var(--color-paper)' },
                                   }}
                                 >
                                   <Close sx={{ fontSize: 16 }} />
@@ -2307,7 +2307,7 @@ function AddNoteModal({
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         bgcolor: !item.copied ? 'rgba(22, 163, 74, 0.92)' : 'rgba(255,255,255,0.75)',
-                                        color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
+                                        color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
                                       <Brush sx={{ fontSize: 13 }} />
@@ -2326,7 +2326,7 @@ function AddNoteModal({
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         bgcolor: item.copied ? 'rgba(245, 158, 11, 0.92)' : 'rgba(255,255,255,0.75)',
-                                        color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)',
+                                        color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
                                       <ContentCopy sx={{ fontSize: 13 }} />
@@ -2340,20 +2340,20 @@ function AddNoteModal({
                               <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                                 {/* AI analysis results */}
                                 {item.kind === 'photo' && item.analyzed && (item.curriculumArea || item.handwritten || (Array.isArray(item.materialsIdentified) && item.materialsIdentified.length > 0)) && (
-                                  <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', p: 1.25 }}>
-                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                                  <Box sx={{ bgcolor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', p: 1.25 }}>
+                                    <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
                                       <AutoAwesome sx={{ fontSize: 12 }} />
                                       Coach Pepper's Image Analysis
                                     </Typography>
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
                                       {item.curriculumArea && (
-                                        <Chip label={item.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #a7f3d0', height: 24 }} />
+                                        <Chip label={item.curriculumArea} size="small" sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, fontSize: '0.7rem', border: '1px solid var(--color-green-mint)', height: 24 }} />
                                       )}
                                       {item.handwritten && (
-                                        <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #bfdbfe', height: 24 }} />
+                                        <Chip label="Handwritten" size="small" sx={{ bgcolor: 'var(--color-blue-bg)', color: 'var(--color-indigo-dark)', fontWeight: 600, fontSize: '0.7rem', border: '1px solid var(--color-blue-soft-bg)', height: 24 }} />
                                       )}
                                       {Array.isArray(item.materialsIdentified) && item.materialsIdentified.map((mat) => (
-                                        <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.7rem', border: '1px solid #fcd34d', height: 24 }} />
+                                        <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, fontSize: '0.7rem', border: '1px solid var(--color-amber-gold)', height: 24 }} />
                                       ))}
                                     </Box>
                                   </Box>
@@ -2401,7 +2401,7 @@ function AddNoteModal({
                                             border: 1,
                                             borderColor: 'divider',
                                             bgcolor: 'action.hover',
-                                            color: mediaItemCommentCleanedOnce[item.id] ? '#059669' : mediaItemCommentCleaning[item.id] ? '#7c3aed' : !String(item.teacherComment || '').trim() ? 'text.disabled' : '#7c3aed'
+                                            color: mediaItemCommentCleanedOnce[item.id] ? 'var(--color-secondary)' : mediaItemCommentCleaning[item.id] ? 'var(--color-violet-dark)' : !String(item.teacherComment || '').trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                                           }}
                                         >
                                           {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
@@ -2427,7 +2427,7 @@ function AddNoteModal({
                                   <Button
                                     variant="text"
                                     onClick={() => handleUndoPolishMediaItemComment(item.id)}
-                                    sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+                                    sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
                                   >
                                     Undo polish
                                   </Button>
@@ -2445,7 +2445,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary sx={{ fontSize: 32, color: '#4f46e5' }} />
+                        <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose files
                         </Typography>
@@ -2519,7 +2519,7 @@ function AddNoteModal({
                                       border: 1,
                                       borderColor: 'divider',
                                       bgcolor: 'action.hover',
-                                      color: mediaPdfCommentCleanedOnce ? '#059669' : mediaPdfCommentCleaning ? '#7c3aed' : !mediaTeacherComment.trim() ? 'text.disabled' : '#7c3aed'
+                                      color: mediaPdfCommentCleanedOnce ? 'var(--color-secondary)' : mediaPdfCommentCleaning ? 'var(--color-violet-dark)' : !mediaTeacherComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                                     }}
                                   >
                                     {mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
@@ -2548,7 +2548,7 @@ function AddNoteModal({
                       <Button
                         variant="text"
                         onClick={handleUndoPolishMediaPdfComment}
-                        sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+                        sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
                       >
                         Undo polish
                       </Button>
@@ -2576,7 +2576,7 @@ function AddNoteModal({
             {/* Lesson tag chips (shown when tags are selected) */}
             {selectedLessonIds && selectedLessonIds.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 0, pt: 1 }}>
-                <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ color: 'var(--grey-900)', fontWeight: 600 }}>
                   Tagged Lesson Notes:
                 </Typography>
                 {selectedLessonIds.map((id) => {
@@ -2612,7 +2612,7 @@ function AddNoteModal({
                 gap: 1,
                 pt: 1.5,
                 pb: 0.5,
-                borderTop: '1px solid #e2e8f0',
+                borderTop: '1px solid var(--color-border)',
                 backgroundColor: 'white',
                 position: 'sticky',
                 bottom: 0,
@@ -2641,24 +2641,24 @@ function AddNoteModal({
                       textTransform: 'none',
                       fontSize: '0.95rem',
                       ...(hasUnanalyzedPhotos && {
-                        background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)',
-                        color: '#6d28d9',
-                        border: '1.5px solid #c4b5fd',
+                        background: 'linear-gradient(135deg, var(--color-indigo-bg-light) 0%, var(--color-violet-bg-light) 100%)',
+                        color: 'var(--color-violet-deeper)',
+                        border: '1.5px solid var(--color-violet-soft)',
                         boxShadow: 'none',
                         '&.Mui-disabled': {
-                          background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)',
-                          color: '#6d28d9',
-                          border: '1.5px solid #c4b5fd',
+                          background: 'linear-gradient(135deg, var(--color-indigo-bg-light) 0%, var(--color-violet-bg-light) 100%)',
+                          color: 'var(--color-violet-deeper)',
+                          border: '1.5px solid var(--color-violet-soft)',
                         },
                       }),
                       ...(needsStudent && {
-                        bgcolor: '#fef3c7',
-                        color: '#92400e',
-                        border: '1.5px solid #fbbf24',
+                        bgcolor: 'var(--color-amber-bg)',
+                        color: 'var(--color-amber-text)',
+                        border: '1.5px solid var(--color-warning-light)',
                         boxShadow: 'none',
                         '&:hover': {
-                          bgcolor: '#fde68a',
-                          border: '1.5px solid #f59e0b',
+                          bgcolor: 'var(--color-amber-yellow)',
+                          border: '1.5px solid var(--color-warning)',
                         },
                       }),
                     }}
@@ -2767,7 +2767,7 @@ function AddNoteModal({
                 flexWrap: 'wrap',
                 gap: 1,
                 pt: 2,
-                borderTop: '1px solid #e2e8f0',
+                borderTop: '1px solid var(--color-border)',
                 backgroundColor: 'white',
                 position: 'sticky',
                 bottom: 0,
@@ -2775,7 +2775,7 @@ function AddNoteModal({
             >
               {selectedLessonIds && selectedLessonIds.length > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--grey-900)', fontWeight: 600 }}>
                     Tagged Lesson Notes:
                   </Typography>
                   {selectedLessonIds.map((id) => {
@@ -2871,7 +2871,7 @@ function AddNoteModal({
                   variant="h6" 
                   sx={{ 
                     textAlign: 'center', 
-                    color: '#059669',
+                    color: 'var(--color-secondary)',
                     fontWeight: 600,
                     position: 'relative',
                     zIndex: 2

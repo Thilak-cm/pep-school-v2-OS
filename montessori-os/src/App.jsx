@@ -229,11 +229,11 @@ function App() {
 
   return (
     <>
-      <Box sx={{ minHeight: '100vh', width: '100vw', maxWidth: '100vw', overflowX: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+      <Box sx={{ minHeight: '100vh', width: '100vw', maxWidth: '100vw', overflowX: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg)' }}>
         <Box sx={{
           width: { xs: '100vw', sm: '420px' }, maxWidth: { xs: '100vw', sm: '420px' },
           minHeight: { xs: '100vh', sm: '800px' }, maxHeight: { xs: 'none', sm: '90vh' },
-          backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden',
+          backgroundColor: 'var(--color-bg)', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden',
           '@media (min-width: 600px)': { borderRadius: '24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }
         }}>
           <NotificationProvider>
@@ -244,8 +244,8 @@ function App() {
             {loading && (
               <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 3 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <CircularProgress size={40} sx={{ color: '#4f46e5', '& .MuiCircularProgress-circle': { strokeLinecap: 'round' } }} />
-                  <Typography variant="body1" sx={{ color: '#64748b' }}>Coach Pepper is getting things ready...</Typography>
+                  <CircularProgress size={40} sx={{ color: 'var(--color-primary)', '& .MuiCircularProgress-circle': { strokeLinecap: 'round' } }} />
+                  <Typography variant="body1" sx={{ color: 'var(--color-text-soft)' }}>Coach Pepper is getting things ready...</Typography>
                 </Box>
               </Box>
             )}
@@ -255,8 +255,8 @@ function App() {
               <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 3, position: 'relative' }}>
                 <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: { xs: '32px 24px', sm: '48px 32px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '350px', backgroundColor: 'white' }}>
                   <Box component="img" src="/pep-logo.png" alt="Pep School Logo" sx={{ width: { xs: '100px', sm: '120px' }, height: { xs: '100px', sm: '120px' }, marginBottom: '32px', filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))' }} />
-                  <Typography variant="h3" component="h1" sx={{ color: '#1e293b', marginBottom: '20px', fontSize: { xs: '1.75rem', sm: '2rem' }, fontWeight: '700', lineHeight: '1.2', textAlign: 'center' }}>Welcome to Pep School V2 OS!</Typography>
-                  <Typography variant="body1" sx={{ color: '#64748b', marginBottom: '40px', fontSize: { xs: '1rem', sm: '1.1rem' }, lineHeight: '1.6', textAlign: 'center' }}>Streamline your teaching workflow</Typography>
+                  <Typography variant="h3" component="h1" sx={{ color: 'var(--color-text)', marginBottom: '20px', fontSize: { xs: '1.75rem', sm: '2rem' }, fontWeight: '700', lineHeight: '1.2', textAlign: 'center' }}>Welcome to Pep School V2 OS!</Typography>
+                  <Typography variant="body1" sx={{ color: 'var(--color-text-soft)', marginBottom: '40px', fontSize: { xs: '1rem', sm: '1.1rem' }, lineHeight: '1.6', textAlign: 'center' }}>Streamline your teaching workflow</Typography>
                   <SignIn />
                 </Card>
               </Box>

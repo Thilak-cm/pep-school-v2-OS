@@ -18,7 +18,7 @@ const SectionCard = ({ title, subtitle, children }) => (
     <CardContent>
       <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
       {subtitle && (
-        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>{subtitle}</Typography>
+        <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>{subtitle}</Typography>
       )}
       <Divider sx={{ my: 2 }} />
       {children}
@@ -314,7 +314,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
         </ListItemButton>
         <Collapse in={coachConfigExpanded}>
           <CardContent>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 3 }}>
               Configure program settings, coach features, and nudges
             </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -383,7 +383,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                 />
               </Box>
             </Box>
-            <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
               Toggle which nudges Coach can suggest. Disabled nudges are omitted from the system prompt.
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
@@ -469,11 +469,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Box
               component="pre"
               sx={{
-                fontFamily: 'monospace',
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 p: 1.5,
-                bgcolor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                bgcolor: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
                 borderRadius: 1,
                 fontSize: '0.875rem'
               }}
@@ -491,7 +491,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
           sx={{ borderRadius: 2 }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>Nudge Blocks</Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', mr: 1 }}>
+          <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mr: 1 }}>
             {enabledNudgeBlocksCount} enabled
           </Typography>
           {nudgeBlocksExpanded ? <ExpandLess /> : <ExpandMore />}
@@ -508,9 +508,9 @@ export default function AICoachEditor({ currentUser, userRole }) {
                     key={nudgeId}
                     sx={{
                       p: 2,
-                      border: `2px solid ${isEnabled ? '#059669' : '#e2e8f0'}`,
+                      border: `2px solid ${isEnabled ? 'var(--color-secondary)' : 'var(--color-border)'}`,
                       borderRadius: 1,
-                      bgcolor: isEnabled ? '#f0fdf4' : '#f8fafc'
+                      bgcolor: isEnabled ? 'var(--color-green-bg-light)' : 'var(--color-bg)'
                     }}
                   >
                     <Chip
@@ -520,7 +520,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
                       variant={isEnabled ? 'filled' : 'outlined'}
                       sx={{ mb: 1 }}
                     />
-                    <Typography variant="body2" sx={{ color: isEnabled ? '#1e293b' : '#94a3b8' }}>
+                    <Typography variant="body2" sx={{ color: isEnabled ? 'var(--color-text)' : 'var(--color-text-faint)' }}>
                       {nudgeBlock ? `• ${nudgeBlock}` : 'Not configured'}
                     </Typography>
                   </Box>
@@ -545,11 +545,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
             <Box
               component="pre"
               sx={{
-                fontFamily: 'monospace',
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 p: 1.5,
-                bgcolor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                bgcolor: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
                 borderRadius: 1,
                 fontSize: '0.875rem'
               }}
@@ -575,7 +575,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
               setCoachResult(null);
             }}
             disabled={runningCoach || saving}
-            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
+            sx={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}
           />
           
           {coachError && (
@@ -585,7 +585,7 @@ export default function AICoachEditor({ currentUser, userRole }) {
           )}
 
           {coachResult && (
-            <Card sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <Card sx={{ bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -604,11 +604,11 @@ export default function AICoachEditor({ currentUser, userRole }) {
                   <Box
                     component="pre"
                     sx={{
-                      fontFamily: 'monospace',
+                      fontFamily: 'var(--font-mono)',
                       whiteSpace: 'pre-wrap',
                       p: 1.5,
-                      bgcolor: '#ffffff',
-                      border: '1px solid #e2e8f0',
+                      bgcolor: 'var(--color-paper)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 1,
                       fontSize: '0.75rem',
                       maxHeight: '400px',
@@ -625,8 +625,8 @@ export default function AICoachEditor({ currentUser, userRole }) {
                           key={index}
                           sx={{
                             p: 1.5,
-                            bgcolor: '#ffffff',
-                            border: '1px solid #e2e8f0',
+                            bgcolor: 'var(--color-paper)',
+                            border: '1px solid var(--color-border)',
                             borderRadius: 1
                           }}
                         >
@@ -637,17 +637,17 @@ export default function AICoachEditor({ currentUser, userRole }) {
                               color="primary"
                               variant="outlined"
                             />
-                            <Typography variant="caption" sx={{ color: '#64748b' }}>
+                            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
                               Confidence: {(nudge.confidence * 100).toFixed(0)}%
                             </Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ color: '#1e293b' }}>
+                          <Typography variant="body2" sx={{ color: 'var(--color-text)' }}>
                             {nudge.reason}
                           </Typography>
                         </Card>
                       ))
                     ) : (
-                      <Typography variant="body2" sx={{ color: '#64748b', fontStyle: 'italic' }}>
+                      <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontStyle: 'italic' }}>
                         {coachEnabled
                           ? 'No nudges identified. The observation looks complete!'
                           : 'Coach is disabled for this program. Enable it above to run a test and see nudges.'}

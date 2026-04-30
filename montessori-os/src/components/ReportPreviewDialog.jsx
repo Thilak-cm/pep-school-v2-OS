@@ -64,7 +64,7 @@ export default function ReportPreviewDialog({
         sx: {
           borderRadius: 3,
           maxHeight: '85vh',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--color-border)',
         },
       }}
     >
@@ -76,17 +76,17 @@ export default function ReportPreviewDialog({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'linear-gradient(180deg, #eef2ff 0%, #ffffff 100%)',
+          background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 100%)',
         }}
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <ReportIcon sx={{ color: '#4f46e5', fontSize: 24 }} />
+          <ReportIcon sx={{ color: 'var(--color-primary)', fontSize: 24 }} />
           <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {studentLabel}'s Report
             </Typography>
             {(generatedLabel || noteCount !== null) && (
-              <Typography variant="caption" sx={{ color: '#64748b' }}>
+              <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
                 {[
                   generatedLabel ? `Generated ${generatedLabel}` : null,
                   noteCount !== null ? `${noteCount} observations` : null,
@@ -113,14 +113,14 @@ export default function ReportPreviewDialog({
                   textTransform: 'none',
                   fontWeight: 700,
                   borderRadius: 2,
-                  borderColor: '#f59e0b',
-                  color: '#92400e',
-                  backgroundColor: '#fffbeb',
+                  borderColor: 'var(--color-warning)',
+                  color: 'var(--color-amber-text)',
+                  backgroundColor: 'var(--color-amber-warm)',
                   px: 1.5,
                   alignSelf: 'flex-start',
                   '&:hover': {
-                    borderColor: '#d97706',
-                    backgroundColor: '#fef3c7',
+                    borderColor: 'var(--color-warning-dark)',
+                    backgroundColor: 'var(--color-amber-bg)',
                   },
                 }}
               >
@@ -132,16 +132,16 @@ export default function ReportPreviewDialog({
                 onClose={() => setFlagsAnchorEl(null)}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                PaperProps={{ sx: { p: 2, maxWidth: 340, border: '1px solid #fde68a' } }}
+                PaperProps={{ sx: { p: 2, maxWidth: 340, border: '1px solid var(--color-amber-yellow)' } }}
               >
                 <Stack spacing={1.25}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <WarningAmber sx={{ fontSize: 20, color: '#f59e0b' }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#92400e' }}>
+                    <WarningAmber sx={{ fontSize: 20, color: 'var(--color-warning)' }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'var(--color-amber-text)' }}>
                       Missing inputs
                     </Typography>
                   </Stack>
-                  <Typography variant="body2" sx={{ color: '#92400e' }}>
+                  <Typography variant="body2" sx={{ color: 'var(--color-amber-text)' }}>
                     This report was generated without data in these areas.
                   </Typography>
                   <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -169,7 +169,7 @@ export default function ReportPreviewDialog({
                       variant="subtitle1"
                       sx={{
                         fontWeight: 700,
-                        color: '#1e293b',
+                        color: 'var(--color-text)',
                         mb: 0.75,
                       }}
                     >
@@ -183,7 +183,7 @@ export default function ReportPreviewDialog({
                           variant="subtitle2"
                           sx={{
                             fontWeight: 600,
-                            color: '#475569',
+                            color: 'var(--grey-600)',
                             mt: bIdx > 0 ? 1.5 : 0,
                             mb: 0.5,
                           }}
@@ -195,7 +195,7 @@ export default function ReportPreviewDialog({
                         <Typography
                           variant="body2"
                           sx={{
-                            color: '#334155',
+                            color: 'var(--grey-700)',
                             lineHeight: 1.7,
                             whiteSpace: 'pre-wrap',
                           }}
@@ -215,7 +215,7 @@ export default function ReportPreviewDialog({
       <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
         <Button
           onClick={onClose}
-          sx={{ textTransform: 'none', color: isDraft ? '#ef4444' : '#475569' }}
+          sx={{ textTransform: 'none', color: isDraft ? 'var(--color-error-light)' : 'var(--grey-600)' }}
         >
           {isDraft ? 'Discard' : 'Close'}
         </Button>
@@ -242,7 +242,7 @@ export default function ReportPreviewDialog({
               sx={{
                 textTransform: 'none',
                 borderRadius: 2,
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-violet-dark) 100%)',
               }}
             >
               {exporting

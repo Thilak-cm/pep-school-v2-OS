@@ -58,7 +58,7 @@ const confettiFallSmall = keyframes`
   }
 `;
 
-const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+const confettiColors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink-dark)', 'var(--color-info)', 'var(--color-violet)'];
 
 function ConfettiAnimation({ count = 50, small = false }) {
   const particles = React.useMemo(
@@ -440,51 +440,51 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   })();
   const coveragePalette = {
     balanced: {
-      borderColor: '#22c55e',
-      hoverBorderColor: '#16a34a',
+      borderColor: 'var(--color-green-bright)',
+      hoverBorderColor: 'var(--color-green-mid)',
       backgroundColor: 'rgba(34, 197, 94, 0.1)',
       hoverBackground: 'rgba(22, 163, 74, 0.12)',
-      textColor: '#166534',
-      iconColor: '#22c55e',
+      textColor: 'var(--color-green-dark)',
+      iconColor: 'var(--color-green-bright)',
       title: 'Coverage balanced',
     },
     warning: {
-      borderColor: '#f59e0b',
-      hoverBorderColor: '#d97706',
+      borderColor: 'var(--color-warning)',
+      hoverBorderColor: 'var(--color-warning-dark)',
       backgroundColor: 'rgba(245, 158, 11, 0.1)',
       hoverBackground: 'rgba(245, 158, 11, 0.14)',
-      textColor: '#92400e',
-      iconColor: '#f59e0b',
+      textColor: 'var(--color-amber-text)',
+      iconColor: 'var(--color-warning)',
       title: 'Missing domains',
     },
     alert: {
-      borderColor: '#dc2626',
-      hoverBorderColor: '#b91c1c',
+      borderColor: 'var(--color-error)',
+      hoverBorderColor: 'var(--color-error-dark)',
       backgroundColor: 'rgba(220, 38, 38, 0.1)',
       hoverBackground: 'rgba(220, 38, 38, 0.14)',
-      textColor: '#991b1b',
-      iconColor: '#dc2626',
+      textColor: 'var(--color-red-dark)',
+      iconColor: 'var(--color-error)',
       title: 'Missing domains',
     },
   };
   const coverageStyles = coveragePalette[coverageTone];
   const severityColor = severity === 'high'
-    ? '#dc2626'
+    ? 'var(--color-error)'
     : severity === 'medium' || severity === 'med'
-      ? '#f59e0b'
+      ? 'var(--color-warning)'
       : severity === 'low'
-        ? '#94a3b8'
-        : '#22c55e';
+        ? 'var(--color-text-faint)'
+        : 'var(--color-green-bright)';
 
   const getSeverityChip = () => {
     if (signalsLoading || signalsStatus !== 'ok') return null;
 
     const colorMap = {
-      high: '#dc2626',
-      medium: '#f59e0b',
-      med: '#f59e0b',
-      low: '#94a3b8',
-      none: '#22c55e'
+      high: 'var(--color-error)',
+      medium: 'var(--color-warning)',
+      med: 'var(--color-warning)',
+      low: 'var(--color-text-faint)',
+      none: 'var(--color-green-bright)'
     };
 
     const paletteColor = colorMap[severity] || colorMap.none;
@@ -522,7 +522,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const renderCoverageRow = () => {
     if (signalsLoading) {
       return (
-        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+        <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
           Checking coverage…
         </Typography>
       );
@@ -530,8 +530,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     if (signalsStatus !== 'ok') {
       return (
         <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlined sx={{ fontSize: 18, color: '#94a3b8' }} />
-          <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+          <InfoOutlined sx={{ fontSize: 18, color: 'var(--color-text-faint)' }} />
+          <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
             Coverage pending
           </Typography>
         </Stack>
@@ -631,30 +631,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         footer={
           chartLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
-              <CircularProgress size={24} sx={{ color: '#4f46e5' }} />
+              <CircularProgress size={24} sx={{ color: 'var(--color-primary)' }} />
             </Box>
           ) : weeklyChartData.length > 0 ? (
             <Box>
               <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e293b', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   Notes over time
                 </Typography>
-                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8' }}>
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--color-text-faint)' }}>
                   peak: {peakPerWeek}/wk
                 </Typography>
               </Stack>
               <Box sx={{ height: 120, width: '100%', ml: -1 }}>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts — hex required */}
                     <XAxis
                       dataKey="period"
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
-                      axisLine={{ stroke: '#e2e8f0' }}
+                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
+                      axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
+                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
                       axisLine={false}
                       tickLine={false}
                       width={30}
@@ -665,11 +665,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                       content={({ active, payload }) => {
                         if (active && payload?.length) {
                           return (
-                            <Box sx={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1.5, py: 0.75, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
+                            <Box sx={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: 1.5, px: 1.5, py: 0.75, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary)' }}>
                                 {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
                               </Typography>
-                              <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                              <Typography sx={{ fontSize: '0.65rem', color: 'var(--color-text-faint)' }}>
                                 {payload[0].payload.period}
                               </Typography>
                             </Box>
@@ -681,10 +681,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                     <Line
                       type="monotone"
                       dataKey="count"
-                      stroke="#4f46e5"
+                      stroke="#4f46e5" /* Recharts */
                       strokeWidth={2.5}
-                      dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }}
-                      activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }}
+                      dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }} /* Recharts */
+                      activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }} /* Recharts */
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -706,8 +706,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         PaperProps={{
           sx: {
             borderRadius: 3,
-            background: 'linear-gradient(180deg, #eef2ff 0%, #ffffff 55%)',
-            border: '1px solid #e2e8f0',
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
             boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
           }
         }}
@@ -727,10 +727,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   border: '1px solid rgba(99,102,241,0.35)'
                 }}
               >
-                <Refresh sx={{ fontSize: 22, color: '#4f46e5' }} />
+                <Refresh sx={{ fontSize: 22, color: 'var(--color-primary)' }} />
               </Box>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
                   Regenerate weekly snapshot?
                 </Typography>
               </Box>
@@ -739,15 +739,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               sx={{
                 p: 1.5,
                 borderRadius: 2,
-                backgroundColor: '#eef2ff',
+                backgroundColor: 'var(--color-indigo-bg)',
                 border: '1px solid rgba(79, 70, 229, 0.2)'
               }}
             >
-              <Typography variant="body2" sx={{ color: '#3730a3', fontWeight: 600 }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-indigo-deep)', fontWeight: 600 }}>
                 Last generated: {formatGeneratedAt(cardData?.generatedAt)}
               </Typography>
             </Box>
-            <Typography variant="body2" sx={{ color: '#475569' }}>
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
               {notesSinceGeneratedLoading
                 ? 'Checking for notes added after this snapshot...'
                 : Number.isFinite(notesSinceGenerated)
@@ -755,7 +755,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   : 'Unable to check for new notes right now.'}
             </Typography>
             {!notesSinceGeneratedLoading && Number.isFinite(notesSinceGenerated) && (
-              <Typography variant="body2" sx={{ color: notesSinceGenerated === 0 ? '#dc2626' : '#059669', fontStyle: 'italic' }}>
+              <Typography variant="body2" sx={{ color: notesSinceGenerated === 0 ? 'var(--color-error)' : 'var(--color-secondary)', fontStyle: 'italic' }}>
                 {notesSinceGenerated === 0
                   ? 'Regeneration will not include any additional information, so it may not be necessary.'
                   : 'This will refresh the snapshot with the latest observations and may provide updated insights.'}
@@ -767,7 +767,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           <Button
             onClick={() => setRegenDialogOpen(false)}
             disabled={regenRunning}
-            sx={{ textTransform: 'none', color: '#475569' }}
+            sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
           >
             Cancel
           </Button>
@@ -803,7 +803,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
           </Typography>
         </Stack>
-        <Typography variant="body2" sx={{ color: '#334155' }}>
+        <Typography variant="body2" sx={{ color: 'var(--grey-700)' }}>
           {severityReason || (severity ? 'No reason provided.' : 'This student currently has no concerns flagged.')}
         </Typography>
       </Popover>
@@ -842,7 +842,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             </Stack>
             {coverageTone === 'balanced' ? (
               <>
-                <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                <Typography variant="body2" sx={{ color: 'var(--grey-900)' }}>
                   Notes in the past {cardWindowDays} days have been balanced. Great job keeping coverage even!
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -853,7 +853,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <>
                 <Typography
                   variant="body2"
-                  sx={{ color: coverageTone === 'alert' ? '#b91c1c' : '#92400e' }}
+                  sx={{ color: coverageTone === 'alert' ? 'var(--color-error-dark)' : 'var(--color-amber-text)' }}
                 >
                   {coverageTone === 'warning'
                     ? 'A few domains need attention. Try adding observations in these areas soon.'
@@ -879,9 +879,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       {/* Square action buttons */}
       <Stack direction="row" spacing={1.5} justifyContent="flex-start">
         {[
-          { label: 'Timeline', icon: <NotesIcon sx={{ fontSize: 22 }} />, color: '#4f46e5', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
-          { label: 'Reports', icon: <ReportsIcon sx={{ fontSize: 22 }} />, color: '#059669', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
-          { label: 'Coach', icon: <ChatIcon sx={{ fontSize: 22 }} />, color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
+          { label: 'Timeline', icon: <NotesIcon sx={{ fontSize: 22 }} />, color: 'var(--color-primary)', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
+          { label: 'Reports', icon: <ReportsIcon sx={{ fontSize: 22 }} />, color: 'var(--color-secondary)', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
+          { label: 'Coach', icon: <ChatIcon sx={{ fontSize: 22 }} />, color: 'var(--color-primary-light)', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
         ].map((btn) => (
           <Box
             key={btn.label}
@@ -890,7 +890,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               width: 72,
               height: 72,
               borderRadius: 2.5,
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               backgroundColor: btn.bg,
               display: 'flex',
               flexDirection: 'column',
@@ -910,7 +910,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             }}
           >
             <Box sx={{ color: btn.color }}>{btn.icon}</Box>
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', letterSpacing: '0.02em' }}>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--grey-600)', letterSpacing: '0.02em' }}>
               {btn.label}
             </Typography>
           </Box>

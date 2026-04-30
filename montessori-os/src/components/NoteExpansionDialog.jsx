@@ -149,7 +149,7 @@ function NoteExpansionDialog({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
             return (
               <Chip
                 key={`${observation.id}-${dimension.name}`}
@@ -885,12 +885,12 @@ function NoteExpansionDialog({
                 alignItems: 'center', 
                 gap: 1,
                 p: 1.5,
-                backgroundColor: '#fef3c7',
+                backgroundColor: 'var(--color-amber-bg)',
                 borderRadius: 1,
-                border: '1px solid #fde68a'
+                border: '1px solid var(--color-amber-yellow)'
               }}>
-                <School sx={{ fontSize: 16, color: '#d97706' }} />
-                <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic' }}>
+                <School sx={{ fontSize: 16, color: 'var(--color-warning-dark)' }} />
+                <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic' }}>
                   Note logged when {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'this student'} was in {previousClassroomName}
                 </Typography>
               </Box>
@@ -964,7 +964,7 @@ function NoteExpansionDialog({
             ) : (
               <>
                 {authorActionsExpired && (
-                  <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic', textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic', textAlign: 'center' }}>
                     {AUTHOR_ACTION_EXPIRED_MESSAGE}
                   </Typography>
                 )}
@@ -1130,9 +1130,9 @@ function NoteExpansionDialog({
               </Typography>
               <Box sx={{
                 p: 2,
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'var(--color-bg)',
                 borderRadius: 2,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 2
               }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1144,10 +1144,10 @@ function NoteExpansionDialog({
               </Box>
               <Typography variant="body2" sx={{
                 fontStyle: 'italic',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'var(--color-bg)',
                 padding: 2,
                 borderRadius: 2,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 2
               }}>
                 {(() => {

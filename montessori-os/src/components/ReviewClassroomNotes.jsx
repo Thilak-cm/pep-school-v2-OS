@@ -436,10 +436,10 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
       <Card sx={{ borderRadius: 2 }}>
         <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b' }}>
+            <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
               Export Notes
             </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
               Choose a student or select classrooms to export observations and lesson notes in one file.
             </Typography>
           </Box>

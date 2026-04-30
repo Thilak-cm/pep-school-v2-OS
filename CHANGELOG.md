@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.14.1 — 2026-04-30
+
+### Changed
+- Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
+- MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
+- Typography tokens: monospace and body font references now use --font-mono and --font-body tokens (PEP-183)
+- Google Fonts loaded for Inter body font with preconnect hints (PEP-183)
+
+### Added
+- Dark mode CSS var overrides prepared in [data-theme="dark"] block, not yet activated (PEP-183)
+- Design token verification test suite covering all 5 acceptance criteria (PEP-183)
+
 # 10.14.0 — 2026-04-29
 
 ### Added

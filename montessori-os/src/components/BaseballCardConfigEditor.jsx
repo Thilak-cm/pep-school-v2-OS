@@ -160,9 +160,9 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
 
           <Box
             sx={{
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               borderRadius: 2,
-              backgroundColor: '#f8fafc',
+              backgroundColor: 'var(--color-bg)',
               p: 2
             }}
           >
@@ -181,7 +181,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
                 sx={{
                   whiteSpace: 'pre-wrap',
                   fontFamily: 'inherit',
-                  color: '#0f172a',
+                  color: 'var(--grey-900)',
                   lineHeight: 1.6,
                   fontSize: 15
                 }}
@@ -201,7 +201,7 @@ export default function BaseballCardConfigEditor({ currentUser, userRole }) {
                           mx: 0.5,
                           fontWeight: 700,
                           backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                          borderColor: '#93c5fd',
+                          borderColor: 'var(--color-blue-soft)',
                           verticalAlign: 'middle'
                         }}
                       />

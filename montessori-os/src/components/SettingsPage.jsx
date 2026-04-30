@@ -88,7 +88,7 @@ function SettingsPage({ _currentUser, userRole, onNavigate, onSignOut }) {
         sx={{
           p: 1,
           borderRadius: 2,
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--color-border)',
           backgroundColor: 'white',
           overflow: 'hidden'
         }}
@@ -107,12 +107,12 @@ function SettingsPage({ _currentUser, userRole, onNavigate, onSignOut }) {
                 }
               }}
             >
-              <ListItemIcon sx={{ minWidth: 42, color: '#4f46e5' }}>
+              <ListItemIcon sx={{ minWidth: 42, color: 'var(--color-primary)' }}>
                 {item.icon}
               </ListItemIcon>
               <ListItemText
                 primary={item.text}
-                primaryTypographyProps={{ fontWeight: 600, color: '#0f172a' }}
+                primaryTypographyProps={{ fontWeight: 600, color: 'var(--grey-900)' }}
               />
             </ListItemButton>
           ))}
@@ -130,12 +130,12 @@ function SettingsPage({ _currentUser, userRole, onNavigate, onSignOut }) {
               }
             }}
           >
-            <ListItemIcon sx={{ minWidth: 42, color: '#ef4444' }}>
+            <ListItemIcon sx={{ minWidth: 42, color: 'var(--color-error-light)' }}>
               <Logout />
             </ListItemIcon>
             <ListItemText
               primary="Log Out"
-              primaryTypographyProps={{ fontWeight: 700, color: '#b91c1c' }}
+              primaryTypographyProps={{ fontWeight: 700, color: 'var(--color-error-dark)' }}
             />
           </ListItemButton>
         </List>

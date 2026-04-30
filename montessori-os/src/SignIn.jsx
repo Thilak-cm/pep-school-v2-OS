@@ -20,7 +20,7 @@ function SignIn() {
       onClick={handleSignIn}
       startIcon={<Google />}
       sx={{
-        backgroundColor: '#4285f4',
+        backgroundColor: 'var(--color-google-blue)',
         color: 'white',
         padding: '16px 32px',
         fontSize: '18px',
@@ -29,7 +29,7 @@ function SignIn() {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textTransform: 'none',
         '&:hover': {
-          backgroundColor: '#3367d6',
+          backgroundColor: 'var(--color-google-blue-dark)',
           transform: 'translateY(-2px)',
           boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
         },

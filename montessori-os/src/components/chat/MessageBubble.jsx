@@ -77,7 +77,7 @@ export const AssistantBubble = ({ message, formatTimestamp }) => (
     sx={{
       maxWidth: '92%',
       p: 2,
-      backgroundColor: '#f7f7f8',
+      backgroundColor: 'var(--color-neutral-bg)',
       borderRadius: '16px 16px 16px 4px',
       position: 'relative',
     }}

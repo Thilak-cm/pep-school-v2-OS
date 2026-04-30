@@ -20,7 +20,7 @@ const SectionCard = ({ title, subtitle, children }) => (
     <CardContent>
       <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
       {subtitle && (
-        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>{subtitle}</Typography>
+        <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>{subtitle}</Typography>
       )}
       <Divider sx={{ my: 2 }} />
       {children}
@@ -230,10 +230,10 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                 <Chip size="small" color="warning" label="Editing" />
               )}
             </Box>
-            <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+            <Box sx={{ mb: 2, p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Science sx={{ fontSize: 18, color: '#64748b' }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                <Science sx={{ fontSize: 18, color: 'var(--color-text-soft)' }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
                   Model Configuration
                 </Typography>
               </Box>
@@ -270,7 +270,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                   />
                 </Box>
               ) : (
-                <Typography variant="body2" sx={{ color: '#64748b', fontFamily: 'monospace' }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontFamily: 'var(--font-mono)' }}>
                   Model: {model} &bull; Temperature: {temperature}
                 </Typography>
               )}
@@ -280,14 +280,14 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               {!editing ? (
                 <>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>System Prompt</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>System Prompt</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
                       {systemPrompt || '—'}
                     </Box>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{text}'})</Typography>
-                    <Box component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>User Prompt (supports ${'{text}'})</Typography>
+                    <Box component="pre" sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
                       {userPrompt || '—'}
                     </Box>
                   </Box>
@@ -295,15 +295,15 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               ) : (
                 <>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>System Prompt</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>System Prompt</Typography>
                     <TextField fullWidth multiline minRows={4} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} />
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>User Prompt (supports ${'{text}'})</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>User Prompt (supports ${'{text}'})</Typography>
                     <TextField fullWidth multiline minRows={6} value={userPrompt} onChange={(e) => setUserPrompt(e.target.value)} />
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>Change note (optional)</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>Change note (optional)</Typography>
                     <TextField fullWidth placeholder="e.g., softer tone for parents" value={changeNote} onChange={(e) => setChangeNote(e.target.value)} />
                   </Box>
                 </>
@@ -313,7 +313,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               <Box>
                 <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
                 {!docState?.versions?.length && (
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>No prior versions.</Typography>
                 )}
                 {docState?.versions?.length > 0 && (
                   <List dense>
@@ -346,7 +346,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
                 </Box>
                 {testOutput && (
                   <Box>
-                    <Typography variant="caption" sx={{ color: '#64748b' }}>Output</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>Output</Typography>
                     <TextField fullWidth multiline minRows={6} value={testOutput} onChange={(e) => setTestOutput(e.target.value)} />
                   </Box>
                 )}

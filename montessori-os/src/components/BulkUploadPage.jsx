@@ -663,6 +663,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             <Typography variant="h6">Review & Upload</Typography>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {/* hex required — StatBox uses hex-alpha concatenation (color + '12') */}
               <StatBox label="Rows to upload" value={reviewRows.length} color="#2196f3" />
               <StatBox label="Matched students" value={matchResults.filter((m) => m.accepted).length} color="#4caf50" />
               <StatBox label="Skipped (rejected)" value={matchResults.filter((m) => m.rejected).length} color="#9e9e9e" />
@@ -722,6 +723,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {/* hex required — StatBox uses hex-alpha concatenation (color + '12') */}
               <StatBox label="Imported" value={results.imported} color="#4caf50" />
               {results.failed > 0 && <StatBox label="Failed" value={results.failed} color="#f44336" />}
               {results.duplicatesAllowed > 0 && (
