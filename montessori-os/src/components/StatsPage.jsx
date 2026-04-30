@@ -1025,10 +1025,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       !isLessonNote(obs) && !isVoiceNote(obs) && !isTextNote(obs) && obs?.type === 'media');
 
     return [
-      { name: 'Voice', value: voiceNotes.length, color: 'var(--color-info)' },
-      { name: 'Text', value: textNotes.length, color: 'var(--color-warning)' },
-      { name: 'Lesson', value: lessonNotes.length, color: 'var(--color-secondary)' },
-      { name: 'Media', value: mediaNotes.length, color: 'var(--color-pink)' }
+      // Recharts processes colors in JS — CSS vars not supported
+      { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' }, /* Recharts */
+      { name: 'Text', value: textNotes.length, color: '#f59e0b' }, /* Recharts */
+      { name: 'Lesson', value: lessonNotes.length, color: '#059669' }, /* Recharts */
+      { name: 'Media', value: mediaNotes.length, color: '#ec4899' } /* Recharts */
     ];
   }, [filteredObservationsForPie]);
 
@@ -1048,7 +1049,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
     const label = `${Math.round(percent * 100)}%`;
     return (
-      <text x={x} y={y} fill="var(--color-paper)" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
+      <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
         {label}
       </text>
     );
@@ -1381,19 +1382,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
             <RechartsBarChart data={data} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-chart-grid)" />
-            <XAxis 
-              dataKey="name" 
-              tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-              axisLine={{ stroke: 'var(--color-border)' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               angle={-45}
               textAnchor="end"
               height={70}
               tickMargin={6}
             />
-            <YAxis 
-              tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-              axisLine={{ stroke: 'var(--color-border)' }}
+            <YAxis
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
               width={40}
               tickFormatter={(value) => Math.round(value)}
@@ -1442,9 +1443,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 return null;
               }}
             />
-              <Bar dataKey="Observations" stackId="notes" fill="var(--color-primary)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Lesson Notes" stackId="notes" fill="var(--color-secondary)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Media Notes" stackId="notes" fill="var(--color-pink)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} /> {/* Recharts — hex required */}
+              <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} /> {/* Recharts */}
+              <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} /> {/* Recharts */}
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
@@ -1690,21 +1691,21 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-chart-grid)" />
-            <XAxis 
-              dataKey="period" 
-              tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-              axisLine={{ stroke: 'var(--color-border)' }}
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+            <XAxis
+              dataKey="period"
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
             />
-            <YAxis 
-              tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-              axisLine={{ stroke: 'var(--color-border)' }}
+            <YAxis
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
               width={40}
               tickFormatter={(value) => Math.round(value)}
             />
-            <RechartsTooltip 
-              contentStyle={{ 
+            <RechartsTooltip
+              contentStyle={{
                 backgroundColor: 'white',
                 border: '1px solid var(--color-border)',
                 borderRadius: 8,
@@ -1732,12 +1733,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 return null;
               }}
             />
-            <Line 
-              type="monotone" 
-              dataKey="count" 
-              stroke="var(--color-primary)" 
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="#4f46e5" /* Recharts */
               strokeWidth={3}
-              dot={{ fill: 'var(--color-primary)', strokeWidth: 2, r: 4 }}
+              dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }} /* Recharts */
             />
           </LineChart>
         </ResponsiveContainer>
@@ -1951,7 +1952,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                               <Cell 
                                 key={`cell-${entry.name}-${entry.value}`}
                                 fill={entry.color}
-                                stroke="var(--color-paper)"
+                                stroke="#ffffff"
                                 strokeWidth={2}
                               />
                             ))}

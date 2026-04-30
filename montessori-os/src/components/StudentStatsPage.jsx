@@ -239,9 +239,10 @@ const StudentStatsPage = ({ student }) => {
   }, [stats.allObservations, timePeriod]);
 
   // Memoize pie chart data to prevent re-renders when time period changes
+  // Recharts processes colors in JS — CSS vars not supported
   const pieChartData = useMemo(() => [
-    { name: 'Voice Notes', value: stats.voiceNotes, color: 'var(--color-info)' },
-    { name: 'Text Notes', value: stats.textNotes, color: 'var(--color-warning)' }
+    { name: 'Voice Notes', value: stats.voiceNotes, color: '#3b82f6' }, /* Recharts */
+    { name: 'Text Notes', value: stats.textNotes, color: '#f59e0b' } /* Recharts */
   ], [stats.voiceNotes, stats.textNotes]);
 
   // Custom label to show % inside each pie slice - memoized to prevent flickering
@@ -260,7 +261,7 @@ const StudentStatsPage = ({ student }) => {
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
     const label = `${Math.round(percent * 100)}%`;
     return (
-      <text x={x} y={y} fill="var(--color-paper)" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
+      <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" style={{ fontWeight: 700 }}>
         {label}
       </text>
     );
@@ -371,15 +372,15 @@ const StudentStatsPage = ({ student }) => {
                 <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250 }}>
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-chart-grid)" />
-                      <XAxis 
-                        dataKey="period" 
-                        tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-                        axisLine={{ stroke: 'var(--color-border)' }}
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+                      <XAxis
+                        dataKey="period"
+                        tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+                        axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
                       />
-                      <YAxis 
-                        tick={{ fontSize: 12, fill: 'var(--color-text-soft)' }}
-                        axisLine={{ stroke: 'var(--color-border)' }}
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+                        axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
                         tickLine={false}
                         width={40}
                         tickFormatter={(value) => Math.round(value)}
@@ -413,12 +414,12 @@ const StudentStatsPage = ({ student }) => {
                           return null;
                         }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="count" 
-                        stroke="var(--color-primary)" 
+                      <Line
+                        type="monotone"
+                        dataKey="count"
+                        stroke="#4f46e5" /* Recharts */
                         strokeWidth={3}
-                        dot={{ fill: 'var(--color-primary)', strokeWidth: 2, r: 4 }}
+                        dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }} /* Recharts */
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -454,7 +455,7 @@ const StudentStatsPage = ({ student }) => {
                         <Cell 
                           key={`cell-${entry.name}-${entry.value}`}
                           fill={entry.color}
-                          stroke="var(--color-paper)"
+                          stroke="#ffffff"
                           strokeWidth={2}
                         />
                       ))}

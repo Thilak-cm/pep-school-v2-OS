@@ -153,7 +153,7 @@ function PerformanceSummaryCard({
                         <Cell 
                           key={`cell-${entry.name}-${entry.value}`}
                           fill={entry.color}
-                          stroke="var(--color-paper)"
+                          stroke="#ffffff"
                           strokeWidth={2}
                         />
                       ))}

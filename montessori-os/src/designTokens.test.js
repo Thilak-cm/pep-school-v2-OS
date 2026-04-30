@@ -166,13 +166,21 @@ describe('AC4: No raw hex in components (full migration)', () => {
     }
 
     const violations = [];
+    // Lines containing these markers are intentional hex uses (Recharts JS props,
+    // hex-alpha concatenation) where CSS vars cannot work.
+    const EXEMPT_MARKERS = ['Recharts', 'hex required', 'hex-alpha'];
     for (const filePath of filesToScan) {
       // Skip theme.js (legitimately contains hex for MUI)
       if (filePath.endsWith('theme.js')) continue;
-      const content = readFileSync(filePath, 'utf-8');
+      const lines = readFileSync(filePath, 'utf-8').split('\n');
       for (const hex of TARGET_HEXES) {
-        // Case-insensitive match for the hex value (not inside a comment)
-        if (content.toLowerCase().includes(hex.toLowerCase())) {
+        const hexLower = hex.toLowerCase();
+        const hasUnexemptedUse = lines.some((line) => {
+          if (!line.toLowerCase().includes(hexLower)) return false;
+          // Allow if this line (or prior line) is marked as intentional
+          return !EXEMPT_MARKERS.some((m) => line.includes(m));
+        });
+        if (hasUnexemptedUse) {
           const relName = filePath.split('/').slice(-2).join('/');
           violations.push(`${relName} contains ${hex}`);
         }

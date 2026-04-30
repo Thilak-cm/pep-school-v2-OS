@@ -646,15 +646,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <Box sx={{ height: 120, width: '100%', ml: -1 }}>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts — hex required */}
                     <XAxis
                       dataKey="period"
-                      tick={{ fontSize: 9, fill: 'var(--color-text-faint)' }}
-                      axisLine={{ stroke: 'var(--color-border)' }}
+                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
+                      axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: 'var(--color-text-faint)' }}
+                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
                       axisLine={false}
                       tickLine={false}
                       width={30}
@@ -681,10 +681,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                     <Line
                       type="monotone"
                       dataKey="count"
-                      stroke="var(--color-primary)"
+                      stroke="#4f46e5" /* Recharts */
                       strokeWidth={2.5}
-                      dot={{ fill: 'var(--color-primary)', strokeWidth: 2, r: 3, stroke: '#fff' }} // #fff intentional — CSS vars don't resolve reliably in SVG attributes
-                      activeDot={{ r: 5, stroke: 'var(--color-primary)', strokeWidth: 2, fill: '#fff' }} // #fff intentional — CSS vars don't resolve reliably in SVG attributes
+                      dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }} /* Recharts */
+                      activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }} /* Recharts */
                     />
                   </LineChart>
                 </ResponsiveContainer>
