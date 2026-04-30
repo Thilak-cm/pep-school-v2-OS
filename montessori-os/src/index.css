@@ -1,5 +1,191 @@
-/* Global app defaults.
-   Keep this file minimal — MUI's CssBaseline + theme handle most styling. */
+/* ═══════════════════════════════════════════════════════════════════
+   Design Tokens — Single source of truth for colors, typography,
+   spacing, shadows, and radii. All component hex values reference
+   these CSS custom properties.
+
+   To swap primary from indigo to teal: change --color-primary to #2bb9d9
+   (and update --color-primary-light / --color-primary-dark accordingly).
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Primary palette (indigo — future: teal #2bb9d9) ── */
+  --color-primary: #4f46e5;
+  --color-primary-light: #6366f1;
+  --color-primary-dark: #4338ca;
+
+  /* ── Secondary (green) ── */
+  --color-secondary: #059669;
+  --color-secondary-light: #10b981;
+  --color-secondary-dark: #047857;
+
+  /* ── Semantic ── */
+  --color-error: #dc2626;
+  --color-error-light: #ef4444;
+  --color-error-dark: #b91c1c;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fbbf24;
+  --color-warning-dark: #d97706;
+  --color-info: #3b82f6;
+  --color-info-light: #60a5fa;
+  --color-info-dark: #2563eb;
+  --color-success: #059669;
+  --color-success-light: #10b981;
+  --color-success-dark: #047857;
+
+  /* ── Tangram accent palette (for future brand use) ── */
+  --color-violet: #8b5cf6;
+  --color-violet-dark: #7c3aed;
+  --color-violet-deeper: #6d28d9;
+  --color-pink: #ec4899;
+  --color-pink-dark: #db2777;
+  --color-pink-darker: #be185d;
+  --color-rose: #f43f5e;
+  --color-teal: #2bb9d9;
+  --color-sky: #0ea5e9;
+
+  /* ── Extended semantic shades (status tiers, chart colors) ── */
+  --color-amber-bg: #fef3c7;
+  --color-amber-text: #92400e;
+  --color-amber-dark: #b45309;
+  --color-amber-accent: #ca8a04;
+  --color-amber-yellow: #fde68a;
+  --color-amber-gold: #fcd34d;
+  --color-amber-warm: #fffbeb;
+  --color-green-bright: #22c55e;
+  --color-green-dark: #166534;
+  --color-green-mid: #16a34a;
+  --color-green-deep: #065f46;
+  --color-green-mint: #a7f3d0;
+  --color-green-bg: #ecfdf5;
+  --color-green-bg-light: #f0fdf4;
+  --color-green-bg-pale: #dcfce7;
+  --color-green-bg-mist: #d1fae5;
+  --color-red-bg: #fee2e2;
+  --color-red-bg-light: #fef2f2;
+  --color-red-dark: #991b1b;
+  --color-red-darker: #d32f2f;
+  --color-indigo-bg: #eef2ff;
+  --color-indigo-bg-light: #e0e7ff;
+  --color-indigo-soft: #a5b4fc;
+  --color-indigo-deep: #3730a3;
+  --color-indigo-deeper: #312e81;
+  --color-indigo-dark: #1d4ed8;
+  --color-blue-bg: #eff6ff;
+  --color-blue-bg-light: #f0f9ff;
+  --color-blue-soft: #93c5fd;
+  --color-blue-sky: #0284c7;
+  --color-violet-bg: #f5f3ff;
+  --color-violet-accent: #818cf8;
+  --color-rose-accent: #fb7185;
+  --color-orange-dark: #ea580c;
+  --color-orange-darker: #c2410c;
+  --color-teal-dark: #0f766e;
+  --color-neutral: #e5e7eb;
+  --color-neutral-dark: #d0d7de;
+  --color-neutral-muted: #6b7280;
+  --color-neutral-bg: #f7f7f8;
+  --color-neutral-bg-warm: #f5f5f5;
+  --color-google-blue: #4285f4;
+  --color-google-blue-dark: #3367d6;
+  --color-black: #111827;
+  --color-chart-grid: #f0f0f0;
+  --color-mui-blue: #2196f3;
+  --color-mui-green: #4caf50;
+  --color-mui-grey: #9e9e9e;
+  --color-mui-orange: #ff9800;
+  --color-mui-red: #f44336;
+  --color-border-light: #dbe4ee;
+  --color-violet-soft: #c4b5fd;
+  --color-violet-bg-light: #ede9fe;
+  --color-violet-muted: #a78bfa;
+  --color-red-soft: #fecaca;
+  --color-red-softer: #fca5a5;
+  --color-green-soft: #bbf7d0;
+  --color-blue-soft-bg: #bfdbfe;
+
+  /* ── Text ── */
+  --color-text: #1e293b;
+  --color-text-soft: #64748b;
+  --color-text-faint: #94a3b8;
+
+  /* ── Surfaces ── */
+  --color-bg: #f8fafc;
+  --color-paper: #ffffff;
+  --color-surface: #f1f5f9;
+  --color-border: #e2e8f0;
+
+  /* ── Grey scale (Tailwind slate) ── */
+  --grey-50: #f8fafc;
+  --grey-100: #f1f5f9;
+  --grey-200: #e2e8f0;
+  --grey-300: #cbd5e1;
+  --grey-400: #94a3b8;
+  --grey-500: #64748b;
+  --grey-600: #475569;
+  --grey-700: #334155;
+  --grey-800: #1e293b;
+  --grey-900: #0f172a;
+
+  /* ── Shadows ── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-2xl: 0 18px 50px rgba(15, 23, 42, 0.18);
+
+  /* ── Border radius ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* ── Typography ── */
+  --font-display: 'Schoolbell', cursive;
+  --font-ui: 'Inter Tight', sans-serif;
+  --font-body: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── Dark mode overrides (not activated — set data-theme="dark" on <html>) ── */
+[data-theme="dark"] {
+  --color-primary: #2bb9d9;
+  --color-primary-light: #5ccde5;
+  --color-primary-dark: #1a9bba;
+
+  --color-text: #f5f0e8;
+  --color-text-soft: rgba(245, 240, 232, 0.6);
+  --color-text-faint: rgba(245, 240, 232, 0.35);
+
+  --color-bg: #1a1917;
+  --color-paper: #242220;
+  --color-surface: #2a2826;
+  --color-border: rgba(255, 255, 255, 0.08);
+
+  --grey-50: #242220;
+  --grey-100: #2a2826;
+  --grey-200: rgba(255, 255, 255, 0.08);
+  --grey-300: rgba(255, 255, 255, 0.12);
+  --grey-400: rgba(245, 240, 232, 0.35);
+  --grey-500: rgba(245, 240, 232, 0.6);
+  --grey-600: rgba(245, 240, 232, 0.7);
+  --grey-700: rgba(245, 240, 232, 0.8);
+  --grey-800: #f5f0e8;
+  --grey-900: #faf7f2;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-2xl: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Global app defaults.
+   Keep this file minimal — MUI's CssBaseline + theme handle most styling.
+   ═══════════════════════════════════════════════════════════════════ */
 
 /* Use border-box sizing everywhere to avoid overflow surprises. */
 *,
