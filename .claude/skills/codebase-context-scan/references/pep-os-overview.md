@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-29T21:16:28.189Z
-App version: 10.13.0
+Generated: 2026-04-30T00:10:28.601Z
+App version: 10.14.0
 
 ## App Snapshot
 
@@ -57,14 +57,15 @@ App version: 10.13.0
 - `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 6
-- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `UpdateNotification`
+- Count: 7
+- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
 - `montessori-os/src/components/BaseballCardSnapshotCard.jsx`
 - `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
 - `montessori-os/src/components/StatsPage.jsx`
+- `montessori-os/src/components/StatsPage.noteTypes.test.js`
 - `montessori-os/src/components/UpdateNotification.jsx`
 
 ### AI Tools and Chat (`ai-tools-and-chat`)
@@ -138,6 +139,11 @@ App version: 10.13.0
 
 ## Recent Changes
 
+### 10.14.0 (2026-04-29)
+- Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
+- Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
+- Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
+
 ### 10.13.0 (2026-04-29)
 - Material identification in photo analysis: VLM pipeline now identifies Montessori materials visible in classroom photos and returns them as `materialsIdentified` array (PEP-37)
 - Material chips displayed on student timeline cards, classroom timeline cards, and media preview views with amber styling distinct from curriculum area chips (PEP-37)
@@ -152,9 +158,4 @@ App version: 10.13.0
 - Merged alt-dev refactored Cloud Functions modules into dev, placing PEP-163 test bench code into domain modules (PEP-169)
 - Test bench dispatcher uses `FRONTIER_MODEL` constant instead of hardcoded model string
 - Barrel export test uses `before()` hook instead of shared mutable state
-
-### 10.12.0 (2026-04-26)
-- Prompt Test Bench — standalone desktop-first web app for superadmins to iterate on AI prompts, compare 2+ output variations side-by-side, rate them, and save run history (PEP-163)
-- Handwriting analysis and soul generation features active; text cleanup, AI coach, baseball card, and report generation shown as coming soon (PEP-163)
-- `testBenchRun` Cloud Function for executing prompt variations against real student data with superadmin-only access (PEP-163)
 
