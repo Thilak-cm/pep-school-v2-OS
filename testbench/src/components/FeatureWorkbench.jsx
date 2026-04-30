@@ -368,6 +368,7 @@ export default function FeatureWorkbench({ featureId }) {
           name: v.name,
           prompt: {
             systemPrompt: v.systemPrompt,
+            ...(v.guidelinesContent ? { guidelinesContent: v.guidelinesContent } : {}),
             model: v.model,
             temperature: v.temperature,
             max_tokens: v.max_tokens,
@@ -405,6 +406,7 @@ export default function FeatureWorkbench({ featureId }) {
       ...createVariant(null, i),
       name: v.name,
       systemPrompt: v.prompt?.systemPrompt || "",
+      guidelinesContent: v.prompt?.guidelinesContent || "",
       model: v.prompt?.model || "gpt-5.4",
       temperature: v.prompt?.temperature ?? 0.3,
       max_tokens: v.prompt?.max_tokens || 2000,
