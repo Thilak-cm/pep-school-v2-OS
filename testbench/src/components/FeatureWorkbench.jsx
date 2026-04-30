@@ -26,6 +26,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
+import HistoryIcon from "@mui/icons-material/History";
 import StudentPicker from "./StudentPicker.jsx";
 import PromptEditor from "./PromptEditor.jsx";
 import OutputPanel from "./OutputPanel.jsx";
@@ -35,6 +36,7 @@ import LLMContextPipeline from "./LLMContextPipeline.jsx";
 import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
+import RunHistory from "./RunHistory.jsx";
 
 const MODELS = [
   { id: "gpt-5.4", label: "GPT-5.4" },
@@ -83,6 +85,7 @@ export default function FeatureWorkbench({ featureId }) {
   const [interviewEnded, setInterviewEnded] = useState(false);
   const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
   const [studentContextData, setStudentContextData] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Auto-select Aakash for interview mode
   useEffect(() => {
@@ -364,10 +367,8 @@ export default function FeatureWorkbench({ featureId }) {
           name: v.name,
           prompt: {
             systemPrompt: v.systemPrompt,
-            guidelinesContent: v.guidelinesContent || undefined,
             model: v.model,
             temperature: v.temperature,
-            max_tokens: v.max_tokens,
           },
           output: v.output || "",
           ...(isInterview && conversations[idx] ? { conversation: conversations[idx] } : {}),
@@ -383,6 +384,36 @@ export default function FeatureWorkbench({ featureId }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function loadRun(run) {
+    setSelectedStudent({ id: run.studentId, displayName: run.studentName });
+    if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
+
+    const restored = (run.variants || []).map((v, i) => ({
+      ...createVariant(null, i),
+      name: v.name,
+      systemPrompt: v.prompt?.systemPrompt || "",
+      model: v.prompt?.model || "gpt-5.4",
+      temperature: v.prompt?.temperature ?? 0.3,
+      output: v.output || null,
+      rating: v.rating ?? 5,
+      notes: v.notes || "",
+    }));
+    setVariants(restored);
+
+    // Restore conversations for interview runs
+    const restoredConvos = {};
+    (run.variants || []).forEach((v, i) => {
+      if (v.conversation) restoredConvos[i] = v.conversation;
+    });
+    setConversations(restoredConvos);
+
+    const hasConvos = Object.keys(restoredConvos).length > 0;
+    setInterviewStarted(hasConvos);
+    setInterviewEnded(hasConvos);
+
+    setSnackbar({ open: true, message: `Loaded run: ${run.studentName}`, severity: "info" });
   }
 
   return (
@@ -404,11 +435,19 @@ export default function FeatureWorkbench({ featureId }) {
           />
         )}
         {isInterview && (
-          <InterviewQuestionConfig
-            selectedStudent={selectedStudent}
-            onConfigLoaded={handleConfigLoaded}
-            onStudentContextLoaded={setStudentContextData}
-          />
+          <>
+            <Chip
+              label={`Student: ${selectedStudent?.displayName ?? "Loading…"}`}
+              color="primary"
+              variant="outlined"
+              sx={{ alignSelf: "center" }}
+            />
+            <InterviewQuestionConfig
+              selectedStudent={selectedStudent}
+              onConfigLoaded={handleConfigLoaded}
+              onStudentContextLoaded={setStudentContextData}
+            />
+          </>
         )}
 
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
@@ -454,6 +493,13 @@ export default function FeatureWorkbench({ featureId }) {
             disabled={saving || !(isInterview ? Object.values(conversations).some((c) => c?.length > 0) : variants.some((v) => v.output))}
           >
             {saving ? "Saving..." : "Save Run"}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<HistoryIcon />}
+            onClick={() => setHistoryOpen(true)}
+          >
+            History
           </Button>
         </Box>
       </Box>
@@ -649,6 +695,9 @@ export default function FeatureWorkbench({ featureId }) {
           <Button onClick={confirmRemoveColumn} color="error">Discard</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Run history drawer */}
+      <RunHistory open={historyOpen} onClose={() => setHistoryOpen(false)} featureId={featureId} onLoad={loadRun} />
 
       {/* Save feedback snackbar */}
       <Snackbar
