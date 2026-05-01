@@ -18,14 +18,7 @@ import {
   InputLabel,
   MenuItem
 } from '@mui/material';
-import {
-  BarChart,
-  TrendingUp,
-  TrendingDown,
-  People,
-  School,
-  ArrowBack
-} from '@mui/icons-material';
+import { BarChart3 as BarChart, TrendingUp, TrendingDown, Users as People, GraduationCap as School, ArrowLeft as ArrowBack } from '../icons';
 import { collection, collectionGroup, query, getDocs, orderBy, where, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
@@ -1279,9 +1272,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         {trend && (
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
             {trend > 0 ? (
-              <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
+              <TrendingUp size={16} style={{ color: 'var(--color-success)', marginRight: 4 }} />
             ) : (
-              <TrendingDown sx={{ color: 'error.main', fontSize: 16, mr: 0.5 }} />
+              <TrendingDown size={16} style={{ color: 'var(--color-error)', marginRight: 4 }} />
             )}
             <Typography 
               variant="caption" 

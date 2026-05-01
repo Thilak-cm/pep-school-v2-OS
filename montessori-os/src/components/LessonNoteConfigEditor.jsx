@@ -22,15 +22,7 @@ import {
   CircularProgress,
   Collapse
 } from '@mui/material';
-import {
-  Add,
-  Delete,
-  ArrowUpward,
-  ArrowDownward,
-  Save,
-  ExpandMore,
-  ExpandLess
-} from '@mui/icons-material';
+import { Plus as Add, Trash2 as Delete, MoveUp as ArrowUpward, MoveDown as ArrowDownward, Save, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -413,7 +405,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
               size="small"
               onClick={() => setDimsOpen((v) => !v)}
             >
-              {dimsOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+              {dimsOpen ? <ExpandLess size={20} /> : <ExpandMore size={20} />}
             </IconButton>
           </Box>
           <Collapse in={dimsOpen}>
@@ -462,7 +454,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
                         onClick={() => moveDimension(index, -1)}
                         disabled={saving || index === 0}
                       >
-                        <ArrowUpward fontSize="small" />
+                        <ArrowUpward size={20} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -473,7 +465,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
                         onClick={() => moveDimension(index, 1)}
                         disabled={saving || index === currentDimensions.length - 1}
                       >
-                        <ArrowDownward fontSize="small" />
+                        <ArrowDownward size={20} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -486,7 +478,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
                         }
                         disabled={saving || !canRemoveDimension}
                       >
-                        <Delete fontSize="small" />
+                        <Delete size={20} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -508,7 +500,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
               size="small"
               onClick={() => setTitlesOpen((v) => !v)}
             >
-              {titlesOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+              {titlesOpen ? <ExpandLess size={20} /> : <ExpandMore size={20} />}
             </IconButton>
           </Box>
           <Collapse in={titlesOpen}>
@@ -570,7 +562,7 @@ const LessonNoteConfigEditor = ({ userRole }) => {
                               }
                               disabled={saving}
                             >
-                              <Delete fontSize="small" />
+                              <Delete size={20} />
                             </IconButton>
                           </span>
                         </Tooltip>

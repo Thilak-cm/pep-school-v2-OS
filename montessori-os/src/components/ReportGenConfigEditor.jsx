@@ -24,11 +24,7 @@ import {
   ListItemText,
   ListItemSecondaryAction,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import RestoreIcon from '@mui/icons-material/Restore';
+import { ChevronDown as ExpandMoreIcon, Lock as LockOutlinedIcon, Pencil as EditOutlinedIcon, Info as InfoOutlinedIcon, RotateCcw as RestoreIcon } from '../icons';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -457,20 +453,20 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               expandIcon={<ExpandMoreIcon />}
               sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
             >
-              <LockOutlinedIcon sx={{ fontSize: 18, color: 'var(--color-primary-light)' }} />
+              <LockOutlinedIcon size={18} style={{ color: 'var(--color-primary-light)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Static System Prompt</Typography>
               <Chip
                 label={prompt.staticSystemPrompt ? `${countLines(prompt.staticSystemPrompt)} lines` : 'empty'}
                 size="small"
                 variant="outlined"
-                sx={{ mr: 1, fontSize: 11 }}
+                sx={{ fontSize: 11, mr: 1 }}
               />
               <IconButton
                 size="small"
                 onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'static' ? null : 'static'); }}
                 sx={{ color: 'var(--color-primary-light)' }}
               >
-                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                <EditOutlinedIcon size={18} />
               </IconButton>
             </AccordionSummary>
             <AccordionDetails sx={{ px: 2, pt: 0 }}>
@@ -490,15 +486,12 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Collapsed preview — kept as sibling because AccordionDetails is hidden when collapsed */}
           {editingField !== 'static' && prompt.staticSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{
-                color: 'var(--color-text-faint)',
+              <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-faint)',
                 fontStyle: 'italic',
-                fontSize: 13,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}>
+                overflow: 'hidden' }}>
                 {prompt.staticSystemPrompt}
               </Typography>
             </Box>
@@ -514,20 +507,20 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               expandIcon={<ExpandMoreIcon />}
               sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
             >
-              <EditOutlinedIcon sx={{ fontSize: 18, color: 'var(--color-secondary-light)' }} />
+              <EditOutlinedIcon size={18} style={{ color: 'var(--color-secondary-light)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Dynamic System Prompt</Typography>
               <Chip
                 label={prompt.dynamicSystemPrompt ? `${countLines(prompt.dynamicSystemPrompt)} lines` : 'empty'}
                 size="small"
                 variant="outlined"
-                sx={{ mr: 1, fontSize: 11 }}
+                sx={{ fontSize: 11, mr: 1 }}
               />
               <IconButton
                 size="small"
                 onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'dynamic' ? null : 'dynamic'); }}
                 sx={{ color: 'var(--color-secondary-light)' }}
               >
-                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                <EditOutlinedIcon size={18} />
               </IconButton>
             </AccordionSummary>
             <AccordionDetails sx={{ px: 2, pt: 0 }}>
@@ -546,15 +539,12 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
           {editingField !== 'dynamic' && prompt.dynamicSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{
-                color: 'var(--color-text-faint)',
+              <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-faint)',
                 fontStyle: 'italic',
-                fontSize: 13,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}>
+                overflow: 'hidden' }}>
                 {prompt.dynamicSystemPrompt}
               </Typography>
             </Box>
@@ -605,14 +595,14 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Student Context */}
           <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Stack direction="row" alignItems="center" gap={1}>
-              <InfoOutlinedIcon sx={{ fontSize: 18, color: 'var(--color-warning)' }} />
+              <InfoOutlinedIcon size={18} style={{ color: 'var(--color-warning)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Context</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
             </Stack>
-            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: 13 }}>
+            <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-soft)' }}>
               Student name, date of birth, and age are injected from the student profile at generation time.
             </Typography>
-            <Box sx={{ backgroundColor: 'var(--color-bg)', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--grey-600)' }}>
+            <Box sx={{ fontSize: 12, backgroundColor: 'var(--color-bg)', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'var(--font-mono)', color: 'var(--grey-600)' }}>
               {'Student: {"studentName":"Aarav Sharma","dob":"15 March 2019","age":"6 years 11 months"}'}
             </Box>
           </Box>
@@ -620,11 +610,11 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Student Observations */}
           <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Stack direction="row" alignItems="center" gap={1}>
-              <InfoOutlinedIcon sx={{ fontSize: 18, color: 'var(--color-warning)' }} />
+              <InfoOutlinedIcon size={18} style={{ color: 'var(--color-warning)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Observations</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
             </Stack>
-            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: 13 }}>
+            <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-soft)' }}>
               All observations for the selected date range are injected as a JSON array at generation time.
             </Typography>
           </Box>

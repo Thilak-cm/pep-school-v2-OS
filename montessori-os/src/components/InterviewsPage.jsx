@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Paper, Stack } from '@mui/material';
-import { AutoAwesome } from '@mui/icons-material';
+import { Sparkles as AutoAwesome } from '../icons';
 
 // eslint-disable-next-line no-unused-vars
 function InterviewsPage({ currentUser, userRole, manageableClassrooms }) {
@@ -20,7 +20,7 @@ function InterviewsPage({ currentUser, userRole, manageableClassrooms }) {
         }}
       >
         <Stack spacing={1.5} alignItems="center">
-          <AutoAwesome sx={{ fontSize: 36, color: 'var(--color-primary)' }} />
+          <AutoAwesome size={36} style={{ color: 'var(--color-primary)' }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)' }}>
             AI Interviews
           </Typography>

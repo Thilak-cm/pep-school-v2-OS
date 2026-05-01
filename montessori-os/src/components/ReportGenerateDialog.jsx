@@ -10,7 +10,7 @@ import {
   TextField,
   CircularProgress
 } from '@mui/material';
-import { Description as ReportIcon } from '@mui/icons-material';
+import { FileText as ReportIcon } from '../icons';
 import { getDefaultReportDateRange } from '../utils/reportUtils';
 
 // yyyy-mm-dd (native input[type=date] format)
@@ -76,7 +76,7 @@ export default function ReportGenerateDialog({
                 border: '1px solid rgba(99,102,241,0.35)',
               }}
             >
-              <ReportIcon sx={{ fontSize: 22, color: 'var(--color-primary)' }} />
+              <ReportIcon size={22} style={{ color: 'var(--color-primary)' }} />
             </Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {title}

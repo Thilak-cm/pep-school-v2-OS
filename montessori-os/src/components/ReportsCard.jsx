@@ -7,10 +7,7 @@ import {
   Typography,
   Avatar,
 } from '@mui/material';
-import {
-  Description as ReportIcon,
-  ArrowForward,
-} from '@mui/icons-material';
+import { FileText as ReportIcon, ArrowRight as ArrowForward } from '../icons';
 import { trackEvent } from '../utils/analytics';
 
 export default function ReportsCard({ studentId, onClick }) {
@@ -44,7 +41,7 @@ export default function ReportsCard({ studentId, onClick }) {
                 </Typography>
               </Box>
             </Box>
-            <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+            <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
           </Box>
         </CardContent>
       </CardActionArea>

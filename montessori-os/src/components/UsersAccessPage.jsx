@@ -5,7 +5,7 @@ import {
   List, ListItemButton, ListItemAvatar, ListItemText, IconButton, Checkbox, ListItemIcon, ListItem,
   Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
-import { ArrowBack, PersonAdd, School, ManageAccounts, Groups, Delete, Edit, ExpandMore } from '@mui/icons-material';
+import { ArrowLeft as ArrowBack, UserPlus as PersonAdd, GraduationCap as School, UserCog as ManageAccounts, Users as Groups, Trash2 as Delete, Pencil as Edit, ChevronDown as ExpandMore } from '../icons';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -1269,9 +1269,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   const RoleTabs = ({ value, onChange, canManageAdmins }) => {
     const items = [
-      { key: 'teacher', label: 'Teacher', icon: <School fontSize="small" /> },
-      ...(canManageAdmins ? [{ key: 'classroomadmin', label: 'Classroom Admin', icon: <ManageAccounts fontSize="small" /> }] : []),
-      { key: 'student', label: 'Student', icon: <Groups fontSize="small" /> },
+      { key: 'teacher', label: 'Teacher', icon: <School size={20} /> },
+      ...(canManageAdmins ? [{ key: 'classroomadmin', label: 'Classroom Admin', icon: <ManageAccounts size={20} /> }] : []),
+      { key: 'student', label: 'Student', icon: <Groups size={20} /> },
     ];
     const index = Math.max(0, items.findIndex(i => i.key === value));
     return (

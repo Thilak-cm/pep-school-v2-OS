@@ -210,3 +210,12 @@ body {
   /* Mobile-first: the app should not be centered by the page itself. */
   overflow-x: hidden;
 }
+
+/* ── Icon utility animations ── */
+@keyframes icon-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.icon-pulse {
+  animation: icon-pulse 1.5s ease-in-out infinite;
+}

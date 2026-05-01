@@ -9,12 +9,7 @@ import {
   Grid,
   Alert
 } from '@mui/material';
-import {
-  Tune,
-  Psychology,
-  Description,
-  GraphicEq
-} from '@mui/icons-material';
+import { Settings as Tune, Brain as Psychology, FileText as Description, AudioLines as GraphicEq } from '../icons';
 import { isSuperAdmin } from '../utils/roleUtils';
 
 export default function ConfigHomePage({ userRole, onOpenLessonNoteConfig, onOpenAiTools }) {

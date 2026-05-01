@@ -20,19 +20,7 @@ import {
   Tooltip,
   Popover
 } from '@mui/material';
-import {
-  ErrorOutline,
-  CheckCircleOutline,
-  ExpandMore as ExpandMoreIcon,
-  FlagRounded,
-  WarningAmber as WarningIcon,
-  Refresh,
-  CheckCircle,
-  InfoOutlined,
-  TrendingUp,
-  RemoveCircleOutline,
-  TrendingDown
-} from '@mui/icons-material';
+import { CircleAlert as ErrorOutline, CircleCheck as CheckCircleOutline, ChevronDown as ExpandMoreIcon, Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, TrendingUp, MinusCircle as RemoveCircleOutline, TrendingDown } from '../icons';
 import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
@@ -680,7 +668,7 @@ function NotificationsPage() {
           }}
           aria-label="View flag details"
         >
-          <IconComponent sx={{ fontSize: 22 }} />
+          <IconComponent size={22} />
         </IconButton>
       </Tooltip>
     );
@@ -759,7 +747,7 @@ function NotificationsPage() {
     if (signalsStatus !== 'ok') {
       return (
         <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlined sx={{ fontSize: 18, color: 'var(--color-text-faint)' }} />
+          <InfoOutlined size={18} style={{ color: 'var(--color-text-faint)' }} />
           <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
             Coverage pending
           </Typography>
@@ -769,9 +757,9 @@ function NotificationsPage() {
 
     const buttonIcon =
       coverageTone === 'balanced' ? (
-        <CheckCircle sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <CheckCircle size={18} style={{ color: coverageStyles.iconColor }} />
       ) : (
-        <WarningIcon sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <WarningIcon size={18} style={{ color: coverageStyles.iconColor }} />
       );
 
     const handleCoverageClick = (e) => {
@@ -840,7 +828,7 @@ function NotificationsPage() {
     if (!groups.length) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CheckCircleOutline sx={{ color: 'var(--color-green-bright)' }} />
+          <CheckCircleOutline style={{ color: 'var(--color-green-bright)' }} />
           <Typography variant="body2" color="text.secondary">
             {emptyMessage}
           </Typography>
@@ -1074,7 +1062,7 @@ function NotificationsPage() {
     if (!items.length) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CheckCircleOutline sx={{ color: 'var(--color-green-bright)' }} />
+          <CheckCircleOutline style={{ color: 'var(--color-green-bright)' }} />
           <Typography variant="body2" color="text.secondary">
             No alerts currently!
           </Typography>
@@ -1326,7 +1314,7 @@ function NotificationsPage() {
                     border: '1px solid rgba(99,102,241,0.35)'
                   }}
                 >
-                  <Refresh sx={{ fontSize: 22, color: 'var(--color-primary)' }} />
+                  <Refresh size={22} style={{ color: 'var(--color-primary)' }} />
                 </Box>
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
@@ -1399,7 +1387,7 @@ function NotificationsPage() {
           PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
         >
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-            <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
+            <FlagRounded size={22} style={{ color: severityColor }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
               {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
             </Typography>
@@ -1435,9 +1423,9 @@ function NotificationsPage() {
               <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   {currentCoverageTone === 'balanced' ? (
-                    <CheckCircle sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                    <CheckCircle size={20} style={{ color: currentCoverageStyles.iconColor }} />
                   ) : (
-                    <WarningIcon sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                    <WarningIcon size={20} style={{ color: currentCoverageStyles.iconColor }} />
                   )}
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: currentCoverageStyles.textColor }}>
                     {currentCoverageStyles.title}
@@ -1535,7 +1523,7 @@ function NotificationsPage() {
                     >
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <WarningIcon sx={{ color: 'var(--color-error-dark)', fontSize: 22 }} />
+                          <WarningIcon size={22} style={{ color: 'var(--color-error-dark)' }} />
                           <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-error-dark)' }}>
                             High flags
                           </Typography>
@@ -1569,7 +1557,7 @@ function NotificationsPage() {
           >
             {!isLoading && error && (
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-                <ErrorOutline color="error" fontSize="small" />
+                <ErrorOutline size={20} style={{ color: 'var(--color-error)' }} />
                 <Typography variant="body2" color="error">{error}</Typography>
               </Stack>
             )}
@@ -1596,7 +1584,7 @@ function NotificationsPage() {
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <TrendingUp sx={{ color: 'var(--color-error-dark)', fontSize: 22 }} />
+                    <TrendingUp size={22} style={{ color: 'var(--color-error-dark)' }} />
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-error-dark)' }}>
                       Escalated
                     </Typography>
@@ -1629,7 +1617,7 @@ function NotificationsPage() {
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <RemoveCircleOutline sx={{ color: 'var(--color-amber-dark)', fontSize: 22 }} />
+                    <RemoveCircleOutline size={22} style={{ color: 'var(--color-amber-dark)' }} />
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-amber-dark)' }}>
                       No Change
                     </Typography>
@@ -1662,7 +1650,7 @@ function NotificationsPage() {
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <TrendingDown sx={{ color: 'var(--color-green-dark)', fontSize: 22 }} />
+                    <TrendingDown size={22} style={{ color: 'var(--color-green-dark)' }} />
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-green-dark)' }}>
                       Improved
                     </Typography>

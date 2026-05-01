@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.14.2 — 2026-04-30
+
+### Changed
+- Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
+- All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
+- Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
+- Lucide icons use native `style` props instead of MUI `sx` for color and spacing
+
+### Added
+- Icon barrel file (icons.js) with naming convention docs, design-spec coverage, and contribution guide (PEP-184)
+- Icon migration test suite covering barrel exports, design-spec completeness, emoji removal, MUI color token enforcement, and strokeWidth contract (PEP-184)
+- CSS `.icon-pulse` utility animation for icon loading states (PEP-184)
+
 # 10.14.1 — 2026-04-30
 
 ### Changed

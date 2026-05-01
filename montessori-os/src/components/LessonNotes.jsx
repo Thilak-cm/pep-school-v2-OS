@@ -24,16 +24,7 @@ import {
   Autocomplete,
   Tooltip
 } from '@mui/material';
-import {
-  ExpandMore,
-  ExpandLess,
-  Group,
-  Person,
-  Search,
-  Mic,
-  Close,
-  AutoFixHigh
-} from '@mui/icons-material';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, Users as Group, User as Person, Search, Mic, X as Close, Sparkles as AutoFixHigh } from '../icons';
 import {
   collection,
   getDocs,
@@ -1178,7 +1169,7 @@ function LessonNoteWizard({
                             color: descriptionCleanedOnce ? 'var(--color-secondary)' : descriptionCleaning ? 'var(--color-violet-dark)' : !context.lessonDescription.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                           }}
                         >
-                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -1193,7 +1184,7 @@ function LessonNoteWizard({
                         bgcolor: 'action.hover'
                       }}
                     >
-                      <Mic fontSize="small" />
+                      <Mic size={20} />
                     </IconButton>
                   </Box>
                 </InputAdornment>
@@ -1251,7 +1242,7 @@ function LessonNoteWizard({
                                 color: groupCommentCleanedOnce ? 'var(--color-secondary)' : groupCommentCleaning ? 'var(--color-violet-dark)' : !context.groupComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                               }}
                             >
-                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -1266,7 +1257,7 @@ function LessonNoteWizard({
                             bgcolor: 'action.hover'
                           }}
                         >
-                          <Mic fontSize="small" />
+                          <Mic size={20} />
                         </IconButton>
                       </Box>
                     </InputAdornment>
@@ -1292,7 +1283,7 @@ function LessonNoteWizard({
             onChange={(e) => setSearchQuery(e.target.value)}
             disabled={searchDisabled}
             InputProps={{
-              startAdornment: <Search fontSize="small" sx={{ mr: 1, color: 'var(--color-text-faint)' }} />
+              startAdornment: <Search size={20} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />
             }}
           />
 
@@ -1499,7 +1490,7 @@ function LessonNoteWizard({
                   <Paper key={student.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, border: '1px solid var(--color-border)' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Person fontSize="small" sx={{ color: 'var(--color-primary)' }} />
+                        <Person size={20} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                           {getStudentDisplayName(student)}
                         </Typography>
@@ -1569,7 +1560,7 @@ function LessonNoteWizard({
                               bgcolor: 'action.hover'
                             }}
                             >
-                              <Mic fontSize="small" />
+                              <Mic size={20} />
                             </IconButton>
                           </InputAdornment>
                         )

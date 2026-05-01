@@ -1,12 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, IconButton, Button, Typography } from '@mui/material';
+import { X as CloseIcon, Undo as UndoIcon, CircleCheck as CheckCircleIcon, CircleAlert as ErrorIcon, TriangleAlert as WarningIcon, Info as InfoIcon } from '../icons';
 import { keyframes } from '@emotion/react';
-import CloseIcon from '@mui/icons-material/Close';
-import UndoIcon from '@mui/icons-material/Undo';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import WarningIcon from '@mui/icons-material/Warning';
-import InfoIcon from '@mui/icons-material/Info';
 import useSwipeDismiss from './useSwipeDismiss.js';
 
 const variantIcon = {
@@ -106,7 +101,7 @@ export default function NotificationBanner({
         color: theme.palette[paletteKey]?.main || theme.palette.primary.main,
       })}
       >
-        <Icon fontSize="small" />
+        <Icon size={20} />
       </Box>
 
       {/* Message */}
@@ -120,7 +115,7 @@ export default function NotificationBanner({
           size="small"
           variant="outlined"
           color={paletteKey}
-          startIcon={<UndoIcon fontSize="small" />}
+          startIcon={<UndoIcon size={20} />}
           onClick={onUndo}
           aria-label="Undo"
           sx={{
@@ -145,7 +140,7 @@ export default function NotificationBanner({
         onClick={onFinalize}
         sx={{ color: 'text.secondary' }}
       >
-        <CloseIcon fontSize="small" />
+        <CloseIcon size={20} />
       </IconButton>
     </Box>
   );

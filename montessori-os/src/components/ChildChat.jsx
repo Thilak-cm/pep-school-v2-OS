@@ -16,7 +16,7 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import { Send, Add, Chat, ArrowDropDown, Edit, Delete, Mic, Pause, PlayArrow, Stop } from '@mui/icons-material';
+import { Send, Plus as Add, MessageCircle as Chat, ChevronDown as ArrowDropDown, Pencil as Edit, Trash2 as Delete, Mic, Pause, Play as PlayArrow, Square as Stop } from '../icons';
 import { formatDate } from '../utils/dateFormat';
 import {
   collection,
@@ -1180,15 +1180,12 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 >
                   {selectedChatId ? chatTitle : 'Load past conversations here'}
                 </Typography>
-                <ArrowDropDown 
-                  sx={{ 
-                    fontSize: 20, 
-                    color: 'text.secondary', 
+                <ArrowDropDown
+                  size={20} style={{ color: 'var(--color-text-soft)',
                     flexShrink: 0,
                     transition: 'transform 0.2s ease-in-out',
                     transform: chatDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    opacity: 0.7,
-                  }} 
+                    opacity: 0.7 }}
                 />
               </Box>
               
@@ -1334,7 +1331,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                               },
                             }}
                           >
-                            <Edit sx={{ fontSize: 18 }} />
+                            <Edit size={18} />
                           </IconButton>
                           <IconButton
                             size="small"
@@ -1352,7 +1349,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                               },
                             }}
                           >
-                            <Delete sx={{ fontSize: 18 }} />
+                            <Delete size={18} />
                           </IconButton>
                         </Box>
                       </ListItemButton>
@@ -1462,7 +1459,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               width: '100%',
             }}
           >
-            <Chat sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
             <Typography variant="h6" gutterBottom>
               Start a new conversation
             </Typography>
@@ -1482,7 +1479,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               p: 3,
             }}
           >
-            <Chat sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
             <Typography variant="h6" gutterBottom>
               No messages yet
             </Typography>

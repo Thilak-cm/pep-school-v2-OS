@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Button, Stack, Card, CardContent } from '@mui/material';
-import { HighlightOff, Close } from '@mui/icons-material';
+import { XCircle as HighlightOff, X as Close } from './icons';
 
 function AccessDenied({ userEmail, onSignOut }) {
   return (
@@ -32,7 +32,7 @@ function AccessDenied({ userEmail, onSignOut }) {
             gap: 2,
           }}
         >
-          <HighlightOff sx={{ fontSize: 96, color: 'error.main' }} />
+          <HighlightOff size={96} style={{ color: 'var(--color-error)' }} />
           <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
             Access Denied
           </Typography>

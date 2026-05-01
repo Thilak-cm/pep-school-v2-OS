@@ -29,20 +29,7 @@ import {
   ListItemIcon,
   Alert
 } from '@mui/material';
-import {
-  Group,
-  Notes,
-  FilterList,
-  AccessTime,
-  Person,
-  ExpandMore,
-  Search,
-  Close,
-  Delete,
-  Visibility,
-  Description,
-  KeyboardArrowDown
-} from '@mui/icons-material';
+import { Users as Group, StickyNote as Notes, Filter as FilterList, Clock as AccessTime, User as Person, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Search, X as Close, Trash2 as Delete, Eye as Visibility, FileText as Description, MessageCircle } from '../icons';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -133,7 +120,7 @@ const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment
       {showStudentComment && note.studentComment && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="text.secondary">
-            💬 {note.studentComment}
+            <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {note.studentComment}
           </Typography>
         </Box>
       )}
@@ -831,7 +818,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         >
           <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+              <Description size={18} style={{ color: 'var(--color-secondary)' }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
               </Typography>
@@ -847,7 +834,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                 sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
               >
                 {isExpanded ? 'Hide' : 'See'} students
-                <KeyboardArrowDown sx={{ fontSize: 16, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                <KeyboardArrowDown size={16} style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </Typography>
             </Box>
             <Collapse in={isExpanded}>
@@ -876,8 +863,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                       {report.studentName}
                     </Typography>
                     <Visibility
+                      size={18}
                       onClick={() => setReportPreviewData(report)}
-                      sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                      style={{ color: 'var(--color-text-soft)', cursor: 'pointer' }}
                     />
                   </Box>
                 ))}
@@ -974,7 +962,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                 size="small"
                 startAdornment={(
                   <InputAdornment position="start">
-                    <Search fontSize="small" />
+                    <Search size={20} />
                   </InputAdornment>
                 )}
                 sx={{
@@ -1023,7 +1011,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                   },
                 }}
               >
-                <Search fontSize="small" />
+                <Search size={20} />
                 <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit' }}>
                   Search
                 </Typography>
@@ -1450,15 +1438,13 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
       <CardContent sx={{ p: 2, pl: 3 }}>
         {/* Student Names - Prominent, condensed, clickable */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Group sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Group size={16} style={{ color: 'var(--color-primary)' }} />
           {renderStudentNames()}
         </Box>
 
         {/* Teacher Information */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-          <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-            👩‍🏫
-          </span>
+          <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
             {note.createdByName || note.createdBy || 'Unknown Teacher'}
           </Typography>
@@ -1490,7 +1476,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="caption" color="text.secondary">
             {formatTimestamp(note.observedAt || note.timestamp)}
           </Typography>
@@ -1702,15 +1688,13 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
           {/* Teacher and Timestamp */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                👩‍🏫
-              </span>
+              <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
               <Typography variant="body2" color="text.secondary">
                 {note.createdByName || note.createdBy || 'Unknown Teacher'}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="caption" color="text.secondary">
                 {formatTimestamp(note.observedAt || note.timestamp)}
               </Typography>
@@ -1808,7 +1792,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+                          <Person size={16} style={{ color: 'var(--color-primary)' }} />
                           <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
                             {getStudentDisplayName(student)}
                           </Typography>
@@ -1886,7 +1870,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                             Comment:
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            💬 {studentComment}
+                            <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {studentComment}
                           </Typography>
                         </Box>
                       )}
@@ -2048,7 +2032,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Person size={16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -2068,9 +2052,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
 
         {/* Teacher Information */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-          <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-            👩‍🏫
-          </span>
+          <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
             {note.createdByName || note.createdBy || 'Unknown Teacher'}
           </Typography>
@@ -2141,7 +2123,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
 
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="caption" color="text.secondary">
             {formatTimestamp(note.observedAt || note.timestamp)}
           </Typography>
@@ -2217,7 +2199,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Person size={16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -2231,7 +2213,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
 
         {/* Number of Notes */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Notes sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <Notes size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
             {formatNoteCounts(studentNoteCount, last7DaysCount)}
           </Typography>

@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, CardContent, Button, TextField, Divider,
   Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip
 } from '@mui/material';
-import { Restore, Save, Science } from '@mui/icons-material';
+import { RotateCcw as Restore, Save, FlaskConical as Science } from '../icons';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { forceRefreshKey } from '../services/promptProvider';
@@ -186,7 +186,7 @@ export default function AIVoiceTranscriberEditor({ currentUser, userRole }) {
             </Box>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Science sx={{ fontSize: 18, color: 'var(--color-text-soft)' }} />
+                <Science size={18} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
                   Model Configuration
                 </Typography>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Fab } from '@mui/material';
-import { KeyboardArrowDown } from '@mui/icons-material';
+import { ChevronDown as KeyboardArrowDown } from '../../icons';
 
 const ScrollToBottomFab = ({ visible, onClick }) => (
   <Fab

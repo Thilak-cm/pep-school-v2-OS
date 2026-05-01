@@ -9,16 +9,7 @@ import {
   Avatar,
   Grid
 } from '@mui/material';
-import { 
-  School, 
-  Group,
-  ArrowForward,
-  Feedback,
-  BarChart,
-  PersonAdd,
-  Download,
-  Psychology
-} from '@mui/icons-material';
+import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, MessageSquare as Feedback, BarChart3 as BarChart, UserPlus as PersonAdd, Download, Brain as Psychology } from '../icons';
 function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
   const isTeacher = userRole === 'teacher';
   
@@ -86,7 +77,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Typography>
                     </Box>
                   </Box>
-                  <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                 </Box>
               </CardContent>
             </CardActionArea>
@@ -139,7 +130,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         </Typography>
                       </Box>
                     </Box>
-                    <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                   </Box>
                 </CardContent>
               </CardActionArea>
@@ -195,7 +186,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Typography>
                     </Box>
                   </Box>
-                  <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                 </Box>
               </CardContent>
             </CardActionArea>
@@ -249,7 +240,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         </Typography>
                       </Box>
                     </Box>
-                    <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -301,7 +292,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                           </Typography>
                         </Box>
                       </Box>
-                      <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                     </Box>
                   </CardContent>
                 </CardActionArea>
@@ -353,7 +344,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                           </Typography>
                         </Box>
                       </Box>
-                      <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                     </Box>
                   </CardContent>
                 </CardActionArea>

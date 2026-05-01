@@ -27,16 +27,7 @@ import {
   Tooltip,
   Paper,
 } from '@mui/material';
-import {
-  CloudUpload,
-  CheckCircle,
-  Warning,
-  Error as ErrorIcon,
-  Edit,
-  Check,
-  Close,
-  DoneAll,
-} from '@mui/icons-material';
+import { Upload as CloudUpload, CircleCheck as CheckCircle, TriangleAlert as Warning, CircleAlert as ErrorIcon, Pencil as Edit, Check, X as Close, CheckCheck as DoneAll } from '../icons';
 import {
   collection,
   doc,
@@ -713,9 +704,9 @@ export default function BulkUploadPage({ currentUser, userRole }) {
           <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {results.failed === 0 ? (
-                <CheckCircle color="success" sx={{ fontSize: 32 }} />
+                <CheckCircle style={{ color: 'var(--color-success)' }} size={32} />
               ) : (
-                <Warning color="warning" sx={{ fontSize: 32 }} />
+                <Warning style={{ color: 'var(--color-warning)' }} size={32} />
               )}
               <Typography variant="h6">
                 {results.failed === 0 ? 'Upload Complete' : 'Upload Partially Complete'}

@@ -14,24 +14,8 @@ import {
   Divider,
   Tooltip
 } from '@mui/material';
+import { X as Close, Mic as KeyboardVoice, Type as TextFields, Sparkles as AutoFixHigh, Sparkles as AutoAwesome, ArrowLeft as ArrowBack, BookOpen as MenuBook, Image as PhotoLibrary, Upload as CloudUpload, Pencil as Edit, CircleCheck as CheckCircle, Video as Movie, Mic, Paintbrush as Brush, Copy as ContentCopy } from '../icons';
 import { keyframes } from '@emotion/react';
-import {
-  Close,
-  KeyboardVoice,
-  TextFields,
-  AutoFixHigh,
-  AutoAwesome,
-  ArrowBack,
-  MenuBook,
-  PhotoLibrary,
-  CloudUpload,
-  Edit,
-  CheckCircle,
-  Movie,
-  Mic,
-  Brush,
-  ContentCopy
-} from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import VoiceRecorder from '../VoiceRecorder';
@@ -2010,7 +1994,7 @@ function AddNoteModal({
                 onClick={handleSelectVoice}
                 aria-label="Add voice note"
               >
-                <KeyboardVoice sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                <KeyboardVoice size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2042,7 +2026,7 @@ function AddNoteModal({
                 onClick={handleSelectLesson}
                 aria-label="Add lesson note"
               >
-                <MenuBook sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                <MenuBook size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2075,7 +2059,7 @@ function AddNoteModal({
                 onClick={() => handleSelectMedia('photo')}
                 aria-label="Add media note"
               >
-                <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2197,14 +2181,14 @@ function AddNoteModal({
                               setPdfNameEditing((prev) => !prev);
                             }}
                           >
-                            {pdfNameEditing ? <CheckCircle sx={{ fontSize: 18 }} /> : <Edit sx={{ fontSize: 18 }} />}
+                            {pdfNameEditing ? <CheckCircle size={18} /> : <Edit size={18} />}
                           </IconButton>
                         </Box>
                         <Typography variant="caption" color="text.secondary">
                           {pdfPageCount ? `${pdfPageCount} page${pdfPageCount > 1 ? 's' : ''}` : 'Ready to upload'}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <CloudUpload size={14} style={{ color: 'var(--color-text-soft)' }} />
                           <Typography variant="caption" color="text.secondary">
                             Tap to upload another PDF.
                           </Typography>
@@ -2212,7 +2196,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                        <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose a file
                         </Typography>
@@ -2257,7 +2241,7 @@ function AddNoteModal({
                                     sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   />
                                 ) : (
-                                  <Movie color="primary" />
+                                  <Movie style={{ color: 'var(--color-primary)' }} />
                                 )}
                                 {/* Remove button */}
                                 <IconButton
@@ -2277,7 +2261,7 @@ function AddNoteModal({
                                     '&:hover': { backgroundColor: 'var(--color-paper)' },
                                   }}
                                 >
-                                  <Close sx={{ fontSize: 16 }} />
+                                  <Close size={16} />
                                 </IconButton>
                                 {/* Own work / Copied pill toggle overlay */}
                                 {item.kind === 'photo' && (
@@ -2310,7 +2294,7 @@ function AddNoteModal({
                                         color: !item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
-                                      <Brush sx={{ fontSize: 13 }} />
+                                      <Brush size={13} />
                                       Own work
                                     </Box>
                                     <Box
@@ -2329,7 +2313,7 @@ function AddNoteModal({
                                         color: item.copied ? '#fff' : 'rgba(0,0,0,0.5)', // #fff intentional — contrast text on dynamic colored background
                                       }}
                                     >
-                                      <ContentCopy sx={{ fontSize: 13 }} />
+                                      <ContentCopy size={13} />
                                       Copied
                                     </Box>
                                   </Box>
@@ -2342,7 +2326,7 @@ function AddNoteModal({
                                 {item.kind === 'photo' && item.analyzed && (item.curriculumArea || item.handwritten || (Array.isArray(item.materialsIdentified) && item.materialsIdentified.length > 0)) && (
                                   <Box sx={{ bgcolor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', p: 1.25 }}>
                                     <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                                      <AutoAwesome sx={{ fontSize: 12 }} />
+                                      <AutoAwesome size={12} />
                                       Coach Pepper's Image Analysis
                                     </Typography>
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
@@ -2404,7 +2388,7 @@ function AddNoteModal({
                                             color: mediaItemCommentCleanedOnce[item.id] ? 'var(--color-secondary)' : mediaItemCommentCleaning[item.id] ? 'var(--color-violet-dark)' : !String(item.teacherComment || '').trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                                           }}
                                         >
-                                          {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                                          {mediaItemCommentCleaning[item.id] ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                                         </IconButton>
                                       </span>
                                     </Tooltip>
@@ -2419,7 +2403,7 @@ function AddNoteModal({
                                         bgcolor: 'action.hover'
                                       }}
                                     >
-                                      <Mic fontSize="small" />
+                                      <Mic size={20} />
                                     </IconButton>
                                   </Box>
                                 </Box>
@@ -2437,7 +2421,7 @@ function AddNoteModal({
                           ))}
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                          <CloudUpload sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <CloudUpload size={14} style={{ color: 'var(--color-text-soft)' }} />
                           <Typography variant="caption" color="text.secondary">
                             Tap to add more photos/videos.
                           </Typography>
@@ -2445,7 +2429,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary sx={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                        <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose files
                         </Typography>
@@ -2522,7 +2506,7 @@ function AddNoteModal({
                                       color: mediaPdfCommentCleanedOnce ? 'var(--color-secondary)' : mediaPdfCommentCleaning ? 'var(--color-violet-dark)' : !mediaTeacherComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                                     }}
                                   >
-                                    {mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                                    {mediaPdfCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                                   </IconButton>
                                 </span>
                               </Tooltip>
@@ -2537,7 +2521,7 @@ function AddNoteModal({
                                   bgcolor: 'action.hover'
                                 }}
                               >
-                                <Mic fontSize="small" />
+                                <Mic size={20} />
                               </IconButton>
                             </Box>
                           </InputAdornment>
@@ -2663,11 +2647,7 @@ function AddNoteModal({
                       }),
                     }}
                     startIcon={hasUnanalyzedPhotos ? (
-                      <AutoAwesome sx={{
-                        fontSize: 18,
-                        animation: 'pulse 1.5s ease-in-out infinite',
-                        '@keyframes pulse': { '0%, 100%': { opacity: 0.4 }, '50%': { opacity: 1 } },
-                      }} />
+                      <AutoAwesome size={18} className="icon-pulse" />
                     ) : undefined}
                   >
                     {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : needsStudent ? 'Select a student above' : 'Create Media Note'}

@@ -5,10 +5,7 @@ import {
   Button, 
   Box 
 } from '@mui/material';
-import { 
-  SystemUpdateAlt, 
-  Refresh 
-} from '@mui/icons-material';
+import { Download as SystemUpdateAlt, RefreshCw as Refresh } from '../icons';
 import versionManager from '../utils/versionManager';
 
 const UpdateNotification = () => {

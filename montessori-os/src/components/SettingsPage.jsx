@@ -15,15 +15,7 @@ import {
   Button,
   Paper
 } from '@mui/material';
-import {
-  Person,
-  BarChart,
-  Group,
-  Feedback,
-  Logout,
-  Tune,
-  UploadFile
-} from '@mui/icons-material';
+import { User as Person, BarChart3 as BarChart, Users as Group, MessageSquare as Feedback, LogOut as Logout, Settings as Tune, FileUp as UploadFile } from '../icons';
 import VersionBadge from './VersionBadge';
 import { isSuperAdmin } from '../utils/roleUtils';
 

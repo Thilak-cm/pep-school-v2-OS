@@ -4,7 +4,7 @@ import {
   Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Stack,
   FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
-import { Restore, Save, Bolt, Science } from '@mui/icons-material';
+import { RotateCcw as Restore, Save, Zap as Bolt, FlaskConical as Science } from '../icons';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { forceRefreshKey } from '../services/promptProvider';
@@ -232,7 +232,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
             </Box>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Science sx={{ fontSize: 18, color: 'var(--color-text-soft)' }} />
+                <Science size={18} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
                   Model Configuration
                 </Typography>
@@ -335,7 +335,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
               {/* Test Run */}
               <Divider sx={{ my: 1 }} />
               <Typography variant="h6" sx={{ mb: 1, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Bolt fontSize="small" /> Test Run
+                <Bolt size={20} /> Test Run
               </Typography>
               <Stack spacing={2}>
                 <TextField fullWidth multiline minRows={4} placeholder="Paste some raw observation text here" value={testInput} onChange={(e) => setTestInput(e.target.value)} />

@@ -12,7 +12,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { Download, Refresh } from '@mui/icons-material';
+import { Download, RefreshCw as Refresh } from '../icons';
 import { collection, collectionGroup, documentId, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import ExportWizard from './ExportWizard';

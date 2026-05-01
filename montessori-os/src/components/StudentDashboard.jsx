@@ -15,17 +15,8 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, CircleCheck as CheckCircleOutline, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
 import { keyframes } from '@emotion/react';
-import {
-  Notes as NotesIcon,
-  Chat as ChatIcon,
-  CheckCircleOutline,
-  InfoOutlined,
-  Refresh,
-  FlagRounded,
-  CheckCircle,
-  Assessment as ReportsIcon
-} from '@mui/icons-material';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -513,7 +504,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           }}
           aria-label="View flag details"
         >
-          <IconComponent sx={{ fontSize: 22 }} />
+          <IconComponent size={22} />
         </IconButton>
       </Tooltip>
     );
@@ -530,7 +521,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     if (signalsStatus !== 'ok') {
       return (
         <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlined sx={{ fontSize: 18, color: 'var(--color-text-faint)' }} />
+          <InfoOutlined size={18} style={{ color: 'var(--color-text-faint)' }} />
           <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
             Coverage pending
           </Typography>
@@ -540,9 +531,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
     const buttonIcon =
       coverageTone === 'balanced' ? (
-        <CheckCircle sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <CheckCircle size={18} style={{ color: coverageStyles.iconColor }} />
       ) : (
-        <WarningIcon sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <WarningIcon size={18} style={{ color: coverageStyles.iconColor }} />
       );
 
     const handleCoverageClick = (e) => {
@@ -727,7 +718,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   border: '1px solid rgba(99,102,241,0.35)'
                 }}
               >
-                <Refresh sx={{ fontSize: 22, color: 'var(--color-primary)' }} />
+                <Refresh size={22} style={{ color: 'var(--color-primary)' }} />
               </Box>
               <Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
@@ -798,7 +789,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
       >
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-          <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
+          <FlagRounded size={22} style={{ color: severityColor }} />
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
             {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
           </Typography>
@@ -832,9 +823,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               {coverageTone === 'balanced' ? (
-                <CheckCircle sx={{ fontSize: 20, color: coverageStyles.iconColor }} />
+                <CheckCircle size={20} style={{ color: coverageStyles.iconColor }} />
               ) : (
-                <WarningIcon sx={{ fontSize: 20, color: coverageStyles.iconColor }} />
+                <WarningIcon size={20} style={{ color: coverageStyles.iconColor }} />
               )}
               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: coverageStyles.textColor }}>
                 {coverageStyles.title}
@@ -879,9 +870,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       {/* Square action buttons */}
       <Stack direction="row" spacing={1.5} justifyContent="flex-start">
         {[
-          { label: 'Timeline', icon: <NotesIcon sx={{ fontSize: 22 }} />, color: 'var(--color-primary)', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
-          { label: 'Reports', icon: <ReportsIcon sx={{ fontSize: 22 }} />, color: 'var(--color-secondary)', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
-          { label: 'Coach', icon: <ChatIcon sx={{ fontSize: 22 }} />, color: 'var(--color-primary-light)', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
+          { label: 'Timeline', icon: <NotesIcon size={22} />, color: 'var(--color-primary)', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
+          { label: 'Reports', icon: <ReportsIcon size={22} />, color: 'var(--color-secondary)', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
+          { label: 'Coach', icon: <ChatIcon size={22} />, color: 'var(--color-primary-light)', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
         ].map((btn) => (
           <Box
             key={btn.label}
