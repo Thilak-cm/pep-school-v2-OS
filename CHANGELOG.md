@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.14.1 — 2026-04-30
+
+### Fixed
+- Test bench variant B output cutoff caused by 500px max-height constraint on OutputPanel (PEP-171)
+- Test bench 500 errors from deadline-exceeded by raising client-side callable timeout to 300s (PEP-171)
+- Test bench save run failing due to undefined field writes in Firestore payload (PEP-171)
+- Missing Firestore composite indexes for observations, media, and testbench queries (PEP-171)
+
+### Added
+- Run history sidebar in test bench — load previously saved runs with confirmation before overwriting unsaved work (PEP-171)
+- Selected student name chip in interview question gen test bench (PEP-171)
+
 # 10.14.0 — 2026-04-29
 
 ### Added
