@@ -232,7 +232,7 @@ export default function AITextCleanupEditor({ currentUser, userRole }) {
             </Box>
             <Box sx={{ mb: 2, p: 1.5, bgcolor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Science size={18} sx={{ color: 'var(--color-text-soft)' }} />
+                <Science size={18} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
                   Model Configuration
                 </Typography>

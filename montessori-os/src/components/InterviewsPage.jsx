@@ -20,7 +20,7 @@ function InterviewsPage({ currentUser, userRole, manageableClassrooms }) {
         }}
       >
         <Stack spacing={1.5} alignItems="center">
-          <AutoAwesome size={36} sx={{ color: 'var(--color-primary)' }} />
+          <AutoAwesome size={36} style={{ color: 'var(--color-primary)' }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)' }}>
             AI Interviews
           </Typography>

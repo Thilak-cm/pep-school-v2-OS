@@ -1283,7 +1283,7 @@ function LessonNoteWizard({
             onChange={(e) => setSearchQuery(e.target.value)}
             disabled={searchDisabled}
             InputProps={{
-              startAdornment: <Search size={20} sx={{ mr: 1, color: 'var(--color-text-faint)' }} />
+              startAdornment: <Search size={20} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />
             }}
           />
 
@@ -1490,7 +1490,7 @@ function LessonNoteWizard({
                   <Paper key={student.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, border: '1px solid var(--color-border)' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Person size={20} sx={{ color: 'var(--color-primary)' }} />
+                        <Person size={20} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                           {getStudentDisplayName(student)}
                         </Typography>

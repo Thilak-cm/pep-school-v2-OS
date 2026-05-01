@@ -298,7 +298,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
       <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid var(--color-border)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Group sx={{ color: 'var(--color-primary)' }} />
+            <Group style={{ color: 'var(--color-primary)' }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 My Student Groups
@@ -445,7 +445,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
                 onChange={(e) => setFormSearch(e.target.value)}
                 disabled={!selectedClassroomId}
                 InputProps={{
-                  startAdornment: <Search size={20} sx={{ mr: 1, color: 'var(--color-text-faint)' }} />
+                  startAdornment: <Search size={20} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />
                 }}
               />
               <Paper

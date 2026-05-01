@@ -410,7 +410,7 @@ export default function ReportsPage({
               bgcolor: 'rgba(99, 102, 241, 0.12)',
             }}
           >
-            <ReadinessIcon size={16} sx={{ color: 'var(--color-primary)' }} />
+            <ReadinessIcon size={16} style={{ color: 'var(--color-primary)' }} />
           </Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-indigo-deeper)', letterSpacing: '-0.01em' }}>
             Report Readiness
@@ -519,7 +519,7 @@ export default function ReportsPage({
 
       {!loading && reports.length === 0 && exportingCount === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <ReportIcon size={48} sx={{ color: 'var(--grey-300)', mb: 1 }} />
+          <ReportIcon size={48} style={{ color: 'var(--grey-300)', marginBottom: 8 }} />
           <Typography variant="body1" sx={{ color: 'var(--color-text-faint)' }}>
             No reports yet
           </Typography>
@@ -607,7 +607,7 @@ export default function ReportsPage({
                       size="small"
                       color="warning"
                       variant="outlined"
-                      deleteIcon={<ExpandMoreIcon sx={{ fontSize: '0.9rem', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                      deleteIcon={<ExpandMoreIcon size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
                       onDelete={() => setExpandedMissing((prev) => {
                         const next = new Set(prev);
                         next.has(report.id) ? next.delete(report.id) : next.add(report.id);

@@ -1994,7 +1994,7 @@ function AddNoteModal({
                 onClick={handleSelectVoice}
                 aria-label="Add voice note"
               >
-                <KeyboardVoice size={32} sx={{ color: 'var(--color-primary)' }} />
+                <KeyboardVoice size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2026,7 +2026,7 @@ function AddNoteModal({
                 onClick={handleSelectLesson}
                 aria-label="Add lesson note"
               >
-                <MenuBook size={32} sx={{ color: 'var(--color-primary)' }} />
+                <MenuBook size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2059,7 +2059,7 @@ function AddNoteModal({
                 onClick={() => handleSelectMedia('photo')}
                 aria-label="Add media note"
               >
-                <PhotoLibrary size={32} sx={{ color: 'var(--color-primary)' }} />
+                <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                 <Box sx={{ flex: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
                     <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
@@ -2188,7 +2188,7 @@ function AddNoteModal({
                           {pdfPageCount ? `${pdfPageCount} page${pdfPageCount > 1 ? 's' : ''}` : 'Ready to upload'}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <CloudUpload size={14} sx={{ color: 'text.secondary' }} />
+                          <CloudUpload size={14} style={{ color: 'var(--color-text-soft)' }} />
                           <Typography variant="caption" color="text.secondary">
                             Tap to upload another PDF.
                           </Typography>
@@ -2196,7 +2196,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary size={32} sx={{ color: 'var(--color-primary)' }} />
+                        <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose a file
                         </Typography>
@@ -2241,7 +2241,7 @@ function AddNoteModal({
                                     sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   />
                                 ) : (
-                                  <Movie color="primary" />
+                                  <Movie style={{ color: 'var(--color-primary)' }} />
                                 )}
                                 {/* Remove button */}
                                 <IconButton
@@ -2421,7 +2421,7 @@ function AddNoteModal({
                           ))}
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                          <CloudUpload size={14} sx={{ color: 'text.secondary' }} />
+                          <CloudUpload size={14} style={{ color: 'var(--color-text-soft)' }} />
                           <Typography variant="caption" color="text.secondary">
                             Tap to add more photos/videos.
                           </Typography>
@@ -2429,7 +2429,7 @@ function AddNoteModal({
                       </Box>
                     ) : (
                       <>
-                        <PhotoLibrary size={32} sx={{ color: 'var(--color-primary)' }} />
+                        <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           Click to choose files
                         </Typography>
@@ -2647,11 +2647,7 @@ function AddNoteModal({
                       }),
                     }}
                     startIcon={hasUnanalyzedPhotos ? (
-                      <AutoAwesome sx={{
-                        fontSize: 18,
-                        animation: 'pulse 1.5s ease-in-out infinite',
-                        '@keyframes pulse': { '0%, 100%': { opacity: 0.4 }, '50%': { opacity: 1 } },
-                      }} />
+                      <AutoAwesome size={18} className="icon-pulse" />
                     ) : undefined}
                   >
                     {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : needsStudent ? 'Select a student above' : 'Create Media Note'}

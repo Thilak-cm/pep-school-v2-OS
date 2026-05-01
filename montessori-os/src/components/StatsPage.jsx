@@ -1272,9 +1272,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         {trend && (
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
             {trend > 0 ? (
-              <TrendingUp size={16} sx={{ color: 'success.main', mr: 0.5 }} />
+              <TrendingUp size={16} style={{ color: 'var(--color-success)', marginRight: 4 }} />
             ) : (
-              <TrendingDown size={16} sx={{ color: 'error.main', mr: 0.5 }} />
+              <TrendingDown size={16} style={{ color: 'var(--color-error)', marginRight: 4 }} />
             )}
             <Typography 
               variant="caption" 

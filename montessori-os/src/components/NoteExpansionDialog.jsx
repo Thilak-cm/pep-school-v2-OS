@@ -777,14 +777,14 @@ function NoteExpansionDialog({
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTime size={16} sx={{ color: 'text.secondary' }} />
+              <AccessTime size={16} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="body2" color="text.secondary">
                 {formatTimestamp(observation.observedAt || observation.timestamp)}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Person size={16} sx={{ color: 'text.secondary' }} />
+              <Person size={16} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="body2" color="text.secondary">
                 Created by: {observation.createdByName || observation.createdByEmail || 'Unknown Teacher'}
               </Typography>
@@ -792,7 +792,7 @@ function NoteExpansionDialog({
             
             {observation.type === 'voice' && observation.duration && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Mic size={16} sx={{ color: 'text.secondary' }} />
+                <Mic size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Duration: ${observation.duration || 0} seconds`}
                 </Typography>
@@ -838,7 +838,7 @@ function NoteExpansionDialog({
 
             {isLessonObservation && Array.isArray(observation.linkedObservations) && observation.linkedObservations.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <MenuBook size={16} sx={{ color: 'text.secondary' }} />
+                <MenuBook size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Tagged observations: ${observation.linkedObservations.length}`}
                 </Typography>
@@ -847,7 +847,7 @@ function NoteExpansionDialog({
             
             {isAdminRole(userRole) && !isLessonObservation && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Edit size={16} sx={{ color: 'text.secondary' }} />
+                <Edit size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Edit count: {observation.editCount || 0}
                 </Typography>
@@ -856,7 +856,7 @@ function NoteExpansionDialog({
             
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Person size={16} sx={{ color: 'text.secondary' }} />
+                <Person size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Assigned To: {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                 </Typography>
@@ -874,7 +874,7 @@ function NoteExpansionDialog({
                 borderRadius: 1,
                 border: '1px solid var(--color-amber-yellow)'
               }}>
-                <School size={16} sx={{ color: 'var(--color-warning-dark)' }} />
+                <School size={16} style={{ color: 'var(--color-warning-dark)' }} />
                 <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic' }}>
                   Note logged when {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'this student'} was in {previousClassroomName}
                 </Typography>
@@ -1101,7 +1101,7 @@ function NoteExpansionDialog({
       >
         <DialogTitle component="div">
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SwapHoriz color="secondary" />
+            <SwapHoriz style={{ color: 'var(--color-secondary)' }} />
             <Typography component="h2" variant="h6">
               Confirm Reassignment
             </Typography>

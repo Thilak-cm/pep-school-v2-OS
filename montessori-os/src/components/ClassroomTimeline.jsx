@@ -818,7 +818,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         >
           <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Description size={18} sx={{ color: 'secondary.main' }} />
+              <Description size={18} style={{ color: 'var(--color-secondary)' }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {group.reports.length} report{group.reports.length !== 1 ? 's' : ''} generated
               </Typography>
@@ -834,7 +834,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                 sx={{ cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25 }}
               >
                 {isExpanded ? 'Hide' : 'See'} students
-                <KeyboardArrowDown size={16} sx={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                <KeyboardArrowDown size={16} style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </Typography>
             </Box>
             <Collapse in={isExpanded}>
@@ -1437,7 +1437,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
       <CardContent sx={{ p: 2, pl: 3 }}>
         {/* Student Names - Prominent, condensed, clickable */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Group size={16} sx={{ color: 'primary.main' }} />
+          <Group size={16} style={{ color: 'var(--color-primary)' }} />
           {renderStudentNames()}
         </Box>
 
@@ -1475,7 +1475,7 @@ function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNaviga
         
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="caption" color="text.secondary">
             {formatTimestamp(note.observedAt || note.timestamp)}
           </Typography>
@@ -1693,7 +1693,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+              <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="caption" color="text.secondary">
                 {formatTimestamp(note.observedAt || note.timestamp)}
               </Typography>
@@ -1791,7 +1791,7 @@ function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, user
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Person size={16} sx={{ color: 'primary.main' }} />
+                          <Person size={16} style={{ color: 'var(--color-primary)' }} />
                           <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
                             {getStudentDisplayName(student)}
                           </Typography>
@@ -2031,7 +2031,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person size={16} sx={{ color: 'primary.main' }} />
+          <Person size={16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -2122,7 +2122,7 @@ function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleByI
 
         {/* Timestamp */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="caption" color="text.secondary">
             {formatTimestamp(note.observedAt || note.timestamp)}
           </Typography>
@@ -2198,7 +2198,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
       <CardContent sx={{ p: 2 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person size={16} sx={{ color: 'primary.main' }} />
+          <Person size={16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -2212,7 +2212,7 @@ function ClassroomStudentCard({ student, classroomNotes, onClick }) {
 
         {/* Number of Notes */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Notes size={14} sx={{ color: 'text.secondary' }} />
+          <Notes size={14} style={{ color: 'var(--color-text-soft)' }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
             {formatNoteCounts(studentNoteCount, last7DaysCount)}
           </Typography>

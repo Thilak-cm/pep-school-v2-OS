@@ -76,7 +76,7 @@ export default function ReportGenerateDialog({
                 border: '1px solid rgba(99,102,241,0.35)',
               }}
             >
-              <ReportIcon size={22} sx={{ color: 'var(--color-primary)' }} />
+              <ReportIcon size={22} style={{ color: 'var(--color-primary)' }} />
             </Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {title}

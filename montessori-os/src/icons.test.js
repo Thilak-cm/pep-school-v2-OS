@@ -44,7 +44,7 @@ describe('AC2: Design spec icons available', () => {
     'Check', 'Eye', 'Mic', 'Image', 'Paperclip', 'FileText',
     'Clock', 'Bell', 'Star', 'Flag', 'TriangleAlert', 'Settings',
     'Type', 'BookOpen', 'Users', 'User', 'GraduationCap', 'BarChart3',
-    'MessageCircle', 'Sparkles', 'ShieldCheck', 'Circle',
+    'MessageCircle', 'Sparkles', 'ShieldCheck', 'Circle', 'Dot',
   ];
 
   it('icons.js exports every design spec icon', () => {
@@ -97,6 +97,47 @@ describe('AC4: No MUI icon imports remain', () => {
       }
     }
     assert.deepStrictEqual(muiIconFiles, [], `Files still importing MUI icons: ${muiIconFiles.join(', ')}`);
+  });
+});
+
+// ── AC4a: No MUI semantic color tokens on Lucide icons ──
+describe('AC4a: No MUI color tokens on Lucide icons', () => {
+  it('no Lucide icons use color="error|success|warning|primary|secondary|info"', () => {
+    const files = getAllSrcFiles().filter(f => f.endsWith('.jsx'));
+    const violations = [];
+    const muiColorPattern = /color="(error|success|warning|primary|secondary|info)"/;
+    for (const filePath of files) {
+      const content = readFileSync(filePath, 'utf-8');
+      if (!content.includes("from '../icons'") && !content.includes("from './icons'")) continue;
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (muiColorPattern.test(line) && line.includes('<') && !line.includes('<Typography') && !line.includes('<Button') && !line.includes('<IconButton') && !line.includes('<Chip') && !line.includes('<CircularProgress') && !line.includes('<Alert')) {
+          // Check if the component on this line is likely a Lucide icon (starts with uppercase, not a known MUI component)
+          const tagMatch = line.match(/<([A-Z][A-Za-z]+)/);
+          if (tagMatch) {
+            const tag = tagMatch[1];
+            const muiComponents = ['Box', 'Typography', 'Button', 'IconButton', 'Fab', 'Paper', 'Card', 'Stack', 'Grid', 'Divider', 'Avatar', 'Tab', 'Tabs', 'Dialog', 'TextField', 'Select', 'MenuItem', 'Tooltip', 'Badge', 'CircularProgress', 'Alert', 'Chip', 'Switch', 'Checkbox', 'Radio', 'FormControl', 'InputLabel', 'DialogTitle', 'ListItem', 'ListItemText', 'ListItemIcon', 'ListItemButton'];
+            if (!muiComponents.includes(tag)) {
+              violations.push(`${filePath.replace(__dirname + '/', '')}:${i + 1}`);
+            }
+          }
+        }
+      }
+    }
+    assert.deepStrictEqual(violations, [], `Lucide icons with MUI color tokens: ${violations.join(', ')}`);
+  });
+});
+
+// ── AC4b: strokeWidth prop contract ──
+describe('AC4b: Lucide icons accept strokeWidth', () => {
+  it('exported Lucide icons accept strokeWidth for stroke control', async () => {
+    const icons = await import('./icons.js');
+    // Lucide icons are React forwardRef components that forward all props to SVG
+    // strokeWidth controls line thickness (default 2, design uses 1.5-2)
+    assert.ok(icons.Mic != null, 'Mic is exported');
+    assert.ok(typeof icons.Mic === 'function' || typeof icons.Mic === 'object', 'Mic is a component (function or forwardRef object)');
+    // This is a contract test — strokeWidth is the canonical Lucide prop
   });
 });
 

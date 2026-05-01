@@ -1192,7 +1192,7 @@ const VoiceRecorderWrapper = (props) => {
       '&:hover': { backgroundColor: 'var(--color-surface)' },
       zIndex: 2
     };
-    const closeIconSx = DialogProps.closeIconSx || { fontSize: 28 };
+    const closeIconSize = DialogProps.closeIconSize || 28;
     return (
       <Dialog
         open={open}
@@ -1218,7 +1218,7 @@ const VoiceRecorderWrapper = (props) => {
               onClick={onClose}
               sx={closeButtonSx}
             >
-              <Close sx={closeIconSx} />
+              <Close size={closeIconSize} />
             </IconButton>
           )}
           <VoiceRecorder onSave={handleSave} {...rest} />

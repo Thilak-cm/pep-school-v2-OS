@@ -183,7 +183,7 @@ function ExportWizard({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Download color="secondary" />
+          <Download style={{ color: 'var(--color-secondary)' }} />
           <Typography component="div" variant="h6">{title}</Typography>
         </Box>
         <IconButton aria-label="Close dialog" onClick={onClose} size="small" edge="end">

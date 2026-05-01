@@ -68,6 +68,7 @@ export {
   TrendingDown,
   MinusCircle,
   Circle,
+  Dot,
 
   // ── Media ──
   Mic,
@@ -107,7 +108,7 @@ export {
   MessageSquare,
   Sparkles,
   Brain,
-  ShieldCheck,
+  ShieldCheck, // design spec "ShieldKey" — no ShieldKey in Lucide
   FlaskConical,
   Lightbulb,
   Bug,

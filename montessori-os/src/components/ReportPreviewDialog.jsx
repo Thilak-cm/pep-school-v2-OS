@@ -80,7 +80,7 @@ export default function ReportPreviewDialog({
         }}
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <ReportIcon size={24} sx={{ color: 'var(--color-primary)' }} />
+          <ReportIcon size={24} style={{ color: 'var(--color-primary)' }} />
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {studentLabel}'s Report
@@ -136,7 +136,7 @@ export default function ReportPreviewDialog({
               >
                 <Stack spacing={1.25}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <WarningAmber size={20} sx={{ color: 'var(--color-warning)' }} />
+                    <WarningAmber size={20} style={{ color: 'var(--color-warning)' }} />
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'var(--color-amber-text)' }}>
                       Missing inputs
                     </Typography>

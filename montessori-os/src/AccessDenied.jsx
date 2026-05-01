@@ -32,7 +32,7 @@ function AccessDenied({ userEmail, onSignOut }) {
             gap: 2,
           }}
         >
-          <HighlightOff size={96} sx={{ color: 'error.main' }} />
+          <HighlightOff size={96} style={{ color: 'var(--color-error)' }} />
           <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
             Access Denied
           </Typography>

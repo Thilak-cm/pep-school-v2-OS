@@ -41,7 +41,7 @@ export default function ReportsCard({ studentId, onClick }) {
                 </Typography>
               </Box>
             </Box>
-            <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+            <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
           </Box>
         </CardContent>
       </CardActionArea>

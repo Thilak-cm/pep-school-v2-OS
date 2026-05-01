@@ -1180,12 +1180,12 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 >
                   {selectedChatId ? chatTitle : 'Load past conversations here'}
                 </Typography>
-                <ArrowDropDown 
-                  size={20} sx={{ color: 'text.secondary', 
+                <ArrowDropDown
+                  size={20} style={{ color: 'var(--color-text-soft)',
                     flexShrink: 0,
                     transition: 'transform 0.2s ease-in-out',
                     transform: chatDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    opacity: 0.7 }} 
+                    opacity: 0.7 }}
                 />
               </Box>
               
@@ -1459,7 +1459,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               width: '100%',
             }}
           >
-            <Chat size={64} sx={{ color: 'text.secondary', mb: 2 }} />
+            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
             <Typography variant="h6" gutterBottom>
               Start a new conversation
             </Typography>
@@ -1479,7 +1479,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               p: 3,
             }}
           >
-            <Chat size={64} sx={{ color: 'text.secondary', mb: 2 }} />
+            <Chat size={64} style={{ color: 'var(--color-text-soft)', marginBottom: 16 }} />
             <Typography variant="h6" gutterBottom>
               No messages yet
             </Typography>

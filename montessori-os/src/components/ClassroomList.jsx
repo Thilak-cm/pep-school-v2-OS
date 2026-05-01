@@ -524,14 +524,14 @@ const handleStudentClick = (student) => {
                     {classroom.name || 'Untitled classroom'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                    <Group size={16} sx={{ color: 'var(--color-text-soft)' }} />
+                    <Group size={16} style={{ color: 'var(--color-text-soft)' }} />
                     <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                       {studentTotal} students
                     </Typography>
                   </Box>
                 </Box>
               </Box>
-              <ArrowForward sx={{ color: 'var(--color-text-faint)' }} />
+              <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
             </Box>
             <Button
               size="small"
@@ -695,7 +695,7 @@ const handleStudentClick = (student) => {
               backgroundColor: 'var(--color-bg)',
               border: '2px dashed var(--grey-300)'
             }}>
-              <School size={48} sx={{ color: 'var(--color-text-faint)', mb: 2 }} />
+              <School size={48} style={{ color: 'var(--color-text-faint)', marginBottom: 16 }} />
               <Typography variant="h6" sx={{ color: 'var(--grey-600)', mb: 1 }}>
                 {userRole === 'teacher' ? 'No classrooms assigned' : 'No classrooms found'}
               </Typography>
@@ -748,7 +748,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
       <CardContent sx={{ p: compact ? 1.75 : 2.5 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person sx={{ fontSize: compact ? 14 : 16, color: 'primary.main' }} />
+          <Person size={compact ? 14 : 16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -764,7 +764,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
         {/* Classroom */}
         {classroomName && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <School size={14} sx={{ color: 'text.secondary' }} />
+            <School size={14} style={{ color: 'var(--color-text-soft)' }} />
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
               {classroomName}
             </Typography>

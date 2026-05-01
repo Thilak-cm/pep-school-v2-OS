@@ -1094,7 +1094,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Description size={18} sx={{ color: 'secondary.main' }} />
+                          <Description size={18} style={{ color: 'var(--color-secondary)' }} />
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             Report generated
                           </Typography>
@@ -1293,7 +1293,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                             justifyContent: 'center',
                                           }}
                                         >
-                                          <PlayCircleFilled size={34} sx={{ color: 'var(--color-paper)' }} />
+                                          <PlayCircleFilled size={34} style={{ color: 'var(--color-paper)' }} />
                                         </Box>
                                       </>
                                     )}
@@ -1312,13 +1312,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                         }}
                                       >
                                         {isFailed ? (
-                                          <ErrorOutline color="error" />
+                                          <ErrorOutline style={{ color: 'var(--color-error)' }} />
                                         ) : isPending ? (
                                           <CircularProgress size={18} thickness={5} />
                                         ) : isVideo ? (
-                                          <Movie color="primary" />
+                                          <Movie style={{ color: 'var(--color-primary)' }} />
                                         ) : (
-                                          <PhotoLibrary color="primary" />
+                                          <PhotoLibrary style={{ color: 'var(--color-primary)' }} />
                                         )}
                                         <Typography
                                           variant="caption"
@@ -1389,7 +1389,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       )}
 
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1437,7 +1437,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1497,7 +1497,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <AccessTime size={14} sx={{ color: 'text.secondary' }} />
+                      <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(obs.observedAt || obs.timestamp)}
                       </Typography>
@@ -1654,7 +1654,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         }}
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <InsertDriveFile color="primary" />
+                          <InsertDriveFile style={{ color: 'var(--color-primary)' }} />
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                               {obs.pdfTitle || 'PDF'}
@@ -1732,7 +1732,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         )}
                         {isReady && obs.mediaKind === 'video' && (
                           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Movie color="primary" />
+                            <Movie style={{ color: 'var(--color-primary)' }} />
                           </Box>
                         )}
                         {isPending && (
@@ -1756,7 +1756,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         )}
                         {isFailed && (
                           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1 }}>
-                            <ErrorOutline color="error" />
+                            <ErrorOutline style={{ color: 'var(--color-error)' }} />
                             <Typography variant="caption" color="error">Upload failed</Typography>
                           </Box>
                         )}
@@ -1998,7 +1998,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           ) : (
             <Typography variant="body2" color="text.secondary">
               {mediaPreview?.observation?.teacherComment
-                ? `<MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> ${mediaPreview.observation.teacherComment}`
+                ? <><MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {mediaPreview.observation.teacherComment}</>
                 : 'No comment added.'}
             </Typography>
           )}

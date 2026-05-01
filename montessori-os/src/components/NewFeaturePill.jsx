@@ -35,7 +35,7 @@ const NewFeaturePill = ({ label = 'New Feature', showIcon = true, size = 'sm', s
         ...sx,
       }}
     >
-      {showIcon && <AutoFixHigh sx={{ fontSize: size === 'md' ? 16 : 14 }} aria-hidden />}
+      {showIcon && <AutoFixHigh size={size === 'md' ? 16 : 14} aria-hidden />}
       {label}
     </Box>
   );

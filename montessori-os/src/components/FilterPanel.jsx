@@ -179,7 +179,7 @@ const FilterPanel = ({
                           ...params.InputProps,
                           startAdornment: (
                             <>
-                              <Search size={20} sx={{ color: 'text.secondary', mr: 1 }} />
+                              <Search size={20} style={{ color: 'var(--color-text-soft)', marginRight: 8 }} />
                               {params.InputProps.startAdornment}
                             </>
                           )

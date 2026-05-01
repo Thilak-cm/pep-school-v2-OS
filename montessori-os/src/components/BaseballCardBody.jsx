@@ -67,7 +67,7 @@ export default function BaseballCardBody({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <ErrorOutline size={20} color="error" />
+          <ErrorOutline size={20} style={{ color: 'var(--color-error)' }} />
           <Typography variant="body2" color="error">
             {cardError}
           </Typography>

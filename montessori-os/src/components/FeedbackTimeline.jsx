@@ -260,7 +260,7 @@ function FeedbackTimeline({ currentUser, userRole }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
-                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                startAdornment: <Search style={{ marginRight: 8, color: 'var(--color-text-soft)' }} />
               }}
             />
             
