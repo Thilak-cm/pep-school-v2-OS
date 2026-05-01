@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-30T22:18:01.787Z
-App version: 10.14.1
+Generated: 2026-05-01T06:18:11.757Z
+App version: 10.14.2
 
 ## App Snapshot
 
@@ -139,6 +139,11 @@ App version: 10.14.1
 
 ## Recent Changes
 
+### 10.14.2 (2026-04-30)
+- Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
+- All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
+- Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
+
 ### 10.14.1 (2026-04-30)
 - Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
 - MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
@@ -153,9 +158,4 @@ App version: 10.14.1
 - Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
 - `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
 - Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
-
-### 10.12.3 (2026-04-29)
-- Soul generation now produces ~50 open questions per student in a fenced `open_questions` block, written to `ai_summaries/open_questions` (PEP-173)
-- New `extractOpenQuestions` parser and `buildOpenQuestionsDoc` helper following existing extractor patterns (PEP-173)
-- `extractGuidelinesSuggestions` now returns both suggestions and cleaned content (combined extract+strip), replacing the separate `stripGuidelinesSuggestions` function (PEP-173)
 
