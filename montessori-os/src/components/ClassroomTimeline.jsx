@@ -863,8 +863,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
                       {report.studentName}
                     </Typography>
                     <Visibility
+                      size={18}
                       onClick={() => setReportPreviewData(report)}
-                      sx={{ fontSize: 18, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                      style={{ color: 'var(--color-text-soft)', cursor: 'pointer' }}
                     />
                   </Box>
                 ))}

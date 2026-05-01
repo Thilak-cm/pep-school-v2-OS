@@ -51,12 +51,12 @@ export default function CopyToClipboardButton({ text = '', size = 'small', ariaL
         <Box sx={{ position: 'relative', width: 18, height: 18 }}>
           <Zoom in={!copied} timeout={{ enter: 160, exit: 160 }}>
             <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ContentCopy fontSize="inherit" />
+              <ContentCopy size={18} />
             </Box>
           </Zoom>
           <Zoom in={copied} timeout={{ enter: 160, exit: 160 }}>
             <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Check fontSize="inherit" />
+              <Check size={18} />
             </Box>
           </Zoom>
         </Box>

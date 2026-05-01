@@ -42,8 +42,7 @@ const buildNoteKindsArray = (selection) => {
 };
 
 const renderDateAdornment = (value, onClear, onOpenCalendar) => {
-  const iconSize = 'small';
-  const icon = value ? <Close fontSize={iconSize} /> : <CalendarToday fontSize={iconSize} />;
+  const icon = value ? <Close size={20} /> : <CalendarToday size={20} />;
 
   return (
     <InputAdornment position="end" sx={{ pr: 0.25 }}>
