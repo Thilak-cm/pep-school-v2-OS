@@ -24,6 +24,7 @@ export const LESSON_PROGRAM_DIMENSIONS = {
   ]
 };
 
+// Hex literals intentional — downstream code concatenates hex-alpha suffixes (e.g. `${color}22`)
 export const LESSON_RATING_OPTIONS = [
   { value: 'yes', label: 'Yes', color: '#0f766e' },
   { value: 'partial', label: 'Partially', color: '#ca8a04' },
@@ -38,6 +39,7 @@ export const LESSON_RATING_LABELS = {
   na: 'N/A'
 };
 
+// Hex literals intentional — downstream code concatenates hex-alpha suffixes (e.g. `${color}22`)
 export const LESSON_RATING_COLORS = {
   yes: '#0f766e',
   partial: '#ca8a04',
@@ -50,6 +52,7 @@ export const LESSON_ATTENDANCE_LABELS = {
   absent: 'Absent'
 };
 
+// Hex literals intentional — downstream code concatenates hex-alpha suffixes
 export const LESSON_ATTENDANCE_COLORS = {
   present: '#0f766e',
   absent: '#c2410c'

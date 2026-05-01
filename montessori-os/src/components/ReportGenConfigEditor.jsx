@@ -24,11 +24,7 @@ import {
   ListItemText,
   ListItemSecondaryAction,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import RestoreIcon from '@mui/icons-material/Restore';
+import { ChevronDown as ExpandMoreIcon, Lock as LockOutlinedIcon, Pencil as EditOutlinedIcon, Info as InfoOutlinedIcon, RotateCcw as RestoreIcon } from '../icons';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -63,13 +59,13 @@ const sectionHeaderSx = {
   fontSize: 11,
   textTransform: 'uppercase',
   letterSpacing: 1.2,
-  color: '#64748b',
+  color: 'var(--color-text-soft)',
   mb: 1,
   mt: 0.5,
 };
 
 const accordionSx = {
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--color-border)',
   borderRadius: '12px !important',
   boxShadow: 'none',
   '&:before': { display: 'none' },
@@ -457,20 +453,20 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               expandIcon={<ExpandMoreIcon />}
               sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
             >
-              <LockOutlinedIcon sx={{ fontSize: 18, color: '#6366f1' }} />
+              <LockOutlinedIcon size={18} style={{ color: 'var(--color-primary-light)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Static System Prompt</Typography>
               <Chip
                 label={prompt.staticSystemPrompt ? `${countLines(prompt.staticSystemPrompt)} lines` : 'empty'}
                 size="small"
                 variant="outlined"
-                sx={{ mr: 1, fontSize: 11 }}
+                sx={{ fontSize: 11, mr: 1 }}
               />
               <IconButton
                 size="small"
                 onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'static' ? null : 'static'); }}
-                sx={{ color: '#6366f1' }}
+                sx={{ color: 'var(--color-primary-light)' }}
               >
-                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                <EditOutlinedIcon size={18} />
               </IconButton>
             </AccordionSummary>
             <AccordionDetails sx={{ px: 2, pt: 0 }}>
@@ -490,15 +486,12 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Collapsed preview — kept as sibling because AccordionDetails is hidden when collapsed */}
           {editingField !== 'static' && prompt.staticSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{
-                color: '#94a3b8',
+              <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-faint)',
                 fontStyle: 'italic',
-                fontSize: 13,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}>
+                overflow: 'hidden' }}>
                 {prompt.staticSystemPrompt}
               </Typography>
             </Box>
@@ -514,20 +507,20 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
               expandIcon={<ExpandMoreIcon />}
               sx={{ px: 2, '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1 } }}
             >
-              <EditOutlinedIcon sx={{ fontSize: 18, color: '#10b981' }} />
+              <EditOutlinedIcon size={18} style={{ color: 'var(--color-secondary-light)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Dynamic System Prompt</Typography>
               <Chip
                 label={prompt.dynamicSystemPrompt ? `${countLines(prompt.dynamicSystemPrompt)} lines` : 'empty'}
                 size="small"
                 variant="outlined"
-                sx={{ mr: 1, fontSize: 11 }}
+                sx={{ fontSize: 11, mr: 1 }}
               />
               <IconButton
                 size="small"
                 onClick={(e) => { e.stopPropagation(); setEditingField(editingField === 'dynamic' ? null : 'dynamic'); }}
-                sx={{ color: '#10b981' }}
+                sx={{ color: 'var(--color-secondary-light)' }}
               >
-                <EditOutlinedIcon sx={{ fontSize: 18 }} />
+                <EditOutlinedIcon size={18} />
               </IconButton>
             </AccordionSummary>
             <AccordionDetails sx={{ px: 2, pt: 0 }}>
@@ -546,15 +539,12 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
           {editingField !== 'dynamic' && prompt.dynamicSystemPrompt && (
             <Box sx={{ px: 2, mt: -1.5 }}>
-              <Typography variant="body2" sx={{
-                color: '#94a3b8',
+              <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-faint)',
                 fontStyle: 'italic',
-                fontSize: 13,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}>
+                overflow: 'hidden' }}>
                 {prompt.dynamicSystemPrompt}
               </Typography>
             </Box>
@@ -578,7 +568,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           <Box sx={{ mt: 1 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>History (last {MAX_HISTORY})</Typography>
             {!promptDocState?.versions?.length && (
-              <Typography variant="body2" sx={{ color: '#64748b' }}>No prior versions.</Typography>
+              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>No prior versions.</Typography>
             )}
             {promptDocState?.versions?.length > 0 && (
               <List dense>
@@ -605,14 +595,14 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Student Context */}
           <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Stack direction="row" alignItems="center" gap={1}>
-              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <InfoOutlinedIcon size={18} style={{ color: 'var(--color-warning)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Context</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
             </Stack>
-            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
+            <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-soft)' }}>
               Student name, date of birth, and age are injected from the student profile at generation time.
             </Typography>
-            <Box sx={{ backgroundColor: '#f8fafc', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'monospace', fontSize: 12, color: '#475569' }}>
+            <Box sx={{ fontSize: 12, backgroundColor: 'var(--color-bg)', borderRadius: 1, px: 1.5, py: 1, fontFamily: 'var(--font-mono)', color: 'var(--grey-600)' }}>
               {'Student: {"studentName":"Aarav Sharma","dob":"15 March 2019","age":"6 years 11 months"}'}
             </Box>
           </Box>
@@ -620,11 +610,11 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
           {/* Student Observations */}
           <Box sx={{ ...accordionSx, px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Stack direction="row" alignItems="center" gap={1}>
-              <InfoOutlinedIcon sx={{ fontSize: 18, color: '#f59e0b' }} />
+              <InfoOutlinedIcon size={18} style={{ color: 'var(--color-warning)' }} />
               <Typography sx={{ fontWeight: 600, flex: 1 }}>Student Observations</Typography>
               <Chip label="auto-injected" size="small" color="default" variant="outlined" sx={{ fontSize: 11 }} />
             </Stack>
-            <Typography variant="body2" sx={{ color: '#64748b', fontSize: 13 }}>
+            <Typography variant="body2" sx={{ fontSize: 13, color: 'var(--color-text-soft)' }}>
               All observations for the selected date range are injected as a JSON array at generation time.
             </Typography>
           </Box>
@@ -734,9 +724,9 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
 
             {playgroundResult && (
               <Stack spacing={2}>
-                <Box sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 2, backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box sx={{ p: 2, border: '1px solid var(--color-border)', borderRadius: 2, backgroundColor: 'var(--color-bg)', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Report Preview</Typography>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', color: '#334155' }}>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line', color: 'var(--grey-700)' }}>
                     {playgroundResult.reportText || '(empty report)'}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
@@ -748,9 +738,9 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
                 <Box
                   sx={{
                     p: 2,
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--color-border)',
                     borderRadius: 2,
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: 'var(--color-bg)',
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'anywhere',

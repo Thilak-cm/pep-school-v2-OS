@@ -1,6 +1,6 @@
 import React from 'react';
 import { Fab } from '@mui/material';
-import { KeyboardArrowDown } from '@mui/icons-material';
+import { ChevronDown as KeyboardArrowDown } from '../../icons';
 
 const ScrollToBottomFab = ({ visible, onClick }) => (
   <Fab
@@ -20,7 +20,7 @@ const ScrollToBottomFab = ({ visible, onClick }) => (
       pointerEvents: visible ? 'auto' : 'none',
       transition: 'opacity 0.2s ease, transform 0.2s ease',
       '&:hover': {
-        backgroundColor: '#f5f5f5',
+        backgroundColor: 'var(--color-neutral-bg-warm)',
       },
     }}
   >

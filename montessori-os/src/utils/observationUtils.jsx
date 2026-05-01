@@ -1,6 +1,6 @@
 import React from 'react';
-import { Visibility, MenuBook, PhotoLibrary, Description } from '@mui/icons-material';
 import { formatTimestamp } from './dateFormat';
+import { Eye as Visibility, BookOpen as MenuBook, Image as PhotoLibrary, FileText as Description } from '../icons';
 
 // Re-export formatTimestamp for backward compatibility
 export { formatTimestamp };
@@ -11,10 +11,10 @@ export { formatTimestamp };
  * @returns {React.Element} MUI Icon component
  */
 export const getObservationTypeIcon = (type) => {
-  if (type === 'lesson') return <MenuBook sx={{ fontSize: 16 }} />;
-  if (type === 'media') return <PhotoLibrary sx={{ fontSize: 16 }} />;
-  if (type === 'report') return <Description sx={{ fontSize: 16 }} />;
-  return <Visibility sx={{ fontSize: 16 }} />;
+  if (type === 'lesson') return <MenuBook size={16} />;
+  if (type === 'media') return <PhotoLibrary size={16} />;
+  if (type === 'report') return <Description size={16} />;
+  return <Visibility size={16} />;
 };
 
 /**

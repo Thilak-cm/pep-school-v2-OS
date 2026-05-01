@@ -10,7 +10,7 @@ import {
   TextField,
   CircularProgress
 } from '@mui/material';
-import { Description as ReportIcon } from '@mui/icons-material';
+import { FileText as ReportIcon } from '../icons';
 import { getDefaultReportDateRange } from '../utils/reportUtils';
 
 // yyyy-mm-dd (native input[type=date] format)
@@ -55,8 +55,8 @@ export default function ReportGenerateDialog({
       PaperProps={{
         sx: {
           borderRadius: 3,
-          background: 'linear-gradient(180deg, #eef2ff 0%, #ffffff 55%)',
-          border: '1px solid #e2e8f0',
+          background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+          border: '1px solid var(--color-border)',
           boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)',
         },
       }}
@@ -76,14 +76,14 @@ export default function ReportGenerateDialog({
                 border: '1px solid rgba(99,102,241,0.35)',
               }}
             >
-              <ReportIcon sx={{ fontSize: 22, color: '#4f46e5' }} />
+              <ReportIcon size={22} style={{ color: 'var(--color-primary)' }} />
             </Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
               {title}
             </Typography>
           </Stack>
 
-          <Typography variant="body2" sx={{ color: '#475569' }}>
+          <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
             Coach Pepper will generate a parent report using observations within the date range below.
           </Typography>
 
@@ -121,7 +121,7 @@ export default function ReportGenerateDialog({
           {generating && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
               <CircularProgress size={18} />
-              <Typography variant="body2" sx={{ color: '#4f46e5', fontWeight: 600 }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-primary)', fontWeight: 600 }}>
                 Coach Pepper is reviewing and preparing your report-- hang tight!
               </Typography>
             </Stack>
@@ -132,7 +132,7 @@ export default function ReportGenerateDialog({
         <Button
           onClick={onClose}
           disabled={generating}
-          sx={{ textTransform: 'none', color: '#475569' }}
+          sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
         >
           Cancel
         </Button>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Stack, Button, Skeleton, CircularProgress } from '@mui/material';
-import { ErrorOutline } from '@mui/icons-material';
+import { CircleAlert as ErrorOutline } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 
 export default function BaseballCardBody({
@@ -41,13 +41,13 @@ export default function BaseballCardBody({
           <CircularProgress
             size={40}
             sx={{
-              color: '#4f46e5',
+              color: 'var(--color-primary)',
               '& .MuiCircularProgress-circle': {
                 strokeLinecap: 'round',
               }
             }}
           />
-          <Typography variant="body1" sx={{ color: '#64748b', textAlign: 'center' }}>
+          <Typography variant="body1" sx={{ color: 'var(--color-text-soft)', textAlign: 'center' }}>
             {message}
           </Typography>
         </Box>
@@ -67,7 +67,7 @@ export default function BaseballCardBody({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <ErrorOutline fontSize="small" color="error" />
+          <ErrorOutline size={20} style={{ color: 'var(--color-error)' }} />
           <Typography variant="body2" color="error">
             {cardError}
           </Typography>
@@ -103,7 +103,7 @@ export default function BaseballCardBody({
         <Typography
           variant="body2"
           sx={{
-            color: '#334155',
+            color: 'var(--grey-700)',
             whiteSpace: 'pre-line',
           }}
         >

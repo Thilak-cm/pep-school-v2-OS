@@ -9,16 +9,7 @@ import {
   Avatar,
   Grid
 } from '@mui/material';
-import { 
-  School, 
-  Group,
-  ArrowForward,
-  Feedback,
-  BarChart,
-  PersonAdd,
-  Download,
-  Psychology
-} from '@mui/icons-material';
+import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, MessageSquare as Feedback, BarChart3 as BarChart, UserPlus as PersonAdd, Download, Brain as Psychology } from '../icons';
 function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
   const isTeacher = userRole === 'teacher';
   
@@ -62,7 +53,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Avatar sx={{ 
-                      bgcolor: '#4f46e5',
+                      bgcolor: 'var(--color-primary)',
                       width: 56,
                       height: 56
                     }}>
@@ -70,13 +61,13 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     </Avatar>
                     <Box>
                       <Typography variant="h6" component="h3" sx={{ 
-                        color: '#1e293b',
+                        color: 'var(--color-text)',
                         fontWeight: 600
                       }}>
                         Classrooms & Students
                       </Typography>
                       <Typography variant="body2" sx={{ 
-                        color: '#64748b',
+                        color: 'var(--color-text-soft)',
                         mt: 0.5
                       }}>
                         {isTeacher 
@@ -86,7 +77,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Typography>
                     </Box>
                   </Box>
-                  <ArrowForward sx={{ color: '#94a3b8' }} />
+                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                 </Box>
               </CardContent>
             </CardActionArea>
@@ -118,7 +109,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Avatar sx={{ 
-                        bgcolor: '#059669',
+                        bgcolor: 'var(--color-secondary)',
                         width: 56,
                         height: 56
                       }}>
@@ -126,20 +117,20 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Avatar>
                       <Box>
                         <Typography variant="h6" component="h3" sx={{ 
-                          color: '#1e293b',
+                          color: 'var(--color-text)',
                           fontWeight: 600
                         }}>
                           Share Feedback
                         </Typography>
                         <Typography variant="body2" sx={{ 
-                          color: '#64748b',
+                          color: 'var(--color-text-soft)',
                           mt: 0.5
                         }}>
                           Help us improve by sharing your suggestions and reporting issues
                         </Typography>
                       </Box>
                     </Box>
-                    <ArrowForward sx={{ color: '#94a3b8' }} />
+                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                   </Box>
                 </CardContent>
               </CardActionArea>
@@ -171,7 +162,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Avatar sx={{ 
-                      bgcolor: '#f59e0b',
+                      bgcolor: 'var(--color-warning)',
                       width: 56,
                       height: 56
                     }}>
@@ -179,13 +170,13 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     </Avatar>
                     <Box>
                       <Typography variant="h6" component="h3" sx={{ 
-                        color: '#1e293b',
+                        color: 'var(--color-text)',
                         fontWeight: 600
                       }}>
                         Statistics & Analytics
                       </Typography>
                       <Typography variant="body2" sx={{ 
-                        color: '#64748b',
+                        color: 'var(--color-text-soft)',
                         mt: 0.5
                       }}>
                         {isTeacher 
@@ -195,7 +186,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Typography>
                     </Box>
                   </Box>
-                  <ArrowForward sx={{ color: '#94a3b8' }} />
+                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                 </Box>
               </CardContent>
             </CardActionArea>
@@ -228,7 +219,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Avatar sx={{ 
-                        bgcolor: '#4f46e5',
+                        bgcolor: 'var(--color-primary)',
                         width: 56,
                         height: 56
                       }}>
@@ -236,20 +227,20 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                       </Avatar>
                       <Box>
                         <Typography variant="h6" component="h3" sx={{ 
-                          color: '#1e293b',
+                          color: 'var(--color-text)',
                           fontWeight: 600
                         }}>
                           Users & Access
                         </Typography>
                         <Typography variant="body2" sx={{ 
-                          color: '#64748b',
+                          color: 'var(--color-text-soft)',
                           mt: 0.5
                         }}>
                           Manage teacher access and student onboarding
                         </Typography>
                       </Box>
                     </Box>
-                    <ArrowForward sx={{ color: '#94a3b8' }} />
+                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -280,7 +271,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Avatar sx={{ 
-                          bgcolor: '#2563eb',
+                          bgcolor: 'var(--color-info-dark)',
                           width: 56,
                           height: 56
                         }}>
@@ -288,20 +279,20 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         </Avatar>
                         <Box>
                           <Typography variant="h6" component="h3" sx={{ 
-                            color: '#1e293b',
+                            color: 'var(--color-text)',
                             fontWeight: 600
                           }}>
                             Export Notes
                           </Typography>
                           <Typography variant="body2" sx={{ 
-                            color: '#64748b',
+                            color: 'var(--color-text-soft)',
                             mt: 0.5
                           }}>
                             Save notes as .txt files
                           </Typography>
                         </Box>
                       </Box>
-                      <ArrowForward sx={{ color: '#94a3b8' }} />
+                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                     </Box>
                   </CardContent>
                 </CardActionArea>
@@ -332,7 +323,7 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Avatar sx={{ 
-                          bgcolor: '#059669',
+                          bgcolor: 'var(--color-secondary)',
                           width: 56,
                           height: 56
                         }}>
@@ -340,20 +331,20 @@ function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeed
                         </Avatar>
                         <Box>
                           <Typography variant="h6" component="h3" sx={{ 
-                            color: '#1e293b',
+                            color: 'var(--color-text)',
                             fontWeight: 600
                           }}>
                             Feedback Dashboard
                           </Typography>
                           <Typography variant="body2" sx={{ 
-                            color: '#64748b',
+                            color: 'var(--color-text-soft)',
                             mt: 0.5
                           }}>
                             View and manage all user feedback and suggestions
                           </Typography>
                         </Box>
                       </Box>
-                      <ArrowForward sx={{ color: '#94a3b8' }} />
+                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
                     </Box>
                   </CardContent>
                 </CardActionArea>

@@ -18,14 +18,7 @@ import {
   InputLabel,
   MenuItem
 } from '@mui/material';
-import {
-  BarChart,
-  TrendingUp,
-  TrendingDown,
-  People,
-  School,
-  ArrowBack
-} from '@mui/icons-material';
+import { BarChart3 as BarChart, TrendingUp, TrendingDown, Users as People, GraduationCap as School, ArrowLeft as ArrowBack } from '../icons';
 import { collection, collectionGroup, query, getDocs, orderBy, where, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
@@ -1025,10 +1018,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       !isLessonNote(obs) && !isVoiceNote(obs) && !isTextNote(obs) && obs?.type === 'media');
 
     return [
-      { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' },
-      { name: 'Text', value: textNotes.length, color: '#f59e0b' },
-      { name: 'Lesson', value: lessonNotes.length, color: '#059669' },
-      { name: 'Media', value: mediaNotes.length, color: '#ec4899' }
+      // Recharts processes colors in JS — CSS vars not supported
+      { name: 'Voice', value: voiceNotes.length, color: '#3b82f6' }, /* Recharts */
+      { name: 'Text', value: textNotes.length, color: '#f59e0b' }, /* Recharts */
+      { name: 'Lesson', value: lessonNotes.length, color: '#059669' }, /* Recharts */
+      { name: 'Media', value: mediaNotes.length, color: '#ec4899' } /* Recharts */
     ];
   }, [filteredObservationsForPie]);
 
@@ -1278,9 +1272,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         {trend && (
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
             {trend > 0 ? (
-              <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
+              <TrendingUp size={16} style={{ color: 'var(--color-success)', marginRight: 4 }} />
             ) : (
-              <TrendingDown sx={{ color: 'error.main', fontSize: 16, mr: 0.5 }} />
+              <TrendingDown size={16} style={{ color: 'var(--color-error)', marginRight: 4 }} />
             )}
             <Typography 
               variant="caption" 
@@ -1381,19 +1375,19 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
             <RechartsBarChart data={data} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="name" 
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              axisLine={{ stroke: '#e2e8f0' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               angle={-45}
               textAnchor="end"
               height={70}
               tickMargin={6}
             />
-            <YAxis 
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              axisLine={{ stroke: '#e2e8f0' }}
+            <YAxis
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
               width={40}
               tickFormatter={(value) => Math.round(value)}
@@ -1401,7 +1395,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             <RechartsTooltip 
               contentStyle={{ 
                 backgroundColor: 'white',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 borderRadius: 8,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
               }}
@@ -1414,25 +1408,25 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 2,
                       p: 1.5,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
-                      <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                      <Typography sx={{ fontSize: '14px', fontWeight: 700, color: 'var(--grey-900)' }}>
                         {label}
                       </Typography>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5', mt: 0.5 }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-primary)', mt: 0.5 }}>
                         {notesCount} {notesCount === 1 ? 'note' : 'notes'}
                       </Typography>
                       <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        <Typography sx={{ fontSize: '12px', color: '#4f46e5' }}>
+                        <Typography sx={{ fontSize: '12px', color: 'var(--color-primary)' }}>
                           Observations: {observationsValue}
                         </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#059669' }}>
+                        <Typography sx={{ fontSize: '12px', color: 'var(--color-secondary)' }}>
                           Lesson Notes: {lessonNotesValue}
                         </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#ec4899' }}>
+                        <Typography sx={{ fontSize: '12px', color: 'var(--color-pink)' }}>
                           Media Notes: {mediaNotesValue}
                         </Typography>
                       </Box>
@@ -1442,9 +1436,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 return null;
               }}
             />
-              <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Observations" stackId="notes" fill="#4f46e5" radius={[0, 0, 0, 0]} /> {/* Recharts — hex required */}
+              <Bar dataKey="Lesson Notes" stackId="notes" fill="#059669" radius={[0, 0, 0, 0]} /> {/* Recharts */}
+              <Bar dataKey="Media Notes" stackId="notes" fill="#ec4899" radius={[0, 0, 0, 0]} /> {/* Recharts */}
             </RechartsBarChart>
           </ResponsiveContainer>
         </Box>
@@ -1457,24 +1451,24 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               px: 1.5,
               py: 0.5,
               borderRadius: 999,
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               backgroundColor: 'white'
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4f46e5' }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-primary)' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Observations
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#059669' }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-secondary)' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Lesson Notes
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ec4899' }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--color-pink)' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Media Notes
               </Typography>
@@ -1690,23 +1684,23 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       <Box sx={{ height: 250, width: '100%', minWidth: 0, minHeight: 250, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={activityData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="period" 
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              axisLine={{ stroke: '#e2e8f0' }}
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /> {/* Recharts — hex required */}
+            <XAxis
+              dataKey="period"
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
             />
-            <YAxis 
-              tick={{ fontSize: 12, fill: '#64748b' }}
-              axisLine={{ stroke: '#e2e8f0' }}
+            <YAxis
+              tick={{ fontSize: 12, fill: '#64748b' }} /* Recharts */
+              axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
               tickLine={false}
               width={40}
               tickFormatter={(value) => Math.round(value)}
             />
-            <RechartsTooltip 
-              contentStyle={{ 
+            <RechartsTooltip
+              contentStyle={{
                 backgroundColor: 'white',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 borderRadius: 8,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
               }}
@@ -1715,15 +1709,15 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   return (
                     <Box sx={{
                       backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid var(--color-border)',
                       borderRadius: 2,
                       p: 1.5,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
-                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: '#4f46e5' }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-primary)' }}>
                         {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
                       </Typography>
-                      <Typography sx={{ fontSize: '12px', color: '#64748b' }}>
+                      <Typography sx={{ fontSize: '12px', color: 'var(--color-text-soft)' }}>
                         Time: {payload[0].payload.period}
                       </Typography>
                     </Box>
@@ -1732,12 +1726,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 return null;
               }}
             />
-            <Line 
-              type="monotone" 
-              dataKey="count" 
-              stroke="#4f46e5" 
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="#4f46e5" /* Recharts */
               strokeWidth={3}
-              dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }}
+              dot={{ fill: '#4f46e5', strokeWidth: 2, r: 4 }} /* Recharts */
             />
           </LineChart>
         </ResponsiveContainer>
@@ -1795,7 +1789,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             position: 'sticky',
             top: 0,
             zIndex: 1,
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: '1px solid var(--color-border)',
             mb: 2
           }}>
             <Tabs 
@@ -1850,13 +1844,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                       fontWeight: 600,
                       px: 2,
                       py: 1,
-                      borderColor: '#e2e8f0',
+                      borderColor: 'var(--color-border)',
                       flex: 1,
                       '&.Mui-selected': {
-                        backgroundColor: '#4f46e5',
+                        backgroundColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4338ca'
+                          backgroundColor: 'var(--color-primary-dark)'
                         }
                       }
                     }
@@ -1876,7 +1870,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 backgroundColor: 'white',
                 borderRadius: 2,
                 p: 3,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 3,
                 width: '100%',
                 minWidth: 0
@@ -1910,7 +1904,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   backgroundColor: 'white',
                   borderRadius: 2,
                   p: 3,
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   mb: 3,
                   width: '100%',
                   minWidth: 0
@@ -1959,7 +1953,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                           <RechartsTooltip 
                             contentStyle={{ 
                               backgroundColor: 'white',
-                              border: '1px solid #e2e8f0',
+                              border: '1px solid var(--color-border)',
                               borderRadius: 8,
                               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                             }}
@@ -1990,7 +1984,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                             display: 'block',
                             fontSize: '11px',
                             fontWeight: 400,
-                            color: '#94a3b8',
+                            color: 'var(--color-text-faint)',
                             textTransform: 'uppercase',
                             letterSpacing: '0.5px',
                             mb: 1
@@ -2002,9 +1996,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                           sx={{
                             fontSize: '32px',
                             fontWeight: 400,
-                            color: '#0f172a',
+                            color: 'var(--grey-900)',
                             lineHeight: 1,
-                            fontFamily: 'Inter, system-ui, sans-serif'
+                            fontFamily: 'var(--font-body)'
                           }}
                         >
                           {pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0).toLocaleString()}
@@ -2087,13 +2081,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                       fontWeight: 600,
                       px: 2,
                       py: 0.75,
-                      borderColor: '#e2e8f0',
+                      borderColor: 'var(--color-border)',
                       flex: 1,
                       '&.Mui-selected': {
-                        backgroundColor: '#4f46e5',
+                        backgroundColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4338ca'
+                          backgroundColor: 'var(--color-primary-dark)'
                         }
                       }
                     }
@@ -2224,13 +2218,13 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                         fontWeight: 600,
                         px: 2,
                         py: 0.75,
-                        borderColor: '#e2e8f0',
+                        borderColor: 'var(--color-border)',
                         flex: 1,
                         '&.Mui-selected': {
-                          backgroundColor: '#4f46e5',
+                          backgroundColor: 'var(--color-primary)',
                           color: 'white',
                           '&:hover': {
-                            backgroundColor: '#4338ca'
+                            backgroundColor: 'var(--color-primary-dark)'
                           }
                         }
                       }
@@ -2273,7 +2267,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                             p: 2,
                             backgroundColor: 'white',
                             borderRadius: 2,
-                            border: '1px solid #e2e8f0'
+                            border: '1px solid var(--color-border)'
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -2348,7 +2342,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                           p: 2,
                           backgroundColor: 'white',
                           borderRadius: 2,
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',

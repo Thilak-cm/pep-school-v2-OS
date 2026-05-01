@@ -14,22 +14,7 @@ import {
   Divider,
   TextField
 } from '@mui/material';
-import { 
-  Star, 
-  Edit, 
-  AccessTime, 
-  Delete, 
-  Save, 
-  Cancel, 
-  Person, 
-  SwapHoriz, 
-  Close, 
-  Mic,
-  Visibility,
-  School,
-  MenuBook,
-  Link
-} from '@mui/icons-material';
+import { Star, Pencil as Edit, Clock as AccessTime, Trash2 as Delete, Save, XCircle as Cancel, User as Person, ArrowLeftRight as SwapHoriz, X as Close, Mic, Eye as Visibility, GraduationCap as School, BookOpen as MenuBook, Link, MessageCircle } from '../icons';
 import LessonNoteTagDialog from './LessonNoteTagDialog';
 import { 
   doc, 
@@ -149,7 +134,7 @@ function NoteExpansionDialog({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
             return (
               <Chip
                 key={`${observation.id}-${dimension.name}`}
@@ -163,7 +148,7 @@ function NoteExpansionDialog({
         {observation.studentComment && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="body2" color="text.secondary">
-              💬 {observation.studentComment}
+              <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {observation.studentComment}
             </Typography>
           </Box>
         )}
@@ -736,7 +721,7 @@ function NoteExpansionDialog({
                     }
                   }}
                 >
-                  <Edit fontSize="small" />
+                  <Edit size={20} />
                 </IconButton>
               )}
               <IconButton
@@ -792,14 +777,14 @@ function NoteExpansionDialog({
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <AccessTime size={16} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="body2" color="text.secondary">
                 {formatTimestamp(observation.observedAt || observation.timestamp)}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Person size={16} style={{ color: 'var(--color-text-soft)' }} />
               <Typography variant="body2" color="text.secondary">
                 Created by: {observation.createdByName || observation.createdByEmail || 'Unknown Teacher'}
               </Typography>
@@ -807,7 +792,7 @@ function NoteExpansionDialog({
             
             {observation.type === 'voice' && observation.duration && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Mic sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Mic size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Duration: ${observation.duration || 0} seconds`}
                 </Typography>
@@ -853,7 +838,7 @@ function NoteExpansionDialog({
 
             {isLessonObservation && Array.isArray(observation.linkedObservations) && observation.linkedObservations.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <MenuBook sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <MenuBook size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   {`Tagged observations: ${observation.linkedObservations.length}`}
                 </Typography>
@@ -862,7 +847,7 @@ function NoteExpansionDialog({
             
             {isAdminRole(userRole) && !isLessonObservation && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Edit sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Edit size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Edit count: {observation.editCount || 0}
                 </Typography>
@@ -871,7 +856,7 @@ function NoteExpansionDialog({
             
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Person size={16} style={{ color: 'var(--color-text-soft)' }} />
                 <Typography variant="body2" color="text.secondary">
                   Assigned To: {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'Unknown Student'}
                 </Typography>
@@ -885,12 +870,12 @@ function NoteExpansionDialog({
                 alignItems: 'center', 
                 gap: 1,
                 p: 1.5,
-                backgroundColor: '#fef3c7',
+                backgroundColor: 'var(--color-amber-bg)',
                 borderRadius: 1,
-                border: '1px solid #fde68a'
+                border: '1px solid var(--color-amber-yellow)'
               }}>
-                <School sx={{ fontSize: 16, color: '#d97706' }} />
-                <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic' }}>
+                <School size={16} style={{ color: 'var(--color-warning-dark)' }} />
+                <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic' }}>
                   Note logged when {student?.name || student?.displayName || [student?.firstName, student?.lastName].filter(Boolean).join(' ') || 'this student'} was in {previousClassroomName}
                 </Typography>
               </Box>
@@ -915,7 +900,7 @@ function NoteExpansionDialog({
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {observation.isStarred && (
                 <Chip 
-                  icon={<Star sx={{ fontSize: 16 }} />} 
+                  icon={<Star size={16} />} 
                   label="Starred" 
                   size="small" 
                   color="warning"
@@ -964,7 +949,7 @@ function NoteExpansionDialog({
             ) : (
               <>
                 {authorActionsExpired && (
-                  <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic', textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic', textAlign: 'center' }}>
                     {AUTHOR_ACTION_EXPIRED_MESSAGE}
                   </Typography>
                 )}
@@ -1116,7 +1101,7 @@ function NoteExpansionDialog({
       >
         <DialogTitle component="div">
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SwapHoriz color="secondary" />
+            <SwapHoriz style={{ color: 'var(--color-secondary)' }} />
             <Typography component="h2" variant="h6">
               Confirm Reassignment
             </Typography>
@@ -1130,9 +1115,9 @@ function NoteExpansionDialog({
               </Typography>
               <Box sx={{
                 p: 2,
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'var(--color-bg)',
                 borderRadius: 2,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 2
               }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1144,10 +1129,10 @@ function NoteExpansionDialog({
               </Box>
               <Typography variant="body2" sx={{
                 fontStyle: 'italic',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'var(--color-bg)',
                 padding: 2,
                 borderRadius: 2,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 mb: 2
               }}>
                 {(() => {

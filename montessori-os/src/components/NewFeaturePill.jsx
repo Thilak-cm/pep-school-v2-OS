@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box } from '@mui/material';
-import { AutoFixHigh } from '@mui/icons-material';
+import { Sparkles as AutoFixHigh } from '../icons';
 
 /**
  * Small gradient pill for temporary "New Feature" highlighting.
@@ -24,8 +24,8 @@ const NewFeaturePill = ({ label = 'New Feature', showIcon = true, size = 'sm', s
         alignItems: 'center',
         gap: 0.75,
         borderRadius: '999px',
-        background: 'linear-gradient(90deg, #fde68a 0%, #fca5a5 50%, #a78bfa 100%)',
-        color: '#111827',
+        background: 'linear-gradient(90deg, var(--color-amber-yellow) 0%, var(--color-red-softer) 50%, var(--color-violet-muted) 100%)',
+        color: 'var(--color-black)',
         fontWeight: 800,
         fontSize,
         textTransform: 'uppercase',
@@ -35,7 +35,7 @@ const NewFeaturePill = ({ label = 'New Feature', showIcon = true, size = 'sm', s
         ...sx,
       }}
     >
-      {showIcon && <AutoFixHigh sx={{ fontSize: size === 'md' ? 16 : 14 }} aria-hidden />}
+      {showIcon && <AutoFixHigh size={size === 'md' ? 16 : 14} aria-hidden />}
       {label}
     </Box>
   );

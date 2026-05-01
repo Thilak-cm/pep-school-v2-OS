@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText
 } from '@mui/material';
-import { Clear, Search, Mic, EditNote, Close, MenuBook, PermMedia } from '@mui/icons-material';
+import { X as Clear, Search, Mic, Pencil as EditNote, X as Close, BookOpen as MenuBook, Image as PermMedia } from '../icons';
 import { IconButton } from '@mui/material';
 import { fuzzySearchTeachers } from '../utils/fuzzySearch';
 
@@ -123,7 +123,7 @@ const FilterPanel = ({
                   size="small"
                   onClick={onToggleFilters}
                 >
-                  <Close fontSize="small" />
+                  <Close size={20} />
                 </IconButton>
               </Box>
             </Box>
@@ -179,7 +179,7 @@ const FilterPanel = ({
                           ...params.InputProps,
                           startAdornment: (
                             <>
-                              <Search sx={{ color: 'text.secondary', mr: 1, fontSize: 20 }} />
+                              <Search size={20} style={{ color: 'var(--color-text-soft)', marginRight: 8 }} />
                               {params.InputProps.startAdornment}
                             </>
                           )
@@ -240,10 +240,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(voiceActive && {
-                        backgroundColor: '#4f46e5',
+                        backgroundColor: 'var(--color-primary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4338ca',
+                          backgroundColor: 'var(--color-primary-dark)',
                         },
                         '&::after': {
                           content: '""',
@@ -291,10 +291,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(textActive && {
-                        backgroundColor: '#059669',
+                        backgroundColor: 'var(--color-secondary)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#047857',
+                          backgroundColor: 'var(--color-secondary-dark)',
                         },
                         '&::after': {
                           content: '""',
@@ -342,10 +342,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(lessonActive && {
-                        backgroundColor: '#6366f1',
+                        backgroundColor: 'var(--color-primary-light)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#4f46e5',
+                          backgroundColor: 'var(--color-primary)',
                         },
                         '&::after': {
                           content: '""',
@@ -393,10 +393,10 @@ const FilterPanel = ({
                       },
                       transition: 'all 0.2s ease-in-out',
                       ...(mediaActive && {
-                        backgroundColor: '#0ea5e9',
+                        backgroundColor: 'var(--color-sky)',
                         color: 'white',
                         '&:hover': {
-                          backgroundColor: '#0284c7',
+                          backgroundColor: 'var(--color-blue-sky)',
                         },
                         '&::after': {
                           content: '""',
@@ -444,14 +444,14 @@ const FilterPanel = ({
                             fontSize: '0.75rem',
                             cursor: 'pointer',
                             ...(isActive ? {
-                              bgcolor: '#047857',
-                              color: '#fff',
-                              '&:hover': { bgcolor: '#065f46' },
+                              bgcolor: 'var(--color-secondary-dark)',
+                              color: '#fff', // #fff intentional — contrast text on dynamic colored background
+                              '&:hover': { bgcolor: 'var(--color-green-deep)' },
                             } : {
-                              bgcolor: '#ecfdf5',
-                              color: '#047857',
-                              border: '1px solid #a7f3d0',
-                              '&:hover': { bgcolor: '#d1fae5' },
+                              bgcolor: 'var(--color-green-bg)',
+                              color: 'var(--color-secondary-dark)',
+                              border: '1px solid var(--color-green-mint)',
+                              '&:hover': { bgcolor: 'var(--color-green-bg-mist)' },
                             }),
                           }}
                         />

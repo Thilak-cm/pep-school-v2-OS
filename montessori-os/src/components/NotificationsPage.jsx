@@ -20,19 +20,7 @@ import {
   Tooltip,
   Popover
 } from '@mui/material';
-import {
-  ErrorOutline,
-  CheckCircleOutline,
-  ExpandMore as ExpandMoreIcon,
-  FlagRounded,
-  WarningAmber as WarningIcon,
-  Refresh,
-  CheckCircle,
-  InfoOutlined,
-  TrendingUp,
-  RemoveCircleOutline,
-  TrendingDown
-} from '@mui/icons-material';
+import { CircleAlert as ErrorOutline, CircleCheck as CheckCircleOutline, ChevronDown as ExpandMoreIcon, Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, TrendingUp, MinusCircle as RemoveCircleOutline, TrendingDown } from '../icons';
 import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
@@ -55,7 +43,7 @@ const confettiFallSmall = keyframes`
   }
 `;
 
-const confettiColors = ['#4f46e5', '#059669', '#f59e0b', '#db2777', '#3b82f6', '#8b5cf6'];
+const confettiColors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink-dark)', 'var(--color-info)', 'var(--color-violet)'];
 
 function ConfettiAnimation({ count = 50 }) {
   const particles = React.useMemo(
@@ -644,11 +632,11 @@ function NotificationsPage() {
     if (signalsLoading || signalsStatus !== 'ok') return null;
 
     const colorMap = {
-      high: '#dc2626',
-      medium: '#f59e0b',
-      med: '#f59e0b',
-      low: '#94a3b8',
-      none: '#22c55e'
+      high: 'var(--color-error)',
+      medium: 'var(--color-warning)',
+      med: 'var(--color-warning)',
+      low: 'var(--color-text-faint)',
+      none: 'var(--color-green-bright)'
     };
 
     const paletteColor = colorMap[severity] || colorMap.none;
@@ -680,7 +668,7 @@ function NotificationsPage() {
           }}
           aria-label="View flag details"
         >
-          <IconComponent sx={{ fontSize: 22 }} />
+          <IconComponent size={22} />
         </IconButton>
       </Tooltip>
     );
@@ -720,30 +708,30 @@ function NotificationsPage() {
 
     const coveragePalette = {
       balanced: {
-        borderColor: '#22c55e',
-        hoverBorderColor: '#16a34a',
+        borderColor: 'var(--color-green-bright)',
+        hoverBorderColor: 'var(--color-green-mid)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         hoverBackground: 'rgba(22, 163, 74, 0.12)',
-        textColor: '#166534',
-        iconColor: '#22c55e',
+        textColor: 'var(--color-green-dark)',
+        iconColor: 'var(--color-green-bright)',
         title: 'Coverage balanced',
       },
       warning: {
-        borderColor: '#f59e0b',
-        hoverBorderColor: '#d97706',
+        borderColor: 'var(--color-warning)',
+        hoverBorderColor: 'var(--color-warning-dark)',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
         hoverBackground: 'rgba(245, 158, 11, 0.14)',
-        textColor: '#92400e',
-        iconColor: '#f59e0b',
+        textColor: 'var(--color-amber-text)',
+        iconColor: 'var(--color-warning)',
         title: 'Missing domains',
       },
       alert: {
-        borderColor: '#dc2626',
-        hoverBorderColor: '#b91c1c',
+        borderColor: 'var(--color-error)',
+        hoverBorderColor: 'var(--color-error-dark)',
         backgroundColor: 'rgba(220, 38, 38, 0.1)',
         hoverBackground: 'rgba(220, 38, 38, 0.14)',
-        textColor: '#991b1b',
-        iconColor: '#dc2626',
+        textColor: 'var(--color-red-dark)',
+        iconColor: 'var(--color-error)',
         title: 'Missing domains',
       },
     };
@@ -751,7 +739,7 @@ function NotificationsPage() {
 
     if (signalsLoading) {
       return (
-        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+        <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
           Checking coverage…
         </Typography>
       );
@@ -759,8 +747,8 @@ function NotificationsPage() {
     if (signalsStatus !== 'ok') {
       return (
         <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlined sx={{ fontSize: 18, color: '#94a3b8' }} />
-          <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+          <InfoOutlined size={18} style={{ color: 'var(--color-text-faint)' }} />
+          <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
             Coverage pending
           </Typography>
         </Stack>
@@ -769,9 +757,9 @@ function NotificationsPage() {
 
     const buttonIcon =
       coverageTone === 'balanced' ? (
-        <CheckCircle sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <CheckCircle size={18} style={{ color: coverageStyles.iconColor }} />
       ) : (
-        <WarningIcon sx={{ fontSize: 18, color: coverageStyles.iconColor }} />
+        <WarningIcon size={18} style={{ color: coverageStyles.iconColor }} />
       );
 
     const handleCoverageClick = (e) => {
@@ -840,7 +828,7 @@ function NotificationsPage() {
     if (!groups.length) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CheckCircleOutline sx={{ color: '#22c55e' }} />
+          <CheckCircleOutline style={{ color: 'var(--color-green-bright)' }} />
           <Typography variant="body2" color="text.secondary">
             {emptyMessage}
           </Typography>
@@ -902,11 +890,11 @@ function NotificationsPage() {
               disableGutters
               elevation={0}
               sx={{
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--color-border)',
                 borderRadius: 2,
                 '&:before': { display: 'none' },
                 '&.Mui-expanded': {
-                  borderColor: '#cbd5e1',
+                  borderColor: 'var(--grey-300)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 }
               }}
@@ -923,7 +911,7 @@ function NotificationsPage() {
                 }}
               >
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--grey-900)' }}>
                     Classroom: {group.classroomId}
                   </Typography>
                   <Chip
@@ -933,8 +921,8 @@ function NotificationsPage() {
                       height: 20,
                       fontSize: '0.7rem',
                       fontWeight: 600,
-                      backgroundColor: '#f1f5f9',
-                      color: '#475569'
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--grey-600)'
                     }}
                   />
                 </Stack>
@@ -954,10 +942,10 @@ function NotificationsPage() {
                         disableGutters
                         elevation={0}
                         sx={{
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           borderRadius: 1.5,
                           '&:before': { display: 'none' },
-                          backgroundColor: '#f8fafc'
+                          backgroundColor: 'var(--color-bg)'
                         }}
                       >
                         <AccordionSummary
@@ -987,7 +975,7 @@ function NotificationsPage() {
                                 fontSize: '0.7rem',
                                 fontWeight: 600,
                                 backgroundColor: 'white',
-                                color: '#475569'
+                                color: 'var(--grey-600)'
                               }}
                             />
                           </Stack>
@@ -1013,26 +1001,26 @@ function NotificationsPage() {
                                   sx={{
                                     p: 1.5,
                                     borderRadius: 2,
-                                    borderColor: '#e2e8f0',
+                                    borderColor: 'var(--color-border)',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s ease-in-out',
                                     '&:hover': {
                                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                      borderColor: '#cbd5e1',
+                                      borderColor: 'var(--grey-300)',
                                       transform: 'translateY(-1px)'
                                     },
                                     ...(isExpanded && {
-                                      borderColor: '#6366f1',
+                                      borderColor: 'var(--color-primary-light)',
                                       boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
                                     })
                                   }}
                                 >
                                   <Stack direction="row" alignItems="center" spacing={1.5}>
-                                    <Avatar sx={{ width: 36, height: 36, bgcolor: '#6366f1' }}>
+                                    <Avatar sx={{ width: 36, height: 36, bgcolor: 'var(--color-primary-light)' }}>
                                       {displayName?.[0]?.toUpperCase?.() || '?'}
                                     </Avatar>
                                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-text)' }}>
                                         {displayName}
                                       </Typography>
                                     </Box>
@@ -1043,7 +1031,7 @@ function NotificationsPage() {
                                         handleCardClick();
                                       }}
                                       sx={{
-                                        color: '#64748b',
+                                        color: 'var(--color-text-soft)',
                                         transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                         transition: 'transform 0.2s ease-in-out',
                                         flexShrink: 0
@@ -1074,7 +1062,7 @@ function NotificationsPage() {
     if (!items.length) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CheckCircleOutline sx={{ color: '#22c55e' }} />
+          <CheckCircleOutline style={{ color: 'var(--color-green-bright)' }} />
           <Typography variant="body2" color="text.secondary">
             No alerts currently!
           </Typography>
@@ -1107,26 +1095,26 @@ function NotificationsPage() {
               sx={{
                 p: 1.5,
                 borderRadius: 2,
-                borderColor: '#e2e8f0',
+                borderColor: 'var(--color-border)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease-in-out',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  borderColor: '#cbd5e1',
+                  borderColor: 'var(--grey-300)',
                   transform: 'translateY(-1px)'
                 },
                 ...(isExpanded && {
-                  borderColor: '#dc2626',
+                  borderColor: 'var(--color-error)',
                   boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
                 })
               }}
             >
               <Stack direction="row" alignItems="center" spacing={1.5}>
-                <Avatar sx={{ width: 36, height: 36, bgcolor: '#dc2626' }}>
+                <Avatar sx={{ width: 36, height: 36, bgcolor: 'var(--color-error)' }}>
                   {displayName?.[0]?.toUpperCase?.() || '?'}
                 </Avatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'var(--color-text)' }}>
                     {displayName}
                   </Typography>
                   <Typography
@@ -1149,7 +1137,7 @@ function NotificationsPage() {
                     handleCardClick();
                   }}
                   sx={{
-                    color: '#64748b',
+                    color: 'var(--color-text-soft)',
                     transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.2s ease-in-out',
                     flexShrink: 0
@@ -1183,12 +1171,12 @@ function NotificationsPage() {
     const severity = signalsStatus === 'ok' ? (signalsData?.redFlag?.severity || null) : null;
     const severityReason = signalsStatus === 'ok' ? (signalsData?.redFlag?.reason || null) : null;
     const severityColor = severity === 'high'
-      ? '#dc2626'
+      ? 'var(--color-error)'
       : severity === 'medium' || severity === 'med'
-        ? '#f59e0b'
+        ? 'var(--color-warning)'
         : severity === 'low'
-          ? '#94a3b8'
-          : '#22c55e';
+          ? 'var(--color-text-faint)'
+          : 'var(--color-green-bright)';
 
     const handleRegenerate = async () => {
       try {
@@ -1305,8 +1293,8 @@ function NotificationsPage() {
           PaperProps={{
             sx: {
               borderRadius: 3,
-              background: 'linear-gradient(180deg, #eef2ff 0%, #ffffff 55%)',
-              border: '1px solid #e2e8f0',
+              background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+              border: '1px solid var(--color-border)',
               boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
             }
           }}
@@ -1326,10 +1314,10 @@ function NotificationsPage() {
                     border: '1px solid rgba(99,102,241,0.35)'
                   }}
                 >
-                  <Refresh sx={{ fontSize: 22, color: '#4f46e5' }} />
+                  <Refresh size={22} style={{ color: 'var(--color-primary)' }} />
                 </Box>
                 <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
                     Regenerate weekly snapshot?
                   </Typography>
                 </Box>
@@ -1338,15 +1326,15 @@ function NotificationsPage() {
                 sx={{
                   p: 1.5,
                   borderRadius: 2,
-                  backgroundColor: '#eef2ff',
+                  backgroundColor: 'var(--color-indigo-bg)',
                   border: '1px solid rgba(79, 70, 229, 0.2)'
                 }}
               >
-                <Typography variant="body2" sx={{ color: '#3730a3', fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-indigo-deep)', fontWeight: 600 }}>
                   Last generated: {formatGeneratedAt(cardData?.generatedAt)}
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ color: '#475569' }}>
+              <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
                 {notesSinceGeneratedLoading
                   ? 'Checking for notes added after this snapshot...'
                   : Number.isFinite(notesSinceGenerated)
@@ -1354,7 +1342,7 @@ function NotificationsPage() {
                     : 'Unable to check for new notes right now.'}
               </Typography>
               {!notesSinceGeneratedLoading && Number.isFinite(notesSinceGenerated) && (
-                <Typography variant="body2" sx={{ color: notesSinceGenerated === 0 ? '#dc2626' : '#059669', fontStyle: 'italic' }}>
+                <Typography variant="body2" sx={{ color: notesSinceGenerated === 0 ? 'var(--color-error)' : 'var(--color-secondary)', fontStyle: 'italic' }}>
                   {notesSinceGenerated === 0
                     ? 'Regeneration will not include any additional information, so it may not be necessary.'
                     : 'This will refresh the snapshot with the latest observations and may provide updated insights.'}
@@ -1366,7 +1354,7 @@ function NotificationsPage() {
             <Button
               onClick={() => setRegenDialogOpen(false)}
               disabled={regenRunning[studentId]}
-              sx={{ textTransform: 'none', color: '#475569' }}
+              sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
             >
               Cancel
             </Button>
@@ -1399,12 +1387,12 @@ function NotificationsPage() {
           PaperProps={{ sx: { p: 2, maxWidth: 320 } }}
         >
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-            <FlagRounded sx={{ fontSize: 22, color: severityColor }} />
+            <FlagRounded size={22} style={{ color: severityColor }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: severityColor }}>
               {severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No active flag'}
             </Typography>
           </Stack>
-          <Typography variant="body2" sx={{ color: '#334155' }}>
+          <Typography variant="body2" sx={{ color: 'var(--grey-700)' }}>
             {severityReason || (severity ? 'No reason provided.' : 'This student currently has no concerns flagged.')}
           </Typography>
         </Popover>
@@ -1435,9 +1423,9 @@ function NotificationsPage() {
               <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   {currentCoverageTone === 'balanced' ? (
-                    <CheckCircle sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                    <CheckCircle size={20} style={{ color: currentCoverageStyles.iconColor }} />
                   ) : (
-                    <WarningIcon sx={{ fontSize: 20, color: currentCoverageStyles.iconColor }} />
+                    <WarningIcon size={20} style={{ color: currentCoverageStyles.iconColor }} />
                   )}
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, color: currentCoverageStyles.textColor }}>
                     {currentCoverageStyles.title}
@@ -1445,7 +1433,7 @@ function NotificationsPage() {
                 </Stack>
                 {currentCoverageTone === 'balanced' ? (
                   <>
-                    <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                    <Typography variant="body2" sx={{ color: 'var(--grey-900)' }}>
                       Notes in the past {currentCardWindowDays} days have been balanced. Great job keeping coverage even!
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -1456,7 +1444,7 @@ function NotificationsPage() {
                   <>
                     <Typography
                       variant="body2"
-                      sx={{ color: currentCoverageTone === 'alert' ? '#b91c1c' : '#92400e' }}
+                      sx={{ color: currentCoverageTone === 'alert' ? 'var(--color-error-dark)' : 'var(--color-amber-text)' }}
                     >
                       {currentCoverageTone === 'warning'
                         ? 'A few domains need attention. Try adding observations in these areas soon.'
@@ -1509,12 +1497,12 @@ function NotificationsPage() {
               p: 3,
               backgroundColor: 'white',
               borderRadius: 2,
-              border: '1px solid #e2e8f0'
+              border: '1px solid var(--color-border)'
             }}
           >
             {!isLoading && !error && (
               <Stack spacing={2}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--color-text)', fontSize: '0.875rem' }}>
                   Red Flag Alerts!
                 </Typography>
 
@@ -1526,24 +1514,24 @@ function NotificationsPage() {
                         px: 1.5,
                         py: 1,
                         borderRadius: 2,
-                        border: '1px solid #fecaca',
-                        backgroundColor: '#fef2f2',
+                        border: '1px solid var(--color-red-soft)',
+                        backgroundColor: 'var(--color-red-bg-light)',
                         minHeight: 'auto',
                         '& .MuiAccordionSummary-content': { m: 0 },
-                        '& .MuiAccordionSummary-expandIconWrapper': { color: '#b91c1c' }
+                        '& .MuiAccordionSummary-expandIconWrapper': { color: 'var(--color-error-dark)' }
                       }}
                     >
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <WarningIcon sx={{ color: '#b91c1c', fontSize: 22 }} />
-                          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b91c1c' }}>
+                          <WarningIcon size={22} style={{ color: 'var(--color-error-dark)' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-error-dark)' }}>
                             High flags
                           </Typography>
                         </Stack>
                         <Chip
                           size="small"
                           label={`${highFlaggedList.length} students`}
-                          sx={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}
+                          sx={{ backgroundColor: 'var(--color-red-bg)', color: 'var(--color-error-dark)', fontWeight: 600 }}
                         />
                       </Stack>
                     </AccordionSummary>
@@ -1564,19 +1552,19 @@ function NotificationsPage() {
               p: 3,
               backgroundColor: 'white',
               borderRadius: 2,
-              border: '1px solid #e2e8f0'
+              border: '1px solid var(--color-border)'
             }}
           >
             {!isLoading && error && (
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
-                <ErrorOutline color="error" fontSize="small" />
+                <ErrorOutline size={20} style={{ color: 'var(--color-error)' }} />
                 <Typography variant="body2" color="error">{error}</Typography>
               </Stack>
             )}
 
             {!isLoading && !error && (
               <Stack spacing={2}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--color-text)', fontSize: '0.875rem' }}>
                   Weekly Student Signals Breakdown
                 </Typography>
 
@@ -1587,24 +1575,24 @@ function NotificationsPage() {
                   px: 1.5,
                   py: 1,
                   borderRadius: 2,
-                  border: '1px solid #fecaca',
-                  backgroundColor: '#fef2f2',
+                  border: '1px solid var(--color-red-soft)',
+                  backgroundColor: 'var(--color-red-bg-light)',
                   minHeight: 'auto',
                   '& .MuiAccordionSummary-content': { m: 0 },
-                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#b91c1c' }
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: 'var(--color-error-dark)' }
                 }}
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <TrendingUp sx={{ color: '#b91c1c', fontSize: 22 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b91c1c' }}>
+                    <TrendingUp size={22} style={{ color: 'var(--color-error-dark)' }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-error-dark)' }}>
                       Escalated
                     </Typography>
                   </Stack>
                   <Chip
                     size="small"
                     label={`${escalatedList.length} students`}
-                    sx={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 600 }}
+                    sx={{ backgroundColor: 'var(--color-red-bg)', color: 'var(--color-error-dark)', fontWeight: 600 }}
                   />
                 </Stack>
               </AccordionSummary>
@@ -1620,24 +1608,24 @@ function NotificationsPage() {
                   px: 1.5,
                   py: 1,
                   borderRadius: 2,
-                  border: '1px solid #fde68a',
-                  backgroundColor: '#fffbeb',
+                  border: '1px solid var(--color-amber-yellow)',
+                  backgroundColor: 'var(--color-amber-warm)',
                   minHeight: 'auto',
                   '& .MuiAccordionSummary-content': { m: 0 },
-                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#b45309' }
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: 'var(--color-amber-dark)' }
                 }}
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <RemoveCircleOutline sx={{ color: '#b45309', fontSize: 22 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#b45309' }}>
+                    <RemoveCircleOutline size={22} style={{ color: 'var(--color-amber-dark)' }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-amber-dark)' }}>
                       No Change
                     </Typography>
                   </Stack>
                   <Chip
                     size="small"
                     label={`${stillOpenList.length} students`}
-                    sx={{ backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 600 }}
+                    sx={{ backgroundColor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600 }}
                   />
                 </Stack>
               </AccordionSummary>
@@ -1653,24 +1641,24 @@ function NotificationsPage() {
                   px: 1.5,
                   py: 1,
                   borderRadius: 2,
-                  border: '1px solid #bbf7d0',
-                  backgroundColor: '#f0fdf4',
+                  border: '1px solid var(--color-green-soft)',
+                  backgroundColor: 'var(--color-green-bg-light)',
                   minHeight: 'auto',
                   '& .MuiAccordionSummary-content': { m: 0 },
-                  '& .MuiAccordionSummary-expandIconWrapper': { color: '#166534' }
+                  '& .MuiAccordionSummary-expandIconWrapper': { color: 'var(--color-green-dark)' }
                 }}
               >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ width: '100%', justifyContent: 'space-between' }}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <TrendingDown sx={{ color: '#166534', fontSize: 22 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#166534' }}>
+                    <TrendingDown size={22} style={{ color: 'var(--color-green-dark)' }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'var(--color-green-dark)' }}>
                       Improved
                     </Typography>
                   </Stack>
                   <Chip
                     size="small"
                     label={`${improvedList.length} students`}
-                    sx={{ backgroundColor: '#dcfce7', color: '#166534', fontWeight: 600 }}
+                    sx={{ backgroundColor: 'var(--color-green-bg-pale)', color: 'var(--color-green-dark)', fontWeight: 600 }}
                   />
                 </Stack>
               </AccordionSummary>

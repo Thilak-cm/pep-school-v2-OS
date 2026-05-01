@@ -24,16 +24,7 @@ import {
   Autocomplete,
   Tooltip
 } from '@mui/material';
-import {
-  ExpandMore,
-  ExpandLess,
-  Group,
-  Person,
-  Search,
-  Mic,
-  Close,
-  AutoFixHigh
-} from '@mui/icons-material';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, Users as Group, User as Person, Search, Mic, X as Close, Sparkles as AutoFixHigh } from '../icons';
 import {
   collection,
   getDocs,
@@ -81,15 +72,15 @@ const buildGroupId = () => `group_${Date.now().toString(36)}_${Math.random().toS
 
 const ratingButtonStyles = (value, selected) => {
   const active = selected === value;
-  const color = LESSON_RATING_COLORS[value] || '#475569';
+  const color = LESSON_RATING_COLORS[value] || '#475569'; // hex required — downstream ${color}14 concatenation
   const wide = value === 'partial';
   return {
     variant: active ? 'contained' : 'outlined',
     sx: {
       minWidth: wide ? 40 : 40,
       borderColor: color,
-      color: active ? '#fff' : color,
-      backgroundColor: active ? color : '#fff',
+      color: active ? '#fff' : color, // #fff intentional — contrast text on dynamic colored pill
+      backgroundColor: active ? color : '#fff', // #fff intentional — light background for inactive pill needs fixed white
       fontWeight: 700,
       textTransform: 'none',
       borderRadius: 2,
@@ -951,13 +942,13 @@ function LessonNoteWizard({
       width: 12
     },
     '&::-webkit-scrollbar-track': {
-      backgroundColor: '#e5e7eb',
+      backgroundColor: 'var(--color-neutral)',
       borderRadius: 999
     },
     '&::-webkit-scrollbar-thumb': {
-      backgroundColor: '#111827',
+      backgroundColor: 'var(--color-black)',
       borderRadius: 999,
-      border: '3px solid #e5e7eb',
+      border: '3px solid var(--color-neutral)',
       boxShadow: 'inset 0 0 2px rgba(0,0,0,0.2)'
     }
   };
@@ -976,7 +967,7 @@ function LessonNoteWizard({
           py: dense ? 0.5 : 1,
           borderRadius: 1,
           opacity: isDisabled ? 0.6 : 1,
-          '&:hover': { backgroundColor: '#f8fafc' }
+          '&:hover': { backgroundColor: 'var(--color-bg)' }
         }}
       >
         <Checkbox
@@ -1020,7 +1011,7 @@ function LessonNoteWizard({
           sx={{ alignSelf: 'flex-start' }}
         />
       )}
-      <Paper id={SECTION_IDS.setup} ref={setupRef} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+      <Paper id={SECTION_IDS.setup} ref={setupRef} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--color-border)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -1091,13 +1082,13 @@ function LessonNoteWizard({
                     width: 12
                   },
                   '&::-webkit-scrollbar-track': {
-                    backgroundColor: '#e5e7eb',
+                    backgroundColor: 'var(--color-neutral)',
                     borderRadius: 999
                   },
                   '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#6366f1',
+                    backgroundColor: 'var(--color-primary-light)',
                     borderRadius: 999,
-                    border: '3px solid #e5e7eb',
+                    border: '3px solid var(--color-neutral)',
                     boxShadow: 'inset 0 0 2px rgba(0,0,0,0.2)'
                   }
                 }
@@ -1135,7 +1126,7 @@ function LessonNoteWizard({
                 label="Custom title"
                 size="small"
                 variant="outlined"
-                sx={{ fontSize: '0.75rem', color: '#64748b', borderColor: '#cbd5e1' }}
+                sx={{ fontSize: '0.75rem', color: 'var(--color-text-soft)', borderColor: 'var(--grey-300)' }}
               />
             </Box>
           )}
@@ -1175,10 +1166,10 @@ function LessonNoteWizard({
                             border: 1,
                             borderColor: 'divider',
                             bgcolor: 'action.hover',
-                            color: descriptionCleanedOnce ? '#059669' : descriptionCleaning ? '#7c3aed' : !context.lessonDescription.trim() ? 'text.disabled' : '#7c3aed'
+                            color: descriptionCleanedOnce ? 'var(--color-secondary)' : descriptionCleaning ? 'var(--color-violet-dark)' : !context.lessonDescription.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                           }}
                         >
-                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -1193,7 +1184,7 @@ function LessonNoteWizard({
                         bgcolor: 'action.hover'
                       }}
                     >
-                      <Mic fontSize="small" />
+                      <Mic size={20} />
                     </IconButton>
                   </Box>
                 </InputAdornment>
@@ -1204,7 +1195,7 @@ function LessonNoteWizard({
             <Button
               variant="text"
               onClick={handleUndoPolishDescription}
-              sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+              sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
             >
               Undo polish
             </Button>
@@ -1248,10 +1239,10 @@ function LessonNoteWizard({
                                 border: 1,
                                 borderColor: 'divider',
                                 bgcolor: 'action.hover',
-                                color: groupCommentCleanedOnce ? '#059669' : groupCommentCleaning ? '#7c3aed' : !context.groupComment.trim() ? 'text.disabled' : '#7c3aed'
+                                color: groupCommentCleanedOnce ? 'var(--color-secondary)' : groupCommentCleaning ? 'var(--color-violet-dark)' : !context.groupComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
                               }}
                             >
-                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh fontSize="small" />}
+                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -1266,7 +1257,7 @@ function LessonNoteWizard({
                             bgcolor: 'action.hover'
                           }}
                         >
-                          <Mic fontSize="small" />
+                          <Mic size={20} />
                         </IconButton>
                       </Box>
                     </InputAdornment>
@@ -1277,7 +1268,7 @@ function LessonNoteWizard({
                 <Button
                   variant="text"
                   onClick={handleUndoPolishGroupComment}
-                  sx={{ color: '#64748b', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
+                  sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, alignSelf: 'flex-start', mt: -1 }}
                 >
                   Undo polish
                 </Button>
@@ -1292,7 +1283,7 @@ function LessonNoteWizard({
             onChange={(e) => setSearchQuery(e.target.value)}
             disabled={searchDisabled}
             InputProps={{
-              startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
+              startAdornment: <Search size={20} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />
             }}
           />
 
@@ -1330,7 +1321,7 @@ function LessonNoteWizard({
                       const allSelected = inClassMembers.length > 0 && checkedCount === inClassMembers.length;
                       const partiallySelected = checkedCount > 0 && !allSelected;
                       return (
-                        <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                        <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid var(--color-border)' }}>
                           <Box
                             sx={{
                               display: 'flex',
@@ -1340,7 +1331,7 @@ function LessonNoteWizard({
                               py: 1
                             }}
                           >
-                            <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
+                            <ListItemIcon sx={{ minWidth: 32, color: 'var(--color-primary)' }}>
                               <Group />
                             </ListItemIcon>
                             <ListItemText
@@ -1428,8 +1419,8 @@ function LessonNoteWizard({
           sx={{
             p: 2,
             borderRadius: 2,
-            border: '1px solid #e2e8f0',
-            backgroundColor: setupComplete ? 'white' : '#f8fafc',
+            border: '1px solid var(--color-border)',
+            backgroundColor: setupComplete ? 'white' : 'var(--color-bg)',
             opacity: setupComplete ? 1 : 0.6
           }}
         >
@@ -1476,8 +1467,8 @@ function LessonNoteWizard({
           sx={{
             p: 2,
             borderRadius: 2,
-            border: '1px solid #e2e8f0',
-            backgroundColor: defaultsComplete ? 'white' : '#f8fafc',
+            border: '1px solid var(--color-border)',
+            backgroundColor: defaultsComplete ? 'white' : 'var(--color-bg)',
             opacity: defaultsComplete ? 1 : 0.6
           }}
         >
@@ -1496,10 +1487,10 @@ function LessonNoteWizard({
             <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5 }}>
               <Stack spacing={2}>
                 {selectedStudentEntities.map((student) => (
-                  <Paper key={student.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                  <Paper key={student.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, border: '1px solid var(--color-border)' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Person fontSize="small" sx={{ color: '#4f46e5' }} />
+                        <Person size={20} style={{ color: 'var(--color-primary)' }} />
                         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                           {getStudentDisplayName(student)}
                         </Typography>
@@ -1569,7 +1560,7 @@ function LessonNoteWizard({
                               bgcolor: 'action.hover'
                             }}
                             >
-                              <Mic fontSize="small" />
+                              <Mic size={20} />
                             </IconButton>
                           </InputAdornment>
                         )

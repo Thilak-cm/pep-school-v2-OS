@@ -18,18 +18,8 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
+import { Send, ChevronDown as ExpandMore, ChevronUp as ExpandLess, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, History } from '../icons';
 import { formatTimestamp as formatDateWithTime } from '../utils/dateFormat';
-import {
-  Send,
-  ExpandMore,
-  ExpandLess,
-  BugReport,
-  Lightbulb,
-  Brush,
-  Speed,
-  Chat,
-  History
-} from '@mui/icons-material';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { isAdminRole } from '../utils/roleUtils';

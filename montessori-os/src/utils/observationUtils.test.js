@@ -17,11 +17,11 @@ describe('getObservationTypeIcon - report type', () => {
     );
   });
 
-  it('imports Description from @mui/icons-material', async () => {
+  it('imports Description from icons barrel', async () => {
     const source = await readFile(sourceUrl, 'utf8');
     assert.ok(
-      /import\s*\{[^}]*Description[^}]*\}\s*from\s*['"]@mui\/icons-material['"]/.test(source),
-      'Expected Description to be imported from @mui/icons-material',
+      /import\s*\{[^}]*Description[^}]*\}\s*from\s*['"]\.\.\/icons['"]/.test(source),
+      'Expected Description to be imported from icons barrel',
     );
   });
 });

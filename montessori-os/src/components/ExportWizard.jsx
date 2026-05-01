@@ -15,7 +15,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { CalendarToday, Close, Download } from '@mui/icons-material';
+import { Calendar as CalendarToday, X as Close, Download } from '../icons';
 import { NOTE_KIND, filterObservationsForExport } from '../utils/export';
 
 const noteOptions = [
@@ -42,8 +42,7 @@ const buildNoteKindsArray = (selection) => {
 };
 
 const renderDateAdornment = (value, onClear, onOpenCalendar) => {
-  const iconSize = 'small';
-  const icon = value ? <Close fontSize={iconSize} /> : <CalendarToday fontSize={iconSize} />;
+  const icon = value ? <Close size={20} /> : <CalendarToday size={20} />;
 
   return (
     <InputAdornment position="end" sx={{ pr: 0.25 }}>
@@ -183,7 +182,7 @@ function ExportWizard({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Download color="secondary" />
+          <Download style={{ color: 'var(--color-secondary)' }} />
           <Typography component="div" variant="h6">{title}</Typography>
         </Box>
         <IconButton aria-label="Close dialog" onClick={onClose} size="small" edge="end">
@@ -282,7 +281,7 @@ function ExportWizard({
           </Box>
         </Box>
 
-        <Box ref={summaryRef} sx={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 2, p: 2 }}>
+        <Box ref={summaryRef} sx={{ backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 2, p: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Preview
           </Typography>

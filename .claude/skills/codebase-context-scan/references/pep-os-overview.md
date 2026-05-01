@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-04-30T00:10:28.601Z
-App version: 10.14.0
+Generated: 2026-05-01T06:18:11.757Z
+App version: 10.14.2
 
 ## App Snapshot
 
@@ -139,23 +139,23 @@ App version: 10.14.0
 
 ## Recent Changes
 
+### 10.14.2 (2026-04-30)
+- Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
+- All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
+- Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
+
+### 10.14.1 (2026-04-30)
+- Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
+- MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
+- Typography tokens: monospace and body font references now use --font-mono and --font-body tokens (PEP-183)
+
 ### 10.14.0 (2026-04-29)
 - Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
 - Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
 - Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
 
-### 10.13.0 (2026-04-29)
-- Material identification in photo analysis: VLM pipeline now identifies Montessori materials visible in classroom photos and returns them as `materialsIdentified` array (PEP-37)
-- Material chips displayed on student timeline cards, classroom timeline cards, and media preview views with amber styling distinct from curriculum area chips (PEP-37)
-- "Coach Pepper AI" branded section in media note views separates AI analysis from user input (PEP-37)
-
-### 10.12.2 (2026-04-27)
-- Interview transcript schema redesigned for turn-by-turn agent model: added `explorationAreas`, `endReason`, `durationMinutes`, `areasCovered`, `thinking`/`rationale` on exchanges, replaced `dimensionsCovered` with guideline-area-based `areasCovered` (PEP-125)
-- Question generation prototype rewritten for soul-based prompting: reads `ai_summaries/soul` + `guidelines` + baseball card instead of old profile dimensions, interactive CLI simulates turn-by-turn interview flow (PEP-125)
-- Extracted pure prompt-building and response-parsing helpers into `interview-agent-core.mjs` for testability (PEP-125)
-
-### 10.12.1 (2026-04-26)
-- Merged alt-dev refactored Cloud Functions modules into dev, placing PEP-163 test bench code into domain modules (PEP-169)
-- Test bench dispatcher uses `FRONTIER_MODEL` constant instead of hardcoded model string
-- Barrel export test uses `before()` hook instead of shared mutable state
+### 10.13.0 (2026-04-30)
+- Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
+- `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
+- Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
 

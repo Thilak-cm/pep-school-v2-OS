@@ -22,7 +22,7 @@ const TypingIndicator = () => (
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        backgroundColor: '#f7f7f8',
+        backgroundColor: 'var(--color-neutral-bg)',
         borderRadius: '16px',
         px: 2,
         py: 1.5,
@@ -36,7 +36,7 @@ const TypingIndicator = () => (
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: '#a0a0a0',
+              backgroundColor: 'var(--color-text-faint)',
               animation: `${bounce} 1.2s ease-in-out infinite`,
               animationDelay: `${i * 0.15}s`,
             }}

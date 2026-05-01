@@ -1,6 +1,17 @@
 # Changelog
 
-# 10.14.1 — 2026-04-30
+# 10.14.2 — 2026-04-30
+
+### Changed
+- Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
+- All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
+- Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
+- Lucide icons use native `style` props instead of MUI `sx` for color and spacing
+
+### Added
+- Icon barrel file (icons.js) with naming convention docs, design-spec coverage, and contribution guide (PEP-184)
+- Icon migration test suite covering barrel exports, design-spec completeness, emoji removal, MUI color token enforcement, and strokeWidth contract (PEP-184)
+- CSS `.icon-pulse` utility animation for icon loading states (PEP-184)
 
 ### Fixed
 - Test bench variant B output cutoff caused by 500px max-height constraint on OutputPanel (PEP-171)
@@ -8,7 +19,17 @@
 - Test bench save run failing due to undefined field writes in Firestore payload (PEP-171)
 - Missing Firestore composite indexes for observations, media, and testbench queries (PEP-171)
 
+# 10.14.1 — 2026-04-30
+
+### Changed
+- Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
+- MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
+- Typography tokens: monospace and body font references now use --font-mono and --font-body tokens (PEP-183)
+- Google Fonts loaded for Inter body font with preconnect hints (PEP-183)
+
 ### Added
+- Dark mode CSS var overrides prepared in [data-theme="dark"] block, not yet activated (PEP-183)
+- Design token verification test suite covering all 5 acceptance criteria (PEP-183)
 - Run history sidebar in test bench — load previously saved runs with confirmation before overwriting unsaved work (PEP-171)
 - Selected student name chip in interview question gen test bench (PEP-171)
 

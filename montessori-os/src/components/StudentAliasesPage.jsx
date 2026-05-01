@@ -23,15 +23,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import {
-  Add,
-  Edit,
-  Delete,
-  Group,
-  Search,
-  Save,
-  Close
-} from '@mui/icons-material';
+import { Plus as Add, Pencil as Edit, Trash2 as Delete, Users as Group, Search, Save, X as Close } from '../icons';
 import {
   collection,
   deleteField,
@@ -303,10 +295,10 @@ function StudentAliasesPage({ currentUser, userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+      <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid var(--color-border)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Group sx={{ color: '#4f46e5' }} />
+            <Group style={{ color: 'var(--color-primary)' }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 My Student Groups
@@ -328,7 +320,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
           .filter(Boolean)
           .map((stu) => getStudentDisplayName(stu));
         return (
-          <Paper key={alias.id} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Paper key={alias.id} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--color-border)' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
               <Box sx={{ flex: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -365,7 +357,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
       })}
 
       {aliases.length === 0 && (
-        <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+        <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid var(--color-border)', textAlign: 'center' }}>
           <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
             No groups yet
           </Typography>
@@ -453,7 +445,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
                 onChange={(e) => setFormSearch(e.target.value)}
                 disabled={!selectedClassroomId}
                 InputProps={{
-                  startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#94a3b8' }} />
+                  startAdornment: <Search size={20} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />
                 }}
               />
               <Paper
@@ -463,7 +455,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
                   maxHeight: 280,
                   overflowY: 'auto',
                   borderRadius: 2,
-                  border: '1px solid #e2e8f0'
+                  border: '1px solid var(--color-border)'
                 }}
               >
                 <List dense disablePadding>

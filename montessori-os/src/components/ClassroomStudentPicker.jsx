@@ -21,17 +21,7 @@ import {
   Stack,
   InputAdornment
 } from '@mui/material';
-import { 
-  ExpandMore, 
-  ExpandLess,
-  Person,
-  Group,
-  Edit,
-  Close,
-  CheckCircle,
-  AutoFixHigh,
-  Refresh
-} from '@mui/icons-material';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, User as Person, Users as Group, Pencil as Edit, X as Close, CircleCheck as CheckCircle, Sparkles as AutoFixHigh, RefreshCw as Refresh, Search } from '../icons';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { cleanUpText } from '../textCleanup';
@@ -554,8 +544,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             gap: 1,
             p: 1.5,
             borderRadius: 2,
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0'
+            backgroundColor: 'var(--color-bg)',
+            border: '1px solid var(--color-border)'
           }}
         >
           <CircularProgress size={18} />
@@ -569,8 +559,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
         <Box
           sx={{
             padding: 3,
-            backgroundColor: '#f0f9ff',
-            borderTop: '1px solid #e2e8f0',
+            backgroundColor: 'var(--color-blue-bg-light)',
+            borderTop: '1px solid var(--color-border)',
             borderRadius: 2
           }}
         >
@@ -587,7 +577,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
               component="h4"
               sx={{
                 margin: 0,
-                color: '#1e293b',
+                color: 'var(--color-text)',
                 fontSize: '1rem',
                 fontWeight: '600',
                 display: 'flex',
@@ -595,7 +585,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 gap: 1
               }}
             >
-              <CheckCircle sx={{ fontSize: 16 }} />
+              <CheckCircle size={16} />
               Transcription
             </Typography>
           </Box>
@@ -605,14 +595,14 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
               padding: 2,
               backgroundColor: 'white',
               borderRadius: '8px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               marginBottom: 2
             }}
           >
             {voiceLoading ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
-                <CircularProgress size={24} sx={{ color: '#059669' }} />
-                <Typography variant="body2" sx={{ color: '#0f172a', fontWeight: 600, textAlign: 'center' }}>
+                <CircularProgress size={24} sx={{ color: 'var(--color-secondary)' }} />
+                <Typography variant="body2" sx={{ color: 'var(--grey-900)', fontWeight: 600, textAlign: 'center' }}>
                   Converting speech to text...
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
@@ -636,7 +626,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             ) : (
               <Typography
                 sx={{
-                  color: '#1e293b',
+                  color: 'var(--color-text)',
                   fontSize: '0.875rem',
                   lineHeight: '1.6',
                   whiteSpace: 'pre-wrap',
@@ -665,11 +655,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                   startIcon={<Close />}
                   size="small"
                   sx={{
-                    backgroundColor: '#dc2626',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
                     textTransform: 'none',
                     '&:hover': {
-                      backgroundColor: '#b91c1c',
+                      backgroundColor: 'var(--color-error-dark)',
                     }
                   }}
                 >
@@ -684,11 +674,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                   size="small"
                   disabled={!editableVoiceText.trim()}
                   sx={{
-                    backgroundColor: editableVoiceText.trim() ? '#059669' : '#cbd5e1',
+                    backgroundColor: editableVoiceText.trim() ? 'var(--color-secondary)' : 'var(--grey-300)',
                     color: 'white',
                     textTransform: 'none',
                     '&:hover': {
-                      backgroundColor: editableVoiceText.trim() ? '#047857' : '#cbd5e1',
+                      backgroundColor: editableVoiceText.trim() ? 'var(--color-secondary-dark)' : 'var(--grey-300)',
                     }
                   }}
                 >
@@ -720,17 +710,17 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     startIcon={voiceCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
                     sx={{
                       textTransform: 'none',
-                      backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                      backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
                       color: 'white',
                       boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
                       '&:hover': {
-                        backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                        backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
                         boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
                       },
                       '&.Mui-disabled': {
                         backgroundImage: 'none',
-                        backgroundColor: '#e2e8f0',
-                        color: '#64748b',
+                        backgroundColor: 'var(--color-border)',
+                        color: 'var(--color-text-soft)',
                         boxShadow: 'none'
                       }
                     }}
@@ -741,7 +731,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     <Button 
                       variant="text" 
                       onClick={handleVoiceUndoClean} 
-                      sx={{ color: '#64748b', textTransform: 'none' }}
+                      sx={{ color: 'var(--color-text-soft)', textTransform: 'none' }}
                     >
                       Undo
                     </Button>
@@ -763,14 +753,14 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     startIcon={<Refresh />}
                     size="small"
                     sx={{
-                      borderColor: '#cbd5e1',
-                      color: '#475569',
+                      borderColor: 'var(--grey-300)',
+                      color: 'var(--grey-600)',
                       backgroundColor: 'white',
                       textTransform: 'none',
                       '&:hover': {
-                        borderColor: '#94a3b8',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
+                        borderColor: 'var(--color-text-faint)',
+                        backgroundColor: 'var(--color-bg)',
+                        color: 'var(--grey-700)',
                       }
                     }}
                   >
@@ -782,14 +772,14 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     startIcon={<Edit />}
                     size="small"
                     sx={{
-                      borderColor: '#cbd5e1',
-                      color: '#475569',
+                      borderColor: 'var(--grey-300)',
+                      color: 'var(--grey-600)',
                       backgroundColor: 'white',
                       textTransform: 'none',
                       '&:hover': {
-                        borderColor: '#94a3b8',
-                        backgroundColor: '#f8fafc',
-                        color: '#334155',
+                        borderColor: 'var(--color-text-faint)',
+                        backgroundColor: 'var(--color-bg)',
+                        color: 'var(--grey-700)',
                       }
                     }}
                   >
@@ -807,8 +797,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
         <Box
           sx={{
             padding: 3,
-            backgroundColor: '#f0f9ff',
-            borderTop: '1px solid #e2e8f0',
+            backgroundColor: 'var(--color-blue-bg-light)',
+            borderTop: '1px solid var(--color-border)',
             borderRadius: 2
           }}
         >
@@ -825,7 +815,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
               component="h4"
               sx={{
                 margin: 0,
-                color: '#1e293b',
+                color: 'var(--color-text)',
                 fontSize: '1rem',
                 fontWeight: '600',
                 display: 'flex',
@@ -833,7 +823,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 gap: 1
               }}
             >
-              <CheckCircle sx={{ fontSize: 16 }} />
+              <CheckCircle size={16} />
               Text Note
             </Typography>
           </Box>
@@ -844,7 +834,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
               padding: 2,
               backgroundColor: 'white',
               borderRadius: '8px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--color-border)',
               marginBottom: 2
             }}
           >
@@ -865,7 +855,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             ) : (
               <Typography
                 sx={{
-                  color: '#1e293b',
+                  color: 'var(--color-text)',
                   fontSize: '0.875rem',
                   lineHeight: '1.6',
                   whiteSpace: 'pre-wrap',
@@ -897,17 +887,17 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     disabled={!editableText.trim() || cleaning || cleanedOnce}
                     sx={{
                       textTransform: 'none',
-                      backgroundImage: 'linear-gradient(90deg, #7c3aed, #db2777)',
+                      backgroundImage: 'linear-gradient(90deg, var(--color-violet-dark), var(--color-pink-dark))',
                       color: 'white',
                       boxShadow: '0 6px 14px rgba(124, 58, 237, 0.35)',
                       '&:hover': {
-                        backgroundImage: 'linear-gradient(90deg, #6d28d9, #be185d)',
+                        backgroundImage: 'linear-gradient(90deg, var(--color-violet-deeper), var(--color-pink-darker))',
                         boxShadow: '0 8px 18px rgba(190, 24, 93, 0.35)'
                       },
                       '&.Mui-disabled': {
                         backgroundImage: 'none',
-                        backgroundColor: '#e2e8f0',
-                        color: '#64748b',
+                        backgroundColor: 'var(--color-border)',
+                        color: 'var(--color-text-soft)',
                         boxShadow: 'none'
                       }
                     }}
@@ -923,11 +913,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 startIcon={<Close />}
                 size="small"
                 sx={{
-                  backgroundColor: '#dc2626',
+                  backgroundColor: 'var(--color-error)',
                   color: 'white',
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: '#b91c1c',
+                    backgroundColor: 'var(--color-error-dark)',
                   }
                 }}
               >
@@ -942,11 +932,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 size="small"
                 disabled={!editableText.trim()}
                 sx={{
-                  backgroundColor: editableText.trim() ? '#059669' : '#cbd5e1',
+                  backgroundColor: editableText.trim() ? 'var(--color-secondary)' : 'var(--grey-300)',
                   color: 'white',
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: editableText.trim() ? '#047857' : '#cbd5e1',
+                    backgroundColor: editableText.trim() ? 'var(--color-secondary-dark)' : 'var(--grey-300)',
                   }
                 }}
               >
@@ -968,11 +958,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                 startIcon={<Edit />}
                 size="small"
                 sx={{
-                  backgroundColor: '#4f46e5',
+                  backgroundColor: 'var(--color-primary)',
                   color: 'white',
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: '#4338ca',
+                    backgroundColor: 'var(--color-primary-dark)',
                   }
                 }}
               >
@@ -992,15 +982,15 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             mt: 1,
             mb: 2,
             p: 2,
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--color-border)',
             borderRadius: 2,
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'var(--color-bg)',
             display: 'flex',
             flexDirection: 'column',
             gap: 1
           }}
         >
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--grey-900)' }}>
             Suggested students:
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -1023,7 +1013,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
 
       {/* Selected Students Summary — shown above quick search */}
       {selectedStudents.length > 0 && (
-        <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: '#f0f9ff', borderRadius: 2 }}>
+        <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: 'var(--color-blue-bg-light)', borderRadius: 2 }}>
           <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
             {`Selected Students (${selectedStudents.length}):`}
           </Typography>
@@ -1036,7 +1026,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                   key={id}
                   label={label}
                   onDelete={() => handleRemoveStudent(id)}
-                  deleteIcon={<Close fontSize="small" />}
+                  deleteIcon={<Close size={20} />}
                   color="primary"
                   variant="outlined"
                 />
@@ -1058,9 +1048,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <Typography variant="body2" sx={{ lineHeight: 1 }}>
-                    🔍
-                  </Typography>
+                  <Search size={18} />
                 </InputAdornment>
               ),
             }}
@@ -1133,7 +1121,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                     const partiallySelected = checkedCount > 0 && !allSelected;
                     
                     return (
-                      <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                      <Paper key={alias.id} variant="outlined" sx={{ borderRadius: 2, border: '1px solid var(--color-border)' }}>
                         <Box
                           sx={{
                             display: 'flex',
@@ -1143,7 +1131,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                             py: 1
                           }}
                         >
-                          <ListItemIcon sx={{ minWidth: 32, color: '#4f46e5' }}>
+                          <ListItemIcon sx={{ minWidth: 32, color: 'var(--color-primary)' }}>
                             <Group />
                           </ListItemIcon>
                           <ListItemText
@@ -1273,10 +1261,10 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
             mb: 1.5,
             textTransform: 'none',
             justifyContent: 'space-between',
-            borderColor: '#cbd5e1',
-            color: '#0f172a',
+            borderColor: 'var(--grey-300)',
+            color: 'var(--grey-900)',
             backgroundColor: 'white',
-            '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' },
+            '&:hover': { borderColor: 'var(--color-text-faint)', backgroundColor: 'var(--color-bg)' },
             width: '100%',
           }}
         >
@@ -1306,7 +1294,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                           dense
                           onClick={() => toggleClassroomExpansion(group.classroom.id)}
                           sx={{ 
-                            backgroundColor: '#f8fafc',
+                            backgroundColor: 'var(--color-bg)',
                             borderRadius: 1,
                             mb: isExpanded ? 1 : 0
                           }}
@@ -1371,9 +1359,9 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                             sx={{
                               fontWeight: 600,
                               fontSize: '0.85rem',
-                              color: '#64748b',
+                              color: 'var(--color-text-soft)',
                               '&::before, &::after': {
-                                borderColor: '#e2e8f0',
+                                borderColor: 'var(--color-border)',
                               },
                             }}
                           >
@@ -1390,8 +1378,8 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                           sx={{
                             fontWeight: 600,
                             fontSize: '0.85rem',
-                            color: '#64748b',
-                            '&::before, &::after': { borderColor: '#e2e8f0' },
+                            color: 'var(--color-text-soft)',
+                            '&::before, &::after': { borderColor: 'var(--color-border)' },
                           }}
                         >
                           Unassigned

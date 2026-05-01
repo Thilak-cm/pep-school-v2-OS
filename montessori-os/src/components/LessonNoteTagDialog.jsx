@@ -10,7 +10,7 @@ import {
   Dialog,
   Button,
 } from '@mui/material';
-import { Close } from '@mui/icons-material';
+import { X as Close } from '../icons';
 function LessonNoteTagDialog({
   open,
   onClose,
@@ -95,7 +95,7 @@ function LessonNoteTagDialog({
             onClick={onClose}
             sx={{ alignSelf: 'flex-start' }}
           >
-            <Close fontSize="small" />
+            <Close size={20} />
           </IconButton>
         </Box>
         <TextField
@@ -150,11 +150,11 @@ function LessonNoteTagDialog({
                       borderRadius: 1.5,
                       opacity: disabled ? 0.6 : 1,
                       cursor: disabled ? 'not-allowed' : 'pointer',
-                      backgroundColor: checked ? '#eef2ff' : 'transparent',
+                      backgroundColor: checked ? 'var(--color-indigo-bg)' : 'transparent',
                       border: '1px solid',
-                      borderColor: checked ? '#818cf8' : 'transparent',
+                      borderColor: checked ? 'var(--color-violet-accent)' : 'transparent',
                       '&:hover': {
-                        backgroundColor: checked ? '#eef2ff' : '#f8fafc',
+                        backgroundColor: checked ? 'var(--color-indigo-bg)' : 'var(--color-bg)',
                       },
                       transition: 'all 0.15s ease',
                     }}
@@ -166,15 +166,15 @@ function LessonNoteTagDialog({
                       disabled={disabled}
                       sx={{
                         p: 0.5,
-                        color: '#cbd5e1',
-                        '&.Mui-checked': { color: '#4f46e5' },
+                        color: 'var(--grey-300)',
+                        '&.Mui-checked': { color: 'var(--color-primary)' },
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleClick();
                       }}
                     />
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: 'var(--color-text)' }}>
                       {note.lessonTitle || 'Lesson Note'}
                     </Typography>
                   </Box>

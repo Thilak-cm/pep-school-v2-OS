@@ -225,7 +225,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Backdrop open={submitting} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+      <Backdrop open={submitting} sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}> {/* #fff intentional — contrast on dark backdrop overlay */}
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <CircularProgress color="inherit" size={28} />
           <Typography variant="body2" sx={{ textAlign: 'center' }}>
@@ -236,7 +236,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
       <Card>
         <CardContent>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Graduate Students</Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+          <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
             Pick a source classroom, select students, choose a destination and the last day in the current classroom. New placement starts on the next day.
           </Typography>
 
@@ -301,7 +301,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
                 />
               </Box>
 
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                 New placement start date: <strong>{newStartDate}</strong>
               </Typography>
 

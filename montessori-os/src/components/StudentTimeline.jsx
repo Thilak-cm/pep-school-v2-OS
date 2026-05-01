@@ -20,7 +20,7 @@ import {
   TextField,
   Skeleton
 } from '@mui/material';
-import { AccessTime, Delete, FilterList, Download, KeyboardVoice, MenuBook, TextFields, PhotoLibrary, Movie, InsertDriveFile, CloudUpload, ErrorOutline, PlayCircleFilled, ExpandMore, Description, ChevronLeft, ChevronRight, AutoAwesome } from '@mui/icons-material';
+import { Clock as AccessTime, Trash2 as Delete, Filter as FilterList, Download, Mic as KeyboardVoice, BookOpen as MenuBook, Type as TextFields, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, CirclePlay as PlayCircleFilled, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -997,15 +997,15 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             title="Media"
             onClick={() => setMediaDialogOpen(true)}
             sx={{
-              color: '#0f172a',
-              border: '1px solid #e2e8f0',
-              backgroundColor: '#ffffff',
+              color: 'var(--grey-900)',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-paper)',
               width: 40,
               height: 40,
               borderRadius: '50%',
               boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
               '&:hover': {
-                backgroundColor: '#f8fafc'
+                backgroundColor: 'var(--color-bg)'
               }
             }}
           >
@@ -1094,7 +1094,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Description sx={{ fontSize: 18, color: 'secondary.main' }} />
+                          <Description size={18} style={{ color: 'var(--color-secondary)' }} />
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             Report generated
                           </Typography>
@@ -1150,9 +1150,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   >
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                          👩‍🏫
-                        </span>
+                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                           {getTeacherDisplayName(obs)}
                         </Typography>
@@ -1164,7 +1162,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       )}
                       {!obs.batchId && obs.teacherComment && (
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                          💬 {obs.teacherComment}
+                          <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {obs.teacherComment}
                         </Typography>
                       )}
 
@@ -1177,11 +1175,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               label={area}
                               size="small"
                               sx={{
-                                bgcolor: '#ecfdf5',
-                                color: '#047857',
+                                bgcolor: 'var(--color-green-bg)',
+                                color: 'var(--color-secondary-dark)',
                                 fontWeight: 600,
                                 fontSize: '0.7rem',
-                                border: '1px solid #a7f3d0',
+                                border: '1px solid var(--color-green-mint)',
                                 height: 22,
                               }}
                             />
@@ -1192,11 +1190,11 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                               label={mat}
                               size="small"
                               sx={{
-                                bgcolor: '#fef3c7',
-                                color: '#92400e',
+                                bgcolor: 'var(--color-amber-bg)',
+                                color: 'var(--color-amber-text)',
                                 fontWeight: 600,
                                 fontSize: '0.7rem',
-                                border: '1px solid #fcd34d',
+                                border: '1px solid var(--color-amber-gold)',
                                 height: 22,
                               }}
                             />
@@ -1223,7 +1221,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                 height: 6,
                               },
                               '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: '#cbd5e1',
+                                backgroundColor: 'var(--grey-300)',
                                 borderRadius: 999,
                               },
                             }}
@@ -1261,9 +1259,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                       aspectRatio: '1 / 1',
                                       borderRadius: 2,
                                       overflow: 'hidden',
-                                      border: '1px solid #dbe4ee',
+                                      border: '1px solid var(--color-border-light)',
                                       position: 'relative',
-                                      backgroundColor: '#f8fafc',
+                                      backgroundColor: 'var(--color-bg)',
                                       cursor: 'pointer',
                                     }}
                                   >
@@ -1295,7 +1293,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                             justifyContent: 'center',
                                           }}
                                         >
-                                          <PlayCircleFilled sx={{ color: '#ffffff', fontSize: 34 }} />
+                                          <PlayCircleFilled size={34} style={{ color: 'var(--color-paper)' }} />
                                         </Box>
                                       </>
                                     )}
@@ -1310,17 +1308,17 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           justifyContent: 'center',
                                           flexDirection: 'column',
                                           gap: 0.5,
-                                          backgroundColor: isFailed ? '#fee2e2' : '#f1f5f9',
+                                          backgroundColor: isFailed ? 'var(--color-red-bg)' : 'var(--color-surface)',
                                         }}
                                       >
                                         {isFailed ? (
-                                          <ErrorOutline color="error" />
+                                          <ErrorOutline style={{ color: 'var(--color-error)' }} />
                                         ) : isPending ? (
                                           <CircularProgress size={18} thickness={5} />
                                         ) : isVideo ? (
-                                          <Movie color="primary" />
+                                          <Movie style={{ color: 'var(--color-primary)' }} />
                                         ) : (
-                                          <PhotoLibrary color="primary" />
+                                          <PhotoLibrary style={{ color: 'var(--color-primary)' }} />
                                         )}
                                         <Typography
                                           variant="caption"
@@ -1338,7 +1336,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           size="small"
                                           label="Pending"
                                           color="warning"
-                                          icon={<CloudUpload sx={{ fontSize: 14 }} />}
+                                          icon={<CloudUpload size={14} />}
                                         />
                                       )}
                                       {item.status === 'failed' && (
@@ -1346,7 +1344,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                           size="small"
                                           label="Failed"
                                           color="error"
-                                          icon={<ErrorOutline sx={{ fontSize: 14 }} />}
+                                          icon={<ErrorOutline size={14} />}
                                         />
                                       )}
                                     </Box>
@@ -1363,7 +1361,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                                         mt: 0.5,
                                       }}
                                     >
-                                      💬 {item.teacherComment}
+                                      <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {item.teacherComment}
                                     </Typography>
                                   )}
                                 </Box>
@@ -1391,7 +1389,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       )}
 
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1410,7 +1408,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     aria-label={`View details for lesson note from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
                   >
                     <Chip
-                      icon={<MenuBook sx={{ fontSize: 16 }} />}
+                      icon={<MenuBook size={16} />}
                       label="Lesson Note"
                       size="small"
                       variant="outlined"
@@ -1419,15 +1417,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         top: 8,
                         right: 8,
                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        borderColor: '#e2e8f0',
-                        '& .MuiChip-icon': { color: '#0f172a' }
+                        borderColor: 'var(--color-border)',
+                        '& .MuiChip-icon': { color: 'var(--grey-900)' }
                       }}
                     />
                     <CardContent sx={{ p: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                          👩‍🏫
-                        </span>
+                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                           {getTeacherDisplayName(obs)}
                         </Typography>
@@ -1441,7 +1437,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         </Typography>
                       )}
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                         <Typography variant="caption" color="text.secondary">
                           {formatTimestamp(obs.observedAt || obs.timestamp)}
                         </Typography>
@@ -1460,8 +1456,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 >
                   <Chip
                     icon={obs.type === 'voice'
-                      ? <KeyboardVoice sx={{ fontSize: 16 }} />
-                      : <TextFields sx={{ fontSize: 16 }} />}
+                      ? <KeyboardVoice size={16} />
+                      : <TextFields size={16} />}
                     label="Observation"
                     size="small"
                     variant="outlined"
@@ -1470,15 +1466,13 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       top: 8,
                       right: 8,
                       backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      borderColor: '#e2e8f0',
-                      '& .MuiChip-icon': { color: '#0f172a' }
+                      borderColor: 'var(--color-border)',
+                      '& .MuiChip-icon': { color: 'var(--grey-900)' }
                     }}
                   />
                   <CardContent sx={{ p: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                      <span role="img" aria-label="teacher" style={{ fontSize: '16px' }}>
-                        👩‍🏫
-                      </span>
+                      <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
                       <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                         {getTeacherDisplayName(obs)}
                       </Typography>
@@ -1503,7 +1497,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(obs.observedAt || obs.timestamp)}
                       </Typography>
@@ -1626,10 +1620,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             const docs = sortedMedia.filter((obs) => (obs.mediaKind || '').toLowerCase() === 'pdf');
             const renderStatusChip = (obs) => {
               if (obs.status === 'pending_upload') {
-                return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload sx={{ fontSize: 16 }} />} />;
+                return <Chip size="small" label="Pending" color="warning" icon={<CloudUpload size={16} />} />;
               }
               if (obs.status === 'failed') {
-                return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline sx={{ fontSize: 16 }} />} />;
+                return <Chip size="small" label="Failed" color="error" icon={<ErrorOutline size={16} />} />;
               }
               return null;
             };
@@ -1660,7 +1654,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         }}
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <InsertDriveFile color="primary" />
+                          <InsertDriveFile style={{ color: 'var(--color-primary)' }} />
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                               {obs.pdfTitle || 'PDF'}
@@ -1723,7 +1717,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         position: 'relative',
                         borderRadius: 2,
                         overflow: 'hidden',
-                        backgroundColor: '#f8fafc',
+                        backgroundColor: 'var(--color-bg)',
                         aspectRatio: '1 / 1'
                       }}
                     >
@@ -1738,7 +1732,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         )}
                         {isReady && obs.mediaKind === 'video' && (
                           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Movie color="primary" />
+                            <Movie style={{ color: 'var(--color-primary)' }} />
                           </Box>
                         )}
                         {isPending && (
@@ -1762,7 +1756,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                         )}
                         {isFailed && (
                           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1 }}>
-                            <ErrorOutline color="error" />
+                            <ErrorOutline style={{ color: 'var(--color-error)' }} />
                             <Typography variant="caption" color="error">Upload failed</Typography>
                           </Box>
                         )}
@@ -1812,8 +1806,8 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 mt: 2,
                 pt: 2,
                 pb: 1,
-                backgroundColor: '#ffffff',
-                borderTop: '1px solid #e2e8f0',
+                backgroundColor: 'var(--color-paper)',
+                borderTop: '1px solid var(--color-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -1971,20 +1965,20 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten || (Array.isArray(mediaPreview.observation.materialsIdentified) && mediaPreview.observation.materialsIdentified.length > 0)) && (() => {
             const obs = mediaPreview.observation;
             return (
-              <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', p: 1.5 }}>
-                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                  <AutoAwesome sx={{ fontSize: 12 }} />
+              <Box sx={{ bgcolor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', p: 1.5 }}>
+                <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                  <AutoAwesome size={12} />
                   Coach Pepper AI
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
                   {obs.curriculumArea && (
-                    <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: '#ecfdf5', color: '#047857', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #a7f3d0', height: 24 }} />
+                    <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-green-mint)', height: 24 }} />
                   )}
                   {obs.handwritten && (
-                    <Chip label="Handwritten" size="small" sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #bfdbfe', height: 24 }} />
+                    <Chip label="Handwritten" size="small" sx={{ bgcolor: 'var(--color-blue-bg)', color: 'var(--color-indigo-dark)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-blue-soft-bg)', height: 24 }} />
                   )}
                   {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                    <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: '#fef3c7', color: '#92400e', fontWeight: 600, fontSize: '0.72rem', border: '1px solid #fcd34d', height: 24 }} />
+                    <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-amber-gold)', height: 24 }} />
                   ))}
                 </Box>
               </Box>
@@ -2004,7 +1998,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           ) : (
             <Typography variant="body2" color="text.secondary">
               {mediaPreview?.observation?.teacherComment
-                ? `💬 ${mediaPreview.observation.teacherComment}`
+                ? <><MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {mediaPreview.observation.teacherComment}</>
                 : 'No comment added.'}
             </Typography>
           )}
@@ -2014,7 +2008,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             </Typography>
           )}
           {previewActionExpired && (
-            <Typography variant="body2" sx={{ color: '#92400e', fontStyle: 'italic' }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic' }}>
               {AUTHOR_ACTION_EXPIRED_MESSAGE}
             </Typography>
           )}
@@ -2138,10 +2132,10 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           {selectedObservation && selectedObservation.type !== 'media' && (
             <Typography variant="body2" color="text.secondary" sx={{ 
               fontStyle: 'italic',
-              backgroundColor: '#f8fafc',
+              backgroundColor: 'var(--color-bg)',
               padding: 2,
               borderRadius: 2,
-              border: '1px solid #e2e8f0'
+              border: '1px solid var(--color-border)'
             }}>
               "{selectedObservation.text?.substring(0, 100)}{selectedObservation.text?.length > 100 ? '...' : ''}"
             </Typography>

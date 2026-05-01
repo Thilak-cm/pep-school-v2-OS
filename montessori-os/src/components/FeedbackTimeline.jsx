@@ -23,24 +23,8 @@ import {
   TextField as MuiTextField,
   Collapse
 } from '@mui/material';
+import { Search, Filter as FilterList, Pencil as Edit, Save, XCircle as Cancel, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, User as Person, Clock as AccessTime, ShieldCheck as AdminPanelSettings, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { formatTimestamp as formatDateWithTime } from '../utils/dateFormat';
-import { 
-  Search, 
-  FilterList, 
-  Edit, 
-  Save, 
-  Cancel,
-  BugReport,
-  Lightbulb,
-  Brush,
-  Speed,
-  Chat,
-  Person,
-  AccessTime,
-  AdminPanelSettings,
-  ExpandMore,
-  ExpandLess
-} from '@mui/icons-material';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fuzzySearchFeedback } from '../utils/fuzzySearch';
@@ -276,7 +260,7 @@ function FeedbackTimeline({ currentUser, userRole }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
-                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                startAdornment: <Search style={{ marginRight: 8, color: 'var(--color-text-soft)' }} />
               }}
             />
             
@@ -452,11 +436,11 @@ function FeedbackTimeline({ currentUser, userRole }) {
                           
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.875rem', color: 'text.secondary' }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Person sx={{ fontSize: 16 }} />
+                              <Person size={16} />
                               {feedback.userDisplayName || feedback.userEmail}
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <AccessTime sx={{ fontSize: 16 }} />
+                              <AccessTime size={16} />
                               {formatTimestamp(feedback.timestamp)}
                             </Box>
                           </Box>
@@ -533,9 +517,9 @@ function FeedbackTimeline({ currentUser, userRole }) {
                 </Typography>
                 <Typography variant="body1" sx={{ 
                   p: 2, 
-                  backgroundColor: '#f8fafc', 
+                  backgroundColor: 'var(--color-bg)', 
                   borderRadius: 2, 
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--color-border)',
                   lineHeight: 1.6
                 }}>
                   {selectedFeedback.message}
@@ -622,9 +606,9 @@ function FeedbackTimeline({ currentUser, userRole }) {
                         <Typography variant="body2" color="text.secondary">Admin Notes:</Typography>
                         <Typography variant="body1" sx={{ 
                           p: 2, 
-                          backgroundColor: '#f8fafc', 
+                          backgroundColor: 'var(--color-bg)', 
                           borderRadius: 2, 
-                          border: '1px solid #e2e8f0',
+                          border: '1px solid var(--color-border)',
                           fontStyle: 'italic'
                         }}>
                           {selectedFeedback.adminNotes}

@@ -13,7 +13,7 @@ import {
   Button,
   Collapse,
 } from '@mui/material';
-import { School, Group, ArrowForward, Search, Person, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, Search, User as Person, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -30,8 +30,8 @@ const PROGRAM_LABELS = {
 const SECTION_DIVIDER_SX = {
   fontWeight: 600,
   fontSize: '0.85rem',
-  color: '#64748b',
-  '&::before, &::after': { borderColor: '#e2e8f0' },
+  color: 'var(--color-text-soft)',
+  '&::before, &::after': { borderColor: 'var(--color-border)' },
 };
 
 const getProgramLabel = (programId) => {
@@ -516,22 +516,22 @@ const handleStudentClick = (student) => {
           <CardContent sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: '#4f46e5', width: 48, height: 48 }}>
+                <Avatar sx={{ bgcolor: 'var(--color-primary)', width: 48, height: 48 }}>
                   <School />
                 </Avatar>
                 <Box>
-                  <Typography variant="h6" component="h3" sx={{ color: '#1e293b', fontWeight: 600 }}>
+                  <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
                     {classroom.name || 'Untitled classroom'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                    <Group sx={{ fontSize: 16, color: '#64748b' }} />
-                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                    <Group size={16} style={{ color: 'var(--color-text-soft)' }} />
+                    <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                       {studentTotal} students
                     </Typography>
                   </Box>
                 </Box>
               </Box>
-              <ArrowForward sx={{ color: '#94a3b8' }} />
+              <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
             </Box>
             <Button
               size="small"
@@ -614,7 +614,7 @@ const handleStudentClick = (student) => {
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Search fontSize="small" />
+              <Search size={20} />
             </InputAdornment>
           ),
         }}
@@ -692,14 +692,14 @@ const handleStudentClick = (student) => {
             <Card sx={{ 
               p: 4, 
               textAlign: 'center',
-              backgroundColor: '#f8fafc',
-              border: '2px dashed #cbd5e1'
+              backgroundColor: 'var(--color-bg)',
+              border: '2px dashed var(--grey-300)'
             }}>
-              <School sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
-              <Typography variant="h6" sx={{ color: '#475569', mb: 1 }}>
+              <School size={48} style={{ color: 'var(--color-text-faint)', marginBottom: 16 }} />
+              <Typography variant="h6" sx={{ color: 'var(--grey-600)', mb: 1 }}>
                 {userRole === 'teacher' ? 'No classrooms assigned' : 'No classrooms found'}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
+              <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                 {userRole === 'teacher' 
                   ? 'Contact your administrator to get assigned to classrooms.'
                   : 'No classrooms have been created yet.'
@@ -732,8 +732,8 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
     <Card
       sx={{
         cursor: 'pointer',
-        backgroundColor: '#f8fafc',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'var(--color-bg)',
+        border: '1px solid var(--color-border)',
         width: '100%',
         minHeight: compact ? 68 : 88,
         '&:hover': {
@@ -748,7 +748,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
       <CardContent sx={{ p: compact ? 1.75 : 2.5 }}>
         {/* Student Name - Prominent */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person sx={{ fontSize: compact ? 14 : 16, color: 'primary.main' }} />
+          <Person size={compact ? 14 : 16} style={{ color: 'var(--color-primary)' }} />
           <Typography 
             variant="subtitle2" 
             sx={{ 
@@ -764,7 +764,7 @@ function StudentCard({ student, classroomName, onClick, compact = false }) {
         {/* Classroom */}
         {classroomName && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <School sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <School size={14} style={{ color: 'var(--color-text-soft)' }} />
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
               {classroomName}
             </Typography>

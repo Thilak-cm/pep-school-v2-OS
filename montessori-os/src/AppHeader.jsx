@@ -5,9 +5,7 @@ import {
   Box,
   Container
 } from "@mui/material";
-import { 
-  ArrowBack
-} from "@mui/icons-material";
+import { ArrowLeft as ArrowBack } from './icons';
 
 function AppHeader({ title = '', onBack, showBackButton = false }) {
   return (
@@ -24,7 +22,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
           overflowX: 'hidden',
           zIndex: 1100,
           backgroundColor: 'white',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid var(--color-border)',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
           '@media (max-width: 599px)': {
             '@supports (padding: env(safe-area-inset-top))': {
@@ -39,7 +37,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
             left: 0,
             right: 0,
             height: '2px',
-            backgroundColor: '#4f46e5',
+            backgroundColor: 'var(--color-primary)',
             opacity: 0.3,
           }
         }}
@@ -58,7 +56,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
                 <IconButton
                   onClick={onBack}
                   sx={{
-                    color: '#64748b',
+                    color: 'var(--color-text-soft)',
                     '&:hover': {
                       backgroundColor: 'rgba(100, 116, 139, 0.08)'
                     }
@@ -74,7 +72,7 @@ function AppHeader({ title = '', onBack, showBackButton = false }) {
               variant="h6"
               component="h1"
               sx={{
-                color: '#1e293b',
+                color: 'var(--color-text)',
                 fontWeight: 600,
                 textAlign: 'center',
                 justifySelf: 'center',

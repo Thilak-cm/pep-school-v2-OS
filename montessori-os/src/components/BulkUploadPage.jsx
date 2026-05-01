@@ -27,16 +27,7 @@ import {
   Tooltip,
   Paper,
 } from '@mui/material';
-import {
-  CloudUpload,
-  CheckCircle,
-  Warning,
-  Error as ErrorIcon,
-  Edit,
-  Check,
-  Close,
-  DoneAll,
-} from '@mui/icons-material';
+import { Upload as CloudUpload, CircleCheck as CheckCircle, TriangleAlert as Warning, CircleAlert as ErrorIcon, Pencil as Edit, Check, X as Close, CheckCheck as DoneAll } from '../icons';
 import {
   collection,
   doc,
@@ -663,6 +654,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             <Typography variant="h6">Review & Upload</Typography>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {/* hex required — StatBox uses hex-alpha concatenation (color + '12') */}
               <StatBox label="Rows to upload" value={reviewRows.length} color="#2196f3" />
               <StatBox label="Matched students" value={matchResults.filter((m) => m.accepted).length} color="#4caf50" />
               <StatBox label="Skipped (rejected)" value={matchResults.filter((m) => m.rejected).length} color="#9e9e9e" />
@@ -712,9 +704,9 @@ export default function BulkUploadPage({ currentUser, userRole }) {
           <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {results.failed === 0 ? (
-                <CheckCircle color="success" sx={{ fontSize: 32 }} />
+                <CheckCircle style={{ color: 'var(--color-success)' }} size={32} />
               ) : (
-                <Warning color="warning" sx={{ fontSize: 32 }} />
+                <Warning style={{ color: 'var(--color-warning)' }} size={32} />
               )}
               <Typography variant="h6">
                 {results.failed === 0 ? 'Upload Complete' : 'Upload Partially Complete'}
@@ -722,6 +714,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {/* hex required — StatBox uses hex-alpha concatenation (color + '12') */}
               <StatBox label="Imported" value={results.imported} color="#4caf50" />
               {results.failed > 0 && <StatBox label="Failed" value={results.failed} color="#f44336" />}
               {results.duplicatesAllowed > 0 && (
