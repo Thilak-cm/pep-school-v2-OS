@@ -54,7 +54,17 @@ export default function LineChart({
             axisLine={false}
             tickLine={false}
           />
-          {showTooltip && <Tooltip />}
+          {showTooltip && (
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'var(--color-paper)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 12,
+              }}
+            />
+          )}
           {lines.map((line) => (
             <Line
               key={line.key}

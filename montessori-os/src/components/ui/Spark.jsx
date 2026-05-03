@@ -1,6 +1,6 @@
 import { Box } from '@mui/material';
 import {
-  BarChart,
+  BarChart as RBarChart,
   Bar,
   ResponsiveContainer,
 } from 'recharts';
@@ -28,14 +28,14 @@ export default function Spark({
   return (
     <Box sx={{ height, width, minWidth: 0, ...sx }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <RBarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <Bar
             dataKey="value"
             fill={color || '#4f46e5' /* Recharts — hex required */}
             radius={[1, 1, 0, 0]}
             barSize={4}
           />
-        </BarChart>
+        </RBarChart>
       </ResponsiveContainer>
     </Box>
   );

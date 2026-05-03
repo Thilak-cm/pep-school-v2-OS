@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const EXEMPT_MARKERS = ['Recharts', 'hex required', 'hex-alpha'];
 
 function readUiFile(name) {
   return readFileSync(join(__dirname, name), 'utf-8');
@@ -97,10 +98,8 @@ describe('AC3: No raw hex in ui primitives', () => {
     '#f59e0b', '#6366f1', '#4338ca', '#10b981', '#047857',
     '#3b82f6', '#f1f5f9', '#ef4444', '#b91c1c', '#fbbf24',
     '#d97706', '#60a5fa', '#2563eb', '#334155', '#cbd5e1',
-    '#8b5cf6',
+    '#8b5cf6', '#0ea5e9', '#f0f0f0',
   ];
-
-  const EXEMPT_MARKERS = ['Recharts', 'hex required', 'hex-alpha'];
 
   it('no TARGET_HEXES in ui/*.jsx files (Recharts exempt)', () => {
     const violations = [];
@@ -149,7 +148,7 @@ describe('AC4: Colors via CSS custom properties', () => {
     it(`${file} uses no raw hex colors`, () => {
       const content = readUiFile(file);
       const lines = content.split('\n');
-      const hexLines = lines.filter((line, i) => {
+      const hexLines = lines.filter((line) => {
         // Match #xxx or #xxxxxx hex color patterns (not in comments or imports)
         if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) return false;
         if (line.includes('import ')) return false;
@@ -159,6 +158,22 @@ describe('AC4: Colors via CSS custom properties', () => {
         hexLines.map(l => l.trim()),
         [],
         `${file} contains raw hex colors — use var(--*) tokens instead`
+      );
+    });
+
+    it(`${file} uses no hardcoded rgba() colors`, () => {
+      const content = readUiFile(file);
+      const lines = content.split('\n');
+      const rgbaLines = lines.filter((line) => {
+        if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) return false;
+        if (line.includes('import ')) return false;
+        if (EXEMPT_MARKERS.some((m) => line.includes(m))) return false;
+        return /rgba\([^)]+\)/.test(line);
+      });
+      assert.deepStrictEqual(
+        rgbaLines.map(l => l.trim()),
+        [],
+        `${file} contains hardcoded rgba() — use var(--*) tokens or color-mix() instead`
       );
     });
   }

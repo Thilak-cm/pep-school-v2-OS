@@ -12,16 +12,18 @@ import useSwipeTabs from '../../hooks/useSwipeTabs';
  * }} props
  */
 export default function HFTabs({ tabs, value, onChange, sx }) {
-  const currentIndex = tabs.findIndex((t) => (t.value ?? tabs.indexOf(t)) === value);
+  const currentIndex = tabs.findIndex((t, i) => (t.value ?? i) === value);
 
   const { containerRef } = useSwipeTabs({
     onSwipeLeft: () => {
+      if (currentIndex < 0) return;
       if (currentIndex < tabs.length - 1) {
         const next = tabs[currentIndex + 1];
         onChange(next.value ?? currentIndex + 1);
       }
     },
     onSwipeRight: () => {
+      if (currentIndex < 0) return;
       if (currentIndex > 0) {
         const prev = tabs[currentIndex - 1];
         onChange(prev.value ?? currentIndex - 1);
@@ -58,7 +60,7 @@ export default function HFTabs({ tabs, value, onChange, sx }) {
             key={tab.value ?? i}
             value={tab.value ?? i}
             label={tab.label}
-            icon={tab.icon || undefined}
+            icon={tab.icon}
             iconPosition="start"
           />
         ))}

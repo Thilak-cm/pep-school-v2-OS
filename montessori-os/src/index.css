@@ -172,6 +172,22 @@
   --grey-800: #f5f0e8;
   --grey-900: #faf7f2;
 
+  /* ── Tone backgrounds (dark-safe low-opacity tints) ── */
+  --color-indigo-bg: rgba(79, 70, 229, 0.15);
+  --color-green-bg: rgba(5, 150, 105, 0.15);
+  --color-amber-bg: rgba(245, 158, 11, 0.15);
+  --color-red-bg: rgba(220, 38, 38, 0.15);
+  --color-blue-bg: rgba(14, 165, 233, 0.15);
+  --color-violet-bg: rgba(139, 92, 246, 0.15);
+
+  /* ── Tone borders (dark-safe soft accents) ── */
+  --color-indigo-soft: rgba(165, 180, 252, 0.3);
+  --color-green-mint: rgba(167, 243, 208, 0.3);
+  --color-amber-yellow: rgba(253, 230, 138, 0.3);
+  --color-red-soft: rgba(254, 202, 202, 0.3);
+  --color-blue-soft: rgba(147, 197, 253, 0.3);
+  --color-violet-soft: rgba(196, 181, 253, 0.3);
+
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);

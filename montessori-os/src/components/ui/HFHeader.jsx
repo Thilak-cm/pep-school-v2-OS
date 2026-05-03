@@ -31,7 +31,7 @@ export default function HFHeader({ title, onBack, actions, sx }) {
             aria-label="Go back"
             sx={{
               color: 'var(--color-text-soft)',
-              '&:hover': { backgroundColor: 'rgba(100, 116, 139, 0.08)' },
+              '&:hover': { backgroundColor: 'color-mix(in srgb, var(--color-text-soft) 8%, transparent)' },
             }}
           >
             <ArrowLeft size={20} />

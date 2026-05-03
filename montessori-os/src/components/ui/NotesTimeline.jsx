@@ -1,6 +1,6 @@
 import { Box } from '@mui/material';
 import {
-  LineChart,
+  LineChart as RLineChart,
   Line,
   XAxis,
   YAxis,
@@ -31,7 +31,7 @@ export default function NotesTimeline({
   return (
     <Box sx={{ height, width: '100%', minWidth: 0, ...sx }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+        <RLineChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
           <XAxis
             dataKey="week"
             tick={{ fontSize: 9, fill: '#94a3b8' /* Recharts — hex required */ }}
@@ -47,7 +47,7 @@ export default function NotesTimeline({
             strokeWidth={2}
             dot={{ r: 2.5, fill: strokeColor /* Recharts — hex required */ }}
           />
-        </LineChart>
+        </RLineChart>
       </ResponsiveContainer>
     </Box>
   );

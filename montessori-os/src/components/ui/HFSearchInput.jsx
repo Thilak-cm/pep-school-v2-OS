@@ -20,7 +20,7 @@ export default function HFSearchInput({ value, onChange, placeholder = 'Search',
         border: '1px solid var(--color-border)',
         '&:focus-within': {
           borderColor: 'var(--color-primary)',
-          boxShadow: '0 0 0 2px rgba(79, 70, 229, 0.1)',
+          boxShadow: '0 0 0 2px color-mix(in srgb, var(--color-primary) 10%, transparent)',
         },
         transition: 'border-color 0.2s, box-shadow 0.2s',
         ...sx,

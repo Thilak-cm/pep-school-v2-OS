@@ -54,7 +54,17 @@ export default function BarChart({
             axisLine={false}
             tickLine={false}
           />
-          {showTooltip && <Tooltip />}
+          {showTooltip && (
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'var(--color-paper)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 12,
+              }}
+            />
+          )}
           {bars.map((bar) => (
             <Bar
               key={bar.key}
