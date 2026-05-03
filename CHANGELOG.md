@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.14.3 — 2026-05-03
+
+### Added
+- Shared UI primitive component kit with 16 reusable components in components/ui/ (PEP-185)
+- Layout primitives: HFHeader, HFTabs, HFSegmented, DayHeader
+- Data display: Avatar, KidAvatar, MiniTangram, Chip (7 tone variants)
+- Forms & controls: HFSearchInput, HFFilterChip, HFRangeBar
+- Charts (Recharts-based): LineChart, BarChart, Donut, NotesTimeline, Spark
+- Barrel index for clean imports from components/ui (PEP-185)
+- Static analysis tests for token compliance, barrel completeness, and rgba enforcement (PEP-185)
+- Dark-mode overrides for tone-background and tone-border tokens in index.css (PEP-185)
+
 # 10.14.2 — 2026-04-30
 
 ### Changed
