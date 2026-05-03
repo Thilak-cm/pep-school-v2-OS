@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-01T06:18:11.757Z
-App version: 10.14.2
+Generated: 2026-05-03T23:03:39.709Z
+App version: 10.14.3
 
 ## App Snapshot
 
@@ -139,6 +139,11 @@ App version: 10.14.2
 
 ## Recent Changes
 
+### 10.14.3 (2026-05-03)
+- Shared UI primitive component kit with 16 reusable components in components/ui/ (PEP-185)
+- Layout primitives: HFHeader, HFTabs, HFSegmented, DayHeader
+- Data display: Avatar, KidAvatar, MiniTangram, Chip (7 tone variants)
+
 ### 10.14.2 (2026-04-30)
 - Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
 - All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
@@ -153,9 +158,4 @@ App version: 10.14.2
 - Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
 - Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
 - Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
-
-### 10.13.0 (2026-04-30)
-- Turn-by-turn interview question gen surface in test bench — simulate multi-turn interview sessions and compare question generation across prompt variants side-by-side (PEP-172)
-- `testBenchInterviewTurn` Cloud Function helper for stateless per-turn interview calls with template-based prompt assembly (PEP-172)
-- Chat-style conversation UI with exploration areas, thinking bubbles, and inline teacher response input (PEP-172)
 
