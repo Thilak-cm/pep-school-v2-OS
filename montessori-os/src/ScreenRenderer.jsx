@@ -45,6 +45,7 @@ export default function ScreenRenderer({ screen, ctx }) {
           onViewClassrooms={() => ctx.setScreen("classroomList")}
           onSelectClassroom={(cls) => {
             ctx.setSelectedClassroom(cls);
+            ctx.setClassroomTimelineReturnScreen("landingPage");
             ctx.setScreen("classroomTimeline");
           }}
           userRole={ctx.role}
@@ -68,6 +69,7 @@ export default function ScreenRenderer({ screen, ctx }) {
             classrooms={ctx.classrooms}
             onSelectClassroom={(cls) => {
               ctx.setSelectedClassroom(cls);
+              ctx.setClassroomTimelineReturnScreen("classroomList");
               ctx.setScreen("classroomTimeline");
             }}
             currentUser={ctx.user}

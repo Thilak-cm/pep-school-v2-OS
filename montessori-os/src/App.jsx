@@ -38,6 +38,7 @@ function App() {
     selectedClassroom, setSelectedClassroom,
     selectedStudent, setSelectedStudent,
     usersAccessView, setUsersAccessView,
+    classroomTimelineReturnScreen, setClassroomTimelineReturnScreen,
     studentDashboardReturnScreen, setStudentDashboardReturnScreen,
     studentDashboardNoteType, setStudentDashboardNoteType,
     timelineFilter, setTimelineFilter,
@@ -267,7 +268,7 @@ function App() {
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
-  const backNavigation = getBackNavigation(screen, { studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
+  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
   const showHeader = !loading && user && screen !== 'accessDenied' && screen !== 'landingPage';
   const showFooter = !loading && user && screen !== 'accessDenied';
@@ -279,7 +280,7 @@ function App() {
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
-    setScreen, setSelectedClassroom, setSelectedStudent, setStudentDashboardReturnScreen,
+    setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId,
     setLessonNoteEditObservation,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
