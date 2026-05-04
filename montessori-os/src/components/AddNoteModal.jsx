@@ -304,12 +304,13 @@ function AddNoteModal({
   open,
   onClose,
   initialStudents = [],
+  initialStep = STEP_NOTE_TYPE,
   currentUser,
   userRole,
   onOpenLessonNotePage
 }) {
   const notify = useNotify();
-  const [step, setStep] = useState(STEP_NOTE_TYPE);
+  const [step, setStep] = useState(initialStep);
   const [transcriptionData, setTranscriptionData] = useState(null);
   const [textData, setTextData] = useState(null);
   const [voiceTranscribing, setVoiceTranscribing] = useState(false);
@@ -679,6 +680,16 @@ function AddNoteModal({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const voiceControlsRef = useRef(null); // controls exposed by VoiceRecorder
   // no confirm-level voice notice; message shown inline in VoiceRecorder panel only
+
+  // When modal opens, set step to initialStep (allows FAB to skip type selection)
+  useEffect(() => {
+    if (open) {
+      setStep(initialStep);
+      if (initialStep === STEP_MEDIA) {
+        setMediaMode('photo');
+      }
+    }
+  }, [open, initialStep]);
 
   // Update selectedStudents when initialStudents prop changes
   useEffect(() => {

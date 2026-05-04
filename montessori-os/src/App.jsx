@@ -29,6 +29,7 @@ function App() {
   const [manageableClassrooms, setManageableClassrooms] = useState([]);
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
+  const [addNoteInitialStep, setAddNoteInitialStep] = useState('noteType');
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
 
   const {
@@ -277,7 +278,9 @@ function App() {
 
                 {!FAB_HIDDEN_SCREENS.has(screen) && (
                   <AddNoteFab
-                    onClick={() => setAddNoteOpen(true)}
+                    onVoice={() => { setAddNoteInitialStep('record'); setAddNoteOpen(true); }}
+                    onLesson={() => openLessonNotesScreen()}
+                    onMedia={() => { setAddNoteInitialStep('media'); setAddNoteOpen(true); }}
                     sx={{
                       bottom: { xs: 80, sm: 80 },
                       '@media (max-width: 599px)': { '@supports (padding: env(safe-area-inset-bottom))': { bottom: 'calc(80px + env(safe-area-inset-bottom))' } }
@@ -286,7 +289,8 @@ function App() {
                 )}
                 <AddNoteModal
                   open={addNoteOpen}
-                  onClose={() => setAddNoteOpen(false)}
+                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('noteType'); }}
+                  initialStep={addNoteInitialStep}
                   initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentStats' || screen === 'studentReports') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}

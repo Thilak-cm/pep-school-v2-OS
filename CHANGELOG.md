@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.15.0 — 2026-05-03
+
+### Added
+- Expanding card menu on FAB with 3 note types: Voice, Lesson, Media (PEP-189)
+- Scale-from-FAB animation with spring easing and scrim overlay
+- Direct note-type routing: Voice/Media skip type picker, Lesson opens as page
+
+### Changed
+- FAB no longer opens type picker modal directly; menu provides direct access to each note type
+
 # 10.14.3 — 2026-05-03
 
 ### Added
