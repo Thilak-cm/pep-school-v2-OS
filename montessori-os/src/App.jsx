@@ -5,7 +5,7 @@ import SignIn from "./SignIn";
 import AppHeader from "./AppHeader";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -31,12 +31,15 @@ function App() {
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('noteType');
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
+  const [classrooms, setClassrooms] = useState([]);
+  const [classroomsLoaded, setClassroomsLoaded] = useState(false);
 
   const {
     screen, setScreen,
     selectedClassroom, setSelectedClassroom,
     selectedStudent, setSelectedStudent,
     usersAccessView, setUsersAccessView,
+    classroomTimelineReturnScreen, setClassroomTimelineReturnScreen,
     studentDashboardReturnScreen, setStudentDashboardReturnScreen,
     studentDashboardNoteType, setStudentDashboardNoteType,
     timelineFilter, setTimelineFilter,
@@ -205,23 +208,83 @@ function App() {
     validateAccess();
   }, [user]);
 
+  // ── Fetch classrooms once after login (shared by LandingPage + ClassroomList) ──
+  useEffect(() => {
+    if (!user || !role) { setClassrooms([]); setClassroomsLoaded(false); return; }
+
+    const CACHE_KEY = `pep-classrooms:${role}:${user.uid}:${manageableClassrooms.slice().sort().join('|') || 'all'}`;
+    const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+    // Try cache first
+    try {
+      const raw = window.localStorage?.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.timestamp && Date.now() - parsed.timestamp < CACHE_TTL) {
+          setClassrooms(parsed.classrooms || []);
+          setClassroomsLoaded(true);
+          return; // cache hit — skip fetch
+        }
+      }
+    } catch { /* proceed to fetch */ }
+
+    const fetchClassrooms = async () => {
+      try {
+        let result = [];
+        if (role === 'teacher') {
+          const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+          result = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(c => c.teacherIds?.includes(user.uid));
+        } else if (role === 'classroomadmin') {
+          const ids = (manageableClassrooms || []).filter(Boolean);
+          if (ids.length > 0) {
+            const batchSize = 10;
+            const all = [];
+            for (let i = 0; i < ids.length; i += batchSize) {
+              const batch = ids.slice(i, i + batchSize);
+              const snap = await getDocs(query(collection(db, 'classrooms'), where(documentId(), 'in', batch), where('status', '==', 'active')));
+              all.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+            const deduped = {};
+            all.forEach(c => { if (c?.id) deduped[c.id] = c; });
+            result = Object.values(deduped);
+          }
+        } else {
+          const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+          result = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        // Exclude adolescent classrooms
+        result = result.filter(c => !String(c?.name || '').toLowerCase().includes('adolescent'));
+        setClassrooms(result);
+        setClassroomsLoaded(true);
+        try {
+          window.localStorage?.setItem(CACHE_KEY, JSON.stringify({ classrooms: result, timestamp: Date.now() }));
+        } catch { /* ignored */ }
+      } catch {
+        setClassroomsLoaded(true);
+      }
+    };
+    fetchClassrooms();
+  }, [user, role, manageableClassrooms]);
+
   // ── Derived values ─────────────────────────────────────────────────────
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
-  const backNavigation = getBackNavigation(screen, { studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
+  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
-  const showHeader = !loading && user && screen !== 'accessDenied';
+  const showHeader = !loading && user && screen !== 'accessDenied' && screen !== 'landingPage';
   const showFooter = !loading && user && screen !== 'accessDenied';
 
   // Context object passed to ScreenRenderer
   const ctx = {
-    user, role, isTeacher, isSuperAdminUser, manageableClassrooms,
+    user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
-    setScreen, setSelectedClassroom, setSelectedStudent, setStudentDashboardReturnScreen,
+    setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId,
     setLessonNoteEditObservation,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,

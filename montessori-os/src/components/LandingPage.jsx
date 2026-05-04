@@ -1,377 +1,188 @@
-// LandingPage.jsx
+// LandingPage.jsx — Teacher launchpad (PEP-190)
 import React from 'react';
-import { 
-  Box, 
-  Card, 
-  CardContent, 
-  Typography,
-  CardActionArea,
-  Avatar,
-  Grid
-} from '@mui/material';
-import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, MessageSquare as Feedback, BarChart3 as BarChart, UserPlus as PersonAdd, Download, Brain as Psychology } from '../icons';
-function LandingPage({ onViewClassrooms, userRole, currentUser, onNavigateToFeedbackDashboard, onNavigateToFeedback, onNavigateToClassroomNotes, onNavigate }) {
+import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
+import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
+import { Avatar, MiniTangram } from './ui';
+
+// Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
+const FALLBACK_PALETTES = [
+  ['var(--color-primary)', 'var(--color-indigo-bg)', 'var(--color-indigo-soft)'],
+  ['var(--color-secondary)', 'var(--color-green-bg)', 'var(--color-green-mint)'],
+  ['var(--color-warning)', 'var(--color-amber-bg)', 'var(--color-amber-yellow)'],
+  ['var(--color-pink)', 'rgba(236, 72, 153, 0.1)', 'rgba(236, 72, 153, 0.2)'],
+];
+
+function LandingPage({
+  classrooms = [],
+  classroomsLoaded = false,
+  onViewClassrooms,
+  onSelectClassroom,
+  userRole,
+  currentUser,
+  onNavigateToFeedbackDashboard,
+  onNavigateToFeedback,
+  onNavigateToClassroomNotes,
+  onNavigate,
+}) {
   const isTeacher = userRole === 'teacher';
-  
+
+  // --- Header data ---
+  const displayName = currentUser?.displayName || currentUser?.email || 'there';
+  const firstName = displayName.split(' ')[0];
+  const now = new Date();
+  const dateString = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const totalStudents = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
+
+  // --- Classroom cards (max 4) ---
+  const visibleClassrooms = classrooms.slice(0, 4);
+  const hasMoreClassrooms = classrooms.length > 4;
+
+  // --- Quick jump cards (role-based) ---
+  const quickJumps = [
+    { label: 'Stats', icon: <BarChart3 size={22} />, iconColor: 'var(--color-warning)', action: () => onNavigate('/stats'), roles: 'all' },
+    { label: 'People', icon: <UserPlus size={22} />, iconColor: 'var(--color-primary-light)', action: () => onNavigate('/addUser'), roles: 'admin' },
+    { label: 'Export', icon: <Download size={22} />, iconColor: 'var(--color-secondary-light)', action: onNavigateToClassroomNotes, roles: 'admin' },
+    {
+      label: 'Feedback',
+      icon: <MessageSquare size={22} />,
+      iconColor: 'var(--color-pink)',
+      action: isTeacher ? onNavigateToFeedback : onNavigateToFeedbackDashboard,
+      roles: 'all',
+    },
+  ].filter(j => j.roles === 'all' || (!isTeacher && j.roles === 'admin'));
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Header */}
-      <Box sx={{ textAlign: 'center', mb: 2 }}>
-        <Typography variant="body1" sx={{ 
-          color: 'black',
-          fontWeight: 600
-        }}>
-          {`Hey ${currentUser.displayName},`}
-          <br />
-          {`Welcome to Pep School V2 OS!`}
-        </Typography>
+
+      {/* ── Header ─────────────────────────────────────────── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Box>
+          <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 0.5 }}>
+            {dateString}
+          </Typography>
+          <Typography sx={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2 }}>
+            Hey, {firstName}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
+            {classrooms.length} classroom{classrooms.length !== 1 ? 's' : ''} · {totalStudents} students
+          </Typography>
+        </Box>
+        <Avatar
+          name={currentUser?.displayName || currentUser?.email || 'U'}
+          size="lg"
+          color="var(--color-primary)"
+          src={currentUser?.photoURL || undefined}
+        />
       </Box>
 
-      {/* Action Cards */}
-      <Grid container spacing={2}>
-        {/* View Classrooms Card */}
-        <Grid size={12}>
-          <Card
-            sx={{
-              borderRadius: 2,
-              '&:hover': {
-                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
-            <CardActionArea
+      {/* ── Classrooms section ─────────────────────────────── */}
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+            Your classrooms
+          </Typography>
+          {hasMoreClassrooms && (
+            <ButtonBase
               onClick={onViewClassrooms}
-              sx={{ p: 0 }}
-            >
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between'
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'var(--color-primary)',
-                      width: 56,
-                      height: 56
-                    }}>
-                      <School />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" component="h3" sx={{ 
-                        color: 'var(--color-text)',
-                        fontWeight: 600
-                      }}>
-                        Classrooms & Students
-                      </Typography>
-                      <Typography variant="body2" sx={{ 
-                        color: 'var(--color-text-soft)',
-                        mt: 0.5
-                      }}>
-                        {isTeacher 
-                          ? 'Access your assigned classrooms and students'
-                          : 'Browse classrooms and students'
-                        }
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                </Box>
-              </CardContent>
-            </CardActionArea>
-          </Card>
-        </Grid>
-
-        {/* Teacher Feedback Card */}
-        {isTeacher && (
-          <Grid size={12}>
-            <Card
+              disableRipple
               sx={{
-                borderRadius: 2,
-                '&:hover': {
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  transform: 'translateY(-2px)',
-                },
-                transition: 'all 0.2s ease-in-out',
+                display: 'flex', alignItems: 'center', gap: 0.25,
+                color: 'var(--color-text-soft)', fontSize: '0.75rem', fontWeight: 600,
               }}
             >
-              <CardActionArea
-                onClick={onNavigateToFeedback}
-                sx={{ p: 0 }}
-              >
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ 
-                        bgcolor: 'var(--color-secondary)',
-                        width: 56,
-                        height: 56
-                      }}>
-                        <Feedback />
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" component="h3" sx={{ 
-                          color: 'var(--color-text)',
-                          fontWeight: 600
-                        }}>
-                          Share Feedback
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          color: 'var(--color-text-soft)',
-                          mt: 0.5
-                        }}>
-                          Help us improve by sharing your suggestions and reporting issues
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                  </Box>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        )}
+              View all <ChevronRight size={14} />
+            </ButtonBase>
+          )}
+        </Box>
 
-        {/* Stats Card - Available for both admin and teacher */}
-        <Grid size={12}>
-          <Card
-            sx={{
-              borderRadius: 2,
-              '&:hover': {
-                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
-            <CardActionArea
-              onClick={() => onNavigate('/stats')}
-              sx={{ p: 0 }}
+        {!classroomsLoaded ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3, justifyContent: 'center' }}>
+            <CircularProgress size={20} sx={{ color: 'var(--color-primary)' }} />
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
+              Coach Pepper is fetching your classrooms...
+            </Typography>
+          </Box>
+        ) : classrooms.length === 0 ? (
+          <Box sx={{ py: 3, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
+              You are assigned to zero classrooms. Please talk to admin.
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: classrooms.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+            gap: 1.5,
+          }}>
+            {visibleClassrooms.map((classroom, index) => {
+              const hasHex = classroom.color;
+              const fallback = FALLBACK_PALETTES[index % FALLBACK_PALETTES.length];
+              const iconColor = hasHex ? classroom.color : fallback[0];
+              const bgColor = hasHex ? `${classroom.color}18` : fallback[1];
+              const borderColor = hasHex ? `${classroom.color}30` : fallback[2];
+              return (
+                <ButtonBase
+                  key={classroom.id}
+                  onClick={() => onSelectClassroom(classroom)}
+                  sx={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                    p: 2, borderRadius: 3,
+                    backgroundColor: bgColor,
+                    border: `1px solid ${borderColor}`,
+                    textAlign: 'left', width: '100%',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                    '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+                  }}
+                >
+                  <MiniTangram size={32} color={iconColor} sx={{ mb: 1.5 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)', lineHeight: 1.3 }}>
+                    {classroom.name}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mt: 0.25 }}>
+                    {classroom.studentCount || 0} students
+                  </Typography>
+                </ButtonBase>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
+
+      {/* ── Quick jump ─────────────────────────────────────── */}
+      <Box>
+        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
+          Quick jump
+        </Typography>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,
+          gap: 1,
+        }}>
+          {quickJumps.map((item) => (
+            <ButtonBase
+              key={item.label}
+              onClick={item.action}
+              sx={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                py: 1.5, px: 1, borderRadius: 3,
+                backgroundColor: 'var(--color-paper)',
+                border: '1px solid var(--color-border)',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+              }}
             >
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between'
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'var(--color-warning)',
-                      width: 56,
-                      height: 56
-                    }}>
-                      <BarChart />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" component="h3" sx={{ 
-                        color: 'var(--color-text)',
-                        fontWeight: 600
-                      }}>
-                        Statistics & Analytics
-                      </Typography>
-                      <Typography variant="body2" sx={{ 
-                        color: 'var(--color-text-soft)',
-                        mt: 0.5
-                      }}>
-                        {isTeacher 
-                          ? 'View your classroom performance and student progress'
-                          : 'Monitor school-wide metrics'
-                        }
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                </Box>
-              </CardContent>
-            </CardActionArea>
-          </Card>
-        </Grid>
-
-            {/* Admin-only cards */}
-            {!isTeacher && (
-              <>
-                {/* Users & Access */}
-                <Grid size={12}>
-              <Card 
-                aria-label="Users & Access"
-                sx={{ 
-                  cursor: 'pointer',
-                  borderRadius: 2,
-                  transition: 'all 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                  }
-                }}
-                onClick={() => onNavigate('/addUser')}
-              >
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Avatar sx={{ 
-                        bgcolor: 'var(--color-primary)',
-                        width: 56,
-                        height: 56
-                      }}>
-                        <PersonAdd />
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" component="h3" sx={{ 
-                          color: 'var(--color-text)',
-                          fontWeight: 600
-                        }}>
-                          Users & Access
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          color: 'var(--color-text-soft)',
-                          mt: 0.5
-                        }}>
-                          Manage teacher access and student onboarding
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-
-            {/* Review Classroom Notes */}
-            <Grid size={12}>
-              <Card
-                sx={{
-                  borderRadius: 2,
-                  '&:hover': {
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <CardActionArea
-                  onClick={onNavigateToClassroomNotes}
-                  sx={{ p: 0 }}
-                >
-                  <CardContent sx={{ p: 3 }}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between'
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ 
-                          bgcolor: 'var(--color-info-dark)',
-                          width: 56,
-                          height: 56
-                        }}>
-                          <Download />
-                        </Avatar>
-                        <Box>
-                          <Typography variant="h6" component="h3" sx={{ 
-                            color: 'var(--color-text)',
-                            fontWeight: 600
-                          }}>
-                            Export Notes
-                          </Typography>
-                          <Typography variant="body2" sx={{ 
-                            color: 'var(--color-text-soft)',
-                            mt: 0.5
-                          }}>
-                            Save notes as .txt files
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-
-            {/* Feedback Dashboard */}
-            <Grid size={12}>
-              <Card
-                sx={{
-                  borderRadius: 2,
-                  '&:hover': {
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                }}
-              >
-                <CardActionArea
-                  onClick={onNavigateToFeedbackDashboard}
-                  sx={{ p: 0 }}
-                >
-                  <CardContent sx={{ p: 3 }}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between'
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ 
-                          bgcolor: 'var(--color-secondary)',
-                          width: 56,
-                          height: 56
-                        }}>
-                          <Feedback />
-                        </Avatar>
-                        <Box>
-                          <Typography variant="h6" component="h3" sx={{ 
-                            color: 'var(--color-text)',
-                            fontWeight: 600
-                          }}>
-                            Feedback Dashboard
-                          </Typography>
-                          <Typography variant="body2" sx={{ 
-                            color: 'var(--color-text-soft)',
-                            mt: 0.5
-                          }}>
-                            View and manage all user feedback and suggestions
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <ArrowForward style={{ color: 'var(--color-text-faint)' }} />
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-
-          </>
-        )}
-
-        {/* Teacher-only cards (future) */}
-        {isTeacher && (
-          <>
-            {/* Future teacher cards can be added here */}
-            {/* Example:
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography>My Reports</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            */}
-          </>
-        )}
-      </Grid>
+              <Box sx={{ color: item.iconColor, display: 'flex' }}>
+                {item.icon}
+              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
+                {item.label}
+              </Typography>
+            </ButtonBase>
+          ))}
+        </Box>
+      </Box>
     </Box>
   );
 }
 
-export default LandingPage; 
+export default LandingPage;

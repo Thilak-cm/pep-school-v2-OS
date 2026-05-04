@@ -51,6 +51,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
           flexDirection: 'column',
           alignItems: 'flex-end',
           gap: 1.5,
+          pointerEvents: 'none',
           '@media (max-width: 599px)': {
             '@supports (padding: env(safe-area-inset-bottom))': {
               bottom: 'calc(24px + env(safe-area-inset-bottom))'
@@ -120,6 +121,7 @@ const AddNoteFab = ({ onVoice, onLesson, onMedia, sx = {} }) => {
           sx={{
             minWidth: 56,
             minHeight: 56,
+            pointerEvents: 'auto',
           }}
         >
           <Box

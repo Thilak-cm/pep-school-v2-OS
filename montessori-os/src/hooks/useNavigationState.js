@@ -11,6 +11,7 @@ export const useNavigationState = () => {
   const [selectedClassroom, setSelectedClassroom] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [usersAccessView, setUsersAccessView] = useState('home');
+  const [classroomTimelineReturnScreen, setClassroomTimelineReturnScreen] = useState('classroomList');
   const [studentDashboardReturnScreen, setStudentDashboardReturnScreen] = useState('classroomTimeline');
   const [studentDashboardNoteType, setStudentDashboardNoteType] = useState('textVoice');
   const [timelineFilter, setTimelineFilter] = useState(null);
@@ -25,6 +26,7 @@ export const useNavigationState = () => {
     selectedClassroom, setSelectedClassroom,
     selectedStudent, setSelectedStudent,
     usersAccessView, setUsersAccessView,
+    classroomTimelineReturnScreen, setClassroomTimelineReturnScreen,
     studentDashboardReturnScreen, setStudentDashboardReturnScreen,
     studentDashboardNoteType, setStudentDashboardNoteType,
     timelineFilter, setTimelineFilter,

@@ -105,7 +105,13 @@ export function getBackNavigation(screen, state, setters) {
     case "graduateStudents":
       return () => { setters.setScreen?.("addUser"); setters.setUsersAccessView?.("home"); };
     case "classroomTimeline":
-      return () => setters.setScreen?.("classroomList");
+      return () => {
+        const returnTo = state.classroomTimelineReturnScreen || "classroomList";
+        if (returnTo === "landingPage") {
+          setters.setSelectedStudent?.(null);
+        }
+        setters.setScreen?.(returnTo);
+      };
     case "studentDashboard":
       return () => setters.setScreen?.(state.studentDashboardReturnScreen || "classroomTimeline");
     case "studentStats":
