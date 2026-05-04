@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-04T03:23:41.835Z
-App version: 10.15.0
+Generated: 2026-05-04T23:17:36.724Z
+App version: 10.16.0
 
 ## App Snapshot
 
@@ -93,8 +93,8 @@ App version: 10.15.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 23
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 24
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -139,6 +139,11 @@ App version: 10.15.0
 
 ## Recent Changes
 
+### 10.16.0 (2026-05-04)
+- Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
+- Greeting header with date, display name, classroom/student counts, and avatar
+- 2x2 classroom card grid with colored backgrounds, MiniTangram icons, and direct ClassroomTimeline navigation
+
 ### 10.15.0 (2026-05-03)
 - Expanding card menu on FAB with 3 note types: Voice, Lesson, Media (PEP-189)
 - Scale-from-FAB animation with spring easing and scrim overlay
@@ -153,9 +158,4 @@ App version: 10.15.0
 - Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
 - All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
 - Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
-
-### 10.14.1 (2026-04-30)
-- Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
-- MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
-- Typography tokens: monospace and body font references now use --font-mono and --font-body tokens (PEP-183)
 
