@@ -32,6 +32,7 @@ function App() {
   const [addNoteInitialStep, setAddNoteInitialStep] = useState('noteType');
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
+  const [classroomsLoaded, setClassroomsLoaded] = useState(false);
 
   const {
     screen, setScreen,
@@ -209,7 +210,7 @@ function App() {
 
   // ── Fetch classrooms once after login (shared by LandingPage + ClassroomList) ──
   useEffect(() => {
-    if (!user || !role) { setClassrooms([]); return; }
+    if (!user || !role) { setClassrooms([]); setClassroomsLoaded(false); return; }
 
     const CACHE_KEY = `pep-classrooms:${role}:${user.uid}:${manageableClassrooms.slice().sort().join('|') || 'all'}`;
     const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -221,6 +222,7 @@ function App() {
         const parsed = JSON.parse(raw);
         if (parsed?.timestamp && Date.now() - parsed.timestamp < CACHE_TTL) {
           setClassrooms(parsed.classrooms || []);
+          setClassroomsLoaded(true);
           return; // cache hit — skip fetch
         }
       }
@@ -230,10 +232,9 @@ function App() {
       try {
         let result = [];
         if (role === 'teacher') {
-          const snap = await getDocs(query(collection(db, 'classrooms')));
+          const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
           result = snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(c => (c.status || 'active') !== 'archived')
             .filter(c => c.teacherIds?.includes(user.uid));
         } else if (role === 'classroomadmin') {
           const ids = (manageableClassrooms || []).filter(Boolean);
@@ -256,10 +257,13 @@ function App() {
         // Exclude adolescent classrooms
         result = result.filter(c => !String(c?.name || '').toLowerCase().includes('adolescent'));
         setClassrooms(result);
+        setClassroomsLoaded(true);
         try {
           window.localStorage?.setItem(CACHE_KEY, JSON.stringify({ classrooms: result, timestamp: Date.now() }));
         } catch { /* ignored */ }
-      } catch { /* ignored */ }
+      } catch {
+        setClassroomsLoaded(true);
+      }
     };
     fetchClassrooms();
   }, [user, role, manageableClassrooms]);
@@ -275,7 +279,7 @@ function App() {
 
   // Context object passed to ScreenRenderer
   const ctx = {
-    user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms,
+    user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
     usersAccessView, pendingViewReportId,

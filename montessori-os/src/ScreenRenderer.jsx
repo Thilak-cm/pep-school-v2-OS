@@ -42,6 +42,7 @@ export default function ScreenRenderer({ screen, ctx }) {
       return (
         <LandingPage
           classrooms={ctx.classrooms}
+          classroomsLoaded={ctx.classroomsLoaded}
           onViewClassrooms={() => ctx.setScreen("classroomList")}
           onSelectClassroom={(cls) => {
             ctx.setSelectedClassroom(cls);

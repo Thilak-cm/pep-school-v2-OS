@@ -165,6 +165,9 @@ interface Classroom {
   // Server-maintained summary
   studentCount: number;          // count of active students
 
+  // UI display
+  color?: string;                // hex color for classroom card background (e.g. "#5C6BC0"), seeded by seed-classroom-colors.mjs
+
   // Google Drive export (PEP-61)
   driveFolderId?: string;        // Google Drive folder ID for report exports (set on first export)
 

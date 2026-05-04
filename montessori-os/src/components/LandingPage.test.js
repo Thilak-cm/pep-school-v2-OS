@@ -145,11 +145,11 @@ describe('LandingPage component (PEP-190)', () => {
   });
 
   // --- Loading state ---
-  describe('Loading state', () => {
-    it('shows loading indicator when classrooms array is empty', () => {
+  describe('Loading and empty states', () => {
+    it('shows loading indicator when classroomsLoaded is false', () => {
       assert.ok(
-        source.includes('classrooms.length === 0') || source.includes('classrooms.length===0'),
-        'Should check for empty classrooms to show loading'
+        source.includes('classroomsLoaded'),
+        'Should use classroomsLoaded flag to distinguish loading from empty'
       );
       assert.ok(
         source.includes('CircularProgress'),
@@ -157,7 +157,18 @@ describe('LandingPage component (PEP-190)', () => {
       );
       assert.ok(
         source.includes('fetching'),
-        'Should show a fetching message'
+        'Should show a fetching message while loading'
+      );
+    });
+
+    it('shows empty state message when loaded with zero classrooms', () => {
+      assert.ok(
+        source.includes('classrooms.length === 0'),
+        'Should check for zero classrooms after loading'
+      );
+      assert.ok(
+        source.includes('zero classrooms') || source.includes('assigned to zero'),
+        'Should show an empty-state message for teachers with no classrooms'
       );
     });
   });

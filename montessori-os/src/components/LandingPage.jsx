@@ -14,6 +14,7 @@ const FALLBACK_PALETTES = [
 
 function LandingPage({
   classrooms = [],
+  classroomsLoaded = false,
   onViewClassrooms,
   onSelectClassroom,
   userRole,
@@ -31,8 +32,6 @@ function LandingPage({
   const now = new Date();
   const dateString = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
   const totalStudents = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
-  const initials = (currentUser?.displayName || currentUser?.email || 'U')
-    .split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
   // --- Classroom cards (max 4) ---
   const visibleClassrooms = classrooms.slice(0, 4);
@@ -96,11 +95,17 @@ function LandingPage({
           )}
         </Box>
 
-        {classrooms.length === 0 ? (
+        {!classroomsLoaded ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 3, justifyContent: 'center' }}>
             <CircularProgress size={20} sx={{ color: 'var(--color-primary)' }} />
             <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
               Coach Pepper is fetching your classrooms...
+            </Typography>
+          </Box>
+        ) : classrooms.length === 0 ? (
+          <Box sx={{ py: 3, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
+              You are assigned to zero classrooms. Please talk to admin.
             </Typography>
           </Box>
         ) : (
