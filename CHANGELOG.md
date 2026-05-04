@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.16.0 — 2026-05-04
+
+### Added
+- Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
+- Greeting header with date, display name, classroom/student counts, and avatar
+- 2x2 classroom card grid with colored backgrounds, MiniTangram icons, and direct ClassroomTimeline navigation
+- "View all classrooms" button for teachers with 5+ classrooms
+- Role-aware quick jump grid: Stats (all), People (admin), Export (admin), Feedback (all)
+- Classroom color seeding script for Firestore (`scripts/admin/seed-classroom-colors.mjs`)
+- Typography migration to Space Grotesk (body) and Coming Soon (display headings)
+
+### Changed
+- Classroom data fetch lifted from ClassroomList to App.jsx (shared by LandingPage and ClassroomList)
+- ClassroomTimeline back button respects navigation origin (landing page vs classroom list)
+- AppHeader hidden on landing page for cleaner launchpad look
+- MiniTangram redesigned as five-tile tangram glyph
+
 # 10.15.0 — 2026-05-03
 
 ### Added
