@@ -41,7 +41,12 @@ export default function ScreenRenderer({ screen, ctx }) {
     case "landingPage":
       return (
         <LandingPage
+          classrooms={ctx.classrooms}
           onViewClassrooms={() => ctx.setScreen("classroomList")}
+          onSelectClassroom={(cls) => {
+            ctx.setSelectedClassroom(cls);
+            ctx.setScreen("classroomTimeline");
+          }}
           userRole={ctx.role}
           currentUser={ctx.user}
           onNavigateToFeedbackDashboard={() => ctx.setScreen("feedbackTimeline")}
@@ -60,6 +65,7 @@ export default function ScreenRenderer({ screen, ctx }) {
       return (
         <>
           <ClassroomList
+            classrooms={ctx.classrooms}
             onSelectClassroom={(cls) => {
               ctx.setSelectedClassroom(cls);
               ctx.setScreen("classroomTimeline");

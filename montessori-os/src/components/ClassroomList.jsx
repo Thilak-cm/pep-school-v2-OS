@@ -94,9 +94,9 @@ const getStudentName = (student) => (
   [student?.firstName, student?.lastName].filter(Boolean).join(' ')
 ).trim() || 'Unknown Student';
 
-function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
-  const [classrooms, setClassrooms] = useState([]);
-  const [loading, setLoading] = useState(true);
+function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent, classrooms: classroomsProp }) {
+  const [classrooms, setClassrooms] = useState(classroomsProp || []);
+  const [loading, setLoading] = useState(!classroomsProp);
   const [studentCounts, setStudentCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [allStudents, setAllStudents] = useState([]);
@@ -106,7 +106,15 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
   const [programLookup, setProgramLookup] = useState({}); // classroomId -> programId
   const isClassroomAdmin = userRole === 'classroomadmin';
 
+  // Sync classrooms from prop when provided (lifted fetch from App.jsx)
   useEffect(() => {
+    if (classroomsProp) { setClassrooms(classroomsProp); setLoading(false); }
+  }, [classroomsProp]);
+
+  useEffect(() => {
+    // Skip own fetch if classrooms were provided via prop
+    if (classroomsProp) return;
+
     let isMounted = true;
     const cacheKey = buildCacheKey(currentUser?.uid, userRole, manageableClassrooms);
     const cached = readCachedClassrooms(cacheKey);
