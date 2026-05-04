@@ -115,7 +115,8 @@ function LandingPage({
                   sx={{
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                     p: 2, borderRadius: 3,
-                    backgroundColor: `${cardColor}14`,
+                    backgroundColor: `${cardColor}18`,
+                    border: `1px solid ${cardColor}22`,
                     textAlign: 'left', width: '100%',
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
