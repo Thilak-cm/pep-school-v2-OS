@@ -58,7 +58,7 @@ function LandingPage({
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 0.5 }}>
             {dateString}
           </Typography>
-          <Typography sx={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 400, color: 'var(--color-text)', lineHeight: 1.2 }}>
+          <Typography sx={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2 }}>
             Hey, {firstName}
           </Typography>
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>

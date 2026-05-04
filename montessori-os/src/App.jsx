@@ -269,7 +269,7 @@ function App() {
   const pageTitle = getPageTitle(screen, titleState);
   const backNavigation = getBackNavigation(screen, { studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
-  const showHeader = !loading && user && screen !== 'accessDenied';
+  const showHeader = !loading && user && screen !== 'accessDenied' && screen !== 'landingPage';
   const showFooter = !loading && user && screen !== 'accessDenied';
 
   // Context object passed to ScreenRenderer
