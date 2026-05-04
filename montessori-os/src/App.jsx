@@ -319,7 +319,7 @@ function App() {
               <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 3, position: 'relative' }}>
                 <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: { xs: '32px 24px', sm: '48px 32px' }, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '350px', backgroundColor: 'white' }}>
                   <Box component="img" src="/pep-logo.png" alt="Pep School Logo" sx={{ width: { xs: '100px', sm: '120px' }, height: { xs: '100px', sm: '120px' }, marginBottom: '32px', filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))' }} />
-                  <Typography variant="h3" component="h1" sx={{ color: 'var(--color-text)', marginBottom: '20px', fontSize: { xs: '1.75rem', sm: '2rem' }, fontWeight: '700', lineHeight: '1.2', textAlign: 'center' }}>Welcome to Pep School V2 OS!</Typography>
+                  <Typography variant="h3" component="h1" sx={{ color: 'var(--color-text)', marginBottom: '20px', fontSize: { xs: '1.75rem', sm: '2rem' }, fontFamily: 'var(--font-body)', fontWeight: '700', lineHeight: '1.2', textAlign: 'center' }}>Welcome to Pep School V2 OS!</Typography>
                   <Typography variant="body1" sx={{ color: 'var(--color-text-soft)', marginBottom: '40px', fontSize: { xs: '1rem', sm: '1.1rem' }, lineHeight: '1.6', textAlign: 'center' }}>Streamline your teaching workflow</Typography>
                   <SignIn />
                 </Card>
