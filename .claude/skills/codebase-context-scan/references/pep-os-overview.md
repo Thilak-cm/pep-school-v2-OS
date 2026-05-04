@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-03T23:03:39.709Z
-App version: 10.14.3
+Generated: 2026-05-04T03:23:41.835Z
+App version: 10.15.0
 
 ## App Snapshot
 
@@ -31,17 +31,17 @@ App version: 10.14.3
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 10
-- Components: `AddNoteFab`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
+- Count: 11
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
+- `montessori-os/src/components/AddNoteFab.test.js`
 - `montessori-os/src/components/AddNoteModal.jsx`
 - `montessori-os/src/components/ClassroomStudentPicker.jsx`
 - `montessori-os/src/components/LessonNoteConfigEditor.jsx`
 - `montessori-os/src/components/LessonNotes.jsx`
 - `montessori-os/src/components/LessonNotesPage.jsx`
 - `montessori-os/src/components/LessonNoteTagDialog.jsx`
-- `montessori-os/src/components/MentionTextArea.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
 - Count: 11
@@ -139,6 +139,11 @@ App version: 10.14.3
 
 ## Recent Changes
 
+### 10.15.0 (2026-05-03)
+- Expanding card menu on FAB with 3 note types: Voice, Lesson, Media (PEP-189)
+- Scale-from-FAB animation with spring easing and scrim overlay
+- Direct note-type routing: Voice/Media skip type picker, Lesson opens as page
+
 ### 10.14.3 (2026-05-03)
 - Shared UI primitive component kit with 16 reusable components in components/ui/ (PEP-185)
 - Layout primitives: HFHeader, HFTabs, HFSegmented, DayHeader
@@ -153,9 +158,4 @@ App version: 10.14.3
 - Design token foundation: all hardcoded hex colors migrated to CSS custom properties in index.css (PEP-183)
 - MUI theme extracted from main.jsx to dedicated theme.js with palette mirroring CSS vars (PEP-183)
 - Typography tokens: monospace and body font references now use --font-mono and --font-body tokens (PEP-183)
-
-### 10.14.0 (2026-04-29)
-- Media note type added to StatsPage note distribution donut chart as 4th slice with distinct pink color (PEP-153)
-- Media note type added to Classrooms tab "Notes This Week" stacked bar chart as 3rd series with tooltip and legend (PEP-153)
-- Inline "Notes over time" line chart in StudentDashboard baseball card footer replaces separate notes count
 
