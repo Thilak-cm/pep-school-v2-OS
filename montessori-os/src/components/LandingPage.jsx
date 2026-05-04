@@ -4,9 +4,12 @@ import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram } from './ui';
 
-// Index-based fallback palette — guarantees no two visible cards share a color
-const FALLBACK_COLORS = [
-  'var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink)',
+// Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
+const FALLBACK_PALETTES = [
+  ['var(--color-primary)', 'var(--color-indigo-bg)', 'var(--color-indigo-soft)'],
+  ['var(--color-secondary)', 'var(--color-green-bg)', 'var(--color-green-mint)'],
+  ['var(--color-warning)', 'var(--color-amber-bg)', 'var(--color-amber-yellow)'],
+  ['var(--color-pink)', 'rgba(236, 72, 153, 0.1)', 'rgba(236, 72, 153, 0.2)'],
 ];
 
 function LandingPage({
@@ -107,7 +110,11 @@ function LandingPage({
             gap: 1.5,
           }}>
             {visibleClassrooms.map((classroom, index) => {
-              const cardColor = classroom.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+              const hasHex = classroom.color;
+              const fallback = FALLBACK_PALETTES[index % FALLBACK_PALETTES.length];
+              const iconColor = hasHex ? classroom.color : fallback[0];
+              const bgColor = hasHex ? `${classroom.color}18` : fallback[1];
+              const borderColor = hasHex ? `${classroom.color}30` : fallback[2];
               return (
                 <ButtonBase
                   key={classroom.id}
@@ -115,14 +122,14 @@ function LandingPage({
                   sx={{
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                     p: 2, borderRadius: 3,
-                    backgroundColor: `${cardColor}18`,
-                    border: `1px solid ${cardColor}22`,
+                    backgroundColor: bgColor,
+                    border: `1px solid ${borderColor}`,
                     textAlign: 'left', width: '100%',
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
                   }}
                 >
-                  <MiniTangram size={32} color={cardColor} sx={{ mb: 1.5 }} />
+                  <MiniTangram size={32} color={iconColor} sx={{ mb: 1.5 }} />
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'var(--color-text)', lineHeight: 1.3 }}>
                     {classroom.name}
                   </Typography>
