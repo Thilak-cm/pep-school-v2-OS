@@ -35,9 +35,14 @@ Orchestrator (this skill — thin, stays in main context)
     │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick)  — fast mechanical checks
     │   └── Deep auditor  (.claude/agents/code-auditor, scope=deep)   — reasoning-heavy checks
     │
+    ├── INTEGRATION CHECK ─────────────────────────────
+    │   └── Explore subagent (exploration_focus="integration")
+    │       → traces consumers of modified exports/interfaces
+    │       → verifies contracts aren't broken
+    │
     ├── OVERLAPPED FIX ────────────────────────────────
     │   ├── Fixer-A (.claude/agents/code-fixer)  — fixes quick findings (starts as soon as quick audit returns)
-    │   └── Fixer-B (.claude/agents/code-fixer)  — fixes deep findings (parallel if no file overlap, else after A)
+    │   └── Fixer-B (.claude/agents/code-fixer)  — fixes deep + integration findings (parallel if no file overlap, else after A)
     │
     └── RE-AUDIT LOOP ────────────────────────────────
         ├── Full auditor (.claude/agents/code-auditor, scope=full)  — fresh, complete re-audit
@@ -137,11 +142,56 @@ The orchestrator determines file overlap by extracting the `File:` field from ea
 
 Concatenate both reports into a single merged report for the user. Use the deep report's Scope Alignment section. Combine findings from both reports under the standard Blockers/Warnings/Nits/User Decision sections. Deduplicate any findings that appear in both (same file + same line range = duplicate; keep the higher-severity version).
 
-### Phase 3: Process Audit Results (Orchestrator)
+### Phase 3: Integration Check
 
-The orchestrator reads the merged audit report and decides next steps.
+**Purpose:** Verify that the modified code integrates correctly with its consumers — components, services, and modules that import or depend on what changed. The spec audit checks "does the diff do what the issue asked?" — the integration check asks "does the diff break anything around it?"
 
-1. **Display the full merged audit report to the user**
+**3a. Extract modified interfaces**
+
+From the diff, identify:
+- **Modified exports** — functions, components, hooks, constants whose signature or return shape changed
+- **Modified props contracts** — components whose expected props changed (added required props, removed props, changed prop types)
+- **Modified data shapes** — objects/documents whose structure changed (new required fields, renamed fields, removed fields)
+- **Modified event/callback contracts** — handlers whose arguments or invocation patterns changed
+
+If none of the above apply (e.g., the diff is purely internal logic with no interface changes), skip to Phase 4.
+
+**3b. Trace consumers**
+
+Spawn a `codebase-explorer` agent (`.claude/agents/codebase-explorer.md`) with:
+- `overview_content`: The full text of `pep-os-overview.md` (already loaded in Phase 1)
+- `target_areas`: Areas containing the modified files + areas likely to consume them
+- `issue_context`: "Integration check — trace consumers of: {list of modified exports/interfaces with their file paths}"
+- `exploration_focus`: `"integration"`
+- `specific_files`: Files from the diff that have modified interfaces
+
+The explorer should:
+1. For each modified export/interface, grep for imports/usages across the codebase
+2. Read each consumer file at the relevant call sites
+3. Check whether the consumer's usage is still compatible with the new interface
+4. Report any mismatches
+
+**3c. Classify integration findings**
+
+The explorer returns a structured list. The orchestrator classifies each as:
+
+| Finding type | Severity | Example |
+|---|---|---|
+| Consumer passes old prop that was renamed/removed | **Blocker** | `<Timeline showMedia={true}>` but prop was renamed to `mediaEnabled` |
+| Consumer doesn't handle a new required field/state | **Blocker** | Renderer doesn't handle new observation type, crashes on switch default |
+| Consumer works but ignores new optional capability | **Warning** | Timeline doesn't render new `caption` field, but doesn't crash |
+| Consumer uses deprecated pattern that still works | **Nit** | Old callback style still functions but new pattern is cleaner |
+| No consumers found (dead export) | **Warning** | Export is unused — possible dead code or future-use |
+
+**3d. Merge into findings**
+
+Integration findings are added to the merged audit report under the same Blockers/Warnings/Nits structure with category `integration`. They flow into the fix loop alongside audit findings.
+
+### Phase 4: Process Results (Orchestrator)
+
+The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
+
+1. **Display the full merged report to the user** (audit + integration findings combined)
 
 2. **Handle "Needs User Decision" items first**
    - If any exist, present them to the user via `AskUserQuestion`
@@ -149,24 +199,24 @@ The orchestrator reads the merged audit report and decides next steps.
    - Rewrite those items into the appropriate category before proceeding
 
 3. **Check the merged verdict**
-   - If both audits are `CLEAN` → proceed to Phase 5 (Version Bump)
-   - If either has `HAS_FINDINGS` → the fixers already started in Phase 2b. Wait for them if still running, then proceed to Phase 4 (Re-audit).
+   - If all clean → proceed to Phase 6 (Version Bump)
+   - If findings exist → the fixers already started in Phase 2b for audit findings. For integration findings, spawn a fixer now. Then proceed to Phase 5 (Re-audit).
 
-### Phase 4: Re-audit Loop
+### Phase 5: Re-audit Loop
 
 After the initial parallel fix pass from Phase 2b, a fresh re-audit validates the fixes.
 
-**4a. Re-Audit (full scope)**
+**5a. Re-Audit (full scope)**
 
 Spawn a single `code-auditor` agent with scope `full` and the updated diff. This is a fresh, complete audit — it has no memory of the previous audits or fixes. It reads the full diff cold. This catches cases where a fix introduced a new problem.
 
-**4b. If clean → Phase 5**
+**5b. If clean → Phase 6**
 
-**4c. If findings remain → single fix agent**
+**5c. If findings remain → single fix agent**
 
 Subsequent iterations use a single fixer (no more parallel split — the remaining findings are typically few and may be interrelated).
 
-**4d. Loop Control**
+**5d. Loop Control**
 
 ```
 max_iterations = 3  (counts from the first re-audit, NOT the initial parallel fix)
@@ -174,7 +224,7 @@ max_iterations = 3  (counts from the first re-audit, NOT the initial parallel fi
 for i in 1..max_iterations:
     spawn full re-audit
     if verdict == CLEAN:
-        break → proceed to Phase 5
+        break → proceed to Phase 6
     if i == max_iterations:
         STOP — surface remaining findings to user
         ask: "3 re-audit attempts haven't resolved all issues. Review manually?"
@@ -182,7 +232,7 @@ for i in 1..max_iterations:
         spawn fix agent → continue loop
 ```
 
-### Phase 4e: Playwright Smoke Check (Orchestrator)
+### Phase 5e: Playwright Smoke Check (Orchestrator)
 
 After the audit loop passes, run a browser smoke check for UI changes before proceeding to version bump. This catches runtime errors that static code review cannot detect.
 
@@ -195,11 +245,11 @@ After the audit loop passes, run a browser smoke check for UI changes before pro
 4. Use `browser_console_messages` with `level: "error"` to check for runtime errors (React key warnings, TypeErrors, Firestore Timestamp issues, missing imports)
 5. Use `browser_take_screenshot` to visually confirm the feature renders correctly
 6. If errors are found: fix them, re-run tests, and re-check with Playwright
-7. If clean: proceed to Phase 5
+7. If clean: proceed to Phase 6
 
 **Skip conditions:** Non-UI changes (Cloud Functions only, security rules, scripts, config).
 
-### Phase 5: Version Bump (Orchestrator)
+### Phase 6: Version Bump (Orchestrator)
 
 Absorbed from the former `/version-update` skill. Runs inline before committing.
 
@@ -242,7 +292,7 @@ Absorbed from the former `/version-update` skill. Runs inline before committing.
    - Only include sections (Added, Changed, Fixed) that apply
    - Apply the changelog entry directly — no user review needed
 
-### Phase 5b: Update DATA_STRUCTURE.md (Conditional)
+### Phase 6b: Update DATA_STRUCTURE.md (Conditional)
 
 Check whether the diff involves Firestore schema changes. Run this check automatically — do not ask the user.
 
@@ -269,14 +319,14 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
 **If no schema changes detected:** Skip this phase entirely.
 
-### Phase 6: Commit + Push + PR (Orchestrator)
+### Phase 7: Commit + Push + PR (Orchestrator)
 
 1. **Stage and commit**
    - Confirm working tree only contains issue-related changes
    - If unrelated changes exist, ask whether to split/stash/exclude
    - Stage intended files
    - If version was bumped, include version files (`VERSION`, `montessori-os/package.json`, `montessori-os/src/components/VersionBadge.jsx`, `CHANGELOG.md`) in the same or separate commit
-   - If `DATA_STRUCTURE.md` was updated in Phase 5b, include it in the implementation commit (not the version bump commit)
+   - If `DATA_STRUCTURE.md` was updated in Phase 6b, include it in the implementation commit (not the version bump commit)
    - Write clear commit messages:
      - Implementation: `feat: {description} (PEP-{id})` or `fix: {description} (PEP-{id})`
      - Version bump (if separate): `chore: bump version to v{X.Y.Z}`
@@ -297,6 +347,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
      ## Review
      - Independent audit: **passed** ({N} findings fixed in {N} iterations)
+     - Integration check: **passed** ({N} consumer contracts verified)
      - {if user decisions were made, note them}
 
      ## Test Results
@@ -314,7 +365,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
      ```
    - Report PR URL to user
 
-### Phase 7: Devin Review Loop (Orchestrator)
+### Phase 8: Devin Review Loop (Orchestrator)
 
 After the PR is opened, Devin (AI code reviewer) will automatically review it. This phase waits for that review and fixes any findings before proceeding.
 
@@ -323,11 +374,11 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - Look for a review from Devin (author login contains `devin` or similar)
 - If no review yet, inform the user and ask whether to:
   - Wait and check again (re-poll)
-  - Skip Devin review and proceed to Linear sync
+  - Skip Devin review and proceed to Phase 9 (Linear sync)
 - Do NOT auto-poll in a loop — always ask the user before re-checking
 
 **7b. Parse Devin's findings**
-- If Devin's review state is `APPROVED` → all green, proceed to Phase 8
+- If Devin's review state is `APPROVED` → all green, proceed to Phase 9
 - If Devin's review state is `CHANGES_REQUESTED` or `COMMENTED`:
   - Fetch review comments via `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq '.[] | select(.user.login | contains("devin"))'`
   - Also fetch general review body from the review itself
@@ -353,7 +404,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
   for i in 1..max_devin_iterations:
       wait for Devin review
       if APPROVED:
-          break → proceed to Phase 8
+          break → proceed to Phase 9
       if i == max_devin_iterations:
           STOP — surface remaining Devin findings to user
           ask: "3 rounds of Devin fixes haven't resolved all issues. Proceed anyway or review manually?"
@@ -361,9 +412,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
           fix findings → push → continue loop
   ```
 
-### Phase 8: Linear Sync (Orchestrator)
-
-*(Renumbered from Phase 7)*
+### Phase 9: Linear Sync (Orchestrator)
 
 1. **Create comment on Linear issue:**
    ```markdown
@@ -375,6 +424,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
    **Audit Summary:**
    - {N} findings found, {N} fixed across {N} iterations
+   - Integration check: {N} consumers verified, {N} issues found and fixed
    - Final verdict: CLEAN
    - {any user decisions made}
 
@@ -401,6 +451,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - **Fresh session required:** This skill assumes it's running in a session that did NOT implement the code. The audit's value comes from independence.
 - **Subagents do the heavy lifting:** The orchestrator does NOT read the full diff itself. It passes the diff to the audit agent. This protects main context.
 - **Each audit is fresh:** Re-audits spawn a new audit agent. No memory of previous audits. This prevents the audit from becoming lenient after seeing fixes.
+- **Integration check is mandatory for interface changes:** If the diff modifies any export signatures, prop contracts, or data shapes, the integration check MUST run. It is not optional.
 - **Max 3 fix iterations:** If 3 rounds of fix+audit don't resolve everything, stop and escalate to the user. Don't loop forever.
 - **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
 - **Do not invent test results:** Report actual test output. If tests weren't run, say so.
@@ -411,14 +462,15 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
 1. Linear issue fetched and used as source of truth for the audit
 2. Audit subagent produced a structured report following the contract format
-3. All blockers and warnings were fixed (or user accepted remaining items)
-4. Final audit verdict is CLEAN
-5. Version bumped (or user chose skip) with changelog updated
-6. Clean commit(s) created with issue references
-7. Feature branch pushed to origin
-8. PR opened against `dev` with audit summary in body
-9. Devin review is APPROVED (or user chose to skip/proceed)
-10. Linear issue commented and moved to `In Review`
+3. Integration check verified all consumers of modified interfaces
+4. All blockers and warnings were fixed (or user accepted remaining items)
+5. Final audit verdict is CLEAN
+6. Version bumped (or user chose skip) with changelog updated
+7. Clean commit(s) created with issue references
+8. Feature branch pushed to origin
+9. PR opened against `dev` with audit + integration summary in body
+10. Devin review is APPROVED (or user chose to skip/proceed)
+11. Linear issue commented and moved to `In Review`
 
 ## Next Step
 

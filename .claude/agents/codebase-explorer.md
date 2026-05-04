@@ -133,6 +133,12 @@ Produce a summary under 300 lines following this exact format:
 - Surface: scope boundaries (what already exists vs what's missing), role-specific behavior differences, data model constraints
 - Behavior mapping: describe what a user sees/does today so acceptance criteria can reference concrete current state
 
+### When exploration_focus = "integration"
+- Prioritize: consumers of modified exports/interfaces — who imports what changed, and how they use it
+- Look for: every file that imports or calls the modified functions/components/hooks. Read each consumer at its call site to check compatibility.
+- Surface: broken contracts (renamed props, changed signatures, new required fields consumers don't pass), missing handlers (new states/types the consumer's switch/conditional doesn't cover), and dead exports (nothing imports them)
+- Consumer mapping: for each modified export, produce a list of `{consumer_file}:{line} — {how it uses the export} — {compatible: yes/no, reason}`
+
 ## Edge Cases
 
 - If a `target_area` tag doesn't match any row in the overview Area Map, report it clearly: "Area tag '{tag}' not found in overview. Skipping."
