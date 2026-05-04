@@ -38,7 +38,7 @@ const CLASSROOM_COLORS = {
   periwinkle:       "#7E57C2", // deep purple
   plumeria:         "#FF7043", // deep orange
   power:            "#9CCC65", // light green
-  vindhyas:         "#5C6BC0", // indigo (alt)
+  vindhyas:         "#0097A7", // dark cyan
 };
 
 async function main() {

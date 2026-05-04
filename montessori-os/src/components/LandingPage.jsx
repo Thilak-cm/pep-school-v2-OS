@@ -4,13 +4,10 @@ import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram } from './ui';
 
-// Deterministic fallback color when classroom has no color field
+// Index-based fallback palette — guarantees no two visible cards share a color
 const FALLBACK_COLORS = [
-  '#5C6BC0', '#26A69A', '#EF5350', '#AB47BC',
-  '#42A5F5', '#66BB6A', '#FFA726', '#EC407A',
+  'var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink)',
 ];
-const getFallbackColor = (id) =>
-  FALLBACK_COLORS[Math.abs([...id].reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)) % FALLBACK_COLORS.length];
 
 function LandingPage({
   classrooms = [],
@@ -109,8 +106,8 @@ function LandingPage({
             gridTemplateColumns: classrooms.length === 1 ? '1fr' : 'repeat(2, 1fr)',
             gap: 1.5,
           }}>
-            {visibleClassrooms.map((classroom) => {
-              const cardColor = classroom.color || getFallbackColor(classroom.id);
+            {visibleClassrooms.map((classroom, index) => {
+              const cardColor = classroom.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
               return (
                 <ButtonBase
                   key={classroom.id}
