@@ -77,13 +77,15 @@ describe('AC1: CSS custom properties in index.css', () => {
 
 // ── AC2: Google Fonts loaded ──
 describe('AC2: Google Fonts loaded', () => {
-  it('index.html loads Inter', () => {
+  it('index.html loads Space Grotesk and Coming Soon', () => {
     const html = readFile('index.html');
-    // Must match "Inter" but not only via "Inter Tight" or "Inter+Tight"
-    // Check for the standalone Inter family parameter
     assert.ok(
-      html.includes('family=Inter:') || html.includes('family=Inter&'),
-      'Inter font not loaded in index.html'
+      html.includes('Space+Grotesk'),
+      'Space Grotesk font not loaded in index.html'
+    );
+    assert.ok(
+      html.includes('Coming+Soon'),
+      'Coming Soon font not loaded in index.html'
     );
   });
 });

@@ -142,7 +142,8 @@
   --radius-pill: 999px;
 
   /* ── Typography ── */
-  --font-body: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  --font-body: 'Space Grotesk', 'Inter', 'Helvetica', 'Arial', sans-serif;
+  --font-display: 'Coming Soon', cursive;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
