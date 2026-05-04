@@ -129,17 +129,35 @@ describe('LandingPage component (PEP-190)', () => {
       assert.ok(source.includes('Feedback'), 'Should render Feedback pill');
     });
 
-    it('has right padding to clear FAB', () => {
+    it('uses grid layout for quick jump cards', () => {
       assert.ok(
-        source.includes('82') || source.includes('paddingRight'),
-        'Quick jump row should have right padding to clear FAB'
+        source.includes('gridTemplateColumns'),
+        'Quick jump should use CSS grid layout'
       );
     });
 
-    it('uses horizontal scroll for pills', () => {
+    it('renders icons with role-specific colors', () => {
       assert.ok(
-        source.includes('overflowX') || source.includes('overflow'),
-        'Quick jump row should scroll horizontally'
+        source.includes('iconColor'),
+        'Quick jump cards should have colored icons'
+      );
+    });
+  });
+
+  // --- Loading state ---
+  describe('Loading state', () => {
+    it('shows loading indicator when classrooms array is empty', () => {
+      assert.ok(
+        source.includes('classrooms.length === 0') || source.includes('classrooms.length===0'),
+        'Should check for empty classrooms to show loading'
+      );
+      assert.ok(
+        source.includes('CircularProgress'),
+        'Should show a loading spinner'
+      );
+      assert.ok(
+        source.includes('fetching'),
+        'Should show a fetching message'
       );
     });
   });
