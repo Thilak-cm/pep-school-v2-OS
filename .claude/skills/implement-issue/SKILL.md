@@ -251,18 +251,12 @@ Execute the approved plan using Test-Driven Development.
    - Check for regressions in existing tests
    - **BLOCK IF:** Any criterion lacks test coverage or tests are failing
 
-5. **Browser-verify with Playwright MCP** (for UI changes):
-   - Use the Playwright MCP tools to navigate to the dev server (port 5174 for alt-pepos worktree, 5173 for main)
-   - After implementing UI changes, use `browser_navigate` to load the relevant page, `browser_console_messages` to check for runtime errors (React key warnings, TypeError crashes, etc.), and `browser_take_screenshot` to visually confirm rendering
-   - Fix any console errors found before asking the user to verify — this closes the feedback loop without requiring the user to paste dev console output
-   - Note: The user must sign in manually via Google OAuth if the session requires auth — Playwright cannot automate OAuth popups
-
-6. **Refactor if needed** (Refactor phase):
+5. **Refactor if needed** (Refactor phase):
    - Clean up code while keeping tests green
    - Ensure consistent patterns with existing codebase
    - Update tests if refactoring changes interfaces
 
-7. Create commits:
+6. Create commits:
    - Commit tests separately: `test: add tests for [feature/fix] (PEP-123)`
    - Commit implementation: `feat/fix: [description] (PEP-123)`
    - Co-authored-by: Claude
@@ -327,31 +321,19 @@ Update Linear issue with implementation progress and test results.
 Require the user to manually verify the implementation before moving to review.
 
 **Steps:**
-1. **Full Playwright e2e smoke check** (do this BEFORE presenting anything to the user):
-   - For UI changes, use Playwright MCP to navigate to the affected pages and run a complete smoke check
-   - Dev server ports: 5174 for alt-pepos worktree, 5173 for main worktree
-   - The user must sign in manually via Google OAuth once — Playwright cannot automate OAuth popups. Ask once, then proceed with all checks.
-   - Navigate to every page/flow affected by the diff — use issue context and modified file paths to determine which screens
-   - Use `browser_console_messages` with `level: "error"` after each navigation and interaction to catch runtime errors
-   - Test all interactive elements: click buttons, expand dropdowns, open dialogs, close dialogs
-   - Use `browser_take_screenshot` to visually confirm rendering at key points
-   - Fix any issues found (React key warnings, TypeErrors, Firestore Timestamp crashes, missing imports, layout bugs), re-run tests, and re-check with Playwright until clean
-   - **Only come to the user after Playwright shows 0 errors across all tested flows** — the goal is a clean handoff, not making the user be the first to discover console errors
-   - Report what you tested and the results when presenting to the user
-
-2. Present a verification prompt that strongly encourages manual testing:
+1. Present a verification prompt that strongly encourages manual testing:
    - Start the dev server if not running (`npm run dev` in `montessori-os/`)
    - Walk through the feature/fix end-to-end in the browser
    - Check both the happy path and edge cases
 
-3. Provide a tailored checklist based on the change type:
+2. Provide a tailored checklist based on the change type:
    - **UI changes:** Visual appearance, responsiveness, interaction states, loading/error states
    - **Data changes:** Data persists correctly, Firestore documents created/updated as expected
    - **Role/permission changes:** Test with different roles (teacher, classroomadmin, superadmin)
    - **API/Cloud Function changes:** Verify function triggers correctly, check Firebase console logs
    - **Bug fixes:** Confirm the original bug no longer reproduces
 
-4. Ask user to confirm verification using AskUserQuestion:
+3. Ask user to confirm verification using AskUserQuestion:
    - Question: "Have you manually verified the e2e flow of this feature?"
    - Options: "Yes, verified and working" / "Found issues (describe)"
    - If "Found issues": Address the issues, re-run tests, then ask again
