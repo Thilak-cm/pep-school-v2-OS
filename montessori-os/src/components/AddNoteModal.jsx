@@ -685,6 +685,9 @@ function AddNoteModal({
   useEffect(() => {
     if (open) {
       setStep(initialStep);
+      if (initialStep === STEP_MEDIA) {
+        setMediaMode('photo');
+      }
     }
   }, [open, initialStep]);
 
