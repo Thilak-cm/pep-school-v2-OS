@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-06T05:05:13.710Z
-App version: 10.16.2
+Generated: 2026-05-06T18:17:01.285Z
+App version: 10.16.3
 
 ## App Snapshot
 
@@ -93,8 +93,8 @@ App version: 10.16.2
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 23
-- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 27
+- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -102,8 +102,8 @@ App version: 10.16.2
 - `montessori-os/src/components/BulkUploadPage.jsx`
 - `montessori-os/src/components/BulkUploadPage.helpers.js`
 - `montessori-os/src/components/BulkUploadPage.test.js`
-- `montessori-os/src/components/CopyToClipboardButton.jsx`
-- `montessori-os/src/components/deadCodeRemoval.pep115.test.js`
+- `montessori-os/src/components/ClassroomNoteCard.jsx`
+- `montessori-os/src/components/ClassroomStudentCard.jsx`
 
 ## Existing UX Patterns
 
@@ -139,6 +139,11 @@ App version: 10.16.2
 
 ## Recent Changes
 
+### 10.16.3 (2026-05-06)
+- Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
+- New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
+- Type chips with distinct colors per note type (Observation, Voice, Media, Lesson)
+
 ### 10.16.2 (2026-05-05)
 - Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
 - HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
@@ -153,9 +158,4 @@ App version: 10.16.2
 - Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
 - Greeting header with date, display name, classroom/student counts, and avatar
 - 2x2 classroom card grid with colored backgrounds, MiniTangram icons, and direct ClassroomTimeline navigation
-
-### 10.15.0 (2026-05-03)
-- Expanding card menu on FAB with 3 note types: Voice, Lesson, Media (PEP-189)
-- Scale-from-FAB animation with spring easing and scrim overlay
-- Direct note-type routing: Voice/Media skip type picker, Lesson opens as page
 
