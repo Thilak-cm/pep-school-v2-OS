@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography, Chip as MuiChip } from '@mui/material';
-import { Clock as AccessTime } from '../icons';
+import { Clock as AccessTime, User as Person, Mic, BookOpen, Image, Eye } from '../icons';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
-import { Avatar, Chip } from './ui';
+import { Chip } from './ui';
 import { getTypeChipConfig, getTeacherForNote } from './classroomTimelineUtils.js';
 import {
   getLessonDimensions,
@@ -10,10 +10,11 @@ import {
   LESSON_RATING_COLORS,
 } from '../utils/lessonNoteConstraints';
 
-const ROLE_RING_COLORS = {
-  teacher: 'var(--color-amber-yellow)',
-  classroomadmin: 'var(--color-primary)',
-  superadmin: 'var(--color-violet)',
+const TYPE_ICONS = {
+  Eye: <Eye size={14} />,
+  Mic: <Mic size={14} />,
+  BookOpen: <BookOpen size={14} />,
+  Image: <Image size={14} />,
 };
 
 function renderLessonSummary(note, showGroupDefaults = false) {
@@ -104,7 +105,7 @@ function ClickableName({ student, onNavigateToStudent }) {
         fontWeight: 600,
         color: 'var(--color-primary)',
         cursor: 'pointer',
-        fontSize: '0.8rem',
+        fontSize: '0.88rem',
         '&:hover': { textDecoration: 'underline' },
       }}
       onClick={(e) => {
@@ -157,7 +158,6 @@ export default function GroupedNoteCard({
   const note = groupedNote.representativeNote;
   const chipConfig = getTypeChipConfig(note.type);
   const teacher = getTeacherForNote(note, classroomTeachers);
-  const ringColor = ROLE_RING_COLORS[teacher.role] || ROLE_RING_COLORS.teacher;
   const isLesson = note.type === 'lesson';
 
   const studentsInGroup = groupedNote.studentIds
@@ -181,25 +181,18 @@ export default function GroupedNoteCard({
       onClick={onNoteClick}
     >
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        {/* Author row: Avatar + Name ... Type Chip */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.25 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar
-              name={teacher.displayName}
-              src={teacher.photoURL}
-              size="sm"
-              ringColor={ringColor}
-            />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
-              {teacher.displayName}
-            </Typography>
-          </Box>
-          <Chip label={chipConfig.label} tone={chipConfig.tone} size="small" />
+        {/* Row 1: Student names (prominent) ... Type Chip with icon */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+          <StudentNames studentsInGroup={studentsInGroup} onNavigateToStudent={onNavigateToStudent} />
+          <Chip label={chipConfig.label} tone={chipConfig.tone} size="small" icon={TYPE_ICONS[chipConfig.iconName]} />
         </Box>
 
-        {/* Student names — clickable */}
-        <Box sx={{ mb: 1 }}>
-          <StudentNames studentsInGroup={studentsInGroup} onNavigateToStudent={onNavigateToStudent} />
+        {/* Row 2: Teacher icon + name (simple) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+          <Person size={14} style={{ color: 'var(--color-text-faint)' }} />
+          <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
+            {teacher.displayName}
+          </Typography>
         </Box>
 
         {/* Content */}

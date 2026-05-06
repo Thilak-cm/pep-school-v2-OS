@@ -28,9 +28,9 @@ import FilterPanel from './FilterPanel';
 import ClassroomNoteCard from './ClassroomNoteCard';
 import GroupedNoteCard from './GroupedNoteCard';
 import ClassroomStudentCard from './ClassroomStudentCard';
+import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
-// roleUtils moved out with GroupedNoteDialog
 import useSwipeTabs from '../hooks/useSwipeTabs';
 // lessonNoteConstraints moved into extracted card components
 import { reportCaughtError } from '../utils/reportCaughtError.js';
@@ -40,9 +40,10 @@ import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 
 const NOTES_PAGE_SIZE = 20;
 
-function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
+  const [selectedNote, setSelectedNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
   const [classroomStudents, setClassroomStudents] = useState([]);
@@ -784,8 +785,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   };
 
   // Handle note click to expand
-  const handleNoteClick = () => {
-    // Note expansion dialog functionality removed
+  const handleNoteClick = (note) => {
+    setSelectedNote(note);
   };
 
   if (loading) {
@@ -867,6 +868,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           ]}
           value={activeTab}
           onChange={(v) => setActiveTab(v)}
+          variant="fullWidth"
         />
       </Box>
 
@@ -992,6 +994,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       </Box>
 
       {/* Report preview dialog for classroom timeline report markers */}
+      {/* Report preview dialog */}
       <ReportPreviewDialog
         open={!!reportPreviewData}
         onClose={() => setReportPreviewData(null)}
@@ -1001,6 +1004,18 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         studentLabel={reportPreviewData?.studentName || 'Student'}
         noteCount={reportPreviewData?.noteCount || null}
         driveDocLink={reportPreviewData?.driveDocLink || null}
+      />
+
+      {/* Note expansion dialog */}
+      <NoteExpansionDialog
+        open={!!selectedNote}
+        onClose={() => setSelectedNote(null)}
+        observation={selectedNote}
+        student={selectedNote ? classroomStudents.find(s => s.id === selectedNote.studentId) : null}
+        currentUser={currentUser}
+        userRole={userRole}
+        isClassroomContext={true}
+        onNavigateToStudent={onNavigateToStudent}
       />
     </Box>
   );
