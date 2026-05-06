@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.16.3 — 2026-05-05
+
+### Added
+- Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
+- Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
+
+### Changed
+- Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
+- DATA_STRUCTURE.md updated with `sessionName`, `kickoffMessage`, and per-variant `conversation` fields (PEP-211)
+
 # 10.16.2 — 2026-05-05
 
 ### Changed
