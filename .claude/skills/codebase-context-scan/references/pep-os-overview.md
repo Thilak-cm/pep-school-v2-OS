@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-06T05:05:13.710Z
-App version: 10.16.2
+Generated: 2026-05-06T06:09:21.618Z
+App version: 10.16.3
 
 ## App Snapshot
 
@@ -26,22 +26,22 @@ App version: 10.16.2
 | analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/components/BaseballCardSnapshotCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
 | ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AIVoiceTranscriberEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
 | admin-and-access | Admin and Access | Role-aware access, user management, classroom operations, aliases, and graduation workflows. | `montessori-os/src/components/UsersAccessPage.jsx`<br>`montessori-os/src/components/GraduateStudentsPage.jsx`<br>`montessori-os/src/components/StudentAliasesPage.jsx`<br>`montessori-os/src/components/ConfigHomePage.jsx`<br>`montessori-os/src/components/LessonNoteConfigEditor.jsx`<br>`montessori-os/src/utils/roleUtils.js`<br>`firestore.rules` |
-| settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
+| settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppHeader.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
 
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 11
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
+- Count: 10
+- Components: `AddNoteFab`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
-- `montessori-os/src/components/AddNoteFab.test.js`
 - `montessori-os/src/components/AddNoteModal.jsx`
 - `montessori-os/src/components/ClassroomStudentPicker.jsx`
 - `montessori-os/src/components/LessonNoteConfigEditor.jsx`
 - `montessori-os/src/components/LessonNotes.jsx`
 - `montessori-os/src/components/LessonNotesPage.jsx`
 - `montessori-os/src/components/LessonNoteTagDialog.jsx`
+- `montessori-os/src/components/MentionTextArea.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
 - Count: 11
@@ -94,16 +94,16 @@ App version: 10.16.2
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
 - Count: 23
-- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
+- `montessori-os/src/AppHeader.jsx`
 - `montessori-os/src/components/BaseballCardBody.jsx`
 - `montessori-os/src/components/BulkUploadPage.jsx`
 - `montessori-os/src/components/BulkUploadPage.helpers.js`
 - `montessori-os/src/components/BulkUploadPage.test.js`
 - `montessori-os/src/components/CopyToClipboardButton.jsx`
-- `montessori-os/src/components/deadCodeRemoval.pep115.test.js`
 
 ## Existing UX Patterns
 
@@ -139,6 +139,11 @@ App version: 10.16.2
 
 ## Recent Changes
 
+### 10.16.3 (2026-05-05)
+- Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
+- Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
+- Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
+
 ### 10.16.2 (2026-05-05)
 - Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
 - HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
@@ -153,9 +158,4 @@ App version: 10.16.2
 - Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
 - Greeting header with date, display name, classroom/student counts, and avatar
 - 2x2 classroom card grid with colored backgrounds, MiniTangram icons, and direct ClassroomTimeline navigation
-
-### 10.15.0 (2026-05-03)
-- Expanding card menu on FAB with 3 note types: Voice, Lesson, Media (PEP-189)
-- Scale-from-FAB animation with spring easing and scrim overlay
-- Direct note-type routing: Voice/Media skip type picker, Lesson opens as page
 
