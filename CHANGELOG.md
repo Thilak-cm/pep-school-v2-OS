@@ -1,5 +1,21 @@
 # Changelog
 
+# 10.16.3 — 2026-05-06
+
+### Changed
+- Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
+- New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
+- Type chips with distinct colors per note type (Observation, Voice, Media, Lesson)
+- Notes/Students full-width tab switcher with swipe navigation
+- Restored grouped note expansion dialog with per-student delete functionality
+
+### Fixed
+- Report banners now appear under their correct date instead of falling to epoch (1970)
+- Lesson note dimension tags show proper names and ratings in card view
+- Within-day notes sorted chronologically (newest first)
+- Media preview dialog includes delete button for authorized users
+- Added `noopener,noreferrer` to media preview external link
+
 # 10.16.2 — 2026-05-05
 
 ### Changed
