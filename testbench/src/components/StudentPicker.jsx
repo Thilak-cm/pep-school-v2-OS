@@ -17,11 +17,6 @@ const HANDWRITING_DEFAULTS = [
   { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
 ];
 
-// Interview question gen — restricted to single test student
-const INTERVIEW_DEFAULTS = [
-  { id: "2025-ADO-001", displayName: "Aakash Arulkumar", classroomId: "allstars", classroomName: "Allstars" },
-];
-
 // 2 students per program with most observation data
 const SOUL_DEFAULTS_BY_PROGRAM = {
   toddler: [
@@ -49,14 +44,11 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
   const [loadedMore, setLoadedMore] = useState(false);
 
   const isHandwriting = featureId === "handwriting_analysis";
-  const isInterviewGen = featureId === "interview_question_gen";
+
 
   // Load defaults immediately — no Firestore queries needed
   useEffect(() => {
-    if (isInterviewGen) {
-      setStudents(INTERVIEW_DEFAULTS);
-      setCanLoadMore(false);
-    } else if (isHandwriting) {
+    if (isHandwriting) {
       setStudents(HANDWRITING_DEFAULTS);
       setCanLoadMore(false); // handwriting is fixed to top 5, no load more
     } else {
@@ -69,7 +61,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
   }, [featureId, programFilter]);
 
   const loadMore = useCallback(async () => {
-    if (isHandwriting || isInterviewGen || loadedMore) return;
+    if (isHandwriting || loadedMore) return;
     setLoading(true);
 
     try {
@@ -117,7 +109,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
     } finally {
       setLoading(false);
     }
-  }, [students, programFilter, isHandwriting, isInterviewGen, loadedMore]);
+  }, [students, programFilter, isHandwriting, loadedMore]);
 
   return (
     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
@@ -156,7 +148,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
         )}
         sx={{ minWidth: 280 }}
       />
-      {canLoadMore && !isHandwriting && !isInterviewGen && (
+      {canLoadMore && !isHandwriting && (
         <Button size="small" onClick={loadMore} disabled={loading} sx={{ mt: 0.5, whiteSpace: "nowrap" }}>
           {loading ? "Loading..." : "Load more"}
         </Button>

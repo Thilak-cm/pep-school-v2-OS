@@ -165,9 +165,6 @@ interface Classroom {
   // Server-maintained summary
   studentCount: number;          // count of active students
 
-  // UI display
-  color?: string;                // hex color for classroom card background (e.g. "#5C6BC0"), seeded by seed-classroom-colors.mjs
-
   // Google Drive export (PEP-61)
   driveFolderId?: string;        // Google Drive folder ID for report exports (set on first export)
 
@@ -968,10 +965,12 @@ Purpose: Stores prompt test bench run history — each doc captures a comparison
 
 ```typescript
 interface TestBenchRun {
-  feature: string;                // e.g., "soul_generation", "handwriting_analysis"
+  feature: string;                // e.g., "soul_generation", "handwriting_analysis", "interview_question_gen"
   studentId: string;
   studentName: string;
+  sessionName?: string;           // optional user-defined label (PEP-211) — displayed in history when present
   timestamp: Timestamp;
+  kickoffMessage?: string;        // interview_question_gen only — first user message to start the interview
   variants: Array<{
     name: string;                 // e.g., "Variant A"
     prompt: {
@@ -982,6 +981,15 @@ interface TestBenchRun {
       max_tokens: number;
     };
     output: string;
+    conversation?: Array<{        // interview_question_gen only — turn-by-turn conversation history
+      type: 'question' | 'answer';
+      question?: { text: string; type: string; area: string; options?: string[] };
+      answer?: string;
+      explorationAreas?: Array<{ area: string; rationale: string }>;
+      thinking?: string;
+      rawContent?: string;
+      meta?: { tokens: number; latencyMs: number };
+    }>;
     rating: number;               // 1-10
     notes: string;
   }>;
@@ -994,4 +1002,5 @@ interface TestBenchRun {
 
 Security
 - Read + Create: super admins only (`isSuperAdmin()`)
-- Update + Delete: denied (runs are immutable once saved)
+- Update: super admins only, restricted to `sessionName` field (PEP-211)
+- Delete: denied
