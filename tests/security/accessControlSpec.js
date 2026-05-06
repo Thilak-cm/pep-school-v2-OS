@@ -160,11 +160,19 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Testbench docs are immutable — no update or delete',
-    description: 'allow update, delete: if false',
+    name: 'Testbench update restricted to sessionName field only by superadmin',
+    description: 'allow update: if isSuperAdmin() && affectedKeys().hasOnly([\'sessionName\'])',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update,\s*delete:\s*if\s+false/,
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update:\s*if\s+isSuperAdmin[\s\S]*?affectedKeys\(\)\.hasOnly\(\[['"]sessionName['"]\]\)/,
+  },
+
+  {
+    name: 'Testbench delete denied',
+    description: 'allow delete: if false',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+delete:\s*if\s+false/,
   },
 
   // ============================================================================

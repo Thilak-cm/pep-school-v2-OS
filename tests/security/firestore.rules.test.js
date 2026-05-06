@@ -182,7 +182,7 @@ test('Firestore Rules - Classroom scoping functions present', () => {
   );
 });
 
-test('Firestore Rules - Testbench collection is superadmin-only and immutable', () => {
+test('Firestore Rules - Testbench collection is superadmin-only with sessionName-only updates', () => {
   const testbenchMatch = rulesContent.match(
     /match\s+\/testbench\/\{runId\}[\s\S]*?(?=match\s+\/|$)/
   )?.[0];
@@ -198,10 +198,24 @@ test('Firestore Rules - Testbench collection is superadmin-only and immutable', 
     'Testbench missing read/create rule'
   );
 
-  // No update or delete allowed
+  // Update restricted to sessionName field only by superadmin
   assert.ok(
-    testbenchMatch.includes('allow update, delete: if false'),
-    'Testbench docs should be immutable (update, delete: if false)'
+    testbenchMatch.includes('allow update'),
+    'Testbench should allow update (restricted to sessionName)'
+  );
+  assert.ok(
+    testbenchMatch.includes('affectedKeys'),
+    'Testbench update rule must use affectedKeys() to restrict fields'
+  );
+  assert.ok(
+    testbenchMatch.includes('sessionName'),
+    'Testbench update rule must restrict to sessionName field'
+  );
+
+  // Delete still denied
+  assert.ok(
+    testbenchMatch.includes('allow delete: if false'),
+    'Testbench docs should not be deletable'
   );
 
   // Teacher should NOT be mentioned (no teacher access)
