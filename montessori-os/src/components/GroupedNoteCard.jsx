@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, Card, CardContent, Typography, Chip as MuiChip } from '@mui/material';
 import { Clock as AccessTime, User as Person, Mic, BookOpen, Image, Eye } from '../icons';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
-import { Chip } from './ui';
 import { getTypeChipConfig, getTeacherForNote } from './classroomTimelineUtils.js';
 import {
   getLessonDimensions,
@@ -10,12 +9,37 @@ import {
   LESSON_RATING_COLORS,
 } from '../utils/lessonNoteConstraints';
 
-const TYPE_ICONS = {
-  Eye: <Eye size={14} />,
-  Mic: <Mic size={14} />,
-  BookOpen: <BookOpen size={14} />,
-  Image: <Image size={14} />,
+const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
+
+const TONE_STYLES = {
+  slate:  { bg: 'var(--color-surface)', color: 'var(--color-text-soft)', border: 'var(--color-border)' },
+  violet: { bg: 'var(--color-violet-bg)', color: 'var(--color-violet)', border: 'var(--color-violet-soft)' },
+  green:  { bg: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', border: 'var(--color-green-mint)' },
+  indigo: { bg: 'var(--color-indigo-bg)', color: 'var(--color-primary)', border: 'var(--color-indigo-soft)' },
+  amber:  { bg: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', border: 'var(--color-amber-yellow)' },
 };
+
+function TypeIcon({ config }) {
+  const IconComp = TYPE_ICONS[config.iconName] || Eye;
+  const tone = TONE_STYLES[config.tone] || TONE_STYLES.slate;
+  return (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 30,
+        height: 30,
+        borderRadius: 'var(--radius-pill)',
+        bgcolor: tone.bg,
+        border: `1px solid ${tone.border}`,
+        flexShrink: 0,
+      }}
+    >
+      <IconComp size={15} style={{ color: tone.color }} />
+    </Box>
+  );
+}
 
 function renderLessonSummary(note, showGroupDefaults = false) {
   const dimensions = getLessonDimensions(note);
@@ -184,7 +208,7 @@ export default function GroupedNoteCard({
         {/* Row 1: Student names (prominent) ... Type Chip with icon */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
           <StudentNames studentsInGroup={studentsInGroup} onNavigateToStudent={onNavigateToStudent} />
-          <Chip label={chipConfig.label} tone={chipConfig.tone} size="small" icon={TYPE_ICONS[chipConfig.iconName]} />
+          <TypeIcon config={chipConfig} />
         </Box>
 
         {/* Row 2: Teacher icon + name (simple) */}

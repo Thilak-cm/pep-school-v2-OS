@@ -17,7 +17,7 @@ import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, Chevron
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
-// formatTimestamp moved into extracted card components
+import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
   planMissingMediaUrlPaths,
   fetchMediaUrlsWithConcurrency,
@@ -43,7 +43,8 @@ const NOTES_PAGE_SIZE = 20;
 function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
-  const [selectedNote, setSelectedNote] = useState(null);
+  const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
+  const [mediaPreview, setMediaPreview] = useState(null); // { observation, url } for media expansion
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
   const [classroomStudents, setClassroomStudents] = useState([]);
@@ -784,9 +785,15 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     );
   };
 
-  // Handle note click to expand
+  // Handle note click to expand — media notes get their own preview
   const handleNoteClick = (note) => {
-    setSelectedNote(note);
+    if (note.type === 'media') {
+      const path = note.media?.[0]?.storagePath;
+      const url = path ? mediaUrls[path] : null;
+      setMediaPreview({ observation: note, url });
+    } else {
+      setSelectedNote(note);
+    }
   };
 
   if (loading) {
@@ -1006,7 +1013,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         driveDocLink={reportPreviewData?.driveDocLink || null}
       />
 
-      {/* Note expansion dialog */}
+      {/* Note expansion dialog (text/voice/lesson) */}
       <NoteExpansionDialog
         open={!!selectedNote}
         onClose={() => setSelectedNote(null)}
@@ -1017,6 +1024,73 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         isClassroomContext={true}
         onNavigateToStudent={onNavigateToStudent}
       />
+
+      {/* Media preview dialog */}
+      <Dialog
+        open={!!mediaPreview}
+        onClose={() => setMediaPreview(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        {mediaPreview?.observation && (() => {
+          const obs = mediaPreview.observation;
+          const student = classroomStudents.find(s => s.id === obs.studentId);
+          const studentName = student?.displayName || student?.firstName || 'Student';
+          return (
+            <>
+              <Box sx={{ p: 2, pb: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  {studentName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {formatTimestamp(obs.observedAt || obs.timestamp)}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2 }}>
+                {mediaPreview.url ? (
+                  obs.mediaKind === 'video' ? (
+                    <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+                  ) : (
+                    <Box
+                      component="img"
+                      src={mediaPreview.url}
+                      alt="Media"
+                      sx={{ width: '100%', borderRadius: 2, display: 'block' }}
+                    />
+                  )
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Media not available</Typography>
+                )}
+                {obs.text && (
+                  <Typography variant="body2" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {obs.text}
+                  </Typography>
+                )}
+                {(obs.curriculumArea || (Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.length > 0)) && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                    {obs.curriculumArea && (
+                      <Chip size="small" label={obs.curriculumArea} sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, border: '1px solid var(--color-green-mint)' }} />
+                    )}
+                    {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
+                      <Chip key={mat} size="small" label={mat} sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, border: '1px solid var(--color-amber-gold)' }} />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2, pb: 2 }}>
+                {mediaPreview.url && (
+                  <Button size="small" onClick={() => window.open(mediaPreview.url, '_blank')}>
+                    Open Full
+                  </Button>
+                )}
+                <Button size="small" onClick={() => setMediaPreview(null)}>
+                  Close
+                </Button>
+              </Box>
+            </>
+          );
+        })()}
+      </Dialog>
     </Box>
   );
 }
