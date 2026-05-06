@@ -615,12 +615,30 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     if (!initialStudentId || students.length === 0) return;
     const target = students.find(s => s.id === initialStudentId);
     if (target) {
-      openStudentDialog(target);
+      // Inline dialog-open logic to avoid stale closure from openStudentDialog
+      setSelectedStudent(target);
+      let dobString = '';
+      if (target.dateOfBirth && target.dateOfBirth.toDate) {
+        const dobDate = target.dateOfBirth.toDate();
+        dobString = dobDate.toISOString().split('T')[0];
+      }
+      setEditedStudentData({
+        firstName: target.firstName || '',
+        lastName: target.lastName || '',
+        status: target.status || 'active',
+        dob: dobString
+      });
       setStudentEditMode(true);
+      setValidationErrors({});
+      setStudentDialogOpen(true);
+      onInitialStudentHandled?.();
+    } else {
+      notify('Student not found — try searching manually', { variant: 'warning' });
+      onInitialStudentHandled?.();
     }
-    onInitialStudentHandled?.();
+  // students.length is an intentional proxy for the students array
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialStudentId, students.length]);
+  }, [initialStudentId, students.length, notify, onInitialStudentHandled]);
 
   const closeStudentDialog = () => {
     if (studentSaving) return;

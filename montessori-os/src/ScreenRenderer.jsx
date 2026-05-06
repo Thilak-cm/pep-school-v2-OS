@@ -114,7 +114,7 @@ export default function ScreenRenderer({ screen, ctx }) {
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReports")}
-          onNavigateToManageStudent={(studentId) => {
+          onNavigateToManageStudent={ctx.isTeacher ? undefined : (studentId) => {
             ctx.setInitialStudentId(studentId);
             ctx.setUsersAccessView("manage");
             ctx.setScreen("addUser");

@@ -162,9 +162,9 @@ export default function BaseballCardSnapshotCard({
                       height: 24,
                       fontSize: '0.75rem',
                       fontWeight: 600,
-                      backgroundColor: 'var(--color-violet-bg, rgba(139, 92, 246, 0.08))',
-                      color: 'var(--color-violet, #8b5cf6)',
-                      border: '1px solid var(--color-violet-soft, rgba(139, 92, 246, 0.2))',
+                      backgroundColor: 'var(--color-violet-bg)',
+                      color: 'var(--color-violet)',
+                      border: '1px solid var(--color-violet-soft)',
                       '& .MuiChip-label': {
                         px: 1
                       }
@@ -182,7 +182,7 @@ export default function BaseballCardSnapshotCard({
                       backgroundColor: 'rgba(245, 158, 11, 0.08)',
                       color: 'var(--color-amber-text, #92400e)',
                       border: '1px solid rgba(245, 158, 11, 0.2)',
-                      cursor: onDobMissing ? 'pointer' : 'default',
+                      cursor: 'pointer',
                       '& .MuiChip-label': {
                         px: 1
                       }

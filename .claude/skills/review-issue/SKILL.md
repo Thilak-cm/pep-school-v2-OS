@@ -232,20 +232,16 @@ for i in 1..max_iterations:
         spawn fix agent → continue loop
 ```
 
-### Phase 5e: Playwright Smoke Check (Orchestrator)
+### Phase 5e: Manual Smoke Check (User)
 
-After the audit loop passes, run a browser smoke check for UI changes before proceeding to version bump. This catches runtime errors that static code review cannot detect.
+After the audit loop passes, present the user with a manual smoke-check checklist for UI changes before proceeding to version bump.
 
-**When to run:** If the diff touches `.jsx` files in `montessori-os/src/components/`.
+**When to present:** If the diff touches `.jsx` files in `montessori-os/src/components/`.
 
 **Steps:**
-1. Use Playwright MCP `browser_navigate` to load the dev server (port 5174 for alt-pepos worktree, 5173 for main)
-2. The user must sign in manually via Google OAuth if the session requires auth — Playwright cannot automate OAuth popups. Ask once, then proceed.
-3. Navigate to pages affected by the diff — use the issue context and modified file paths to determine which screens to visit
-4. Use `browser_console_messages` with `level: "error"` to check for runtime errors (React key warnings, TypeErrors, Firestore Timestamp issues, missing imports)
-5. Use `browser_take_screenshot` to visually confirm the feature renders correctly
-6. If errors are found: fix them, re-run tests, and re-check with Playwright
-7. If clean: proceed to Phase 6
+1. Build a checklist of screens/flows affected by the diff based on the issue context and modified file paths
+2. Present the checklist to the user and ask them to verify each item manually on the dev server
+3. Wait for user confirmation before proceeding to Phase 6
 
 **Skip conditions:** Non-UI changes (Cloud Functions only, security rules, scripts, config).
 

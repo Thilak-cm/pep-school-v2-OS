@@ -15,8 +15,9 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, CircleCheck as CheckCircleOutline, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
 import { QuickJumpButton } from './ui';
+import useNotify from '../notifications/useNotify';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -30,6 +31,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 
 
 function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice' }) {
+  const notify = useNotify();
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -382,7 +384,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     : severity === 'medium' || severity === 'med'
       ? 'var(--color-warning)'
       : severity === 'low'
-        ? '#38bdf8'
+        ? 'var(--color-sky)'
         : 'var(--color-green-bright)';
 
   const getSeverityChip = () => {
@@ -392,7 +394,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       high: 'var(--color-error)',
       medium: 'var(--color-warning)',
       med: 'var(--color-warning)',
-      low: '#38bdf8',
+      low: 'var(--color-sky)',
       none: 'var(--color-green-bright)'
     };
 
@@ -523,7 +525,13 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         studentLabel={studentLabel}
         student={studentForCard}
         onOpenFeedback={onOpenFeedback}
-        onDobMissing={onNavigateToManageStudent ? () => onNavigateToManageStudent(studentId) : undefined}
+        onDobMissing={() => {
+          if (onNavigateToManageStudent) {
+            onNavigateToManageStudent(studentId);
+          } else {
+            notify.info('Ask your admin to update the date of birth for this student');
+          }
+        }}
         feedbackMessage={feedbackMessage}
         summaryScrollRef={summaryScrollRef}
         onSummaryScroll={updateScrollFade}
