@@ -77,7 +77,10 @@ export function groupByCalendarDay(items) {
 
   for (const item of items) {
     let d;
-    if (item.isGrouped && item.earliestObservedAt) {
+    if (item.isReportGroup && item.date) {
+      // Report groups carry a pre-resolved JS Date
+      d = item.date;
+    } else if (item.isGrouped && item.earliestObservedAt) {
       d = item.earliestObservedAt instanceof Date
         ? item.earliestObservedAt
         : toDate(item.earliestObservedAt);

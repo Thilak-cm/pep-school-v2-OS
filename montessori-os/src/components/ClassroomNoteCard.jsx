@@ -60,11 +60,11 @@ function renderLessonSummary(note) {
       )}
       {dimensions.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {dimensions.map(({ dimension, rating }) => {
-            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream concatenation
+          {dimensions.map(({ name, value }) => {
+            const color = LESSON_RATING_COLORS[value] || '#475569'; // hex required — downstream concatenation
             return (
               <Box
-                key={dimension}
+                key={name}
                 component="span"
                 sx={{
                   display: 'inline-flex',
@@ -79,7 +79,7 @@ function renderLessonSummary(note) {
                   border: `1px solid ${color}44`,
                 }}
               >
-                {dimension}: {LESSON_RATING_LABELS[rating] || 'N/A'}
+                {name}: {LESSON_RATING_LABELS[value] || 'N/A'}
               </Box>
             );
           })}

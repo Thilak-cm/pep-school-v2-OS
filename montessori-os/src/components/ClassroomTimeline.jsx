@@ -10,11 +10,9 @@ import {
   Button,
   Collapse,
   Dialog,
-  List,
-  ListItem,
 } from '@mui/material';
-import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, X as Close, Eye as Visibility, FileText as Description } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, startAfter } from 'firebase/firestore';
+import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Trash2 as Delete, Eye as Visibility, FileText as Description } from '../icons';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
@@ -27,12 +25,14 @@ import ReportPreviewDialog from './ReportPreviewDialog';
 import FilterPanel from './FilterPanel';
 import ClassroomNoteCard from './ClassroomNoteCard';
 import GroupedNoteCard from './GroupedNoteCard';
+import GroupedNoteDialog from './GroupedNoteDialog';
 import ClassroomStudentCard from './ClassroomStudentCard';
 import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useSwipeTabs from '../hooks/useSwipeTabs';
 // lessonNoteConstraints moved into extracted card components
+import { canDeleteObservation } from '../utils/observationPermissions';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
@@ -44,6 +44,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
+  const [selectedGroupNote, setSelectedGroupNote] = useState(null); // for grouped note expansion
   const [mediaPreview, setMediaPreview] = useState(null); // { observation, url } for media expansion
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
@@ -647,12 +648,19 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const dayGroups = useMemo(() => {
     const { grouped, ungrouped } = groupedAndSortedObservations;
 
-    // Build a single merged list with isGrouped flags (same shape paginateTimelineItems produces)
+    // Build a single merged list with isGrouped flags, sorted newest-first for correct within-day ordering
     const merged = [];
     for (const g of grouped) merged.push({ ...g, isGrouped: true });
     for (const n of ungrouped) merged.push({ ...n, isGrouped: false });
     // Add report groups
     for (const rg of groupedReports) merged.push({ ...rg, isReportGroup: true });
+
+    // Sort by date so within-day items are chronologically ordered (newest first)
+    merged.sort((a, b) => {
+      const aDate = a.isReportGroup ? a.date : toDate(a.earliestObservedAt || a.observedAt || a.timestamp);
+      const bDate = b.isReportGroup ? b.date : toDate(b.earliestObservedAt || b.observedAt || b.timestamp);
+      return bDate - aDate;
+    });
 
     return groupByCalendarDay(merged);
   }, [groupedAndSortedObservations, groupedReports]);
@@ -763,7 +771,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           groupedNote={item}
           classroomStudents={classroomStudents}
           classroomTeachers={classroomTeachers}
-          onNoteClick={() => {}}
+          onNoteClick={() => setSelectedGroupNote(item)}
           onNavigateToStudent={onNavigateToStudent}
           lessonTitleById={lessonTitleById}
         />
@@ -827,8 +835,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         gap: 1,
         px: 2,
         py: 1.5,
-        backgroundColor: 'white',
-        borderRadius: 1,
         borderBottom: '1px solid var(--color-border)',
       }}>
         <HFSearchInput
@@ -909,11 +915,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         >
           {/* Tab 0: Notes */}
           <Box 
-            sx={{ 
+            sx={{
               width: '50%',
               flexShrink: 0,
-              backgroundColor: 'white',
-              borderRadius: 1,
               p: 2,
               minHeight: '200px'
             }}
@@ -961,11 +965,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
           
           {/* Tab 1: Students */}
           <Box 
-            sx={{ 
+            sx={{
               width: '50%',
               flexShrink: 0,
-              backgroundColor: 'white',
-              borderRadius: 1,
               p: 2,
               minHeight: '200px'
             }}
@@ -1000,7 +1002,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         </Box>
       </Box>
 
-      {/* Report preview dialog for classroom timeline report markers */}
       {/* Report preview dialog */}
       <ReportPreviewDialog
         open={!!reportPreviewData}
@@ -1022,6 +1023,16 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         currentUser={currentUser}
         userRole={userRole}
         isClassroomContext={true}
+        onNavigateToStudent={onNavigateToStudent}
+      />
+
+      {/* Grouped note expansion dialog */}
+      <GroupedNoteDialog
+        open={!!selectedGroupNote}
+        onClose={() => setSelectedGroupNote(null)}
+        groupedNote={selectedGroupNote}
+        classroomStudents={classroomStudents}
+        userRole={userRole}
         onNavigateToStudent={onNavigateToStudent}
       />
 
@@ -1078,8 +1089,29 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 )}
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2, pb: 2 }}>
+                {canDeleteObservation(obs, currentUser, userRole) && (
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={() => {
+                      if (!window.confirm('Are you sure you want to delete this media note? This action cannot be undone.')) return;
+                      const parentId = obs.parentStudentId || obs.studentId;
+                      deleteDoc(doc(db, 'students', parentId, 'observations', obs.id))
+                        .then(() => {
+                          notify.success('Note deleted successfully', { duration: 2500 });
+                          setMediaPreview(null);
+                        })
+                        .catch(() => {
+                          notify.error('Error deleting note. Please try again.', { duration: 3500 });
+                        });
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
                 {mediaPreview.url && (
-                  <Button size="small" onClick={() => window.open(mediaPreview.url, '_blank')}>
+                  <Button size="small" onClick={() => window.open(mediaPreview.url, '_blank', 'noopener,noreferrer')}>
                     Open Full
                   </Button>
                 )}
