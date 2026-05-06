@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-04T23:17:36.724Z
-App version: 10.16.0
+Generated: 2026-05-06T02:47:27.054Z
+App version: 10.16.1
 
 ## App Snapshot
 
@@ -139,6 +139,11 @@ App version: 10.16.0
 
 ## Recent Changes
 
+### 10.16.1 (2026-05-06)
+- Student Dashboard line chart Y-axis properly aligned (no clipping)
+- Removed "peak: X/wk" label from notes-over-time chart
+- Age chip color changed from indigo to violet
+
 ### 10.16.0 (2026-05-04)
 - Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
 - Greeting header with date, display name, classroom/student counts, and avatar
@@ -153,9 +158,4 @@ App version: 10.16.0
 - Shared UI primitive component kit with 16 reusable components in components/ui/ (PEP-185)
 - Layout primitives: HFHeader, HFTabs, HFSegmented, DayHeader
 - Data display: Avatar, KidAvatar, MiniTangram, Chip (7 tone variants)
-
-### 10.14.2 (2026-04-30)
-- Icon system migrated from MUI icons to Lucide via barrel file pattern in icons.js (PEP-184)
-- All ~50 component files now import icons from centralized barrel instead of @mui/icons-material
-- Emoji icons (💬, 🔍, 👩‍🏫) replaced with Lucide SVG components throughout the app
 
