@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, CircularProgress } from "@mui/material";
+import HFHeader from "./components/ui/HFHeader.jsx";
 import LandingPage from "./components/LandingPage";
 import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
@@ -32,11 +33,30 @@ import ConfigHomePage from "./components/ConfigHomePage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 
+/** Screens that render their own header or need none */
+const NO_HEADER_SCREENS = new Set(["landingPage", "accessDenied", "loading"]);
+
 /**
  * Renders the correct screen component based on the current `screen` value.
  * All required state and handlers are passed through the `ctx` prop.
+ * Screens get an inline HFHeader (left-aligned, no separator) unless in NO_HEADER_SCREENS.
  */
 export default function ScreenRenderer({ screen, ctx }) {
+  const content = renderScreen(screen, ctx);
+  if (!content || NO_HEADER_SCREENS.has(screen)) return content;
+
+  return (
+    <>
+      <HFHeader
+        title={ctx.pageTitle}
+        onBack={ctx.showBackButton ? ctx.backNavigation : undefined}
+      />
+      {content}
+    </>
+  );
+}
+
+function renderScreen(screen, ctx) {
   switch (screen) {
     case "landingPage":
       return (
@@ -65,25 +85,23 @@ export default function ScreenRenderer({ screen, ctx }) {
 
     case "classroomList":
       return (
-        <>
-          <ClassroomList
-            classrooms={ctx.classrooms}
-            onSelectClassroom={(cls) => {
-              ctx.setSelectedClassroom(cls);
-              ctx.setClassroomTimelineReturnScreen("classroomList");
-              ctx.setScreen("classroomTimeline");
-            }}
-            currentUser={ctx.user}
-            userRole={ctx.role}
-            manageableClassrooms={ctx.manageableClassrooms}
-            onNavigateToStudent={(student) => {
-              ctx.setSelectedStudent(student);
-              ctx.setStudentDashboardReturnScreen("classroomList");
-              ctx.setStudentDashboardNoteType("textVoice");
-              ctx.setScreen("studentDashboard");
-            }}
-          />
-        </>
+        <ClassroomList
+          classrooms={ctx.classrooms}
+          onSelectClassroom={(cls) => {
+            ctx.setSelectedClassroom(cls);
+            ctx.setClassroomTimelineReturnScreen("classroomList");
+            ctx.setScreen("classroomTimeline");
+          }}
+          currentUser={ctx.user}
+          userRole={ctx.role}
+          manageableClassrooms={ctx.manageableClassrooms}
+          onNavigateToStudent={(student) => {
+            ctx.setSelectedStudent(student);
+            ctx.setStudentDashboardReturnScreen("classroomList");
+            ctx.setStudentDashboardNoteType("textVoice");
+            ctx.setScreen("studentDashboard");
+          }}
+        />
       );
 
     case "classroomTimeline":
