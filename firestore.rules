@@ -513,10 +513,13 @@ service cloud.firestore {
     }
 
     // Testbench collection — prompt test bench run results
-    // - Only super admins can read/create; runs are immutable once saved
+    // - Only super admins can read/create
+    // - Updates restricted to sessionName field only (PEP-211)
     match /testbench/{runId} {
       allow read, create: if isSuperAdmin();
-      allow update, delete: if false;
+      allow update: if isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName']);
+      allow delete: if false;
     }
 
     // Temporarily removed default deny to test if it's blocking teacher access

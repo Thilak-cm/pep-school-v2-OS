@@ -87,13 +87,7 @@ export default function FeatureWorkbench({ featureId }) {
   const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
   const [studentContextData, setStudentContextData] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  // Auto-select Aakash for interview mode
-  useEffect(() => {
-    if (isInterview && !selectedStudent) {
-      setSelectedStudent({ id: "2025-ADO-001", displayName: "Aakash Arulkumar", classroomId: "allstars", classroomName: "Allstars" });
-    }
-  }, [isInterview]);
+  const [sessionName, setSessionName] = useState("");
 
   // Warn on page refresh/close if any variant has edits or output
   useEffect(() => {
@@ -359,10 +353,12 @@ export default function FeatureWorkbench({ featureId }) {
     setSaving(true);
     try {
       const user = auth.currentUser;
+      const trimmedName = sessionName.trim();
       await addDoc(collection(db, "testbench"), {
         feature: featureId,
         studentId: selectedStudent.id,
         studentName: selectedStudent.displayName,
+        ...(trimmedName ? { sessionName: trimmedName } : {}),
         timestamp: Timestamp.now(),
         variants: variants.map((v, idx) => ({
           name: v.name,
@@ -400,6 +396,7 @@ export default function FeatureWorkbench({ featureId }) {
 
   function applyLoadRun(run) {
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
+    setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
 
     const restored = (run.variants || []).map((v, i) => ({
@@ -427,16 +424,14 @@ export default function FeatureWorkbench({ featureId }) {
     setInterviewStarted(hasConvos);
     setInterviewEnded(hasConvos);
 
-    setSnackbar({ open: true, message: `Loaded run: ${run.studentName}`, severity: "info" });
+    setSnackbar({ open: true, message: `Loaded run: ${run.sessionName || run.studentName}`, severity: "info" });
   }
 
   return (
     <Box sx={{ p: 3 }}>
       {/* Setup bar */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        {!isInterview && (
-          <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
-        )}
+        <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
 
         {featureId === "handwriting_analysis" && (
           <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
@@ -449,21 +444,11 @@ export default function FeatureWorkbench({ featureId }) {
           />
         )}
         {isInterview && (
-          <>
-            {selectedStudent && (
-              <Chip
-                label={`Student: ${selectedStudent.displayName}`}
-                color="primary"
-                variant="outlined"
-                sx={{ alignSelf: "center" }}
-              />
-            )}
-            <InterviewQuestionConfig
-              selectedStudent={selectedStudent}
-              onConfigLoaded={handleConfigLoaded}
-              onStudentContextLoaded={setStudentContextData}
-            />
-          </>
+          <InterviewQuestionConfig
+            selectedStudent={selectedStudent}
+            onConfigLoaded={handleConfigLoaded}
+            onStudentContextLoaded={setStudentContextData}
+          />
         )}
 
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
@@ -502,6 +487,14 @@ export default function FeatureWorkbench({ featureId }) {
               Run All
             </Button>
           )}
+          <TextField
+            label="Session Name"
+            value={sessionName}
+            onChange={(e) => setSessionName(e.target.value)}
+            size="small"
+            placeholder="Optional — defaults to student name"
+            sx={{ minWidth: 200 }}
+          />
           <Button
             variant="outlined"
             startIcon={<SaveIcon />}
