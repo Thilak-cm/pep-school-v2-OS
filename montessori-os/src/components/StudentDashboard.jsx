@@ -15,8 +15,9 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, CircleCheck as CheckCircleOutline, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
-import { keyframes } from '@emotion/react';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
+import { QuickJumpButton } from './ui';
+import useNotify from '../notifications/useNotify';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
@@ -27,84 +28,10 @@ import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 
-const confettiFall = keyframes`
-  0% {
-    transform: translateY(-20px) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(400px) rotate(360deg);
-    opacity: 0;
-  }
-`;
 
-const confettiFallSmall = keyframes`
-  0% {
-    transform: translateY(-20px) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(200px) rotate(360deg);
-    opacity: 0;
-  }
-`;
 
-const confettiColors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-warning)', 'var(--color-pink-dark)', 'var(--color-info)', 'var(--color-violet)'];
-
-function ConfettiAnimation({ count = 50, small = false }) {
-  const particles = React.useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => {
-        const isWide = Math.random() > 0.5; // Mix of wide and tall rectangles
-        const width = isWide ? 12 + Math.random() * 8 : 6 + Math.random() * 4;
-        const height = isWide ? 6 + Math.random() * 4 : 12 + Math.random() * 8;
-        return {
-          id: i,
-          left: `${Math.random() * 100}%`,
-          delay: Math.random() * 2.5, // Spread over the full 2.5 seconds
-          duration: 2.5 + Math.random() * 0.5, // 2.5-3 seconds for smooth fall
-          color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
-          width,
-          height,
-          rotation: Math.random() * 360, // Random starting rotation
-        };
-      }),
-    [count]
-  );
-
-  return (
-    <Box
-      sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        pointerEvents: 'none',
-        overflow: 'hidden',
-        zIndex: 1,
-      }}
-    >
-      {particles.map((particle) => (
-        <Box
-          key={particle.id}
-          sx={{
-            position: 'absolute',
-            left: particle.left,
-            top: '-10px',
-            width: particle.width,
-            height: particle.height,
-            backgroundColor: particle.color,
-            borderRadius: '2px', // Slight rounding for softer look
-            transform: `rotate(${particle.rotation}deg)`,
-            animation: `${small ? confettiFallSmall : confettiFall} ${particle.duration}s ease-out ${particle.delay}s forwards`,
-          }}
-        />
-      ))}
-    </Box>
-  );
-}
-function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, initialNoteType = 'textVoice' }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice' }) {
+  const notify = useNotify();
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -122,10 +49,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [reloadKey, setReloadKey] = useState(0);
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
-  const [showCoverageConfetti, setShowCoverageConfetti] = useState(false);
   const [chartObservations, setChartObservations] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
-  const coverageConfettiTimerRef = useRef(null);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
 
   const getStudentName = (s) => {
@@ -326,11 +251,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     return data;
   }, [chartObservations, cardConfig?.windowDays, getObservationDate]);
 
-  const peakPerWeek = useMemo(() => {
-    if (!weeklyChartData.length) return 0;
-    return Math.max(...weeklyChartData.map(d => d.count));
-  }, [weeklyChartData]);
-
   useEffect(() => {
     let active = true;
     const fetchNotesSinceGenerated = async () => {
@@ -464,7 +384,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     : severity === 'medium' || severity === 'med'
       ? 'var(--color-warning)'
       : severity === 'low'
-        ? 'var(--color-text-faint)'
+        ? 'var(--color-sky)'
         : 'var(--color-green-bright)';
 
   const getSeverityChip = () => {
@@ -474,7 +394,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       high: 'var(--color-error)',
       medium: 'var(--color-warning)',
       med: 'var(--color-warning)',
-      low: 'var(--color-text-faint)',
+      low: 'var(--color-sky)',
       none: 'var(--color-green-bright)'
     };
 
@@ -538,13 +458,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
     const handleCoverageClick = (e) => {
       setMissingDomainsAnchorEl(e.currentTarget);
-      if (coverageTone === 'balanced') {
-        if (coverageConfettiTimerRef.current) {
-          clearTimeout(coverageConfettiTimerRef.current);
-        }
-        setShowCoverageConfetti(true);
-        coverageConfettiTimerRef.current = setTimeout(() => setShowCoverageConfetti(false), 2600);
-      }
     };
 
     return (
@@ -590,18 +503,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     return () => window.removeEventListener('resize', updateScrollFade);
   }, [cardLoading, cardError, cardData]);
 
-  useEffect(() => {
-    return () => {
-      if (coverageConfettiTimerRef.current) {
-        clearTimeout(coverageConfettiTimerRef.current);
-      }
-    };
-  }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
+    <Box sx={{
+      display: 'flex', flexDirection: 'column', gap: 1.5, position: 'relative',
+      /* Fill the viewport between header and footer nav — no scrolling needed */
+      height: { xs: 'calc(100dvh - 64px - 72px - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))', sm: 'calc(100dvh - 64px - 72px - 48px)' },
+      minHeight: 0,
+    }}>
       <BaseballCardSnapshotCard
-        minHeight="55vh"
         noteCount={cardNoteCount}
         windowDays={cardWindowDays}
         coverage={renderCoverageRow()}
@@ -615,6 +525,13 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         studentLabel={studentLabel}
         student={studentForCard}
         onOpenFeedback={onOpenFeedback}
+        onDobMissing={() => {
+          if (onNavigateToManageStudent) {
+            onNavigateToManageStudent(studentId);
+          } else {
+            notify.info('Ask your admin to update the date of birth for this student');
+          }
+        }}
         feedbackMessage={feedbackMessage}
         summaryScrollRef={summaryScrollRef}
         onSummaryScroll={updateScrollFade}
@@ -626,17 +543,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             </Box>
           ) : weeklyChartData.length > 0 ? (
             <Box>
-              <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  Notes over time
-                </Typography>
-                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--color-text-faint)' }}>
-                  peak: {peakPerWeek}/wk
-                </Typography>
-              </Stack>
-              <Box sx={{ height: 120, width: '100%', ml: -1 }}>
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }}>
+                Notes over time
+              </Typography>
+              <Box sx={{ height: 120, width: '100%' }}>
                 <ResponsiveContainer width="100%" height={120}>
-                  <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts — hex required */}
                     <XAxis
                       dataKey="period"
@@ -802,10 +714,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       <Popover
         open={Boolean(missingDomainsAnchorEl)}
         anchorEl={missingDomainsAnchorEl}
-        onClose={() => {
-          setMissingDomainsAnchorEl(null);
-          setShowCoverageConfetti(false);
-        }}
+        onClose={() => setMissingDomainsAnchorEl(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         PaperProps={{
@@ -816,11 +725,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           }
         }}
       >
-        <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-          {coverageTone === 'balanced' && showCoverageConfetti && (
-            <ConfettiAnimation count={35} small />
-          )}
-          <Stack spacing={1.25} sx={{ position: 'relative', zIndex: 2 }}>
+        <Box>
+          <Stack spacing={1.25}>
             <Stack direction="row" spacing={1} alignItems="center">
               {coverageTone === 'balanced' ? (
                 <CheckCircle size={20} style={{ color: coverageStyles.iconColor }} />
@@ -867,46 +773,27 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </Box>
       </Popover>
 
-      {/* Square action buttons */}
-      <Stack direction="row" spacing={1.5} justifyContent="flex-start">
-        {[
-          { label: 'Timeline', icon: <NotesIcon size={22} />, color: 'var(--color-primary)', bg: 'rgba(79, 70, 229, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); } },
-          { label: 'Reports', icon: <ReportsIcon size={22} />, color: 'var(--color-secondary)', bg: 'rgba(5, 150, 105, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); } },
-          { label: 'Coach', icon: <ChatIcon size={22} />, color: 'var(--color-primary-light)', bg: 'rgba(99, 102, 241, 0.08)', onClick: () => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); } },
-        ].map((btn) => (
-          <Box
-            key={btn.label}
-            onClick={btn.onClick}
-            sx={{
-              width: 72,
-              height: 72,
-              borderRadius: 2.5,
-              border: '1px solid var(--color-border)',
-              backgroundColor: btn.bg,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0.5,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                borderColor: btn.color,
-              },
-              '&:active': {
-                transform: 'scale(0.96)',
-              }
-            }}
-          >
-            <Box sx={{ color: btn.color }}>{btn.icon}</Box>
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--grey-600)', letterSpacing: '0.02em' }}>
-              {btn.label}
-            </Typography>
-          </Box>
-        ))}
-      </Stack>
+      {/* Action buttons — pinned at bottom, never scrolled */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>
+        <QuickJumpButton
+          icon={<NotesIcon size={22} />}
+          label="Timeline"
+          iconColor="var(--color-primary)"
+          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'timeline', studentId }).catch(() => {}); onOpenTimeline?.(initialNoteType); }}
+        />
+        <QuickJumpButton
+          icon={<ReportsIcon size={22} />}
+          label="Reports"
+          iconColor="var(--color-secondary)"
+          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'reports', studentId }).catch(() => {}); onOpenReports?.(); }}
+        />
+        <QuickJumpButton
+          icon={<ChatIcon size={22} />}
+          label="Coach"
+          iconColor="var(--color-primary-light)"
+          onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
+        />
+      </Box>
   </Box>
   );
 }

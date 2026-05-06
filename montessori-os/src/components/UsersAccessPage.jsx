@@ -76,7 +76,7 @@ const TAB_SX = {
 // COMPONENT
 // ============================================================================
 
-const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms = [], view: externalView, onViewChange, onNavigateGraduate }) => {
+const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms = [], view: externalView, onViewChange, onNavigateGraduate, initialStudentId, onInitialStudentHandled }) => {
   const notify = useNotify();
 
   // Page IA: cards home, add users, manage users
@@ -201,6 +201,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, manageTab, hasUserManagementAccess, canManageAdmins, canViewAdmins, teachers.length, admins.length, superAdmins.length, students.length, classrooms.length]);
+
+  // When initialStudentId is set, jump straight to manage/students view
+  useEffect(() => {
+    if (!initialStudentId) return;
+    setView('manage');
+    setManageTab('students');
+  }, [initialStudentId]);
 
   // Reset display limits when teacher filters change
   useEffect(() => {
@@ -602,6 +609,36 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     setValidationErrors({});
     setStudentDialogOpen(true);
   };
+
+  // Auto-open a student dialog when initialStudentId is provided
+  useEffect(() => {
+    if (!initialStudentId || students.length === 0) return;
+    const target = students.find(s => s.id === initialStudentId);
+    if (target) {
+      // Inline dialog-open logic to avoid stale closure from openStudentDialog
+      setSelectedStudent(target);
+      let dobString = '';
+      if (target.dateOfBirth && target.dateOfBirth.toDate) {
+        const dobDate = target.dateOfBirth.toDate();
+        dobString = dobDate.toISOString().split('T')[0];
+      }
+      setEditedStudentData({
+        firstName: target.firstName || '',
+        lastName: target.lastName || '',
+        status: target.status || 'active',
+        dob: dobString
+      });
+      setStudentEditMode(true);
+      setValidationErrors({});
+      setStudentDialogOpen(true);
+      onInitialStudentHandled?.();
+    } else {
+      notify('Student not found — try searching manually', { variant: 'warning' });
+      onInitialStudentHandled?.();
+    }
+  // students.length is an intentional proxy for the students array
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStudentId, students.length, notify, onInitialStudentHandled]);
 
   const closeStudentDialog = () => {
     if (studentSaving) return;

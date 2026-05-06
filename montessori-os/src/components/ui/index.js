@@ -13,6 +13,9 @@ export { default as KidAvatar } from './KidAvatar';
 export { default as MiniTangram } from './MiniTangram';
 export { default as Chip } from './Chip';
 
+// Actions
+export { default as QuickJumpButton } from './QuickJumpButton';
+
 // Forms & Controls
 export { default as HFSearchInput } from './HFSearchInput';
 export { default as HFFilterChip } from './HFFilterChip';
