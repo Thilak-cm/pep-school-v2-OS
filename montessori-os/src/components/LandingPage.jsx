@@ -2,7 +2,7 @@
 import React from 'react';
 import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
-import { Avatar, MiniTangram } from './ui';
+import { Avatar, MiniTangram, QuickJumpButton } from './ui';
 
 // Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
 const FALLBACK_PALETTES = [
@@ -159,25 +159,13 @@ function LandingPage({
           gap: 1,
         }}>
           {quickJumps.map((item) => (
-            <ButtonBase
+            <QuickJumpButton
               key={item.label}
+              icon={item.icon}
+              label={item.label}
+              iconColor={item.iconColor}
               onClick={item.action}
-              sx={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-                py: 1.5, px: 1, borderRadius: 3,
-                backgroundColor: 'var(--color-paper)',
-                border: '1px solid var(--color-border)',
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-              }}
-            >
-              <Box sx={{ color: item.iconColor, display: 'flex' }}>
-                {item.icon}
-              </Box>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
-                {item.label}
-              </Typography>
-            </ButtonBase>
+            />
           ))}
         </Box>
       </Box>

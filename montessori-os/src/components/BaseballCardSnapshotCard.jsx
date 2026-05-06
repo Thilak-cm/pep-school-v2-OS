@@ -72,6 +72,7 @@ export default function BaseballCardSnapshotCard({
   studentLabel,
   student = null,
   onOpenFeedback,
+  onDobMissing,
   feedbackMessage,
   loadingVariant,
   loadingMessage,
@@ -97,8 +98,9 @@ export default function BaseballCardSnapshotCard({
         borderRadius: 2,
         border: '1px solid var(--color-border)',
         background: 'linear-gradient(135deg, var(--color-bg) 0%, var(--color-paper) 100%)',
-        minHeight,
+        minHeight: minHeight || 0,
         maxHeight,
+        flex: 1,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -139,39 +141,55 @@ export default function BaseballCardSnapshotCard({
               <Typography variant="body2" sx={{ color: 'var(--color-text-soft)' }}>
                 {Number.isFinite(noteCount) ? noteCount : '-'} notes over last {resolvedWindowDays} days
               </Typography>
-              {(coverage || ageString) && (
-                <Box
-                  sx={{
-                    mt: 0.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 1.5,
-                    width: '100%',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
-                    {coverage}
-                  </Box>
-                  {ageString && (
-                    <Chip
-                      label={ageString}
-                      size="small"
-                      sx={{
-                        height: 24,
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                        color: 'var(--color-primary)',
-                        border: '1px solid rgba(79, 70, 229, 0.2)',
-                        '& .MuiChip-label': {
-                          px: 1
-                        }
-                      }}
-                    />
-                  )}
+              <Box
+                sx={{
+                  mt: 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                  width: '100%',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 24 }}>
+                  {coverage}
                 </Box>
-              )}
+                {ageString ? (
+                  <Chip
+                    label={ageString}
+                    size="small"
+                    sx={{
+                      height: 24,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      backgroundColor: 'var(--color-violet-bg, rgba(139, 92, 246, 0.08))',
+                      color: 'var(--color-violet, #8b5cf6)',
+                      border: '1px solid var(--color-violet-soft, rgba(139, 92, 246, 0.2))',
+                      '& .MuiChip-label': {
+                        px: 1
+                      }
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    label="DoB missing"
+                    size="small"
+                    onClick={onDobMissing}
+                    sx={{
+                      height: 24,
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                      color: 'var(--color-amber-text, #92400e)',
+                      border: '1px solid rgba(245, 158, 11, 0.2)',
+                      cursor: onDobMissing ? 'pointer' : 'default',
+                      '& .MuiChip-label': {
+                        px: 1
+                      }
+                    }}
+                  />
+                )}
+              </Box>
             </Box>
           </Box>
         </Box>

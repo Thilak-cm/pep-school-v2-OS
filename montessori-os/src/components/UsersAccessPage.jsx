@@ -76,7 +76,7 @@ const TAB_SX = {
 // COMPONENT
 // ============================================================================
 
-const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms = [], view: externalView, onViewChange, onNavigateGraduate }) => {
+const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms = [], view: externalView, onViewChange, onNavigateGraduate, initialStudentId, onInitialStudentHandled }) => {
   const notify = useNotify();
 
   // Page IA: cards home, add users, manage users
@@ -201,6 +201,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, manageTab, hasUserManagementAccess, canManageAdmins, canViewAdmins, teachers.length, admins.length, superAdmins.length, students.length, classrooms.length]);
+
+  // When initialStudentId is set, jump straight to manage/students view
+  useEffect(() => {
+    if (!initialStudentId) return;
+    setView('manage');
+    setManageTab('students');
+  }, [initialStudentId]);
 
   // Reset display limits when teacher filters change
   useEffect(() => {
@@ -602,6 +609,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     setValidationErrors({});
     setStudentDialogOpen(true);
   };
+
+  // Auto-open a student dialog when initialStudentId is provided
+  useEffect(() => {
+    if (!initialStudentId || students.length === 0) return;
+    const target = students.find(s => s.id === initialStudentId);
+    if (target) {
+      openStudentDialog(target);
+      setStudentEditMode(true);
+    }
+    onInitialStudentHandled?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStudentId, students.length]);
 
   const closeStudentDialog = () => {
     if (studentSaving) return;

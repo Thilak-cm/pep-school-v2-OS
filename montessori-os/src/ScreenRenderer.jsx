@@ -114,6 +114,11 @@ export default function ScreenRenderer({ screen, ctx }) {
           onOpenFeedback={ctx.openFeedbackWithMessage}
           onOpenChat={() => ctx.setScreen("childChat")}
           onOpenReports={() => ctx.setScreen("studentReports")}
+          onNavigateToManageStudent={(studentId) => {
+            ctx.setInitialStudentId(studentId);
+            ctx.setUsersAccessView("manage");
+            ctx.setScreen("addUser");
+          }}
         />
       );
 
@@ -230,6 +235,8 @@ export default function ScreenRenderer({ screen, ctx }) {
           view={ctx.usersAccessView}
           onViewChange={ctx.setUsersAccessView}
           onNavigateGraduate={() => ctx.setScreen("graduateStudents")}
+          initialStudentId={ctx.initialStudentId}
+          onInitialStudentHandled={() => ctx.setInitialStudentId(null)}
         />
       );
 

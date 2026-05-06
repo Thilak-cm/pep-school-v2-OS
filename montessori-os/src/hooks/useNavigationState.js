@@ -20,6 +20,7 @@ export const useNavigationState = () => {
   const [lessonNoteEditObservation, setLessonNoteEditObservation] = useState(null);
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
   const [pendingViewReportId, setPendingViewReportId] = useState(null);
+  const [initialStudentId, setInitialStudentId] = useState(null);
 
   return {
     screen, setScreen,
@@ -35,6 +36,7 @@ export const useNavigationState = () => {
     lessonNoteEditObservation, setLessonNoteEditObservation,
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
+    initialStudentId, setInitialStudentId,
   };
 };
 

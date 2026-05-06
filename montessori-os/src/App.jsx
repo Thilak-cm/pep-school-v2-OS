@@ -48,6 +48,7 @@ function App() {
     lessonNoteEditObservation, setLessonNoteEditObservation,
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
+    initialStudentId, setInitialStudentId,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -282,10 +283,10 @@ function App() {
     user, role, isTeacher, isSuperAdminUser, manageableClassrooms, classrooms, classroomsLoaded,
     selectedClassroom, selectedStudent,
     studentDashboardNoteType, timelineFilter, prefilledFeedback,
-    usersAccessView, pendingViewReportId,
+    usersAccessView, pendingViewReportId, initialStudentId,
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
-    setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId,
+    setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
     setLessonNoteEditObservation,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName,
