@@ -65,11 +65,12 @@ function FeedbackTimeline({ currentUser, userRole }) {
   
   // Collapse state for status groups (new is expanded by default, others collapsed)
   const [expandedStatuses, setExpandedStatuses] = useState({
-    new: true,
-    reviewed: false,
+    new: false,
+    reviewed: true,
     implemented: false,
     declined: false
   });
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Load all feedback
   useEffect(() => {
@@ -218,112 +219,95 @@ function FeedbackTimeline({ currentUser, userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pb: 8 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h5" component="h1">
-            Feedback Dashboard
-          </Typography>
-        </Box>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {hasActiveFilters && (
-            <Chip 
-              label={`${filteredFeedback.length} filtered`}
-              size="small"
-              color="primary"
-              variant="outlined"
-            />
-          )}
-          <Chip 
-            label={`${allFeedback.length} total`}
-            size="small"
-            color="secondary"
-            variant="outlined"
-          />
-        </Box>
-      </Box>
+      {/* Filter toggle button */}
+      <Button
+        variant={filtersOpen ? 'contained' : 'outlined'}
+        size="small"
+        onClick={() => setFiltersOpen(!filtersOpen)}
+        startIcon={<FilterList />}
+        endIcon={filtersOpen ? <ExpandLess /> : <ExpandMore />}
+        sx={{ alignSelf: 'flex-start', textTransform: 'none', borderRadius: 2 }}
+      >
+        Filters{hasActiveFilters ? ` (${filteredFeedback.length})` : ''} · {allFeedback.length} total
+      </Button>
 
-      {/* Search and Filters */}
-      <Card sx={{ borderRadius: 3 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterList />
-            Search & Filters
-          </Typography>
-          
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Search */}
-            <TextField
-              fullWidth
-              placeholder="Search feedback, user names, or emails..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: <Search style={{ marginRight: 8, color: 'var(--color-text-soft)' }} />
-              }}
-            />
-            
-            {/* Filter Row */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Category</InputLabel>
-                <Select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  label="Category"
-                >
-                  <MenuItem value="">All Categories</MenuItem>
-                  {FEEDBACK_CATEGORIES.map((cat) => (
-                    <MenuItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  label="Status"
-                >
-                  <MenuItem value="">All Statuses</MenuItem>
-                  {STATUS_OPTIONS.map((status) => (
-                    <MenuItem key={status.value} value={status.value}>
-                      {status.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>User Role</InputLabel>
-                <Select
-                  value={userFilter}
-                  onChange={(e) => setUserFilter(e.target.value)}
-                  label="User Role"
-                >
-                  <MenuItem value="">All Users</MenuItem>
-                  <MenuItem value="teacher">Teachers</MenuItem>
-                  <MenuItem value="admin">Admins</MenuItem>
-                </Select>
-              </FormControl>
-              
-              {hasActiveFilters && (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={clearFilters}
-                >
-                  Clear Filters
-                </Button>
-              )}
+      {/* Collapsible search and filters */}
+      <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Search */}
+              <TextField
+                fullWidth
+                placeholder="Search feedback, user names, or emails..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: <Search style={{ marginRight: 8, color: 'var(--color-text-soft)' }} />
+                }}
+              />
+
+              {/* Filter Row */}
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    label="Category"
+                  >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {FEEDBACK_CATEGORIES.map((cat) => (
+                      <MenuItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    label="Status"
+                  >
+                    <MenuItem value="">All Statuses</MenuItem>
+                    {STATUS_OPTIONS.map((status) => (
+                      <MenuItem key={status.value} value={status.value}>
+                        {status.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>User Role</InputLabel>
+                  <Select
+                    value={userFilter}
+                    onChange={(e) => setUserFilter(e.target.value)}
+                    label="User Role"
+                  >
+                    <MenuItem value="">All Users</MenuItem>
+                    <MenuItem value="teacher">Teachers</MenuItem>
+                    <MenuItem value="admin">Admins</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={clearFilters}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </Box>
             </Box>
-          </Box>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Collapse>
 
       {/* Feedback List */}
       {loading ? (

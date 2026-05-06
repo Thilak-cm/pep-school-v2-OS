@@ -299,14 +299,9 @@ function StudentAliasesPage({ currentUser, userRole }) {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Group style={{ color: 'var(--color-primary)' }} />
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                My Student Groups
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Create shortcuts for frequent group or individual lesson notes.
-              </Typography>
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Create shortcuts for frequent group or individual lesson notes.
+            </Typography>
           </Box>
           <Button startIcon={<Add />} variant="contained" onClick={startCreate}>
             New Group
