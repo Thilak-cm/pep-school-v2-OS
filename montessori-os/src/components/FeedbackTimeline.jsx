@@ -219,17 +219,25 @@ function FeedbackTimeline({ currentUser, userRole }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pb: 8 }}>
-      {/* Filter toggle button */}
-      <Button
-        variant={filtersOpen ? 'contained' : 'outlined'}
-        size="small"
-        onClick={() => setFiltersOpen(!filtersOpen)}
-        startIcon={<FilterList />}
-        endIcon={filtersOpen ? <ExpandLess /> : <ExpandMore />}
-        sx={{ alignSelf: 'flex-start', textTransform: 'none', borderRadius: 2 }}
-      >
-        Filters{hasActiveFilters ? ` (${filteredFeedback.length})` : ''} · {allFeedback.length} total
-      </Button>
+      {/* Filter toggle + total chip */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Button
+          variant={filtersOpen ? 'contained' : 'outlined'}
+          size="small"
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          startIcon={<FilterList />}
+          endIcon={filtersOpen ? <ExpandLess /> : <ExpandMore />}
+          sx={{ textTransform: 'none', borderRadius: 2 }}
+        >
+          Filters{hasActiveFilters ? ` (${filteredFeedback.length})` : ''}
+        </Button>
+        <Chip
+          label={`${allFeedback.length} total`}
+          size="small"
+          color="secondary"
+          variant="outlined"
+        />
+      </Box>
 
       {/* Collapsible search and filters */}
       <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
