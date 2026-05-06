@@ -1,6 +1,6 @@
 # Changelog
 
-# 10.16.3 — 2026-05-06
+# 10.16.4 — 2026-05-06
 
 ### Changed
 - Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
@@ -15,6 +15,16 @@
 - Within-day notes sorted chronologically (newest first)
 - Media preview dialog includes delete button for authorized users
 - Added `noopener,noreferrer` to media preview external link
+
+# 10.16.3 — 2026-05-05
+
+### Added
+- Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
+- Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
+
+### Changed
+- Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
+- DATA_STRUCTURE.md updated with `sessionName`, `kickoffMessage`, and per-variant `conversation` fields (PEP-211)
 
 # 10.16.2 — 2026-05-05
 

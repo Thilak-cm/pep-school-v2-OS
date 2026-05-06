@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-06T18:17:01.285Z
-App version: 10.16.3
+Generated: 2026-05-06T18:19:27.972Z
+App version: 10.16.4
 
 ## App Snapshot
 
@@ -139,10 +139,15 @@ App version: 10.16.3
 
 ## Recent Changes
 
-### 10.16.3 (2026-05-06)
+### 10.16.4 (2026-05-06)
 - Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
 - New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
 - Type chips with distinct colors per note type (Observation, Voice, Media, Lesson)
+
+### 10.16.3 (2026-05-05)
+- Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
+- Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
+- Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
 
 ### 10.16.2 (2026-05-05)
 - Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
@@ -153,9 +158,4 @@ App version: 10.16.3
 - Student Dashboard line chart Y-axis properly aligned (no clipping)
 - Removed "peak: X/wk" label from notes-over-time chart
 - Age chip color changed from indigo to violet
-
-### 10.16.0 (2026-05-04)
-- Redesigned Home/Landing page with teacher launchpad layout (PEP-190)
-- Greeting header with date, display name, classroom/student counts, and avatar
-- 2x2 classroom card grid with colored backgrounds, MiniTangram icons, and direct ClassroomTimeline navigation
 
