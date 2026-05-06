@@ -4,136 +4,48 @@ import {
   Box,
   Typography,
   CircularProgress,
-  Tabs,
-  Tab,
   Chip,
   Card,
   CardContent,
   Button,
-  ButtonBase,
-  IconButton,
-  Divider,
-  TextField,
-  InputAdornment,
   Collapse,
-  OutlinedInput,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Checkbox,
-  ListItemIcon,
-  Alert
 } from '@mui/material';
-import { Users as Group, StickyNote as Notes, Filter as FilterList, Clock as AccessTime, User as Person, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Search, X as Close, Trash2 as Delete, Eye as Visibility, FileText as Description, MessageCircle } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, updateDoc, deleteField, startAfter } from 'firebase/firestore';
+import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Trash2 as Delete, Eye as Visibility, FileText as Description } from '../icons';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { formatTimestamp, getObservationTypeIcon, getObservationTypeText } from '../utils/observationUtils.jsx';
+import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
   planMissingMediaUrlPaths,
   fetchMediaUrlsWithConcurrency,
 } from '../utils/mediaUrlBatching';
 import { fuzzySearchStudents } from '../utils/fuzzySearch';
-import NoteExpansionDialog from './NoteExpansionDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
 import FilterPanel from './FilterPanel';
+import ClassroomNoteCard from './ClassroomNoteCard';
+import GroupedNoteCard from './GroupedNoteCard';
+import GroupedNoteDialog from './GroupedNoteDialog';
+import ClassroomStudentCard from './ClassroomStudentCard';
+import NoteExpansionDialog from './NoteExpansionDialog';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
-import { isAdminRole } from '../utils/roleUtils';
 import useSwipeTabs from '../hooks/useSwipeTabs';
-import {
-  getLessonDimensions,
-  LESSON_RATING_LABELS,
-  LESSON_RATING_COLORS,
-  LESSON_ATTENDANCE_LABELS
-} from '../utils/lessonNoteConstraints';
+// lessonNoteConstraints moved into extracted card components
+import { canDeleteObservation } from '../utils/observationPermissions';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { paginateTimelineItems, toDate } from './classroomTimelineUtils.js';
+import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
-
-const renderLessonSummary = (note, showGroupDefaults = false, showStudentComment = false) => {
-  const dimensions = getLessonDimensions(note);
-  const groupDefaults = note.groupDefaults || {};
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-        {note.lessonTitle || 'Lesson Note'}
-      </Typography>
-      {note.lessonDescription && (
-        <Typography variant="body2" color="text.secondary">
-          {note.lessonDescription}
-        </Typography>
-      )}
-      {note.groupComment && (
-        <Typography variant="body2" color="text.secondary">
-          {note.groupComment}
-        </Typography>
-      )}
-      {/* Show group defaults if available - ONLY show these for grouped notes */}
-      {showGroupDefaults && Object.keys(groupDefaults).length > 0 ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-            Group Defaults:
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {Object.entries(groupDefaults).map(([dimension, rating]) => {
-              const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
-              return (
-                <Chip
-                  key={`group-default-${dimension}`}
-                  size="small"
-                  label={`${dimension}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
-                  sx={{ 
-                    backgroundColor: `${color}22`, 
-                    color,
-                    border: '1px dashed',
-                    borderColor: color
-                  }}
-                />
-              );
-            })}
-          </Box>
-        </Box>
-      ) : (
-        /* Individual ratings - only show for non-grouped notes */
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {dimensions.map((dimension) => {
-            const rating = dimension.value || 'na';
-            const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream ${color}22 concatenation
-            return (
-              <Chip
-                key={`${note.id}-${dimension.name}`}
-                size="small"
-                label={`${dimension.name}: ${LESSON_RATING_LABELS[rating] || 'N/A'}`}
-                sx={{ backgroundColor: `${color}22`, color }}
-              />
-            );
-          })}
-        </Box>
-      )}
-      {/* Only show student comment if explicitly requested (for expanded views) */}
-      {showStudentComment && note.studentComment && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Typography variant="body2" color="text.secondary">
-            <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {note.studentComment}
-          </Typography>
-        </Box>
-      )}
-    </Box>
-  );
-};
-
+import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
 
 const NOTES_PAGE_SIZE = 20;
 
-function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onNavigateToStudent }) {
+function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassrooms = [], onNavigateToStudent }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
+  const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
+  const [selectedGroupNote, setSelectedGroupNote] = useState(null); // for grouped note expansion
+  const [mediaPreview, setMediaPreview] = useState(null); // { observation, url } for media expansion
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
   const [classroomStudents, setClassroomStudents] = useState([]);
@@ -141,7 +53,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreNotes, setHasMoreNotes] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const [classroomReports, setClassroomReports] = useState([]);
   const [classroomMediaDocs, setClassroomMediaDocs] = useState([]);
   const [mediaUrls, setMediaUrls] = useState({});
@@ -149,19 +60,14 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
   const mediaUrlInFlightRef = useRef(new Set());
   const [reportPreviewData, setReportPreviewData] = useState(null);
   const [expandedReportGroups, setExpandedReportGroups] = useState(new Set());
-  const searchInputRef = useRef(null);
+  // searchInputRef removed — HFSearchInput is always visible
   const unsubscribeRef = useRef(null);
   const [notesReloadToken] = useState(0);
   const batchCursorsRef = useRef(new Map());
   const exhaustedBatchesRef = useRef(new Set());
   const studentIdsRef = useRef([]);
 
-  useEffect(() => {
-    if (showSearch && searchInputRef.current) {
-      // Defer focus slightly to ensure visibility
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    }
-  }, [showSearch]);
+  // showSearch/searchInputRef focus effect removed — HFSearchInput is always visible
 
   const isClassroomAdmin = userRole === 'classroomadmin';
   const scopedClassrooms = isClassroomAdmin ? (Array.isArray(manageableClassrooms) ? manageableClassrooms : []) : [];
@@ -493,10 +399,6 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     );
   }, [classroomMediaDocs]);
 
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-  };
-
   const handleStudentClick = (student) => {
     onNavigateToStudent(student);
   };
@@ -742,38 +644,25 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
 
   const groupedReports = useMemo(() => groupReportsByDate(classroomReports), [classroomReports]);
 
-  // All fetched notes + report groups — merged chronologically into time buckets
-  const groupedLimitedNotes = useMemo(() => {
+  // All fetched notes + report groups — merged chronologically into day-grouped buckets
+  const dayGroups = useMemo(() => {
     const { grouped, ungrouped } = groupedAndSortedObservations;
-    const buckets = paginateTimelineItems(grouped, ungrouped, Infinity);
 
-    // Insert report groups into the correct bucket at the right chronological position
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lastWeek = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Build a single merged list with isGrouped flags, sorted newest-first for correct within-day ordering
+    const merged = [];
+    for (const g of grouped) merged.push({ ...g, isGrouped: true });
+    for (const n of ungrouped) merged.push({ ...n, isGrouped: false });
+    // Add report groups
+    for (const rg of groupedReports) merged.push({ ...rg, isReportGroup: true });
 
-    for (const group of groupedReports) {
-      const reportItem = { ...group, isReportGroup: true };
-      const d = group.date;
-      let bucket;
-      if (d >= todayStart) bucket = buckets.today;
-      else if (d >= lastWeek) bucket = buckets.last7Days;
-      else bucket = buckets.beyond;
+    // Sort by date so within-day items are chronologically ordered (newest first)
+    merged.sort((a, b) => {
+      const aDate = a.isReportGroup ? a.date : toDate(a.earliestObservedAt || a.observedAt || a.timestamp);
+      const bDate = b.isReportGroup ? b.date : toDate(b.earliestObservedAt || b.observedAt || b.timestamp);
+      return bDate - aDate;
+    });
 
-      // Insert at correct chronological position (newest first)
-      const idx = bucket.findIndex((item) => {
-        const itemDate = item.isGrouped
-          ? item.earliestObservedAt
-          : item.isReportGroup
-            ? item.date
-            : toDate(item.observedAt || item.timestamp);
-        return d >= itemDate;
-      });
-      if (idx === -1) bucket.push(reportItem);
-      else bucket.splice(idx, 0, reportItem);
-    }
-
-    return buckets;
+    return groupByCalendarDay(merged);
   }, [groupedAndSortedObservations, groupedReports]);
 
   const toggleReportGroup = (groupKey) => {
@@ -881,7 +770,8 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           key={item.groupId}
           groupedNote={item}
           classroomStudents={classroomStudents}
-          onNoteClick={() => {}}
+          classroomTeachers={classroomTeachers}
+          onNoteClick={() => setSelectedGroupNote(item)}
           onNavigateToStudent={onNavigateToStudent}
           lessonTitleById={lessonTitleById}
         />
@@ -892,7 +782,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         key={item.id}
         note={item}
         studentName={getStudentName(item)}
-        lessonTitleById={lessonTitleById}
+        classroomTeachers={classroomTeachers}
         onStudentClick={() => {
           const student = classroomStudents.find(s => s.id === item.studentId);
           if (student) onNavigateToStudent(student);
@@ -903,9 +793,15 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
     );
   };
 
-  // Handle note click to expand
-  const handleNoteClick = () => {
-    // Note expansion dialog functionality removed
+  // Handle note click to expand — media notes get their own preview
+  const handleNoteClick = (note) => {
+    if (note.type === 'media') {
+      const path = note.media?.[0]?.storagePath;
+      const url = path ? mediaUrls[path] : null;
+      setMediaPreview({ observation: note, url });
+    } else {
+      setSelectedNote(note);
+    }
   };
 
   if (loading) {
@@ -932,109 +828,26 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
       gap: 1
     }}>
 
-      {/* Compact Header: Search icon left, count + Filters right */}
-      <Box sx={{ 
-        backgroundColor: 'white',
-        borderRadius: 1,
-        p: 2,
-        borderBottom: '1px solid var(--color-border)'
+      {/* Search + Filters row */}
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        px: 2,
+        py: 1.5,
+        borderBottom: '1px solid var(--color-border)',
       }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          {/* Expanding pill search */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              width: showSearch ? 360 : 200,
-              maxWidth: 420,
-              minWidth: 180,
-              flex: '1 1 auto',
-              transition: 'width 200ms ease',
-            }}
-          >
-            {showSearch ? (
-              <OutlinedInput
-                inputRef={searchInputRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onBlur={() => { if (!searchQuery) setShowSearch(false); }}
-                placeholder="Search notes or students"
-                size="small"
-                startAdornment={(
-                  <InputAdornment position="start">
-                    <Search size={20} />
-                  </InputAdornment>
-                )}
-                sx={{
-                  height: 36,
-                  borderRadius: 999,
-                  px: 0.75,
-                  py: 0,
-                  backgroundColor: 'var(--color-bg)',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderRadius: 999,
-                    borderColor: 'var(--color-border)',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'var(--grey-300)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'var(--color-text-faint)',
-                  },
-                  '& .MuiInputBase-input': {
-                    p: 0.5,
-                    pl: 0.25,
-                  },
-                }}
-              />
-            ) : (
-              <ButtonBase
-                onClick={() => setShowSearch(true)}
-                disableRipple
-                aria-label="Open search"
-                sx={{
-                  width: '100%',
-                  height: 36,
-                  borderRadius: 999,
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-bg)',
-                  px: 1.25,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-start',
-                  gap: 0.75,
-                  color: 'var(--color-text-soft)',
-                  transition: 'background-color 150ms ease, border-color 150ms ease',
-                  '&:hover': {
-                    backgroundColor: 'var(--color-surface)',
-                    borderColor: 'var(--grey-300)',
-                  },
-                }}
-              >
-                <Search size={20} />
-                <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit' }}>
-                  Search
-                </Typography>
-              </ButtonBase>
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Button
-              startIcon={<FilterList />}
-              onClick={activeTab === 0 ? toggleFilters : undefined}
-              variant={hasActiveFilters ? 'contained' : 'outlined'}
-              color={hasActiveFilters ? 'primary' : 'default'}
-              size="small"
-              disabled={activeTab !== 0}
-              aria-label={activeTab === 0 ? 'Toggle filters' : 'Filters available only on Notes tab'}
-              title={activeTab === 0 ? 'Filters' : 'Filters available only on Notes tab'}
-              sx={{ whiteSpace: 'nowrap' }}
-            >
-              Filters
-            </Button>
-          </Box>
-        </Box>
-        {/* Removed separate collapse row; search expands inline as a pill */}
+        <HFSearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search notes or students"
+          sx={{ flex: 1 }}
+        />
+        <HFFilterChip
+          active={hasActiveFilters}
+          onClick={activeTab === 0 ? toggleFilters : undefined}
+          count={hasActiveFilters ? filters.types.length + filters.creators.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0) + filters.curriculumAreas.length : undefined}
+        />
       </Box>
 
       {/* Filter Panel - visible only on Notes tab */}
@@ -1051,41 +864,25 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         availableCurriculumAreas={availableCurriculumAreas}
       />
 
-      {/* Tabs - Sticky positioned under AppHeader */}
-      <Box sx={{ 
+      {/* Tabs — sticky */}
+      <Box sx={{
         backgroundColor: 'white',
         borderRadius: 1,
         overflow: 'hidden',
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        borderBottom: '1px solid var(--color-border)'
+        borderBottom: '1px solid var(--color-border)',
       }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
+        <HFTabs
+          tabs={[
+            { label: 'Notes', icon: <Notes size={16} />, value: 0 },
+            { label: 'Students', icon: <Group size={16} />, value: 1 },
+          ]}
+          value={activeTab}
+          onChange={(v) => setActiveTab(v)}
           variant="fullWidth"
-          sx={{
-            '& .MuiTab-root': {
-              minHeight: 48,
-              textTransform: 'none',
-              fontWeight: 500
-            }
-          }}
-        >
-          <Tab 
-            icon={<Notes />} 
-            label="Notes" 
-            iconPosition="start"
-            aria-label="View classroom notes"
-          />
-          <Tab 
-            icon={<Group />} 
-            label="Students" 
-            iconPosition="start"
-            aria-label="View classroom students"
-          />
-        </Tabs>
+        />
       </Box>
 
       {/* Tab Content - Wrapped for swipe navigation */}
@@ -1118,11 +915,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         >
           {/* Tab 0: Notes */}
           <Box 
-            sx={{ 
+            sx={{
               width: '50%',
               flexShrink: 0,
-              backgroundColor: 'white',
-              borderRadius: 1,
               p: 2,
               minHeight: '200px'
             }}
@@ -1134,7 +929,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             </Typography>
           </Box>
 
-          {/* Notes Timeline */}
+          {/* Notes Timeline — day-grouped */}
           {filteredObservations.length === 0 && groupedReports.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body2" color="text.secondary">
@@ -1143,44 +938,12 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {/* Today */}
-              {groupedLimitedNotes.today && groupedLimitedNotes.today.length > 0 && (
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                      Today
-                    </Typography>
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                  {groupedLimitedNotes.today.map((item) => renderTimelineItem(item))}
-                </>
-              )}
-
-              {/* Last 7 Days */}
-              {groupedLimitedNotes.last7Days && groupedLimitedNotes.last7Days.length > 0 && (
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      Last 7 Days
-                    </Typography>
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                  {groupedLimitedNotes.last7Days.map((item) => renderTimelineItem(item))}
-                </>
-              )}
-
-              {/* Beyond */}
-              {groupedLimitedNotes.beyond && groupedLimitedNotes.beyond.length > 0 && (
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      Beyond 7 Days
-                    </Typography>
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                  {groupedLimitedNotes.beyond.map((item) => renderTimelineItem(item))}
-                </>
-              )}
+              {dayGroups.map((day) => (
+                <React.Fragment key={day.dateKey}>
+                  <DayHeader label={day.label} accent={day.label === 'Today'} />
+                  {day.items.map((item) => renderTimelineItem(item))}
+                </React.Fragment>
+              ))}
 
               {/* Show More Button */}
               {hasMoreNotes && (
@@ -1202,11 +965,9 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
           
           {/* Tab 1: Students */}
           <Box 
-            sx={{ 
+            sx={{
               width: '50%',
               flexShrink: 0,
-              backgroundColor: 'white',
-              borderRadius: 1,
               p: 2,
               minHeight: '200px'
             }}
@@ -1241,7 +1002,7 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         </Box>
       </Box>
 
-      {/* Report preview dialog for classroom timeline report markers */}
+      {/* Report preview dialog */}
       <ReportPreviewDialog
         open={!!reportPreviewData}
         onClose={() => setReportPreviewData(null)}
@@ -1252,974 +1013,117 @@ function ClassroomTimeline({ classroom, userRole, manageableClassrooms = [], onN
         noteCount={reportPreviewData?.noteCount || null}
         driveDocLink={reportPreviewData?.driveDocLink || null}
       />
-    </Box>
-  );
-}
 
-// GroupedNoteCard component for displaying multi-student notes
-function GroupedNoteCard({ groupedNote, classroomStudents, onNoteClick, onNavigateToStudent, lessonTitleById }) {
-  const note = groupedNote.representativeNote;
-  const noteTypeInfo = {
-    type: getObservationTypeText(note.type),
-    icon: getObservationTypeIcon(note.type)
-  };
-  const isLesson = note.type === 'lesson';
+      {/* Note expansion dialog (text/voice/lesson) */}
+      <NoteExpansionDialog
+        open={!!selectedNote}
+        onClose={() => setSelectedNote(null)}
+        observation={selectedNote}
+        student={selectedNote ? classroomStudents.find(s => s.id === selectedNote.studentId) : null}
+        currentUser={currentUser}
+        userRole={userRole}
+        isClassroomContext={true}
+        onNavigateToStudent={onNavigateToStudent}
+      />
 
-  // Get student objects for the group
-  const studentsInGroup = groupedNote.studentIds
-    .map(studentId => classroomStudents.find(s => s.id === studentId))
-    .filter(Boolean);
+      {/* Grouped note expansion dialog */}
+      <GroupedNoteDialog
+        open={!!selectedGroupNote}
+        onClose={() => setSelectedGroupNote(null)}
+        groupedNote={selectedGroupNote}
+        classroomStudents={classroomStudents}
+        userRole={userRole}
+        onNavigateToStudent={onNavigateToStudent}
+      />
 
-  const getStudentDisplayName = (student) => {
-    if (!student) return 'Unknown Student';
-    return student.displayName || student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
-  };
-
-  // Format student names: "Student A, Student B + X more" with clickable names
-  const renderStudentNames = () => {
-    if (studentsInGroup.length === 0) {
-      return <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>Multiple students</Typography>;
-    }
-    
-    if (studentsInGroup.length === 1) {
-      const student = studentsInGroup[0];
-      return (
-        <Typography 
-          variant="subtitle2" 
-          sx={{ 
-            fontWeight: 600, 
-            color: 'primary.main',
-            cursor: 'pointer',
-            '&:hover': { textDecoration: 'underline' }
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onNavigateToStudent && student) {
-              onNavigateToStudent(student);
-            }
-          }}
-        >
-          {getStudentDisplayName(student)}
-        </Typography>
-      );
-    }
-
-    if (studentsInGroup.length === 2) {
-      const [student1, student2] = studentsInGroup;
-      return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-          <Typography 
-            variant="subtitle2" 
-            component="span"
-            sx={{ 
-              fontWeight: 600, 
-              color: 'primary.main',
-              cursor: 'pointer',
-              '&:hover': { textDecoration: 'underline' }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onNavigateToStudent && student1) {
-                onNavigateToStudent(student1);
-              }
-            }}
-          >
-            {getStudentDisplayName(student1)}
-          </Typography>
-          <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>,</Typography>
-          <Typography 
-            variant="subtitle2" 
-            component="span"
-            sx={{ 
-              fontWeight: 600, 
-              color: 'primary.main',
-              cursor: 'pointer',
-              '&:hover': { textDecoration: 'underline' }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onNavigateToStudent && student2) {
-                onNavigateToStudent(student2);
-              }
-            }}
-          >
-            {getStudentDisplayName(student2)}
-          </Typography>
-        </Box>
-      );
-    }
-
-    // More than 2 students: "Student A, Student B + X more"
-    const [student1, student2] = studentsInGroup;
-    const remainingCount = studentsInGroup.length - 2;
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-        <Typography 
-          variant="subtitle2" 
-          component="span"
-          sx={{ 
-            fontWeight: 600, 
-            color: 'primary.main',
-            cursor: 'pointer',
-            '&:hover': { textDecoration: 'underline' }
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onNavigateToStudent && student1) {
-              onNavigateToStudent(student1);
-            }
-          }}
-        >
-          {getStudentDisplayName(student1)}
-        </Typography>
-        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>,</Typography>
-        <Typography 
-          variant="subtitle2" 
-          component="span"
-          sx={{ 
-            fontWeight: 600, 
-            color: 'primary.main',
-            cursor: 'pointer',
-            '&:hover': { textDecoration: 'underline' }
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onNavigateToStudent && student2) {
-              onNavigateToStudent(student2);
-            }
-          }}
-        >
-          {getStudentDisplayName(student2)}
-        </Typography>
-        <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, color: 'primary.main' }}>
-          {' '}+ {remainingCount} more
-        </Typography>
-      </Box>
-    );
-  };
-
-  return (
-    <Card
-      sx={{
-        cursor: 'pointer',
-        '&:hover': {
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          transform: 'translateY(-1px)',
-        },
-        transition: 'all 0.2s ease-in-out',
-        position: 'relative',
-        border: '1px solid var(--color-border)',
-        backgroundColor: 'white',
-        borderRadius: 2
-      }}
-      aria-label={`View details for observation from ${formatTimestamp(note.observedAt || note.timestamp)}`}
-      onClick={onNoteClick}
-    >
-      {/* Note Type Indicator - Top Right */}
-      <Box sx={{
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderRadius: 1,
-        px: 1,
-        py: 0.5,
-        border: '1px solid var(--color-border)'
-      }}>
-        {noteTypeInfo.icon}
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
-          {noteTypeInfo.type}
-        </Typography>
-      </Box>
-
-      <CardContent sx={{ p: 2, pl: 3 }}>
-        {/* Student Names - Prominent, condensed, clickable */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Group size={16} style={{ color: 'var(--color-primary)' }} />
-          {renderStudentNames()}
-        </Box>
-
-        {/* Teacher Information */}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-          <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {note.createdByName || note.createdBy || 'Unknown Teacher'}
-          </Typography>
-        </Box>
-        
-        {isLesson ? (
-          renderLessonSummary(note, !!note.groupDefaults)
-        ) : (
-          <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {note.text || '(transcribing…)'}
-          </Typography>
-        )}
-        {!isLesson && Array.isArray(note.linkedLessonObservationId) && note.linkedLessonObservationId.length > 0 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Tagged Lesson Notes:
-            </Typography>
-            {(note.linkedLessonObservationId || []).map((id) => (
-              <Chip
-                key={id}
-                size="small"
-                variant="outlined"
-                label={lessonTitleById[id] || 'Lesson note'}
-                sx={{ borderRadius: 999 }}
-              />
-            ))}
-          </Box>
-        )}
-        
-        {/* Timestamp */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-          <Typography variant="caption" color="text.secondary">
-            {formatTimestamp(note.observedAt || note.timestamp)}
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
-// GroupedNoteDialog component for displaying multi-student note details
-function GroupedNoteDialog({ open, onClose, groupedNote, classroomStudents, userRole, onNavigateToStudent, onNotesChanged }) {
-  const notify = useNotify();
-  const note = groupedNote.representativeNote;
-  const isLesson = note.type === 'lesson';
-  const [deleteMode, setDeleteMode] = useState(false);
-  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
-  const [deleting, setDeleting] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const canDeleteGroupedNote = isAdminRole(userRole);
-
-  // Get student objects for all students in the group
-  const studentsInGroup = groupedNote.studentIds
-    .map(studentId => classroomStudents.find(s => s.id === studentId))
-    .filter(Boolean);
-
-  const getStudentDisplayName = (student) => {
-    if (!student) return 'Unknown Student';
-    return student.displayName || student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
-  };
-
-  // Handle student selection toggle
-  const handleToggleStudent = (studentId) => {
-    setSelectedStudentIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(studentId)) {
-        newSet.delete(studentId);
-      } else {
-        newSet.add(studentId);
-      }
-      return newSet;
-    });
-  };
-
-  // Handle select all
-  const handleSelectAll = () => {
-    if (selectedStudentIds.size === studentsInGroup.length) {
-      setSelectedStudentIds(new Set());
-    } else {
-      setSelectedStudentIds(new Set(groupedNote.studentIds));
-    }
-  };
-
-  // Handle delete mode toggle
-  const handleDeleteModeToggle = () => {
-    if (!canDeleteGroupedNote) return;
-    if (deleteMode) {
-      // Cancel delete mode
-      setDeleteMode(false);
-      setSelectedStudentIds(new Set());
-    } else {
-      // Enter delete mode
-      setDeleteMode(true);
-    }
-  };
-
-  // Handle delete confirm click
-  const handleDeleteConfirmClick = () => {
-    if (!canDeleteGroupedNote) return;
-    if (selectedStudentIds.size === 0) {
-      notify.warning('Please select at least one student to delete the note for.', { duration: 3000 });
-      return;
-    }
-    setDeleteConfirmOpen(true);
-  };
-
-  // Handle delete confirm
-  const handleDeleteConfirm = async () => {
-    if (!canDeleteGroupedNote) return;
-    if (!groupedNote || selectedStudentIds.size === 0) return;
-    
-    setDeleting(true);
-    setDeleteConfirmOpen(false);
-    
-    const studentIdsToDelete = Array.from(selectedStudentIds);
-    const noteId = note.id;
-    const { groupId } = groupedNote;
-    
-    // Create notification for deletion
-    const notifId = `delete-grouped-${noteId}`;
-    const deleteCount = studentIdsToDelete.length;
-    const isAll = deleteCount === studentsInGroup.length;
-    
-    notify.info(`Deleting note for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}…`, {
-      id: notifId,
-      actionLabel: 'Undo',
-      onFinalize: async () => {
-        try {
-          // Delete notes for selected students
-          const deletePromises = studentIdsToDelete.map(async (studentId) => {
-            // Find the note for this student in the group
-            const studentNote = groupedNote.notes.find(n => n.studentId === studentId);
-            if (studentNote) {
-              const parentId = studentNote.parentStudentId || studentId;
-              const noteIdToDelete = studentNote.id || noteId;
-              await deleteDoc(doc(db, 'students', parentId, 'observations', noteIdToDelete));
-            }
-          });
-          
-          await Promise.all(deletePromises);
-
-          // If group shrinks to a single remaining note, drop groupId so it renders as an individual note
-          if (!isAll && groupId) {
-            try {
-              const remainingSnap = await getDocs(
-                query(collectionGroup(db, 'observations'), where('groupId', '==', groupId))
-              );
-              if (remainingSnap.size === 1) {
-                const remainingDoc = remainingSnap.docs[0];
-                await updateDoc(remainingDoc.ref, { groupId: deleteField() });
-              }
-            } catch (_err) {
-              reportCaughtError(_err, 'ClassroomTimeline', 'swallow-only try/catch at L1466');
-            }
-          }
-
-          if (typeof onNotesChanged === 'function') {
-            onNotesChanged();
-          }
-          
-          notify.success(
-            `Note deleted successfully for ${isAll ? 'all' : deleteCount} student${deleteCount > 1 ? 's' : ''}`,
-            { id: notifId, duration: 2500 }
-          );
-          
-          // Close dialog if all notes are deleted
-          if (isAll) {
-            onClose();
-          } else {
-            // Reset selection and exit delete mode
-            setSelectedStudentIds(new Set());
-            setDeleteMode(false);
-          }
-        } catch {
-          notify.error('Error deleting note(s). Please try again.', { id: notifId, duration: 3500 });
-        }
-      },
-      onUndo: () => {
-        notify.success('Undo Note Deletion Successful', { id: `${notifId}-undo`, duration: 2000 });
-      },
-      duration: 6000,
-      variant: 'warning',
-    });
-    
-    setDeleting(false);
-  };
-
-  // Handle delete cancel
-  const handleDeleteCancel = () => {
-    setDeleteConfirmOpen(false);
-  };
-
-  // Reset selection and delete mode when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setSelectedStudentIds(new Set());
-      setDeleteConfirmOpen(false);
-      setDeleteMode(false);
-    }
-  }, [open]);
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          maxWidth: 500,
-          width: 'calc(100% - 32px)',
-          mx: 'auto'
-        }
-      }}
-    >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-        <Typography variant="h6" component="div">
-          Note Details
-        </Typography>
-        <IconButton
-          onClick={onClose}
-          size="small"
-          aria-label="Close dialog"
-        >
-          <Close />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ p: 3 }}>
-        {/* Note Content */}
-        <Box sx={{ mb: 3 }}>
-          {isLesson ? (
-            renderLessonSummary(note, !!note.groupDefaults)
-          ) : (
-            <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {note.text || '(transcribing…)'}
-            </Typography>
-          )}
-          
-          {/* Teacher and Timestamp */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-              <Typography variant="body2" color="text.secondary">
-                {note.createdByName || note.createdBy || 'Unknown Teacher'}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-              <Typography variant="caption" color="text.secondary">
-                {formatTimestamp(note.observedAt || note.timestamp)}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* Students List */}
-        <Box>
-          {deleteMode ? (
+      {/* Media preview dialog */}
+      <Dialog
+        open={!!mediaPreview}
+        onClose={() => setMediaPreview(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        {mediaPreview?.observation && (() => {
+          const obs = mediaPreview.observation;
+          const student = classroomStudents.find(s => s.id === obs.studentId);
+          const studentName = student?.displayName || student?.firstName || 'Student';
+          return (
             <>
-              {/* Delete Mode: Show checkboxes */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  Select students to delete note for:
+              <Box sx={{ p: 2, pb: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  {studentName}
                 </Typography>
-                <Button
-                  size="small"
-                  onClick={handleSelectAll}
-                  sx={{ textTransform: 'none', minWidth: 'auto', px: 1 }}
-                >
-                  {selectedStudentIds.size === studentsInGroup.length ? 'Deselect All' : 'Select All'}
+                <Typography variant="caption" color="text.secondary">
+                  {formatTimestamp(obs.observedAt || obs.timestamp)}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2 }}>
+                {mediaPreview.url ? (
+                  obs.mediaKind === 'video' ? (
+                    <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
+                  ) : (
+                    <Box
+                      component="img"
+                      src={mediaPreview.url}
+                      alt="Media"
+                      sx={{ width: '100%', borderRadius: 2, display: 'block' }}
+                    />
+                  )
+                ) : (
+                  <Typography variant="body2" color="text.secondary">Media not available</Typography>
+                )}
+                {obs.text && (
+                  <Typography variant="body2" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {obs.text}
+                  </Typography>
+                )}
+                {(obs.curriculumArea || (Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.length > 0)) && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                    {obs.curriculumArea && (
+                      <Chip size="small" label={obs.curriculumArea} sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, border: '1px solid var(--color-green-mint)' }} />
+                    )}
+                    {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
+                      <Chip key={mat} size="small" label={mat} sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, border: '1px solid var(--color-amber-gold)' }} />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2, pb: 2 }}>
+                {canDeleteObservation(obs, currentUser, userRole) && (
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={() => {
+                      if (!window.confirm('Are you sure you want to delete this media note? This action cannot be undone.')) return;
+                      const parentId = obs.parentStudentId || obs.studentId;
+                      deleteDoc(doc(db, 'students', parentId, 'observations', obs.id))
+                        .then(() => {
+                          notify.success('Note deleted successfully', { duration: 2500 });
+                          setMediaPreview(null);
+                        })
+                        .catch(() => {
+                          notify.error('Error deleting note. Please try again.', { duration: 3500 });
+                        });
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                {mediaPreview.url && (
+                  <Button size="small" onClick={() => window.open(mediaPreview.url, '_blank', 'noopener,noreferrer')}>
+                    Open Full
+                  </Button>
+                )}
+                <Button size="small" onClick={() => setMediaPreview(null)}>
+                  Close
                 </Button>
               </Box>
-              <List sx={{ p: 0, maxHeight: 300, overflow: 'auto' }}>
-                {studentsInGroup.map((student) => {
-                  const isSelected = selectedStudentIds.has(student.id);
-                  return (
-                    <ListItem key={student.id} disablePadding>
-                      <ListItemButton
-                        onClick={() => handleToggleStudent(student.id)}
-                        sx={{
-                          borderRadius: 1,
-                          '&:hover': {
-                            backgroundColor: 'var(--color-bg)'
-                          }
-                        }}
-                      >
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          <Checkbox
-                            edge="start"
-                            checked={isSelected}
-                            tabIndex={-1}
-                            disableRipple
-                            size="small"
-                          />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={getStudentDisplayName(student)}
-                          primaryTypographyProps={{
-                            fontWeight: 500,
-                            color: isSelected ? 'primary.main' : 'text.primary'
-                          }}
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                  );
-                })}
-              </List>
             </>
-          ) : (
-            <>
-              {/* Normal Mode: Show student cards with inline dashboard access */}
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Assigned to {studentsInGroup.length} student{studentsInGroup.length !== 1 ? 's' : ''}:
-              </Typography>
-              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                {studentsInGroup.map((student) => {
-                  // Find the note for this student
-                  const studentNote = groupedNote.notes.find(n => n.studentId === student.id);
-                  const studentRatings = studentNote?.ratings || {};
-                  const studentComment = studentNote?.studentComment;
-                  const dimensionOrder = note.dimensionOrder || Object.keys(studentRatings);
-                  const groupDefaults = note.groupDefaults || {};
-                  
-                  // Check if student has custom ratings (different from defaults)
-                  const hasCustomRatings = dimensionOrder.some(dim => {
-                    const studentRating = studentRatings[dim];
-                    const defaultRating = groupDefaults[dim];
-                    return studentRating && studentRating !== defaultRating;
-                  });
-
-                  return (
-                    <Box
-                      key={student.id}
-                      sx={{
-                        mb: 1.5,
-                        p: 2,
-                        borderRadius: 2,
-                        border: '1px solid var(--color-border)',
-                        backgroundColor: 'var(--color-bg)'
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Person size={16} style={{ color: 'var(--color-primary)' }} />
-                          <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
-                            {getStudentDisplayName(student)}
-                          </Typography>
-                          {hasCustomRatings && (
-                            <Chip 
-                              label="Custom" 
-                              size="small" 
-                              sx={{ 
-                                height: 20, 
-                                fontSize: '0.65rem',
-                                backgroundColor: 'var(--color-indigo-bg-light)',
-                                color: 'var(--color-primary)'
-                              }} 
-                            />
-                          )}
-                        </Box>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<Visibility />}
-                          onClick={() => {
-                            onNavigateToStudent(student);
-                            onClose();
-                          }}
-                          sx={{ textTransform: 'none' }}
-                        >
-                          View Dashboard
-                        </Button>
-                      </Box>
-
-                      {/* Student Ratings */}
-                      {dimensionOrder.length > 0 && (
-                        <Box sx={{ mt: 1.5 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
-                            Ratings:
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {dimensionOrder.map((dimension) => {
-                              const studentRating = studentRatings[dimension];
-                              const defaultRating = groupDefaults[dimension];
-                              const isCustom = studentRating && studentRating !== defaultRating;
-                              const displayRating = studentRating || defaultRating || 'na';
-                              const color = LESSON_RATING_COLORS[displayRating] || '#475569'; // hex required — downstream ${color}22 concatenation
-                              
-                              return (
-                                <Chip
-                                  key={`${student.id}-${dimension}`}
-                                  size="small"
-                                  label={`${dimension}: ${LESSON_RATING_LABELS[displayRating] || 'N/A'}`}
-                                  sx={{ 
-                                    backgroundColor: `${color}22`, 
-                                    color,
-                                    ...(isCustom && {
-                                      border: '2px solid',
-                                      borderColor: color,
-                                      fontWeight: 600
-                                    })
-                                  }}
-                                />
-                              );
-                            })}
-                          </Box>
-                          {!hasCustomRatings && Object.keys(groupDefaults).length > 0 && (
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
-                              Uses group defaults
-                            </Typography>
-                          )}
-                        </Box>
-                      )}
-                      
-                      {/* Student Comment */}
-                      {studentComment && (
-                        <Box sx={{ mt: 1.5 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
-                            Comment:
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {studentComment}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
-            </>
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-        {deleteMode && canDeleteGroupedNote ? (
-          <>
-            <Button onClick={handleDeleteModeToggle} variant="outlined" sx={{ flex: 1 }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDeleteConfirmClick}
-              variant="contained"
-              color="error"
-              startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
-              disabled={deleting || selectedStudentIds.size === 0}
-              sx={{ flex: 1 }}
-            >
-              {deleting 
-                ? 'Deleting...' 
-                : selectedStudentIds.size === 0
-                ? 'Select to Delete'
-                : selectedStudentIds.size === studentsInGroup.length
-                ? 'Delete for All'
-                : `Delete for ${selectedStudentIds.size}`
-              }
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button onClick={onClose} variant="outlined" sx={{ flex: 1 }}>
-              Close
-            </Button>
-            {canDeleteGroupedNote && (
-              <Button
-                onClick={handleDeleteModeToggle}
-                variant="contained"
-                color="error"
-                startIcon={<Delete />}
-                sx={{ flex: 1 }}
-              >
-                Delete Note
-              </Button>
-            )}
-          </>
-        )}
-      </DialogActions>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteConfirmOpen}
-        onClose={handleDeleteCancel}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 343,
-            width: 'calc(100% - 32px)',
-            mx: 'auto'
-          }
-        }}
-      >
-        <DialogTitle component="div">
-          <Typography component="h2" variant="h6" color="error">
-            Delete Note
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            {selectedStudentIds.size === studentsInGroup.length
-              ? 'Are you sure you want to delete this note for all students?'
-              : `Are you sure you want to delete this note for ${selectedStudentIds.size} selected student${selectedStudentIds.size > 1 ? 's' : ''}?`
-            }
-          </Typography>
-          {selectedStudentIds.size < studentsInGroup.length && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              The note will remain for the other {studentsInGroup.length - selectedStudentIds.size} student{studentsInGroup.length - selectedStudentIds.size > 1 ? 's' : ''}.
-            </Typography>
-          )}
-          <Typography variant="body2" color="error" sx={{ fontWeight: 'medium' }}>
-            This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 2 }}>
-          <Button 
-            onClick={handleDeleteCancel} 
-            variant="outlined" 
-            sx={{ flex: 1 }}
-            disabled={deleting}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            variant="contained" 
-            color="error"
-            sx={{ flex: 1 }}
-            disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={16} /> : <Delete />}
-          >
-            {deleting ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogActions>
+          );
+        })()}
       </Dialog>
-    </Dialog>
-  );
-}
-
-// ClassroomNoteCard component for displaying individual notes in the classroom timeline
-function ClassroomNoteCard({ note, studentName, lessonTitleById: _lessonTitleById, onStudentClick, onNoteClick, mediaUrls = {} }) {
-  const noteTypeInfo = {
-    type: getObservationTypeText(note.type),
-    icon: getObservationTypeIcon(note.type)
-  };
-  const isLesson = note.type === 'lesson';
-
-  return (
-    <Card
-      sx={{
-        cursor: 'pointer',
-        '&:hover': {
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          transform: 'translateY(-1px)',
-        },
-        transition: 'all 0.2s ease-in-out',
-        position: 'relative',
-      }}
-      aria-label={`View details for observation from ${formatTimestamp(note.observedAt || note.timestamp)}`}
-      onClick={onNoteClick}
-    >
-      {/* Note Type Indicator - Top Right */}
-      <Box sx={{
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderRadius: 1,
-        px: 1,
-        py: 0.5,
-        border: '1px solid var(--color-border)'
-      }}>
-        {noteTypeInfo.icon}
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 500 }}>
-          {noteTypeInfo.type}
-        </Typography>
-      </Box>
-
-      <CardContent sx={{ p: 2 }}>
-        {/* Student Name - Prominent */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person size={16} style={{ color: 'var(--color-primary)' }} />
-          <Typography 
-            variant="subtitle2" 
-            sx={{ 
-              fontWeight: 600, 
-              color: 'primary.main',
-              cursor: 'pointer',
-              '&:hover': { textDecoration: 'underline' }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onStudentClick();
-            }}
-          >
-            {studentName}
-          </Typography>
-        </Box>
-
-        {/* Teacher Information */}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-          <Person size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {note.createdByName || note.createdBy || 'Unknown Teacher'}
-          </Typography>
-        </Box>
-        
-        {isLesson ? (
-          renderLessonSummary(note, !!note.groupDefaults)
-        ) : note.type === 'media' ? (
-          <Box sx={{ mb: 1 }}>
-            {note.text && (
-              <Typography variant="body1" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {note.text}
-              </Typography>
-            )}
-            {(note.curriculumArea || note.materialsIdentified?.length > 0) && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
-                {note.curriculumArea && (
-                  <Chip
-                    label={note.curriculumArea}
-                    size="small"
-                    sx={{
-                      bgcolor: 'var(--color-green-bg)',
-                      color: 'var(--color-secondary-dark)',
-                      fontWeight: 600,
-                      fontSize: '0.68rem',
-                      border: '1px solid var(--color-green-mint)',
-                      height: 20,
-                    }}
-                  />
-                )}
-                {Array.isArray(note.materialsIdentified) && note.materialsIdentified.map((mat) => (
-                  <Chip
-                    key={`mat-${mat}`}
-                    label={mat}
-                    size="small"
-                    sx={{
-                      bgcolor: 'var(--color-amber-bg)',
-                      color: 'var(--color-amber-text)',
-                      fontWeight: 600,
-                      fontSize: '0.68rem',
-                      border: '1px solid var(--color-amber-gold)',
-                      height: 20,
-                    }}
-                  />
-                ))}
-              </Box>
-            )}
-            {/* Media thumbnail */}
-            {(() => {
-              const path = note.media?.[0]?.storagePath;
-              const url = path ? mediaUrls[path] : null;
-              if (!url) return null;
-              return (
-                <Box
-                  component="img"
-                  src={url}
-                  alt="Media"
-                  sx={{ mt: 1, width: 140, height: 105, objectFit: 'cover', borderRadius: 1.5, display: 'block' }}
-                />
-              );
-            })()}
-          </Box>
-        ) : (
-          <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {note.text || '(transcribing…)'}
-          </Typography>
-        )}
-
-        {/* Timestamp */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-          <Typography variant="caption" color="text.secondary">
-            {formatTimestamp(note.observedAt || note.timestamp)}
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ClassroomStudentCard component for displaying individual students in the classroom
-function ClassroomStudentCard({ student, classroomNotes, onClick }) {
-  // Count notes for this specific student from the filtered notes
-  const studentNoteCount = classroomNotes.filter(note => note.studentId === student.id).length;
-  
-  // Calculate notes from last 7 days
-  const getLast7DaysCount = () => {
-    if (!classroomNotes || classroomNotes.length === 0) return 0;
-    
-    const now = new Date();
-    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const studentNotes = classroomNotes.filter(note => note.studentId === student.id);
-    
-    return studentNotes.filter(note => {
-      try {
-        let noteDate;
-        if (note.observedAt?.toDate) {
-          noteDate = note.observedAt.toDate();
-        } else if (note.observedAt?.seconds) {
-          noteDate = new Date(note.observedAt.seconds * 1000);
-        } else if (note.observedAt) {
-          noteDate = new Date(note.observedAt);
-        } else if (note.timestamp?.toDate) {
-          noteDate = note.timestamp.toDate();
-        } else if (note.timestamp?.seconds) {
-          noteDate = new Date(note.timestamp.seconds * 1000);
-        } else if (note.timestamp) {
-          noteDate = new Date(note.timestamp);
-        } else {
-          noteDate = new Date(0);
-        }
-        
-        return noteDate >= lastWeek;
-      } catch {
-        return false;
-      }
-    }).length;
-  };
-
-  // Format note count display with proper grammar
-  const formatNoteCounts = (total, last7Days) => {
-    const totalText = `${total} note${total !== 1 ? 's' : ''} overall`;
-    const last7DaysText = `${last7Days} note${last7Days !== 1 ? 's' : ''} in the last 7 days`;
-    
-    return `${totalText} | ${last7DaysText}`;
-  };
-  
-  const last7DaysCount = getLast7DaysCount();
-  
-  return (
-    <Card
-      sx={{
-        cursor: 'pointer',
-        '&:hover': {
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          transform: 'translateY(-1px)',
-        },
-        transition: 'all 0.2s ease-in-out',
-      }}
-      onClick={onClick}
-      aria-label={`View timeline for ${student.displayName || student.firstName}`}
-    >
-      <CardContent sx={{ p: 2 }}>
-        {/* Student Name - Prominent */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Person size={16} style={{ color: 'var(--color-primary)' }} />
-          <Typography 
-            variant="subtitle2" 
-            sx={{ 
-              fontWeight: 600, 
-              color: 'primary.main'
-            }}
-          >
-            {student.displayName || `${student.firstName} ${student.lastName}`}
-          </Typography>
-        </Box>
-
-        {/* Number of Notes */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Notes size={14} style={{ color: 'var(--color-text-soft)' }} />
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {formatNoteCounts(studentNoteCount, last7DaysCount)}
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
+    </Box>
   );
 }
 

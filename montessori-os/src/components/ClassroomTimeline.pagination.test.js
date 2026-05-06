@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { paginateTimelineItems } from './classroomTimelineUtils.js';
+import {
+  paginateTimelineItems,
+  groupByCalendarDay,
+  getTypeChipConfig,
+  getTeacherForNote,
+} from './classroomTimelineUtils.js';
 
 // Helper: create a fake Firestore-like timestamp
 const ts = (dateStr) => {
@@ -138,5 +143,139 @@ describe('paginateTimelineItems', () => {
     assert.equal(result.today.length, 3);
     assert.equal(result.last7Days.length, 0);
     assert.equal(result.beyond.length, 0);
+  });
+});
+
+// ──────────────────────────────────────────────
+// groupByCalendarDay
+// ──────────────────────────────────────────────
+
+describe('groupByCalendarDay', () => {
+
+  it('returns empty array for empty input', () => {
+    const result = groupByCalendarDay([]);
+    assert.deepStrictEqual(result, []);
+  });
+
+  it('groups items by calendar date using observedAt', () => {
+    const items = [
+      { id: 'a', observedAt: ts('2026-03-06T10:00:00Z') },
+      { id: 'b', observedAt: ts('2026-03-06T14:00:00Z') },
+      { id: 'c', observedAt: ts('2026-03-05T09:00:00Z') },
+    ];
+    const result = groupByCalendarDay(items);
+
+    assert.equal(result.length, 2, 'should produce 2 day groups');
+    // Newest day first
+    assert.equal(result[0].items.length, 2, 'first day should have 2 items');
+    assert.equal(result[1].items.length, 1, 'second day should have 1 item');
+  });
+
+  it('sorts days newest-first', () => {
+    const items = [
+      { id: 'old', observedAt: ts('2026-03-01T10:00:00Z') },
+      { id: 'new', observedAt: ts('2026-03-06T10:00:00Z') },
+      { id: 'mid', observedAt: ts('2026-03-03T10:00:00Z') },
+    ];
+    const result = groupByCalendarDay(items);
+
+    assert.equal(result.length, 3);
+    // first group date should be March 6
+    assert.ok(result[0].date > result[1].date, 'first group should be newest');
+    assert.ok(result[1].date > result[2].date, 'second group should be middle');
+  });
+
+  it('falls back to timestamp field when observedAt is missing', () => {
+    const items = [
+      { id: 'a', timestamp: ts('2026-03-06T10:00:00Z') },
+    ];
+    const result = groupByCalendarDay(items);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].items.length, 1);
+  });
+
+  it('handles grouped items with earliestObservedAt', () => {
+    const items = [
+      { groupId: 'g1', isGrouped: true, earliestObservedAt: new Date('2026-03-06T10:00:00Z') },
+      { id: 'a', observedAt: ts('2026-03-06T14:00:00Z') },
+    ];
+    const result = groupByCalendarDay(items);
+    assert.equal(result.length, 1, 'both items should land in same day');
+    assert.equal(result[0].items.length, 2);
+  });
+});
+
+// ──────────────────────────────────────────────
+// getTypeChipConfig
+// ──────────────────────────────────────────────
+
+describe('getTypeChipConfig', () => {
+
+  it('returns distinct configs for each known type', () => {
+    const types = ['text', 'voice', 'lesson', 'media'];
+    const configs = types.map(getTypeChipConfig);
+
+    // Each should have label, tone, and iconName
+    for (const c of configs) {
+      assert.ok(c.label, 'should have a label');
+      assert.ok(c.tone, 'should have a tone');
+      assert.ok(c.iconName, 'should have an iconName');
+    }
+
+    // Voice and text should have different labels
+    const labels = configs.map(c => c.label);
+    assert.notEqual(labels[0], labels[1], 'text and voice should differ');
+  });
+
+  it('returns a fallback config for unknown type', () => {
+    const config = getTypeChipConfig('unknown');
+    assert.ok(config.label);
+    assert.ok(config.tone);
+  });
+
+  it('returns different tones for different types', () => {
+    const tones = ['text', 'voice', 'lesson', 'media'].map(t => getTypeChipConfig(t).tone);
+    // At least lesson and media should have distinct tones
+    assert.notEqual(tones[2], tones[3], 'lesson and media should have different tones');
+  });
+});
+
+// ──────────────────────────────────────────────
+// getTeacherForNote
+// ──────────────────────────────────────────────
+
+describe('getTeacherForNote', () => {
+
+  const teachers = [
+    { id: 'u1', displayName: 'Alice A', role: 'teacher', photoURL: 'https://example.com/alice.jpg' },
+    { id: 'u2', displayName: 'Bob B', role: 'classroomadmin' },
+    { id: 'u3', displayName: 'Carol C', role: 'superadmin', photoURL: 'https://example.com/carol.jpg' },
+  ];
+
+  it('returns matched teacher when note.createdBy matches a teacher id', () => {
+    const note = { createdBy: 'u2', createdByName: 'Bob B' };
+    const result = getTeacherForNote(note, teachers);
+    assert.equal(result.id, 'u2');
+    assert.equal(result.displayName, 'Bob B');
+  });
+
+  it('returns fallback object when teacher not found', () => {
+    const note = { createdBy: 'unknown-uid', createdByName: 'Ghost Teacher' };
+    const result = getTeacherForNote(note, teachers);
+    assert.equal(result.displayName, 'Ghost Teacher');
+    assert.equal(result.role, 'teacher'); // default role
+  });
+
+  it('returns fallback when teachers array is empty', () => {
+    const note = { createdBy: 'u1', createdByName: 'Alice A' };
+    const result = getTeacherForNote(note, []);
+    assert.equal(result.displayName, 'Alice A');
+  });
+
+  it('includes photoURL and role from matched teacher', () => {
+    const note = { createdBy: 'u3', createdByName: 'Carol C' };
+    const result = getTeacherForNote(note, teachers);
+    assert.equal(result.photoURL, 'https://example.com/carol.jpg');
+    assert.equal(result.role, 'superadmin');
   });
 });

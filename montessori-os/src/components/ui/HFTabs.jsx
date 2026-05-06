@@ -11,7 +11,7 @@ import useSwipeTabs from '../../hooks/useSwipeTabs';
  *   sx?: object,
  * }} props
  */
-export default function HFTabs({ tabs, value, onChange, sx }) {
+export default function HFTabs({ tabs, value, onChange, variant = 'scrollable', sx }) {
   const currentIndex = tabs.findIndex((t, i) => (t.value ?? i) === value);
 
   const { containerRef } = useSwipeTabs({
@@ -36,9 +36,9 @@ export default function HFTabs({ tabs, value, onChange, sx }) {
       <Tabs
         value={value}
         onChange={(_, v) => onChange(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
+        variant={variant}
+        scrollButtons={variant === 'scrollable' ? 'auto' : false}
+        allowScrollButtonsMobile={variant === 'scrollable'}
         sx={{
           '& .MuiTab-root': {
             minHeight: 44,
