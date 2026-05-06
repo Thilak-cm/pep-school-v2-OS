@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.16.1 — 2026-05-06
+
+### Changed
+- Student Dashboard line chart Y-axis properly aligned (no clipping)
+- Removed "peak: X/wk" label from notes-over-time chart
+- Age chip color changed from indigo to violet
+- Low flag severity color changed from grey to sky blue
+- Action buttons (Timeline, Reports, Coach) use shared QuickJumpButton component
+- "DoB missing" chip shown when student has no date of birth; admins navigate to Manage Users, teachers see info toast
+
+### Fixed
+- Teachers can no longer navigate to Manage Users via DoB chip (role-gated)
+- initialStudentId auto-open in UsersAccessPage shows warning when student not found
+
 # 10.16.0 — 2026-05-04
 
 ### Added
