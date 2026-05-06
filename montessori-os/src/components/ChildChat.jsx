@@ -1071,10 +1071,10 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         ...(isLanding
           ? {
               // Landing mode: fixed positioning to prevent parent container scrolling
-              height: { xs: 'calc(100vh - 64px - env(safe-area-inset-top, 0px))', sm: 'calc(100vh - 64px)' },
+              height: '100vh',
               margin: 0,
               position: 'fixed',
-              top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
+              top: 0,
               left: '50%',
               transform: 'translateX(-50%)',
               zIndex: 1,
@@ -1090,7 +1090,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         overflow: 'hidden',
       }}
     >
-      {/* Floating Chat Dropdown - Pinned below AppHeader */}
+      {/* Floating Chat Dropdown */}
       <Box
         sx={{
           ...(isLanding
@@ -1105,7 +1105,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             : {
                 // Chat mode: fixed to viewport
                 position: 'fixed',
-                top: { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' },
+                top: 0,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
@@ -1433,7 +1433,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 p: 2,
-                pt: { xs: 'calc(64px + 56px + env(safe-area-inset-top, 0px))', sm: 'calc(64px + 56px)' },
+                pt: 'calc(56px)',
                 pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 display: 'flex',
                 flexDirection: 'column',

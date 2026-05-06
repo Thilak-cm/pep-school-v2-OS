@@ -148,6 +148,22 @@ describe("getBackNavigation", () => {
     assert.deepStrictEqual(calls, [["setScreen", "classroomTimeline"]]);
   });
 
+  it("classroomTimeline navigates to landingPage and clears student", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("classroomTimeline", { classroomTimelineReturnScreen: "landingPage" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
+  });
+
+  it("classroomTimeline navigates to classroomList without clearing student", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("classroomTimeline", { classroomTimelineReturnScreen: "classroomList" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setScreen", "classroomList"]]);
+  });
+
   it("graduateStudents navigates to addUser and resets view", () => {
     const calls = [];
     const setters = { setScreen: (v) => calls.push(["setScreen", v]), setUsersAccessView: (v) => calls.push(["setUsersAccessView", v]) };

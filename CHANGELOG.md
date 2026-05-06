@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.16.2 — 2026-05-05
+
+### Changed
+- Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
+- HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
+- Drill-down screens show back chevron + title + contextual action (MiniTangram or Avatar)
+- Feedback Dashboard filters collapsed into toggle button, "new" group expanded by default
+- Removed duplicate internal titles from Profile, Graduate Students, and Student Aliases screens
+
+### Fixed
+- ChildChat fixed positioning updated to remove stale 64px AppHeader offsets
+- Unused MuiTextField and Snackbar imports removed from FeedbackTimeline
+
 # 10.16.1 — 2026-05-06
 
 ### Changed

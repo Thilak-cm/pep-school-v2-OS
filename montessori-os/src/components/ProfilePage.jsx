@@ -25,12 +25,6 @@ const ProfilePage = ({ user, role }) => {
       gap: 2,
       pb: 4 
     }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: 'var(--color-text)' }}>
-          Profile
-        </Typography>
-      </Box>
 
       {/* Profile Card */}
       <Paper

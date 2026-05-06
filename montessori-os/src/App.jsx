@@ -2,7 +2,6 @@ import React, { useCallback, useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
-import AppHeader from "./AppHeader";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
 import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
@@ -275,7 +274,6 @@ function App() {
   const pageTitle = getPageTitle(screen, titleState);
   const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
-  const showHeader = !loading && user && screen !== 'accessDenied' && screen !== 'landingPage' && screen !== 'loading';
   const showFooter = !loading && user && screen !== 'accessDenied';
 
   // Context object passed to ScreenRenderer
@@ -290,6 +288,7 @@ function App() {
     setLessonNoteEditObservation,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName,
+    pageTitle, backNavigation, showBackButton,
   };
 
   return (
@@ -330,10 +329,8 @@ function App() {
             {/* Authenticated State */}
             {!loading && user && (
               <>
-                {showHeader && <AppHeader title={pageTitle} onBack={backNavigation} showBackButton={showBackButton} />}
                 <Box sx={{
                   flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
-                  paddingTop: showHeader ? { xs: 'calc(64px + env(safe-area-inset-top, 0px))', sm: '64px' } : 0,
                 }}>
                   <Box sx={{ padding: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pb: showFooter ? { xs: 12, sm: 12 } : 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                     <ScreenRenderer screen={screen} ctx={ctx} />

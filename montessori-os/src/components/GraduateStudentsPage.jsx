@@ -235,7 +235,6 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
       </Backdrop>
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Graduate Students</Typography>
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mb: 2 }}>
             Pick a source classroom, select students, choose a destination and the last day in the current classroom. New placement starts on the next day.
           </Typography>
