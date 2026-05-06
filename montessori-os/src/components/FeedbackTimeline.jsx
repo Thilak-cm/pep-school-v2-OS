@@ -19,8 +19,6 @@ import {
   Select,
   MenuItem,
   Alert,
-  Snackbar,
-  TextField as MuiTextField,
   Collapse
 } from '@mui/material';
 import { Search, Filter as FilterList, Pencil as Edit, Save, XCircle as Cancel, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, User as Person, Clock as AccessTime, ShieldCheck as AdminPanelSettings, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
@@ -65,8 +63,8 @@ function FeedbackTimeline({ currentUser, userRole }) {
   
   // Collapse state for status groups (new is expanded by default, others collapsed)
   const [expandedStatuses, setExpandedStatuses] = useState({
-    new: false,
-    reviewed: true,
+    new: true,
+    reviewed: false,
     implemented: false,
     declined: false
   });

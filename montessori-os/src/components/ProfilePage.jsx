@@ -26,7 +26,6 @@ const ProfilePage = ({ user, role }) => {
       pb: 4 
     }}>
 
-
       {/* Profile Card */}
       <Paper
         elevation={0}
