@@ -518,7 +518,8 @@ service cloud.firestore {
     match /testbench/{runId} {
       allow read, create: if isSuperAdmin();
       allow update: if isSuperAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName'])
+        && (!('sessionName' in request.resource.data) || request.resource.data.sessionName is string);
       allow delete: if false;
     }
 

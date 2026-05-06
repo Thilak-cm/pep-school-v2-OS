@@ -211,6 +211,10 @@ test('Firestore Rules - Testbench collection is superadmin-only with sessionName
     testbenchMatch.includes('sessionName'),
     'Testbench update rule must restrict to sessionName field'
   );
+  assert.ok(
+    testbenchMatch.includes('is string'),
+    'Testbench update rule must validate sessionName is string type'
+  );
 
   // Delete still denied
   assert.ok(

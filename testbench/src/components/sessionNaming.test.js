@@ -4,7 +4,6 @@
  * Tests pure logic extracted from FeatureWorkbench and RunHistory:
  * - Save payload construction with sessionName
  * - History display label selection (sessionName vs studentName fallback)
- * - Interview mode student picker behavior (no hardcoded defaults)
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -26,15 +25,6 @@ function buildSessionNameField(sessionName) {
  */
 function getRunLabel(run) {
   return run.sessionName?.trim() || run.studentName || "";
-}
-
-/**
- * Determine whether the student picker should render for a given featureId.
- * PEP-211: interview_question_gen now shows the picker (previously skipped).
- */
-function shouldShowStudentPicker(featureId) {
-  // All features show the picker — no feature is excluded
-  return true;
 }
 
 // --- Tests ---
@@ -93,16 +83,3 @@ describe("Session naming — history display label", () => {
   });
 });
 
-describe("Student picker — interview mode", () => {
-  it("shows student picker for interview_question_gen", () => {
-    assert.equal(shouldShowStudentPicker("interview_question_gen"), true);
-  });
-
-  it("shows student picker for soul_generation", () => {
-    assert.equal(shouldShowStudentPicker("soul_generation"), true);
-  });
-
-  it("shows student picker for handwriting_analysis", () => {
-    assert.equal(shouldShowStudentPicker("handwriting_analysis"), true);
-  });
-});

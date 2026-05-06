@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, deleteField } from "firebase/firestore";
 import { db } from "../firebase.js";
 import Drawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
@@ -19,6 +19,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
   const [fetchError, setFetchError] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -50,13 +51,15 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
 
   async function saveRename(runId) {
     const trimmed = renameValue.trim();
+    setRenameError(null);
     try {
-      await updateDoc(doc(db, "testbench", runId), { sessionName: trimmed || "" });
-      setRuns((prev) => prev.map((r) => r.id === runId ? { ...r, sessionName: trimmed || "" } : r));
+      await updateDoc(doc(db, "testbench", runId), { sessionName: trimmed || deleteField() });
+      setRuns((prev) => prev.map((r) => r.id === runId ? { ...r, sessionName: trimmed || undefined } : r));
+      setRenamingId(null);
     } catch (err) {
       console.error("Failed to rename session:", err);
+      setRenameError("Failed to save — please try again.");
     }
-    setRenamingId(null);
   }
 
   return (
@@ -99,9 +102,10 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
                           size="small"
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") saveRename(run.id); if (e.key === "Escape") setRenamingId(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveRename(run.id); if (e.key === "Escape") { setRenamingId(null); setRenameError(null); } }}
                           autoFocus
                           placeholder={run.studentName}
+                          error={!!renameError}
                           sx={{ flex: 1 }}
                           slotProps={{ input: { sx: { fontSize: "0.875rem", fontWeight: 600 } } }}
                           onClick={(e) => e.stopPropagation()}
@@ -115,7 +119,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
                         <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>{label}</Typography>
                         <IconButton
                           size="small"
-                          onClick={(e) => { e.stopPropagation(); setRenamingId(run.id); setRenameValue(run.sessionName || ""); }}
+                          onClick={(e) => { e.stopPropagation(); setRenamingId(run.id); setRenameValue(run.sessionName || ""); setRenameError(null); }}
                           sx={{ color: "text.secondary", opacity: 0.6, "&:hover": { opacity: 1 } }}
                         >
                           <EditIcon sx={{ fontSize: 14 }} />
@@ -123,6 +127,9 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
                       </>
                     )}
                   </Box>
+                  {isRenaming && renameError && (
+                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>{renameError}</Typography>
+                  )}
                   {run.sessionName?.trim() && (
                     <Typography variant="caption" color="text.secondary">{run.studentName}</Typography>
                   )}
