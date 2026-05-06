@@ -62,3 +62,102 @@ export function paginateTimelineItems(grouped, ungrouped, limit, now = new Date(
 
   return buckets;
 }
+
+/**
+ * Group timeline items by calendar day, newest day first.
+ * Each item's date is derived from observedAt, earliestObservedAt (grouped), or timestamp.
+ *
+ * @param {Array} items - Merged list of ungrouped notes + grouped note objects
+ * @returns {Array<{ dateKey: string, date: Date, label: string, items: Array }>}
+ */
+export function groupByCalendarDay(items) {
+  if (!items.length) return [];
+
+  const dayMap = new Map();
+
+  for (const item of items) {
+    let d;
+    if (item.isGrouped && item.earliestObservedAt) {
+      d = item.earliestObservedAt instanceof Date
+        ? item.earliestObservedAt
+        : toDate(item.earliestObservedAt);
+    } else {
+      d = toDate(item.observedAt || item.timestamp);
+    }
+
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, { dateKey, date: new Date(d.getFullYear(), d.getMonth(), d.getDate()), items: [] });
+    }
+    dayMap.get(dateKey).items.push(item);
+  }
+
+  // Sort days newest-first
+  const days = Array.from(dayMap.values());
+  days.sort((a, b) => b.date - a.date);
+
+  // Generate human-readable labels
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  for (const day of days) {
+    if (day.date.getTime() === today.getTime()) {
+      day.label = 'Today';
+    } else if (day.date.getTime() === yesterday.getTime()) {
+      day.label = 'Yesterday';
+    } else {
+      day.label = day.date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+  }
+
+  return days;
+}
+
+/**
+ * Get chip config (label, tone, iconName) for a note type.
+ *
+ * @param {string} type - 'text' | 'voice' | 'lesson' | 'media' | 'report'
+ * @returns {{ label: string, tone: string, iconName: string }}
+ */
+export function getTypeChipConfig(type) {
+  switch (type) {
+    case 'text':
+      return { label: 'Observation', tone: 'slate', iconName: 'Eye' };
+    case 'voice':
+      return { label: 'Voice', tone: 'violet', iconName: 'Mic' };
+    case 'lesson':
+      return { label: 'Lesson', tone: 'green', iconName: 'BookOpen' };
+    case 'media':
+      return { label: 'Media', tone: 'indigo', iconName: 'Image' };
+    case 'report':
+      return { label: 'Report', tone: 'amber', iconName: 'FileText' };
+    default:
+      return { label: 'Observation', tone: 'slate', iconName: 'Eye' };
+  }
+}
+
+/**
+ * Look up the teacher object for a note from the classroomTeachers array.
+ * Falls back to a minimal object built from the note's cached fields.
+ *
+ * @param {{ createdBy: string, createdByName?: string }} note
+ * @param {Array<{ id: string, displayName: string, role?: string, photoURL?: string }>} teachers
+ * @returns {{ id: string, displayName: string, role: string, photoURL?: string }}
+ */
+export function getTeacherForNote(note, teachers) {
+  const match = teachers.find((t) => t.id === note.createdBy);
+  if (match) return match;
+
+  return {
+    id: note.createdBy,
+    displayName: note.createdByName || 'Unknown Teacher',
+    role: 'teacher',
+  };
+}
