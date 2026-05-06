@@ -1,6 +1,8 @@
 import React from "react";
 import { Box, CircularProgress } from "@mui/material";
 import HFHeader from "./components/ui/HFHeader.jsx";
+import MiniTangram from "./components/ui/MiniTangram.jsx";
+import Avatar from "./components/ui/Avatar.jsx";
 import LandingPage from "./components/LandingPage";
 import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
@@ -45,15 +47,35 @@ export default function ScreenRenderer({ screen, ctx }) {
   const content = renderScreen(screen, ctx);
   if (!content || NO_HEADER_SCREENS.has(screen)) return content;
 
+  const actions = getHeaderActions(screen, ctx);
+
   return (
     <>
       <HFHeader
         title={ctx.pageTitle}
         onBack={ctx.showBackButton ? ctx.backNavigation : undefined}
+        actions={actions}
       />
       {content}
     </>
   );
+}
+
+function getHeaderActions(screen, ctx) {
+  switch (screen) {
+    case "classroomTimeline":
+      return <MiniTangram size={28} />;
+    case "studentDashboard":
+    case "timeline":
+    case "studentStats":
+    case "studentReports":
+    case "childChat":
+      return ctx.selectedStudent ? (
+        <Avatar name={ctx.getStudentDisplayName(ctx.selectedStudent)} size="sm" />
+      ) : null;
+    default:
+      return undefined;
+  }
 }
 
 function renderScreen(screen, ctx) {

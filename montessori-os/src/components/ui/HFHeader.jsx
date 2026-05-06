@@ -42,6 +42,7 @@ export default function HFHeader({ title, onBack, actions, sx }) {
         component="h1"
         sx={{
           color: 'var(--color-text)',
+          fontFamily: 'var(--font-display)',
           fontWeight: 700,
           fontSize: '1.05rem',
           flex: 1,
