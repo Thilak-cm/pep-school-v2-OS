@@ -817,6 +817,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         const chatsRef = collection(db, 'students', student.id, 'chats');
         const chatDoc = await addDoc(chatsRef, {
           name: 'New Chat',
+          createdBy: auth.currentUser.uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           lastMessagePreview: '',

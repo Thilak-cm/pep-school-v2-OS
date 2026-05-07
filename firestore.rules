@@ -76,13 +76,15 @@ service cloud.firestore {
       
       allow create: if
         (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
-        (isClassroomAdmin() && request.resource.data.role == 'teacher') ||
-        (isSelf() && request.resource.data.role == 'teacher');
+        (isClassroomAdmin() && request.resource.data.role == 'teacher');
       
       allow update: if
         (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
         (isClassroomAdmin() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher') ||
-        (isSelf() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher');
+        (isSelf() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'photoURL', 'status', 'lastLoginAt', 'updatedAt', 'studentAliases', 'fcmToken', 'notificationPreferences'
+          ]));
 
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');
     }
@@ -198,15 +200,23 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
-      // Chats subcollection - all authenticated roles
+      // Chats subcollection
       match /chats/{chatId} {
         allow read: if isPrivilegedAdmin() || isTeacher();
-        allow create, update, delete: if isPrivilegedAdmin() || isTeacher();
+        allow create: if (isPrivilegedAdmin() || isTeacher()) &&
+          request.resource.data.createdBy == request.auth.uid;
+        allow update: if (isPrivilegedAdmin() || isTeacher()) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'updatedAt', 'lastMessagePreview', 'messageCount', 'deleted'
+          ]);
+        allow delete: if isPrivilegedAdmin();
 
         // Messages subcollection within chats
         match /messages/{messageId} {
           allow read: if isPrivilegedAdmin() || isTeacher();
-          allow create: if isPrivilegedAdmin() || isTeacher();
+          allow create: if (isPrivilegedAdmin() || isTeacher()) &&
+            request.resource.data.role is string &&
+            request.resource.data.content is string;
           // Messages are immutable except for cancelledResponseAt (stop button)
           allow update: if (isPrivilegedAdmin() || isTeacher())
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelledResponseAt']);
@@ -274,7 +284,11 @@ service cloud.firestore {
         }
 
         function isAllowedNonMediaObservationType(data) {
-          return data.type in ['text', 'voice', 'lesson'];
+          return data.type in ['text', 'voice', 'lesson'] &&
+            data.studentId == studentId &&
+            data.classroomId == studentClassroomId(studentId) &&
+            data.createdBy == request.auth.uid &&
+            data.createdAt is timestamp;
         }
 
         function isAuthor() {
@@ -523,9 +537,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Temporarily removed default deny to test if it's blocking teacher access
-    // match /{document=**} {
-    //   allow read, write: if false;
-    // }
+    // Default deny — any collection not explicitly matched above is blocked
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
