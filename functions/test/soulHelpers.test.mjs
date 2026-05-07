@@ -165,12 +165,12 @@ test("buildGuidelinesDoc returns correct shape", async () => {
   const doc = buildGuidelinesDoc({
     content: templateContent,
     programId: "adolescent",
-    templateDocId: "config/soul_template_adolescent",
+    templateDocId: "config/soul_guidelines_adolescent",
   });
 
   assert.equal(doc.content, templateContent);
   assert.equal(doc.programId, "adolescent");
-  assert.equal(doc.seededFrom, "config/soul_template_adolescent");
+  assert.equal(doc.seededFrom, "config/soul_guidelines_adolescent");
   assert.equal(doc.updatedBy, "cloud-function:soul-generate");
 });
 

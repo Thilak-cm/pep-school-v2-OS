@@ -60,6 +60,35 @@ guidelines_suggestions:
 
 If there are no emergent patterns worth suggesting, omit the YAML block entirely. Only propose areas that show a clear, recurring signal across multiple observations — not one-off events.
 
+## Open questions for interviews
+
+After the guidelines_suggestions block (or after Emergent Observations if no suggestions), append a fenced block of open questions that teachers could be asked about this child during interviews, organized by exploration area. Each area groups questions about a developmental theme where evidence is thin, contradictory, single-sourced, or stale. You have free range to identify areas — do not limit yourself to guidelines categories. Focus on what would be most valuable to explore next.
+
+Questions should:
+- Range from specific ("Does Aria choose the bead chain independently or only when directed?") to broad ("How does this child navigate conflict with peers?")
+- Be phrased as questions a knowledgeable interviewer would ask a teacher
+- Be fully self-contained — a teacher reading a single question with NO other context must understand exactly what is being asked. Never use vague references like "at this point", "the current situation", or "as mentioned". Instead, name the specific skill, behavior, or observation the question is about (e.g., instead of "Would a more systematic reading intervention be appropriate at this point?" write "Aria has been reading at a pre-primer level for 3 months — has the team considered a structured phonics intervention like Orton-Gillingham?")
+- Avoid yes/no phrasing — use open-ended "how", "what", "describe" stems that invite the teacher to share detail
+
+Format — a JSON object with area names as keys and arrays of question strings as values:
+
+\`\`\`open_questions
+{
+  "areas": {
+    "Self-Regulation & Emotional Awareness": [
+      "When the child argues with a teacher, what seems to trigger it?",
+      "How does the child respond after a conflict once cooled down?"
+    ],
+    "Reading Profile & Language Load": [
+      "What is the current reading level in English in practical terms?",
+      "Is the main reading difficulty decoding, fluency, vocabulary, or comprehension?"
+    ]
+  }
+}
+\`\`\`
+
+Generate as many areas and questions as the evidence warrants (aim for ~50 questions across 5-10 areas). If the child has very limited data, generate fewer but still aim for at least 10-15 questions covering the gaps. Always include this block — even with limited data there are always questions worth asking.
+
 ## Continuity and stability
 
 If a previous soul is provided, use it as a reference for continuity. A child's developmental narrative should not change dramatically week-to-week — significant drift from the previous version is a quality concern. Update sections where new evidence warrants it, preserve sections that remain accurate, and note meaningful changes or developments.
@@ -106,7 +135,7 @@ async function run() {
     ...SOUL_CONFIG,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
-    description: "Soul generation instruction prompt and model settings. Guidelines templates are separate (config/soul_template_{programId}).",
+    description: "Soul generation instruction prompt and model settings. Guidelines templates are separate (config/soul_guidelines_{programId}).",
   }, { merge: true });
 
   console.log("\nWritten to config/soul_generation");

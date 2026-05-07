@@ -53,7 +53,9 @@ export const testBenchRun = functions
       if (messages.length === 0) {
         throw new functions.https.HttpsError("invalid-argument", "messages array is required for interview_question_gen");
       }
-      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey });
+      const elapsedMinutes = typeof data?.elapsedMinutes === "number" ? data.elapsedMinutes : null;
+      const questionCount = typeof data?.questionCount === "number" ? data.questionCount : null;
+      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey, elapsedMinutes, questionCount });
     }
 
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
