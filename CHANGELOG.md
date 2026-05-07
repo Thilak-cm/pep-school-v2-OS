@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.17.0 — 2026-05-07
+
+### Added
+- Cold-start interview: first question displayed instantly from pre-generated open questions bank — no LLM call, zero latency (PEP-208)
+- Visible elapsed timer during interview sessions with warning at 10 minutes (PEP-208)
+- LLM-driven interview termination: model returns `interviewComplete` flag with closing remarks when it decides the interview has covered enough ground (PEP-208)
+- Closing remarks rendered as distinct bubble type in conversation panel (PEP-208)
+- Session progress (question count + elapsed time) injected into system prompt from Q2 onwards (PEP-208)
+
+### Changed
+- Open questions rendered grouped by area with section headers instead of flat numbered list (PEP-208)
+- Renamed `soul_template_{program}` config docs to `soul_guidelines_{program}` for clarity
+- Open questions prompt improved: questions must be self-contained and use open-ended stems
+
 # 10.16.5 — 2026-05-07
 
 ### Changed
