@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-06T18:19:27.972Z
-App version: 10.16.4
+Generated: 2026-05-07T15:22:39.931Z
+App version: 10.16.5
 
 ## App Snapshot
 
@@ -44,17 +44,17 @@ App version: 10.16.4
 - `montessori-os/src/components/LessonNoteTagDialog.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 11
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 12
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
 - `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
+- `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
 - `montessori-os/src/components/FilterPanel.jsx`
-- `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -139,6 +139,11 @@ App version: 10.16.4
 
 ## Recent Changes
 
+### 10.16.5 (2026-05-07)
+- Redesigned Student Timeline with shared ClassroomNoteCard patterns and teacher-first layout (PEP-193)
+- Per-calendar-day grouping with DayHeader replaces old 3-bucket layout (Today / Last 7 Days / Beyond)
+- Extracted TypeIcon + TONE_STYLES to shared `ui/TypeIcon.jsx`, eliminating duplication across card components
+
 ### 10.16.4 (2026-05-06)
 - Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
 - New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
@@ -153,9 +158,4 @@ App version: 10.16.4
 - Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
 - HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
 - Drill-down screens show back chevron + title + contextual action (MiniTangram or Avatar)
-
-### 10.16.1 (2026-05-06)
-- Student Dashboard line chart Y-axis properly aligned (no clipping)
-- Removed "peak: X/wk" label from notes-over-time chart
-- Age chip color changed from indigo to violet
 
