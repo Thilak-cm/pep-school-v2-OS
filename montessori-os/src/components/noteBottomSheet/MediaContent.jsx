@@ -15,10 +15,9 @@ export default function MediaContent({
   mediaEditComment,
   onEditCommentChange,
   mediaEditSaving,
-  _onStartEdit,
   onCancelEdit,
   onSaveComment,
-  _canEdit,
+  canEdit,
 }) {
   if (!observation) return null;
 
@@ -162,11 +161,11 @@ export default function MediaContent({
                 label="Handwritten"
                 size="small"
                 sx={{
-                  bgcolor: 'var(--color-blue-bg, #eff6ff)',
-                  color: 'var(--color-indigo-dark, #3730a3)',
+                  bgcolor: 'var(--color-blue-bg)',
+                  color: 'var(--color-indigo-dark)',
                   fontWeight: 600,
                   fontSize: '0.72rem',
-                  border: '1px solid var(--color-blue-soft-bg, #bfdbfe)',
+                  border: '1px solid var(--color-blue-soft-bg)',
                   height: 24,
                 }}
               />
@@ -207,7 +206,7 @@ export default function MediaContent({
               variant="contained"
               size="small"
               onClick={onSaveComment}
-              disabled={mediaEditSaving}
+              disabled={mediaEditSaving || !canEdit}
               startIcon={mediaEditSaving ? <CircularProgress size={14} /> : null}
             >
               {mediaEditSaving ? 'Saving...' : 'Save'}

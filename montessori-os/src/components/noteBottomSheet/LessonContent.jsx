@@ -9,7 +9,6 @@ export default function LessonContent({ observation }) {
   if (!observation) return null;
   const dimensions = getLessonDimensions(observation);
 
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       {/* Lesson title */}
@@ -24,14 +23,13 @@ export default function LessonContent({ observation }) {
         </Typography>
       )}
 
-
       {/* Dimension rating chips */}
       {dimensions.length > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {dimensions.map((dimension) => {
             const rating = dimension.value || 'na';
             const label = LESSON_RATING_LABELS[rating] || 'N/A';
-            const color = LESSON_RATING_COLORS[rating] || '#475569';
+            const color = LESSON_RATING_COLORS[rating] || 'var(--grey-600)';
             return (
               <Chip
                 key={`${observation.id}-${dimension.name}`}

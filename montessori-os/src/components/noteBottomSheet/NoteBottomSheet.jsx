@@ -50,6 +50,12 @@ import MediaContent from './MediaContent';
 import ActionButtons from './ActionButtons';
 import useMediaPreview from './useMediaPreview';
 
+const normalizeLinkedIds = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [value];
+};
+
 export default function NoteBottomSheet({
   open,
   onClose,
@@ -65,7 +71,6 @@ export default function NoteBottomSheet({
   carouselList,
   carouselIndex,
   onCarouselNavigate,
-  _mediaUrls,
   classroomTeachers = [],
 }) {
   const notify = useNotify();
@@ -83,16 +88,9 @@ export default function NoteBottomSheet({
   const [reassignToStudentName, setReassignToStudentName] = useState('');
 
   // ----- Linked lesson state -----
-  const normalizeLinkedIds = (value) => {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.filter(Boolean);
-    return [value];
-  };
   const [linkedLessonObservationIds, setLinkedLessonObservationIds] = useState(
     normalizeLinkedIds(observation?.linkedLessonObservationId)
   );
-  const [_linkedLessonTitles, setLinkedLessonTitles] = useState({});
-  const [_linkedLessonLoading, setLinkedLessonLoading] = useState(false);
 
   // ----- Previous classroom -----
   const [previousClassroomName, setPreviousClassroomName] = useState(null);
@@ -134,8 +132,6 @@ export default function NoteBottomSheet({
       setEditText(observation.type === 'lesson' ? '' : (observation.text || ''));
       setEditing(false);
       setLinkedLessonObservationIds(normalizeLinkedIds(observation?.linkedLessonObservationId));
-      setLinkedLessonTitles({});
-      setLinkedLessonLoading(false);
     }
   }, [open, observation]);
 
@@ -165,33 +161,6 @@ export default function NoteBottomSheet({
   React.useEffect(() => {
     setLinkedLessonObservationIds(normalizeLinkedIds(observation?.linkedLessonObservationId));
   }, [observation?.linkedLessonObservationId]);
-
-  // Fetch linked lesson titles
-  React.useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const ids = linkedLessonObservationIds || [];
-      if (!open || ids.length === 0) { if (active) { setLinkedLessonTitles({}); setLinkedLessonLoading(false); } return; }
-      const parentId = observation?.parentStudentId || observation?.studentId;
-      if (!parentId) { if (active) { setLinkedLessonTitles({}); setLinkedLessonLoading(false); } return; }
-      setLinkedLessonLoading(true);
-      try {
-        const snaps = await Promise.all(ids.map((id) => getDoc(doc(db, 'students', parentId, 'observations', id))));
-        if (!active) return;
-        const titles = {};
-        snaps.forEach((snap, idx) => {
-          const data = snap.exists() ? snap.data() : {};
-          titles[ids[idx]] = data.lessonTitle || data.title || data.lessonName || data.text || data.name || 'Untitled lesson';
-        });
-        setLinkedLessonTitles(titles);
-      } catch {
-        if (active) { const fb = {}; ids.forEach((id) => { fb[id] = 'Untitled lesson'; }); setLinkedLessonTitles(fb); }
-      }
-      if (active) setLinkedLessonLoading(false);
-    };
-    load();
-    return () => { active = false; };
-  }, [linkedLessonObservationIds, observation?.studentId, observation?.parentStudentId, open]);
 
   // Fetch reassign target name
   React.useEffect(() => {
@@ -225,6 +194,7 @@ export default function NoteBottomSheet({
       return;
     }
     if (isMedia) {
+      if (!canEditCurrent) { notify.error(getPermissionErrorMessage()); return; }
       media.startEditing();
       return;
     }
@@ -428,7 +398,6 @@ export default function NoteBottomSheet({
             flexDirection: 'column',
           }
         }}
-        ModalProps={{ keepMounted: true }}
       >
         {/* Drag handle */}
         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
@@ -482,7 +451,6 @@ export default function NoteBottomSheet({
               mediaEditComment={media.mediaEditComment}
               onEditCommentChange={media.setMediaEditComment}
               mediaEditSaving={media.mediaEditSaving}
-              onStartEdit={media.startEditing}
               onCancelEdit={media.cancelEditing}
               onSaveComment={media.saveComment}
               canEdit={canEditCurrent}

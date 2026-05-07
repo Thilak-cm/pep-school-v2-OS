@@ -25,7 +25,7 @@ export default function ActionButtons({
   onViewStudentTimeline,
   onEditTaggedLessons,
   // Feature flags
-  _hasLinkedLessons,
+  hasLinkedLessons,
   linkSaving,
   student,
 }) {
@@ -58,7 +58,7 @@ export default function ActionButtons({
   }
 
   const showViewTimeline = isClassroomContext && student;
-  const showTaggedLessons = !isLessonObservation && canManageAuthorActions;
+  const showTaggedLessons = !isLessonObservation && canManageAuthorActions && hasLinkedLessons;
   const showReassign = canReassign;
   const showEditDelete = canManageAuthorActions;
   const hasAnyAction = showViewTimeline || showTaggedLessons || showReassign || showEditDelete;

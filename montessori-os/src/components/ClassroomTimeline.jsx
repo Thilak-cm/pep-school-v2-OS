@@ -9,13 +9,11 @@ import {
   CardContent,
   Button,
   Collapse,
-  Dialog,
 } from '@mui/material';
-import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Trash2 as Delete, Eye as Visibility, FileText as Description } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, deleteDoc, startAfter } from 'firebase/firestore';
+import { Users as Group, StickyNote as Notes, ChevronDown as ExpandMore, ChevronDown as KeyboardArrowDown, Eye as Visibility, FileText as Description } from '../icons';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc, startAfter } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import { ref, getDownloadURL } from 'firebase/storage';
-import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
   planMissingMediaUrlPaths,
   fetchMediaUrlsWithConcurrency,
@@ -32,7 +30,6 @@ import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useSwipeTabs from '../hooks/useSwipeTabs';
 // lessonNoteConstraints moved into extracted card components
-import { canDeleteObservation } from '../utils/observationPermissions';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
@@ -45,7 +42,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   const [activeTab, setActiveTab] = useState(0); // 0 = Notes, 1 = Students
   const [selectedNote, setSelectedNote] = useState(null); // for text/voice/lesson expansion
   const [selectedGroupNote, setSelectedGroupNote] = useState(null); // for grouped note expansion
-  const [mediaPreview, setMediaPreview] = useState(null); // { observation, url } for media expansion
   const [loading, setLoading] = useState(true);
   const [classroomNotes, setClassroomNotes] = useState([]);
   const [classroomStudents, setClassroomStudents] = useState([]);
@@ -793,15 +789,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     );
   };
 
-  // Handle note click to expand — media notes get their own preview
   const handleNoteClick = (note) => {
-    if (note.type === 'media') {
-      const path = note.media?.[0]?.storagePath;
-      const url = path ? mediaUrls[path] : null;
-      setMediaPreview({ observation: note, url });
-    } else {
-      setSelectedNote(note);
-    }
+    setSelectedNote(note);
   };
 
   if (loading) {
@@ -1026,7 +1015,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         onNavigateToStudent={onNavigateToStudent}
         classroomTeachers={classroomTeachers}
         mediaUrl={selectedNote?.type === 'media' ? mediaUrls[selectedNote.media?.[0]?.storagePath ?? selectedNote.mediaItems?.[0]?.storagePath] : undefined}
-        mediaUrls={mediaUrls}
       />
 
       {/* Grouped note expansion dialog */}
@@ -1039,93 +1027,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         onNavigateToStudent={onNavigateToStudent}
       />
 
-      {/* Media preview dialog */}
-      <Dialog
-        open={!!mediaPreview}
-        onClose={() => setMediaPreview(null)}
-        maxWidth="sm"
-        fullWidth
-      >
-        {mediaPreview?.observation && (() => {
-          const obs = mediaPreview.observation;
-          const student = classroomStudents.find(s => s.id === obs.studentId);
-          const studentName = student?.displayName || student?.firstName || 'Student';
-          return (
-            <>
-              <Box sx={{ p: 2, pb: 0 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  {studentName}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {formatTimestamp(obs.observedAt || obs.timestamp)}
-                </Typography>
-              </Box>
-              <Box sx={{ p: 2 }}>
-                {mediaPreview.url ? (
-                  obs.mediaKind === 'video' ? (
-                    <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
-                  ) : (
-                    <Box
-                      component="img"
-                      src={mediaPreview.url}
-                      alt="Media"
-                      sx={{ width: '100%', borderRadius: 2, display: 'block' }}
-                    />
-                  )
-                ) : (
-                  <Typography variant="body2" color="text.secondary">Media not available</Typography>
-                )}
-                {obs.text && (
-                  <Typography variant="body2" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
-                    {obs.text}
-                  </Typography>
-                )}
-                {(obs.curriculumArea || (Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.length > 0)) && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                    {obs.curriculumArea && (
-                      <Chip size="small" label={obs.curriculumArea} sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, border: '1px solid var(--color-green-mint)' }} />
-                    )}
-                    {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                      <Chip key={mat} size="small" label={mat} sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, border: '1px solid var(--color-amber-gold)' }} />
-                    ))}
-                  </Box>
-                )}
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2, pb: 2 }}>
-                {canDeleteObservation(obs, currentUser, userRole) && (
-                  <Button
-                    size="small"
-                    color="error"
-                    startIcon={<Delete />}
-                    onClick={() => {
-                      if (!window.confirm('Are you sure you want to delete this media note? This action cannot be undone.')) return;
-                      const parentId = obs.parentStudentId || obs.studentId;
-                      deleteDoc(doc(db, 'students', parentId, 'observations', obs.id))
-                        .then(() => {
-                          notify.success('Note deleted successfully', { duration: 2500 });
-                          setMediaPreview(null);
-                        })
-                        .catch(() => {
-                          notify.error('Error deleting note. Please try again.', { duration: 3500 });
-                        });
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                {mediaPreview.url && (
-                  <Button size="small" onClick={() => window.open(mediaPreview.url, '_blank', 'noopener,noreferrer')}>
-                    Open Full
-                  </Button>
-                )}
-                <Button size="small" onClick={() => setMediaPreview(null)}>
-                  Close
-                </Button>
-              </Box>
-            </>
-          );
-        })()}
-      </Dialog>
     </Box>
   );
 }

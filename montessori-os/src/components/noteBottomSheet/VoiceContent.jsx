@@ -50,8 +50,8 @@ export default function VoiceContent({ observation, editing, editText, onEditTex
       ) : (
         <Box
           sx={{
-            borderLeft: '3px solid #f43f5e',
-            bgcolor: '#fff1f2',
+            borderLeft: '3px solid var(--color-rose)',
+            bgcolor: 'var(--color-rose-bg)',
             borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
             px: 2,
             py: 1.5,

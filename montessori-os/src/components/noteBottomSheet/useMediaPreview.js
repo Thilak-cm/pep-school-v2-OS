@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { reportCaughtError } from '../../utils/reportCaughtError.js';
 
 /**
  * Custom hook encapsulating media preview edit state.
@@ -45,7 +46,8 @@ export default function useMediaPreview(observation, currentUser, notify) {
       });
       setMediaEditMode(false);
       notify?.success('Comment updated');
-    } catch {
+    } catch (e) {
+      reportCaughtError(e, 'useMediaPreview', 'saveComment');
       notify?.error('Error saving comment. Please try again.');
     } finally {
       setMediaEditSaving(false);

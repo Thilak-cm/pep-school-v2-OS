@@ -69,7 +69,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const snapshotLastDocRef = useRef(null);
   const paginationCursorRef = useRef(null);
   const prevRecentIdsRef = useRef(new Set());
-  // Note: All note expansion functionality is now handled by NoteExpansionDialog component
+  // Note: All note expansion functionality is now handled by NoteBottomSheet
   
   // Classroom teachers for creator filter
   const [classroomTeachers, setClassroomTeachers] = useState([]);
@@ -1101,7 +1101,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         carouselList={mediaPreview?.carouselList}
         carouselIndex={mediaPreview?.carouselIndex}
         onCarouselNavigate={(direction) => navigateMediaPreview(direction)}
-        mediaUrls={mediaUrls}
       />
 
       {/* Media Dialog */}
