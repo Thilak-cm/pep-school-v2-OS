@@ -119,7 +119,7 @@ export default function NoteBottomSheet({
   const authorActionsExpired = isAuthorActionExpired(observation, currentUser, userRole);
   const canManageAuthorActions = isAdminRole(userRole) || isCurrentAuthor;
 
-  const teacher = getTeacherForNote(observation, classroomTeachers);
+  const teacher = observation ? getTeacherForNote(observation, classroomTeachers) : null;
   const teacherName = teacher?.displayName || observation?.createdByName || observation?.createdByEmail || 'Unknown Teacher';
 
   const getPermissionErrorMessage = () => (
