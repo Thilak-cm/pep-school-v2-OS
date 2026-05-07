@@ -96,12 +96,15 @@ export default function ClassroomNoteCard({
         {/* Row 1: Name + TypeIcon */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isStudentVariant ? 1 : 0.75 }}>
           {isStudentVariant ? (
-            <Typography
-              variant="subtitle2"
-              sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--color-text)' }}
-            >
-              {teacher.displayName}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Person size={18} style={{ color: 'var(--color-text-soft)' }} />
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--color-text)' }}
+              >
+                {teacher.displayName}
+              </Typography>
+            </Box>
           ) : (
             <Typography
               variant="subtitle2"
