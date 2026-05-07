@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-06T18:19:27.972Z
-App version: 10.16.4
+Generated: 2026-05-07T16:09:30.416Z
+App version: 10.16.5
 
 ## App Snapshot
 
@@ -117,6 +117,7 @@ App version: 10.16.4
 
 - Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`
 - Rule-declared paths:
+- `/{document=**}`
 - `/ai_summaries/{summaryId}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
@@ -139,6 +140,11 @@ App version: 10.16.4
 
 ## Recent Changes
 
+### 10.16.5 (2026-05-07)
+- Restructured `open_questions` doc from flat question list to area-keyed JSON format for exploration-area grouping (PEP-207)
+- Removed `hasInformationGaps` flag from soul doc — exploration gaps now tracked via `open_questions` area keys (PEP-207)
+- Updated `extractOpenQuestions` to parse JSON with defensive validation for non-array area values (PEP-207)
+
 ### 10.16.4 (2026-05-06)
 - Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
 - New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
@@ -153,9 +159,4 @@ App version: 10.16.4
 - Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
 - HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
 - Drill-down screens show back chevron + title + contextual action (MiniTangram or Avatar)
-
-### 10.16.1 (2026-05-06)
-- Student Dashboard line chart Y-axis properly aligned (no clipping)
-- Removed "peak: X/wk" label from notes-over-time chart
-- Age chip color changed from indigo to violet
 
