@@ -138,6 +138,8 @@ describe("assembleSystemPrompt", () => {
     assert.ok(result.includes("wrap up"), "Should include wrap-up guidance");
     assert.ok(result.includes("interviewComplete"), "Should include interviewComplete output format");
     assert.ok(result.includes("closingRemarks"), "Should include closingRemarks in output format");
+    // Verify session progress appears exactly once (not duplicated via placeholder + append)
+    assert.equal((result.match(/SESSION PROGRESS/g) || []).length, 1, "SESSION PROGRESS should appear exactly once");
   });
 
   it("omits session progress when not provided", () => {

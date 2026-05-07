@@ -41,6 +41,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
   const [students, setStudents] = useState([]);
   const [allStudents, setAllStudents] = useState(null); // full school list, loaded once
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [canLoadMore, setCanLoadMore] = useState(true);
   const [loadedMore, setLoadedMore] = useState(false);
 
@@ -81,6 +82,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
       setStudents(all);
     } catch (err) {
       console.error("Failed to load all students:", err);
+      setLoadError("Failed to load students — check permissions or network");
     } finally {
       setLoading(false);
     }
@@ -185,6 +187,8 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
             label="Select Student"
             placeholder="Search students..."
             size="small"
+            error={!!loadError}
+            helperText={loadError}
           />
         )}
         sx={{ minWidth: 280 }}

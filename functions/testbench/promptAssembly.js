@@ -40,12 +40,8 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
   }
   prompt = prompt.replace(/\$\{openQuestions\}/g, () => oqBlock);
 
-  // Session progress — placeholder replacement for templates that include it
-  let spBlock = "";
-  if (sessionProgress) {
-    spBlock = `SESSION PROGRESS: This is question ${sessionProgress.questionCount} of the interview. ${sessionProgress.elapsedMinutes} minutes have elapsed. You should aim to wrap up around 7 questions or 10 minutes — find a natural stopping point when you feel the conversation has covered enough ground.`;
-  }
-  prompt = prompt.replace(/\$\{sessionProgress\}/g, () => spBlock);
+  // Strip ${sessionProgress} placeholder if present — session progress is always appended at the end
+  prompt = prompt.replace(/\$\{sessionProgress\}/g, () => "");
 
   // Prior interviews — append if available
   if (priorInterviews?.length) {
@@ -53,9 +49,9 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
     prompt += interviewBlock;
   }
 
-  // Session progress — always appended so it works even without ${sessionProgress} in template
+  // Session progress + termination format — appended at end for recency
   if (sessionProgress) {
-    prompt += `\n\n${spBlock}`;
+    prompt += `\n\nSESSION PROGRESS: This is question ${sessionProgress.questionCount} of the interview. ${sessionProgress.elapsedMinutes} minutes have elapsed. You should aim to wrap up around 7 questions or 10 minutes — find a natural stopping point when you feel the conversation has covered enough ground.`;
     prompt += `\n\nWhen you decide the interview has covered enough ground, instead of outputting a question, output:\n{"interviewComplete": true, "closingRemarks": "A brief, warm closing that summarises what you learned and thanks the teacher."}`;
   }
 

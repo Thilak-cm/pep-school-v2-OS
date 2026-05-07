@@ -37,6 +37,7 @@ import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
 import RunHistory from "./RunHistory.jsx";
+import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
 
 const MODELS = [
   { id: "gpt-5.4", label: "GPT-5.4" },
@@ -243,42 +244,21 @@ export default function FeatureWorkbench({ featureId }) {
         return;
       }
 
-      // Pick 2 random areas and 1 random question
-      const areaKeys = Object.keys(areas);
-      const shuffled = [...areaKeys].sort(() => Math.random() - 0.5);
-      const selectedAreas = shuffled.slice(0, Math.min(2, areaKeys.length));
+      // Pick 2 random areas and 1 random question using tested helpers
+      const selectedAreas = pickRandomAreas(areas, 2);
+      const picked = pickRandomQuestion(areas, selectedAreas);
 
       const explorationAreas = selectedAreas.map((key) => ({
         area: key,
         rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)`,
       }));
 
-      // Pool all questions from selected areas, pick one randomly
-      const pool = [];
-      for (const key of selectedAreas) {
-        for (const q of (areas[key] || [])) {
-          pool.push({ question: q, area: key });
-        }
-      }
-      const picked = pool[Math.floor(Math.random() * pool.length)];
-
       // Build synthetic turn mimicking LLM response shape
-      const question = { text: picked.question, area: picked.area, type: "open" };
-      const rawContent = JSON.stringify({
+      const syntheticTurn = buildSyntheticTurn({
+        questionText: picked.question,
+        questionArea: picked.area,
         explorationAreas,
-        question,
-        thinking: null,
-        interviewComplete: false,
       });
-
-      const syntheticTurn = {
-        type: "question",
-        question,
-        explorationAreas,
-        thinking: null,
-        rawContent,
-        meta: { synthetic: true, tokens: 0, latencyMs: 0 },
-      };
 
       // Apply to all variants simultaneously
       const newConversations = {};
@@ -410,7 +390,8 @@ export default function FeatureWorkbench({ featureId }) {
       return next;
     });
 
-    // Auto-end if any variant's LLM decided interview is complete
+    // Auto-end if ANY variant's LLM decided interview is complete (OR semantics).
+    // In multi-variant A/B tests, this means a fast-completing variant ends all variants.
     if (results.some((r) => r.interviewComplete)) {
       endInterview();
     }
@@ -419,11 +400,15 @@ export default function FeatureWorkbench({ featureId }) {
   function endInterview() {
     stopTimer();
     setInterviewEnded(true);
-    setVariants((prev) => prev.map((v) => ({
-      ...v,
-      loading: false,
-      output: JSON.stringify(conversations, null, 2),
-    })));
+    // Use functional updater to read latest conversations, avoiding stale closure
+    setConversations((currentConvos) => {
+      setVariants((prev) => prev.map((v) => ({
+        ...v,
+        loading: false,
+        output: JSON.stringify(currentConvos, null, 2),
+      })));
+      return currentConvos;
+    });
   }
 
   async function saveRun() {
