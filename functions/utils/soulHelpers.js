@@ -220,7 +220,8 @@ export function extractOpenQuestions(soulContent) {
   if (block) {
     try {
       const parsed = JSON.parse(block);
-      areas = (parsed && typeof parsed.areas === "object" && parsed.areas !== null) ? parsed.areas : {};
+      const raw = (parsed && typeof parsed.areas === "object" && parsed.areas !== null) ? parsed.areas : {};
+      areas = Object.fromEntries(Object.entries(raw).filter(([, v]) => Array.isArray(v)));
     } catch {
       console.warn("[soul] Failed to parse open_questions JSON block — returning empty areas");
     }
