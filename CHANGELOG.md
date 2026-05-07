@@ -1,5 +1,18 @@
 # Changelog
 
+# 10.16.6 — 2026-05-07
+
+### Changed
+- Redesigned note expansion as bottom sheet with type-specific layouts replacing NoteExpansionDialog (PEP-194)
+- Unified media preview into the bottom sheet for both ClassroomTimeline and StudentTimeline
+- Type chip in header uses shared TONE_STYLES from extracted toneStyles.js module
+- "Edit tagged lesson notes" button now only appears when linked lessons actually exist
+
+### Fixed
+- Media note editing now enforces permission check (48h author window / admin gate)
+- Added reportCaughtError to media comment save for error telemetry
+- Removed dead Firestore reads for linked lesson titles on every bottom sheet open
+
 # 10.16.5 — 2026-05-07
 
 ### Changed

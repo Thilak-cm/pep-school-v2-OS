@@ -11,7 +11,7 @@ describe('TypeIcon extraction to ui/TypeIcon.jsx', () => {
   it('ui/TypeIcon.jsx defines TypeIcon component with TONE_STYLES and TYPE_ICONS', async () => {
     const source = await readFile(typeIconPath, 'utf8');
     assert.ok(/export\s+default\s+function\s+TypeIcon/.test(source), 'TypeIcon should be default-exported');
-    assert.ok(/const\s+TONE_STYLES/.test(source), 'TONE_STYLES should be defined');
+    assert.ok(/TONE_STYLES/.test(source), 'TONE_STYLES should be referenced (imported or defined)');
     assert.ok(/const\s+TYPE_ICONS/.test(source), 'TYPE_ICONS should be defined');
   });
 
