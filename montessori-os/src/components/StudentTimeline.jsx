@@ -20,13 +20,13 @@ import {
   Skeleton
 } from '@mui/material';
 import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
 // Import new modular components
 import FilterPanel from './FilterPanel';
-import NoteExpansionDialog from './NoteExpansionDialog';
+import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import ClassroomNoteCard from './ClassroomNoteCard';
 import { DayHeader } from './ui';
 import { groupByCalendarDay } from './classroomTimelineUtils.js';
@@ -36,13 +36,11 @@ import {
   executeExportJob,
   NOTE_KIND
 } from '../utils/export';
-import { isAdminRole, isSuperAdmin } from '../utils/roleUtils';
+import { isSuperAdmin } from '../utils/roleUtils';
 import {
   AUTHOR_ACTION_EXPIRED_MESSAGE,
   canDeleteObservation,
-  canEditObservation,
   isAuthorActionExpired,
-  isObservationAuthor,
 } from '../utils/observationPermissions';
 import {
   planMissingMediaUrlPaths,
@@ -83,10 +81,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
   const [mediaSubTab, setMediaSubTab] = useState('photos'); // 'photos' | 'docs'
   const [mediaUrls, setMediaUrls] = useState({});
   const [mediaPreview, setMediaPreview] = useState(null); // { observation, url }
-  const [mediaImageLoaded, setMediaImageLoaded] = useState(false);
-  const [mediaEditMode, setMediaEditMode] = useState(false);
-  const [mediaEditComment, setMediaEditComment] = useState('');
-  const [mediaEditSaving, setMediaEditSaving] = useState(false);
+  // Media edit state moved to NoteBottomSheet
   const [mediaSelectMode, setMediaSelectMode] = useState(false);
   const [selectedMediaIds, setSelectedMediaIds] = useState(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -348,17 +343,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }
   }, [mediaDialogOpen]);
 
-  useEffect(() => {
-    if (!mediaPreview?.observation) {
-      setMediaEditMode(false);
-      setMediaEditComment('');
-      setMediaEditSaving(false);
-      return;
-    }
-    setMediaEditMode(false);
-    setMediaEditComment(mediaPreview.observation.teacherComment || '');
-    setMediaEditSaving(false);
-  }, [mediaPreview]);
+  // Media edit state reset moved to NoteBottomSheet useMediaPreview hook
 
   const OBS_PAGE_SIZE = 20;
 
@@ -606,9 +591,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     })();
   }, [mediaObservations]);
 
-  const canManageObservationActions = (obs) =>
-    isAdminRole(userRole) || isObservationAuthor(obs, currentUser);
-
   const getPermissionErrorMessage = (obs) => (
     isAuthorActionExpired(obs, currentUser, userRole)
       ? AUTHOR_ACTION_EXPIRED_MESSAGE
@@ -628,7 +610,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     if (!sourceObservation) return;
     const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
     const url = path ? mediaUrls[path] : null;
-    setMediaImageLoaded(false);
     setMediaPreview({
       observation: {
         ...sourceObservation,
@@ -653,8 +634,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     if (!sourceObservation) return;
     const path = firstItem?.storagePath || sourceObservation.media?.[0]?.storagePath;
     const url = path ? mediaUrls[path] : null;
-    setMediaEditMode(false);
-    setMediaImageLoaded(false);
     setMediaPreview({
       observation: {
         ...sourceObservation,
@@ -669,41 +648,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     });
   };
 
-  const handleSaveMediaComment = async () => {
-    const previewObs = mediaPreview?.observation;
-    if (!previewObs) return;
-    if (!canEditObservation(previewObs, currentUser, userRole)) {
-      notify.error(getPermissionErrorMessage(previewObs));
-      return;
-    }
-    try {
-      setMediaEditSaving(true);
-      const parentId = previewObs.parentStudentId || student.id || previewObs.studentId;
-      const nextComment = (mediaEditComment || '').trim();
-      await updateDoc(doc(db, 'students', parentId, 'media', previewObs.id), {
-        teacherComment: nextComment,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: currentUser?.uid || null,
-        lastEditedAt: serverTimestamp(),
-      });
-      setMediaPreview((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          observation: {
-            ...prev.observation,
-            teacherComment: nextComment,
-          },
-        };
-      });
-      setMediaEditMode(false);
-      notify.success('Media comment updated.', { duration: 2500 });
-    } catch (_error) {
-      notify.error('Error updating media comment. Please try again.', { duration: 3500 });
-    } finally {
-      setMediaEditSaving(false);
-    }
-  };
+  // handleSaveMediaComment moved to NoteBottomSheet useMediaPreview hook
 
   const handleToggleMediaSelectMode = () => {
     setMediaSelectMode((prev) => {
@@ -909,11 +854,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }
   };
 
-  const previewObservation = mediaPreview?.observation || null;
-  const previewCanEdit = canEditObservation(previewObservation, currentUser, userRole);
-  const previewCanDelete = canDeleteObservation(previewObservation, currentUser, userRole);
-  const previewActionExpired = isAuthorActionExpired(previewObservation, currentUser, userRole);
-  const previewCanManage = canManageObservationActions(previewObservation);
+  // Media preview permission checks moved to NoteBottomSheet
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', pb: 8 }}>
@@ -1147,16 +1088,21 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         </Box>
       )}
 
-      {/* Observation Detail Dialog */}
-        <NoteExpansionDialog
-        open={detailDialogOpen}
-        onClose={handleCloseDialog}
-          observation={selectedObservation}
-          student={student}
-          currentUser={currentUser}
-          userRole={userRole}
-          isClassroomContext={false}
-        />
+      {/* Note expansion bottom sheet (all types including media) */}
+      <NoteBottomSheet
+        open={detailDialogOpen || !!mediaPreview}
+        onClose={() => { handleCloseDialog(); setMediaPreview(null); }}
+        observation={mediaPreview?.observation || selectedObservation}
+        student={student}
+        currentUser={currentUser}
+        userRole={userRole}
+        isClassroomContext={false}
+        mediaUrl={mediaPreview?.url}
+        carouselList={mediaPreview?.carouselList}
+        carouselIndex={mediaPreview?.carouselIndex}
+        onCarouselNavigate={(direction) => navigateMediaPreview(direction)}
+        mediaUrls={mediaUrls}
+      />
 
       {/* Media Dialog */}
       <Dialog
@@ -1452,234 +1398,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
           >
             {bulkDeleting ? 'Deleting...' : 'Delete'}
           </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Media Preview Dialog */}
-      <Dialog
-        open={!!mediaPreview}
-        onClose={() => setMediaPreview(null)}
-        fullScreen={!!mediaPreview?.fullscreen}
-        maxWidth={mediaPreview?.fullscreen ? false : 'sm'}
-        fullWidth={!mediaPreview?.fullscreen}
-      >
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
-          {/* Media display with carousel arrows */}
-          <Box sx={{ position: 'relative' }}>
-            <Box>
-              {mediaPreview?.observation?.mediaKind === 'photo' && mediaPreview?.url && (
-                <>
-                  {!mediaImageLoaded && (
-                    <Skeleton
-                      variant="rounded"
-                      sx={{ width: '100%', height: 420, borderRadius: 2 }}
-                      animation="wave"
-                    />
-                  )}
-                  <Box
-                    component="img"
-                    src={mediaPreview.url}
-                    alt="Media"
-                    onLoad={() => setMediaImageLoaded(true)}
-                    sx={{
-                      width: '100%',
-                      borderRadius: 2,
-                      maxHeight: 420,
-                      objectFit: 'contain',
-                      display: mediaImageLoaded ? 'block' : 'none',
-                    }}
-                  />
-                </>
-              )}
-              {mediaPreview?.observation?.mediaKind === 'video' && mediaPreview?.url && (
-                <Box sx={{ width: '100%' }}>
-                  <video src={mediaPreview.url} controls style={{ width: '100%', borderRadius: 12 }} />
-                </Box>
-              )}
-              {(!mediaPreview?.url) && (
-                <Typography variant="body2" color="text.secondary">
-                  Download URL not ready yet. Please wait for upload to finish.
-                </Typography>
-              )}
-            </Box>
-            {/* Carousel navigation arrows */}
-            {mediaPreview?.carouselList && mediaPreview.carouselList.length > 1 && (
-              <>
-                <IconButton
-                  onClick={() => navigateMediaPreview(-1)}
-                  disabled={mediaPreview.carouselIndex <= 0}
-                  sx={{
-                    position: 'absolute',
-                    left: 4,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    bgcolor: 'rgba(255,255,255,0.7)',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
-                    '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.3)' },
-                  }}
-                  size="small"
-                >
-                  <ChevronLeft />
-                </IconButton>
-                <IconButton
-                  onClick={() => navigateMediaPreview(1)}
-                  disabled={mediaPreview.carouselIndex >= mediaPreview.carouselList.length - 1}
-                  sx={{
-                    position: 'absolute',
-                    right: 4,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    bgcolor: 'rgba(255,255,255,0.7)',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
-                    '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.3)' },
-                  }}
-                  size="small"
-                >
-                  <ChevronRight />
-                </IconButton>
-              </>
-            )}
-          </Box>
-
-          {/* Photo classification metadata (PEP-146, PEP-37) */}
-          {mediaPreview?.observation && (mediaPreview.observation.curriculumArea || mediaPreview.observation.handwritten || (Array.isArray(mediaPreview.observation.materialsIdentified) && mediaPreview.observation.materialsIdentified.length > 0)) && (() => {
-            const obs = mediaPreview.observation;
-            return (
-              <Box sx={{ bgcolor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', p: 1.5 }}>
-                <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, fontSize: '0.65rem', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                  <AutoAwesome size={12} />
-                  Coach Pepper AI
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
-                  {obs.curriculumArea && (
-                    <Chip label={obs.curriculumArea} size="small" sx={{ bgcolor: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-green-mint)', height: 24 }} />
-                  )}
-                  {obs.handwritten && (
-                    <Chip label="Handwritten" size="small" sx={{ bgcolor: 'var(--color-blue-bg)', color: 'var(--color-indigo-dark)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-blue-soft-bg)', height: 24 }} />
-                  )}
-                  {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                    <Chip key={`mat-${mat}`} label={mat} size="small" sx={{ bgcolor: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', fontWeight: 600, fontSize: '0.72rem', border: '1px solid var(--color-amber-gold)', height: 24 }} />
-                  ))}
-                </Box>
-              </Box>
-            );
-          })()}
-
-          {mediaEditMode ? (
-            <TextField
-              label="Teacher comment"
-              value={mediaEditComment}
-              onChange={(e) => setMediaEditComment(e.target.value)}
-              multiline
-              minRows={3}
-              fullWidth
-              disabled={mediaEditSaving}
-            />
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              {mediaPreview?.observation?.teacherComment
-                ? <><MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {mediaPreview.observation.teacherComment}</>
-                : 'No comment added.'}
-            </Typography>
-          )}
-          {mediaPreview?.observation && (
-            <Typography variant="body2" color="text.secondary">
-              Date Captured: {formatTimestamp(mediaPreview.observation.observedAt || mediaPreview.observation.timestamp)}
-            </Typography>
-          )}
-          {previewActionExpired && (
-            <Typography variant="body2" sx={{ color: 'var(--color-amber-text)', fontStyle: 'italic' }}>
-              {AUTHOR_ACTION_EXPIRED_MESSAGE}
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => setMediaPreview(null)}>Close</Button>
-          {mediaPreview?.url && (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                window.open(mediaPreview.url, '_blank');
-              }}
-            >
-              Open
-            </Button>
-          )}
-          {previewCanManage && !mediaEditMode && (
-            <Button
-              variant="outlined"
-              disabled={!previewCanEdit}
-              onClick={() => {
-                if (!previewCanEdit) return;
-                setMediaEditMode(true);
-                setMediaEditComment(previewObservation?.teacherComment || '');
-              }}
-            >
-              Edit
-            </Button>
-          )}
-          {mediaEditMode && (
-            <Button
-              variant="contained"
-              onClick={handleSaveMediaComment}
-              disabled={mediaEditSaving || !previewCanEdit}
-              startIcon={mediaEditSaving ? <CircularProgress size={16} /> : null}
-            >
-              {mediaEditSaving ? 'Saving...' : 'Save'}
-            </Button>
-          )}
-          {mediaEditMode && (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setMediaEditMode(false);
-                setMediaEditComment(previewObservation?.teacherComment || '');
-              }}
-              disabled={mediaEditSaving}
-            >
-              Cancel Edit
-            </Button>
-          )}
-          {previewCanManage && !mediaEditMode && (
-            <Button
-              color="error"
-              variant="contained"
-              startIcon={<Delete />}
-              disabled={!previewCanDelete}
-              onClick={() => {
-                if (!previewCanDelete) return;
-                setSelectedObservation(mediaPreview.observation);
-                // Navigate carousel to next image, or close if none left
-                if (mediaPreview.carouselList && mediaPreview.carouselList.length > 1) {
-                  const list = mediaPreview.carouselList.filter((_, i) => i !== mediaPreview.carouselIndex);
-                  const nextIndex = mediaPreview.carouselIndex >= list.length ? list.length - 1 : mediaPreview.carouselIndex;
-                  const nextObs = list[nextIndex];
-                  const firstItem = buildMediaItemsForObservation(nextObs)[0] || null;
-                  const src = firstItem?.sourceObservation || nextObs;
-                  const path = firstItem?.storagePath || src?.media?.[0]?.storagePath;
-                  const url = path ? mediaUrls[path] : null;
-                  setMediaEditMode(false);
-                  setMediaPreview({
-                    observation: {
-                      ...src,
-                      mediaKind: firstItem?.mediaKind || src?.mediaKind,
-                      status: firstItem?.status || src?.status,
-                      media: path ? [{ storagePath: path }] : (Array.isArray(src?.media) ? src.media : []),
-                    },
-                    url: url || null,
-                    fullscreen: false,
-                    carouselList: list,
-                    carouselIndex: nextIndex,
-                  });
-                } else {
-                  setMediaPreview(null);
-                }
-                setDeleteConfirmOpen(true);
-              }}
-            >
-              Delete
-            </Button>
-          )}
         </DialogActions>
       </Dialog>
 

@@ -27,7 +27,7 @@ import ClassroomNoteCard from './ClassroomNoteCard';
 import GroupedNoteCard from './GroupedNoteCard';
 import GroupedNoteDialog from './GroupedNoteDialog';
 import ClassroomStudentCard from './ClassroomStudentCard';
-import NoteExpansionDialog from './NoteExpansionDialog';
+import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useSwipeTabs from '../hooks/useSwipeTabs';
@@ -1014,8 +1014,8 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         driveDocLink={reportPreviewData?.driveDocLink || null}
       />
 
-      {/* Note expansion dialog (text/voice/lesson) */}
-      <NoteExpansionDialog
+      {/* Note expansion bottom sheet (all types) */}
+      <NoteBottomSheet
         open={!!selectedNote}
         onClose={() => setSelectedNote(null)}
         observation={selectedNote}
@@ -1024,6 +1024,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         userRole={userRole}
         isClassroomContext={true}
         onNavigateToStudent={onNavigateToStudent}
+        classroomTeachers={classroomTeachers}
+        mediaUrl={selectedNote?.type === 'media' ? mediaUrls[selectedNote.media?.[0]?.storagePath ?? selectedNote.mediaItems?.[0]?.storagePath] : undefined}
+        mediaUrls={mediaUrls}
       />
 
       {/* Grouped note expansion dialog */}
