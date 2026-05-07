@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-07T16:09:30.416Z
-App version: 10.16.5
+Generated: 2026-05-07T23:50:19.833Z
+App version: 10.17.0
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.16.5
 
 ## Recent Changes
 
+### 10.17.0 (2026-05-07)
+- Cold-start interview: first question displayed instantly from pre-generated open questions bank — no LLM call, zero latency (PEP-208)
+- Visible elapsed timer during interview sessions with warning at 10 minutes (PEP-208)
+- LLM-driven interview termination: model returns `interviewComplete` flag with closing remarks when it decides the interview has covered enough ground (PEP-208)
+
 ### 10.16.5 (2026-05-07)
 - Restructured `open_questions` doc from flat question list to area-keyed JSON format for exploration-area grouping (PEP-207)
 - Removed `hasInformationGaps` flag from soul doc — exploration gaps now tracked via `open_questions` area keys (PEP-207)
@@ -154,9 +159,4 @@ App version: 10.16.5
 - Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
 - Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
 - Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
-
-### 10.16.2 (2026-05-05)
-- Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
-- HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
-- Drill-down screens show back chevron + title + contextual action (MiniTangram or Avatar)
 
