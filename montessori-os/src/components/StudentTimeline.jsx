@@ -1061,6 +1061,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     key={obs.id}
                     note={obs}
                     variant="student"
+                    classroomTeachers={classroomTeachers}
                     onNoteClick={() => {
                       if (mediaItems.length > 0) {
                         const item = mediaItems[0];
@@ -1090,6 +1091,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                   key={obs.id}
                   note={obs}
                   variant="student"
+                  classroomTeachers={classroomTeachers}
                   onNoteClick={() => handleObservationClick(obs)}
                   mediaUrls={mediaUrls}
                 />

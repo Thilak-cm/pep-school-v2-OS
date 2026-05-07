@@ -71,7 +71,7 @@ export default function ClassroomNoteCard({
   const teacher = getTeacherForNote(note, classroomTeachers);
   const isStudentVariant = variant === 'student';
 
-  const mediaPath = note.media?.[0]?.storagePath;
+  const mediaPath = note.media?.[0]?.storagePath ?? note.mediaItems?.[0]?.storagePath;
   const mediaUrl = mediaPath ? mediaUrls[mediaPath] : null;
   const isMedia = note.type === 'media';
   const isLesson = note.type === 'lesson';

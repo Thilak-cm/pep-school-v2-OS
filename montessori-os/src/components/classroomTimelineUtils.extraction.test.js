@@ -55,6 +55,16 @@ describe('ClassroomNoteCard variant="student" support', () => {
   });
 });
 
+describe('ClassroomNoteCard batch-media fallback', () => {
+  it('resolves mediaPath from mediaItems when media array is absent', async () => {
+    const source = await readFile(classroomCardPath, 'utf8');
+    assert.ok(
+      /mediaItems\?\.\[0\]/.test(source),
+      'ClassroomNoteCard should fall back to mediaItems[0] for batched media groups',
+    );
+  });
+});
+
 describe('StudentTimeline uses day-grouped rendering', () => {
   it('imports groupByCalendarDay and DayHeader', async () => {
     const source = await readFile(studentTimelinePath, 'utf8');
