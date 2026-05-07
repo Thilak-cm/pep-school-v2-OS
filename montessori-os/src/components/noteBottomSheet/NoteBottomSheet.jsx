@@ -468,7 +468,7 @@ export default function NoteBottomSheet({
               onEditTextChange={setEditText}
             />
           ) : observation.type === 'lesson' ? (
-            <LessonContent observation={observation} student={student} />
+            <LessonContent observation={observation} />
           ) : isMedia ? (
             <MediaContent
               observation={observation}

@@ -5,21 +5,10 @@ import {
   LESSON_RATING_LABELS,
   LESSON_RATING_COLORS,
 } from '../../utils/lessonNoteConstraints';
-import { formatTimestamp } from '../../utils/observationUtils.jsx';
-
-export default function LessonContent({ observation, student }) {
+export default function LessonContent({ observation }) {
   if (!observation) return null;
   const dimensions = getLessonDimensions(observation);
 
-  const studentName =
-    student?.name ||
-    student?.displayName ||
-    [student?.firstName, student?.lastName].filter(Boolean).join(' ') ||
-    'this student';
-
-  // Build a relative date label for "Presented to {student} {date}"
-  const obsDate = observation.observedAt || observation.timestamp;
-  const dateLabel = obsDate ? formatTimestamp(obsDate) : '';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -35,10 +24,6 @@ export default function LessonContent({ observation, student }) {
         </Typography>
       )}
 
-      {/* "Presented to" subtitle */}
-      <Typography variant="body2" sx={{ color: 'var(--color-secondary-dark)', fontSize: '0.82rem' }}>
-        Presented to {studentName} {dateLabel ? `on ${dateLabel}` : 'today'}
-      </Typography>
 
       {/* Dimension rating chips */}
       {dimensions.length > 0 && (
