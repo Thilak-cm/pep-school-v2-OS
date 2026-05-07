@@ -292,7 +292,6 @@ describe("handleGetAiSummary", () => {
       content: "## Mathematics\nStrong progress.",
       programId: "primary",
       hasEmergentObservations: true,
-      hasInformationGaps: false,
       createdAt: { toDate: () => new Date("2026-04-01") },
       updatedAt: { toDate: () => new Date("2026-04-28") },
       updatedBy: "cloud-function:soul-generate",
