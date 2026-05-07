@@ -51,7 +51,7 @@ async function getSoulConfig() {
 }
 
 async function getSoulTemplateConfig(programId) {
-  const docId = `soul_template_${programId}`;
+  const docId = `soul_guidelines_${programId}`;
 
   const cached = soulTemplateCache[docId];
   if (cached?.data && (Date.now() - cached.ts < SOUL_TEMPLATE_CACHE_TTL_MS)) {
@@ -60,7 +60,7 @@ async function getSoulTemplateConfig(programId) {
 
   const snap = await db.collection("config").doc(docId).get();
   if (!snap.exists) {
-    throw new functions.https.HttpsError("not-found", `Soul template not found: ${docId}. Run seed-soul-templates.mjs`);
+    throw new functions.https.HttpsError("not-found", `Soul guidelines not found: ${docId}. Run seed-soul-templates.mjs`);
   }
   const data = snap.data();
   if (!data.markdown || typeof data.markdown !== "string") {
@@ -189,12 +189,12 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     const guidelinesDoc = buildGuidelinesDoc({
       content: templateConfig.markdown,
       programId,
-      templateDocId: `config/soul_template_${programId}`,
+      templateDocId: `config/soul_guidelines_${programId}`,
     });
     guidelinesDoc.createdAt = now;
     guidelinesDoc.updatedAt = now;
     batch.set(guidelinesRef, guidelinesDoc);
-    console.log(`[soul] Seeded guidelines for ${studentId} from soul_template_${programId}`);
+    console.log(`[soul] Seeded guidelines for ${studentId} from soul_guidelines_${programId}`);
   }
 
   await batch.commit();

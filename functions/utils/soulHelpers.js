@@ -62,6 +62,8 @@ After the guidelines_suggestions block (or after Emergent Observations if no sug
 Questions should:
 - Range from specific ("Does Aria choose the bead chain independently or only when directed?") to broad ("How does this child navigate conflict with peers?")
 - Be phrased as questions a knowledgeable interviewer would ask a teacher
+- Be fully self-contained — a teacher reading a single question with NO other context must understand exactly what is being asked. Never use vague references like "at this point", "the current situation", or "as mentioned". Instead, name the specific skill, behavior, or observation the question is about (e.g., instead of "Would a more systematic reading intervention be appropriate at this point?" write "Aria has been reading at a pre-primer level for 3 months — has the team considered a structured phonics intervention like Orton-Gillingham?")
+- Avoid yes/no phrasing — use open-ended "how", "what", "describe" stems that invite the teacher to share detail
 
 Format — a JSON object with area names as keys and arrays of question strings as values:
 
@@ -282,7 +284,7 @@ export function buildSoulDoc({ content, programId, observationCount, interviewCo
  * @param {Object} params
  * @param {string} params.content - Markdown guidelines content
  * @param {string} params.programId
- * @param {string} params.templateDocId - e.g., "config/soul_template_adolescent"
+ * @param {string} params.templateDocId - e.g., "config/soul_guidelines_adolescent"
  * @returns {Object} Guidelines document fields
  */
 export function buildGuidelinesDoc({ content, programId, templateDocId }) {
