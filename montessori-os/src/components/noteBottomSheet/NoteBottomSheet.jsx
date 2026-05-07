@@ -409,8 +409,6 @@ export default function NoteBottomSheet({
     finally { setLinkSaving(false); }
   };
 
-  if (!observation) return null;
-
   return (
     <>
       <SwipeableDrawer
@@ -430,13 +428,14 @@ export default function NoteBottomSheet({
             flexDirection: 'column',
           }
         }}
-        ModalProps={{ keepMounted: false }}
+        ModalProps={{ keepMounted: true }}
       >
         {/* Drag handle */}
         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
           <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--color-border)' }} />
         </Box>
 
+        {observation && <>
         {/* Header */}
         <SharedHeader
           observation={observation}
@@ -522,6 +521,7 @@ export default function NoteBottomSheet({
           linkSaving={linkSaving}
           student={student}
         />
+        </>}
       </SwipeableDrawer>
 
       {/* Lesson tag dialog */}

@@ -1,7 +1,6 @@
 import { Box, Typography, IconButton, Chip } from '@mui/material';
-import { X as Close } from '../../icons';
+import { X as Close, Eye, Mic, BookOpen, Image } from '../../icons';
 import { getTypeChipConfig } from '../classroomTimelineUtils.js';
-import { TypeIcon } from '../ui';
 import { Avatar } from '../ui';
 import { formatTimestamp } from '../../utils/observationUtils.jsx';
 
@@ -19,11 +18,14 @@ const TYPE_CHIP_COLORS = {
   media: { bg: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', border: 'var(--color-green-mint)' },
 };
 
+const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
+
 export default function SharedHeader({ observation, student, teacherName, onClose }) {
   if (!observation) return null;
   const chipConfig = getTypeChipConfig(observation.type);
   const label = TYPE_LABELS[observation.type] || 'OBSERVATION';
   const chipColors = TYPE_CHIP_COLORS[observation.type] || TYPE_CHIP_COLORS.text;
+  const IconComp = TYPE_ICONS[chipConfig.iconName] || Eye;
 
   const studentName =
     student?.name ||
@@ -36,7 +38,7 @@ export default function SharedHeader({ observation, student, teacherName, onClos
       {/* Row 1: Type chip + Close X */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
         <Chip
-          icon={<TypeIcon config={chipConfig} />}
+          icon={<IconComp size={14} style={{ color: chipColors.color }} />}
           label={label}
           size="small"
           sx={{
@@ -47,7 +49,7 @@ export default function SharedHeader({ observation, student, teacherName, onClos
             fontSize: '0.68rem',
             letterSpacing: '0.04em',
             height: 28,
-            '& .MuiChip-icon': { ml: 0.5 },
+            '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
           }}
         />
         <IconButton

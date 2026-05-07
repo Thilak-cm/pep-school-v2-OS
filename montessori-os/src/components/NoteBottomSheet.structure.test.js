@@ -51,10 +51,10 @@ describe('NoteBottomSheet container', () => {
 });
 
 describe('SharedHeader sub-component', () => {
-  it('uses TypeIcon and Avatar from shared ui', async () => {
+  it('uses Avatar from shared ui and type icons', async () => {
     const source = await readFile(sharedHeaderPath, 'utf8');
-    assert.ok(/TypeIcon/.test(source), 'SharedHeader should use TypeIcon');
     assert.ok(/Avatar/.test(source), 'SharedHeader should use Avatar');
+    assert.ok(/TYPE_ICONS/.test(source) || /Eye|Mic|BookOpen|Image/.test(source), 'SharedHeader should reference type icons');
   });
 
   it('imports getTypeChipConfig for type chip configuration', async () => {
