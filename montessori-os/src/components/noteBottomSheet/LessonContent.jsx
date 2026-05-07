@@ -29,15 +29,16 @@ export default function LessonContent({ observation, student }) {
       </Typography>
 
       {/* "Presented to {student} {date}" subtitle */}
-      {observation.lessonDescription ? (
-        <Typography variant="body2" sx={{ color: 'var(--color-secondary-dark)', fontSize: '0.85rem' }}>
+      {observation.lessonDescription && (
+        <Typography variant="body2" sx={{ color: 'var(--color-text)', fontSize: '0.88rem', lineHeight: 1.6 }}>
           {observation.lessonDescription}
         </Typography>
-      ) : (
-        <Typography variant="body2" sx={{ color: 'var(--color-secondary-dark)', fontSize: '0.85rem' }}>
-          Presented to {studentName} {dateLabel ? `on ${dateLabel}` : 'today'}
-        </Typography>
       )}
+
+      {/* "Presented to" subtitle */}
+      <Typography variant="body2" sx={{ color: 'var(--color-secondary-dark)', fontSize: '0.82rem' }}>
+        Presented to {studentName} {dateLabel ? `on ${dateLabel}` : 'today'}
+      </Typography>
 
       {/* Dimension rating chips */}
       {dimensions.length > 0 && (

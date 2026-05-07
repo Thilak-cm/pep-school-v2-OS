@@ -11,11 +11,13 @@ const TYPE_LABELS = {
   media: 'MEDIA NOTE',
 };
 
-const TYPE_CHIP_COLORS = {
-  text: { bg: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', border: 'var(--color-green-mint)' },
-  voice: { bg: '#fff1f2', color: '#dc2626', border: '#fecdd3' },
-  lesson: { bg: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', border: 'var(--color-amber-yellow)' },
-  media: { bg: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', border: 'var(--color-green-mint)' },
+// Match TONE_STYLES from ui/TypeIcon.jsx — same colors as the card pills
+const TONE_COLORS = {
+  slate:  { bg: 'var(--color-surface)', color: 'var(--color-text-soft)', border: 'var(--color-border)' },
+  violet: { bg: 'var(--color-violet-bg)', color: 'var(--color-violet)', border: 'var(--color-violet-soft)' },
+  green:  { bg: 'var(--color-green-bg)', color: 'var(--color-secondary-dark)', border: 'var(--color-green-mint)' },
+  indigo: { bg: 'var(--color-indigo-bg)', color: 'var(--color-primary)', border: 'var(--color-indigo-soft)' },
+  amber:  { bg: 'var(--color-amber-bg)', color: 'var(--color-amber-text)', border: 'var(--color-amber-yellow)' },
 };
 
 const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
@@ -24,7 +26,7 @@ export default function SharedHeader({ observation, student, teacherName, onClos
   if (!observation) return null;
   const chipConfig = getTypeChipConfig(observation.type);
   const label = TYPE_LABELS[observation.type] || 'OBSERVATION';
-  const chipColors = TYPE_CHIP_COLORS[observation.type] || TYPE_CHIP_COLORS.text;
+  const chipColors = TONE_COLORS[chipConfig.tone] || TONE_COLORS.slate;
   const IconComp = TYPE_ICONS[chipConfig.iconName] || Eye;
 
   const studentName =
