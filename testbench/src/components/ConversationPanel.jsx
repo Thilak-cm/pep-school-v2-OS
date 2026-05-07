@@ -30,6 +30,9 @@ function ExplorationAreasCard({ areas }) {
           <Typography variant="caption" fontWeight={700} color="success.main" letterSpacing={0.5}>
             EXPLORATION AREAS
           </Typography>
+          <Typography variant="caption" color="text.disabled" sx={{ ml: "auto", fontSize: 10, fontStyle: "italic" }}>
+            Debug — hidden from teacher in production
+          </Typography>
         </Box>
         {areas.map((ea, i) => (
           <Box key={i} sx={{ mb: i < areas.length - 1 ? 1.5 : 0 }}>
@@ -86,6 +89,35 @@ function ThinkingBubble({ thinking }) {
       <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic", lineHeight: 1.5 }}>
         💭 {thinking}
       </Typography>
+    </Box>
+  );
+}
+
+function ClosingRemarksBubble({ closingRemarks }) {
+  if (!closingRemarks) return null;
+  return (
+    <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 2 }}>
+      <Box sx={{ maxWidth: "88%" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5, px: 0.5 }}>
+          <SmartToyIcon sx={{ fontSize: 16, color: "success.main" }} />
+          <Typography variant="caption" fontWeight={700} color="success.main">
+            Interview Complete
+          </Typography>
+        </Box>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            bgcolor: "rgba(102, 187, 106, 0.1)",
+            border: 1,
+            borderColor: "rgba(102, 187, 106, 0.3)",
+            borderRadius: 2,
+            borderTopLeftRadius: 4,
+          }}
+        >
+          <Typography variant="body2" sx={{ lineHeight: 1.6 }}>{closingRemarks}</Typography>
+        </Paper>
+      </Box>
     </Box>
   );
 }
@@ -149,6 +181,9 @@ export default function ConversationPanel({ turns, loading, error, teacherInput,
       }
       if (turn.type === "answer") {
         return <AnswerBubble key={i} answer={turn.answer} />;
+      }
+      if (turn.type === "closing") {
+        return <ClosingRemarksBubble key={i} closingRemarks={turn.closingRemarks} />;
       }
       return null;
     });

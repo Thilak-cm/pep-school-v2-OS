@@ -101,9 +101,14 @@ export default function LLMContextPipeline({ studentContext, selectedStudent, ki
     ? `${studentContext.baseballCard.summary}\n\nWindow: ${studentContext.baseballCard.windowDays} days | Notes: ${studentContext.baseballCard.noteCount}${studentContext.baseballCard.coverageGaps?.length ? `\nCoverage gaps: ${studentContext.baseballCard.coverageGaps.join(", ")}` : ""}`
     : null;
 
-  const oqContent = studentContext.openQuestions
-    ? studentContext.openQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")
+  const oqContent = studentContext.openQuestions && typeof studentContext.openQuestions === "object" && Object.keys(studentContext.openQuestions).length > 0
+    ? Object.entries(studentContext.openQuestions).map(([area, questions]) =>
+      `## ${area}\n${(questions || []).map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+    ).join("\n\n")
     : null;
+  const oqCount = oqContent && studentContext.openQuestions
+    ? Object.values(studentContext.openQuestions).reduce((sum, qs) => sum + (qs?.length || 0), 0)
+    : 0;
 
   return (
     <Paper variant="outlined" sx={{ p: 2, bgcolor: "background.default", maxWidth: 640, mx: "auto" }}>
@@ -160,7 +165,7 @@ export default function LLMContextPipeline({ studentContext, selectedStudent, ki
 
         <ContextBlock
           number="5"
-          label={`Open Questions${studentContext.openQuestions ? ` (${studentContext.openQuestions.length})` : ""}`}
+          label={`Open Questions${oqCount > 0 ? ` (${oqCount})` : ""}`}
           sublabel="pre-generated question bank from soul generation"
           content={oqContent}
           charCount={oqContent?.length}

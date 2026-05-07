@@ -24,7 +24,7 @@ import { assembleSystemPrompt } from "./promptAssembly.js";
  * @param {string} params.openAiKey - OpenAI API key
  * @returns {{ output: string, totalTokens: number }}
  */
-export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey }) {
+export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey, elapsedMinutes, questionCount }) {
   // 1. Load student data in parallel
   const studentInfo = await getStudentWithProgram(studentId);
 
@@ -39,10 +39,14 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   const soul = soulSnap.exists ? soulSnap.data()?.content ?? null : null;
   const guidelines = guidelinesSnap.exists ? guidelinesSnap.data()?.content ?? null : null;
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
-  const openQuestions = oqSnap.exists ? oqSnap.data()?.questions ?? null : null;
+  const openQuestions = oqSnap.exists ? oqSnap.data()?.areas ?? null : null;
   const priorInterviews = rawInterviews.map(formatInterviewForPrompt);
 
   // 2. Assemble the full system prompt
+  const sessionProgress = (elapsedMinutes != null && questionCount != null)
+    ? { elapsedMinutes, questionCount }
+    : undefined;
+
   const assembledPrompt = assembleSystemPrompt(systemPrompt, {
     studentName: studentInfo.studentName,
     age: studentInfo.age,
@@ -52,6 +56,7 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
     baseballCard,
     openQuestions,
     priorInterviews,
+    sessionProgress,
   });
 
   // 3. Build full message array with assembled system prompt
