@@ -6,7 +6,6 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  Avatar,
   TextField,
   InputAdornment,
   Divider,
@@ -14,6 +13,7 @@ import {
   Collapse,
 } from '@mui/material';
 import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, Search, User as Person, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
+import { MiniTangram } from './ui';
 import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -27,6 +27,13 @@ const PROGRAM_LABELS = {
   adolescent: 'Adolescent',
   unassigned: 'Unassigned',
 };
+const CLASSROOM_PALETTES = [
+  ['var(--color-primary)', 'var(--color-indigo-bg)', 'var(--color-indigo-soft)'],
+  ['var(--color-secondary)', 'var(--color-green-bg)', 'var(--color-green-mint)'],
+  ['var(--color-warning)', 'var(--color-amber-bg)', 'var(--color-amber-yellow)'],
+  ['var(--color-pink)', 'rgba(236, 72, 153, 0.1)', 'rgba(236, 72, 153, 0.2)'],
+];
+
 const SECTION_DIVIDER_SX = {
   fontWeight: 600,
   fontSize: '0.85rem',
@@ -472,8 +479,12 @@ const handleStudentClick = (student) => {
     );
   };
 
-  const renderCard = (classroom) => {
+  const renderCard = (classroom, index) => {
     const normalizedId = normalizeClassroomId(classroom.id);
+    const hasHex = classroom.color;
+    const fallback = CLASSROOM_PALETTES[index % CLASSROOM_PALETTES.length];
+    const iconColor = hasHex ? classroom.color : fallback[0];
+    const iconBgColor = hasHex ? `${classroom.color}18` : fallback[1];
     // Prefer pre-grouped students; fall back to on-the-fly filter if the map is empty.
     const classroomStudents =
       studentsByClassroom[normalizedId] && studentsByClassroom[normalizedId].length
@@ -524,9 +535,14 @@ const handleStudentClick = (student) => {
           <CardContent sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'var(--color-primary)', width: 48, height: 48 }}>
-                  <School />
-                </Avatar>
+                <Box sx={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  backgroundColor: iconBgColor,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <MiniTangram size={26} color={iconColor} />
+                </Box>
                 <Box>
                   <Typography variant="h6" component="h3" sx={{ color: 'var(--color-text)', fontWeight: 600 }}>
                     {classroom.name || 'Untitled classroom'}

@@ -12,7 +12,6 @@ import {
   DialogActions,
   Button,
   Chip,
-  Divider,
   Tabs,
   Tab,
   IconButton,
@@ -20,7 +19,7 @@ import {
   TextField,
   Skeleton
 } from '@mui/material';
-import { Clock as AccessTime, Trash2 as Delete, Filter as FilterList, Download, Mic as KeyboardVoice, BookOpen as MenuBook, Type as TextFields, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, CirclePlay as PlayCircleFilled, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
+import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
@@ -28,6 +27,9 @@ import useNotify from '../notifications/useNotify.js';
 // Import new modular components
 import FilterPanel from './FilterPanel';
 import NoteExpansionDialog from './NoteExpansionDialog';
+import ClassroomNoteCard from './ClassroomNoteCard';
+import { DayHeader } from './ui';
+import { groupByCalendarDay } from './classroomTimelineUtils.js';
 import useObservationFilters from '../hooks/useObservationFilters';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import {
@@ -129,12 +131,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     return new Date(ts);
   };
 
-  const getTeacherDisplayName = (obs) => (
-    obs?.createdByName ||
-    obs?.createdBy ||
-    'Unknown Teacher'
-  );
-
   const normalizeMediaKind = (kind, contentType = '') => {
     const rawKind = String(kind || '').toLowerCase();
     if (rawKind === 'photo' || rawKind === 'video' || rawKind === 'pdf') return rawKind;
@@ -166,33 +162,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     }));
   };
 
-  const formatMediaCountLabel = (count, kind) => {
-    if (count <= 0) return '';
-    const base = kind === 'pdf' ? 'PDF' : kind;
-    const label = count === 1 ? base : `${base}s`;
-    return `${count} ${label}`;
-  };
 
-  const buildMediaSummary = (obs) => {
-    const teacher = getTeacherDisplayName(obs);
-    const timestamp = formatTimestamp(obs?.observedAt || obs?.timestamp);
-    if (obs?.mediaKindCounts) {
-      const counts = obs.mediaKindCounts || {};
-      const parts = [];
-      if (counts.photo) parts.push(formatMediaCountLabel(counts.photo, 'photo'));
-      if (counts.video) parts.push(formatMediaCountLabel(counts.video, 'video'));
-      if (counts.pdf) parts.push(formatMediaCountLabel(counts.pdf, 'pdf'));
-      if (counts.file) parts.push(formatMediaCountLabel(counts.file, 'file'));
-      const label = parts.length > 0 ? parts.join(' + ') : 'files';
-      return `${teacher} added ${label} on ${timestamp}.`;
-    }
-    const rawCount = Array.isArray(obs?.media) ? obs.media.length : null;
-    const count = Number.isFinite(obs?.mediaCount) ? obs.mediaCount : (rawCount ?? 1);
-    const rawKind = (obs?.mediaKind || '').toLowerCase();
-    const kind = rawKind === 'photo' ? 'photo' : rawKind === 'video' ? 'video' : rawKind === 'pdf' ? 'pdf' : 'file';
-    const label = formatMediaCountLabel(count, kind) || `${count} files`;
-    return `${teacher} added ${label} on ${timestamp}.`;
-  };
 
   const getMediaFailureMessage = (obs) => {
     const code = String(obs?.errorCode || '').toLowerCase();
@@ -232,16 +202,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
       return d && d >= sevenDaysAgo;
     }).length;
     return { totalNotes: total, notesLast7Days: recent };
-  }, [observations]);
-
-  const lessonTitleById = useMemo(() => {
-    const map = {};
-    (observations || []).forEach((obs) => {
-      if (obs?.type === 'lesson') {
-        map[obs.id] = obs.lessonTitle || 'Lesson note';
-      }
-    });
-    return map;
   }, [observations]);
 
   // Use the filter hook instead of local state
@@ -1041,34 +1001,9 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
             {totalNotes} notes overall | {notesLast7Days} notes in last 7 days
           </Typography>
 
-          {/* Time-divided notes list (Today / Last 7 Days / Beyond) */}
+          {/* Day-grouped notes timeline */}
           {(() => {
-            const groups = { today: [], last7Days: [], beyond: [] };
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const toDate = (ts) => {
-              if (!ts) return null;
-              if (ts.toDate) return ts.toDate();
-              if (ts.seconds) return new Date(ts.seconds * 1000);
-              return new Date(ts);
-            };
-            (timelineItems || []).forEach((obs) => {
-              let d = toDate(obs.observedAt || obs.timestamp) || new Date(0);
-              if (d >= today) groups.today.push(obs);
-              else if (d >= lastWeek) groups.last7Days.push(obs);
-              else groups.beyond.push(obs);
-            });
-
-            const cardSx = {
-              cursor: 'pointer',
-              '&:hover': {
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                transform: 'translateY(-1px)',
-              },
-              transition: 'all 0.2s ease-in-out',
-              position: 'relative',
-            };
+            const dayGroups = groupByCalendarDay(timelineItems || []);
 
             const renderTimelineItem = (obs) => {
               if (obs.type === 'report') {
@@ -1077,7 +1012,6 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                     key={obs.id}
                     onClick={() => setReportPreviewData(obs)}
                     sx={{
-                      mb: 1.5,
                       borderRadius: 2,
                       cursor: 'pointer',
                       borderLeft: '3px solid',
@@ -1117,417 +1051,63 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                 );
               }
 
+              // Media notes: open media preview on click
               if (obs.type === 'media') {
                 const mediaItems = Array.isArray(obs.mediaItems) && obs.mediaItems.length > 0
                   ? obs.mediaItems
                   : buildMediaItemsForObservation(obs);
-                const openMediaItemPreview = (item) => {
-                  const sourceObservation = item?.sourceObservation || obs;
-                  const path = item?.storagePath || sourceObservation?.media?.[0]?.storagePath;
-                  const url = path ? mediaUrls[path] : null;
-                  setMediaPreview({
-                    observation: {
-                      ...sourceObservation,
-                      mediaKind: item?.mediaKind || sourceObservation?.mediaKind,
-                      status: item?.status || sourceObservation?.status,
-                      observedAt: item?.observedAt || sourceObservation?.observedAt,
-                      timestamp: item?.timestamp || sourceObservation?.timestamp,
-                      teacherComment: item?.teacherComment || sourceObservation?.teacherComment,
-                      curriculumArea: sourceObservation.curriculumArea ?? obs.curriculumArea,
-                      handwritten: sourceObservation.handwritten ?? obs.handwritten,
-                      materialsIdentified: sourceObservation.materialsIdentified || obs.materialsIdentified || [],
-                      media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
-                    },
-                    url: url || null,
-                    fullscreen: true,
-                  });
-                };
                 return (
-                  <Card
+                  <ClassroomNoteCard
                     key={obs.id}
-                    sx={{ ...cardSx, cursor: 'pointer', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)', transform: 'translateY(-1px)' }, transition: 'all 0.2s ease-in-out' }}
-                    onClick={() => { if (mediaItems.length > 0) openMediaItemPreview(mediaItems[0]); }}
-                  >
-                    <CardContent sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                          {getTeacherDisplayName(obs)}
-                        </Typography>
-                      </Box>
-                      {!obs.curriculumArea && !(obs.curriculumAreas?.length > 0) && !(obs.materialsIdentified?.length > 0) && (
-                        <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.5 }}>
-                          {buildMediaSummary(obs)}
-                        </Typography>
-                      )}
-                      {!obs.batchId && obs.teacherComment && (
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                          <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {obs.teacherComment}
-                        </Typography>
-                      )}
-
-                      {/* Photo classification chips (PEP-146, PEP-37) */}
-                      {(obs.curriculumAreas?.length > 0 || obs.curriculumArea || obs.materialsIdentified?.length > 0) && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.6, mt: 1 }}>
-                          {(obs.curriculumAreas || [obs.curriculumArea]).filter(Boolean).map((area) => (
-                            <Chip
-                              key={area}
-                              label={area}
-                              size="small"
-                              sx={{
-                                bgcolor: 'var(--color-green-bg)',
-                                color: 'var(--color-secondary-dark)',
-                                fontWeight: 600,
-                                fontSize: '0.7rem',
-                                border: '1px solid var(--color-green-mint)',
-                                height: 22,
-                              }}
-                            />
-                          ))}
-                          {Array.isArray(obs.materialsIdentified) && obs.materialsIdentified.map((mat) => (
-                            <Chip
-                              key={`mat-${mat}`}
-                              label={mat}
-                              size="small"
-                              sx={{
-                                bgcolor: 'var(--color-amber-bg)',
-                                color: 'var(--color-amber-text)',
-                                fontWeight: 600,
-                                fontSize: '0.7rem',
-                                border: '1px solid var(--color-amber-gold)',
-                                height: 22,
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      )}
-
-                      {mediaItems.length > 0 && (
-                        <>
-                          {mediaItems.length >= 4 && (
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                              Swipe to browse {mediaItems.length} items
-                            </Typography>
-                          )}
-                          <Box
-                            sx={{
-                              mt: 1,
-                              display: 'flex',
-                              gap: 1,
-                              overflowX: 'auto',
-                              pb: 0.5,
-                              scrollSnapType: 'x mandatory',
-                              '&::-webkit-scrollbar': {
-                                height: 6,
-                              },
-                              '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: 'var(--grey-300)',
-                                borderRadius: 999,
-                              },
-                            }}
-                          >
-                            {mediaItems.map((item) => {
-                              const path = item.storagePath;
-                              const url = path ? mediaUrls[path] : null;
-                              const isFailed = item.status === 'failed';
-                              const isReady = item.status === 'ready' && !!url;
-                              const isPending = !isFailed && !isReady;
-                              const isPhoto = item.mediaKind === 'photo';
-                              const isVideo = item.mediaKind === 'video';
-                              return (
-                                <Box
-                                  key={item.id}
-                                  sx={{
-                                    width: { xs: 126, sm: 140 },
-                                    minWidth: { xs: 126, sm: 140 },
-                                    flexShrink: 0,
-                                    scrollSnapAlign: 'start',
-                                  }}
-                                >
-                                  <Box
-                                    onClick={(e) => { e.stopPropagation(); openMediaItemPreview(item); }}
-                                    role="button"
-                                    tabIndex={0}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        openMediaItemPreview(item);
-                                      }
-                                    }}
-                                    aria-label={`Open ${isVideo ? 'video' : isPhoto ? 'photo' : 'media'} in fullscreen`}
-                                    sx={{
-                                      aspectRatio: '1 / 1',
-                                      borderRadius: 2,
-                                      overflow: 'hidden',
-                                      border: '1px solid var(--color-border-light)',
-                                      position: 'relative',
-                                      backgroundColor: 'var(--color-bg)',
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    {isReady && isPhoto && (
-                                      <Box
-                                        component="img"
-                                        src={url}
-                                        alt="Media thumbnail"
-                                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                      />
-                                    )}
-
-                                    {isReady && isVideo && (
-                                      <>
-                                        <video
-                                          src={url}
-                                          muted
-                                          playsInline
-                                          preload="metadata"
-                                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                        />
-                                        <Box
-                                          sx={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            backgroundColor: 'rgba(15, 23, 42, 0.18)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                          }}
-                                        >
-                                          <PlayCircleFilled size={34} style={{ color: 'var(--color-paper)' }} />
-                                        </Box>
-                                      </>
-                                    )}
-
-                                    {(isPending || isFailed || (!isPhoto && !isVideo)) && (
-                                      <Box
-                                        sx={{
-                                          position: 'absolute',
-                                          inset: 0,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          flexDirection: 'column',
-                                          gap: 0.5,
-                                          backgroundColor: isFailed ? 'var(--color-red-bg)' : 'var(--color-surface)',
-                                        }}
-                                      >
-                                        {isFailed ? (
-                                          <ErrorOutline style={{ color: 'var(--color-error)' }} />
-                                        ) : isPending ? (
-                                          <CircularProgress size={18} thickness={5} />
-                                        ) : isVideo ? (
-                                          <Movie style={{ color: 'var(--color-primary)' }} />
-                                        ) : (
-                                          <PhotoLibrary style={{ color: 'var(--color-primary)' }} />
-                                        )}
-                                        <Typography
-                                          variant="caption"
-                                          color={isFailed ? 'error' : 'text.secondary'}
-                                          sx={{ fontWeight: 600 }}
-                                        >
-                                          {isFailed ? 'Failed' : isPending ? 'Loading' : 'Media'}
-                                        </Typography>
-                                      </Box>
-                                    )}
-
-                                    <Box sx={{ position: 'absolute', top: 6, left: 6 }}>
-                                      {item.status === 'pending_upload' && (
-                                        <Chip
-                                          size="small"
-                                          label="Pending"
-                                          color="warning"
-                                          icon={<CloudUpload size={14} />}
-                                        />
-                                      )}
-                                      {item.status === 'failed' && (
-                                        <Chip
-                                          size="small"
-                                          label="Failed"
-                                          color="error"
-                                          icon={<ErrorOutline size={14} />}
-                                        />
-                                      )}
-                                    </Box>
-                                  </Box>
-                                  {item.teacherComment && (
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                      sx={{
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                        mt: 0.5,
-                                      }}
-                                    >
-                                      <MessageCircle size={14} style={{ display: "inline", verticalAlign: "middle" }} /> {item.teacherComment}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              );
-                            })}
-                          </Box>
-                        </>
-                      )}
-
-                      {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                            Tagged Lesson Notes:
-                          </Typography>
-                          {(obs.linkedLessonObservationId || []).map((id) => (
-                            <Chip
-                              key={id}
-                              size="small"
-                              variant="outlined"
-                              label={lessonTitleById[id] || 'Lesson note'}
-                              sx={{ borderRadius: 999 }}
-                            />
-                          ))}
-                        </Box>
-                      )}
-
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-                        <Typography variant="caption" color="text.secondary">
-                          {formatTimestamp(obs.observedAt || obs.timestamp)}
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                );
-              }
-
-              if (obs.type === 'lesson') {
-                return (
-                  <Card
-                    key={obs.id}
-                    onClick={() => handleObservationClick(obs)}
-                    sx={cardSx}
-                    aria-label={`View details for lesson note from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
-                  >
-                    <Chip
-                      icon={<MenuBook size={16} />}
-                      label="Lesson Note"
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        borderColor: 'var(--color-border)',
-                        '& .MuiChip-icon': { color: 'var(--grey-900)' }
-                      }}
-                    />
-                    <CardContent sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                        <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                          {getTeacherDisplayName(obs)}
-                        </Typography>
-                      </Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: obs.studentComment ? 0.5 : 0 }}>
-                        {obs.lessonTitle || 'Lesson Note'}
-                      </Typography>
-                      {obs.studentComment && (
-                        <Typography variant="body2" color="text.secondary">
-                          {obs.studentComment}
-                        </Typography>
-                      )}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                        <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-                        <Typography variant="caption" color="text.secondary">
-                          {formatTimestamp(obs.observedAt || obs.timestamp)}
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                );
-              }
-
-              return (
-                <Card
-                  key={obs.id}
-                  onClick={() => handleObservationClick(obs)}
-                  sx={cardSx}
-                  aria-label={`View details for observation from ${formatTimestamp(obs.observedAt || obs.timestamp)}`}
-                >
-                  <Chip
-                    icon={obs.type === 'voice'
-                      ? <KeyboardVoice size={16} />
-                      : <TextFields size={16} />}
-                    label="Observation"
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      borderColor: 'var(--color-border)',
-                      '& .MuiChip-icon': { color: 'var(--grey-900)' }
+                    note={obs}
+                    variant="student"
+                    classroomTeachers={classroomTeachers}
+                    onNoteClick={() => {
+                      if (mediaItems.length > 0) {
+                        const item = mediaItems[0];
+                        const sourceObservation = item?.sourceObservation || obs;
+                        const path = item?.storagePath || sourceObservation?.media?.[0]?.storagePath;
+                        const url = path ? mediaUrls[path] : null;
+                        setMediaPreview({
+                          observation: {
+                            ...sourceObservation,
+                            mediaKind: item?.mediaKind || sourceObservation?.mediaKind,
+                            status: item?.status || sourceObservation?.status,
+                            media: path ? [{ storagePath: path }] : (Array.isArray(sourceObservation?.media) ? sourceObservation.media : []),
+                          },
+                          url: url || null,
+                          fullscreen: true,
+                        });
+                      }
                     }}
+                    mediaUrls={mediaUrls}
                   />
-                  <CardContent sx={{ p: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                      <User size={14} style={{ display: "inline", verticalAlign: "middle" }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                        {getTeacherDisplayName(obs)}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ mb: 1, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {obs.text || '(transcribing…)'}
-                    </Typography>
-                    {Array.isArray(obs.linkedLessonObservationId) && obs.linkedLessonObservationId.length > 0 && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                          Tagged Lesson Notes:
-                        </Typography>
-                        {(obs.linkedLessonObservationId || []).map((id) => (
-                          <Chip
-                            key={id}
-                            size="small"
-                            variant="outlined"
-                            label={lessonTitleById[id] || 'Lesson note'}
-                            sx={{ borderRadius: 999 }}
-                          />
-                        ))}
-                      </Box>
-                    )}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <AccessTime size={14} style={{ color: 'var(--color-text-soft)' }} />
-                      <Typography variant="caption" color="text.secondary">
-                        {formatTimestamp(obs.observedAt || obs.timestamp)}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
+                );
+              }
+
+              // Text, voice, lesson notes
+              return (
+                <ClassroomNoteCard
+                  key={obs.id}
+                  note={obs}
+                  variant="student"
+                  classroomTeachers={classroomTeachers}
+                  onNoteClick={() => handleObservationClick(obs)}
+                  mediaUrls={mediaUrls}
+                />
               );
             };
 
-            const renderGroup = (label, items, labelColor) => (
-              items && items.length > 0 ? (
-                <>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: labelColor }}>
-                      {label}
-                    </Typography>
-                    <Divider sx={{ flex: 1 }} />
-                  </Box>
-                  {items.map((obs) => renderTimelineItem(obs))}
-                </>
-              ) : null
-            );
-
-            return (
-              <>
-                {renderGroup('Today', groups.today, 'primary.main')}
-                {renderGroup('Last 7 Days', groups.last7Days, 'text.secondary')}
-                {renderGroup('Beyond 7 Days', groups.beyond, 'text.secondary')}
-              </>
-            );
+            return dayGroups.length > 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {dayGroups.map((day) => (
+                  <React.Fragment key={day.dateKey}>
+                    <DayHeader label={day.label} accent={day.label === 'Today'} />
+                    {day.items.map((item) => renderTimelineItem(item))}
+                  </React.Fragment>
+                ))}
+              </Box>
+            ) : null;
           })()}
           {/* Show More Button */}
           {hasMoreObs && !loadingMore && (

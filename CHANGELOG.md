@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.16.5 — 2026-05-07
+
+### Changed
+- Redesigned Student Timeline with shared ClassroomNoteCard patterns and teacher-first layout (PEP-193)
+- Per-calendar-day grouping with DayHeader replaces old 3-bucket layout (Today / Last 7 Days / Beyond)
+- Extracted TypeIcon + TONE_STYLES to shared `ui/TypeIcon.jsx`, eliminating duplication across card components
+- Media notes use simplified 100×80 thumbnail layout matching ClassroomTimeline
+
+### Fixed
+- Batched media groups now correctly display thumbnails via mediaItems fallback
+- Teacher name resolution uses live classroomTeachers list instead of stale cached names
+
 # 10.16.4 — 2026-05-06
 
 ### Changed
