@@ -40,7 +40,7 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
   }
   prompt = prompt.replace(/\$\{openQuestions\}/g, () => oqBlock);
 
-  // Session progress — injected per-turn for LLM termination awareness (PEP-208)
+  // Session progress — placeholder replacement for templates that include it
   let spBlock = "";
   if (sessionProgress) {
     spBlock = `SESSION PROGRESS: This is question ${sessionProgress.questionCount} of the interview. ${sessionProgress.elapsedMinutes} minutes have elapsed. You should aim to wrap up around 7 questions or 10 minutes — find a natural stopping point when you feel the conversation has covered enough ground.`;
@@ -51,6 +51,12 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
   if (priorInterviews?.length) {
     const interviewBlock = `\nPRIOR INTERVIEW TRANSCRIPTS (${priorInterviews.length} completed sessions — avoid re-asking areas already covered):\n${JSON.stringify(priorInterviews, null, 2)}`;
     prompt += interviewBlock;
+  }
+
+  // Session progress — always appended so it works even without ${sessionProgress} in template
+  if (sessionProgress) {
+    prompt += `\n\n${spBlock}`;
+    prompt += `\n\nWhen you decide the interview has covered enough ground, instead of outputting a question, output:\n{"interviewComplete": true, "closingRemarks": "A brief, warm closing that summarises what you learned and thanks the teacher."}`;
   }
 
   return prompt;

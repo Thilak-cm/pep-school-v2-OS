@@ -136,11 +136,14 @@ describe("assembleSystemPrompt", () => {
     assert.ok(result.includes("question 4"), "Should include question count");
     assert.ok(result.includes("6.5 minutes"), "Should include elapsed time");
     assert.ok(result.includes("wrap up"), "Should include wrap-up guidance");
+    assert.ok(result.includes("interviewComplete"), "Should include interviewComplete output format");
+    assert.ok(result.includes("closingRemarks"), "Should include closingRemarks in output format");
   });
 
   it("omits session progress when not provided", () => {
     const result = assembleSystemPrompt(TEMPLATE, STUDENT_DATA);
     assert.ok(!result.includes("SESSION PROGRESS"), "Should not include session progress");
+    assert.ok(!result.includes("interviewComplete"), "Should not include termination format");
   });
 });
 
