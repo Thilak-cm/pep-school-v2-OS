@@ -607,7 +607,14 @@ export default function FeatureWorkbench({ featureId }) {
       {/* Interview: full-width LLM context pipeline */}
       {isInterview && studentContextData && (
         <Box sx={{ mb: 3 }}>
-          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} kickoffMessage={kickoffMessage} />
+          <LLMContextPipeline
+            studentContext={studentContextData}
+            selectedStudent={selectedStudent}
+            kickoffMessage={kickoffMessage}
+            interviewStarted={interviewStarted}
+            elapsedSeconds={elapsedSeconds}
+            questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
+          />
         </Box>
       )}
 

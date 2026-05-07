@@ -86,7 +86,7 @@ function FlowArrow() {
  * - studentContext: { soul, guidelines, baseballCard, openQuestions } | null
  * - selectedStudent: { id, displayName, classroomId, classroomName } | null
  */
-export default function LLMContextPipeline({ studentContext, selectedStudent, kickoffMessage }) {
+export default function LLMContextPipeline({ studentContext, selectedStudent, kickoffMessage, interviewStarted, elapsedSeconds, questionCount }) {
   if (!selectedStudent || !studentContext) {
     return (
       <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
@@ -207,6 +207,39 @@ export default function LLMContextPipeline({ studentContext, selectedStudent, ki
               {kickoffMessage || "—"}
             </Typography>
           </Box>
+        </Paper>
+
+        <FlowArrow />
+
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1.5,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            borderRadius: 2,
+            bgcolor: interviewStarted ? "rgba(255, 167, 38, 0.08)" : undefined,
+            borderColor: interviewStarted ? "rgba(255, 167, 38, 0.3)" : "divider",
+          }}
+        >
+          <Chip label="9" size="small" color="warning" sx={{ fontWeight: 700, minWidth: 28, height: 24 }} />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" fontWeight={600}>Session Progress</Typography>
+            <Typography variant="caption" color="text.secondary">
+              appended server-side from Q2 onwards
+            </Typography>
+            {interviewStarted && (
+              <Typography variant="caption" sx={{ display: "block", mt: 0.5, fontFamily: "monospace", fontSize: 11, color: (elapsedSeconds || 0) >= 600 ? "warning.main" : "text.secondary" }}>
+                Question {questionCount || 0} | {Math.floor((elapsedSeconds || 0) / 60)}:{String((elapsedSeconds || 0) % 60).padStart(2, "0")} elapsed | Target: ~7 questions or ~10 min
+              </Typography>
+            )}
+          </Box>
+          {interviewStarted ? (
+            <Chip label="live" size="small" variant="outlined" color="warning" sx={{ height: 20, fontSize: 11 }} />
+          ) : (
+            <Chip label="inactive" size="small" variant="outlined" color="default" sx={{ height: 20, fontSize: 11 }} />
+          )}
         </Paper>
       </Box>
     </Paper>
