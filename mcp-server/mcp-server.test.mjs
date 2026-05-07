@@ -292,7 +292,6 @@ describe("handleGetAiSummary", () => {
       content: "## Mathematics\nStrong progress.",
       programId: "primary",
       hasEmergentObservations: true,
-      hasInformationGaps: false,
       createdAt: { toDate: () => new Date("2026-04-01") },
       updatedAt: { toDate: () => new Date("2026-04-28") },
       updatedBy: "cloud-function:soul-generate",
@@ -313,8 +312,10 @@ describe("handleGetAiSummary", () => {
 
   it("should return open_questions document", async () => {
     const oq = mockDoc("open_questions", {
-      questions: ["How does the child handle frustration?", "What reading materials?"],
-      questionCount: 2,
+      areas: {
+        "Self-Regulation": ["How does the child handle frustration?"],
+        "Reading": ["What reading materials do they choose?"],
+      },
       programId: "primary",
       updatedBy: "cloud-function:soul-generate",
     });
@@ -326,8 +327,8 @@ describe("handleGetAiSummary", () => {
       docId: "open_questions",
     });
     assert.ok(result);
-    assert.equal(result.questions.length, 2);
-    assert.equal(result.questionCount, 2);
+    assert.equal(Object.keys(result.areas).length, 2);
+    assert.equal(result.areas["Self-Regulation"].length, 1);
   });
 
   it("should return null when doc does not exist", async () => {

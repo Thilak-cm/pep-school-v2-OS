@@ -1,5 +1,12 @@
 # Changelog
 
+# 10.16.5 — 2026-05-07
+
+### Changed
+- Restructured `open_questions` doc from flat question list to area-keyed JSON format for exploration-area grouping (PEP-207)
+- Removed `hasInformationGaps` flag from soul doc — exploration gaps now tracked via `open_questions` area keys (PEP-207)
+- Updated `extractOpenQuestions` to parse JSON with defensive validation for non-array area values (PEP-207)
+
 # 10.16.4 — 2026-05-06
 
 ### Changed

@@ -45,7 +45,9 @@ service firebase.storage {
     }
 
     function sizeAllowed(mediaKind, bytes) {
-      return mediaKind != 'photo' || bytes <= 2 * 1024 * 1024;
+      return (mediaKind == 'photo' && bytes <= 2 * 1024 * 1024) ||
+             (mediaKind == 'video' && bytes <= 200 * 1024 * 1024) ||
+             (mediaKind == 'pdf' && bytes <= 25 * 1024 * 1024);
     }
 
     // Role gate for media access — only 2 firestore.get() paths
