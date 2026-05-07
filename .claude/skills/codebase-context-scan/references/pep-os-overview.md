@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-07T15:22:39.931Z
-App version: 10.16.5
+Generated: 2026-05-07T22:12:31.492Z
+App version: 10.16.6
 
 ## App Snapshot
 
@@ -31,8 +31,8 @@ App version: 10.16.5
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 11
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
+- Count: 10
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
@@ -93,8 +93,8 @@ App version: 10.16.5
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 27
-- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 28
+- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -139,6 +139,11 @@ App version: 10.16.5
 
 ## Recent Changes
 
+### 10.16.6 (2026-05-07)
+- Redesigned note expansion as bottom sheet with type-specific layouts replacing NoteExpansionDialog (PEP-194)
+- Unified media preview into the bottom sheet for both ClassroomTimeline and StudentTimeline
+- Type chip in header uses shared TONE_STYLES from extracted toneStyles.js module
+
 ### 10.16.5 (2026-05-07)
 - Redesigned Student Timeline with shared ClassroomNoteCard patterns and teacher-first layout (PEP-193)
 - Per-calendar-day grouping with DayHeader replaces old 3-bucket layout (Today / Last 7 Days / Beyond)
@@ -153,9 +158,4 @@ App version: 10.16.5
 - Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
 - Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
 - Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
-
-### 10.16.2 (2026-05-05)
-- Removed global AppHeader bar; all screens now use inline left-aligned HFHeader (PEP-215)
-- HFHeader reworked: flex layout, left-aligned title with Coming Soon font, no border/shadow
-- Drill-down screens show back chevron + title + contextual action (MiniTangram or Avatar)
 
