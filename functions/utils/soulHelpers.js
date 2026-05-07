@@ -38,12 +38,11 @@ Structure guidelines:
 - Write 2-5 sentences per section describing what you observe about this child
 - Note specific examples from observations when they illuminate a pattern
 - Include a "## Emergent Observations" section for any signals that don't fit the guidelines categories — interests, behaviors, or patterns that are noteworthy but not captured by existing developmental areas
-- After Emergent Observations, include a "## Areas Needing Further Exploration" section that identifies developmental areas where evidence is thin, absent, comes from a single source or teacher, or is stale (old observations with no recent data). You have free range to note any information need — do not limit yourself to guidelines categories. Focus on what would be most valuable to explore next to build a fuller picture of this child.
 - If a guidelines area has no observations, omit the section entirely — do not write "no data available"
 
 ## Emergent observations and guidelines suggestions
 
-At the very end of the document (after all narrative sections including Areas Needing Further Exploration), if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
+At the very end of the document (after all narrative sections including Emergent Observations), if you identified any recurring patterns or developmental areas that deserve their own place in this child's guidelines, append a fenced YAML block with structured suggestions. Each suggestion should propose a new skill area, name the discipline it belongs under (or propose a new one), and explain why it matters for this child.
 
 Format:
 
@@ -58,22 +57,30 @@ If there are no emergent patterns worth suggesting, omit the YAML block entirely
 
 ## Open questions for interviews
 
-After the guidelines_suggestions block (or after Areas Needing Further Exploration if no suggestions), append a fenced block of ~50 open questions that teachers could be asked about this child during interviews. These questions should:
-- Cover all developmental areas where evidence is thin, contradictory, or from a single source
-- Explore emergent observations and interests that need deeper investigation
-- Probe areas where the child's experience or progress is unclear
+After the guidelines_suggestions block (or after Emergent Observations if no suggestions), append a fenced block of open questions that teachers could be asked about this child during interviews, organized by exploration area. Each area groups questions about a developmental theme where evidence is thin, contradictory, single-sourced, or stale. You have free range to identify areas — do not limit yourself to guidelines categories. Focus on what would be most valuable to explore next.
+
+Questions should:
 - Range from specific ("Does Aria choose the bead chain independently or only when directed?") to broad ("How does this child navigate conflict with peers?")
 - Be phrased as questions a knowledgeable interviewer would ask a teacher
 
-Format:
+Format — a JSON object with area names as keys and arrays of question strings as values:
 
 \`\`\`open_questions
-1. Question text here?
-2. Another question?
-...
+{
+  "areas": {
+    "Self-Regulation & Emotional Awareness": [
+      "When the child argues with a teacher, what seems to trigger it?",
+      "How does the child respond after a conflict once cooled down?"
+    ],
+    "Reading Profile & Language Load": [
+      "What is the current reading level in English in practical terms?",
+      "Is the main reading difficulty decoding, fluency, vocabulary, or comprehension?"
+    ]
+  }
+}
 \`\`\`
 
-Generate as many questions as the evidence warrants (aim for ~50). If the child has very limited data, generate fewer but still aim for at least 10-15 questions covering the gaps. Always include this block — even with limited data there are always questions worth asking.
+Generate as many areas and questions as the evidence warrants (aim for ~50 questions across 5-10 areas). If the child has very limited data, generate fewer but still aim for at least 10-15 questions covering the gaps. Always include this block — even with limited data there are always questions worth asking.
 
 ## Continuity and stability
 
@@ -199,39 +206,43 @@ function extractYamlValue(line, key) {
 /**
  * Extract open questions from the fenced block at the end of a soul response,
  * and return the content with the block removed.
+ * PEP-207: Now expects area-keyed JSON format instead of flat numbered list.
  *
  * @param {string} soulContent - Full soul content (narrative + optional open_questions block)
- * @returns {{questions: string[], content: string}}
+ * @returns {{areas: Object<string, string[]>, content: string}}
  */
 export function extractOpenQuestions(soulContent) {
   const match = soulContent.match(/\n*```open_questions\s*\n([\s\S]*?)```/);
-  if (!match) return { questions: [], content: soulContent };
+  if (!match) return { areas: {}, content: soulContent };
 
   const block = match[1].trim();
-  const questions = block
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/^\d+\.\s*/, "").replace(/^[-*]\s*/, "").trim())
-    .filter((q) => q.length > 0);
+  let areas = {};
+  if (block) {
+    try {
+      const parsed = JSON.parse(block);
+      areas = (parsed && typeof parsed.areas === "object" && parsed.areas !== null) ? parsed.areas : {};
+    } catch {
+      console.warn("[soul] Failed to parse open_questions JSON block — returning empty areas");
+    }
+  }
 
   const content = soulContent.replace(/\n*```open_questions\s*\n[\s\S]*?```\s*/, "").trim();
 
-  return { questions, content };
+  return { areas, content };
 }
 
 /**
  * Build the Firestore document shape for an open_questions doc.
+ * PEP-207: Now uses area-keyed shape instead of flat question list.
  *
  * @param {Object} params
- * @param {string[]} params.questions - Array of question strings
+ * @param {Object<string, string[]>} params.areas - Area name → question strings
  * @param {string} params.programId
  * @returns {Object} Open questions document fields
  */
-export function buildOpenQuestionsDoc({ questions, programId }) {
+export function buildOpenQuestionsDoc({ areas, programId }) {
   return {
-    questions,
-    questionCount: questions.length,
+    areas,
     programId,
     updatedBy: "cloud-function:soul-generate",
   };
@@ -311,15 +322,3 @@ export function hasEmergentObservations(soulContent) {
   return match[1].trim().length > 0;
 }
 
-/**
- * Check if a soul narrative contains non-empty information gaps.
- * Used to flag students whose soul identifies thin/absent evidence areas.
- *
- * @param {string} soulContent - Markdown soul content
- * @returns {boolean} True if Areas Needing Further Exploration section has content
- */
-export function hasInformationGaps(soulContent) {
-  const match = soulContent.match(/##\s*Areas Needing Further Exploration\s*\n([\s\S]*?)(?=\n##\s|\s*$)/i);
-  if (!match) return false;
-  return match[1].trim().length > 0;
-}

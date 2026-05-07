@@ -12,7 +12,6 @@ import {
   buildOpenQuestionsDoc,
   buildHistorySnapshot,
   hasEmergentObservations,
-  hasInformationGaps,
   extractGuidelinesSuggestions,
   extractOpenQuestions,
 } from "../utils/soulHelpers.js";
@@ -158,7 +157,7 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
 
   // Extract structured data from LLM response — each extractor only touches its own block
   const { suggestions: guidelinesSuggestions, content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
-  const { questions: openQuestions, content: narrativeContent } = extractOpenQuestions(withoutYaml);
+  const { areas: openQuestionAreas, content: narrativeContent } = extractOpenQuestions(withoutYaml);
 
   // Write soul doc (narrative without fenced blocks)
   const soulDoc = buildSoulDoc({
@@ -170,18 +169,19 @@ async function writeSoulAndGuidelines(studentId, soulContent, programId, templat
     lastInterviewAt: lastInterviewAt,
   });
   soulDoc.hasEmergentObservations = hasEmergentObservations(narrativeContent);
-  soulDoc.hasInformationGaps = hasInformationGaps(narrativeContent);
   soulDoc.guidelinesSuggestions = guidelinesSuggestions;
   soulDoc.createdAt = existingSoul.exists ? (existingSoul.data().createdAt || now) : now;
   soulDoc.updatedAt = now;
   batch.set(soulRef, soulDoc);
 
   // Write open_questions doc (full overwrite, no archiving)
-  const oqDoc = buildOpenQuestionsDoc({ questions: openQuestions, programId });
+  const oqDoc = buildOpenQuestionsDoc({ areas: openQuestionAreas, programId });
   oqDoc.updatedAt = now;
   batch.set(openQuestionsRef, oqDoc);
-  if (openQuestions.length) {
-    console.log(`[soul] Generated ${openQuestions.length} open questions for ${studentId}`);
+  const areaCount = Object.keys(openQuestionAreas).length;
+  if (areaCount) {
+    const questionCount = Object.values(openQuestionAreas).reduce((sum, qs) => sum + qs.length, 0);
+    console.log(`[soul] Generated ${questionCount} open questions across ${areaCount} areas for ${studentId}`);
   }
 
   // Seed guidelines from template on first run (don't overwrite existing)
@@ -289,9 +289,11 @@ export const generateStudentProfile = functions
 
     // Extract narrative for boolean flags (strip both fenced blocks)
     const { content: withoutYaml } = extractGuidelinesSuggestions(soulContent);
-    const { questions: openQuestions, content: narrative } = extractOpenQuestions(withoutYaml);
+    const { areas: openQuestionAreas, content: narrative } = extractOpenQuestions(withoutYaml);
 
-    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews, ${openQuestions.length} open questions`);
+    const areaKeys = Object.keys(openQuestionAreas);
+    const totalQuestions = Object.values(openQuestionAreas).reduce((sum, qs) => sum + qs.length, 0);
+    console.log(`[soul] Generated soul for ${studentId}: ${formatted.length} observations, ${formattedInterviews.length} interviews, ${totalQuestions} open questions across ${areaKeys.length} areas`);
 
     return {
       status: "ok",
@@ -300,8 +302,8 @@ export const generateStudentProfile = functions
       noteCount: formatted.length,
       interviewCount: formattedInterviews.length,
       hasEmergentObservations: hasEmergentObservations(narrative),
-      hasInformationGaps: hasInformationGaps(narrative),
-      openQuestionCount: openQuestions.length,
+      openQuestionAreaCount: areaKeys.length,
+      openQuestionCount: totalQuestions,
     };
   });
 
