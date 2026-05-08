@@ -285,7 +285,7 @@ export const ACCESS_CONTROL_SPEC = [
     description: 'sizeAllowed() restricts photos to 2 * 1024 * 1024 bytes',
     file: 'storage',
     criticality: 'important',
-    pattern: /function\s+sizeAllowed\s*\(\s*mediaKind[\s\S]*?mediaKind\s*!=\s*['\"]photo['\"]\s*\|\|\s*bytes\s*<=\s*2\s*\*\s*1024\s*\*\s*1024/,
+    pattern: /function\s+sizeAllowed\s*\(\s*mediaKind[\s\S]*?mediaKind\s*==\s*['\"]photo['\"]\s*&&\s*bytes\s*<=\s*2\s*\*\s*1024\s*\*\s*1024/,
   },
 
   {
