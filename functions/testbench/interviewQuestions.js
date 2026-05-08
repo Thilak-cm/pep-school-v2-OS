@@ -6,7 +6,8 @@
  * prepends it to the message history, and calls OpenAI.
  */
 import { db } from "../shared/firebase.js";
-import { CHAT_ENDPOINT, buildChatBody } from "../shared/openai.js";
+import { buildChatBody } from "../shared/openai.js";
+import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { fetchStudentInterviews, getStudentWithProgram } from "../shared/studentHelpers.js";
 import { formatInterviewForPrompt } from "../utils/interviewHelpers.js";
 import { assembleSystemPrompt } from "./promptAssembly.js";
@@ -18,13 +19,13 @@ import { assembleSystemPrompt } from "./promptAssembly.js";
  * @param {string} params.studentId - Student document ID
  * @param {string} params.systemPrompt - Prompt template with ${placeholders}
  * @param {Array} params.messages - Conversation history [{role, content}, ...]
- * @param {string} params.model - OpenAI model ID
+ * @param {string} params.model - OpenRouter model slug
  * @param {number} params.temperature - Model temperature
  * @param {number} params.maxTokens - Max completion tokens
- * @param {string} params.openAiKey - OpenAI API key
+ * @param {string} params.apiKey - OpenRouter API key
  * @returns {{ output: string, totalTokens: number }}
  */
-export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, openAiKey, elapsedMinutes, questionCount }) {
+export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, apiKey, elapsedMinutes, questionCount }) {
   // 1. Load student data in parallel
   const studentInfo = await getStudentWithProgram(studentId);
 
@@ -65,11 +66,11 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
     ...messages,
   ];
 
-  // 4. Call OpenAI
-  const response = await fetch(CHAT_ENDPOINT, {
+  // 4. Call LLM via OpenRouter
+  const response = await fetch(OPENROUTER_ENDPOINT, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${openAiKey}`,
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(buildChatBody({
@@ -83,8 +84,8 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    console.error("[testBenchInterview] OpenAI error", response.status, errText?.slice?.(0, 500));
-    throw new Error(`OpenAI error: ${response.status}`);
+    console.error("[testBenchInterview] LLM error", response.status, errText?.slice?.(0, 500));
+    throw new Error(`LLM error: ${response.status}`);
   }
 
   const json = await response.json();

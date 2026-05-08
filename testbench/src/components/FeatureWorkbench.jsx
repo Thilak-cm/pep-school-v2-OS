@@ -36,15 +36,16 @@ import LLMContextPipeline from "./LLMContextPipeline.jsx";
 import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
+import ListSubheader from "@mui/material/ListSubheader";
 import RunHistory from "./RunHistory.jsx";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
+import { AVAILABLE_MODELS, FRONTIER_MODEL } from "../../../functions/config/modelConstants.js";
 
-const MODELS = [
-  { id: "gpt-5.4", label: "GPT-5.4" },
-  { id: "gpt-5.3-instant", label: "GPT-5.3 Instant" },
-  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-  { id: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
-];
+// Group models by provider for the dropdown
+const PROVIDER_ORDER = ["OpenAI", "Google", "Anthropic", "Meta", "Mistral", "DeepSeek"];
+const MODELS_BY_PROVIDER = PROVIDER_ORDER
+  .map((p) => ({ provider: p, models: AVAILABLE_MODELS.filter((m) => m.provider === p) }))
+  .filter((g) => g.models.length > 0);
 
 const SCROLL_AFTER = 4; // columns become fixed-width and scroll after this count
 
@@ -53,7 +54,7 @@ function createVariant(config, idx) {
     name: `Variant ${String.fromCharCode(65 + (idx || 0))}`,
     systemPrompt: config?.systemPrompt || "",
     guidelinesContent: config?.guidelinesContent || "",
-    model: config?.model || "gpt-5.4",
+    model: config?.model || FRONTIER_MODEL,
     temperature: config?.temperature ?? 0.3,
     max_tokens: config?.max_tokens || 2000,
     output: null,
@@ -467,7 +468,7 @@ export default function FeatureWorkbench({ featureId }) {
       name: v.name,
       systemPrompt: v.prompt?.systemPrompt || "",
       guidelinesContent: v.prompt?.guidelinesContent || "",
-      model: v.prompt?.model || "gpt-5.4",
+      model: v.prompt?.model || FRONTIER_MODEL,
       temperature: v.prompt?.temperature ?? 0.3,
       max_tokens: v.prompt?.max_tokens || 2000,
       output: v.output || null,
@@ -680,12 +681,18 @@ export default function FeatureWorkbench({ featureId }) {
                 value={v.model}
                 onChange={(e) => updateVariant(idx, "model", e.target.value)}
                 size="small"
-                sx={{ minWidth: 160 }}
+                sx={{ minWidth: 200 }}
               >
-                {MODELS.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
-                ))}
+                {MODELS_BY_PROVIDER.map((group) => [
+                  <ListSubheader key={group.provider}>{group.provider}</ListSubheader>,
+                  ...group.models.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                  )),
+                ])}
               </Select>
+              {isInterview && !AVAILABLE_MODELS.find((m) => m.id === v.model)?.supportsJsonMode && (
+                <Chip label="No JSON mode" size="small" color="warning" variant="outlined" sx={{ fontSize: "0.7rem" }} />
+              )}
               <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
                 T={v.temperature}
               </Typography>
