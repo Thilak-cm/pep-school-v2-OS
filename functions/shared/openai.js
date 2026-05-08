@@ -13,7 +13,8 @@ const CHAT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
  */
 function isReasoningModel(model) {
   if (!model) return false;
-  const m = model.toLowerCase();
+  // Strip vendor prefix for OpenRouter slugs (e.g. "openai/gpt-5.4-20260305" → "gpt-5.4-20260305")
+  const m = model.toLowerCase().replace(/^[^/]+\//, "");
   // o-series reasoning models
   if (/^o[13]/.test(m)) return true;
   // GPT-5 family (but NOT gpt-5-chat variants which support temperature)

@@ -3,7 +3,7 @@
  *
  * Stateless per-turn: the client sends the full conversation history each call.
  * The function assembles the system prompt from a template + student data,
- * prepends it to the message history, and calls OpenAI.
+ * prepends it to the message history, and calls OpenRouter.
  */
 import { db } from "../shared/firebase.js";
 import { buildChatBody } from "../shared/openai.js";
@@ -25,7 +25,7 @@ import { assembleSystemPrompt } from "./promptAssembly.js";
  * @param {string} params.apiKey - OpenRouter API key
  * @returns {{ output: string, totalTokens: number }}
  */
-export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, apiKey, elapsedMinutes, questionCount }) {
+export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, supportsJsonMode = true }) {
   // 1. Load student data in parallel
   const studentInfo = await getStudentWithProgram(studentId);
 
@@ -78,7 +78,7 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
       messages: fullMessages,
       temperature,
       max_completion_tokens: maxTokens,
-      response_format: { type: "json_object" },
+      ...(supportsJsonMode ? { response_format: { type: "json_object" } } : {}),
     })),
   });
 
@@ -93,7 +93,7 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   const totalTokens = json?.usage?.total_tokens || 0;
 
   if (!output) {
-    throw new Error("OpenAI returned empty response");
+    throw new Error("LLM returned empty response");
   }
 
   return { output, totalTokens };

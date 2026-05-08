@@ -39,12 +39,13 @@ import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
 import ListSubheader from "@mui/material/ListSubheader";
 import RunHistory from "./RunHistory.jsx";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
-import { AVAILABLE_MODELS, FRONTIER_MODEL } from "../../../functions/config/modelConstants.js";
+import { FRONTIER_MODEL } from "../../../functions/config/modelConstants.js";
+import { TEST_BENCH_MODELS } from "../../../functions/config/testBenchModels.js";
 
 // Group models by provider for the dropdown
 const PROVIDER_ORDER = ["OpenAI", "Google", "Anthropic", "Meta", "Mistral", "DeepSeek"];
 const MODELS_BY_PROVIDER = PROVIDER_ORDER
-  .map((p) => ({ provider: p, models: AVAILABLE_MODELS.filter((m) => m.provider === p) }))
+  .map((p) => ({ provider: p, models: TEST_BENCH_MODELS.filter((m) => m.provider === p) }))
   .filter((g) => g.models.length > 0);
 
 const SCROLL_AFTER = 4; // columns become fixed-width and scroll after this count
@@ -690,7 +691,7 @@ export default function FeatureWorkbench({ featureId }) {
                   )),
                 ])}
               </Select>
-              {isInterview && !AVAILABLE_MODELS.find((m) => m.id === v.model)?.supportsJsonMode && (
+              {isInterview && !TEST_BENCH_MODELS.find((m) => m.id === v.model)?.supportsJsonMode && (
                 <Chip label="No JSON mode" size="small" color="warning" variant="outlined" sx={{ fontSize: "0.7rem" }} />
               )}
               <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>

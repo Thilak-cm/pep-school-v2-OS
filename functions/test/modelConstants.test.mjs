@@ -4,7 +4,6 @@ import {
   FRONTIER_MODEL,
   MINI_MODEL,
   AVAILABLE_MODELS,
-  getOpenRouterModelId,
 } from "../config/modelConstants.js";
 
 describe("modelConstants", () => {
@@ -52,37 +51,10 @@ describe("modelConstants", () => {
       assert.ok(ids.includes(MINI_MODEL));
     });
 
-    it("should contain models from at least 4 providers", () => {
-      const providers = new Set(AVAILABLE_MODELS.map((m) => m.provider));
-      assert.ok(providers.size >= 4, `only ${providers.size} providers found: ${[...providers].join(", ")}`);
-    });
-
-    it("should include OpenAI, Google, and Anthropic providers", () => {
-      const providers = new Set(AVAILABLE_MODELS.map((m) => m.provider));
-      assert.ok(providers.has("OpenAI"), "missing OpenAI provider");
-      assert.ok(providers.has("Google"), "missing Google provider");
-      assert.ok(providers.has("Anthropic"), "missing Anthropic provider");
-    });
-
-    it("openRouterId should follow vendor/model format", () => {
+    it("should only contain OpenAI models (production use)", () => {
       for (const m of AVAILABLE_MODELS) {
-        assert.ok(
-          m.openRouterId.includes("/"),
-          `openRouterId should contain '/': ${m.openRouterId}`,
-        );
+        assert.equal(m.provider, "OpenAI", `non-OpenAI model found in production list: ${m.id}`);
       }
-    });
-  });
-
-  describe("getOpenRouterModelId", () => {
-    it("should return the openRouterId for a known model", () => {
-      const result = getOpenRouterModelId(FRONTIER_MODEL);
-      assert.ok(result.includes("/"), `expected vendor/model format, got: ${result}`);
-    });
-
-    it("should return the input as-is for an unknown model", () => {
-      const result = getOpenRouterModelId("unknown-model-xyz");
-      assert.equal(result, "unknown-model-xyz");
     });
   });
 });

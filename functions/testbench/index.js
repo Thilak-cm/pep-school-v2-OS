@@ -1,7 +1,8 @@
 import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
-import { FRONTIER_MODEL, getOpenRouterModelId } from "../config/modelConstants.js";
+import { FRONTIER_MODEL } from "../config/modelConstants.js";
+import { getOpenRouterModelId, getModelSupportsJson } from "../config/testBenchModels.js";
 import { testBenchSoul } from "../students/soul.js";
 import { testBenchHandwriting } from "../ai/handwriting.js";
 import { testBenchInterviewTurn } from "./interviewQuestions.js";
@@ -59,7 +60,8 @@ export const testBenchRun = functions
       }
       const elapsedMinutes = typeof data?.elapsedMinutes === "number" ? data.elapsedMinutes : null;
       const questionCount = typeof data?.questionCount === "number" ? data.questionCount : null;
-      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model: routerModel, temperature, maxTokens, apiKey, elapsedMinutes, questionCount });
+      const supportsJsonMode = getModelSupportsJson(model);
+      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model: routerModel, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, supportsJsonMode });
     }
 
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
