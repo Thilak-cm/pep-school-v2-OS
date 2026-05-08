@@ -764,6 +764,64 @@ async function verifyAuthToken(req) {
   return { decodedToken, userDoc };
 }
 
+const ALLOWED_ORIGINS = [
+  "https://pep-os.web.app",
+  "https://pep-os.firebaseapp.com",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+function getCorsOrigin(req) {
+  const origin = req.headers.origin || "";
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
+/**
+ * Verify the authenticated user has access to the given student.
+ * Superadmins bypass all checks. Classroom admins must manage the student's classroom.
+ * Teachers must be assigned to the student's classroom.
+ */
+async function verifyStudentAccess(userDoc, studentId) {
+  const userData = userDoc.data();
+  const userRole = userData?.role;
+
+  // Superadmins can access all students
+  if (userRole === "superadmin") return;
+
+  // Fetch student to get classroomId
+  const studentDoc = await db.collection("students").doc(studentId).get();
+  if (!studentDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "Student not found");
+  }
+
+  const classroomId = studentDoc.data()?.classroomId;
+  if (!classroomId) {
+    throw new functions.https.HttpsError("failed-precondition", "Student has no classroom assigned");
+  }
+
+  if (userRole === "classroomadmin") {
+    const manageable = userData?.manageableClassrooms || [];
+    if (!manageable.includes(classroomId)) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
+    }
+    return;
+  }
+
+  if (userRole === "teacher") {
+    const classroomDoc = await db.collection("classrooms").doc(classroomId).get();
+    if (!classroomDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Student's classroom not found");
+    }
+    const teacherIds = classroomDoc.data()?.teacherIds || [];
+    if (!teacherIds.includes(userDoc.id)) {
+      throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
+    }
+    return;
+  }
+
+  throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
+}
+
 /**
  * HTTP Cloud Function: Child Chat (Streaming)
  * Handles per-student AI chat with context from observations and chat history
@@ -775,7 +833,7 @@ export const childChatStream = functions
   .https.onRequest(async (req, res) => {
     // Handle CORS preflight (OPTIONS request)
     if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Origin", getCorsOrigin(req));
       res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       res.setHeader("Access-Control-Max-Age", "3600");
@@ -793,7 +851,7 @@ export const childChatStream = functions
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Origin", getCorsOrigin(req));
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
@@ -842,6 +900,9 @@ export const childChatStream = functions
         sendError(new Error("Please enter a message before sending."));
         return;
       }
+
+      // Verify caller has access to this student's classroom
+      await verifyStudentAccess(userDoc, studentId);
 
       const openAiKey = getOpenAiKey();
       if (!openAiKey) {
@@ -1016,6 +1077,9 @@ export const childChat = functions
     if (!studentId) {
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
+
+    // Verify caller has access to this student's classroom
+    await verifyStudentAccess(userDoc, studentId);
 
     if (!message) {
       throw new functions.https.HttpsError("invalid-argument", "Please enter a message before sending.");

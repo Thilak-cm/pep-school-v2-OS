@@ -38,6 +38,11 @@ service cloud.firestore {
       return isSignedIn() && requesterDoc().data.role == 'teacher';
     }
 
+    function isTeacherInClassroom(classroomId) {
+      return isTeacher() &&
+        get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherIds.hasAny([request.auth.uid]);
+    }
+
     function studentClassroomId(studentId) {
       return get(/databases/$(database)/documents/students/$(studentId)).data.classroomId;
     }
@@ -89,10 +94,10 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || (isClassroomAdmin() && resource.data.role == 'teacher');
     }
 
-    // Classrooms - simplified security that works
+    // Classrooms - role-scoped reads
     match /classrooms/{classroomId} {
-      // Allow reading individual classroom documents
-      allow read: if isPrivilegedAdmin() || isTeacher();
+      // Superadmins + classroom admins (scoped) can read; teachers only their assigned classrooms
+      allow read: if isPrivilegedAdmin() || (isTeacher() && resource.data.teacherIds.hasAny([request.auth.uid]));
       // Only admins can modify
       allow create, delete: if isSuperAdmin();
       allow update: if
@@ -107,7 +112,7 @@ service cloud.firestore {
 
     // Classrooms collection queries allowed via read above (no extra collection-level match needed)
 
-    // Students
+    // Students — reads scoped by role
     match /students/{studentId} {
       function requestClassroomForStudent() {
         return request.resource.data.classroomId;
@@ -117,7 +122,9 @@ service cloud.firestore {
         return resource.data.classroomId;
       }
 
-      allow read: if isPrivilegedAdmin() || isTeacher();
+      allow read: if isSuperAdmin() ||
+        (isClassroomAdmin() && managesClassroom(resource.data.classroomId)) ||
+        isTeacherInClassroom(resource.data.classroomId);
 
       allow create: if isSuperAdmin() ||
         (isClassroomAdmin() && managesClassroom(requestClassroomForStudent())); 
@@ -132,14 +139,16 @@ service cloud.firestore {
         (isClassroomAdmin() && managesClassroom(existingClassroomForStudent()));
 
       // Placements subcollection: classroom history per student
-      // - Reads: admins and teachers
+      // - Reads: scoped by role
       // - Writes: admins only (with validation on create/update)
       match /placements/{placementId} {
         function canManagePlacement() {
           return managesClassroom(studentClassroomId(studentId));
         }
 
-        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow read: if isSuperAdmin() ||
+          (isClassroomAdmin() && managesClassroom(studentClassroomId(studentId))) ||
+          isTeacherInClassroom(studentClassroomId(studentId));
 
         // Create validation
         allow create: if canManagePlacement() &&
@@ -182,7 +191,7 @@ service cloud.firestore {
 
       // AI summaries (baseball card, reports, signals, soul, guidelines) stored per student
       match /ai_summaries/{summaryId} {
-        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
         allow create, update, delete: if isSuperAdmin();
 
         // Version history for soul and guidelines (PEP-149)
@@ -196,16 +205,16 @@ service cloud.firestore {
       // Interview transcripts — append-only, Cloud Functions write via admin SDK
       // Teachers and admins can read; no client-side writes
       match /interviews/{interviewId} {
-        allow read: if isPrivilegedAdmin() || isTeacher();
+        allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
         allow create, update, delete: if false;
       }
 
-      // Chats subcollection
+      // Chats subcollection — scoped by role
       match /chats/{chatId} {
-        allow read: if isPrivilegedAdmin() || isTeacher();
-        allow create: if (isPrivilegedAdmin() || isTeacher()) &&
+        allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+        allow create: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
           request.resource.data.createdBy == request.auth.uid;
-        allow update: if (isPrivilegedAdmin() || isTeacher()) &&
+        allow update: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name', 'updatedAt', 'lastMessagePreview', 'messageCount', 'deleted'
           ]);
@@ -213,12 +222,12 @@ service cloud.firestore {
 
         // Messages subcollection within chats
         match /messages/{messageId} {
-          allow read: if isPrivilegedAdmin() || isTeacher();
-          allow create: if (isPrivilegedAdmin() || isTeacher()) &&
+          allow read: if isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId));
+          allow create: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId))) &&
             request.resource.data.role is string &&
             request.resource.data.content is string;
           // Messages are immutable except for cancelledResponseAt (stop button)
-          allow update: if (isPrivilegedAdmin() || isTeacher())
+          allow update: if (isPrivilegedAdmin() || isTeacherInClassroom(studentClassroomId(studentId)))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelledResponseAt']);
           allow delete: if false;
         }
@@ -330,11 +339,11 @@ service cloud.firestore {
             request.resource.data.studentId == resource.data.studentId;
         }
 
-        // Allow reading observations for both admins and teachers
-        allow read: if adminCanAccessObservation() || isTeacher();
+        // Allow reading observations — scoped by role
+        allow read: if adminCanAccessObservation() || isTeacherInClassroom(studentClassroomId(studentId));
         
-        // Allow creating observations for both admins and teachers
-        allow create: if (adminCanAccessObservation() || isTeacher()) &&
+        // Allow creating observations — scoped by role
+        allow create: if (adminCanAccessObservation() || isTeacherInClassroom(studentClassroomId(studentId))) &&
           (
             (isMedia(request.resource.data) &&
               validMediaCreatePayload(request.resource.data)) ||
@@ -441,8 +450,8 @@ service cloud.firestore {
             request.resource.data.createdAt == resource.data.createdAt;
         }
 
-        allow read: if adminCanAccessMedia() || isTeacher();
-        allow create: if (adminCanAccessMedia() || isTeacher()) &&
+        allow read: if adminCanAccessMedia() || isTeacherInClassroom(studentClassroomId(studentId));
+        allow create: if (adminCanAccessMedia() || isTeacherInClassroom(studentClassroomId(studentId))) &&
           validMediaCreatePayload(request.resource.data);
         allow update: if adminCanAccessMedia() || authorCanEditMedia();
         allow delete: if adminCanAccessMedia() || (
@@ -453,12 +462,14 @@ service cloud.firestore {
 
     // Collection group rule for media (needed for collectionGroup queries)
     match /{path=**}/media/{mediaId} {
-      allow read: if isPrivilegedAdmin() || isTeacher();
+      allow read: if isPrivilegedAdmin() ||
+        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
     }
 
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
     match /{path=**}/ai_summaries/{summaryId} {
-      allow read: if isPrivilegedAdmin() || isTeacher();
+      allow read: if isPrivilegedAdmin() ||
+        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
     }
 
     // Collection group rule for observations (needed for collectionGroup queries)
@@ -477,7 +488,8 @@ service cloud.firestore {
         );
       }
 
-      allow read: if adminCanQueryObservation() || isTeacher();
+      allow read: if adminCanQueryObservation() ||
+        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
     }
 
     // Feedback collection
