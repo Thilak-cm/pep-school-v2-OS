@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms } from './scopeUtils.js';
+import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms, filterStudentsForAdmin, isStudentInScope } from './scopeUtils.js';
 
 // ============================================================================
 // FIXTURES
@@ -143,4 +143,84 @@ test('extractTeacherIdsFromClassrooms handles classrooms with empty teacherIds',
     { id: 'c1', teacherIds: [] },
   ]);
   assert.equal(result.length, 0);
+});
+
+// ============================================================================
+// STUDENT FIXTURES
+// ============================================================================
+
+const students = [
+  { id: 's1', firstName: 'Aarav', classroomId: 'cls-A' },
+  { id: 's2', firstName: 'Priya', classroomId: 'cls-B' },
+  { id: 's3', firstName: 'Rohan', classroomId: 'cls-C' },
+  { id: 's4', firstName: 'Meera', classroomId: 'cls-A' },
+  { id: 's5', firstName: 'Kiran' }, // no classroomId
+];
+
+// ============================================================================
+// filterStudentsForAdmin
+// ============================================================================
+
+test('filterStudentsForAdmin returns only students in manageable classrooms', () => {
+  const result = filterStudentsForAdmin(students, ['cls-A']);
+  const ids = result.map(s => s.id);
+  assert.deepEqual(ids.sort(), ['s1', 's4']);
+});
+
+test('filterStudentsForAdmin with multiple manageable classrooms unions students', () => {
+  const result = filterStudentsForAdmin(students, ['cls-A', 'cls-B']);
+  const ids = result.map(s => s.id);
+  assert.deepEqual(ids.sort(), ['s1', 's2', 's4']);
+});
+
+test('filterStudentsForAdmin returns empty when no students match', () => {
+  const result = filterStudentsForAdmin(students, ['cls-nonexistent']);
+  assert.equal(result.length, 0);
+});
+
+test('filterStudentsForAdmin returns empty for empty students array', () => {
+  const result = filterStudentsForAdmin([], ['cls-A']);
+  assert.equal(result.length, 0);
+});
+
+test('filterStudentsForAdmin returns empty for empty manageableClassrooms', () => {
+  const result = filterStudentsForAdmin(students, []);
+  assert.equal(result.length, 0);
+});
+
+test('filterStudentsForAdmin excludes students with no classroomId', () => {
+  const result = filterStudentsForAdmin(students, ['cls-A', 'cls-B', 'cls-C']);
+  const ids = result.map(s => s.id);
+  assert.ok(!ids.includes('s5'));
+});
+
+test('filterStudentsForAdmin preserves original student objects', () => {
+  const result = filterStudentsForAdmin(students, ['cls-C']);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 's3');
+  assert.equal(result[0].firstName, 'Rohan');
+});
+
+// ============================================================================
+// isStudentInScope
+// ============================================================================
+
+test('isStudentInScope returns true when student classroomId is in manageable classrooms', () => {
+  assert.equal(isStudentInScope(students[0], ['cls-A']), true);
+});
+
+test('isStudentInScope returns false when student classroomId is not in manageable classrooms', () => {
+  assert.equal(isStudentInScope(students[2], ['cls-A']), false);
+});
+
+test('isStudentInScope returns false for student with no classroomId', () => {
+  assert.equal(isStudentInScope(students[4], ['cls-A', 'cls-B', 'cls-C']), false);
+});
+
+test('isStudentInScope returns false for null student', () => {
+  assert.equal(isStudentInScope(null, ['cls-A']), false);
+});
+
+test('isStudentInScope returns false for empty manageableClassrooms', () => {
+  assert.equal(isStudentInScope(students[0], []), false);
 });

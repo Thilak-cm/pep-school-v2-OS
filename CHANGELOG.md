@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.17.2 — 2026-05-08
+
+### Fixed
+- Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
+- CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
+- Firestore rules: teachers can only read classrooms, students, observations, media, chats, and interviews in their assigned classrooms (PEP-90)
+- Classroom admins can only see, edit, and delete students in their manageable classrooms (PEP-217)
+- Admin delete button hidden for non-superadmin users acting on admin user types (PEP-218)
+- Removed dead Google Speech-to-Text code and `@google-cloud/speech` dependency (PEP-90)
+- Eliminated redundant Firestore reads in chat endpoints via `verifyStudentAccess` return reuse
+
 # 10.17.1 — 2026-05-08
 
 ### Changed

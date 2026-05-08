@@ -50,6 +50,32 @@ export const extractTeacherIdsFromClassrooms = (classrooms) => {
 };
 
 /**
+ * Filter students to only those in the admin's manageable classrooms.
+ *
+ * @param {Array<{id: string, classroomId?: string}>} students - Full student list
+ * @param {string[]} manageableClassrooms - Classroom IDs the admin manages
+ * @returns {Array} Filtered students
+ */
+export const filterStudentsForAdmin = (students, manageableClassrooms) => {
+  if (!students.length || !manageableClassrooms.length) return [];
+
+  const managedSet = new Set(manageableClassrooms);
+  return students.filter(s => s.classroomId && managedSet.has(s.classroomId));
+};
+
+/**
+ * Check whether a student is in scope for a classroom admin.
+ *
+ * @param {Object|null} student - Student object with classroomId
+ * @param {string[]} manageableClassrooms - Classroom IDs the admin manages
+ * @returns {boolean}
+ */
+export const isStudentInScope = (student, manageableClassrooms) => {
+  if (!student || !student.classroomId || !manageableClassrooms.length) return false;
+  return manageableClassrooms.includes(student.classroomId);
+};
+
+/**
  * Check whether a specific user is in scope for a classroom admin.
  *
  * @param {string} userId - The user ID to check

@@ -10,7 +10,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@google-cloud/speech": "^5.3.0",
     "firebase-admin": "^11.11.0",
     "firebase-functions": "^7.0.3",
     "googleapis": "^171.4.0",

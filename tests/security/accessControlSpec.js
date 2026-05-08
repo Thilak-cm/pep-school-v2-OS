@@ -78,15 +78,35 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
-  // STUDENTS ACCESS CONTROL (Firestore) - Teachers can only read, admins can manage
+  // TEACHER CLASSROOM SCOPING (Firestore) - Teachers only access assigned classrooms
   // ============================================================================
 
   {
-    name: 'Students collection read restricted to privileged admins or teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Teacher classroom scoping helper exists',
+    description: 'isTeacherInClassroom(classroomId) checks teacher UID in classroom teacherIds',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /function\s+isTeacherInClassroom\s*\(\s*classroomId\s*\)[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
+  },
+
+  {
+    name: 'Classrooms get scoped for teachers to assigned classrooms',
+    description: 'Teachers can only get classrooms where they are in teacherIds (list allows isTeacher)',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/classrooms\/\{classroomId\}[\s\S]*?allow\s+get:[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
+  },
+
+  // ============================================================================
+  // STUDENTS ACCESS CONTROL (Firestore) - Scoped reads, admins can manage
+  // ============================================================================
+
+  {
+    name: 'Students collection get scoped by role',
+    description: 'allow get: superadmin full, classroomadmin scoped to managesClassroom, teacher scoped to isTeacherInClassroom',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+get:\s*if\s+isSuperAdmin[\s\S]*?managesClassroom[\s\S]*?isTeacherInClassroom/,
   },
 
   {
@@ -102,11 +122,11 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Observations read allowed for admins and teachers',
-    description: 'allow read: if adminCanAccessObservation() || isTeacher()',
+    name: 'Observations read scoped for admins and teachers',
+    description: 'allow read: if adminCanAccessObservation() || isTeacherInClassroom()',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/observations\/\{observationId\}[\s\S]*?allow\s+read:\s*if\s+adminCanAccessObservation\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/observations\/\{observationId\}[\s\S]*?allow\s+read:\s*if\s+adminCanAccessObservation\s*\(\s*\)\s*\|\|\s*isTeacherInClassroom/,
   },
 
   {
@@ -201,11 +221,11 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Interview transcripts read allowed for admins and teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Interview transcripts read scoped for admins and teachers',
+    description: 'allow read: if isPrivilegedAdmin() || isTeacherInClassroom()',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacherInClassroom/,
   },
 
   {
@@ -265,7 +285,7 @@ export const ACCESS_CONTROL_SPEC = [
     description: 'sizeAllowed() restricts photos to 2 * 1024 * 1024 bytes',
     file: 'storage',
     criticality: 'important',
-    pattern: /function\s+sizeAllowed\s*\(\s*mediaKind[\s\S]*?mediaKind\s*!=\s*['\"]photo['\"]\s*\|\|\s*bytes\s*<=\s*2\s*\*\s*1024\s*\*\s*1024/,
+    pattern: /function\s+sizeAllowed\s*\(\s*mediaKind[\s\S]*?mediaKind\s*==\s*['\"]photo['\"]\s*&&\s*bytes\s*<=\s*2\s*\*\s*1024\s*\*\s*1024/,
   },
 
   {

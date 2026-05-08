@@ -29,7 +29,7 @@ import {
 } from 'firebase/firestore';
 import { increment } from 'firebase/firestore';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
-import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms } from '../utils/scopeUtils.js';
+import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms, filterStudentsForAdmin, isStudentInScope } from '../utils/scopeUtils.js';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -375,8 +375,23 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   const fetchStudents = async () => {
     try {
-      const snap = await getDocs(collection(db, 'students'));
-      const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+      let list;
+      if (isClassroomAdminUser && manageableClassrooms.length > 0) {
+        // Scope to manageable classrooms (batch in groups of 10 for Firestore 'in' limit)
+        const batches = [];
+        for (let i = 0; i < manageableClassrooms.length; i += 10) {
+          batches.push(manageableClassrooms.slice(i, i + 10));
+        }
+        const results = await Promise.all(
+          batches.map(batch =>
+            getDocs(query(collection(db, 'students'), where('classroomId', 'in', batch)))
+          )
+        );
+        list = results.flatMap(snap => snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
+      } else {
+        const snap = await getDocs(collection(db, 'students'));
+        list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+      }
       list.sort((a, b) => {
         const an = (a.firstName || a.displayName || a.studentID || a.id);
         const bn = (b.firstName || b.displayName || b.studentID || b.id);
@@ -671,6 +686,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const handleStudentEditSave = async () => {
     if (!selectedStudent) return;
 
+    // Scope guard: classroom admins can only edit students in their classrooms
+    if (isClassroomAdminUser && !isStudentInScope(selectedStudent, manageableClassrooms)) {
+      notify.error('You can only edit students in your assigned classrooms');
+      return;
+    }
+
     // Validate edited data
     const errors = {};
     if (!editedStudentData.firstName?.trim()) {
@@ -757,7 +778,23 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       setDeleteTarget(null);
       return;
     }
-    
+
+    // Classroom admins can only delete students in their classrooms
+    if (isClassroomAdminUser && type === 'student' && !isStudentInScope(user, manageableClassrooms)) {
+      notify.error('You can only delete students in your assigned classrooms');
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      return;
+    }
+
+    // Only superadmins can delete admin users
+    if ((type === 'classroomadmin' || type === 'superadmin') && !canManageAdmins) {
+      notify.error('Only super admins can delete admin users');
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      return;
+    }
+
     try {
       setDeleteDeleting(true);
       const batch = writeBatch(db);
@@ -1274,7 +1311,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   }, [teachers, classrooms, manageableClassrooms, isClassroomAdminUser, teacherSearch, statusFilter, onlyNoClassrooms, selectedClassroomFilterIds, getTeacherClassroomIds]);
 
   const filterStudents = useMemo(() => {
-    return students.filter(s => {
+    // Scope to manageable classrooms for classroom admins (defense-in-depth alongside fetchStudents scoping)
+    const scoped = isClassroomAdminUser ? filterStudentsForAdmin(students, manageableClassrooms) : students;
+
+    return scoped.filter(s => {
       const q = studentSearch.trim().toLowerCase();
       if (q) {
         const name = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
@@ -1282,18 +1322,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           return false;
         }
       }
-      
+
       const isActive = (s.status ? s.status === 'active' : (typeof s.isActive === 'boolean' ? s.isActive : true));
       if (studentStatusFilter === 'active' && !isActive) return false;
       if (studentStatusFilter === 'inactive' && isActive) return false;
-      
+
       if (selectedStudentClassroomFilterIds.length > 0 && !selectedStudentClassroomFilterIds.includes(s.classroomId)) {
         return false;
       }
-      
+
       return true;
     });
-  }, [students, studentSearch, studentStatusFilter, selectedStudentClassroomFilterIds]);
+  }, [students, studentSearch, studentStatusFilter, selectedStudentClassroomFilterIds, isClassroomAdminUser, manageableClassrooms]);
 
   // ============================================================================
   // SUB-COMPONENTS
@@ -2264,20 +2304,23 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 Demote to Teacher
               </Button>
             )}
-            <Button
-              variant="outlined"
-              color="error"
-              fullWidth
-              startIcon={<Delete />}
-              onClick={() => {
-                if (actionUser) {
-                  openDeleteConfirm(actionUser.type, actionUser.user);
-                }
-              }}
-              sx={{ py: 1.5 }}
-            >
-              Delete User
-            </Button>
+            {/* Hide delete for admin types unless superadmin */}
+            {(actionUser?.type === 'teacher' || actionUser?.type === 'student' || canManageAdmins) && (
+              <Button
+                variant="outlined"
+                color="error"
+                fullWidth
+                startIcon={<Delete />}
+                onClick={() => {
+                  if (actionUser) {
+                    openDeleteConfirm(actionUser.type, actionUser.user);
+                  }
+                }}
+                sx={{ py: 1.5 }}
+              >
+                Delete User
+              </Button>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
@@ -2599,19 +2642,21 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             </>
           ) : (
             <>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => {
-                  if (selectedStudent) {
-                    openDeleteConfirm('student', selectedStudent);
-                    closeStudentDialog();
-                  }
-                }}
-                startIcon={<Delete />}
-              >
-                Delete
-              </Button>
+              {(!isClassroomAdminUser || isStudentInScope(selectedStudent, manageableClassrooms)) && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={() => {
+                    if (selectedStudent) {
+                      openDeleteConfirm('student', selectedStudent);
+                      closeStudentDialog();
+                    }
+                  }}
+                  startIcon={<Delete />}
+                >
+                  Delete
+                </Button>
+              )}
               <Button
                 variant="contained"
                 onClick={() => {
