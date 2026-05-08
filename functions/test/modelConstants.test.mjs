@@ -4,6 +4,7 @@ import {
   FRONTIER_MODEL,
   MINI_MODEL,
   AVAILABLE_MODELS,
+  getOpenRouterModelId,
 } from "../config/modelConstants.js";
 
 describe("modelConstants", () => {
@@ -27,14 +28,17 @@ describe("modelConstants", () => {
       assert.ok(AVAILABLE_MODELS.length > 0);
     });
 
-    it("each entry should have id, label, and tier", () => {
+    it("each entry should have id, label, tier, provider, and openRouterId", () => {
       for (const m of AVAILABLE_MODELS) {
         assert.ok(m.id, `missing id: ${JSON.stringify(m)}`);
         assert.ok(m.label, `missing label: ${JSON.stringify(m)}`);
         assert.ok(
           m.tier === "frontier" || m.tier === "mini",
-          `invalid tier: ${m.tier}`,
+          `invalid tier: ${m.tier} for ${m.id}`,
         );
+        assert.ok(m.provider, `missing provider for ${m.id}`);
+        assert.ok(m.openRouterId, `missing openRouterId for ${m.id}`);
+        assert.equal(typeof m.supportsJsonMode, "boolean", `supportsJsonMode must be boolean for ${m.id}`);
       }
     });
 
@@ -48,13 +52,37 @@ describe("modelConstants", () => {
       assert.ok(ids.includes(MINI_MODEL));
     });
 
-    it("should only contain GPT-5 family models", () => {
+    it("should contain models from at least 4 providers", () => {
+      const providers = new Set(AVAILABLE_MODELS.map((m) => m.provider));
+      assert.ok(providers.size >= 4, `only ${providers.size} providers found: ${[...providers].join(", ")}`);
+    });
+
+    it("should include OpenAI, Google, and Anthropic providers", () => {
+      const providers = new Set(AVAILABLE_MODELS.map((m) => m.provider));
+      assert.ok(providers.has("OpenAI"), "missing OpenAI provider");
+      assert.ok(providers.has("Google"), "missing Google provider");
+      assert.ok(providers.has("Anthropic"), "missing Anthropic provider");
+    });
+
+    it("openRouterId should follow vendor/model format", () => {
       for (const m of AVAILABLE_MODELS) {
         assert.ok(
-          m.id.startsWith("gpt-5"),
-          `non-GPT-5 model found: ${m.id}`,
+          m.openRouterId.includes("/"),
+          `openRouterId should contain '/': ${m.openRouterId}`,
         );
       }
+    });
+  });
+
+  describe("getOpenRouterModelId", () => {
+    it("should return the openRouterId for a known model", () => {
+      const result = getOpenRouterModelId(FRONTIER_MODEL);
+      assert.ok(result.includes("/"), `expected vendor/model format, got: ${result}`);
+    });
+
+    it("should return the input as-is for an unknown model", () => {
+      const result = getOpenRouterModelId("unknown-model-xyz");
+      assert.equal(result, "unknown-model-xyz");
     });
   });
 });
