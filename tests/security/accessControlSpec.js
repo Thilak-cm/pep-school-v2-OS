@@ -78,15 +78,35 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
-  // STUDENTS ACCESS CONTROL (Firestore) - Teachers can only read, admins can manage
+  // TEACHER CLASSROOM SCOPING (Firestore) - Teachers only access assigned classrooms
   // ============================================================================
 
   {
-    name: 'Students collection read restricted to privileged admins or teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Teacher classroom scoping helper exists',
+    description: 'isTeacherInClassroom(classroomId) checks teacher UID in classroom teacherIds',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /function\s+isTeacherInClassroom\s*\(\s*classroomId\s*\)[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
+  },
+
+  {
+    name: 'Classrooms read scoped for teachers to assigned classrooms',
+    description: 'Teachers can only read classrooms where they are in teacherIds',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/classrooms\/\{classroomId\}[\s\S]*?allow\s+read:[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
+  },
+
+  // ============================================================================
+  // STUDENTS ACCESS CONTROL (Firestore) - Scoped reads, admins can manage
+  // ============================================================================
+
+  {
+    name: 'Students collection read scoped by role',
+    description: 'allow read: superadmin full, classroomadmin scoped to managesClassroom, teacher scoped to isTeacherInClassroom',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin[\s\S]*?managesClassroom[\s\S]*?isTeacherInClassroom/,
   },
 
   {
@@ -102,11 +122,11 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Observations read allowed for admins and teachers',
-    description: 'allow read: if adminCanAccessObservation() || isTeacher()',
+    name: 'Observations read scoped for admins and teachers',
+    description: 'allow read: if adminCanAccessObservation() || isTeacherInClassroom()',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/observations\/\{observationId\}[\s\S]*?allow\s+read:\s*if\s+adminCanAccessObservation\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/observations\/\{observationId\}[\s\S]*?allow\s+read:\s*if\s+adminCanAccessObservation\s*\(\s*\)\s*\|\|\s*isTeacherInClassroom/,
   },
 
   {
@@ -201,11 +221,11 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Interview transcripts read allowed for admins and teachers',
-    description: 'allow read: if isPrivilegedAdmin() || isTeacher()',
+    name: 'Interview transcripts read scoped for admins and teachers',
+    description: 'allow read: if isPrivilegedAdmin() || isTeacherInClassroom()',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacher\s*\(\s*\)/,
+    pattern: /match\s+\/interviews\/\{interviewId\}[\s\S]*?allow\s+read:\s*if\s+isPrivilegedAdmin\s*\(\s*\)\s*\|\|\s*isTeacherInClassroom/,
   },
 
   {
