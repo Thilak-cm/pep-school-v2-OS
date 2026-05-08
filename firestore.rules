@@ -96,8 +96,10 @@ service cloud.firestore {
 
     // Classrooms - role-scoped reads
     match /classrooms/{classroomId} {
-      // Superadmins + classroom admins (scoped) can read; teachers only their assigned classrooms
-      allow read: if isPrivilegedAdmin() || (isTeacher() && resource.data.teacherIds.hasAny([request.auth.uid]));
+      // Individual doc reads: teachers scoped to assigned classrooms
+      allow get: if isPrivilegedAdmin() || (isTeacher() && resource.data.teacherIds.hasAny([request.auth.uid]));
+      // List queries: teachers allowed (client filters by teacherIds; resource.data unavailable on list)
+      allow list: if isPrivilegedAdmin() || isTeacher();
       // Only admins can modify
       allow create, delete: if isSuperAdmin();
       allow update: if
@@ -122,9 +124,12 @@ service cloud.firestore {
         return resource.data.classroomId;
       }
 
-      allow read: if isSuperAdmin() ||
+      // Individual doc reads: scoped per role
+      allow get: if isSuperAdmin() ||
         (isClassroomAdmin() && managesClassroom(resource.data.classroomId)) ||
         isTeacherInClassroom(resource.data.classroomId);
+      // List queries: teachers allowed (client scopes via classroomId; resource.data unavailable on list)
+      allow list: if isPrivilegedAdmin() || isTeacher();
 
       allow create: if isSuperAdmin() ||
         (isClassroomAdmin() && managesClassroom(requestClassroomForStudent())); 
@@ -476,15 +481,12 @@ service cloud.firestore {
     match /{path=**}/observations/{observationId} {
       // Allow reading observations for both admins and teachers
       function adminCanQueryObservation() {
-        return isSuperAdmin() || (
-          (
-            ('classroomId' in resource.data) &&
-            managesClassroom(resource.data.classroomId)
-          ) ||
-          (
-            ('studentId' in resource.data) &&
-            managesClassroom(studentClassroomId(resource.data.studentId))
-          )
+        return (
+          ('classroomId' in resource.data) &&
+          managesClassroom(resource.data.classroomId)
+        ) || (
+          ('studentId' in resource.data) &&
+          managesClassroom(studentClassroomId(resource.data.studentId))
         );
       }
 

@@ -90,11 +90,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Classrooms read scoped for teachers to assigned classrooms',
-    description: 'Teachers can only read classrooms where they are in teacherIds',
+    name: 'Classrooms get scoped for teachers to assigned classrooms',
+    description: 'Teachers can only get classrooms where they are in teacherIds (list allows isTeacher)',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/classrooms\/\{classroomId\}[\s\S]*?allow\s+read:[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
+    pattern: /match\s+\/classrooms\/\{classroomId\}[\s\S]*?allow\s+get:[\s\S]*?teacherIds[\s\S]*?request\.auth\.uid/,
   },
 
   // ============================================================================
@@ -102,11 +102,11 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
-    name: 'Students collection read scoped by role',
-    description: 'allow read: superadmin full, classroomadmin scoped to managesClassroom, teacher scoped to isTeacherInClassroom',
+    name: 'Students collection get scoped by role',
+    description: 'allow get: superadmin full, classroomadmin scoped to managesClassroom, teacher scoped to isTeacherInClassroom',
     file: 'firestore',
     criticality: 'critical',
-    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin[\s\S]*?managesClassroom[\s\S]*?isTeacherInClassroom/,
+    pattern: /match\s+\/students\/\{studentId\}[\s\S]*?allow\s+get:\s*if\s+isSuperAdmin[\s\S]*?managesClassroom[\s\S]*?isTeacherInClassroom/,
   },
 
   {

@@ -50,14 +50,6 @@ export const extractTeacherIdsFromClassrooms = (classrooms) => {
 };
 
 /**
- * Check whether a specific user is in scope for a classroom admin.
- *
- * @param {string} userId - The user ID to check
- * @param {Array<{id: string, teacherIds: string[]}>} classrooms - Scoped classrooms
- * @param {string[]} manageableClassrooms - Classroom IDs the admin manages
- * @returns {boolean}
- */
-/**
  * Filter students to only those in the admin's manageable classrooms.
  *
  * @param {Array<{id: string, classroomId?: string}>} students - Full student list
@@ -83,6 +75,14 @@ export const isStudentInScope = (student, manageableClassrooms) => {
   return manageableClassrooms.includes(student.classroomId);
 };
 
+/**
+ * Check whether a specific user is in scope for a classroom admin.
+ *
+ * @param {string} userId - The user ID to check
+ * @param {Array<{id: string, teacherIds: string[]}>} classrooms - Scoped classrooms
+ * @param {string[]} manageableClassrooms - Classroom IDs the admin manages
+ * @returns {boolean}
+ */
 export const isUserInScope = (userId, classrooms, manageableClassrooms) => {
   if (!userId || !classrooms.length || !manageableClassrooms.length) return false;
 

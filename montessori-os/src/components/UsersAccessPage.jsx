@@ -2642,19 +2642,21 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             </>
           ) : (
             <>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => {
-                  if (selectedStudent) {
-                    openDeleteConfirm('student', selectedStudent);
-                    closeStudentDialog();
-                  }
-                }}
-                startIcon={<Delete />}
-              >
-                Delete
-              </Button>
+              {(!isClassroomAdminUser || isStudentInScope(selectedStudent, manageableClassrooms)) && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={() => {
+                    if (selectedStudent) {
+                      openDeleteConfirm('student', selectedStudent);
+                      closeStudentDialog();
+                    }
+                  }}
+                  startIcon={<Delete />}
+                >
+                  Delete
+                </Button>
+              )}
               <Button
                 variant="contained"
                 onClick={() => {

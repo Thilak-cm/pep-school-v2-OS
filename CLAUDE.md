@@ -94,7 +94,7 @@ Three roles stored on Firestore user docs: `superadmin`, `classroomadmin`, `teac
 Fan-out per student: one observation doc per student at `students/{studentId}/observations/{observationId}`. Multi-student notes share a `groupId`. Three types: `text`, `voice`, `lesson`. See `DATA_STRUCTURE.md` for full schema.
 
 ### Cloud Functions
-All in `functions/index.js` (single file). Callable functions deployed to `asia-south1`. Uses `firebase-admin` + `@google-cloud/speech`. Predeploy runs lint.
+All in `functions/index.js` (single file). Callable functions deployed to `asia-south1`. Uses `firebase-admin`. Predeploy runs lint.
 
 ## Key Conventions
 

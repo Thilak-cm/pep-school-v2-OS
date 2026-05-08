@@ -780,15 +780,16 @@ function getCorsOrigin(req) {
  * Verify the authenticated user has access to the given student.
  * Superadmins bypass all checks. Classroom admins must manage the student's classroom.
  * Teachers must be assigned to the student's classroom.
+ *
+ * Returns { studentDoc, classroomId, classroomDoc? } so callers can reuse
+ * the fetched documents instead of re-reading Firestore.
  */
 async function verifyStudentAccess(userDoc, studentId) {
   const userData = userDoc.data();
   const userRole = userData?.role;
 
-  // Superadmins can access all students
-  if (userRole === "superadmin") return;
-
-  // Fetch student to get classroomId
+  // Fetch student to get classroomId (needed for all roles except superadmin,
+  // but returned for caller reuse regardless)
   const studentDoc = await db.collection("students").doc(studentId).get();
   if (!studentDoc.exists) {
     throw new functions.https.HttpsError("not-found", "Student not found");
@@ -799,12 +800,15 @@ async function verifyStudentAccess(userDoc, studentId) {
     throw new functions.https.HttpsError("failed-precondition", "Student has no classroom assigned");
   }
 
+  // Superadmins can access all students
+  if (userRole === "superadmin") return { studentDoc, classroomId };
+
   if (userRole === "classroomadmin") {
     const manageable = userData?.manageableClassrooms || [];
     if (!manageable.includes(classroomId)) {
       throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
     }
-    return;
+    return { studentDoc, classroomId };
   }
 
   if (userRole === "teacher") {
@@ -816,7 +820,7 @@ async function verifyStudentAccess(userDoc, studentId) {
     if (!teacherIds.includes(userDoc.id)) {
       throw new functions.https.HttpsError("permission-denied", "You don't have access to this student's classroom");
     }
-    return;
+    return { studentDoc, classroomId, classroomDoc };
   }
 
   throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
@@ -834,6 +838,7 @@ export const childChatStream = functions
     // Handle CORS preflight (OPTIONS request)
     if (req.method === "OPTIONS") {
       res.setHeader("Access-Control-Allow-Origin", getCorsOrigin(req));
+      res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       res.setHeader("Access-Control-Max-Age", "3600");
@@ -852,6 +857,7 @@ export const childChatStream = functions
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("Access-Control-Allow-Origin", getCorsOrigin(req));
+    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
@@ -902,7 +908,8 @@ export const childChatStream = functions
       }
 
       // Verify caller has access to this student's classroom
-      await verifyStudentAccess(userDoc, studentId);
+      const { classroomId, classroomDoc: cachedClassroomDoc } =
+        await verifyStudentAccess(userDoc, studentId);
 
       const openAiKey = getOpenAiKey();
       if (!openAiKey) {
@@ -910,23 +917,9 @@ export const childChatStream = functions
         return;
       }
 
-      // Get student's programId via classroom to fetch program-specific config
-      const studentDoc = await db.collection("students").doc(studentId).get();
-      if (!studentDoc.exists) {
-        sendError(new Error("Student not found"));
-        return;
-      }
-
-      const studentData = studentDoc.data();
-      const classroomId = studentData?.classroomId;
-
-      if (!classroomId) {
-        sendError(new Error("Student has no classroom assigned"));
-        return;
-      }
-
-      // Get classroom to find programId
-      const classroomDoc = await db.collection("classrooms").doc(classroomId).get();
+      // Get classroom to find programId (reuse if already fetched during access check)
+      const classroomDoc = cachedClassroomDoc ||
+        await db.collection("classrooms").doc(classroomId).get();
       if (!classroomDoc.exists) {
         sendError(new Error("Student's classroom not found"));
         return;
@@ -1079,7 +1072,8 @@ export const childChat = functions
     }
 
     // Verify caller has access to this student's classroom
-    await verifyStudentAccess(userDoc, studentId);
+    const { classroomId, classroomDoc: cachedClassroomDoc } =
+      await verifyStudentAccess(userDoc, studentId);
 
     if (!message) {
       throw new functions.https.HttpsError("invalid-argument", "Please enter a message before sending.");
@@ -1099,21 +1093,9 @@ export const childChat = functions
     }
 
     try {
-      // Get student's programId via classroom to fetch program-specific config
-      const studentDoc = await db.collection("students").doc(studentId).get();
-      if (!studentDoc.exists) {
-        throw new functions.https.HttpsError("not-found", "Student not found");
-      }
-
-      const studentData = studentDoc.data();
-      const classroomId = studentData?.classroomId;
-
-      if (!classroomId) {
-        throw new functions.https.HttpsError("failed-precondition", "Student has no classroom assigned");
-      }
-
-      // Get classroom to find programId
-      const classroomDoc = await db.collection("classrooms").doc(classroomId).get();
+      // Get classroom to find programId (reuse if already fetched during access check)
+      const classroomDoc = cachedClassroomDoc ||
+        await db.collection("classrooms").doc(classroomId).get();
       if (!classroomDoc.exists) {
         throw new functions.https.HttpsError("not-found", "Student's classroom not found");
       }
