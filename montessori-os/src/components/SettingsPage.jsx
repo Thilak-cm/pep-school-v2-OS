@@ -18,7 +18,6 @@ import {
   Users,
   ChevronRight,
   LogOut,
-  Settings as SettingsIcon,
   FileUp,
   Sparkles,
 } from '../icons';
@@ -51,18 +50,24 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const ts = Timestamp.fromDate(sevenDaysAgo);
 
-        const q = query(
-          collectionGroup(db, 'observations'),
-          where('createdBy', '==', user.uid),
-          where('observedAt', '>=', ts),
-        );
-        const snap = await getDocs(q);
+        const [obsSnap, mediaSnap] = await Promise.all([
+          getDocs(query(
+            collectionGroup(db, 'observations'),
+            where('createdBy', '==', user.uid),
+            where('observedAt', '>=', ts),
+          )),
+          getDocs(query(
+            collectionGroup(db, 'media'),
+            where('createdBy', '==', user.uid),
+            where('observedAt', '>=', ts),
+          )),
+        ]);
         if (!cancelled) {
-          setNotesThisWeek(snap.size);
+          setNotesThisWeek(obsSnap.size + mediaSnap.size);
           setNotesLoading(false);
         }
       } catch (err) {
-        console.error('[SettingsPage] notes-this-week query failed', err);
+        console.error('[SettingsPage] notes-this-week fetch failed', err);
         if (!cancelled) {
           setNotesThisWeek(0);
           setNotesLoading(false);
@@ -237,13 +242,15 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
       <Dialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
         PaperProps={{ sx: { borderRadius: 3, maxWidth: 400, width: '90%' } }}
       >
-        <DialogTitle component="div" sx={{ pb: 1 }}>
+        <DialogTitle id="logout-dialog-title" component="div" sx={{ pb: 1 }}>
           <Typography component="h2" variant="h6">Confirm Logout</Typography>
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
-          <DialogContentText>
+          <DialogContentText id="logout-dialog-description">
             Are you sure you want to log out? Any unsaved changes will be lost.
           </DialogContentText>
         </DialogContent>
