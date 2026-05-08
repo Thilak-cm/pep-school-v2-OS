@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.17.1 — 2026-05-08
+
+### Changed
+- Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
+- Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
+
 # 10.17.0 — 2026-05-07
 
 ### Added

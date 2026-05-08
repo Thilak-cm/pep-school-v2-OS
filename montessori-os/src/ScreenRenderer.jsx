@@ -292,8 +292,9 @@ function renderScreen(screen, ctx) {
     case "settings":
       return (
         <SettingsPage
-          currentUser={ctx.user}
+          user={ctx.user}
           userRole={ctx.role}
+          classrooms={ctx.classrooms}
           onNavigate={ctx.handleNavigation}
           onSignOut={ctx.handleSignOut}
         />

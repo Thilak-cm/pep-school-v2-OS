@@ -34,11 +34,27 @@
       ]
     },
     {
+      "collectionGroup": "observations",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "media",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "studentId", "order": "ASCENDING" },
         { "fieldPath": "observedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "media",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
       ]
     },
     {
