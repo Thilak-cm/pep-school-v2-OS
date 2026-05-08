@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db, Timestamp, FieldPath } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
+import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import {
   SOUL_DEFAULTS,
   VALID_PROGRAMS,
@@ -441,7 +442,7 @@ export const backfillStudentProfiles = functions
 // Test Bench: Soul generation with caller-supplied prompt (PEP-163)
 // -----------------------------------------------
 
-export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, openAiKey }) {
+export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent, model, temperature, maxTokens, windowDays, includeInterviews, apiKey }) {
   const studentInfo = await getStudentWithProgram(studentId);
 
   // If no guidelines provided, load from student or template
@@ -495,10 +496,10 @@ export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent
 
   let response;
   try {
-    response = await fetch(CHAT_ENDPOINT, {
+    response = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAiKey}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -510,7 +511,7 @@ export async function testBenchSoul({ studentId, systemPrompt, guidelinesContent
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+    throw new functions.https.HttpsError("internal", `LLM error: ${response.status} — ${errText?.slice?.(0, 200)}`);
   }
 
   const json = await response.json();

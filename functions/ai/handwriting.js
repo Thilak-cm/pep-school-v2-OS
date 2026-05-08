@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { db, storage, Timestamp } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
+import { OPENROUTER_ENDPOINT } from "../shared/openrouter.js";
 import { HANDWRITING_ANALYSIS_DEFAULTS, HANDWRITING_ANALYSIS_FALLBACK_PROMPT } from "../config/handwritingAnalysisFallbacks.js";
 import { buildBatchWritingPrompt, calculateAge, parseWritingAnalysisResponse } from "../utils/handwritingAnalysisHelpers.js";
 
@@ -302,7 +303,7 @@ export const batchAnalyzeWriting = functions
 // Test Bench: Handwriting analysis with caller-supplied prompt (PEP-163)
 // -----------------------------------------------
 
-export async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, openAiKey }) {
+export async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, apiKey }) {
   // Gather same data as batchAnalyzeWriting but skip the threshold gate and use caller's prompt
   const studentSnap = await db.collection("students").doc(studentId).get();
   if (!studentSnap.exists) {
@@ -384,10 +385,10 @@ export async function testBenchHandwriting({ studentId, systemPrompt, model, tem
 
   let response;
   try {
-    response = await fetch(CHAT_ENDPOINT, {
+    response = await fetch(OPENROUTER_ENDPOINT, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAiKey}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -399,7 +400,7 @@ export async function testBenchHandwriting({ studentId, systemPrompt, model, tem
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new functions.https.HttpsError("internal", `AI error: ${response.status} — ${errText?.slice?.(0, 200)}`);
+    throw new functions.https.HttpsError("internal", `LLM error: ${response.status} — ${errText?.slice?.(0, 200)}`);
   }
 
   const json = await response.json();

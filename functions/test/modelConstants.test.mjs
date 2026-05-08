@@ -27,14 +27,17 @@ describe("modelConstants", () => {
       assert.ok(AVAILABLE_MODELS.length > 0);
     });
 
-    it("each entry should have id, label, and tier", () => {
+    it("each entry should have id, label, tier, provider, and openRouterId", () => {
       for (const m of AVAILABLE_MODELS) {
         assert.ok(m.id, `missing id: ${JSON.stringify(m)}`);
         assert.ok(m.label, `missing label: ${JSON.stringify(m)}`);
         assert.ok(
           m.tier === "frontier" || m.tier === "mini",
-          `invalid tier: ${m.tier}`,
+          `invalid tier: ${m.tier} for ${m.id}`,
         );
+        assert.ok(m.provider, `missing provider for ${m.id}`);
+        assert.ok(m.openRouterId, `missing openRouterId for ${m.id}`);
+        assert.equal(typeof m.supportsJsonMode, "boolean", `supportsJsonMode must be boolean for ${m.id}`);
       }
     });
 
@@ -48,12 +51,9 @@ describe("modelConstants", () => {
       assert.ok(ids.includes(MINI_MODEL));
     });
 
-    it("should only contain GPT-5 family models", () => {
+    it("should only contain OpenAI models (production use)", () => {
       for (const m of AVAILABLE_MODELS) {
-        assert.ok(
-          m.id.startsWith("gpt-5"),
-          `non-GPT-5 model found: ${m.id}`,
-        );
+        assert.equal(m.provider, "OpenAI", `non-OpenAI model found in production list: ${m.id}`);
       }
     });
   });
