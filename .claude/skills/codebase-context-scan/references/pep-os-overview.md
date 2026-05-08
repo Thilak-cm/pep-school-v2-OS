@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-08T03:49:04.762Z
-App version: 10.17.1
+Generated: 2026-05-08T16:53:08.258Z
+App version: 10.17.2
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.17.1
 
 ## Recent Changes
 
+### 10.17.2 (2026-05-08)
+- Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
+- CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
+- Firestore rules: teachers can only read classrooms, students, observations, media, chats, and interviews in their assigned classrooms (PEP-90)
+
 ### 10.17.1 (2026-05-08)
 - Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
 - Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
@@ -153,9 +158,4 @@ App version: 10.17.1
 - Redesigned note expansion as bottom sheet with type-specific layouts replacing NoteExpansionDialog (PEP-194)
 - Unified media preview into the bottom sheet for both ClassroomTimeline and StudentTimeline
 - Type chip in header uses shared TONE_STYLES from extracted toneStyles.js module
-
-### 10.16.5 (2026-05-07)
-- Redesigned Student Timeline with shared ClassroomNoteCard patterns and teacher-first layout (PEP-193)
-- Per-calendar-day grouping with DayHeader replaces old 3-bucket layout (Today / Last 7 Days / Beyond)
-- Extracted TypeIcon + TONE_STYLES to shared `ui/TypeIcon.jsx`, eliminating duplication across card components
 
