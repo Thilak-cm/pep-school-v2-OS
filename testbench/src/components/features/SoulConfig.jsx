@@ -38,7 +38,7 @@ export default function SoulConfig({ selectedStudent, onConfigLoaded, onProgramC
       const soulConfig = soulConfigSnap.exists() ? soulConfigSnap.data() : {};
 
       // Load program template as fallback guidelines
-      const templateSnap = await getDoc(doc(db, "config", `soul_template_${programId}`));
+      const templateSnap = await getDoc(doc(db, "config", `soul_guidelines_${programId}`));
       const templateGuidelines = templateSnap.exists() ? templateSnap.data().markdown || "" : "";
 
       onConfigLoaded({

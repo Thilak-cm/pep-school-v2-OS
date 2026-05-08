@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { httpsCallable } from "firebase/functions";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../firebase.js";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -37,6 +37,7 @@ import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
 import RunHistory from "./RunHistory.jsx";
+import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
 
 const MODELS = [
   { id: "gpt-5.4", label: "GPT-5.4" },
@@ -88,6 +89,35 @@ export default function FeatureWorkbench({ featureId }) {
   const [studentContextData, setStudentContextData] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessionName, setSessionName] = useState("");
+
+  // Timer state (PEP-208)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerStartRef = useRef(null);
+  const timerIntervalRef = useRef(null);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
+  }, []);
+
+  function startTimer() {
+    timerStartRef.current = Date.now();
+    timerIntervalRef.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - timerStartRef.current) / 1000));
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+  }
+
+  function getElapsedMinutes() {
+    if (!timerStartRef.current) return 0;
+    return Math.round(((Date.now() - timerStartRef.current) / 60000) * 10) / 10;
+  }
 
   // Warn on page refresh/close if any variant has edits or output
   useEffect(() => {
@@ -199,53 +229,52 @@ export default function FeatureWorkbench({ featureId }) {
 
   async function startInterview() {
     if (!selectedStudent) return;
-    setInterviewStarted(true);
 
-    const testBenchRun = httpsCallable(cloudFunctions, "testBenchRun", { timeout: 300000 });
-    const newConversations = {};
-
-    // Mark all variants as loading
-    setVariants((prev) => prev.map((v) => ({ ...v, loading: true, error: null })));
-
-    const promises = variants.map(async (v, idx) => {
-      const start = Date.now();
-      try {
-        const result = await testBenchRun({
-          feature: featureId,
-          studentId: selectedStudent.id,
-          systemPrompt: v.systemPrompt,
-          messages: [{ role: "user", content: kickoffMessage }],
-          model: v.model,
-          temperature: v.temperature,
-          max_tokens: v.max_tokens,
-        });
-        const latencyMs = Date.now() - start;
-        let parsed;
-        try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
-        newConversations[idx] = [{
-          type: "question",
-          question: parsed.question || null,
-          explorationAreas: parsed.explorationAreas || null,
-          thinking: null,
-          rawContent: result.data.output,
-          meta: { tokens: result.data.totalTokens, latencyMs },
-        }];
-        return { idx, error: null };
-      } catch (err) {
-        newConversations[idx] = [];
-        return { idx, error: err.message || "Unknown error" };
+    try {
+      // Fetch open_questions doc from Firestore
+      const oqSnap = await getDoc(doc(db, "students", selectedStudent.id, "ai_summaries", "open_questions"));
+      if (!oqSnap.exists()) {
+        setSnackbar({ open: true, message: "No open_questions doc found — soul generation must run first", severity: "error" });
+        return;
       }
-    });
 
-    const results = await Promise.all(promises);
-    setConversations(newConversations);
-    setVariants((prev) => {
-      const next = [...prev];
-      for (const r of results) {
-        next[r.idx] = { ...next[r.idx], loading: false, error: r.error || null, dirty: true };
+      const areas = oqSnap.data()?.areas;
+      if (!areas || Object.keys(areas).length === 0) {
+        setSnackbar({ open: true, message: "open_questions doc has no areas", severity: "error" });
+        return;
       }
-      return next;
-    });
+
+      // Pick 2 random areas and 1 random question using tested helpers
+      const selectedAreas = pickRandomAreas(areas, 2);
+      const picked = pickRandomQuestion(areas, selectedAreas);
+
+      const explorationAreas = selectedAreas.map((key) => ({
+        area: key,
+        rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)`,
+      }));
+
+      // Build synthetic turn mimicking LLM response shape
+      const syntheticTurn = buildSyntheticTurn({
+        questionText: picked.question,
+        questionArea: picked.area,
+        explorationAreas,
+      });
+
+      // Apply to all variants simultaneously
+      const newConversations = {};
+      for (let idx = 0; idx < variants.length; idx++) {
+        newConversations[idx] = [syntheticTurn];
+      }
+
+      setConversations(newConversations);
+      setInterviewStarted(true);
+      setVariants((prev) => prev.map((v) => ({ ...v, dirty: true })));
+
+      // Start timer when Q1 is displayed
+      startTimer();
+    } catch (err) {
+      setSnackbar({ open: true, message: `Failed to start interview: ${err.message}`, severity: "error" });
+    }
   }
 
   async function sendAnswer() {
@@ -282,6 +311,10 @@ export default function FeatureWorkbench({ featureId }) {
       return messages;
     }
 
+    // Count questions from snapshot for session progress
+    const questionCount = Object.values(conversationsSnapshot)[0]?.filter((t) => t.type === "question").length || 0;
+    const elapsedMinutes = getElapsedMinutes();
+
     const promises = variants.map(async (v, idx) => {
       const start = Date.now();
       try {
@@ -299,10 +332,28 @@ export default function FeatureWorkbench({ featureId }) {
           model: v.model,
           temperature: v.temperature,
           max_tokens: v.max_tokens,
+          elapsedMinutes,
+          questionCount: questionCount + 1,
         });
         const latencyMs = Date.now() - start;
         let parsed;
         try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
+
+        // Check if LLM decided to end the interview
+        if (parsed.interviewComplete) {
+          return {
+            idx,
+            turn: {
+              type: "closing",
+              closingRemarks: parsed.closingRemarks || "Thank you for this conversation.",
+              rawContent: result.data.output,
+              meta: { tokens: result.data.totalTokens, latencyMs },
+            },
+            error: null,
+            interviewComplete: true,
+          };
+        }
+
         return {
           idx,
           turn: {
@@ -314,9 +365,10 @@ export default function FeatureWorkbench({ featureId }) {
             meta: { tokens: result.data.totalTokens, latencyMs },
           },
           error: null,
+          interviewComplete: false,
         };
       } catch (err) {
-        return { idx, turn: null, error: err.message || "Unknown error" };
+        return { idx, turn: null, error: err.message || "Unknown error", interviewComplete: false };
       }
     });
 
@@ -337,15 +389,26 @@ export default function FeatureWorkbench({ featureId }) {
       }
       return next;
     });
+
+    // Auto-end if ANY variant's LLM decided interview is complete (OR semantics).
+    // In multi-variant A/B tests, this means a fast-completing variant ends all variants.
+    if (results.some((r) => r.interviewComplete)) {
+      endInterview();
+    }
   }
 
   function endInterview() {
+    stopTimer();
     setInterviewEnded(true);
-    setVariants((prev) => prev.map((v) => ({
-      ...v,
-      loading: false,
-      output: JSON.stringify(conversations, null, 2),
-    })));
+    // Use functional updater to read latest conversations, avoiding stale closure
+    setConversations((currentConvos) => {
+      setVariants((prev) => prev.map((v) => ({
+        ...v,
+        loading: false,
+        output: JSON.stringify(currentConvos, null, 2),
+      })));
+      return currentConvos;
+    });
   }
 
   async function saveRun() {
@@ -464,17 +527,30 @@ export default function FeatureWorkbench({ featureId }) {
                   Start Interview
                 </Button>
               ) : !interviewEnded ? (
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<StopIcon />}
-                  onClick={endInterview}
-                  disabled={variants.some((v) => v.loading)}
-                >
-                  End Interview
-                </Button>
+                <>
+                  <Chip
+                    label={`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`}
+                    color={elapsedSeconds >= 600 ? "warning" : "default"}
+                    variant="outlined"
+                    sx={{ fontFamily: "monospace", fontWeight: 700, minWidth: 64 }}
+                  />
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<StopIcon />}
+                    onClick={endInterview}
+                    disabled={variants.some((v) => v.loading)}
+                  >
+                    End Interview
+                  </Button>
+                </>
               ) : (
-                <Chip label="Session Ended" color="default" variant="outlined" />
+                <Chip
+                  label={`Session Ended — ${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`}
+                  color="default"
+                  variant="outlined"
+                  sx={{ fontFamily: "monospace" }}
+                />
               )}
             </>
           ) : (
@@ -516,7 +592,14 @@ export default function FeatureWorkbench({ featureId }) {
       {/* Interview: full-width LLM context pipeline */}
       {isInterview && studentContextData && (
         <Box sx={{ mb: 3 }}>
-          <LLMContextPipeline studentContext={studentContextData} selectedStudent={selectedStudent} kickoffMessage={kickoffMessage} />
+          <LLMContextPipeline
+            studentContext={studentContextData}
+            selectedStudent={selectedStudent}
+            kickoffMessage={kickoffMessage}
+            interviewStarted={interviewStarted}
+            elapsedSeconds={elapsedSeconds}
+            questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
+          />
         </Box>
       )}
 

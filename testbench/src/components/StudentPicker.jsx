@@ -39,18 +39,61 @@ const SOUL_DEFAULTS_BY_PROGRAM = {
 
 export default function StudentPicker({ featureId, onSelect, programFilter }) {
   const [students, setStudents] = useState([]);
+  const [allStudents, setAllStudents] = useState(null); // full school list, loaded once
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [canLoadMore, setCanLoadMore] = useState(true);
   const [loadedMore, setLoadedMore] = useState(false);
 
   const isHandwriting = featureId === "handwriting_analysis";
+  const isInterview = featureId === "interview_question_gen";
 
-
-  // Load defaults immediately — no Firestore queries needed
+  // Load all students once for interview mode (need school-wide search)
   useEffect(() => {
+    if (!isInterview || allStudents) return;
+    loadAllStudents();
+  }, [isInterview]);
+
+  async function loadAllStudents() {
+    setLoading(true);
+    try {
+      // Load classrooms for name lookup
+      const classroomsSnap = await getDocs(collection(db, "classrooms"));
+      const classroomMap = {};
+      for (const d of classroomsSnap.docs) {
+        classroomMap[d.id] = { name: d.data().name || d.id, programId: d.data().programId };
+      }
+
+      // Load all active students
+      const studentsSnap = await getDocs(collection(db, "students"));
+      const all = [];
+      for (const d of studentsSnap.docs) {
+        const data = d.data();
+        if (data.status === "graduated") continue;
+        all.push({
+          id: d.id,
+          displayName: data.displayName || d.id,
+          classroomId: data.classroomId || "",
+          classroomName: classroomMap[data.classroomId]?.name || data.classroomId || "",
+        });
+      }
+      all.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      setAllStudents(all);
+      setStudents(all);
+    } catch (err) {
+      console.error("Failed to load all students:", err);
+      setLoadError("Failed to load students — check permissions or network");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load defaults for non-interview modes
+  useEffect(() => {
+    if (isInterview) return; // handled by loadAllStudents
     if (isHandwriting) {
       setStudents(HANDWRITING_DEFAULTS);
-      setCanLoadMore(false); // handwriting is fixed to top 5, no load more
+      setCanLoadMore(false);
     } else {
       const program = programFilter || "primary";
       setStudents(SOUL_DEFAULTS_BY_PROGRAM[program] || []);
@@ -61,7 +104,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
   }, [featureId, programFilter]);
 
   const loadMore = useCallback(async () => {
-    if (isHandwriting || loadedMore) return;
+    if (isHandwriting || isInterview || loadedMore) return;
     setLoading(true);
 
     try {
@@ -71,10 +114,10 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
       // Build classroom lookup for this program
       const classroomsSnap = await getDocs(collection(db, "classrooms"));
       const classroomMap = {};
-      for (const doc of classroomsSnap.docs) {
-        const data = doc.data();
+      for (const d of classroomsSnap.docs) {
+        const data = d.data();
         if (data.programId === program) {
-          classroomMap[doc.id] = { name: data.name || doc.id, programId: data.programId };
+          classroomMap[d.id] = { name: data.name || d.id, programId: data.programId };
         }
       }
 
@@ -109,7 +152,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
     } finally {
       setLoading(false);
     }
-  }, [students, programFilter, isHandwriting, loadedMore]);
+  }, [students, programFilter, isHandwriting, isInterview, loadedMore]);
 
   return (
     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
@@ -144,11 +187,13 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
             label="Select Student"
             placeholder="Search students..."
             size="small"
+            error={!!loadError}
+            helperText={loadError}
           />
         )}
         sx={{ minWidth: 280 }}
       />
-      {canLoadMore && !isHandwriting && (
+      {canLoadMore && !isHandwriting && !isInterview && (
         <Button size="small" onClick={loadMore} disabled={loading} sx={{ mt: 0.5, whiteSpace: "nowrap" }}>
           {loading ? "Loading..." : "Load more"}
         </Button>

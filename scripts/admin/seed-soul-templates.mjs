@@ -1,8 +1,8 @@
 /**
- * Seed soul templates to Firestore config collection.
+ * Seed soul guidelines to Firestore config collection.
  *
  * Reads markdown files from scripts/admin/soul-templates/ and writes them
- * to config/soul_template_{program} documents in Firestore.
+ * to config/soul_guidelines_{program} documents in Firestore.
  *
  * Usage:
  *   node scripts/admin/seed-soul-templates.mjs              # dry run
@@ -35,7 +35,7 @@ async function run() {
   if (verify) {
     console.log("Verifying existing soul template docs in Firestore...\n");
     for (const program of PROGRAMS) {
-      const docId = `soul_template_${program}`;
+      const docId = `soul_guidelines_${program}`;
       const snap = await db.collection("config").doc(docId).get();
       if (!snap.exists) {
         console.log(`  ${docId}: MISSING`);
@@ -51,7 +51,7 @@ async function run() {
   console.log(`${apply ? "WRITING" : "DRY RUN"}: Seeding soul templates to Firestore\n`);
 
   for (const program of PROGRAMS) {
-    const filename = `soul_template_${program}.md`;
+    const filename = `soul_guidelines_${program}.md`;
     const filepath = resolve(__dirname, "soul-templates", filename);
 
     let markdown;
@@ -67,7 +67,7 @@ async function run() {
     console.log(`  ${filename}: ${lines} lines, ${benchmarkCount} benchmarks`);
 
     if (apply) {
-      const docId = `soul_template_${program}`;
+      const docId = `soul_guidelines_${program}`;
       await db.collection("config").doc(docId).set({
         markdown,
         programId: program,
@@ -79,10 +79,23 @@ async function run() {
     }
   }
 
+  // Clean up old soul_template_* docs (renamed to soul_guidelines_*)
+  if (apply) {
+    console.log("\nCleaning up old soul_template_* docs...");
+    for (const program of PROGRAMS) {
+      const oldDocId = `soul_template_${program}`;
+      const oldSnap = await db.collection("config").doc(oldDocId).get();
+      if (oldSnap.exists) {
+        await db.collection("config").doc(oldDocId).delete();
+        console.log(`  Deleted config/${oldDocId}`);
+      }
+    }
+  }
+
   if (!apply) {
     console.log("\nDry run complete. Add --apply to write to Firestore.");
   } else {
-    console.log("\nAll templates seeded successfully.");
+    console.log("\nAll guidelines seeded successfully.");
   }
 }
 

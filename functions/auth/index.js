@@ -271,10 +271,30 @@ export const updateUserWithEmailCheck = functions.region("asia-south1").https.on
     throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
   }
 
+  // Authorization: only admins can update user profiles
+  const requesterUid = context.auth.uid;
+  const requesterSnap = await db.collection("users").doc(requesterUid).get();
+  const requesterRole = requesterSnap.data()?.role;
+  const isSuperAdmin = requesterRole === "superadmin";
+  const isClassroomAdmin = requesterRole === "classroomadmin";
+  if (!requesterSnap.exists || (!isSuperAdmin && !isClassroomAdmin)) {
+    throw new functions.https.HttpsError("permission-denied", "Only admins can update users");
+  }
+
   const { uid, email, displayName, additionalData = {} } = data;
 
   if (!uid) {
     throw new functions.https.HttpsError("invalid-argument", "User UID is required");
+  }
+
+  // Block privilege-sensitive fields in additionalData
+  const forbiddenFields = ["role", "manageableClassrooms", "branchIds"];
+  for (const field of forbiddenFields) {
+    if (field in additionalData) {
+      if (!isSuperAdmin) {
+        throw new functions.https.HttpsError("permission-denied", `Only super admins can modify '${field}'`);
+      }
+    }
   }
 
   try {

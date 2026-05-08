@@ -112,9 +112,9 @@ async function run() {
   }
 
   // 2. Get soul template from config
-  const templateSnap = await db.collection("config").doc(`soul_template_${programId}`).get();
+  const templateSnap = await db.collection("config").doc(`soul_guidelines_${programId}`).get();
   if (!templateSnap.exists) {
-    console.error(`Soul template not found: config/soul_template_${programId}. Run seed-soul-templates.mjs --apply first.`);
+    console.error(`Soul guidelines not found: config/soul_guidelines_${programId}. Run seed-soul-templates.mjs --apply first.`);
     process.exit(1);
   }
   const templateMarkdown = templateSnap.data().markdown;
@@ -310,12 +310,12 @@ async function run() {
       const guidelinesDoc = buildGuidelinesDoc({
         content: templateMarkdown,
         programId,
-        templateDocId: `config/soul_template_${programId}`,
+        templateDocId: `config/soul_guidelines_${programId}`,
       });
       guidelinesDoc.createdAt = now;
       guidelinesDoc.updatedAt = now;
       batch.set(guidelinesRef, guidelinesDoc);
-      console.log(`  Seeded guidelines from soul_template_${programId}`);
+      console.log(`  Seeded guidelines from soul_guidelines_${programId}`);
     }
 
     await batch.commit();

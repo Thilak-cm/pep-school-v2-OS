@@ -57,7 +57,7 @@ export default function InterviewQuestionConfig({ selectedStudent, onConfigLoade
         soul: soulSnap.exists() ? soulSnap.data().content : null,
         guidelines: guidelinesSnap.exists() ? guidelinesSnap.data().content : null,
         baseballCard: bcSnap.exists() ? bcSnap.data() : null,
-        openQuestions: oqSnap.exists() ? oqSnap.data().questions : null,
+        openQuestions: oqSnap.exists() ? oqSnap.data().areas ?? null : null,
       };
       onStudentContextLoaded?.(ctx);
     } catch (err) {
