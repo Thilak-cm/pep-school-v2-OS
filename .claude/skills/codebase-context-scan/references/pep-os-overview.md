@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-07T23:50:19.833Z
-App version: 10.17.0
+Generated: 2026-05-08T03:49:04.762Z
+App version: 10.17.1
 
 ## App Snapshot
 
@@ -31,8 +31,8 @@ App version: 10.17.0
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 11
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `NoteExpansionDialog`, `VoiceRecorder`
+- Count: 10
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
@@ -44,17 +44,17 @@ App version: 10.17.0
 - `montessori-os/src/components/LessonNoteTagDialog.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 11
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 12
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
 - `montessori-os/src/components/ClassroomTimeline.pagination.test.js`
 - `montessori-os/src/components/classroomTimelineUtils.js`
+- `montessori-os/src/components/classroomTimelineUtils.extraction.test.js`
 - `montessori-os/src/components/ExportWizard.jsx`
 - `montessori-os/src/components/FeedbackTimeline.jsx`
 - `montessori-os/src/components/FilterPanel.jsx`
-- `montessori-os/src/components/StudentDashboard.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
 - Count: 7
@@ -93,8 +93,8 @@ App version: 10.17.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 27
-- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `VersionBadge`
+- Count: 29
+- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -140,23 +140,22 @@ App version: 10.17.0
 
 ## Recent Changes
 
+### 10.17.1 (2026-05-08)
+- Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
+- Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
+
 ### 10.17.0 (2026-05-07)
 - Cold-start interview: first question displayed instantly from pre-generated open questions bank — no LLM call, zero latency (PEP-208)
 - Visible elapsed timer during interview sessions with warning at 10 minutes (PEP-208)
 - LLM-driven interview termination: model returns `interviewComplete` flag with closing remarks when it decides the interview has covered enough ground (PEP-208)
 
+### 10.16.6 (2026-05-07)
+- Redesigned note expansion as bottom sheet with type-specific layouts replacing NoteExpansionDialog (PEP-194)
+- Unified media preview into the bottom sheet for both ClassroomTimeline and StudentTimeline
+- Type chip in header uses shared TONE_STYLES from extracted toneStyles.js module
+
 ### 10.16.5 (2026-05-07)
-- Restructured `open_questions` doc from flat question list to area-keyed JSON format for exploration-area grouping (PEP-207)
-- Removed `hasInformationGaps` flag from soul doc — exploration gaps now tracked via `open_questions` area keys (PEP-207)
-- Updated `extractOpenQuestions` to parse JSON with defensive validation for non-array area values (PEP-207)
-
-### 10.16.4 (2026-05-06)
-- Redesigned Classroom Timeline with day-grouped notes, date dividers, and type-specific note cards (PEP-192)
-- New card layouts for text/voice, media (side-by-side thumbnail), and lesson notes with dimension chips
-- Type chips with distinct colors per note type (Observation, Voice, Media, Lesson)
-
-### 10.16.3 (2026-05-05)
-- Session naming for test bench runs — optional label persisted to Firestore, displayed in history drawer with inline rename (PEP-211)
-- Student picker enabled for interview question gen mode — replaces hardcoded student with searchable picker (PEP-211)
-- Firestore security rules for testbench updated: superadmin can update `sessionName` field only, with string type validation (PEP-211)
+- Redesigned Student Timeline with shared ClassroomNoteCard patterns and teacher-first layout (PEP-193)
+- Per-calendar-day grouping with DayHeader replaces old 3-bucket layout (Today / Last 7 Days / Beyond)
+- Extracted TypeIcon + TONE_STYLES to shared `ui/TypeIcon.jsx`, eliminating duplication across card components
 
