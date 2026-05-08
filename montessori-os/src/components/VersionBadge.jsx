@@ -48,7 +48,7 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
             fontSize: '1.1rem'
           }}
         >
-          v10.17.2
+          v10.18.0
         </Typography>
       </Box>
     );
@@ -88,7 +88,11 @@ const VersionBadge = ({ userRole, showInProfile = false }) => {
           fontSize: 'inherit'
         }}
       >
+<<<<<<< HEAD
         v10.17.2
+=======
+        v10.18.0
+>>>>>>> alt-dev
       </Typography>
     </Box>
   );

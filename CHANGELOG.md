@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.18.0 — 2026-05-08
+
+### Added
+- Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
+- Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
+
+### Changed
+- Test bench LLM calls route through OpenRouter instead of direct OpenAI API (PEP-210)
+- Separated test bench model catalogue (`testBenchModels.js`) from production model list to prevent non-OpenAI models appearing in production config editors (PEP-210)
+
 # 10.17.2 — 2026-05-08
 
 ### Fixed

@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-08T16:53:08.258Z
-App version: 10.17.2
+Generated: 2026-05-08T16:56:35.146Z
+App version: 10.18.0
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.17.2
 
 ## Recent Changes
 
+### 10.18.0 (2026-05-08)
+- Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
+- Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
+- Test bench LLM calls route through OpenRouter instead of direct OpenAI API (PEP-210)
+
 ### 10.17.2 (2026-05-08)
 - Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
 - CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
@@ -153,9 +158,4 @@ App version: 10.17.2
 - Cold-start interview: first question displayed instantly from pre-generated open questions bank — no LLM call, zero latency (PEP-208)
 - Visible elapsed timer during interview sessions with warning at 10 minutes (PEP-208)
 - LLM-driven interview termination: model returns `interviewComplete` flag with closing remarks when it decides the interview has covered enough ground (PEP-208)
-
-### 10.16.6 (2026-05-07)
-- Redesigned note expansion as bottom sheet with type-specific layouts replacing NoteExpansionDialog (PEP-194)
-- Unified media preview into the bottom sheet for both ClassroomTimeline and StudentTimeline
-- Type chip in header uses shared TONE_STYLES from extracted toneStyles.js module
 
