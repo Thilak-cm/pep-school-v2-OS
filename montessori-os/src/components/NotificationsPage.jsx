@@ -352,7 +352,7 @@ function NotificationsPage() {
         if (!active) return;
 
         const rows = snapshot.docs
-          .filter((d) => d.id === 'signals')
+          .filter((d) => d.id === 'weekly_snapshot')
           .map((d) => {
             const studentId = d.ref.parent?.parent?.id || null;
             const data = d.data() || {};
@@ -438,18 +438,18 @@ function NotificationsPage() {
     setBaseballCardError(prev => ({ ...prev, [studentId]: '' }));
 
     try {
-      const cardRef = doc(db, 'students', studentId, 'ai_summaries', 'baseball_card');
-      const signalsRef = doc(db, 'students', studentId, 'ai_summaries', 'signals');
-      const [cardSnap, signalsSnap] = await Promise.all([getDoc(cardRef), getDoc(signalsRef)]);
+      const snapshotRef = doc(db, 'students', studentId, 'ai_summaries', 'weekly_snapshot');
+      const snap = await getDoc(snapshotRef);
+      const data = snap.exists() ? { id: snap.id, ...snap.data() } : null;
 
       setBaseballCardData(prev => ({
         ...prev,
-        [studentId]: cardSnap.exists() ? { id: cardSnap.id, ...cardSnap.data() } : null
+        [studentId]: data
       }));
 
       setSignalsDataMap(prev => ({
         ...prev,
-        [studentId]: signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null
+        [studentId]: data
       }));
     } catch {
       setBaseballCardError(prev => ({ ...prev, [studentId]: 'Failed to load the baseball card.' }));

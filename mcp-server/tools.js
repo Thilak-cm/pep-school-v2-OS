@@ -628,7 +628,7 @@ export async function handleGetBaseballCard(db, params) {
     .collection("students")
     .doc(studentId)
     .collection("ai_summaries")
-    .doc("baseball_card")
+    .doc("weekly_snapshot")
     .get();
 
   if (!doc.exists) return null;

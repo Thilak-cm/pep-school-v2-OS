@@ -31,7 +31,8 @@
 - `students/{studentId}/ai_summaries/report_readiness`  // on-demand observation quality check (PEP-68)
 - `students/{studentId}/ai_summaries/writing_analysis`  // batch handwriting analysis (PEP-132)
 - `students/{studentId}/ai_summaries/open_questions`    // AI-generated interview question bank (PEP-173)
-- `students/{studentId}/ai_summaries/signals`          // weekly severity/red-flag tracking
+- `students/{studentId}/ai_summaries/weekly_snapshot`   // unified baseball card + signals + missing domains (PEP-229)
+- `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
 - `feedback/{feedbackId}`
  - `config/{docId}`
 - `testbench/{runId}`                                  // prompt test bench run history (PEP-163)
@@ -234,11 +235,12 @@ Subcollections
 - `placements/{placementId}` – classroom history per student (see above).
 - `observations/{observationId}` – per-student notes (text/voice/lesson).
 - `media/{mediaId}` – uploaded photo/video/PDF files attached to observations (see below).
-- `ai_summaries/baseball_card` – latest "Coach Pepper's summary" (overwritten daily). Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], noteCount: number, windowDays: number, timezone: string, model: string, temperature: number, promptVersion?: number, generatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string }`.
+- `ai_summaries/weekly_snapshot` – unified weekly student snapshot combining baseball card content, behaviour flag signals, and missing domains (PEP-229). Overwritten each weekly batch run; previous snapshot archived to `history/{weekKey}` subcollection before overwrite. On-demand teacher regeneration overwrites without archiving. Shape: `{ summary: string, bullets: string[], redFlag: { severity: string | null, reason: string | null }, coverageGaps: string[], severity: 'clear' | 'low' | 'medium' | 'high', severityScore: number, prevSeverity: string, prevSeverityScore: number, weekKey: string, weekBaselineSeverity: string, weekBaselineSeverityScore: number, escalatedThisWeek: boolean, improvedThisWeek: boolean, noteCount: number, evidenceCount: number, windowDays: number, timezone: string, model: string, temperature: number, generatedAt: Timestamp, lastUpdatedAt: Timestamp, status: 'ok' | 'no_notes', sourceNoteIds: string[], rawContent?: string, migratedAt?: Timestamp }`. Architecture decision: hardcoded doc name (`weekly_snapshot`) over computable weekKey path — every consumer reads at a stable path with zero client-side weekKey computation. Week identity is a field, not the path.
+- `ai_summaries/weekly_snapshot/history/{weekKey}` – archived weekly snapshots. Full copy of the previous `weekly_snapshot` doc plus `archivedAt: Timestamp`. Created only by the scheduled Monday batch (`generateBaseballCards`), never by on-demand regeneration. History retained indefinitely; one doc per week per student (no 1MB limit concern). Architecture decision: subcollection over sibling docs — current snapshot reads (every baseball card view) are frequent, history queries (longitudinal analysis by agents/superadmins) are rare. Subcollection keeps these cleanly separated.
 - `ai_summaries/{reportDocId}` – AI-generated parent progress reports. Doc ID format: `report_{timestamp}`. Shape: `{ reportText: string, status: 'ok' | 'no_notes', noteCount: number, programId: ProgramId, classroomId: string | null, studentId: string, kind: 'report', sourceNoteIds: string[], dateRangeStart: Timestamp, dateRangeEnd: Timestamp, generatedAt: Timestamp, generatedBy: string, generatedByName?: string, model: string, temperature: number, timezone: string, driveDocId?: string, driveDocLink?: string }`. The `driveDocId` and `driveDocLink` fields are set when the report is exported to Google Drive. Note: `sentimentScore`, `areaBalanceScore`, and `missingInputFlags` were removed in PEP-68 — scoring is now handled by the readiness checker. Pre-PEP-68 reports may still have these fields.
 - `ai_summaries/report_readiness` – on-demand observation quality check (PEP-68). Shape: `{ status: 'ok' | 'no_notes', sentimentScore: number | null, areaBalanceScore: number | null, missingInputFlags: string[], noteCount: number, noteCountAtCheck: number, checkedAt: string (ISO), dateRangeStart: string (ISO), dateRangeEnd: string (ISO), programId: string, model: string }`. Cached per student; staleness tracked via `noteCountAtCheck` vs current observation count.
 - `ai_summaries/writing_analysis` – batch handwriting analysis (PEP-132). Overwritten each cycle. Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, status: "completed" }`. Consumed by the weekly plan generator (PEP-128).
-- `ai_summaries/signals` – weekly severity / red-flag tracking per student (see below).
+- `ai_summaries/signals` – **DEPRECATED (PEP-229)**: merged into `weekly_snapshot`. Docs may still exist in Firestore until cleanup script runs.
 - `ai_summaries/soul` – AI-generated student soul narrative (PEP-149). A free-form markdown document representing the AI's understanding of who this child is. Regenerated weekly from ALL observations and interviews. Shape: `{ content: string (markdown narrative with ## section headers), programId: ProgramId, hasEmergentObservations: boolean, guidelinesSuggestions: Array<{ area: string, discipline: string, rationale: string }> | null, sourceStats: { observationCount: number, interviewCount: number, lastGeneratedAt: Timestamp, lastObservationAt: Timestamp | null, lastInterviewAt: Timestamp | null }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `guidelinesSuggestions` array contains AI-proposed new skill areas extracted from the soul generation response — consumed by the guideline approval flow (PEP-151). Section headers are informed by the student's guidelines doc, not hardcoded. The `hasEmergentObservations` flag is true when the soul contains non-empty content under `## Emergent Observations` — signals that don't fit existing guidelines categories. Note: the `hasInformationGaps` field was removed in PEP-207 — exploration gaps are now tracked via the `open_questions` doc's `areas` keys.
 - `ai_summaries/soul/history/{timestamp}` – Weekly soul snapshots. Shape: `{ content: string, updatedAt: Timestamp, updatedBy: string, reason: string }`. Created automatically before each weekly regeneration — the previous soul is snapshotted before overwrite.
 - `ai_summaries/guidelines` – Per-student evaluation guide (PEP-149). Seeded from `config/soul_guidelines_{program}` on first soul generation, then evolves independently per student. The AI agent reads this to know what developmental areas to explore and what benchmarks to look for. Shape: `{ content: string (markdown with ## Discipline, ### Skill Area, - Benchmark structure), programId: ProgramId, seededFrom: string (e.g., "config/soul_guidelines_adolescent"), createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`.
@@ -318,48 +320,11 @@ Backfill (one-time)
 
 ---
 
-## 🚩 Signals (`/students/{studentId}/ai_summaries/signals`)
-AI-generated weekly severity tracking and red-flag escalation indicators per student. Overwritten each time the baseball card generation runs. Tracks week-over-week severity changes to surface students who need attention.
+## 🚩 Signals — DEPRECATED (PEP-229)
 
-```typescript
-interface SignalsDoc {
-  // Red flag assessment
-  redFlag: {
-    severity: string | null;        // e.g., "medium", null if clear
-    reason: string | null;          // human-readable explanation
-  };
-  severity: 'clear' | 'low' | 'medium' | 'high';
-  severityScore: number;            // numeric: 0 (clear), 1 (low), 2 (medium), 3 (high)
-
-  // Week-over-week tracking (IST-based ISO weeks)
-  weekKey: string;                  // e.g., "2026-W14"
-  prevSeverity: string;             // previous severity level
-  prevSeverityScore: number;
-  weekBaselineSeverity: string;     // severity at start of current week
-  weekBaselineSeverityScore: number;
-  escalatedThisWeek: boolean;       // true if severity increased this week
-  improvedThisWeek: boolean;        // true if severity decreased this week
-
-  // Coverage & source info
-  coverageGaps: string[];           // e.g., ["Creative Arts", "Practical Life"]
-  noteCount: number;                // observations analyzed
-  evidenceCount: number;            // evidence-bearing observations
-  windowDays: number;               // lookback window (e.g., 42)
-
-  // Generation metadata
-  status: 'ok' | 'no_notes';
-  model: string;                    // e.g., "gpt-4o-mini"
-  temperature: number;
-  timezone: string;                 // e.g., "Asia/Kolkata"
-  generatedAt: Timestamp;
-  lastUpdatedAt: Timestamp;
-}
-```
-
-Notes
-- Written by the same Cloud Function that generates baseball cards (`generateBaseballCards`).
-- `weekKey` uses IST-based ISO week boundaries to track escalation within a school week.
-- `escalatedThisWeek` / `improvedThisWeek` are derived by comparing current `severityScore` against `weekBaselineSeverityScore`.
+> **Merged into `ai_summaries/weekly_snapshot` as of PEP-229.** The standalone `signals` doc is deprecated. All signal fields (severity, redFlag, coverageGaps, escalation tracking) now live in the unified `weekly_snapshot` doc alongside baseball card content. Old `signals` docs may still exist in Firestore until the cleanup script (`scripts/admin/cleanup-old-snapshot-docs.mjs`) is run.
+>
+> See the `weekly_snapshot` shape in the Student subcollections section above for the full schema.
 
 ---
 

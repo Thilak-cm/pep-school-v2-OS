@@ -4,6 +4,7 @@ import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../s
 import { BASEBALL_CARD_DEFAULTS } from "../config/baseballCardConstants.js";
 import { BASEBALL_SYSTEM_PROMPT_FALLBACK } from "../config/baseballCardPrompt.js";
 import { getIstIsoWeekKey } from "../utils/weekKey.js";
+import { Timestamp } from "firebase-admin/firestore";
 import {
   formatObservationForPrompt,
   fetchStudentNotesForWindow,
@@ -131,14 +132,57 @@ async function callBaseballCard(notes, config, prompt, windowDays, studentContex
   return { summary, redFlag, coverageGaps, rawContent };
 }
 
-async function writeBaseballCardDoc(studentId, payload) {
-  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("baseball_card");
-  await ref.set(payload);
-}
+/**
+ * Write the unified weekly_snapshot doc, optionally archiving the previous
+ * snapshot to a history subcollection first.
+ *
+ * @param {string} studentId
+ * @param {Object} cardPayload - Baseball card fields (summary, bullets, etc.)
+ * @param {Object} signalsPayload - Signals fields (severity, redFlag, etc.)
+ * @param {boolean} archiveHistory - If true, snapshot previous doc to history before overwrite
+ */
+async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archiveHistory = false) {
+  const snapshotRef = db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("weekly_snapshot");
 
-async function writeSignalsDoc(studentId, payload) {
-  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("signals");
-  await ref.set(payload);
+  const merged = {
+    // Baseball card fields
+    summary: cardPayload.summary ?? "",
+    bullets: cardPayload.bullets ?? [],
+    rawContent: cardPayload.rawContent ?? null,
+    sourceNoteIds: cardPayload.sourceNoteIds ?? [],
+    status: cardPayload.status ?? "ok",
+    windowDays: cardPayload.windowDays ?? null,
+    timezone: cardPayload.timezone ?? null,
+    model: cardPayload.model ?? null,
+    temperature: cardPayload.temperature ?? null,
+    generatedAt: cardPayload.generatedAt ?? null,
+    noteCount: cardPayload.noteCount ?? 0,
+    // Signals fields
+    ...signalsPayload,
+  };
+
+  if (archiveHistory) {
+    const now = Timestamp.now();
+    const existing = await snapshotRef.get();
+
+    const batch = db.batch();
+
+    if (existing.exists) {
+      const prevData = existing.data();
+      const weekKey = prevData.weekKey || "unknown";
+      const historyRef = snapshotRef.collection("history").doc(weekKey);
+      batch.set(historyRef, {
+        ...prevData,
+        archivedAt: now,
+      });
+    }
+
+    batch.set(snapshotRef, merged);
+    await batch.commit();
+  } else {
+    await snapshotRef.set(merged);
+  }
 }
 
 const SEVERITY_SCORE = {
@@ -158,7 +202,7 @@ function severityToScore(severity) {
 }
 
 async function buildSignalsPayload(studentId, baseSignals) {
-  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("signals");
+  const ref = db.collection("students").doc(studentId).collection("ai_summaries").doc("weekly_snapshot");
   const snap = await ref.get();
   const existing = snap.exists ? (snap.data() || {}) : {};
 
@@ -232,6 +276,7 @@ async function runBaseballCards({
   dryRun = false,
   collectResults = false,
   concurrency = 12,
+  archiveHistory = false,
 }) {
   const ids = Array.isArray(studentIds) && studentIds.length ? studentIds : await fetchActiveStudentIds();
   if (!dryRun) {
@@ -261,7 +306,6 @@ async function runBaseballCards({
         if (dryRun && collectResults) {
           results.push({ studentId, status: "no_notes", payload });
         } else if (!dryRun) {
-          await writeBaseballCardDoc(studentId, payload);
           const signalsPayload = await buildSignalsPayload(studentId, {
             redFlag: payload.redFlag,
             coverageGaps: payload.coverageGaps,
@@ -274,7 +318,7 @@ async function runBaseballCards({
             status: payload.status,
             evidenceCount: payload.noteCount,
           });
-          await writeSignalsDoc(studentId, signalsPayload);
+          await writeWeeklySnapshot(studentId, payload, signalsPayload, archiveHistory);
         }
         return;
       }
@@ -301,7 +345,6 @@ async function runBaseballCards({
       if (dryRun && collectResults) {
         results.push({ studentId, status: "ok", payload });
       } else if (!dryRun) {
-        await writeBaseballCardDoc(studentId, payload);
         const signalsPayload = await buildSignalsPayload(studentId, {
           redFlag: aiResult.redFlag,
           coverageGaps: aiResult.coverageGaps,
@@ -314,7 +357,7 @@ async function runBaseballCards({
           status: payload.status,
           evidenceCount: payload.noteCount,
         });
-        await writeSignalsDoc(studentId, signalsPayload);
+        await writeWeeklySnapshot(studentId, payload, signalsPayload, archiveHistory);
       }
     } catch (err) {
       console.error(`[baseballCard] run failed for student ${studentId}`, err);
@@ -487,6 +530,7 @@ export const generateBaseballCards = functions
       dryRun: false,
       collectResults: false,
       concurrency: 12,
+      archiveHistory: true,
     });
 
     console.log("[baseballCard] generation run complete");
