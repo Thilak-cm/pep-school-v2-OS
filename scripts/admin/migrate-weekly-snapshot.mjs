@@ -111,14 +111,28 @@ async function main() {
     const chunk = studentIds.slice(i, i + BATCH_SIZE);
     const batch = dryRun ? null : db.batch();
 
-    for (const studentId of chunk) {
+    // Read all docs in chunk in parallel (2 reads per student)
+    const readResults = await Promise.all(chunk.map(async (studentId) => {
       try {
         const aiRef = db.collection("students").doc(studentId).collection("ai_summaries");
         const [cardSnap, signalsSnap] = await Promise.all([
           aiRef.doc("baseball_card").get(),
           aiRef.doc("signals").get(),
         ]);
+        return { studentId, cardSnap, signalsSnap, aiRef, error: null };
+      } catch (err) {
+        return { studentId, cardSnap: null, signalsSnap: null, aiRef: null, error: err };
+      }
+    }));
 
+    let chunkCount = 0;
+    for (const { studentId, cardSnap, signalsSnap, aiRef, error: readErr } of readResults) {
+      if (readErr) {
+        console.error(`  ❌ ${studentId}: read failed: ${readErr.message}`);
+        errors++;
+        continue;
+      }
+      try {
         const cardData = cardSnap.exists ? cardSnap.data() : null;
         const signalsData = signalsSnap.exists ? signalsSnap.data() : null;
 
@@ -138,15 +152,18 @@ async function main() {
         }
 
         migrated++;
+        chunkCount++;
       } catch (err) {
         console.error(`  ❌ ${studentId}: ${err.message}`);
         errors++;
       }
     }
 
+    console.log(`  Read batch ${Math.floor(i / BATCH_SIZE) + 1}: ${chunkCount} students ready`);
+
     if (!dryRun && batch) {
       await batch.commit();
-      console.log(`  Committed batch ${Math.floor(i / BATCH_SIZE) + 1} (${chunk.length} students)`);
+      console.log(`  Committed batch ${Math.floor(i / BATCH_SIZE) + 1} (${chunkCount} writes)`);
     }
   }
 

@@ -170,7 +170,7 @@ async function writeWeeklySnapshot(studentId, cardPayload, signalsPayload, archi
 
     if (existing.exists) {
       const prevData = existing.data();
-      const weekKey = prevData.weekKey || "unknown";
+      const weekKey = prevData.weekKey || `migrated-${Date.now()}`;
       const historyRef = snapshotRef.collection("history").doc(weekKey);
       batch.set(historyRef, {
         ...prevData,
@@ -244,7 +244,7 @@ async function buildSignalsPayload(studentId, baseSignals) {
     weekBaselineSeverityScore,
     escalatedThisWeek,
     improvedThisWeek,
-    lastUpdatedAt: new Date(),
+    lastUpdatedAt: Timestamp.now(),
   };
 }
 
