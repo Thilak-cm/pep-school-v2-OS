@@ -94,7 +94,7 @@ function renderScreen(screen, ctx) {
           userRole={ctx.role}
           currentUser={ctx.user}
           onNavigateToFeedbackDashboard={() => ctx.setScreen("feedbackTimeline")}
-          onNavigateToFeedback={() => ctx.setScreen("feedback")}
+          onNavigateToFeedback={() => { ctx.setFeedbackReturnScreen?.(null); ctx.setScreen("feedback"); }}
           onNavigateToClassroomNotes={() => ctx.setScreen("classroomNotesReview")}
           onNavigate={(path) => {
             if (path === "/stats") ctx.setScreen("stats");

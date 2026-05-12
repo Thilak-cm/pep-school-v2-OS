@@ -90,6 +90,7 @@ function App() {
 
   const openFeedbackWithMessage = (message = '') => {
     setPrefilledFeedback(message || '');
+    setFeedbackReturnScreen(null);
     setScreen('feedback');
   };
 
@@ -99,7 +100,7 @@ function App() {
     if (path === 'interviews') { setScreen('interviews'); return; }
     if (path === '/profile') setScreen('profile');
     else if (path === '/stats') setScreen('stats');
-    else if (path === '/feedback') setScreen('feedback');
+    else if (path === '/feedback') { setFeedbackReturnScreen(null); setScreen('feedback'); }
     else if (path === '/addUser') setScreen('addUser');
     else if (path === '/aliases') setScreen('studentAliases');
     else if (path === '/config' && isSuperAdminUser) setScreen('config');
@@ -122,34 +123,16 @@ function App() {
 
   useEffect(() => { initSaveQueue(); }, []);
 
-  // Hide footer when any input is focused (keyboard open)
+  // Hide footer when mobile soft keyboard is open (visualViewport shrinks)
   useEffect(() => {
-    let blurTimeout = null;
-    const isInput = (el) => {
-      const tag = el?.tagName?.toLowerCase();
-      return tag === 'input' || tag === 'textarea' || el?.isContentEditable;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const KEYBOARD_THRESHOLD = 150;
+    const handleResize = () => {
+      setInputFocused(window.innerHeight - vv.height > KEYBOARD_THRESHOLD);
     };
-    const handleFocusIn = (e) => {
-      if (isInput(e.target)) {
-        if (blurTimeout) { clearTimeout(blurTimeout); blurTimeout = null; }
-        setInputFocused(true);
-      }
-    };
-    const handleFocusOut = (e) => {
-      if (isInput(e.target)) {
-        blurTimeout = setTimeout(() => {
-          if (!isInput(document.activeElement)) setInputFocused(false);
-          blurTimeout = null;
-        }, 100);
-      }
-    };
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
-    return () => {
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
-      if (blurTimeout) clearTimeout(blurTimeout);
-    };
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
