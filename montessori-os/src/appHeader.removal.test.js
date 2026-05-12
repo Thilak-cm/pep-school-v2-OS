@@ -64,11 +64,11 @@ describe('PEP-231: AppHeader fixed positioning', () => {
     );
   });
 
-  it('uses minHeight 48', () => {
+  it('uses minHeight 60', () => {
     const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      header.includes('minHeight: 48') || header.includes('minHeight:48'),
-      'AppHeader should use minHeight 48'
+      header.includes('minHeight: 60') || header.includes('minHeight:60'),
+      'AppHeader should use minHeight 60'
     );
   });
 

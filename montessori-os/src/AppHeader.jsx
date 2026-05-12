@@ -3,7 +3,7 @@ import { ArrowLeft } from './icons';
 import MiniTangram from './components/ui/MiniTangram.jsx';
 import Avatar from './components/ui/Avatar.jsx';
 
-export const HEADER_HEIGHT = 48;
+export const HEADER_HEIGHT = 60;
 
 function getHeaderActions(screen, ctx) {
   switch (screen) {
@@ -38,6 +38,9 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
         width: '100%',
         maxWidth: { xs: '100%', sm: '420px' },
         zIndex: 1040,
+        backgroundColor: 'color-mix(in srgb, var(--color-bg) 80%, transparent)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         px: { xs: 2, sm: 3 },
         boxSizing: 'border-box',
         '@media (max-width: 599px)': {
@@ -51,7 +54,7 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          minHeight: 48,
+          minHeight: 60,
           gap: 0.5,
         }}
       >

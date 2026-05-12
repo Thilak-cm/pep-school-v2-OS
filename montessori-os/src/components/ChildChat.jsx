@@ -1098,7 +1098,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             ? {
                 // Landing mode: positioned relative to fixed container, below sticky header
                 position: 'absolute',
-                top: 48,
+                top: 60,
                 left: 0,
                 right: 0,
                 zIndex: 1000,
@@ -1106,7 +1106,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             : {
                 // Chat mode: fixed to viewport, below sticky header
                 position: 'fixed',
-                top: 48,
+                top: 60,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
@@ -1418,7 +1418,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 // Landing page: absolutely positioned between dropdown and input, no scrolling
                 // 48px header + 56px pill = 104px
                 position: 'absolute',
-                top: 'calc(48px + 56px)',
+                top: 'calc(60px + 56px)',
                 bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 left: 0,
                 right: 0,
@@ -1436,7 +1436,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 p: 2,
-                pt: 'calc(48px + 56px)',
+                pt: 'calc(60px + 56px)',
                 pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 display: 'flex',
                 flexDirection: 'column',
