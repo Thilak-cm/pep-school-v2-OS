@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
@@ -17,7 +17,8 @@ import { isSuperAdmin } from './utils/roleUtils';
 import { normalizeClassroomId } from './utils/lessonNoteConstraints';
 import { clearNotificationsCache } from './components/NotificationsPage.jsx';
 import { initSaveQueue } from './services/saveQueue';
-import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS } from './screenConfig.js';
+import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, FOOTER_TAB_SCREENS, NO_BACK_BUTTON_SCREENS, NO_HEADER_SCREENS } from './screenConfig.js';
+import AppHeader, { HEADER_HEIGHT } from './AppHeader.jsx';
 import ScreenRenderer from './ScreenRenderer.jsx';
 import { useNavigationState } from './hooks/useNavigationState.js';
 
@@ -118,6 +119,11 @@ function App() {
   };
 
   const handleHome = () => { setSelectedStudent(null); setScreen('landingPage'); };
+
+  const scrollRef = useRef(null);
+  const handleScrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // ── Effects ────────────────────────────────────────────────────────────
 
@@ -290,6 +296,7 @@ function App() {
   const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
   const showFooter = !loading && user && screen !== 'accessDenied' && !inputFocused;
+  const showHeader = !loading && user && !NO_HEADER_SCREENS.has(screen);
 
   // Context object passed to ScreenRenderer
   const ctx = {
@@ -344,10 +351,13 @@ function App() {
             {/* Authenticated State */}
             {!loading && user && (
               <>
-                <Box sx={{
+                {showHeader && (
+                  <AppHeader screen={screen} ctx={ctx} onTitleClick={handleScrollToTop} />
+                )}
+                <Box ref={scrollRef} sx={{
                   flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
                 }}>
-                  <Box sx={{ padding: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pb: showFooter ? { xs: 12, sm: 12 } : 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+                  <Box sx={{ padding: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pt: showHeader ? `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px) + 8px)` : 0, pb: showFooter ? { xs: 12, sm: 12 } : 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                     <ScreenRenderer screen={screen} ctx={ctx} />
                   </Box>
                 </Box>

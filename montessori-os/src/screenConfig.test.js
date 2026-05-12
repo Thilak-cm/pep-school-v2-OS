@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS } from "./screenConfig.js";
+import { getPageTitle, getBackNavigation, FAB_HIDDEN_SCREENS, NO_HEADER_SCREENS } from "./screenConfig.js";
 
 describe("getPageTitle", () => {
   it("returns correct title for landingPage (teacher)", () => {
@@ -219,6 +219,27 @@ describe("FAB_HIDDEN_SCREENS", () => {
     const observationScreens = ["landingPage", "classroomList", "classroomTimeline", "studentDashboard", "timeline", "studentReports"];
     for (const s of observationScreens) {
       assert.ok(!FAB_HIDDEN_SCREENS.has(s), `FAB_HIDDEN_SCREENS should NOT contain "${s}"`);
+    }
+  });
+});
+
+describe("NO_HEADER_SCREENS", () => {
+  it("is a Set", () => {
+    assert.ok(NO_HEADER_SCREENS instanceof Set);
+  });
+
+  it("contains exactly landingPage, accessDenied, loading", () => {
+    const expected = ["landingPage", "accessDenied", "loading"];
+    assert.equal(NO_HEADER_SCREENS.size, expected.length);
+    for (const s of expected) {
+      assert.ok(NO_HEADER_SCREENS.has(s), `Expected NO_HEADER_SCREENS to contain "${s}"`);
+    }
+  });
+
+  it("does not contain screens that need a header", () => {
+    const headerScreens = ["classroomTimeline", "studentDashboard", "timeline", "settings", "childChat"];
+    for (const s of headerScreens) {
+      assert.ok(!NO_HEADER_SCREENS.has(s), `NO_HEADER_SCREENS should NOT contain "${s}"`);
     }
   });
 });
