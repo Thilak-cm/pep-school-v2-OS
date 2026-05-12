@@ -94,6 +94,7 @@ export default function ReportsPage({
   const [readinessLoading, setReadinessLoading] = useState(true);
   const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
   const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
+  const [readinessNudgeOpen, setReadinessNudgeOpen] = useState(false);
 
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
@@ -373,7 +374,7 @@ export default function ReportsPage({
           variant="contained"
           size="small"
           startIcon={<AddIcon />}
-          onClick={() => setGenerateOpen(true)}
+          onClick={() => !readiness && !readinessLoading ? setReadinessNudgeOpen(true) : setGenerateOpen(true)}
           disabled={generating || !studentId}
           sx={{
             textTransform: 'none',
@@ -683,6 +684,73 @@ export default function ReportsPage({
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={readinessNudgeOpen}
+        onClose={() => setReadinessNudgeOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)',
+          },
+        }}
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                  border: '1px solid rgba(99,102,241,0.35)',
+                }}
+              >
+                <ReadinessIcon size={22} style={{ color: 'var(--color-primary)' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Check readiness first?
+              </Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
+              Report readiness hasn&apos;t been checked for {studentLabel} yet. Running it first helps ensure there are enough observations for a quality report.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1, flexDirection: 'column', alignItems: 'stretch' }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setReadinessNudgeOpen(false);
+              setRerunConfirmOpen(true);
+            }}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 999,
+              boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)',
+            }}
+          >
+            Run report readiness
+          </Button>
+          <Button
+            onClick={() => {
+              setReadinessNudgeOpen(false);
+              setGenerateOpen(true);
+            }}
+            sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
+          >
+            Generate anyway
           </Button>
         </DialogActions>
       </Dialog>

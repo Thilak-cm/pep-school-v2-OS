@@ -269,6 +269,22 @@ test('ReportGenerateDialog imports toIsoDate from reportUtils (not defined local
   );
 });
 
+test('ReportsPage nudges user to check readiness before generating when no readiness exists', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /readinessNudgeOpen/.test(source),
+    'Expected ReportsPage to have readinessNudgeOpen state for the nudge dialog',
+  );
+  assert.ok(
+    /Run report readiness/.test(source),
+    'Expected nudge dialog to have a "Run report readiness" button',
+  );
+  assert.ok(
+    /Generate anyway/.test(source),
+    'Expected nudge dialog to have a "Generate anyway" button',
+  );
+});
+
 test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)', async () => {
   const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
   const source = await readFile(dialogUrl, 'utf8');
