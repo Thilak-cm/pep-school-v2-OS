@@ -1096,17 +1096,17 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         sx={{
           ...(isLanding
             ? {
-                // Landing mode: positioned relative to fixed container
+                // Landing mode: positioned relative to fixed container, below sticky header
                 position: 'absolute',
-                top: 0,
+                top: 48,
                 left: 0,
                 right: 0,
                 zIndex: 1000,
               }
             : {
-                // Chat mode: fixed to viewport
+                // Chat mode: fixed to viewport, below sticky header
                 position: 'fixed',
-                top: 0,
+                top: 48,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
@@ -1416,8 +1416,9 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
           ...(isLanding
             ? {
                 // Landing page: absolutely positioned between dropdown and input, no scrolling
+                // 48px header + 56px pill = 104px
                 position: 'absolute',
-                top: '56px',
+                top: 'calc(48px + 56px)',
                 bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 left: 0,
                 right: 0,
@@ -1430,11 +1431,12 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
               }
             : {
                 // Chat view: normal flex layout with scrolling
+                // 48px header + 56px pill = 104px
                 flex: 1,
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 p: 2,
-                pt: 'calc(56px)',
+                pt: 'calc(48px + 56px)',
                 pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
                 display: 'flex',
                 flexDirection: 'column',
