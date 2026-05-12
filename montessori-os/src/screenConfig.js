@@ -181,6 +181,12 @@ export const FOOTER_TAB_SCREENS = {
   interviews: "interviews",
 };
 
+// ── Header visibility ─────────────────────────────────────────────────────
+
+export const NO_HEADER_SCREENS = new Set([
+  "landingPage", "accessDenied", "loading",
+]);
+
 // ── Header / back-button visibility ────────────────────────────────────────
 
 export const NO_BACK_BUTTON_SCREENS = new Set([

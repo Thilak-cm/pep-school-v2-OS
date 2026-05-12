@@ -1,8 +1,5 @@
 import React from "react";
 import { Box, CircularProgress } from "@mui/material";
-import HFHeader from "./components/ui/HFHeader.jsx";
-import MiniTangram from "./components/ui/MiniTangram.jsx";
-import Avatar from "./components/ui/Avatar.jsx";
 import LandingPage from "./components/LandingPage";
 import AIHomePage from "./components/AIHomePage.jsx";
 import AITextCleanupEditor from "./components/AITextCleanupEditor.jsx";
@@ -35,47 +32,13 @@ import ConfigHomePage from "./components/ConfigHomePage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 
-/** Screens that render their own header or need none */
-const NO_HEADER_SCREENS = new Set(["landingPage", "accessDenied", "loading"]);
-
 /**
  * Renders the correct screen component based on the current `screen` value.
  * All required state and handlers are passed through the `ctx` prop.
- * Screens get an inline HFHeader (left-aligned, no separator) unless in NO_HEADER_SCREENS.
+ * Header rendering is handled by AppHeader in App.jsx.
  */
 export default function ScreenRenderer({ screen, ctx }) {
-  const content = renderScreen(screen, ctx);
-  if (!content || NO_HEADER_SCREENS.has(screen)) return content;
-
-  const actions = getHeaderActions(screen, ctx);
-
-  return (
-    <>
-      <HFHeader
-        title={ctx.pageTitle}
-        onBack={ctx.showBackButton ? ctx.backNavigation : undefined}
-        actions={actions}
-      />
-      {content}
-    </>
-  );
-}
-
-function getHeaderActions(screen, ctx) {
-  switch (screen) {
-    case "classroomTimeline":
-      return <MiniTangram size={28} />;
-    case "studentDashboard":
-    case "timeline":
-    case "studentStats":
-    case "studentReports":
-    case "childChat":
-      return ctx.selectedStudent ? (
-        <Avatar name={ctx.getStudentDisplayName(ctx.selectedStudent)} size="sm" />
-      ) : null;
-    default:
-      return undefined;
-  }
+  return renderScreen(screen, ctx);
 }
 
 function renderScreen(screen, ctx) {

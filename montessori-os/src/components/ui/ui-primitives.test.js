@@ -14,7 +14,6 @@ function readUiFile(name) {
 // ── AC1: Components live in a shared location ──
 describe('AC1: Components in components/ui/', () => {
   const expectedFiles = [
-    'HFHeader.jsx',
     'HFTabs.jsx',
     'HFSegmented.jsx',
     'DayHeader.jsx',
@@ -59,7 +58,6 @@ describe('AC1: Components in components/ui/', () => {
 // ── AC2: Each component exports a React component ──
 describe('AC2: Components are valid React components', () => {
   const componentFiles = [
-    'HFHeader.jsx',
     'HFTabs.jsx',
     'HFSegmented.jsx',
     'DayHeader.jsx',
@@ -131,7 +129,6 @@ describe('AC4: Colors via CSS custom properties', () => {
   // Non-chart components should not contain any #xxx or #xxxxxx hex patterns
   // (chart components are exempt when marked)
   const nonChartFiles = [
-    'HFHeader.jsx',
     'HFTabs.jsx',
     'HFSegmented.jsx',
     'DayHeader.jsx',

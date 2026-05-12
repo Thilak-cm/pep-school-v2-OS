@@ -2,7 +2,6 @@
 // Import from 'components/ui' in page components
 
 // Layout
-export { default as HFHeader } from './HFHeader';
 export { default as HFTabs } from './HFTabs';
 export { default as HFSegmented } from './HFSegmented';
 export { default as DayHeader } from './DayHeader';
