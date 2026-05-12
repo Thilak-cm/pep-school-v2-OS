@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.19.0 — 2026-05-12
+
+### Added
+- Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
+- Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
+- Readiness card displays the date range the scores correspond to (PEP-227)
+
+### Changed
+- `toIsoDate` utility moved from ReportGenerateDialog to shared reportUtils (PEP-227)
+
 # 10.18.2 — 2026-05-12
 
 ### Fixed
