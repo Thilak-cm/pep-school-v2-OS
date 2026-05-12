@@ -357,7 +357,7 @@ function App() {
                 <Box ref={scrollRef} sx={{
                   flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
                 }}>
-                  <Box sx={{ padding: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pt: showHeader ? `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px) + 8px)` : 0, pb: showFooter ? { xs: 12, sm: 12 } : 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+                  <Box sx={{ px: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 0, pt: showHeader ? `calc(${HEADER_HEIGHT}px + env(safe-area-inset-top, 0px) + 16px)` : { xs: 2, sm: 3 }, pb: showFooter ? { xs: 12, sm: 12 } : 0, width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
                     <ScreenRenderer screen={screen} ctx={ctx} />
                   </Box>
                 </Box>
