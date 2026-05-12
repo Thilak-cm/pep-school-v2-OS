@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-12T19:30:30.243Z
-App version: 10.18.1
+Generated: 2026-05-12T21:37:12.182Z
+App version: 10.18.2
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.18.1
 
 ## Recent Changes
 
+### 10.18.2 (2026-05-12)
+- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
+- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
+- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
+
 ### 10.18.1 (2026-05-12)
 - Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
 - Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
@@ -154,8 +159,4 @@ App version: 10.18.1
 - Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
 - CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
 - Firestore rules: teachers can only read classrooms, students, observations, media, chats, and interviews in their assigned classrooms (PEP-90)
-
-### 10.17.1 (2026-05-08)
-- Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
-- Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
 
