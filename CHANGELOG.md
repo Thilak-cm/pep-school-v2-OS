@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.19.0 — 2026-05-12
+
+### Added
+- Sticky app-shell header pinned to viewport top with frosted glass backdrop blur and soft fade edge (PEP-231)
+- Tap header title to scroll content back to top (PEP-231)
+- Safe-area inset support for notch/Dynamic Island devices on header and content offset (PEP-231)
+
+### Changed
+- Header rendering moved from ScreenRenderer to App shell — mirrors AppFooter pattern (PEP-231)
+- ChildChat pill and messages area positioned relative to HEADER_HEIGHT constant for maintainability (PEP-231)
+
+### Removed
+- HFHeader component deleted — replaced by AppHeader (PEP-231)
+
 # 10.18.1 — 2026-05-12
 
 ### Fixed
