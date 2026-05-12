@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-12T19:30:30.243Z
-App version: 10.18.1
+Generated: 2026-05-12T22:02:22.952Z
+App version: 10.19.0
 
 ## App Snapshot
 
@@ -26,7 +26,7 @@ App version: 10.18.1
 | analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/components/BaseballCardSnapshotCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
 | ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AIVoiceTranscriberEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
 | admin-and-access | Admin and Access | Role-aware access, user management, classroom operations, aliases, and graduation workflows. | `montessori-os/src/components/UsersAccessPage.jsx`<br>`montessori-os/src/components/GraduateStudentsPage.jsx`<br>`montessori-os/src/components/StudentAliasesPage.jsx`<br>`montessori-os/src/components/ConfigHomePage.jsx`<br>`montessori-os/src/components/LessonNoteConfigEditor.jsx`<br>`montessori-os/src/utils/roleUtils.js`<br>`firestore.rules` |
-| settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
+| settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppHeader.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
 
 ## Existing Pages and Components
 
@@ -93,17 +93,17 @@ App version: 10.18.1
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 29
-- Components: `App`, `AppFooter`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
+- Count: 30
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
+- `montessori-os/src/AppHeader.jsx`
 - `montessori-os/src/components/BaseballCardBody.jsx`
 - `montessori-os/src/components/BulkUploadPage.jsx`
 - `montessori-os/src/components/BulkUploadPage.helpers.js`
 - `montessori-os/src/components/BulkUploadPage.test.js`
 - `montessori-os/src/components/ClassroomNoteCard.jsx`
-- `montessori-os/src/components/ClassroomStudentCard.jsx`
 
 ## Existing UX Patterns
 
@@ -140,6 +140,11 @@ App version: 10.18.1
 
 ## Recent Changes
 
+### 10.19.0 (2026-05-12)
+- Sticky app-shell header pinned to viewport top with frosted glass backdrop blur and soft fade edge (PEP-231)
+- Tap header title to scroll content back to top (PEP-231)
+- Safe-area inset support for notch/Dynamic Island devices on header and content offset (PEP-231)
+
 ### 10.18.1 (2026-05-12)
 - Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
 - Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
@@ -154,8 +159,4 @@ App version: 10.18.1
 - Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
 - CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
 - Firestore rules: teachers can only read classrooms, students, observations, media, chats, and interviews in their assigned classrooms (PEP-90)
-
-### 10.17.1 (2026-05-08)
-- Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
-- Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
 
