@@ -191,10 +191,27 @@ Integration findings are added to the merged audit report under the same Blocker
 
 The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
 
-1. **Display the full merged report to the user** (audit + integration findings combined)
+1. **Render the merged report as an HTML artifact** (see `.claude/shared/html-artifacts.md`)
+
+   **What goes in the HTML file (`audit-{ISSUE-ID}.html`):**
+   - Verdict banner (CLEAN = green, HAS_FINDINGS = red) — use the Severity-Tagged Findings pattern
+   - Metadata strip: issue ID, branch, diff scope, blocker/warning/nit counts
+   - Scope Alignment section: acceptance criteria as a visual checklist (green check = covered, red X = missing)
+   - Findings grouped by severity: Blockers (red left-border cards), Warnings (amber), Nits (gray) — each with file path, category badge, what's wrong, suggested fix
+   - Integration findings (if any) under a separate subsection with the same card format
+   - "Needs User Decision" items highlighted distinctly (use primary color border)
+   - Summary at bottom
+
+   **What goes in the terminal:**
+   - 1-line verdict: "Audit complete — {verdict}. {N} blockers, {N} warnings, {N} nits."
+   - File path: "Full report: `.claude/artifacts/audit-{ISSUE-ID}.html`"
+   - `open .claude/artifacts/audit-{ISSUE-ID}.html`
+   - If "Needs User Decision" items exist: present those in the terminal via `AskUserQuestion` (these need interactive response, not HTML)
+
+   **Important:** The fix agent does NOT consume the HTML. The orchestrator passes the structured audit report text (from the auditor agent's output) directly to the fixer. The HTML is only the human-facing render.
 
 2. **Handle "Needs User Decision" items first**
-   - If any exist, present them to the user via `AskUserQuestion`
+   - If any exist, present them to the user via `AskUserQuestion` (in terminal, not in HTML)
    - User decisions may convert items into blockers, warnings, or dismissals
    - Rewrite those items into the appropriate category before proceeding
 
