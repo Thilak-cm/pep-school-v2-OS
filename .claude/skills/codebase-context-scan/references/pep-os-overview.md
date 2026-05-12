@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-12T22:02:22.952Z
-App version: 10.19.0
+Generated: 2026-05-12T23:55:22.402Z
+App version: 10.20.0
 
 ## App Snapshot
 
@@ -140,23 +140,23 @@ App version: 10.19.0
 
 ## Recent Changes
 
+### 10.20.0 (2026-05-12)
+- Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
+- MCP tool `get_ai_summary_history` now supports `weekly_snapshot` history queries alongside soul and guidelines (PEP-229)
+- Unified `baseball_card` + `signals` into a single `ai_summaries/weekly_snapshot` doc per student — one read instead of two for every baseball card view (PEP-229)
+
 ### 10.19.0 (2026-05-12)
 - Sticky app-shell header pinned to viewport top with frosted glass backdrop blur and soft fade edge (PEP-231)
 - Tap header title to scroll content back to top (PEP-231)
 - Safe-area inset support for notch/Dynamic Island devices on header and content offset (PEP-231)
 
+### 10.18.2 (2026-05-12)
+- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
+- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
+- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
+
 ### 10.18.1 (2026-05-12)
 - Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
 - Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
 - Disabled pinch-to-zoom on Android Chrome for native app feel (PEP-230)
-
-### 10.18.0 (2026-05-08)
-- Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
-- Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
-- Test bench LLM calls route through OpenRouter instead of direct OpenAI API (PEP-210)
-
-### 10.17.2 (2026-05-08)
-- Chat IDOR: `childChatStream` and `childChat` now verify classroom scope for classroomadmins and teachers before granting access (PEP-90)
-- CORS: replaced wildcard `Access-Control-Allow-Origin: *` with explicit origin allowlist and `Vary: Origin` header (PEP-90)
-- Firestore rules: teachers can only read classrooms, students, observations, media, chats, and interviews in their assigned classrooms (PEP-90)
 
