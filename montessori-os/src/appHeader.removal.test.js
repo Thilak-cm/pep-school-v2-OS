@@ -10,108 +10,157 @@ function readSrcFile(relPath) {
   return readFileSync(join(__dirname, relPath), 'utf-8');
 }
 
-// ── PEP-215: AppHeader removal ──────────────────────────────────────────────
+// ── PEP-231: AppHeader is the sticky shell header ──────────────────────────
 
-describe('PEP-215: AppHeader removed from app shell', () => {
-  it('AppHeader.jsx no longer exists', () => {
+describe('PEP-231: AppHeader exists as sticky shell header', () => {
+  it('AppHeader.jsx exists', () => {
     assert.ok(
-      !existsSync(join(__dirname, 'AppHeader.jsx')),
-      'AppHeader.jsx should be deleted'
+      existsSync(join(__dirname, 'AppHeader.jsx')),
+      'AppHeader.jsx should exist'
     );
   });
 
-  it('App.jsx does not import AppHeader', () => {
+  it('App.jsx imports AppHeader', () => {
     const app = readSrcFile('App.jsx');
     assert.ok(
-      !app.includes("import AppHeader"),
-      'App.jsx should not import AppHeader'
+      app.includes('import AppHeader'),
+      'App.jsx should import AppHeader'
     );
   });
 
-  it('App.jsx does not render <AppHeader', () => {
+  it('App.jsx renders <AppHeader', () => {
     const app = readSrcFile('App.jsx');
     assert.ok(
-      !app.includes('<AppHeader'),
-      'App.jsx should not render AppHeader'
-    );
-  });
-
-  it('App.jsx does not have the 64px paddingTop offset for AppHeader', () => {
-    const app = readSrcFile('App.jsx');
-    assert.ok(
-      !app.includes("calc(64px"),
-      'App.jsx should not have the 64px paddingTop offset'
+      app.includes('<AppHeader'),
+      'App.jsx should render AppHeader'
     );
   });
 });
 
-// ── PEP-215: HFHeader is left-aligned ───────────────────────────────────────
+// ── PEP-231: AppHeader uses fixed positioning ──────────────────────────────
 
-describe('PEP-215: HFHeader uses left-aligned titles', () => {
-  it('HFHeader does not use textAlign center', () => {
-    const header = readSrcFile('components/ui/HFHeader.jsx');
-    // Filter out comments
-    const codeLines = header.split('\n').filter(l => {
-      const trimmed = l.trimStart();
-      return !trimmed.startsWith('//') && !trimmed.startsWith('*');
-    });
-    const code = codeLines.join('\n');
+describe('PEP-231: AppHeader fixed positioning', () => {
+  it('uses position fixed', () => {
+    const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      !code.includes("textAlign: 'center'") && !code.includes('textAlign: "center"'),
-      'HFHeader title should not be center-aligned'
+      header.includes("position: 'fixed'") || header.includes('position: "fixed"'),
+      'AppHeader should use position: fixed'
     );
   });
 
-  it('HFHeader does not use justifySelf center', () => {
-    const header = readSrcFile('components/ui/HFHeader.jsx');
-    const codeLines = header.split('\n').filter(l => {
-      const trimmed = l.trimStart();
-      return !trimmed.startsWith('//') && !trimmed.startsWith('*');
-    });
-    const code = codeLines.join('\n');
+  it('uses top: 0', () => {
+    const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      !code.includes("justifySelf: 'center'") && !code.includes('justifySelf: "center"'),
-      'HFHeader title should not use justifySelf center'
+      header.includes('top: 0') || header.includes("top: '0'"),
+      'AppHeader should use top: 0'
+    );
+  });
+
+  it('uses zIndex 1040', () => {
+    const header = readSrcFile('AppHeader.jsx');
+    assert.ok(
+      header.includes('zIndex: 1040') || header.includes('zIndex:1040'),
+      'AppHeader should use zIndex 1040'
+    );
+  });
+
+  it('uses minHeight 48', () => {
+    const header = readSrcFile('AppHeader.jsx');
+    assert.ok(
+      header.includes('minHeight: 48') || header.includes('minHeight:48'),
+      'AppHeader should use minHeight 48'
+    );
+  });
+
+  it('includes safe-area-inset-top', () => {
+    const header = readSrcFile('AppHeader.jsx');
+    assert.ok(
+      header.includes('safe-area-inset-top'),
+      'AppHeader should respect env(safe-area-inset-top)'
     );
   });
 });
 
-// ── PEP-215: ScreenRenderer renders HFHeader ────────────────────────────────
+// ── PEP-231: AppHeader renders title, back, actions ────────────────────────
 
-describe('PEP-215: ScreenRenderer renders inline headers', () => {
-  it('ScreenRenderer imports HFHeader', () => {
-    const sr = readSrcFile('ScreenRenderer.jsx');
+describe('PEP-231: AppHeader renders header elements', () => {
+  it('renders a title element', () => {
+    const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      sr.includes('HFHeader'),
-      'ScreenRenderer should import HFHeader'
+      header.includes('title') && header.includes('Typography'),
+      'AppHeader should render a title via Typography'
     );
   });
 
-  it('ScreenRenderer renders HFHeader for authenticated screens', () => {
-    const sr = readSrcFile('ScreenRenderer.jsx');
+  it('renders a back button conditionally', () => {
+    const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      sr.includes('<HFHeader'),
-      'ScreenRenderer should render HFHeader'
+      header.includes('onBack') && header.includes('ArrowLeft'),
+      'AppHeader should render a back button with ArrowLeft icon'
     );
   });
 
-  it('ScreenRenderer does not render HFHeader for landingPage', () => {
-    const sr = readSrcFile('ScreenRenderer.jsx');
-    // Find the landingPage case block — it should not contain HFHeader
-    const landingMatch = sr.match(/case\s+["']landingPage["']:\s*\n([\s\S]*?)(?=\n\s*case\s+["'])/);
-    if (landingMatch) {
-      assert.ok(
-        !landingMatch[1].includes('<HFHeader'),
-        'landingPage should not render HFHeader'
-      );
-    }
+  it('supports an actions slot', () => {
+    const header = readSrcFile('AppHeader.jsx');
+    assert.ok(
+      header.includes('actions'),
+      'AppHeader should support an actions prop'
+    );
   });
 
-  it('App.jsx passes pageTitle and backNavigation in ctx', () => {
-    const app = readSrcFile('App.jsx');
+  it('supports scroll-to-top on title click', () => {
+    const header = readSrcFile('AppHeader.jsx');
     assert.ok(
-      app.includes('pageTitle') && app.includes('backNavigation'),
-      'App.jsx ctx should include pageTitle and backNavigation'
+      header.includes('onTitleClick') || header.includes('scrollTo'),
+      'AppHeader should support scroll-to-top via onTitleClick or scrollTo'
+    );
+  });
+});
+
+// ── PEP-231: HFHeader deleted ──────────────────────────────────────────────
+
+describe('PEP-231: HFHeader removed after migration', () => {
+  it('HFHeader.jsx no longer exists', () => {
+    assert.ok(
+      !existsSync(join(__dirname, 'components/ui/HFHeader.jsx')),
+      'HFHeader.jsx should be deleted'
+    );
+  });
+
+  it('ScreenRenderer does not import HFHeader', () => {
+    const sr = readSrcFile('ScreenRenderer.jsx');
+    assert.ok(
+      !sr.includes('HFHeader'),
+      'ScreenRenderer should not reference HFHeader'
+    );
+  });
+
+  it('ScreenRenderer does not render <HFHeader', () => {
+    const sr = readSrcFile('ScreenRenderer.jsx');
+    assert.ok(
+      !sr.includes('<HFHeader'),
+      'ScreenRenderer should not render HFHeader'
+    );
+  });
+});
+
+// ── PEP-231: ScreenRenderer only renders content ──────────────────────────
+
+describe('PEP-231: ScreenRenderer renders content only', () => {
+  it('does not contain getHeaderActions', () => {
+    const sr = readSrcFile('ScreenRenderer.jsx');
+    assert.ok(
+      !sr.includes('getHeaderActions'),
+      'ScreenRenderer should not contain getHeaderActions — it moved to AppHeader'
+    );
+  });
+
+  it('does not define NO_HEADER_SCREENS locally', () => {
+    const sr = readSrcFile('ScreenRenderer.jsx');
+    // Should import from screenConfig, not define locally
+    assert.ok(
+      !sr.includes('const NO_HEADER_SCREENS') && !sr.includes('let NO_HEADER_SCREENS'),
+      'ScreenRenderer should not define NO_HEADER_SCREENS locally — it lives in screenConfig.js'
     );
   });
 });
