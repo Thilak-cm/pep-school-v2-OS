@@ -34,6 +34,7 @@ import {
 } from '../services/saveQueue';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
+import ReadinessCheckDialog from './ReadinessCheckDialog';
 
 function formatReportDate(date) {
   if (!date) return 'Unknown date';
@@ -484,7 +485,7 @@ export default function ReportsPage({
               size="small"
               variant="outlined"
               startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon size={16} />}
-              onClick={() => handleCheckReadiness({})}
+              onClick={() => setRerunConfirmOpen(true)}
               disabled={readinessLoading}
               sx={{
                 textTransform: 'none',
@@ -686,34 +687,17 @@ export default function ReportsPage({
         </DialogActions>
       </Dialog>
 
-      <Dialog
+      <ReadinessCheckDialog
         open={rerunConfirmOpen}
         onClose={() => setRerunConfirmOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Re-run readiness check?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {newNotesSinceReport != null && newNotesSinceReport > 0
-              ? `There ${newNotesSinceReport === 1 ? 'is' : 'are'} ${newNotesSinceReport} new ${newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report. Re-running the check will include the latest observations.`
-              : 'There are no new observations since the last report. Re-running may not change the results.'}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRerunConfirmOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
-          <Button
-            onClick={() => {
-              setRerunConfirmOpen(false);
-              handleCheckReadiness({});
-            }}
-            variant="contained"
-            sx={{ textTransform: 'none' }}
-          >
-            Re-run check
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={({ dateRangeStart, dateRangeEnd }) => {
+          setRerunConfirmOpen(false);
+          handleCheckReadiness({ dateRangeStart, dateRangeEnd });
+        }}
+        loading={readinessLoading}
+        studentLabel={studentLabel}
+        newNotesSinceReport={newNotesSinceReport}
+      />
     </>
   );
 }
