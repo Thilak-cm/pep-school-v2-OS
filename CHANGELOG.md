@@ -14,6 +14,13 @@
 ### Removed
 - HFHeader component deleted — replaced by AppHeader (PEP-231)
 
+# 10.18.2 — 2026-05-12
+
+### Fixed
+- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
+- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
+- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
+
 # 10.18.1 — 2026-05-12
 
 ### Fixed

@@ -62,6 +62,9 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
   const [devMode, setDevMode] = useState(false); // Default OFF - includes observations in context
   const [isFirstMessageFlow, setIsFirstMessageFlow] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardBottomOffset, setKeyboardBottomOffset] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(null);
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -101,6 +104,29 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     return stripQuotes(selectedChat?.name || 'New Chat');
   }, [chats, selectedChatId]);
   
+  // Track keyboard open/close via Visual Viewport API
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const KEYBOARD_THRESHOLD = 150;
+    let debounceTimer;
+    const handleResize = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const gap = window.innerHeight - vv.height;
+        const open = gap > KEYBOARD_THRESHOLD;
+        setIsKeyboardOpen(open);
+        setKeyboardBottomOffset(open ? gap - vv.offsetTop : 0);
+        setViewportHeight(open ? vv.height : null);
+      }, 120);
+    };
+    vv.addEventListener('resize', handleResize);
+    return () => {
+      vv.removeEventListener('resize', handleResize);
+      clearTimeout(debounceTimer);
+    };
+  }, []);
+
   // Keep refs in sync
   useEffect(() => {
     startInLandingPageRef.current = startInLandingPage;
@@ -1056,6 +1082,16 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
     };
   }, []);
 
+  // Bottom offset: clear footer space when keyboard is closed, flush when open
+  // Landing mode (position: absolute) uses CSS-based offset
+  // Chat mode (position: fixed) uses pixel-based offset to sit flush with keyboard on iOS
+  const bottomOffsetLanding = isKeyboardOpen
+    ? { xs: '0px', sm: '80px' }
+    : { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' };
+  const bottomOffsetFixed = isKeyboardOpen
+    ? { xs: `${keyboardBottomOffset}px`, sm: '80px' }
+    : { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' };
+
   // Validation: student required
   if (!student?.id) {
     return (
@@ -1073,7 +1109,8 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
         ...(isLanding
           ? {
               // Landing mode: fixed positioning to prevent parent container scrolling
-              height: '100vh',
+              height: viewportHeight ? `${viewportHeight}px` : '100vh',
+              transition: 'height 0.15s ease-out',
               margin: 0,
               position: 'fixed',
               top: 0,
@@ -1419,7 +1456,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 // Landing page: absolutely positioned between dropdown and input, no scrolling
                 position: 'absolute',
                 top: `calc(${HEADER_HEIGHT}px + 56px)`,
-                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                bottom: bottomOffsetLanding,
                 left: 0,
                 right: 0,
                 overflow: 'hidden',
@@ -1428,6 +1465,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 justifyContent: 'center',
                 alignItems: 'center',
                 p: 0,
+                transition: 'bottom 0.15s ease-out',
               }
             : {
                 // Chat view: normal flex layout with scrolling
@@ -1436,7 +1474,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
                 overflowX: 'hidden',
                 p: 2,
                 pt: `calc(${HEADER_HEIGHT}px + 56px)`,
-                pb: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                pb: bottomOffsetFixed,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'flex-start',
@@ -1530,7 +1568,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
       </Box>
 
       {/* Scroll-to-bottom FAB */}
-      {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={scrollToBottom} />}
+      {!isLanding && <ScrollToBottomFab visible={showScrollButton} onClick={scrollToBottom} isKeyboardOpen={isKeyboardOpen} />}
 
       {/* Floating Input Area - Fixed at bottom */}
       <Box
@@ -1539,7 +1577,7 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             ? {
                 // Landing mode: positioned relative to fixed container
                 position: 'absolute',
-                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                bottom: bottomOffsetLanding,
                 left: 0,
                 right: 0,
                 zIndex: 1000,
@@ -1547,15 +1585,16 @@ function ChildChat({ student, startInLandingPage = false, currentRole }) {
             : {
                 // Chat mode: fixed to viewport
                 position: 'fixed',
-                bottom: { xs: 'calc(80px + env(safe-area-inset-bottom, 0px))', sm: '80px' },
+                bottom: bottomOffsetFixed,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
               }),
+          transition: 'bottom 0.15s ease-out',
           width: '100%',
           maxWidth: { xs: '100%', sm: '420px' },
           px: 2,
-          pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
+          pb: isKeyboardOpen ? 0 : { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
         }}
       >
         {error && (
