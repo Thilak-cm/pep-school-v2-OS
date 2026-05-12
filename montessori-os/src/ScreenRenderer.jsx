@@ -264,7 +264,16 @@ function renderScreen(screen, ctx) {
       );
 
     case "feedbackTimeline":
-      return <FeedbackTimeline currentUser={ctx.user} userRole={ctx.role} />;
+      return (
+        <FeedbackTimeline
+          currentUser={ctx.user}
+          userRole={ctx.role}
+          onNavigateToFeedback={() => {
+            ctx.setFeedbackReturnScreen?.('feedbackTimeline');
+            ctx.setScreen('feedback');
+          }}
+        />
+      );
 
     case "addUser":
       return (

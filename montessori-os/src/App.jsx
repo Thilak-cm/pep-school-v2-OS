@@ -32,6 +32,7 @@ function App() {
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const {
     screen, setScreen,
@@ -48,6 +49,7 @@ function App() {
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
     initialStudentId, setInitialStudentId,
+    feedbackReturnScreen, setFeedbackReturnScreen,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -119,6 +121,36 @@ function App() {
   // ── Effects ────────────────────────────────────────────────────────────
 
   useEffect(() => { initSaveQueue(); }, []);
+
+  // Hide footer when any input is focused (keyboard open)
+  useEffect(() => {
+    let blurTimeout = null;
+    const isInput = (el) => {
+      const tag = el?.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el?.isContentEditable;
+    };
+    const handleFocusIn = (e) => {
+      if (isInput(e.target)) {
+        if (blurTimeout) { clearTimeout(blurTimeout); blurTimeout = null; }
+        setInputFocused(true);
+      }
+    };
+    const handleFocusOut = (e) => {
+      if (isInput(e.target)) {
+        blurTimeout = setTimeout(() => {
+          if (!isInput(document.activeElement)) setInputFocused(false);
+          blurTimeout = null;
+        }, 100);
+      }
+    };
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+      if (blurTimeout) clearTimeout(blurTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     const handleNavigateToStudentNotes = (e) => {
@@ -272,9 +304,9 @@ function App() {
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
-  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
+  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
-  const showFooter = !loading && user && screen !== 'accessDenied';
+  const showFooter = !loading && user && screen !== 'accessDenied' && !inputFocused;
 
   // Context object passed to ScreenRenderer
   const ctx = {
@@ -285,7 +317,7 @@ function App() {
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
-    setLessonNoteEditObservation,
+    setLessonNoteEditObservation, setFeedbackReturnScreen,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName,
     pageTitle, backNavigation, showBackButton,
