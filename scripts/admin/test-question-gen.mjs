@@ -152,11 +152,11 @@ async function run() {
   const guidelines = guidelinesSnap.data().content;
   console.log(`Guidelines: loaded`);
 
-  // 4. Load baseball card
+  // 4. Load weekly snapshot (unified baseball card + signals)
   const bcSnap = await db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc("baseball_card").get();
+    .collection("ai_summaries").doc("weekly_snapshot").get();
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
-  console.log(`Baseball card: ${baseballCard ? "loaded" : "none"}`);
+  console.log(`Weekly snapshot: ${baseballCard ? "loaded" : "none"}`);
 
   // 5. Load open questions
   const oqSnap = await db.collection("students").doc(studentId)

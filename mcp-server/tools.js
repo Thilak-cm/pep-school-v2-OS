@@ -138,7 +138,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_ai_summary",
     description:
-      "Fetch any AI-generated summary document from a student's ai_summaries subcollection. Known doc IDs: soul, guidelines, open_questions, report_readiness, writing_analysis, signals. Returns all fields.",
+      "Fetch any AI-generated summary document from a student's ai_summaries subcollection. Known doc IDs: soul, guidelines, open_questions, report_readiness, writing_analysis, weekly_snapshot. Returns all fields.",
     inputSchema: {
       type: "object",
       properties: {
@@ -149,7 +149,7 @@ export const TOOL_DEFINITIONS = [
         docId: {
           type: "string",
           description:
-            "Document ID within ai_summaries (e.g., soul, guidelines, open_questions, report_readiness, writing_analysis, signals).",
+            "Document ID within ai_summaries (e.g., soul, guidelines, open_questions, report_readiness, writing_analysis, weekly_snapshot).",
         },
       },
       required: ["studentId", "docId"],
@@ -158,7 +158,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "get_ai_summary_history",
     description:
-      "Fetch history snapshots for a student's soul or guidelines document. Returns past versions ordered by most recent first.",
+      "Fetch history snapshots for a student's soul, guidelines, or weekly_snapshot document. Returns past versions ordered by most recent first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -168,8 +168,8 @@ export const TOOL_DEFINITIONS = [
         },
         docId: {
           type: "string",
-          description: "Parent doc ID — either 'soul' or 'guidelines'.",
-          enum: ["soul", "guidelines"],
+          description: "Parent doc ID — 'soul', 'guidelines', or 'weekly_snapshot'.",
+          enum: ["soul", "guidelines", "weekly_snapshot"],
         },
         limit: {
           type: "number",
@@ -628,7 +628,7 @@ export async function handleGetBaseballCard(db, params) {
     .collection("students")
     .doc(studentId)
     .collection("ai_summaries")
-    .doc("baseball_card")
+    .doc("weekly_snapshot")
     .get();
 
   if (!doc.exists) return null;
@@ -652,13 +652,15 @@ export async function handleGetAiSummary(db, params) {
 export async function handleGetAiSummaryHistory(db, params) {
   const { studentId, docId, limit: maxResults = 10 } = params;
 
+  // weekly_snapshot history uses archivedAt; soul/guidelines use updatedAt
+  const orderField = docId === "weekly_snapshot" ? "archivedAt" : "updatedAt";
   const snap = await db
     .collection("students")
     .doc(studentId)
     .collection("ai_summaries")
     .doc(docId)
     .collection("history")
-    .orderBy("updatedAt", "desc")
+    .orderBy(orderField, "desc")
     .limit(maxResults)
     .get();
 

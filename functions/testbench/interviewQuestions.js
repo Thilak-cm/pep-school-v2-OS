@@ -32,7 +32,7 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   const [soulSnap, guidelinesSnap, bcSnap, oqSnap, rawInterviews] = await Promise.all([
     db.collection("students").doc(studentId).collection("ai_summaries").doc("soul").get(),
     db.collection("students").doc(studentId).collection("ai_summaries").doc("guidelines").get(),
-    db.collection("students").doc(studentId).collection("ai_summaries").doc("baseball_card").get(),
+    db.collection("students").doc(studentId).collection("ai_summaries").doc("weekly_snapshot").get(),
     db.collection("students").doc(studentId).collection("ai_summaries").doc("open_questions").get(),
     fetchStudentInterviews(studentId, 365),
   ]);

@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.20.0 — 2026-05-12
+
+### Added
+- Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
+- MCP tool `get_ai_summary_history` now supports `weekly_snapshot` history queries alongside soul and guidelines (PEP-229)
+
+### Changed
+- Unified `baseball_card` + `signals` into a single `ai_summaries/weekly_snapshot` doc per student — one read instead of two for every baseball card view (PEP-229)
+- On-demand teacher regeneration updates the primary snapshot without creating history entries, preserving clean weekly timelines (PEP-229)
+
 # 10.19.0 — 2026-05-12
 
 ### Added

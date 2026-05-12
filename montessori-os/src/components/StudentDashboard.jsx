@@ -171,12 +171,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
     const fetchCard = async () => {
       try {
-        const ref = doc(db, 'students', studentId, 'ai_summaries', 'baseball_card');
-        const signalsRef = doc(db, 'students', studentId, 'ai_summaries', 'signals');
-        const [snap, signalsSnap] = await Promise.all([getDoc(ref), getDoc(signalsRef)]);
+        const ref = doc(db, 'students', studentId, 'ai_summaries', 'weekly_snapshot');
+        const snap = await getDoc(ref);
         if (!active) return;
-        setCardData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-        setSignalsData(signalsSnap.exists() ? { id: signalsSnap.id, ...signalsSnap.data() } : null);
+        const data = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+        setCardData(data);
+        setSignalsData(data);
       } catch {
         if (active) setCardError('Failed to load the baseball card.');
       } finally {
