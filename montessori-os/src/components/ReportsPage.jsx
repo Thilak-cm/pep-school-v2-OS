@@ -139,6 +139,8 @@ export default function ReportsPage({
             noteCountAtCheck: data.noteCountAtCheck ?? 0,
             checkedAt: data.checkedAt?.toDate?.() || null,
             status: data.status || 'ok',
+            dateRangeStart: data.dateRangeStart || null,
+            dateRangeEnd: data.dateRangeEnd || null,
           });
         }
       } catch {
@@ -227,6 +229,8 @@ export default function ReportsPage({
         noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
         checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
         status: result.data.status || 'ok',
+        dateRangeStart: dateRangeStart || null,
+        dateRangeEnd: dateRangeEnd || null,
       });
       // Recompute staleness after fresh check
       const latestReport = reports[0];
@@ -375,7 +379,7 @@ export default function ReportsPage({
           size="small"
           startIcon={<AddIcon />}
           onClick={() => !readiness && !readinessLoading ? setReadinessNudgeOpen(true) : setGenerateOpen(true)}
-          disabled={generating || !studentId}
+          disabled={generating || !studentId || (readinessLoading && !readiness)}
           sx={{
             textTransform: 'none',
             borderRadius: 2,
@@ -442,6 +446,11 @@ export default function ReportsPage({
               )}
               <Chip label={`${readiness.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
             </Stack>
+            {readiness.dateRangeStart && readiness.dateRangeEnd && (
+              <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mt: 0.25 }}>
+                Period: {formatReportDate(new Date(readiness.dateRangeStart + 'T00:00:00'))} – {formatReportDate(new Date(readiness.dateRangeEnd + 'T00:00:00'))}
+              </Typography>
+            )}
             {readiness.missingInputFlags?.length > 0 && (
               <Box sx={{ mt: 0.5 }}>
                 <Typography variant="caption" sx={{ fontWeight: 600, color: 'var(--color-amber-dark)', display: 'block', mb: 0.25 }}>
@@ -765,6 +774,8 @@ export default function ReportsPage({
         loading={readinessLoading}
         studentLabel={studentLabel}
         newNotesSinceReport={newNotesSinceReport}
+        initialStartDate={readiness?.dateRangeStart}
+        initialEndDate={readiness?.dateRangeEnd}
       />
     </>
   );

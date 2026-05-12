@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,14 +20,25 @@ export default function ReadinessCheckDialog({
   loading = false,
   studentLabel = 'this student',
   newNotesSinceReport = null,
+  initialStartDate = null,
+  initialEndDate = null,
 }) {
-  const defaults = useMemo(() => {
-    const { start, end } = getDefaultReportDateRange();
-    return { start: toIsoDate(start), end: toIsoDate(end) };
-  }, []);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const [startDate, setStartDate] = useState(defaults.start);
-  const [endDate, setEndDate] = useState(defaults.end);
+  // Reset dates each time the dialog opens — use cached dates if available, else defaults
+  useEffect(() => {
+    if (open) {
+      if (initialStartDate && initialEndDate) {
+        setStartDate(initialStartDate);
+        setEndDate(initialEndDate);
+      } else {
+        const { start, end } = getDefaultReportDateRange();
+        setStartDate(toIsoDate(start));
+        setEndDate(toIsoDate(end));
+      }
+    }
+  }, [open, initialStartDate, initialEndDate]);
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;

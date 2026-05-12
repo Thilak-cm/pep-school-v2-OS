@@ -193,12 +193,14 @@ test('ReportsPage computes newNotesSinceReport from readiness and report data', 
 
 test('ReportsPage generate button is never disabled by readiness scores (advisory only)', async () => {
   const source = await readFile(sourceUrl, 'utf8');
-  // The Generate Report button's disabled prop should not reference readiness state
+  // The Generate Report button's disabled prop should not reference readiness score values
+  // (sentimentScore, areaBalanceScore, etc.) — scores are advisory only.
+  // It MAY reference readinessLoading for the initial load guard.
   const generateBtnMatch = source.match(/disabled=\{[^}]*\}[^]*?>\s*Generate Report/);
   if (generateBtnMatch) {
     assert.ok(
-      !/readiness/.test(generateBtnMatch[0]),
-      'Expected Generate Report button disabled prop to not reference readiness state',
+      !/sentimentScore|areaBalanceScore|readiness\.status/.test(generateBtnMatch[0]),
+      'Expected Generate Report button disabled prop to not reference readiness scores',
     );
   }
 });
