@@ -121,8 +121,12 @@ export function getBackNavigation(screen, state, setters) {
       return () => setters.setScreen?.("studentDashboard");
     case "profile":
       return () => setters.setScreen?.("settings");
+    case "feedback": {
+      const returnTo = state.feedbackReturnScreen || "landingPage";
+      if (returnTo === "landingPage") return goLanding;
+      return () => setters.setScreen?.(returnTo);
+    }
     case "stats":
-    case "feedback":
     case "classroomNotesReview":
     case "studentAliases":
     case "settings":

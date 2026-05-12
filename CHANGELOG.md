@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.18.1 — 2026-05-12
+
+### Fixed
+- Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
+- Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
+- Disabled pinch-to-zoom on Android Chrome for native app feel (PEP-230)
+
+### Added
+- "Add Feedback" button on FeedbackTimeline for admin users (PEP-230)
+
 # 10.18.0 — 2026-05-08
 
 ### Added

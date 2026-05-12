@@ -21,7 +21,7 @@ import {
   Alert,
   Collapse
 } from '@mui/material';
-import { Search, Filter as FilterList, Pencil as Edit, Save, XCircle as Cancel, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, User as Person, Clock as AccessTime, ShieldCheck as AdminPanelSettings, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
+import { Search, Filter as FilterList, Plus, Pencil as Edit, Save, XCircle as Cancel, Bug as BugReport, Lightbulb, Paintbrush as Brush, Gauge as Speed, MessageCircle as Chat, User as Person, Clock as AccessTime, ShieldCheck as AdminPanelSettings, ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 import { formatTimestamp as formatDateWithTime } from '../utils/dateFormat';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -43,7 +43,7 @@ const STATUS_OPTIONS = [
   { value: 'declined', label: 'Declined', color: 'error' }
 ];
 
-function FeedbackTimeline({ currentUser, userRole }) {
+function FeedbackTimeline({ currentUser, userRole, onNavigateToFeedback }) {
   const [allFeedback, setAllFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
@@ -235,6 +235,17 @@ function FeedbackTimeline({ currentUser, userRole }) {
           color="secondary"
           variant="outlined"
         />
+        {onNavigateToFeedback && (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={onNavigateToFeedback}
+            startIcon={<Plus />}
+            sx={{ textTransform: 'none', borderRadius: 2, ml: 'auto' }}
+          >
+            Add Feedback
+          </Button>
+        )}
       </Box>
 
       {/* Collapsible search and filters */}

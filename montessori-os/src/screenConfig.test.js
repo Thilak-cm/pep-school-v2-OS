@@ -171,6 +171,30 @@ describe("getBackNavigation", () => {
     fn();
     assert.deepStrictEqual(calls, [["setScreen", "addUser"], ["setUsersAccessView", "home"]]);
   });
+
+  it("feedback with feedbackReturnScreen navigates to that screen", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(v) };
+    const fn = getBackNavigation("feedback", { feedbackReturnScreen: "feedbackTimeline" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, ["feedbackTimeline"]);
+  });
+
+  it("feedback without feedbackReturnScreen navigates to landing", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("feedback", {}, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
+  });
+
+  it("feedback with feedbackReturnScreen landingPage uses goLanding", () => {
+    const calls = [];
+    const setters = { setScreen: (v) => calls.push(["setScreen", v]), setSelectedStudent: (v) => calls.push(["setSelectedStudent", v]) };
+    const fn = getBackNavigation("feedback", { feedbackReturnScreen: "landingPage" }, setters);
+    fn();
+    assert.deepStrictEqual(calls, [["setSelectedStudent", null], ["setScreen", "landingPage"]]);
+  });
 });
 
 describe("FAB_HIDDEN_SCREENS", () => {

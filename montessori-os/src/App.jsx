@@ -32,6 +32,7 @@ function App() {
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const {
     screen, setScreen,
@@ -48,6 +49,7 @@ function App() {
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
     initialStudentId, setInitialStudentId,
+    feedbackReturnScreen, setFeedbackReturnScreen,
   } = useNavigationState();
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
@@ -88,6 +90,7 @@ function App() {
 
   const openFeedbackWithMessage = (message = '') => {
     setPrefilledFeedback(message || '');
+    setFeedbackReturnScreen(null);
     setScreen('feedback');
   };
 
@@ -97,7 +100,7 @@ function App() {
     if (path === 'interviews') { setScreen('interviews'); return; }
     if (path === '/profile') setScreen('profile');
     else if (path === '/stats') setScreen('stats');
-    else if (path === '/feedback') setScreen('feedback');
+    else if (path === '/feedback') { setFeedbackReturnScreen(null); setScreen('feedback'); }
     else if (path === '/addUser') setScreen('addUser');
     else if (path === '/aliases') setScreen('studentAliases');
     else if (path === '/config' && isSuperAdminUser) setScreen('config');
@@ -119,6 +122,18 @@ function App() {
   // ── Effects ────────────────────────────────────────────────────────────
 
   useEffect(() => { initSaveQueue(); }, []);
+
+  // Hide footer when mobile soft keyboard is open (visualViewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const KEYBOARD_THRESHOLD = 150;
+    const handleResize = () => {
+      setInputFocused(window.innerHeight - vv.height > KEYBOARD_THRESHOLD);
+    };
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const handleNavigateToStudentNotes = (e) => {
@@ -272,9 +287,9 @@ function App() {
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
   const pageTitle = getPageTitle(screen, titleState);
-  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
+  const backNavigation = getBackNavigation(screen, { classroomTimelineReturnScreen, studentDashboardReturnScreen, lessonNotesReturnScreen, feedbackReturnScreen, usersAccessView }, { setScreen, setSelectedStudent, setUsersAccessView });
   const showBackButton = !NO_BACK_BUTTON_SCREENS.has(screen);
-  const showFooter = !loading && user && screen !== 'accessDenied';
+  const showFooter = !loading && user && screen !== 'accessDenied' && !inputFocused;
 
   // Context object passed to ScreenRenderer
   const ctx = {
@@ -285,7 +300,7 @@ function App() {
     lessonNoteInitialSelection, lessonNoteEditObservation, lessonNotesReturnScreen,
     setScreen, setSelectedClassroom, setSelectedStudent, setClassroomTimelineReturnScreen, setStudentDashboardReturnScreen,
     setStudentDashboardNoteType, setTimelineFilter, setUsersAccessView, setPendingViewReportId, setInitialStudentId,
-    setLessonNoteEditObservation,
+    setLessonNoteEditObservation, setFeedbackReturnScreen,
     openFeedbackWithMessage, handleLessonNotesSaved, handleNavigation, handleSignOut,
     getStudentDisplayName,
     pageTitle, backNavigation, showBackButton,

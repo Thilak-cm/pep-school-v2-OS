@@ -94,7 +94,7 @@ function renderScreen(screen, ctx) {
           userRole={ctx.role}
           currentUser={ctx.user}
           onNavigateToFeedbackDashboard={() => ctx.setScreen("feedbackTimeline")}
-          onNavigateToFeedback={() => ctx.setScreen("feedback")}
+          onNavigateToFeedback={() => { ctx.setFeedbackReturnScreen?.(null); ctx.setScreen("feedback"); }}
           onNavigateToClassroomNotes={() => ctx.setScreen("classroomNotesReview")}
           onNavigate={(path) => {
             if (path === "/stats") ctx.setScreen("stats");
@@ -264,7 +264,16 @@ function renderScreen(screen, ctx) {
       );
 
     case "feedbackTimeline":
-      return <FeedbackTimeline currentUser={ctx.user} userRole={ctx.role} />;
+      return (
+        <FeedbackTimeline
+          currentUser={ctx.user}
+          userRole={ctx.role}
+          onNavigateToFeedback={() => {
+            ctx.setFeedbackReturnScreen?.('feedbackTimeline');
+            ctx.setScreen('feedback');
+          }}
+        />
+      );
 
     case "addUser":
       return (

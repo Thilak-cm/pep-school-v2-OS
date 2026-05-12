@@ -21,6 +21,7 @@ export const useNavigationState = () => {
   const [timelineTitleAsDashboard, setTimelineTitleAsDashboard] = useState(false);
   const [pendingViewReportId, setPendingViewReportId] = useState(null);
   const [initialStudentId, setInitialStudentId] = useState(null);
+  const [feedbackReturnScreen, setFeedbackReturnScreen] = useState(null);
 
   return {
     screen, setScreen,
@@ -37,6 +38,7 @@ export const useNavigationState = () => {
     timelineTitleAsDashboard, setTimelineTitleAsDashboard,
     pendingViewReportId, setPendingViewReportId,
     initialStudentId, setInitialStudentId,
+    feedbackReturnScreen, setFeedbackReturnScreen,
   };
 };
 
