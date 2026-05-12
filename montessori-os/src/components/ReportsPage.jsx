@@ -34,6 +34,7 @@ import {
 } from '../services/saveQueue';
 import ReportGenerateDialog from './ReportGenerateDialog';
 import ReportPreviewDialog from './ReportPreviewDialog';
+import ReadinessCheckDialog from './ReadinessCheckDialog';
 
 function formatReportDate(date) {
   if (!date) return 'Unknown date';
@@ -93,6 +94,7 @@ export default function ReportsPage({
   const [readinessLoading, setReadinessLoading] = useState(true);
   const [newNotesSinceReport, setNewNotesSinceReport] = useState(null);
   const [rerunConfirmOpen, setRerunConfirmOpen] = useState(false);
+  const [readinessNudgeOpen, setReadinessNudgeOpen] = useState(false);
 
   // Load all past reports from subcollection
   const loadReports = useCallback(async () => {
@@ -137,6 +139,8 @@ export default function ReportsPage({
             noteCountAtCheck: data.noteCountAtCheck ?? 0,
             checkedAt: data.checkedAt?.toDate?.() || null,
             status: data.status || 'ok',
+            dateRangeStart: data.dateRangeStart || null,
+            dateRangeEnd: data.dateRangeEnd || null,
           });
         }
       } catch {
@@ -225,6 +229,8 @@ export default function ReportsPage({
         noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
         checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
         status: result.data.status || 'ok',
+        dateRangeStart: dateRangeStart || null,
+        dateRangeEnd: dateRangeEnd || null,
       });
       // Recompute staleness after fresh check
       const latestReport = reports[0];
@@ -372,8 +378,8 @@ export default function ReportsPage({
           variant="contained"
           size="small"
           startIcon={<AddIcon />}
-          onClick={() => setGenerateOpen(true)}
-          disabled={generating || !studentId}
+          onClick={() => !readiness && !readinessLoading ? setReadinessNudgeOpen(true) : setGenerateOpen(true)}
+          disabled={generating || !studentId || (readinessLoading && !readiness)}
           sx={{
             textTransform: 'none',
             borderRadius: 2,
@@ -440,6 +446,11 @@ export default function ReportsPage({
               )}
               <Chip label={`${readiness.noteCount} notes`} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
             </Stack>
+            {readiness.dateRangeStart && readiness.dateRangeEnd && (
+              <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mt: 0.25 }}>
+                Period: {formatReportDate(new Date(readiness.dateRangeStart + 'T00:00:00'))} – {formatReportDate(new Date(readiness.dateRangeEnd + 'T00:00:00'))}
+              </Typography>
+            )}
             {readiness.missingInputFlags?.length > 0 && (
               <Box sx={{ mt: 0.5 }}>
                 <Typography variant="caption" sx={{ fontWeight: 600, color: 'var(--color-amber-dark)', display: 'block', mb: 0.25 }}>
@@ -484,7 +495,7 @@ export default function ReportsPage({
               size="small"
               variant="outlined"
               startIcon={readinessLoading ? <CircularProgress size={14} /> : <ReadinessIcon size={16} />}
-              onClick={() => handleCheckReadiness({})}
+              onClick={() => setRerunConfirmOpen(true)}
               disabled={readinessLoading}
               sx={{
                 textTransform: 'none',
@@ -687,33 +698,85 @@ export default function ReportsPage({
       </Dialog>
 
       <Dialog
-        open={rerunConfirmOpen}
-        onClose={() => setRerunConfirmOpen(false)}
+        open={readinessNudgeOpen}
+        onClose={() => setReadinessNudgeOpen(false)}
         maxWidth="xs"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)',
+          },
+        }}
       >
-        <DialogTitle>Re-run readiness check?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {newNotesSinceReport != null && newNotesSinceReport > 0
-              ? `There ${newNotesSinceReport === 1 ? 'is' : 'are'} ${newNotesSinceReport} new ${newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report. Re-running the check will include the latest observations.`
-              : 'There are no new observations since the last report. Re-running may not change the results.'}
-          </DialogContentText>
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                  border: '1px solid rgba(99,102,241,0.35)',
+                }}
+              >
+                <ReadinessIcon size={22} style={{ color: 'var(--color-primary)' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Check readiness first?
+              </Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
+              Report readiness hasn&apos;t been checked for {studentLabel} yet. Running it first helps ensure there are enough observations for a quality report.
+            </Typography>
+          </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRerunConfirmOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1, flexDirection: 'column', alignItems: 'stretch' }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setReadinessNudgeOpen(false);
+              setRerunConfirmOpen(true);
+            }}
+            sx={{
+              textTransform: 'none',
+              borderRadius: 999,
+              boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)',
+            }}
+          >
+            Run report readiness
+          </Button>
           <Button
             onClick={() => {
-              setRerunConfirmOpen(false);
-              handleCheckReadiness({});
+              setReadinessNudgeOpen(false);
+              setGenerateOpen(true);
             }}
-            variant="contained"
-            sx={{ textTransform: 'none' }}
+            sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
           >
-            Re-run check
+            Generate anyway
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ReadinessCheckDialog
+        open={rerunConfirmOpen}
+        onClose={() => setRerunConfirmOpen(false)}
+        onConfirm={({ dateRangeStart, dateRangeEnd }) => {
+          setRerunConfirmOpen(false);
+          handleCheckReadiness({ dateRangeStart, dateRangeEnd });
+        }}
+        loading={readinessLoading}
+        studentLabel={studentLabel}
+        newNotesSinceReport={newNotesSinceReport}
+        initialStartDate={readiness?.dateRangeStart}
+        initialEndDate={readiness?.dateRangeEnd}
+      />
     </>
   );
 }

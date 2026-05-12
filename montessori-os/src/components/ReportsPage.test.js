@@ -193,14 +193,98 @@ test('ReportsPage computes newNotesSinceReport from readiness and report data', 
 
 test('ReportsPage generate button is never disabled by readiness scores (advisory only)', async () => {
   const source = await readFile(sourceUrl, 'utf8');
-  // The Generate Report button's disabled prop should not reference readiness state
+  // The Generate Report button's disabled prop should not reference readiness score values
+  // (sentimentScore, areaBalanceScore, etc.) — scores are advisory only.
+  // It MAY reference readinessLoading for the initial load guard.
   const generateBtnMatch = source.match(/disabled=\{[^}]*\}[^]*?>\s*Generate Report/);
   if (generateBtnMatch) {
     assert.ok(
-      !/readiness/.test(generateBtnMatch[0]),
-      'Expected Generate Report button disabled prop to not reference readiness state',
+      !/sentimentScore|areaBalanceScore|readiness\.status/.test(generateBtnMatch[0]),
+      'Expected Generate Report button disabled prop to not reference readiness scores',
     );
   }
+});
+
+// --- PEP-227: ReadinessCheckDialog with date pickers ---
+
+test('ReportsPage imports and renders ReadinessCheckDialog', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /ReadinessCheckDialog/.test(source),
+    'Expected ReportsPage to import ReadinessCheckDialog',
+  );
+});
+
+test('ReportsPage does not call handleCheckReadiness with empty object', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    !/handleCheckReadiness\(\s*\{\s*\}\s*\)/.test(source),
+    'Expected ReportsPage to never call handleCheckReadiness({}) — dates must always be passed',
+  );
+});
+
+test('ReadinessCheckDialog uses date pickers with getDefaultReportDateRange', async () => {
+  const dialogUrl = new URL('./ReadinessCheckDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /getDefaultReportDateRange/.test(source),
+    'Expected ReadinessCheckDialog to use getDefaultReportDateRange for default dates',
+  );
+  assert.ok(
+    /type="date"/.test(source),
+    'Expected ReadinessCheckDialog to have date input fields',
+  );
+  assert.ok(
+    /toIsoDate/.test(source),
+    'Expected ReadinessCheckDialog to use toIsoDate from reportUtils',
+  );
+});
+
+test('ReadinessCheckDialog passes dateRangeStart and dateRangeEnd to onConfirm', async () => {
+  const dialogUrl = new URL('./ReadinessCheckDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /dateRangeStart/.test(source) && /dateRangeEnd/.test(source),
+    'Expected ReadinessCheckDialog to pass dateRangeStart and dateRangeEnd in onConfirm callback',
+  );
+});
+
+test('toIsoDate is exported from reportUtils (shared, not duplicated)', async () => {
+  const utilsUrl = new URL('../utils/reportUtils.js', import.meta.url);
+  const source = await readFile(utilsUrl, 'utf8');
+  assert.ok(
+    /export function toIsoDate/.test(source),
+    'Expected toIsoDate to be exported from reportUtils.js',
+  );
+});
+
+test('ReportGenerateDialog imports toIsoDate from reportUtils (not defined locally)', async () => {
+  const dialogUrl = new URL('./ReportGenerateDialog.jsx', import.meta.url);
+  const source = await readFile(dialogUrl, 'utf8');
+  assert.ok(
+    /import.*toIsoDate.*from.*reportUtils/.test(source),
+    'Expected ReportGenerateDialog to import toIsoDate from reportUtils',
+  );
+  assert.ok(
+    !/function toIsoDate/.test(source),
+    'Expected ReportGenerateDialog to NOT define toIsoDate locally',
+  );
+});
+
+test('ReportsPage nudges user to check readiness before generating when no readiness exists', async () => {
+  const source = await readFile(sourceUrl, 'utf8');
+  assert.ok(
+    /readinessNudgeOpen/.test(source),
+    'Expected ReportsPage to have readinessNudgeOpen state for the nudge dialog',
+  );
+  assert.ok(
+    /Run report readiness/.test(source),
+    'Expected nudge dialog to have a "Run report readiness" button',
+  );
+  assert.ok(
+    /Generate anyway/.test(source),
+    'Expected nudge dialog to have a "Generate anyway" button',
+  );
 });
 
 test('ReportGenerateDialog does not contain readiness UI (moved to ReportsPage)', async () => {

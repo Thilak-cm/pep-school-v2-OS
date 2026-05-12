@@ -104,3 +104,6 @@ prd.md
 
 # Playwright MCP session artifacts
 .playwright-mcp/
+
+# Generated HTML artifacts (skill outputs)
+.claude/artifacts/
