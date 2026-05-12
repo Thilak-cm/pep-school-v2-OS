@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-08T16:56:35.146Z
-App version: 10.18.0
+Generated: 2026-05-12T19:30:30.243Z
+App version: 10.18.1
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.18.0
 
 ## Recent Changes
 
+### 10.18.1 (2026-05-12)
+- Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
+- Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
+- Disabled pinch-to-zoom on Android Chrome for native app feel (PEP-230)
+
 ### 10.18.0 (2026-05-08)
 - Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
 - Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
@@ -153,9 +158,4 @@ App version: 10.18.0
 ### 10.17.1 (2026-05-08)
 - Redesigned Settings page as card-of-cards layout with inline profile hero, mini stats row, and role-gated admin tools (PEP-199)
 - Notes-this-week stat counts both observations and media uploads via parallel collection group queries (PEP-199)
-
-### 10.17.0 (2026-05-07)
-- Cold-start interview: first question displayed instantly from pre-generated open questions bank — no LLM call, zero latency (PEP-208)
-- Visible elapsed timer during interview sessions with warning at 10 minutes (PEP-208)
-- LLM-driven interview termination: model returns `interviewComplete` flag with closing remarks when it decides the interview has covered enough ground (PEP-208)
 
