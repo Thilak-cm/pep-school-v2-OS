@@ -84,6 +84,14 @@ For each suggestion, show:
 
 ### Phase 4 — Present the Report
 
+**Token-saving: update vs. create.** Before generating HTML, check if `.claude/artifacts/pulse-{project-slug}.html` already exists (use `Read`). If it does:
+- **Reuse the existing HTML structure** — the `<style>` block, layout, and section scaffolding don't change between runs.
+- **Only update the data**: stat card numbers, progress bar width/label, status table rows, priority pills, activity table rows, stale work content, and suggestion cards.
+- Use the `Edit` tool with targeted `old_string`/`new_string` replacements on the existing file instead of rewriting the whole file with `Write`.
+- Update the generation date in the header.
+
+If the file does **not** exist, create it from scratch using the full HTML artifact approach below.
+
 Render the report as an **HTML artifact** (see `.claude/shared/html-artifacts.md`).
 
 **What goes in the HTML file (`pulse-{project-slug}.html`):**

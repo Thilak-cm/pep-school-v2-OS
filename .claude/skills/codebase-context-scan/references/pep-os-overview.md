@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-12T23:55:22.402Z
-App version: 10.20.0
+Generated: 2026-05-13T01:16:25.812Z
+App version: 10.20.1
 
 ## App Snapshot
 
@@ -140,6 +140,11 @@ App version: 10.20.0
 
 ## Recent Changes
 
+### 10.20.1 (2026-05-12)
+- Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
+- StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
+- LLM context pipeline in interview gen starts collapsed by default (PEP-223)
+
 ### 10.20.0 (2026-05-12)
 - Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
 - MCP tool `get_ai_summary_history` now supports `weekly_snapshot` history queries alongside soul and guidelines (PEP-229)
@@ -154,19 +159,4 @@ App version: 10.20.0
 - Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
 - Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
 - ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
-
-### 10.18.2 (2026-05-12)
-- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
-- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
-- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
-
-### 10.18.1 (2026-05-12)
-- Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
-- Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
-- Disabled pinch-to-zoom on Android Chrome for native app feel (PEP-230)
-
-### 10.18.0 (2026-05-08)
-- Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
-- Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
-- Test bench LLM calls route through OpenRouter instead of direct OpenAI API (PEP-210)
 
