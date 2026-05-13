@@ -27,25 +27,6 @@ import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPers
 
 const FEATURE_ID = "soul_generation";
 
-const SOUL_DEFAULTS_BY_PROGRAM = {
-  toddler: [
-    { id: "2026-PAR-006", displayName: "Dhyan J", classroomId: "parijat", classroomName: "Parijat" },
-    { id: "2025-PAR-016", displayName: "Navisha Yadav", classroomId: "parijat", classroomName: "Parijat" },
-  ],
-  primary: [
-    { id: "2025-PER-006", displayName: "Atharv Choubey", classroomId: "periwinkle", classroomName: "Periwinkle" },
-    { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar" },
-  ],
-  elementary: [
-    { id: "2025-POW-005", displayName: "Abhignya Girish", classroomId: "power", classroomName: "Power" },
-    { id: "2025-POW-003", displayName: "Aaron Neil", classroomId: "power", classroomName: "Power" },
-  ],
-  adolescent: [
-    { id: "2026-AED-016", displayName: "Riaan Das", classroomId: "aedon", classroomName: "Aedon" },
-    { id: "2026-AED-002", displayName: "Divyaan Harlalka", classroomId: "aedon", classroomName: "Aedon" },
-  ],
-};
-
 export default function SoulWorkbench() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
@@ -148,7 +129,6 @@ export default function SoulWorkbench() {
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
         <StudentPicker
           scope="program"
-          defaults={SOUL_DEFAULTS_BY_PROGRAM[programFilter || "primary"]}
           onSelect={setSelectedStudent}
           programFilter={programFilter}
         />
