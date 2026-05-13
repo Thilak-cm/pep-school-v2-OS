@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase.js";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
@@ -29,7 +29,7 @@ export default function StudentPicker({ scope = "program", defaults, programFilt
     }
     onSelect(null); // Clear selection when scope/program changes
     loadStudents().catch((err) => setLoadError("Unexpected error: " + err.message));
-  }, [scope, programFilter]);
+  }, [scope, programFilter, onSelect]);
 
   async function loadStudents() {
     setLoading(true);

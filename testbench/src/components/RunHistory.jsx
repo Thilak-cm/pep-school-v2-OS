@@ -8,6 +8,7 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import { getRunLabel } from "../hooks/useRunPersistence.js";
 import CheckIcon from "@mui/icons-material/Check";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
@@ -80,7 +81,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
           <Box sx={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 1 }}>
             {runs.map((run) => {
               const avg = avgRating(run.variants);
-              const label = run.sessionName?.trim() || run.studentName;
+              const label = getRunLabel(run);
               const isRenaming = renamingId === run.id;
               return (
                 <Box
