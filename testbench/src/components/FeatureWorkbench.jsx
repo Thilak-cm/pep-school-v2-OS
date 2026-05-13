@@ -4,12 +4,8 @@ import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../firebase.js";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import Slider from "@mui/material/Slider";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import Snackbar from "@mui/material/Snackbar";
@@ -20,26 +16,47 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
-import EditIcon from "@mui/icons-material/Edit";
-import CheckIcon from "@mui/icons-material/Check";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
 import HistoryIcon from "@mui/icons-material/History";
 import StudentPicker from "./StudentPicker.jsx";
-import PromptEditor from "./PromptEditor.jsx";
-import OutputPanel from "./OutputPanel.jsx";
-import RatingWidget from "./RatingWidget.jsx";
-import ConversationPanel from "./ConversationPanel.jsx";
 import LLMContextPipeline from "./LLMContextPipeline.jsx";
+import VariantColumn from "./VariantColumn.jsx";
 import HandwritingConfig from "./features/HandwritingConfig.jsx";
 import SoulConfig from "./features/SoulConfig.jsx";
 import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
-import ListSubheader from "@mui/material/ListSubheader";
 import RunHistory from "./RunHistory.jsx";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
-import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, MODELS_BY_PROVIDER, SCROLL_AFTER, TEST_BENCH_MODELS, FRONTIER_MODEL } from "../utils/variantHelpers.js";
+import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../utils/variantHelpers.js";
+
+// Hardcoded student defaults — will move to per-feature workbenches
+const HANDWRITING_DEFAULTS = [
+  { id: "2025-GUL-030", displayName: "Sudarshan", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 9 },
+  { id: "2025-GUL-003", displayName: "Akshleena Mishra", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 6 },
+  { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
+  { id: "2025-PER-003", displayName: "Anagha Mandyam", classroomId: "periwinkle", classroomName: "Periwinkle", handwrittenCount: 4 },
+  { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
+];
+
+const SOUL_DEFAULTS_BY_PROGRAM = {
+  toddler: [
+    { id: "2026-PAR-006", displayName: "Dhyan J", classroomId: "parijat", classroomName: "Parijat" },
+    { id: "2025-PAR-016", displayName: "Navisha Yadav", classroomId: "parijat", classroomName: "Parijat" },
+  ],
+  primary: [
+    { id: "2025-PER-006", displayName: "Atharv Choubey", classroomId: "periwinkle", classroomName: "Periwinkle" },
+    { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar" },
+  ],
+  elementary: [
+    { id: "2025-POW-005", displayName: "Abhignya Girish", classroomId: "power", classroomName: "Power" },
+    { id: "2025-POW-003", displayName: "Aaron Neil", classroomId: "power", classroomName: "Power" },
+  ],
+  adolescent: [
+    { id: "2026-AED-016", displayName: "Riaan Das", classroomId: "aedon", classroomName: "Aedon" },
+    { id: "2026-AED-002", displayName: "Divyaan Harlalka", classroomId: "aedon", classroomName: "Aedon" },
+  ],
+};
 import { buildSavePayload, restoreVariantsFromRun, restoreConversationsFromRun } from "../hooks/useRunPersistence.js";
 import { buildMessageHistory, getQuestionCount, serializeConversations, getElapsedMinutes as calcElapsedMinutes } from "../hooks/useInterviewSession.js";
 
@@ -50,7 +67,6 @@ export default function FeatureWorkbench({ featureId }) {
   const [programFilter, setProgramFilter] = useState(null);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
-  const [editingName, setEditingName] = useState(null); // index of variant being renamed
   const [confirmClose, setConfirmClose] = useState(null); // index of variant pending close confirmation
   const [pendingLoadRun, setPendingLoadRun] = useState(null); // run pending load confirmation
 
@@ -417,7 +433,15 @@ export default function FeatureWorkbench({ featureId }) {
     <Box sx={{ p: 3 }}>
       {/* Setup bar */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        <StudentPicker featureId={featureId} onSelect={setSelectedStudent} programFilter={programFilter} />
+        <StudentPicker
+          scope={isInterview ? "school-wide" : featureId === "handwriting_analysis" ? "hardcoded" : "program"}
+          defaults={featureId === "handwriting_analysis" ? HANDWRITING_DEFAULTS : SOUL_DEFAULTS_BY_PROGRAM[programFilter || "primary"]}
+          onSelect={setSelectedStudent}
+          programFilter={programFilter}
+          renderOptionExtra={featureId === "handwriting_analysis" ? (s) => (
+            <Chip label={`${s.handwrittenCount} handwritten images`} size="small" color="success" variant="filled" />
+          ) : undefined}
+        />
 
         {featureId === "handwriting_analysis" && (
           <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
@@ -551,126 +575,22 @@ export default function FeatureWorkbench({ featureId }) {
             sx={{
               flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto",
               width: variants.length > SCROLL_AFTER ? 450 : undefined,
-              minWidth: 350,
-              border: 1,
-              borderColor: "divider",
-              borderRadius: 2,
-              p: 2,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
             }}
           >
-            {/* Column header with editable name */}
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                {editingName === idx ? (
-                  <>
-                    <TextField
-                      size="small"
-                      value={v.name}
-                      onChange={(e) => handleUpdateVariant(idx, "name", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") setEditingName(null); }}
-                      autoFocus
-                      sx={{ width: 180 }}
-                      slotProps={{ input: { sx: { fontWeight: 700 } } }}
-                    />
-                    <IconButton size="small" onClick={() => setEditingName(null)} color="primary">
-                      <CheckIcon fontSize="small" />
-                    </IconButton>
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {v.name}
-                    </Typography>
-                    <IconButton size="small" onClick={() => setEditingName(idx)} sx={{ color: "primary.main" }}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </>
-                )}
-              </Box>
-              {variants.length > 1 && (
-                <IconButton size="small" onClick={() => tryRemoveColumn(idx)}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-
-            {/* Model + temperature */}
-            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-              <Select
-                value={v.model}
-                onChange={(e) => handleUpdateVariant(idx, "model", e.target.value)}
-                size="small"
-                sx={{ minWidth: 200 }}
-              >
-                {MODELS_BY_PROVIDER.map((group) => [
-                  <ListSubheader key={group.provider}>{group.provider}</ListSubheader>,
-                  ...group.models.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
-                  )),
-                ])}
-              </Select>
-              {isInterview && !TEST_BENCH_MODELS.find((m) => m.id === v.model)?.supportsJsonMode && (
-                <Chip label="No JSON mode" size="small" color="warning" variant="outlined" sx={{ fontSize: "0.7rem" }} />
-              )}
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 40 }}>
-                T={v.temperature}
-              </Typography>
-              <Slider
-                value={v.temperature}
-                onChange={(_, val) => handleUpdateVariant(idx, "temperature", val)}
-                min={0}
-                max={1}
-                step={0.1}
-                sx={{ width: 80 }}
-              />
-            </Box>
-
-            {/* Prompt editor(s) */}
-            <PromptEditor
-              label={isInterview ? "Instruction Template" : "System Prompt"}
-              value={v.systemPrompt}
-              onChange={(val) => handleUpdateVariant(idx, "systemPrompt", val)}
-              rows={isSoul || isInterview ? 10 : 14}
+            <VariantColumn
+              variant={v}
+              idx={idx}
+              featureId={featureId}
+              canRemove={variants.length > 1}
+              onUpdate={handleUpdateVariant}
+              onRemove={tryRemoveColumn}
+              conversations={conversations[idx]}
+              teacherInput={teacherInput}
+              onTeacherInputChange={setTeacherInput}
+              onSendAnswer={sendAnswer}
+              anyLoading={variants.some((vr) => vr.loading)}
+              interviewEnded={interviewEnded}
             />
-            {isSoul && (
-              <PromptEditor
-                label="Guidelines Template"
-                value={v.guidelinesContent}
-                onChange={(val) => handleUpdateVariant(idx, "guidelinesContent", val)}
-                rows={10}
-                collapsed
-                helperText="Per-student developmental areas — loaded from student's ai_summaries/guidelines"
-              />
-            )}
-
-            {/* Output / Conversation */}
-            {isInterview ? (
-              <ConversationPanel
-                turns={conversations[idx] || []}
-                loading={v.loading}
-                error={v.error}
-                teacherInput={teacherInput}
-                onTeacherInputChange={setTeacherInput}
-                onSendAnswer={sendAnswer}
-                inputDisabled={variants.some((vr) => vr.loading)}
-                ended={interviewEnded}
-              />
-            ) : (
-              <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
-            )}
-
-            {/* Rating */}
-            {(isInterview ? (conversations[idx]?.length > 0 && !v.loading) : v.output) && (
-              <RatingWidget
-                rating={v.rating}
-                notes={v.notes}
-                onRatingChange={(val) => handleUpdateVariant(idx, "rating", val)}
-                onNotesChange={(val) => handleUpdateVariant(idx, "notes", val)}
-              />
-            )}
           </Box>
         ))}
 

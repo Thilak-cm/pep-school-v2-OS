@@ -5,66 +5,44 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 
-// Top 5 students by handwritten media count (from Firestore media stats, April 2026)
-const HANDWRITING_DEFAULTS = [
-  { id: "2025-GUL-030", displayName: "Sudarshan", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 9 },
-  { id: "2025-GUL-003", displayName: "Akshleena Mishra", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 6 },
-  { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
-  { id: "2025-PER-003", displayName: "Anagha Mandyam", classroomId: "periwinkle", classroomName: "Periwinkle", handwrittenCount: 4 },
-  { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
-];
+import { resolveInitialState } from "../utils/studentPickerHelpers.js";
 
-// 2 students per program with most observation data
-const SOUL_DEFAULTS_BY_PROGRAM = {
-  toddler: [
-    { id: "2026-PAR-006", displayName: "Dhyan J", classroomId: "parijat", classroomName: "Parijat" },
-    { id: "2025-PAR-016", displayName: "Navisha Yadav", classroomId: "parijat", classroomName: "Parijat" },
-  ],
-  primary: [
-    { id: "2025-PER-006", displayName: "Atharv Choubey", classroomId: "periwinkle", classroomName: "Periwinkle" },
-    { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar" },
-  ],
-  elementary: [
-    { id: "2025-POW-005", displayName: "Abhignya Girish", classroomId: "power", classroomName: "Power" },
-    { id: "2025-POW-003", displayName: "Aaron Neil", classroomId: "power", classroomName: "Power" },
-  ],
-  adolescent: [
-    { id: "2026-AED-016", displayName: "Riaan Das", classroomId: "aedon", classroomName: "Aedon" },
-    { id: "2026-AED-002", displayName: "Divyaan Harlalka", classroomId: "aedon", classroomName: "Aedon" },
-  ],
-};
-
-export default function StudentPicker({ featureId, onSelect, programFilter }) {
-  const [students, setStudents] = useState([]);
-  const [allStudents, setAllStudents] = useState(null); // full school list, loaded once
+/**
+ * StudentPicker — prop-driven student selector.
+ *
+ * Props:
+ * - scope: "hardcoded" | "program" | "school-wide"
+ * - defaults: initial student list (for hardcoded/program scopes)
+ * - programFilter: program ID for program-scoped "Load more" fetch
+ * - onSelect(student | null): callback when student is picked
+ * - renderOptionExtra(student): optional render function for extra content in option rows
+ */
+export default function StudentPicker({ scope = "program", defaults, programFilter, onSelect, renderOptionExtra }) {
+  const initial = resolveInitialState({ scope, defaults });
+  const [students, setStudents] = useState(initial.students);
+  const [allStudents, setAllStudents] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const [canLoadMore, setCanLoadMore] = useState(true);
+  const [canLoadMore, setCanLoadMore] = useState(initial.canLoadMore);
   const [loadedMore, setLoadedMore] = useState(false);
 
-  const isHandwriting = featureId === "handwriting_analysis";
-  const isInterview = featureId === "interview_question_gen";
-
-  // Load all students once for interview mode (need school-wide search)
+  // Fetch all students for school-wide scope
   useEffect(() => {
-    if (!isInterview || allStudents) return;
+    if (scope !== "school-wide" || allStudents) return;
     loadAllStudents();
-  }, [isInterview]);
+  }, [scope]);
 
   async function loadAllStudents() {
     setLoading(true);
     try {
-      // Load classrooms for name lookup
       const classroomsSnap = await getDocs(collection(db, "classrooms"));
       const classroomMap = {};
       for (const d of classroomsSnap.docs) {
         classroomMap[d.id] = { name: d.data().name || d.id, programId: d.data().programId };
       }
 
-      // Load all active students
       const studentsSnap = await getDocs(collection(db, "students"));
       const all = [];
       for (const d of studentsSnap.docs) {
@@ -88,30 +66,23 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
     }
   }
 
-  // Load defaults for non-interview modes
+  // Re-initialize for non-school-wide scopes when defaults or programFilter changes
   useEffect(() => {
-    if (isInterview) return; // handled by loadAllStudents
-    if (isHandwriting) {
-      setStudents(HANDWRITING_DEFAULTS);
-      setCanLoadMore(false);
-    } else {
-      const program = programFilter || "primary";
-      setStudents(SOUL_DEFAULTS_BY_PROGRAM[program] || []);
-      setCanLoadMore(true);
-      setLoadedMore(false);
-    }
+    if (scope === "school-wide") return;
+    setStudents(defaults || []);
+    setCanLoadMore(scope === "program");
+    setLoadedMore(false);
     onSelect(null);
-  }, [featureId, programFilter]);
+  }, [scope, programFilter]);
 
   const loadMore = useCallback(async () => {
-    if (isHandwriting || isInterview || loadedMore) return;
+    if (scope !== "program" || loadedMore) return;
     setLoading(true);
 
     try {
       const program = programFilter || "primary";
       const currentIds = new Set(students.map((s) => s.id));
 
-      // Build classroom lookup for this program
       const classroomsSnap = await getDocs(collection(db, "classrooms"));
       const classroomMap = {};
       for (const d of classroomsSnap.docs) {
@@ -121,7 +92,6 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
         }
       }
 
-      // Fetch students from matching classrooms
       const classroomIds = Object.keys(classroomMap);
       const extra = [];
 
@@ -152,7 +122,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
     } finally {
       setLoading(false);
     }
-  }, [students, programFilter, isHandwriting, isInterview, loadedMore]);
+  }, [students, programFilter, scope, loadedMore]);
 
   return (
     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
@@ -170,14 +140,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
                 <Typography variant="body2">{s.displayName}</Typography>
                 <Typography variant="caption" color="text.secondary">{s.classroomName}</Typography>
               </Box>
-              {isHandwriting && (
-                <Chip
-                  label={`${s.handwrittenCount} handwritten images`}
-                  size="small"
-                  color="success"
-                  variant="filled"
-                />
-              )}
+              {renderOptionExtra?.(s)}
             </Box>
           );
         }}
@@ -193,7 +156,7 @@ export default function StudentPicker({ featureId, onSelect, programFilter }) {
         )}
         sx={{ minWidth: 280 }}
       />
-      {canLoadMore && !isHandwriting && !isInterview && (
+      {canLoadMore && scope === "program" && (
         <Button size="small" onClick={loadMore} disabled={loading} sx={{ mt: 0.5, whiteSpace: "nowrap" }}>
           {loading ? "Loading..." : "Load more"}
         </Button>
