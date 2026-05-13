@@ -335,3 +335,20 @@ export function updateCsvContent(existingCsv, newRow, studentName, csvHeaders) {
 
   return serializeCsv(useHeaders, rows);
 }
+
+/**
+ * Build an archive snapshot of a report_readiness doc before overwrite.
+ * Returns null if the doc should not be archived (no_notes, missing, etc.).
+ *
+ * @param {Object|null|undefined} existingData - Previous readiness doc data
+ * @param {string} reason - Why this archive was created
+ * @returns {Object|null} Archive document fields, or null to skip archival
+ */
+export function buildReadinessArchive(existingData, reason) {
+  if (!existingData || existingData.status !== "ok") return null;
+  return {
+    ...existingData,
+    archivedAt: new Date(),
+    reason,
+  };
+}
