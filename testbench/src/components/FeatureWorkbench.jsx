@@ -39,34 +39,9 @@ import InterviewQuestionConfig from "./features/InterviewQuestionConfig.jsx";
 import ListSubheader from "@mui/material/ListSubheader";
 import RunHistory from "./RunHistory.jsx";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../functions/testbench/interviewColdStart.js";
-import { FRONTIER_MODEL } from "../../../functions/config/modelConstants.js";
-import { TEST_BENCH_MODELS } from "../../../functions/config/testBenchModels.js";
-
-// Group models by provider for the dropdown
-const PROVIDER_ORDER = ["OpenAI", "Google", "Anthropic", "Meta", "Mistral", "DeepSeek"];
-const MODELS_BY_PROVIDER = PROVIDER_ORDER
-  .map((p) => ({ provider: p, models: TEST_BENCH_MODELS.filter((m) => m.provider === p) }))
-  .filter((g) => g.models.length > 0);
-
-const SCROLL_AFTER = 4; // columns become fixed-width and scroll after this count
-
-function createVariant(config, idx) {
-  return {
-    name: `Variant ${String.fromCharCode(65 + (idx || 0))}`,
-    systemPrompt: config?.systemPrompt || "",
-    guidelinesContent: config?.guidelinesContent || "",
-    model: config?.model || FRONTIER_MODEL,
-    temperature: config?.temperature ?? 0.3,
-    max_tokens: config?.max_tokens || 2000,
-    output: null,
-    outputMeta: null,
-    error: null,
-    loading: false,
-    rating: 5,
-    notes: "",
-    dirty: false,
-  };
-}
+import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, MODELS_BY_PROVIDER, SCROLL_AFTER, TEST_BENCH_MODELS, FRONTIER_MODEL } from "../utils/variantHelpers.js";
+import { buildSavePayload, restoreVariantsFromRun, restoreConversationsFromRun } from "../hooks/useRunPersistence.js";
+import { buildMessageHistory, getQuestionCount, serializeConversations, getElapsedMinutes as calcElapsedMinutes } from "../hooks/useInterviewSession.js";
 
 export default function FeatureWorkbench({ featureId }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -117,15 +92,13 @@ export default function FeatureWorkbench({ featureId }) {
   }
 
   function getElapsedMinutes() {
-    if (!timerStartRef.current) return 0;
-    return Math.round(((Date.now() - timerStartRef.current) / 60000) * 10) / 10;
+    return calcElapsedMinutes(timerStartRef.current);
   }
 
   // Warn on page refresh/close if any variant has edits or output
   useEffect(() => {
     function handleBeforeUnload(e) {
-      const hasWork = variants.some((v) => v.dirty || v.output);
-      if (hasWork) {
+      if (hasUnsavedWork(variants)) {
         e.preventDefault();
       }
     }
@@ -171,8 +144,8 @@ export default function FeatureWorkbench({ featureId }) {
     }
   }
 
-  function updateVariant(idx, field, value) {
-    setVariants((prev) => prev.map((v, i) => i === idx ? { ...v, [field]: value, dirty: true } : v));
+  function handleUpdateVariant(idx, field, value) {
+    setVariants((prev) => updateVariantHelper(prev, idx, field, value));
   }
 
   async function runAll() {
@@ -299,22 +272,8 @@ export default function FeatureWorkbench({ featureId }) {
     });
     setVariants((prev) => prev.map((v) => ({ ...v, loading: true, error: null })));
 
-    // Build messages from snapshot (not stale closure)
-    function getSnapshotMessages(idx) {
-      const turns = conversationsSnapshot[idx] || [];
-      const messages = [];
-      for (const turn of turns) {
-        if (turn.type === "question") {
-          messages.push({ role: "assistant", content: turn.rawContent });
-        } else if (turn.type === "answer") {
-          messages.push({ role: "user", content: turn.answer });
-        }
-      }
-      return messages;
-    }
-
     // Count questions from snapshot for session progress
-    const questionCount = Object.values(conversationsSnapshot)[0]?.filter((t) => t.type === "question").length || 0;
+    const questionCount = getQuestionCount(Object.values(conversationsSnapshot)[0]);
     const elapsedMinutes = getElapsedMinutes();
 
     const promises = variants.map(async (v, idx) => {
@@ -322,8 +281,7 @@ export default function FeatureWorkbench({ featureId }) {
       try {
         // Build messages from conversation snapshot + new answer
         const prevMessages = [
-          { role: "user", content: kickoffMessage },
-          ...getSnapshotMessages(idx),
+          ...buildMessageHistory(conversationsSnapshot[idx] || [], kickoffMessage),
           { role: "user", content: answer },
         ];
         const result = await testBenchRun({
@@ -407,7 +365,7 @@ export default function FeatureWorkbench({ featureId }) {
       setVariants((prev) => prev.map((v) => ({
         ...v,
         loading: false,
-        output: JSON.stringify(currentConvos, null, 2),
+        output: serializeConversations(currentConvos),
       })));
       return currentConvos;
     });
@@ -418,30 +376,10 @@ export default function FeatureWorkbench({ featureId }) {
     setSaving(true);
     try {
       const user = auth.currentUser;
-      const trimmedName = sessionName.trim();
-      await addDoc(collection(db, "testbench"), {
-        feature: featureId,
-        studentId: selectedStudent.id,
-        studentName: selectedStudent.displayName,
-        ...(trimmedName ? { sessionName: trimmedName } : {}),
-        timestamp: Timestamp.now(),
-        variants: variants.map((v, idx) => ({
-          name: v.name,
-          prompt: {
-            systemPrompt: v.systemPrompt,
-            ...(v.guidelinesContent ? { guidelinesContent: v.guidelinesContent } : {}),
-            model: v.model,
-            temperature: v.temperature,
-            max_tokens: v.max_tokens,
-          },
-          output: v.output || "",
-          ...(isInterview && conversations[idx] ? { conversation: conversations[idx] } : {}),
-          rating: v.rating,
-          notes: v.notes,
-        })),
-        ...(isInterview ? { kickoffMessage } : {}),
-        ranBy: { uid: user?.uid, name: user?.displayName || user?.email },
+      const payload = buildSavePayload({
+        featureId, selectedStudent, variants, conversations, sessionName, kickoffMessage, user,
       });
+      await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) {
       setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" });
@@ -451,8 +389,7 @@ export default function FeatureWorkbench({ featureId }) {
   }
 
   function loadRun(run) {
-    const hasWork = variants.some((v) => v.dirty || v.output);
-    if (hasWork) {
+    if (hasUnsavedWork(variants)) {
       setPendingLoadRun(run);
       return;
     }
@@ -464,25 +401,9 @@ export default function FeatureWorkbench({ featureId }) {
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
 
-    const restored = (run.variants || []).map((v, i) => ({
-      ...createVariant(null, i),
-      name: v.name,
-      systemPrompt: v.prompt?.systemPrompt || "",
-      guidelinesContent: v.prompt?.guidelinesContent || "",
-      model: v.prompt?.model || FRONTIER_MODEL,
-      temperature: v.prompt?.temperature ?? 0.3,
-      max_tokens: v.prompt?.max_tokens || 2000,
-      output: v.output || null,
-      rating: v.rating ?? 5,
-      notes: v.notes || "",
-    }));
-    setVariants(restored);
+    setVariants(restoreVariantsFromRun(run));
 
-    // Restore conversations for interview runs
-    const restoredConvos = {};
-    (run.variants || []).forEach((v, i) => {
-      if (v.conversation) restoredConvos[i] = v.conversation;
-    });
+    const restoredConvos = restoreConversationsFromRun(run);
     setConversations(restoredConvos);
 
     const hasConvos = Object.keys(restoredConvos).length > 0;
@@ -648,7 +569,7 @@ export default function FeatureWorkbench({ featureId }) {
                     <TextField
                       size="small"
                       value={v.name}
-                      onChange={(e) => updateVariant(idx, "name", e.target.value)}
+                      onChange={(e) => handleUpdateVariant(idx, "name", e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") setEditingName(null); }}
                       autoFocus
                       sx={{ width: 180 }}
@@ -680,7 +601,7 @@ export default function FeatureWorkbench({ featureId }) {
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
               <Select
                 value={v.model}
-                onChange={(e) => updateVariant(idx, "model", e.target.value)}
+                onChange={(e) => handleUpdateVariant(idx, "model", e.target.value)}
                 size="small"
                 sx={{ minWidth: 200 }}
               >
@@ -699,7 +620,7 @@ export default function FeatureWorkbench({ featureId }) {
               </Typography>
               <Slider
                 value={v.temperature}
-                onChange={(_, val) => updateVariant(idx, "temperature", val)}
+                onChange={(_, val) => handleUpdateVariant(idx, "temperature", val)}
                 min={0}
                 max={1}
                 step={0.1}
@@ -711,14 +632,14 @@ export default function FeatureWorkbench({ featureId }) {
             <PromptEditor
               label={isInterview ? "Instruction Template" : "System Prompt"}
               value={v.systemPrompt}
-              onChange={(val) => updateVariant(idx, "systemPrompt", val)}
+              onChange={(val) => handleUpdateVariant(idx, "systemPrompt", val)}
               rows={isSoul || isInterview ? 10 : 14}
             />
             {isSoul && (
               <PromptEditor
                 label="Guidelines Template"
                 value={v.guidelinesContent}
-                onChange={(val) => updateVariant(idx, "guidelinesContent", val)}
+                onChange={(val) => handleUpdateVariant(idx, "guidelinesContent", val)}
                 rows={10}
                 collapsed
                 helperText="Per-student developmental areas — loaded from student's ai_summaries/guidelines"
@@ -746,8 +667,8 @@ export default function FeatureWorkbench({ featureId }) {
               <RatingWidget
                 rating={v.rating}
                 notes={v.notes}
-                onRatingChange={(val) => updateVariant(idx, "rating", val)}
-                onNotesChange={(val) => updateVariant(idx, "notes", val)}
+                onRatingChange={(val) => handleUpdateVariant(idx, "rating", val)}
+                onNotesChange={(val) => handleUpdateVariant(idx, "notes", val)}
               />
             )}
           </Box>
