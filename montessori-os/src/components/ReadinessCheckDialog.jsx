@@ -30,8 +30,8 @@ export default function ReadinessCheckDialog({
   useEffect(() => {
     if (open) {
       if (initialStartDate && initialEndDate) {
-        setStartDate(initialStartDate);
-        setEndDate(initialEndDate);
+        setStartDate(initialStartDate instanceof Date ? toIsoDate(initialStartDate) : initialStartDate);
+        setEndDate(initialEndDate instanceof Date ? toIsoDate(initialEndDate) : initialEndDate);
       } else {
         const { start, end } = getDefaultReportDateRange();
         setStartDate(toIsoDate(start));

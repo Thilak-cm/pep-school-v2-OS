@@ -1,5 +1,13 @@
 # Changelog
 
+# 10.20.1 — 2026-05-13
+
+### Added
+- Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
+
+### Fixed
+- Firestore Timestamp handling for readiness date range display — frontend now correctly coerces both Timestamp and ISO string formats (PEP-233)
+
 # 10.20.0 — 2026-05-12
 
 ### Added
