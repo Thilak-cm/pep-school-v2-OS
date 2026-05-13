@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.20.1 — 2026-05-12
+
+### Changed
+- Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
+- StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
+- LLM context pipeline in interview gen starts collapsed by default (PEP-223)
+- AppBar shows feature label from registry instead of formatted featureId string (PEP-223)
+- Program-scoped student picker auto-fetches all students instead of showing hardcoded defaults with a Load More button (PEP-223)
+
 # 10.20.0 — 2026-05-12
 
 ### Added

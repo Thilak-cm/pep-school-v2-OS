@@ -9,6 +9,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import Chip from "@mui/material/Chip";
 import { version } from "../package.json";
 import { auth } from "./firebase.js";
+import { FEATURES } from "./utils/featureRegistry.js";
 import AuthGate from "./components/AuthGate.jsx";
 import FeaturePicker from "./components/FeaturePicker.jsx";
 import FeatureWorkbench from "./components/FeatureWorkbench.jsx";
@@ -27,7 +28,7 @@ export default function App() {
               </IconButton>
             )}
             <Typography variant="h6" fontWeight={700}>
-              {selectedFeature ? selectedFeature.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Test Bench"}
+              {selectedFeature ? FEATURES.find((f) => f.id === selectedFeature)?.label || selectedFeature : "Test Bench"}
             </Typography>
             <Chip label={`v${version}`} size="small" variant="outlined" sx={{ ml: 1, mr: "auto", fontFamily: "monospace", fontSize: 11 }} />
             <Button size="small" onClick={() => auth.signOut()}>Sign Out</Button>
