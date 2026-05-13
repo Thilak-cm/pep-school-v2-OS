@@ -193,14 +193,21 @@ The orchestrator reads the merged audit report (now including integration findin
 
 1. **Render the merged report as an HTML artifact** (see `.claude/shared/html-artifacts.md`)
 
+   **Design intent:** The audit report should be visual and scannable — verdict at a glance, findings as cards, not a text wall. Use numbered sections, tag badges for metadata, and the severity color system.
+
    **What goes in the HTML file (`audit-{ISSUE-ID}.html`):**
-   - Verdict banner (CLEAN = green, HAS_FINDINGS = red) — use the Severity-Tagged Findings pattern
-   - Metadata strip: issue ID, branch, diff scope, blocker/warning/nit counts
-   - Scope Alignment section: acceptance criteria as a visual checklist (green check = covered, red X = missing)
-   - Findings grouped by severity: Blockers (red left-border cards), Warnings (amber), Nits (gray) — each with file path, category badge, what's wrong, suggested fix
-   - Integration findings (if any) under a separate subsection with the same card format
-   - "Needs User Decision" items highlighted distinctly (use primary color border)
-   - Summary at bottom
+
+   Use the page skeleton with breadcrumb `PEP OS / {ISSUE-ID} / Audit Report`.
+
+   - **Verdict banner** — full-width, uses `verdict-clean` or `verdict-findings` style
+   - **Meta strip** — tag badges for issue ID, branch, diff scope, finding counts
+   - **Section 01 — Scope Alignment** — acceptance criteria as a scope-list with covered/missing icons
+   - **Section 02 — Blockers** — finding cards with red left-border, file path in mono, severity badge, fix suggestion in green box
+   - **Section 03 — Warnings** — same card format, amber border
+   - **Section 04 — Nits** (if any) — same card format, gray border
+   - **Section 05 — Integration** (if any) — integration findings with same card format, separate section
+   - **"Needs User Decision"** items get `border-left-color: var(--clay)` to stand out
+   - **Summary** — 1-3 sentence wrap-up at bottom
 
    **What goes in the terminal:**
    - 1-line verdict: "Audit complete — {verdict}. {N} blockers, {N} warnings, {N} nits."
