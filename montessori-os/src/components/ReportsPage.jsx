@@ -139,8 +139,8 @@ export default function ReportsPage({
             noteCountAtCheck: data.noteCountAtCheck ?? 0,
             checkedAt: data.checkedAt?.toDate?.() || null,
             status: data.status || 'ok',
-            dateRangeStart: data.dateRangeStart || null,
-            dateRangeEnd: data.dateRangeEnd || null,
+            dateRangeStart: data.dateRangeStart?.toDate?.() || data.dateRangeStart || null,
+            dateRangeEnd: data.dateRangeEnd?.toDate?.() || data.dateRangeEnd || null,
           });
         }
       } catch {
@@ -221,21 +221,17 @@ export default function ReportsPage({
       setReadinessLoading(true);
       const call = httpsCallable(cloudFunctions, 'checkReportReadiness', { timeout: 60_000 });
       const result = await call({ studentId, dateRangeStart, dateRangeEnd });
-      if (result.data.status === 'no_notes') {
-        notify.warning('No observations found in this date range.');
-      } else {
-        setReadiness({
-          sentimentScore: result.data.sentimentScore ?? null,
-          areaBalanceScore: result.data.areaBalanceScore ?? null,
-          missingInputFlags: result.data.missingInputFlags || [],
-          noteCount: result.data.noteCount ?? 0,
-          noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
-          checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
-          status: result.data.status || 'ok',
-          dateRangeStart: dateRangeStart || null,
-          dateRangeEnd: dateRangeEnd || null,
-        });
-      }
+      setReadiness({
+        sentimentScore: result.data.sentimentScore ?? null,
+        areaBalanceScore: result.data.areaBalanceScore ?? null,
+        missingInputFlags: result.data.missingInputFlags || [],
+        noteCount: result.data.noteCount ?? 0,
+        noteCountAtCheck: result.data.noteCountAtCheck ?? 0,
+        checkedAt: result.data.checkedAt ? new Date(result.data.checkedAt) : new Date(),
+        status: result.data.status || 'ok',
+        dateRangeStart: dateRangeStart || null,
+        dateRangeEnd: dateRangeEnd || null,
+      });
       // Recompute staleness after fresh check
       const latestReport = reports[0];
       if (latestReport?.noteCount != null && result.data.noteCount != null) {
@@ -452,7 +448,7 @@ export default function ReportsPage({
             </Stack>
             {readiness.dateRangeStart && readiness.dateRangeEnd && (
               <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mt: 0.25 }}>
-                Period: {formatReportDate(new Date(readiness.dateRangeStart + 'T00:00:00'))} – {formatReportDate(new Date(readiness.dateRangeEnd + 'T00:00:00'))}
+                Period: {formatReportDate(readiness.dateRangeStart instanceof Date ? readiness.dateRangeStart : new Date(readiness.dateRangeStart))} – {formatReportDate(readiness.dateRangeEnd instanceof Date ? readiness.dateRangeEnd : new Date(readiness.dateRangeEnd))}
               </Typography>
             )}
             {readiness.missingInputFlags?.length > 0 && (
@@ -486,6 +482,10 @@ export default function ReportsPage({
               {readinessLoading ? 'Checking...' : 'Re-run check'}
             </Button>
           </Stack>
+        ) : !readinessLoading && readiness && readiness.status === 'no_notes' ? (
+          <Alert severity="warning" sx={{ borderRadius: 1.5, fontSize: '0.8rem' }}>
+            No observations found in this date range.
+          </Alert>
         ) : !readinessLoading ? (
           <Stack spacing={1} alignItems="flex-start">
             <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
