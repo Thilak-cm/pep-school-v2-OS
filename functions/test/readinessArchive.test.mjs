@@ -59,7 +59,7 @@ describe("buildReadinessArchive", () => {
     assert.equal(result, null);
   });
 
-  it("uses default reason when name is not in reason string", () => {
+  it("preserves reason string verbatim", () => {
     const result = buildReadinessArchive(okDoc, "Readiness recheck");
     assert.equal(result.reason, "Readiness recheck");
     assert.ok(result.archivedAt instanceof Date);
