@@ -13,6 +13,16 @@ export function getDefaultReportDateRange(now = new Date()) {
 }
 
 /**
+ * Format a Date as yyyy-mm-dd (native input[type=date] format).
+ */
+export function toIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Normalise a Firestore Timestamp-like value to a JS Date.
  * Accepts: Date, {toDate()}, {seconds}, ISO string, or null.
  */

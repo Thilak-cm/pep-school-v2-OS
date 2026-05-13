@@ -93,8 +93,8 @@ App version: 10.20.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 30
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
+- Count: 31
+- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -146,9 +146,14 @@ App version: 10.20.0
 - Unified `baseball_card` + `signals` into a single `ai_summaries/weekly_snapshot` doc per student — one read instead of two for every baseball card view (PEP-229)
 
 ### 10.19.0 (2026-05-12)
-- Sticky app-shell header pinned to viewport top with frosted glass backdrop blur and soft fade edge (PEP-231)
-- Tap header title to scroll content back to top (PEP-231)
-- Safe-area inset support for notch/Dynamic Island devices on header and content offset (PEP-231)
+- Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
+- Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
+- Readiness card displays the date range the scores correspond to (PEP-227)
+
+### 10.18.2 (2026-05-12)
+- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
+- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
+- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
 
 ### 10.18.2 (2026-05-12)
 - Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
@@ -159,4 +164,9 @@ App version: 10.20.0
 - Footer nav bar hides when mobile soft keyboard opens using Visual Viewport API — no effect on desktop (PEP-230)
 - Feedback back-navigation is now context-aware: returning from feedback correctly routes to the originating screen (PEP-230)
 - Disabled pinch-to-zoom on Android Chrome for native app feel (PEP-230)
+
+### 10.18.0 (2026-05-08)
+- Multi-model support in prompt test bench via OpenRouter — 16 models from 6 providers (OpenAI, Google, Anthropic, Meta, Mistral, DeepSeek) selectable side-by-side (PEP-210)
+- Model picker grouped by provider with per-model JSON mode capability indicator (PEP-210)
+- Test bench LLM calls route through OpenRouter instead of direct OpenAI API (PEP-210)
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,40 +8,50 @@ import {
   Stack,
   Box,
   TextField,
-  CircularProgress
+  CircularProgress,
 } from '@mui/material';
-import { FileText as ReportIcon } from '../icons';
+import { ListChecks as ReadinessIcon } from '../icons';
 import { getDefaultReportDateRange, toIsoDate } from '../utils/reportUtils';
 
-export default function ReportGenerateDialog({
+export default function ReadinessCheckDialog({
   open,
   onClose,
-  onGenerate,
-  generating = false,
+  onConfirm,
+  loading = false,
   studentLabel = 'this student',
+  newNotesSinceReport = null,
+  initialStartDate = null,
+  initialEndDate = null,
 }) {
-  const defaults = useMemo(() => {
-    const { start, end } = getDefaultReportDateRange();
-    return { start: toIsoDate(start), end: toIsoDate(end) };
-  }, []);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const [startDate, setStartDate] = useState(defaults.start);
-  const [endDate, setEndDate] = useState(defaults.end);
+  // Reset dates each time the dialog opens — use cached dates if available, else defaults
+  useEffect(() => {
+    if (open) {
+      if (initialStartDate && initialEndDate) {
+        setStartDate(initialStartDate);
+        setEndDate(initialEndDate);
+      } else {
+        const { start, end } = getDefaultReportDateRange();
+        setStartDate(toIsoDate(start));
+        setEndDate(toIsoDate(end));
+      }
+    }
+  }, [open, initialStartDate, initialEndDate]);
 
   const dateValid = Boolean(startDate && endDate);
   const rangeError = dateValid && endDate < startDate;
 
-  const title = `Generate report for ${studentLabel}?`;
-
-  const handleGenerate = () => {
+  const handleConfirm = () => {
     if (!dateValid || rangeError) return;
-    onGenerate?.({ dateRangeStart: startDate, dateRangeEnd: endDate });
+    onConfirm?.({ dateRangeStart: startDate, dateRangeEnd: endDate });
   };
 
   return (
     <Dialog
       open={open}
-      onClose={generating ? undefined : onClose}
+      onClose={loading ? undefined : onClose}
       maxWidth="xs"
       fullWidth
       PaperProps={{
@@ -68,16 +78,22 @@ export default function ReportGenerateDialog({
                 border: '1px solid rgba(99,102,241,0.35)',
               }}
             >
-              <ReportIcon size={22} style={{ color: 'var(--color-primary)' }} />
+              <ReadinessIcon size={22} style={{ color: 'var(--color-primary)' }} />
             </Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
-              {title}
+              Check readiness for {studentLabel}
             </Typography>
           </Stack>
 
           <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
-            Coach Pepper will generate a parent report using observations within the date range below.
+            Select the reporting period to check whether enough observations exist for a quality report.
           </Typography>
+
+          {newNotesSinceReport != null && newNotesSinceReport > 0 && (
+            <Typography variant="body2" sx={{ color: 'var(--color-primary)', fontWeight: 600 }}>
+              {newNotesSinceReport} new {newNotesSinceReport === 1 ? 'note' : 'notes'} since the last report.
+            </Typography>
+          )}
 
           <Stack direction="row" spacing={2}>
             <TextField
@@ -87,7 +103,7 @@ export default function ReportGenerateDialog({
               onChange={(e) => setStartDate(e.target.value)}
               size="small"
               fullWidth
-              disabled={generating}
+              disabled={loading}
               slotProps={{
                 inputLabel: { shrink: true },
                 htmlInput: { max: endDate || undefined },
@@ -100,7 +116,7 @@ export default function ReportGenerateDialog({
               onChange={(e) => setEndDate(e.target.value)}
               size="small"
               fullWidth
-              disabled={generating}
+              disabled={loading}
               error={rangeError}
               helperText={rangeError ? "'To' must be after 'From'" : ''}
               slotProps={{
@@ -110,11 +126,11 @@ export default function ReportGenerateDialog({
             />
           </Stack>
 
-          {generating && (
+          {loading && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 0.5 }}>
               <CircularProgress size={18} />
               <Typography variant="body2" sx={{ color: 'var(--color-primary)', fontWeight: 600 }}>
-                Coach Pepper is reviewing and preparing your report-- hang tight!
+                Checking readiness...
               </Typography>
             </Stack>
           )}
@@ -123,15 +139,15 @@ export default function ReportGenerateDialog({
       <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
         <Button
           onClick={onClose}
-          disabled={generating}
+          disabled={loading}
           sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
         >
           Cancel
         </Button>
         <Button
           variant="contained"
-          onClick={handleGenerate}
-          disabled={generating || !dateValid || rangeError}
+          onClick={handleConfirm}
+          disabled={loading || !dateValid || rangeError}
           sx={{
             textTransform: 'none',
             borderRadius: 999,
@@ -139,7 +155,7 @@ export default function ReportGenerateDialog({
             boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)',
           }}
         >
-          {generating ? 'Generating...' : 'Generate'}
+          {loading ? 'Checking...' : 'Run check'}
         </Button>
       </DialogActions>
     </Dialog>

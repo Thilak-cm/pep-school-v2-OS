@@ -13,11 +13,15 @@
 # 10.19.0 — 2026-05-12
 
 ### Added
+- Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
+- Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
+- Readiness card displays the date range the scores correspond to (PEP-227)
 - Sticky app-shell header pinned to viewport top with frosted glass backdrop blur and soft fade edge (PEP-231)
 - Tap header title to scroll content back to top (PEP-231)
 - Safe-area inset support for notch/Dynamic Island devices on header and content offset (PEP-231)
 
 ### Changed
+- `toIsoDate` utility moved from ReportGenerateDialog to shared reportUtils (PEP-227)
 - Header rendering moved from ScreenRenderer to App shell — mirrors AppFooter pattern (PEP-231)
 - ChildChat pill and messages area positioned relative to HEADER_HEIGHT constant for maintainability (PEP-231)
 
