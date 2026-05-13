@@ -191,31 +191,18 @@ Integration findings are added to the merged audit report under the same Blocker
 
 The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
 
-1. **Render the merged report as an HTML artifact** (see `.claude/shared/html-artifacts.md`)
+1. **Render the merged report as terminal markdown**
 
-   **Design intent:** The audit report should be visual and scannable — verdict at a glance, findings as cards, not a text wall. Use numbered sections, tag badges for metadata, and the severity color system.
-
-   **What goes in the HTML file (`audit-{ISSUE-ID}.html`):**
-
-   Use the page skeleton with breadcrumb `PEP OS / {ISSUE-ID} / Audit Report`.
-
-   - **Verdict banner** — full-width, uses `verdict-clean` or `verdict-findings` style
-   - **Meta strip** — tag badges for issue ID, branch, diff scope, finding counts
-   - **Section 01 — Scope Alignment** — acceptance criteria as a scope-list with covered/missing icons
-   - **Section 02 — Blockers** — finding cards with red left-border, file path in mono, severity badge, fix suggestion in green box
-   - **Section 03 — Warnings** — same card format, amber border
-   - **Section 04 — Nits** (if any) — same card format, gray border
-   - **Section 05 — Integration** (if any) — integration findings with same card format, separate section
-   - **"Needs User Decision"** items get `border-left-color: var(--clay)` to stand out
-   - **Summary** — 1-3 sentence wrap-up at bottom
-
-   **What goes in the terminal:**
+   Output the audit results directly in the conversation as markdown. Structure:
    - 1-line verdict: "Audit complete — {verdict}. {N} blockers, {N} warnings, {N} nits."
-   - File path: "Full report: `.claude/artifacts/audit-{ISSUE-ID}.html`"
-   - `open .claude/artifacts/audit-{ISSUE-ID}.html`
-   - If "Needs User Decision" items exist: present those in the terminal via `AskUserQuestion` (these need interactive response, not HTML)
+   - **Scope Alignment** — acceptance criteria with covered/missing markers
+   - **Blockers** — if any, with file path, description, suggested fix
+   - **Warnings** — if any
+   - **Nits** — if any
+   - **Integration** — if checked
+   - **Summary** — 1-3 sentence wrap-up
 
-   **Important:** The fix agent does NOT consume the HTML. The orchestrator passes the structured audit report text (from the auditor agent's output) directly to the fixer. The HTML is only the human-facing render.
+   If "Needs User Decision" items exist, present those via `AskUserQuestion`.
 
 2. **Handle "Needs User Decision" items first**
    - If any exist, present them to the user via `AskUserQuestion` (in terminal, not in HTML)
