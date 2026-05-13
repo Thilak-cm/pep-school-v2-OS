@@ -54,6 +54,7 @@ export default function HandwritingWorkbench() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [variants]);
 
+  // HandwritingConfig always passes an object, never a function updater
   const handleConfigLoaded = useCallback((config) => {
     setVariants((prev) => prev.map((v, i) =>
       i === 0 ? { ...v, ...config, dirty: false } : { ...v, systemPrompt: config.systemPrompt, max_tokens: config.max_tokens || v.max_tokens, dirty: false }

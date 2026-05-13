@@ -57,7 +57,6 @@ export default function VariantColumn({
   return (
     <Box
       sx={{
-        flex: 1,
         minWidth: 350,
         border: 1,
         borderColor: "divider",

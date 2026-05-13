@@ -27,7 +27,8 @@ export default function StudentPicker({ scope = "program", defaults, programFilt
       setStudents(defaults || []);
       return;
     }
-    loadStudents();
+    onSelect(null); // Clear selection when scope/program changes
+    loadStudents().catch((err) => setLoadError("Unexpected error: " + err.message));
   }, [scope, programFilter]);
 
   async function loadStudents() {

@@ -5,8 +5,7 @@
  * and session naming. The React hook (useRunPersistence) wraps these
  * with Firestore calls and state management.
  */
-import { createVariant } from "../utils/variantHelpers.js";
-import { FRONTIER_MODEL } from "../utils/variantHelpers.js";
+import { createVariant, FRONTIER_MODEL } from "../utils/variantHelpers.js";
 
 // --- Pure functions (tested) ---
 
