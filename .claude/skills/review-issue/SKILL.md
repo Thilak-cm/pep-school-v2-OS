@@ -191,24 +191,18 @@ Integration findings are added to the merged audit report under the same Blocker
 
 The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
 
-1. **Render the merged report as an HTML artifact** (see `.claude/shared/html-artifacts.md`)
+1. **Render the merged report as terminal markdown**
 
-   **What goes in the HTML file (`audit-{ISSUE-ID}.html`):**
-   - Verdict banner (CLEAN = green, HAS_FINDINGS = red) — use the Severity-Tagged Findings pattern
-   - Metadata strip: issue ID, branch, diff scope, blocker/warning/nit counts
-   - Scope Alignment section: acceptance criteria as a visual checklist (green check = covered, red X = missing)
-   - Findings grouped by severity: Blockers (red left-border cards), Warnings (amber), Nits (gray) — each with file path, category badge, what's wrong, suggested fix
-   - Integration findings (if any) under a separate subsection with the same card format
-   - "Needs User Decision" items highlighted distinctly (use primary color border)
-   - Summary at bottom
-
-   **What goes in the terminal:**
+   Output the audit results directly in the conversation as markdown. Structure:
    - 1-line verdict: "Audit complete — {verdict}. {N} blockers, {N} warnings, {N} nits."
-   - File path: "Full report: `.claude/artifacts/audit-{ISSUE-ID}.html`"
-   - `open .claude/artifacts/audit-{ISSUE-ID}.html`
-   - If "Needs User Decision" items exist: present those in the terminal via `AskUserQuestion` (these need interactive response, not HTML)
+   - **Scope Alignment** — acceptance criteria with covered/missing markers
+   - **Blockers** — if any, with file path, description, suggested fix
+   - **Warnings** — if any
+   - **Nits** — if any
+   - **Integration** — if checked
+   - **Summary** — 1-3 sentence wrap-up
 
-   **Important:** The fix agent does NOT consume the HTML. The orchestrator passes the structured audit report text (from the auditor agent's output) directly to the fixer. The HTML is only the human-facing render.
+   If "Needs User Decision" items exist, present those via `AskUserQuestion`.
 
 2. **Handle "Needs User Decision" items first**
    - If any exist, present them to the user via `AskUserQuestion` (in terminal, not in HTML)

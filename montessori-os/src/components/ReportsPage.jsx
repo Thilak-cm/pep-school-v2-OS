@@ -139,8 +139,8 @@ export default function ReportsPage({
             noteCountAtCheck: data.noteCountAtCheck ?? 0,
             checkedAt: data.checkedAt?.toDate?.() || null,
             status: data.status || 'ok',
-            dateRangeStart: data.dateRangeStart || null,
-            dateRangeEnd: data.dateRangeEnd || null,
+            dateRangeStart: data.dateRangeStart?.toDate?.() || data.dateRangeStart || null,
+            dateRangeEnd: data.dateRangeEnd?.toDate?.() || data.dateRangeEnd || null,
           });
         }
       } catch {
@@ -448,7 +448,7 @@ export default function ReportsPage({
             </Stack>
             {readiness.dateRangeStart && readiness.dateRangeEnd && (
               <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mt: 0.25 }}>
-                Period: {formatReportDate(new Date(readiness.dateRangeStart + 'T00:00:00'))} – {formatReportDate(new Date(readiness.dateRangeEnd + 'T00:00:00'))}
+                Period: {formatReportDate(readiness.dateRangeStart instanceof Date ? readiness.dateRangeStart : new Date(readiness.dateRangeStart))} – {formatReportDate(readiness.dateRangeEnd instanceof Date ? readiness.dateRangeEnd : new Date(readiness.dateRangeEnd))}
               </Typography>
             )}
             {readiness.missingInputFlags?.length > 0 && (

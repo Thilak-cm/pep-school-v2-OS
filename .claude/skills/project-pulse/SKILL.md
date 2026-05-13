@@ -94,14 +94,17 @@ If the file does **not** exist, create it from scratch using the full HTML artif
 
 Render the report as an **HTML artifact** (see `.claude/shared/html-artifacts.md`).
 
+**Design intent:** The pulse dashboard should feel like a status page — glanceable metrics at the top, activity in the middle, actionable suggestions at the bottom. Minimal text, visual hierarchy does the work.
+
 **What goes in the HTML file (`pulse-{project-slug}.html`):**
-- Header: project name, description, generation date
-- **Stat cards** (use the Stat Cards pattern): one card per status category (Done, In Progress, Todo, Backlog) with count and color-coded left border
-- **Progress bar**: visual fill bar showing % complete, with label below
-- **Priority distribution** (only if interesting): simple horizontal stacked bar or pills
-- **Recent Activity table** (use activity-table pattern): rows with status dots (green=done, blue=in progress, amber=todo), issue ID, title, assignee — grouped by activity type (Completed, In Flight, Newly Created)
-- **Stale Work** section: flagged issues with red status dots, or "None" message
-- **Suggested Next** section (use suggestion-card pattern): ranked cards with number badge, issue title, and "Why" reasoning
+
+Use the page skeleton with breadcrumb `PEP OS / {Project Name} / Pulse`.
+
+- **Stat cards** (use the **Stat Cards + Progress** pattern) — one card per status category (Done, In Progress, Todo, Backlog) with count and color-coded left border. Progress bar below with olive fill and mono label.
+- **Section 01 — Priority** (only if interesting) — tag badges showing count per priority level. Skip if everything is Normal.
+- **Section 02 — Recent Activity** (use **Activity Table** pattern) — rows with status dots (olive=done, clay=in progress, warning=todo), mono issue IDs, titles, assignees. Group by activity type with a subtle heading row.
+- **Section 03 — Stale Work** — flagged issues with blocker-colored dots, or a single line "None" if clean.
+- **Section 04 — Suggested Next** (use **Suggestion Cards** pattern) — ranked cards with numbered badge, issue title + ID, and a "why" line in muted text.
 
 **What goes in the terminal:**
 - 1-line summary: "{Project Name} — {progress}% complete, {in-flight} in flight, {stale} stale."

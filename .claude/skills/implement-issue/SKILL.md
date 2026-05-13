@@ -110,28 +110,33 @@ Create a technical execution plan with specific file paths, test specifications,
 
 2. Generate execution plan and render as an **HTML artifact** (see `.claude/shared/html-artifacts.md`).
 
+   **Design intent:** The plan should be visual and scannable — not a text dump. Use numbered sections, comparison tables, timelines, and tag badges. Keep prose to 1-2 sentences per section intro. Let the layout communicate.
+
    **What goes in the HTML file (`plan-{ISSUE-ID}.html`):**
-   - Implementation Path Options as **comparison cards** (use the Comparison Cards pattern) with pros/cons, risk pills, and test impact per option
-   - Files to Modify / Create as a **file change list with risk tags** (use the File Change List pattern)
-   - Test Specification per acceptance criterion (use **collapsible sections** — one `<details>` per criterion)
-   - Implementation Approach (step-by-step)
-   - Verification Checklist
-   - Related Context
 
-   The plan must include these logical sections (rendered via the HTML patterns):
+   Use the page skeleton from `html-artifacts.md` with breadcrumb `PEP OS / {ISSUE-ID} / Implementation Plan`.
 
-   - **Summary** — 1-2 sentence description of implementation approach
-   - **Implementation Path Options** — 2-3 options as comparison cards:
-     - What it changes, Pros, Cons, Risk Profile (Low/Medium/High as risk pill), Test Impact
-     - Recommended option gets the `.recommended` card style
-     - Decision Notes: recommended option + open questions for user
-   - **Files to Modify** — each file with path, description, and risk tag
-   - **Files to Create** (if any) — path + purpose
-   - **Test Specification** — collapsible per acceptance criterion:
-     - Test Type (Unit | Integration | E2E), Test File, Test Description, Edge Cases
-   - **Implementation Approach** — step-by-step TDD plan
-   - **Related Context** — references to overview/explore findings, constraints
-   - **Verification Checklist** — all criteria have tests, no regressions, manual testing if UI
+   **Section 01 — Implementation Paths** (use the **Comparison Table** pattern)
+   - 2-3 options as side-by-side cards with pro/con mini-tables
+   - Each card gets metric tags at bottom: Risk, Test Impact
+   - Recommended option gets `.recommended` border + label
+   - Keep descriptions to 1-2 sentences per option
+
+   **Section 02 — Files** (use the **File Change List** pattern)
+   - Each file with mono path, short description, and risk tag (low/medium/high)
+   - Separate "Files to Create" from "Files to Modify" only if both exist
+
+   **Section 03 — Implementation** (use the **Timeline** pattern)
+   - Step-by-step TDD plan as a vertical timeline
+   - Each step: title, 1-sentence description, file tags
+   - Dot states: done/active/pending as implementation progresses
+
+   **Section 04 — Test Specification** (use **collapsible sections**)
+   - One `<details>` per acceptance criterion
+   - Inside: Test Type, Test File, Test Description, Edge Cases
+
+   **Section 05 — Verification** (simple checklist using scope-item pattern)
+   - All criteria have tests, no regressions, manual testing if UI
 
    **What goes in the terminal:**
    - 1-2 line summary: "Generated implementation plan for PEP-{id}. {N} options, {N} files affected."

@@ -1,6 +1,9 @@
 # Changelog
 
-# 10.20.1 — 2026-05-12
+# 10.20.1 — 2026-05-13
+
+### Added
+- Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
 
 ### Changed
 - Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
@@ -8,6 +11,9 @@
 - LLM context pipeline in interview gen starts collapsed by default (PEP-223)
 - AppBar shows feature label from registry instead of formatted featureId string (PEP-223)
 - Program-scoped student picker auto-fetches all students instead of showing hardcoded defaults with a Load More button (PEP-223)
+
+### Fixed
+- Firestore Timestamp handling for readiness date range display — frontend now correctly coerces both Timestamp and ISO string formats (PEP-233)
 
 # 10.20.0 — 2026-05-12
 

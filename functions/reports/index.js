@@ -2,7 +2,7 @@ import * as functions from "firebase-functions/v1";
 import { db } from "../shared/firebase.js";
 import { OPENAI_API_KEY, getOpenAiKey, buildChatBody, CHAT_ENDPOINT } from "../shared/openai.js";
 import { REPORT_DEFAULTS, READINESS_DEFAULTS, READINESS_DOC_ID, DRIVE_CONSTANTS, buildCsvFilename, buildArchiveCsvFilename } from "../config/reportConstants.js";
-import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent } from "../utils/reportHelpers.js";
+import { getDefaultDateRange, parseReportResponse, parseReadinessResponse, getReportPromptDocId, getReadinessPromptDocId, mergeReportConfig, formatCsvRow, updateCsvContent, removeCsvRow, appendCsvContent, normalizeEndOfDay, assembleReportSystemContent, buildReadinessArchive } from "../utils/reportHelpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -753,10 +753,22 @@ async function getReadinessPrompt(programId) {
   return prompt;
 }
 
-async function writeReadinessDoc(studentId, payload) {
+async function writeReadinessDoc(studentId, payload, displayName) {
   const ref = db.collection("students").doc(studentId)
     .collection("ai_summaries").doc(READINESS_DOC_ID);
-  await ref.set(payload);
+
+  const existingSnap = await ref.get();
+  const archive = existingSnap.exists
+    ? buildReadinessArchive(existingSnap.data(), `Readiness recheck by ${displayName || "unknown"}`)
+    : null;
+
+  const batch = db.batch();
+  if (archive) {
+    const historyRef = ref.collection("history").doc(Date.now().toString());
+    batch.set(historyRef, archive);
+  }
+  batch.set(ref, payload);
+  await batch.commit();
 }
 
 export const checkReportReadiness = functions
@@ -772,7 +784,7 @@ export const checkReportReadiness = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    await checkReportPermission(context.auth.uid, studentId);
+    const { displayName } = await checkReportPermission(context.auth.uid, studentId);
 
     const studentInfo = await getStudentWithProgram(studentId);
     const prompt = await getReadinessPrompt(studentInfo.programId);
@@ -796,8 +808,10 @@ export const checkReportReadiness = functions
         dateRangeEnd: endDate,
         programId: studentInfo.programId,
         status: "no_notes",
+        generatedBy: context.auth.uid,
+        generatedByName: displayName || null,
       };
-      await writeReadinessDoc(studentId, payload);
+      await writeReadinessDoc(studentId, payload, displayName);
       return {
         ...payload,
         checkedAt: payload.checkedAt.toISOString(),
@@ -874,9 +888,11 @@ export const checkReportReadiness = functions
       programId: studentInfo.programId,
       model: prompt.model,
       status: "ok",
+      generatedBy: context.auth.uid,
+      generatedByName: displayName || null,
     };
 
-    await writeReadinessDoc(studentId, payload);
+    await writeReadinessDoc(studentId, payload, displayName);
 
     return {
       ...payload,
