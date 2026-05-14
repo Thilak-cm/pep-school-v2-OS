@@ -109,7 +109,6 @@ This skill covers:
 Remove ephemeral artifacts that accumulate during development and testing:
 
 1. Delete `.playwright-mcp/` directory if it exists — `rm -rf .playwright-mcp/`
-2. Delete `.claude/artifacts/` directory if it exists — `rm -rf .claude/artifacts/` (HTML artifacts from implement-issue, review-issue, project-pulse)
 
 ### Phase 6: Codebase Overview Refresh (Automatic)
 
