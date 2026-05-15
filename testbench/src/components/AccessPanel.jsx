@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  collection, query, where, getDocs, doc, setDoc, deleteDoc, Timestamp,
+  collection, getDocs, doc, setDoc, deleteDoc, Timestamp,
 } from "firebase/firestore";
 import { db } from "../firebase.js";
 import { useAuth } from "../contexts/AuthContext.js";
@@ -33,7 +33,8 @@ export default function AccessPanel() {
   const [grants, setGrants] = useState([]); // [{ uid, name, email, allowedFeatures }]
   const [grantsLoading, setGrantsLoading] = useState(true);
 
-  // Teacher search state
+  // User search state
+  const [allUsers, setAllUsers] = useState(null); // loaded once on first search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -66,30 +67,30 @@ export default function AccessPanel() {
     setGrantsLoading(false);
   };
 
-  // Search teachers by name
-  const handleSearch = useCallback(async () => {
-    const q = searchQuery.trim();
-    if (q.length < 2) return;
-    setSearching(true);
-    // Query users with role=teacher whose name starts with the search string
-    // Firestore doesn't support full-text search, so we use >= / < range on name
-    const usersRef = collection(db, "users");
-    const snap = await getDocs(
-      query(
-        usersRef,
-        where("role", "==", "teacher"),
-        where("name", ">=", q),
-        where("name", "<=", q + "\uf8ff"),
-      ),
-    );
-    const results = snap.docs.map((d) => ({
+  // Load all users once (small user base), then filter client-side
+  const ensureUsersLoaded = useCallback(async () => {
+    if (allUsers) return allUsers;
+    const snap = await getDocs(collection(db, "users"));
+    const users = snap.docs.map((d) => ({
       uid: d.id,
       name: d.data().name || d.id,
       email: d.data().email || "",
+      role: d.data().role || "none",
     }));
+    setAllUsers(users);
+    return users;
+  }, [allUsers]);
+
+  // Search users by name (case-insensitive, client-side filter)
+  const handleSearch = useCallback(async () => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length < 2) return;
+    setSearching(true);
+    const users = await ensureUsersLoaded();
+    const results = users.filter((u) => u.name.toLowerCase().includes(q));
     setSearchResults(results);
     setSearching(false);
-  }, [searchQuery]);
+  }, [searchQuery, ensureUsersLoaded]);
 
   // Open grant dialog for a new user
   const openGrantDialog = (teacher) => {
@@ -157,7 +158,7 @@ export default function AccessPanel() {
         <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
           <TextField
             size="small"
-            label="Search teacher by name"
+            label="Search user by name"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -176,23 +177,33 @@ export default function AccessPanel() {
         {searchResults.length > 0 && (
           <List dense sx={{ mt: 1 }}>
             {searchResults.map((t) => {
+              const isSuperadmin = t.role === "superadmin";
               const alreadyGranted = grants.some((g) => g.uid === t.uid);
               return (
                 <ListItem
                   key={t.uid}
                   secondaryAction={
-                    <Button
-                      size="small"
-                      variant={alreadyGranted ? "outlined" : "contained"}
-                      onClick={() => openGrantDialog(t)}
-                    >
-                      {alreadyGranted ? "Edit" : "Grant Access"}
-                    </Button>
+                    isSuperadmin ? (
+                      <Chip label="Full Access" size="small" color="success" variant="outlined" />
+                    ) : (
+                      <Button
+                        size="small"
+                        variant={alreadyGranted ? "outlined" : "contained"}
+                        onClick={() => openGrantDialog(t)}
+                      >
+                        {alreadyGranted ? "Edit" : "Grant Access"}
+                      </Button>
+                    )
                   }
                 >
                   <ListItemText
-                    primary={t.name}
-                    secondary={t.email}
+                    primary={
+                      <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {t.name}
+                        <Chip label={t.role} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />
+                      </Box>
+                    }
+                    secondary={isSuperadmin ? "Superadmins have access to all features by default" : t.email}
                   />
                 </ListItem>
               );
@@ -202,7 +213,7 @@ export default function AccessPanel() {
 
         {searchResults.length === 0 && !searching && searchQuery.trim().length >= 2 && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            No teachers found matching &quot;{searchQuery.trim()}&quot;
+            No users found matching &quot;{searchQuery.trim()}&quot;
           </Typography>
         )}
       </Paper>
