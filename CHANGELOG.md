@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.21.0 — 2026-05-15
+
+### Added
+- Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
+- Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
+- New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
+- Firestore rules enforce feature-scoped read/create/update for granted teachers on testbench runs (PEP-224)
+- Cloud Function `testBenchRun` validates feature access for non-superadmin callers (PEP-224)
+
+### Changed
+- AuthGate accepts teachers with testbench_access docs, not just superadmins (PEP-224)
+- FeaturePicker filters visible features by the current user's grants (PEP-224)
+- Per-workbench access enforcement via `hasFeatureAccess` check in FeatureWorkbench (PEP-224)
+
+### Removed
+- Coming-soon feature entries (`text_cleanup`, `ai_coach`, `baseball_card`, `report_generation`) from featureRegistry and FeaturePicker (PEP-224)
+
 # 10.20.2 — 2026-05-15
 
 ### Added

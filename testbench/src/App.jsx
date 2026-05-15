@@ -38,7 +38,7 @@ export default function App() {
         {!selectedFeature ? (
           <FeaturePicker onSelect={setSelectedFeature} />
         ) : (
-          <FeatureWorkbench featureId={selectedFeature} />
+          <FeatureWorkbench featureId={selectedFeature} onBack={() => setSelectedFeature(null)} />
         )}
       </Box>
     </AuthGate>

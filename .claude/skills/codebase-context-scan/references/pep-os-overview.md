@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-15T08:45:58.215Z
-App version: 10.20.2
+Generated: 2026-05-15T08:41:36.810Z
+App version: 10.21.0
 
 ## App Snapshot
 
@@ -115,7 +115,7 @@ App version: 10.20.2
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`, `testbench_access`
 - Rule-declared paths:
 - `/{document=**}`
 - `/ai_summaries/{summaryId}`
@@ -132,6 +132,7 @@ App version: 10.20.2
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/students/{studentId}`
+- `/testbench_access/{uid}`
 - `/testbench/{runId}`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
@@ -140,10 +141,10 @@ App version: 10.20.2
 
 ## Recent Changes
 
-### 10.20.2 (2026-05-15)
-- Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
-- Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
-- Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
+### 10.21.0 (2026-05-15)
+- Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
+- Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
+- New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
 
 ### 10.20.1 (2026-05-13)
 - Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)

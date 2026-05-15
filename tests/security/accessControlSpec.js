@@ -168,23 +168,45 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
-  // TESTBENCH COLLECTION (Firestore) - Prompt test bench results, superadmin only, immutable
+  // TESTBENCH ACCESS CONTROL (Firestore) - Per-teacher feature grants (PEP-224)
   // ============================================================================
 
   {
-    name: 'Testbench read/create restricted to superadmin only',
-    description: 'allow read, create: if isSuperAdmin()',
+    name: 'Testbench access docs: superadmin read/write + self-read for teachers',
+    description: 'Superadmins manage access; teachers read their own doc',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+read,\s*create:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+    pattern: /match\s+\/testbench_access\/\{uid\}[\s\S]*?isSuperAdmin[\s\S]*?request\.auth\.uid\s*==\s*uid/,
+  },
+
+  // ============================================================================
+  // TESTBENCH COLLECTION (Firestore) - Prompt test bench results
+  // Superadmins have full access; teachers with testbench_access grants get
+  // feature-scoped read/create (PEP-224)
+  // ============================================================================
+
+  {
+    name: 'Testbench read: superadmin + granted teachers',
+    description: 'allow read: if isSuperAdmin() || teacher with feature in allowedFeatures',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin[\s\S]*?testbench_access[\s\S]*?allowedFeatures/,
   },
 
   {
-    name: 'Testbench update restricted to sessionName field only by superadmin',
-    description: 'allow update: if isSuperAdmin() && affectedKeys().hasOnly([\'sessionName\']) && sessionName is string',
+    name: 'Testbench create: superadmin + granted teachers',
+    description: 'allow create: if isSuperAdmin() || teacher with feature in allowedFeatures',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update:\s*if\s+isSuperAdmin[\s\S]*?affectedKeys\(\)\.hasOnly\(\[['"]sessionName['"]\]\)[\s\S]*?sessionName\s+is\s+string/,
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+create:\s*if\s+isSuperAdmin[\s\S]*?testbench_access[\s\S]*?allowedFeatures/,
+  },
+
+  {
+    name: 'Testbench update restricted to sessionName field only',
+    description: 'allow update with affectedKeys().hasOnly([sessionName]) && sessionName is string',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update[\s\S]*?affectedKeys\(\)\.hasOnly\(\[['"]sessionName['"]\]\)[\s\S]*?sessionName\s+is\s+string/,
   },
 
   {
