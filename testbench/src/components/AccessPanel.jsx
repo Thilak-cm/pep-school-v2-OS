@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   collection, getDocs, doc, setDoc, deleteDoc, Timestamp,
 } from "firebase/firestore";
@@ -22,22 +22,22 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import CircularProgress from "@mui/material/CircularProgress";
 import EditIcon from "@mui/icons-material/Edit";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
 
 export default function AccessPanel() {
   const { user } = useAuth();
 
+  // All users (loaded once on mount)
+  const [allUsers, setAllUsers] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(true);
+
   // Granted users state
   const [grants, setGrants] = useState([]); // [{ uid, name, email, allowedFeatures }]
   const [grantsLoading, setGrantsLoading] = useState(true);
 
-  // User search state
-  const [allUsers, setAllUsers] = useState(null); // loaded once on first search
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  // Filter state
+  const [filterQuery, setFilterQuery] = useState("");
 
   // Edit/grant dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,10 +45,29 @@ export default function AccessPanel() {
   const [dialogFeatures, setDialogFeatures] = useState([]); // string[]
   const [saving, setSaving] = useState(false);
 
-  // Load existing grants on mount
+  // Load all users + grants on mount
   useEffect(() => {
+    loadUsers();
     loadGrants();
   }, []);
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      const users = snap.docs.map((d) => ({
+        uid: d.id,
+        name: d.data().displayName || d.data().name || d.id,
+        email: d.data().email || "",
+        role: d.data().role || "none",
+      }));
+      setAllUsers(users);
+    } catch (err) {
+      console.error("Failed to load users:", err);
+      setAllUsers([]);
+    }
+    setUsersLoading(false);
+  };
 
   const loadGrants = async () => {
     setGrantsLoading(true);
@@ -67,40 +86,18 @@ export default function AccessPanel() {
     setGrantsLoading(false);
   };
 
-  // Load all users once (small user base), then filter client-side
-  const ensureUsersLoaded = useCallback(async () => {
-    if (allUsers) return allUsers;
-    try {
-      const snap = await getDocs(collection(db, "users"));
-      const users = snap.docs.map((d) => ({
-        uid: d.id,
-        name: d.data().displayName || d.data().name || d.id,
-        email: d.data().email || "",
-        role: d.data().role || "none",
-      }));
-      setAllUsers(users);
-      return users;
-    } catch (err) {
-      console.error("Failed to load users:", err);
-      return [];
-    }
-  }, [allUsers]);
+  // Live-filtered user list
+  const filteredUsers = useMemo(() => {
+    if (!allUsers) return [];
+    const q = filterQuery.trim().toLowerCase();
+    if (q.length === 0) return allUsers;
+    return allUsers.filter((u) => u.name.toLowerCase().includes(q));
+  }, [allUsers, filterQuery]);
 
-  // Search users by name (case-insensitive, client-side filter)
-  const handleSearch = useCallback(async () => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q.length < 2) return;
-    setSearching(true);
-    const users = await ensureUsersLoaded();
-    const results = users.filter((u) => u.name.toLowerCase().includes(q));
-    setSearchResults(results);
-    setSearching(false);
-  }, [searchQuery, ensureUsersLoaded]);
-
-  // Open grant dialog for a new user
-  const openGrantDialog = (teacher) => {
-    const existing = grants.find((g) => g.uid === teacher.uid);
-    setDialogUser(teacher);
+  // Open grant dialog for a user
+  const openGrantDialog = (targetUser) => {
+    const existing = grants.find((g) => g.uid === targetUser.uid);
+    setDialogUser(targetUser);
     setDialogFeatures(existing ? [...existing.allowedFeatures] : []);
     setDialogOpen(true);
   };
@@ -127,7 +124,6 @@ export default function AccessPanel() {
     setSaving(true);
 
     if (dialogFeatures.length === 0) {
-      // Remove access entirely
       await deleteDoc(doc(db, "testbench_access", dialogUser.uid));
     } else {
       await setDoc(doc(db, "testbench_access", dialogUser.uid), {
@@ -143,8 +139,6 @@ export default function AccessPanel() {
     setDialogOpen(false);
     setDialogUser(null);
     setDialogFeatures([]);
-    setSearchQuery("");
-    setSearchResults([]);
     await loadGrants();
   };
 
@@ -158,30 +152,25 @@ export default function AccessPanel() {
         Grant teachers access to specific test bench features.
       </Typography>
 
-      {/* Teacher search */}
+      {/* User list with live filter */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
-          <TextField
-            size="small"
-            label="Search user by name"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            sx={{ flex: 1 }}
-          />
-          <Button
-            variant="outlined"
-            onClick={handleSearch}
-            disabled={searching || searchQuery.trim().length < 2}
-            startIcon={searching ? <CircularProgress size={16} /> : <PersonAddIcon />}
-          >
-            Search
-          </Button>
-        </Box>
+        <TextField
+          size="small"
+          label="Filter by name"
+          placeholder="Start typing to filter..."
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          fullWidth
+          sx={{ mb: 1 }}
+        />
 
-        {searchResults.length > 0 && (
-          <List dense sx={{ mt: 1 }}>
-            {searchResults.map((t) => {
+        {usersLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : (
+          <List dense sx={{ maxHeight: 320, overflow: "auto" }}>
+            {filteredUsers.map((t) => {
               const isSuperadmin = t.role === "superadmin";
               const alreadyGranted = grants.some((g) => g.uid === t.uid);
               return (
@@ -213,13 +202,12 @@ export default function AccessPanel() {
                 </ListItem>
               );
             })}
+            {filteredUsers.length === 0 && filterQuery.trim().length > 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                No users matching &quot;{filterQuery.trim()}&quot;
+              </Typography>
+            )}
           </List>
-        )}
-
-        {searchResults.length === 0 && !searching && searchQuery.trim().length >= 2 && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            No users found matching &quot;{searchQuery.trim()}&quot;
-          </Typography>
         )}
       </Paper>
 
