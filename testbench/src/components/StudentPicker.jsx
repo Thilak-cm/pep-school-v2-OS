@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase.js";
+import { useAuth } from "../contexts/AuthContext.js";
+import { filterAccessibleClassrooms } from "../utils/studentPickerHelpers.js";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -17,6 +19,7 @@ import Box from "@mui/material/Box";
  * - renderOptionExtra(student): optional render function for extra content in option rows
  */
 export default function StudentPicker({ scope = "program", defaults, programFilter, onSelect, renderOptionExtra }) {
+  const { role, user, manageableClassrooms } = useAuth();
   const [students, setStudents] = useState(scope === "hardcoded" ? (defaults || []) : []);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -35,19 +38,29 @@ export default function StudentPicker({ scope = "program", defaults, programFilt
     setLoading(true);
     setLoadError(null);
     try {
-      // Build classroom lookup
+      // Build classroom lookup (include teacherIds for access filtering)
       const classroomsSnap = await getDocs(collection(db, "classrooms"));
       const classroomMap = {};
+      const classroomDocs = [];
       for (const d of classroomsSnap.docs) {
         const data = d.data();
         classroomMap[d.id] = { name: data.name || d.id, programId: data.programId };
+        classroomDocs.push({ id: d.id, teacherIds: data.teacherIds || [] });
       }
 
       // For program scope, only include classrooms matching the program
       const programId = programFilter || "primary";
-      const relevantClassroomIds = scope === "program"
+      let relevantClassroomIds = scope === "program"
         ? new Set(Object.entries(classroomMap).filter(([, v]) => v.programId === programId).map(([k]) => k))
         : null; // school-wide: all classrooms
+
+      // Apply classroom access filter based on caller's role (PEP-222)
+      const accessFilter = filterAccessibleClassrooms({ classroomDocs, role, uid: user.uid, manageableClassrooms });
+      if (accessFilter) {
+        relevantClassroomIds = relevantClassroomIds
+          ? new Set([...relevantClassroomIds].filter((id) => accessFilter.has(id)))
+          : accessFilter;
+      }
 
       // Fetch students
       const studentsSnap = await getDocs(collection(db, "students"));

@@ -215,8 +215,9 @@ export const generateStudentProfile = functions
     }
 
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Only superadmins can generate profiles");
+    const requesterRole = requesterSnap.data()?.role;
+    if (!requesterSnap.exists || !["superadmin", "classroomadmin", "teacher"].includes(requesterRole)) {
+      throw new functions.https.HttpsError("permission-denied", "You do not have permission to generate profiles");
     }
 
     const studentId = String(data?.studentId || "").trim();

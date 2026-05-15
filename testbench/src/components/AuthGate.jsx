@@ -13,6 +13,7 @@ export default function AuthGate({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [allowedFeatures, setAllowedFeatures] = useState(null);
+  const [manageableClassrooms, setManageableClassrooms] = useState([]);
   const [authLoading, setAuthLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
 
@@ -22,6 +23,7 @@ export default function AuthGate({ children }) {
         setUser(null);
         setRole(null);
         setAllowedFeatures(null);
+        setManageableClassrooms([]);
         setAuthLoading(false);
         setRoleLoading(false);
         return;
@@ -30,10 +32,12 @@ export default function AuthGate({ children }) {
       setAuthLoading(false);
       setRoleLoading(true);
 
-      // Load role from users collection
+      // Load role + manageableClassrooms from users collection
       const userSnap = await getDoc(doc(db, "users", u.uid));
-      const userRole = userSnap.exists() ? userSnap.data().role : null;
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      const userRole = userData.role || null;
       setRole(userRole);
+      setManageableClassrooms(userData.manageableClassrooms || []);
 
       // For non-superadmins, check testbench_access for feature grants
       if (userRole !== "superadmin") {
@@ -94,7 +98,7 @@ export default function AuthGate({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, role, allowedFeatures }}>
+    <AuthContext.Provider value={{ user, role, allowedFeatures, manageableClassrooms }}>
       {children}
     </AuthContext.Provider>
   );

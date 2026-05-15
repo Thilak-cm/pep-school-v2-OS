@@ -25,10 +25,12 @@ import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
 import HistoryIcon from "@mui/icons-material/History";
 import StudentPicker from "../StudentPicker.jsx";
+import SoulGenerationDialog from "../SoulGenerationDialog.jsx";
 import VariantColumn from "../VariantColumn.jsx";
 import LLMContextPipeline from "../LLMContextPipeline.jsx";
 import RunHistory from "../RunHistory.jsx";
 import InterviewQuestionConfig from "./InterviewQuestionConfig.jsx";
+import { isMissingSoulData } from "../../utils/soulCheckHelpers.js";
 import { pickRandomAreas, pickRandomQuestion, buildSyntheticTurn } from "../../../../functions/testbench/interviewColdStart.js";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun, restoreConversationsFromRun } from "../../hooks/useRunPersistence.js";
@@ -53,6 +55,8 @@ export default function InterviewWorkbench() {
   const [interviewEnded, setInterviewEnded] = useState(false);
   const [kickoffMessage, setKickoffMessage] = useState("Begin the interview. Generate your exploration areas and first question.");
   const [studentContextData, setStudentContextData] = useState(null);
+  const [contextReloadKey, setContextReloadKey] = useState(0);
+  const [soulDialogOpen, setSoulDialogOpen] = useState(false);
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -79,6 +83,18 @@ export default function InterviewWorkbench() {
     ));
   }, []);
 
+  // Proactive soul/open_questions detection (PEP-222)
+  useEffect(() => {
+    if (selectedStudent && isMissingSoulData(studentContextData)) {
+      setSoulDialogOpen(true);
+    }
+  }, [studentContextData, selectedStudent]);
+
+  function handleSoulGenerated() {
+    setSoulDialogOpen(false);
+    setContextReloadKey((k) => k + 1);
+  }
+
   function addColumn() { setVariants((prev) => [...prev, createVariant(prev[0], prev.length)]); }
 
   function tryRemoveColumn(idx) {
@@ -97,10 +113,10 @@ export default function InterviewWorkbench() {
     if (!selectedStudent) return;
     try {
       const oqSnap = await getDoc(doc(db, "students", selectedStudent.id, "ai_summaries", "open_questions"));
-      if (!oqSnap.exists()) { setSnackbar({ open: true, message: "No open_questions doc found — soul generation must run first", severity: "error" }); return; }
+      if (!oqSnap.exists()) { setSoulDialogOpen(true); return; }
 
       const areas = oqSnap.data()?.areas;
-      if (!areas || Object.keys(areas).length === 0) { setSnackbar({ open: true, message: "open_questions doc has no areas", severity: "error" }); return; }
+      if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
 
       const selectedAreas = pickRandomAreas(areas, 2);
       const picked = pickRandomQuestion(areas, selectedAreas);
@@ -198,7 +214,7 @@ export default function InterviewWorkbench() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
         <StudentPicker scope="school-wide" onSelect={setSelectedStudent} />
-        <InterviewQuestionConfig selectedStudent={selectedStudent} onConfigLoaded={handleConfigLoaded} onStudentContextLoaded={setStudentContextData} />
+        <InterviewQuestionConfig selectedStudent={selectedStudent} reloadKey={contextReloadKey} onConfigLoaded={handleConfigLoaded} onStudentContextLoaded={setStudentContextData} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           {!interviewStarted ? (
             <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={startInterview} disabled={!selectedStudent || variants.some((v) => v.loading)}>Start Interview</Button>
@@ -264,6 +280,14 @@ export default function InterviewWorkbench() {
         <DialogContent><DialogContentText>You have unsaved work. Loading will discard current variants.</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setPendingLoadRun(null)}>Cancel</Button><Button onClick={() => { applyLoadRun(pendingLoadRun); setPendingLoadRun(null); }} color="error">Discard & Load</Button></DialogActions>
       </Dialog>
+
+      <SoulGenerationDialog
+        open={soulDialogOpen}
+        studentName={selectedStudent?.displayName || ""}
+        studentId={selectedStudent?.id || ""}
+        onSuccess={handleSoulGenerated}
+        onClose={() => setSoulDialogOpen(false)}
+      />
 
       <RunHistory open={historyOpen} onClose={() => setHistoryOpen(false)} featureId={FEATURE_ID} onLoad={loadRun} />
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
