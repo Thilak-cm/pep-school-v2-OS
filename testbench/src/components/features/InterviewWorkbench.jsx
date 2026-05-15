@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { httpsCallable } from "firebase/functions";
-import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../../firebase.js";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";

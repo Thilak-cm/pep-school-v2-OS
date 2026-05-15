@@ -17,14 +17,17 @@ export default function LLMContextPipeline({ studentContext, selectedStudent, ki
     ? `${studentContext.baseballCard.summary}\n\nWindow: ${studentContext.baseballCard.windowDays} days | Notes: ${studentContext.baseballCard.noteCount}${studentContext.baseballCard.coverageGaps?.length ? `\nCoverage gaps: ${studentContext.baseballCard.coverageGaps.join(", ")}` : ""}`
     : null;
 
-  const oqContent = studentContext?.openQuestions && typeof studentContext.openQuestions === "object" && Object.keys(studentContext.openQuestions).length > 0
-    ? Object.entries(studentContext.openQuestions).map(([area, questions]) =>
+  const totalOqAreas = studentContext?.openQuestions ? Object.keys(studentContext.openQuestions).length : 0;
+  const displayedQuestions = selectedAreas.length > 0 && studentContext?.openQuestions
+    ? Object.fromEntries(Object.entries(studentContext.openQuestions).filter(([k]) => selectedAreas.includes(k)))
+    : studentContext?.openQuestions;
+  const oqContent = displayedQuestions && typeof displayedQuestions === "object" && Object.keys(displayedQuestions).length > 0
+    ? Object.entries(displayedQuestions).map(([area, questions]) =>
       `## ${area}\n${(questions || []).map((q, i) => `${i + 1}. ${q}`).join("\n")}`
     ).join("\n\n")
     : null;
-  const totalOqAreas = studentContext?.openQuestions ? Object.keys(studentContext.openQuestions).length : 0;
-  const oqCount = oqContent && studentContext?.openQuestions
-    ? Object.values(studentContext.openQuestions).reduce((sum, qs) => sum + (qs?.length || 0), 0)
+  const oqCount = oqContent && displayedQuestions
+    ? Object.values(displayedQuestions).reduce((sum, qs) => sum + (qs?.length || 0), 0)
     : 0;
   const areaFilterLabel = selectedAreas.length > 0 && totalOqAreas > 0
     ? ` — ${selectedAreas.length} of ${totalOqAreas} areas sent to LLM`

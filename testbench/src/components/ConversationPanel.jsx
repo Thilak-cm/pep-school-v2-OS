@@ -199,7 +199,7 @@ export default function ConversationPanel({ turns, loading, error, teacherInput,
         <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2, minHeight: 200 }}>
           <Box sx={{ bgcolor: "action.hover", borderRadius: 2, p: 2 }}>
             <Typography variant="body2" sx={{ mb: 1.5 }}>
-              Today you're picking the direction of this interview! Here are 4 topics I've identified for <strong>{studentName}</strong>. Select 2 and I'll ask questions in those areas.
+              Today you're picking the direction of this interview! Here {areaPool.length === 1 ? "is" : "are"} {areaPool.length} topic{areaPool.length !== 1 ? "s" : ""} I've identified for <strong>{studentName}</strong>. Select 2 and I'll ask questions in those areas.
             </Typography>
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
               {areaPool.map((area) => (

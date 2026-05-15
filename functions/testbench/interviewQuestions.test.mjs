@@ -116,7 +116,7 @@ describe("assembleSystemPrompt", () => {
     assert.ok(result.includes("OPEN QUESTIONS BANK"), "Should include questions bank header");
     assert.ok(result.includes("Self-Regulation"), "Should include filtered area");
     assert.ok(!result.includes("### Mathematics"), "Should NOT include excluded area");
-    assert.ok(result.includes("2 questions across 1 areas"), "Should show filtered count");
+    assert.ok(result.includes("2 questions across 1 area"), "Should show filtered count");
   });
 
   it("appends prior interview transcripts when present", () => {
