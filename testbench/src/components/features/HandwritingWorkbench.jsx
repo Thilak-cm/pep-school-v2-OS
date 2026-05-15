@@ -145,7 +145,7 @@ export default function HandwritingWorkbench() {
       </Box>
 
       {/* Prompt Assembly Pipeline — always visible, content fills on student load (PEP-216) */}
-      <Accordion defaultExpanded={false} variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+      <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
         </AccordionSummary>
