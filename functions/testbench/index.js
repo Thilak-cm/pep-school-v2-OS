@@ -21,8 +21,16 @@ export const testBenchRun = functions
     }
 
     const callerSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Superadmin access required");
+    const callerRole = callerSnap.exists ? callerSnap.data().role : null;
+
+    if (callerRole !== "superadmin") {
+      // Non-superadmins need a testbench_access doc with this feature granted
+      const accessSnap = await db.collection("testbench_access").doc(context.auth.uid).get();
+      const allowed = accessSnap.exists ? accessSnap.data().allowedFeatures || [] : [];
+      const feature = String(data?.feature || "").trim();
+      if (!allowed.includes(feature)) {
+        throw new functions.https.HttpsError("permission-denied", "You don't have access to this feature");
+      }
     }
 
     const feature = String(data?.feature || "").trim();
