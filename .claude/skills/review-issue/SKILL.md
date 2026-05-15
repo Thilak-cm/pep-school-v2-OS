@@ -191,21 +191,10 @@ Integration findings are added to the merged audit report under the same Blocker
 
 The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
 
-1. **Render the merged report as terminal markdown**
-
-   Output the audit results directly in the conversation as markdown. Structure:
-   - 1-line verdict: "Audit complete — {verdict}. {N} blockers, {N} warnings, {N} nits."
-   - **Scope Alignment** — acceptance criteria with covered/missing markers
-   - **Blockers** — if any, with file path, description, suggested fix
-   - **Warnings** — if any
-   - **Nits** — if any
-   - **Integration** — if checked
-   - **Summary** — 1-3 sentence wrap-up
-
-   If "Needs User Decision" items exist, present those via `AskUserQuestion`.
+1. **Display the full merged report to the user** (audit + integration findings combined)
 
 2. **Handle "Needs User Decision" items first**
-   - If any exist, present them to the user via `AskUserQuestion` (in terminal, not in HTML)
+   - If any exist, present them to the user via `AskUserQuestion`
    - User decisions may convert items into blockers, warnings, or dismissals
    - Rewrite those items into the appropriate category before proceeding
 

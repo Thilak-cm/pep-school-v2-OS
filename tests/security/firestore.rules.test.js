@@ -182,7 +182,32 @@ test('Firestore Rules - Classroom scoping functions present', () => {
   );
 });
 
-test('Firestore Rules - Testbench collection is superadmin-only with sessionName-only updates', () => {
+test('Firestore Rules - Testbench access control collection (PEP-224)', () => {
+  const accessMatch = rulesContent.match(
+    /match\s+\/testbench_access\/\{uid\}[\s\S]*?(?=match\s+\/|$)/
+  )?.[0];
+  assert.ok(accessMatch, 'Testbench access control rules not found');
+
+  // Superadmin can read/write access docs
+  assert.ok(
+    accessMatch.includes('isSuperAdmin'),
+    'Testbench access rules missing isSuperAdmin check'
+  );
+
+  // Teachers can read their own access doc
+  assert.ok(
+    accessMatch.includes('request.auth.uid == uid'),
+    'Teachers should be able to read their own access doc'
+  );
+
+  // Superadmin can delete access docs (revoke)
+  assert.ok(
+    accessMatch.includes('allow delete: if isSuperAdmin()'),
+    'Superadmin should be able to delete access docs'
+  );
+});
+
+test('Firestore Rules - Testbench runs: superadmin + granted teacher access with sessionName-only updates', () => {
   const testbenchMatch = rulesContent.match(
     /match\s+\/testbench\/\{runId\}[\s\S]*?(?=match\s+\/|$)/
   )?.[0];
@@ -194,11 +219,25 @@ test('Firestore Rules - Testbench collection is superadmin-only with sessionName
     'Testbench rules missing isSuperAdmin check'
   );
   assert.ok(
-    testbenchMatch.includes('allow read, create'),
-    'Testbench missing read/create rule'
+    testbenchMatch.includes('allow read'),
+    'Testbench missing read rule'
+  );
+  assert.ok(
+    testbenchMatch.includes('allow create'),
+    'Testbench missing create rule'
   );
 
-  // Update restricted to sessionName field only by superadmin
+  // Teacher access gated by testbench_access feature check (PEP-224)
+  assert.ok(
+    testbenchMatch.includes('testbench_access'),
+    'Testbench rules should reference testbench_access for teacher feature grants'
+  );
+  assert.ok(
+    testbenchMatch.includes('allowedFeatures'),
+    'Testbench rules should check allowedFeatures array'
+  );
+
+  // Update restricted to sessionName field only
   assert.ok(
     testbenchMatch.includes('allow update'),
     'Testbench should allow update (restricted to sessionName)'
@@ -220,12 +259,6 @@ test('Firestore Rules - Testbench collection is superadmin-only with sessionName
   assert.ok(
     testbenchMatch.includes('allow delete: if false'),
     'Testbench docs should not be deletable'
-  );
-
-  // Teacher should NOT be mentioned (no teacher access)
-  assert.ok(
-    !testbenchMatch.includes('isTeacher'),
-    'Testbench should not grant teacher access'
   );
 });
 
