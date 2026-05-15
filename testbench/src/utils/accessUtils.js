@@ -6,7 +6,7 @@ import { ACTIVE_FEATURES } from "./featureRegistry.js";
  */
 export function canAccessTestBench(role, accessDoc) {
   if (role === "superadmin") return true;
-  if (role !== "teacher") return false;
+  if (role !== "teacher" && role !== "classroomadmin") return false;
   if (!accessDoc || !Array.isArray(accessDoc.allowedFeatures)) return false;
   return accessDoc.allowedFeatures.length > 0;
 }

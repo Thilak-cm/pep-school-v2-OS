@@ -164,11 +164,11 @@ export default function AccessPanel() {
           sx={{ mb: 1 }}
         />
 
-        {usersLoading ? (
+        {usersLoading && filterQuery.trim().length > 0 ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
             <CircularProgress size={24} />
           </Box>
-        ) : (
+        ) : filterQuery.trim().length > 0 ? (
           <List dense sx={{ maxHeight: 320, overflow: "auto" }}>
             {filteredUsers.map((t) => {
               const isSuperadmin = t.role === "superadmin";
@@ -208,7 +208,7 @@ export default function AccessPanel() {
               </Typography>
             )}
           </List>
-        )}
+        ) : null}
       </Paper>
 
       {/* Currently granted users */}

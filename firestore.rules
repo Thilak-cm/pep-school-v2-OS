@@ -556,15 +556,15 @@ service cloud.firestore {
     match /testbench/{runId} {
       allow read: if isSuperAdmin()
         || (isSignedIn()
-            && requesterDoc().data.role == 'teacher'
+            && requesterDoc().data.role in ['teacher', 'classroomadmin']
             && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
       allow create: if isSuperAdmin()
         || (isSignedIn()
-            && requesterDoc().data.role == 'teacher'
+            && requesterDoc().data.role in ['teacher', 'classroomadmin']
             && request.resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
       allow update: if (isSuperAdmin()
             || (isSignedIn()
-                && requesterDoc().data.role == 'teacher'
+                && requesterDoc().data.role in ['teacher', 'classroomadmin']
                 && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName'])
         && (!('sessionName' in request.resource.data) || request.resource.data.sessionName is string);

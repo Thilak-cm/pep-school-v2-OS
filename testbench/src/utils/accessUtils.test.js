@@ -42,9 +42,16 @@ describe("canAccessTestBench", () => {
     assert.equal(canAccessTestBench("teacher", { allowedFeatures: "not-array" }), false);
   });
 
-  test("unknown role cannot access even with access doc", () => {
+  test("classroomadmin with access doc can access", () => {
     assert.equal(
       canAccessTestBench("classroomadmin", { allowedFeatures: ["soul_generation"] }),
+      true,
+    );
+  });
+
+  test("unknown role cannot access even with access doc", () => {
+    assert.equal(
+      canAccessTestBench("viewer", { allowedFeatures: ["soul_generation"] }),
       false,
     );
   });
