@@ -57,6 +57,7 @@ export default function InterviewWorkbench() {
   const [studentContextData, setStudentContextData] = useState(null);
   const [contextReloadKey, setContextReloadKey] = useState(0);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
+  const soulGenCompleted = useRef(null);
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -85,12 +86,13 @@ export default function InterviewWorkbench() {
 
   // Proactive soul/open_questions detection (PEP-222)
   useEffect(() => {
-    if (selectedStudent && isMissingSoulData(studentContextData)) {
+    if (selectedStudent && soulGenCompleted.current !== selectedStudent?.id && isMissingSoulData(studentContextData)) {
       setSoulDialogOpen(true);
     }
   }, [studentContextData, selectedStudent]);
 
   function handleSoulGenerated() {
+    soulGenCompleted.current = selectedStudent?.id;
     setSoulDialogOpen(false);
     setContextReloadKey((k) => k + 1);
   }
@@ -198,6 +200,7 @@ export default function InterviewWorkbench() {
   function loadRun(run) { if (hasUnsavedWork(variants)) { setPendingLoadRun(run); return; } applyLoadRun(run); }
 
   function applyLoadRun(run) {
+    soulGenCompleted.current = run.studentId; // suppress proactive soul dialog for history-loaded students
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);

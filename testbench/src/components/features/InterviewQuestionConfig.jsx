@@ -45,6 +45,8 @@ export default function InterviewQuestionConfig({ selectedStudent, reloadKey, on
   }
 
   async function loadStudentContext(studentId) {
+    // Clear stale context immediately so downstream consumers don't act on old data
+    onStudentContextLoaded?.(null);
     try {
       const [soulSnap, guidelinesSnap, bcSnap, oqSnap] = await Promise.all([
         getDoc(doc(db, "students", studentId, "ai_summaries", "soul")),

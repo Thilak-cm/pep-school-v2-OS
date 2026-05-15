@@ -36,6 +36,7 @@ export default function SoulGenerationDialog({ open, studentName, studentId, onS
     try {
       const generateProfile = httpsCallable(cloudFunctions, "generateStudentProfile", { timeout: 180000 });
       await generateProfile({ studentId });
+      setGenerating(false);
       onSuccess();
     } catch (err) {
       const message = err?.message || "Unknown error";
@@ -81,7 +82,7 @@ export default function SoulGenerationDialog({ open, studentName, studentId, onS
           variant="contained"
           onClick={handleGenerate}
           disabled={generating}
-          startIcon={generating ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon />}
+          startIcon={generating ? null : <AutoAwesomeIcon />}
         >
           {error ? "Retry" : "Generate Soul"}
         </Button>
