@@ -93,7 +93,7 @@ export default function SoulWorkbench() {
         const result = await testBenchRun({
           feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt,
           model: v.model, temperature: v.temperature, max_tokens: v.max_tokens,
-          guidelinesContent: v.guidelinesContent, windowDays: baseConfig?.windowDays || 365,
+          guidelinesContent: v.guidelinesContent, windowDays: baseConfig?.windowDays || 365, includeInterviews: false,
         });
         return { idx, output: result.data.output, outputMeta: { model: v.model, tokens: result.data.totalTokens, latencyMs: Date.now() - start } };
       } catch (err) { return { idx, error: err.message || "Unknown error" }; }

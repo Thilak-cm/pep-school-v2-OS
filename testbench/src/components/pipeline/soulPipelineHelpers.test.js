@@ -69,18 +69,18 @@ Produce a markdown document with headings.
 At the very end.`;
 
   it("returns null when systemPrompt is null", () => {
-    assert.equal(extractOutputFormat(null, null), null);
+    assert.equal(extractOutputFormat(null), null);
   });
 
   it("extracts everything from ## Output format onwards", () => {
-    const result = extractOutputFormat(MOCK_PROMPT, "Guidelines content.");
+    const result = extractOutputFormat(MOCK_PROMPT);
     assert.ok(result.startsWith("## Output format"));
     assert.ok(result.includes("Produce a markdown document"));
     assert.ok(result.includes("## Emergent observations"));
   });
 
   it("returns null if ## Output format marker is missing", () => {
-    assert.equal(extractOutputFormat("Just a preamble.", null), null);
+    assert.equal(extractOutputFormat("Just a preamble."), null);
   });
 });
 

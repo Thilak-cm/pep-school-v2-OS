@@ -36,22 +36,17 @@ describe("buildStudentHeaderContent", () => {
   });
 
   it("returns formatted string with all fields", () => {
-    const student = { displayName: "Aria", classroomName: "Gulmohar", handwrittenCount: 9 };
+    const student = { displayName: "Aria", handwrittenCount: 9 };
     const result = buildStudentHeaderContent(student);
     assert.ok(result.includes("Student: Aria"));
-    assert.ok(result.includes("Classroom: Gulmohar"));
+    assert.ok(result.includes("Age: (resolved server-side from DOB)"));
     assert.ok(result.includes("Total writing samples: 9"));
   });
 
-  it("falls back to classroomId if classroomName is missing", () => {
-    const student = { displayName: "Aria", classroomId: "gulmohar", handwrittenCount: 4 };
-    const result = buildStudentHeaderContent(student);
-    assert.ok(result.includes("Classroom: gulmohar"));
-  });
-
   it("omits handwrittenCount line when not provided", () => {
-    const student = { displayName: "Aria", classroomName: "Gulmohar" };
+    const student = { displayName: "Aria" };
     const result = buildStudentHeaderContent(student);
     assert.ok(!result.includes("Total writing samples"));
+    assert.ok(result.includes("Age: (resolved server-side from DOB)"));
   });
 });

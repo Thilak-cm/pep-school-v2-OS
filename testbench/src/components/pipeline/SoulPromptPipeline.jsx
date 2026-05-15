@@ -10,7 +10,7 @@ import { extractRolePreamble, extractOutputFormat, buildStudentContextContent } 
 
 export default function SoulPromptPipeline({ systemPrompt, guidelinesContent, selectedStudent }) {
   const preamble = extractRolePreamble(systemPrompt);
-  const outputFormat = extractOutputFormat(systemPrompt, guidelinesContent);
+  const outputFormat = extractOutputFormat(systemPrompt);
   const studentContent = buildStudentContextContent(selectedStudent);
 
   return (
@@ -52,7 +52,7 @@ export default function SoulPromptPipeline({ systemPrompt, guidelinesContent, se
       <ContextBlock
         number="4"
         label="Student Context"
-        sublabel="name, age, DOB, program"
+        sublabel="name + student ID (full context resolved server-side)"
         content={studentContent}
         charCount={studentContent?.length}
       />

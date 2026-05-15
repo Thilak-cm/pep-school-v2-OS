@@ -54,11 +54,11 @@ describe("formatCharCount", () => {
     assert.equal(formatCharCount(42), "42 chars");
   });
 
-  it("formats large numbers with locale separator", () => {
+  it("formats large numbers with locale string", () => {
     const result = formatCharCount(1234);
-    // toLocaleString output varies by locale, just check it ends with " chars"
+    // toLocaleString output varies by locale — just verify the number and suffix are present
     assert.ok(result.endsWith(" chars"));
-    assert.ok(result.length > "1234 chars".length - 1); // at least as long
+    assert.match(result, /^[\d,.\s]+chars$/, "Expected digits with optional locale separators followed by 'chars'");
   });
 
   it("returns 'loaded' when charCount is null", () => {

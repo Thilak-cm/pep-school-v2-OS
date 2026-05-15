@@ -31,7 +31,7 @@ export default function HandwritingPromptPipeline({ systemPrompt, selectedStuden
       <ContextBlock
         number="2"
         label="Student Header"
-        sublabel="name, age, total writing samples"
+        sublabel="name, age (from DOB), total writing samples"
         content={studentContent}
         charCount={studentContent?.length}
       />

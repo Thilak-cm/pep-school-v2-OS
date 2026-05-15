@@ -10,7 +10,7 @@ export const SOUL_BLOCKS = [
   { number: "2", label: "Guidelines", sublabel: "injected via ${guidelinesContent} from config", section: "system", source: "config" },
   { number: "3", label: "Output Format & Instructions", sublabel: "heading structure, YAML suggestions, open questions format, continuity rules", section: "system", source: "config" },
   // User prompt — 4 blocks
-  { number: "4", label: "Student Context", sublabel: "name, age, DOB, program", section: "user", source: "student" },
+  { number: "4", label: "Student Context", sublabel: "name + student ID (full context resolved server-side)", section: "user", source: "student" },
   { number: "5", label: "Observations", sublabel: "all observations within the configured time window", section: "user", source: "runtime" },
   { number: "6", label: "Interview Transcripts", sublabel: "high-signal evidence — treated with elevated weight", section: "user", source: "runtime" },
   { number: "7", label: "Previous Soul", sublabel: "prior narrative for continuity — omitted if first generation", section: "user", source: "runtime" },
@@ -33,10 +33,9 @@ export function extractRolePreamble(systemPrompt) {
  * Extract the output format instructions from the full assembled system prompt.
  * Everything after the guidelines content (starting from "## Output format") to the end.
  * @param {string|null} systemPrompt - Full system prompt with guidelines injected
- * @param {string|null} guidelinesContent - The guidelines markdown that was injected
  * @returns {string|null}
  */
-export function extractOutputFormat(systemPrompt, guidelinesContent) {
+export function extractOutputFormat(systemPrompt) {
   if (!systemPrompt) return null;
   const marker = "## Output format";
   const idx = systemPrompt.indexOf(marker);
