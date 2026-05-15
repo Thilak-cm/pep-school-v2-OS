@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-13T01:16:25.812Z
-App version: 10.20.1
+Generated: 2026-05-15T08:45:58.215Z
+App version: 10.20.2
 
 ## App Snapshot
 
@@ -140,10 +140,15 @@ App version: 10.20.1
 
 ## Recent Changes
 
-### 10.20.1 (2026-05-12)
+### 10.20.2 (2026-05-15)
+- Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
+- Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
+- Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
+
+### 10.20.1 (2026-05-13)
+- Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
 - Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
 - StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
-- LLM context pipeline in interview gen starts collapsed by default (PEP-223)
 
 ### 10.20.0 (2026-05-12)
 - Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
@@ -154,9 +159,4 @@ App version: 10.20.1
 - Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
 - Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
 - Readiness card displays the date range the scores correspond to (PEP-227)
-
-### 10.18.2 (2026-05-12)
-- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
-- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
-- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
 
