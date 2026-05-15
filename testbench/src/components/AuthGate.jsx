@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, provider, db } from "../firebase.js";
+import AuthContext from "../contexts/AuthContext.js";
+import { canAccessTestBench } from "../utils/accessUtils.js";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
@@ -10,6 +12,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 export default function AuthGate({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
+  const [allowedFeatures, setAllowedFeatures] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
 
@@ -18,6 +21,7 @@ export default function AuthGate({ children }) {
       if (!u) {
         setUser(null);
         setRole(null);
+        setAllowedFeatures(null);
         setAuthLoading(false);
         setRoleLoading(false);
         return;
@@ -25,8 +29,21 @@ export default function AuthGate({ children }) {
       setUser(u);
       setAuthLoading(false);
       setRoleLoading(true);
-      const snap = await getDoc(doc(db, "users", u.uid));
-      setRole(snap.exists() ? snap.data().role : null);
+
+      // Load role from users collection
+      const userSnap = await getDoc(doc(db, "users", u.uid));
+      const userRole = userSnap.exists() ? userSnap.data().role : null;
+      setRole(userRole);
+
+      // For non-superadmins, check testbench_access for feature grants
+      if (userRole !== "superadmin") {
+        const accessSnap = await getDoc(doc(db, "testbench_access", u.uid));
+        const accessDoc = accessSnap.exists() ? accessSnap.data() : null;
+        setAllowedFeatures(accessDoc?.allowedFeatures || null);
+      } else {
+        setAllowedFeatures(null); // superadmins don't need an access doc
+      }
+
       setRoleLoading(false);
     });
   }, []);
@@ -43,7 +60,7 @@ export default function AuthGate({ children }) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "100vh", gap: 3 }}>
         <Typography variant="h4" fontWeight={700}>Prompt Test Bench</Typography>
-        <Typography color="text.secondary">Superadmin access only</Typography>
+        <Typography color="text.secondary">Sign in to continue</Typography>
         <Button variant="contained" size="large" onClick={() => signInWithPopup(auth, provider)}>
           Sign in with Google
         </Button>
@@ -60,18 +77,25 @@ export default function AuthGate({ children }) {
     );
   }
 
-  if (role !== "superadmin") {
+  const accessDoc = allowedFeatures ? { allowedFeatures } : null;
+  if (!canAccessTestBench(role, accessDoc)) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "100vh", gap: 2 }}>
         <Typography variant="h5">Access Denied</Typography>
         <Typography color="text.secondary">
           Signed in as {user.email} (role: {role || "none"})
         </Typography>
-        <Typography color="text.secondary">Superadmin access required.</Typography>
+        <Typography color="text.secondary">
+          You don&apos;t have access to the test bench. Contact a superadmin.
+        </Typography>
         <Button variant="outlined" onClick={() => auth.signOut()}>Sign Out</Button>
       </Box>
     );
   }
 
-  return children;
+  return (
+    <AuthContext.Provider value={{ user, role, allowedFeatures }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

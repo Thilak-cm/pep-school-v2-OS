@@ -540,12 +540,32 @@ service cloud.firestore {
         );
     }
 
+    // Testbench access control — per-teacher feature grants (PEP-224)
+    // - Superadmins can read/write any access doc
+    // - Teachers can read their own access doc (to know their allowed features)
+    match /testbench_access/{uid} {
+      allow read: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
     // Testbench collection — prompt test bench run results
-    // - Only super admins can read/create
+    // - Superadmins have full read/create access
+    // - Teachers with testbench_access grants can read/create runs for their allowed features (PEP-224)
     // - Updates restricted to sessionName field only (PEP-211)
     match /testbench/{runId} {
-      allow read, create: if isSuperAdmin();
-      allow update: if isSuperAdmin()
+      allow read: if isSuperAdmin()
+        || (isSignedIn()
+            && requesterDoc().data.role == 'teacher'
+            && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
+      allow create: if isSuperAdmin()
+        || (isSignedIn()
+            && requesterDoc().data.role == 'teacher'
+            && request.resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
+      allow update: if (isSuperAdmin()
+            || (isSignedIn()
+                && requesterDoc().data.role == 'teacher'
+                && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName'])
         && (!('sessionName' in request.resource.data) || request.resource.data.sessionName is string);
       allow delete: if false;
