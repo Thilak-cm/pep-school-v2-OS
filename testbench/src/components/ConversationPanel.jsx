@@ -11,7 +11,6 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PersonIcon from "@mui/icons-material/Person";
 import SendIcon from "@mui/icons-material/Send";
 import Button from "@mui/material/Button";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 
 function ExplorationAreasCard({ areas }) {
   if (!areas?.length) return null;
@@ -220,8 +219,8 @@ export default function ConversationPanel({ turns, loading, error, teacherInput,
               </Typography>
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button size="small" onClick={onCancelAreas}>Cancel</Button>
-                <Button size="small" variant="contained" onClick={onConfirmAreas} disabled={!allVariantsReady} startIcon={<PlayArrowIcon />}>
-                  Begin Interview
+                <Button size="small" variant="contained" onClick={onConfirmAreas} disabled={!allVariantsReady}>
+                  Confirm
                 </Button>
               </Box>
             </Box>
