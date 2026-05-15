@@ -64,10 +64,10 @@ export default function InterviewWorkbench() {
 
   // Mode + area selection (PEP-220)
   const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
-  const [selectedAreasMap, setSelectedAreasMap] = useState({}); // {variantIdx: string[]} — persisted across turns
-  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing area picker in each variant
-  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas (shared across variants)
-  const [pickedAreasMap, setPickedAreasMap] = useState({}); // {variantIdx: string[]} — teacher's picks before start
+  const [selectedAreas, setSelectedAreas] = useState([]); // shared across all variants
+  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing area picker in conversation panels
+  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas for Teacher Pick
+  const [teacherPickedAreas, setTeacherPickedAreas] = useState([]); // teacher's 2 picks before start (shared)
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -124,16 +124,15 @@ export default function InterviewWorkbench() {
   const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
   const tooFewAreas = totalAreaCount < 2;
 
-  function handleToggleAreaPick(variantIdx, areaKey) {
-    setPickedAreasMap((prev) => {
-      const current = prev[variantIdx] || [];
-      if (current.includes(areaKey)) return { ...prev, [variantIdx]: current.filter((k) => k !== areaKey) };
-      if (current.length >= 2) return prev; // max 2
-      return { ...prev, [variantIdx]: [...current, areaKey] };
+  function handleToggleAreaPick(areaKey) {
+    setTeacherPickedAreas((prev) => {
+      if (prev.includes(areaKey)) return prev.filter((k) => k !== areaKey);
+      if (prev.length >= 2) return prev; // max 2
+      return [...prev, areaKey];
     });
   }
 
-  const allVariantsReady = areaPickPhase && variants.every((_, idx) => (pickedAreasMap[idx] || []).length === 2);
+  const areasReady = areaPickPhase && teacherPickedAreas.length === 2;
 
   // "Start Interview" click — either enter area pick phase (teacher_pick) or start directly (random)
   function handleStartClick() {
@@ -142,46 +141,38 @@ export default function InterviewWorkbench() {
     if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
 
     if (interviewMode === "teacher_pick") {
-      // Enter area pick phase — each variant shows area picker
       setAreaPool(pickRandomAreas(areas, 4));
-      setPickedAreasMap({});
+      setTeacherPickedAreas([]);
       setAreaPickPhase(true);
     } else {
-      // Random mode — start immediately with shared random areas
-      const randomAreas = pickRandomAreas(areas, 2);
-      const areasMap = {};
-      for (let idx = 0; idx < variants.length; idx++) areasMap[idx] = randomAreas;
-      beginInterview(areasMap);
+      beginInterview(pickRandomAreas(areas, 2));
     }
   }
 
-  // Confirm area picks and start the actual interview (only when all variants have 2 picks)
   function confirmAreaPicks() {
-    if (!allVariantsReady) return;
+    if (!areasReady) return;
     setAreaPickPhase(false);
-    beginInterview(pickedAreasMap);
+    beginInterview(teacherPickedAreas);
   }
 
   function cancelAreaPicks() {
     setAreaPickPhase(false);
     setAreaPool([]);
-    setPickedAreasMap({});
+    setTeacherPickedAreas([]);
   }
 
-  function beginInterview(areasMap) {
+  function beginInterview(finalAreas) {
     try {
       const areas = studentContextData?.openQuestions;
+      const picked = pickRandomQuestion(areas, finalAreas);
+      const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
+      const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
+
+      setSelectedAreas(finalAreas);
+
       const newConversations = {};
+      for (let idx = 0; idx < variants.length; idx++) { newConversations[idx] = [syntheticTurn]; }
 
-      for (let idx = 0; idx < variants.length; idx++) {
-        const finalAreas = areasMap[idx] || [];
-        const picked = pickRandomQuestion(areas, finalAreas);
-        const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
-        const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
-        newConversations[idx] = [syntheticTurn];
-      }
-
-      setSelectedAreasMap(areasMap);
       setConversations(newConversations);
       setInterviewStarted(true);
       setVariants((prev) => prev.map((v) => ({ ...v, dirty: true })));
@@ -210,7 +201,7 @@ export default function InterviewWorkbench() {
       const start = Date.now();
       try {
         const prevMessages = [...buildMessageHistory(conversationsSnapshot[idx] || [], kickoffMessage), { role: "user", content: answer }];
-        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas: selectedAreasMap[idx] || [] });
+        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas });
         const latencyMs = Date.now() - start;
         let parsed; try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
 
@@ -244,7 +235,7 @@ export default function InterviewWorkbench() {
     if (!selectedStudent) return;
     setSaving(true);
     try {
-      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreasMap, user: auth.currentUser });
+      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user: auth.currentUser });
       await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
@@ -259,17 +250,7 @@ export default function InterviewWorkbench() {
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
     setInterviewMode(run.interviewMode || "random");
-    // Restore per-variant selectedAreas — handle both legacy flat array and new per-variant map
-    if (run.selectedAreasMap) {
-      setSelectedAreasMap(run.selectedAreasMap);
-    } else if (run.selectedAreas) {
-      // Legacy: flat array → apply same areas to all variants
-      const map = {};
-      (run.variants || []).forEach((_, i) => { map[i] = run.selectedAreas; });
-      setSelectedAreasMap(map);
-    } else {
-      setSelectedAreasMap({});
-    }
+    setSelectedAreas(run.selectedAreas || []);
     setVariants(restoreVariantsFromRun(run));
     const restoredConvos = restoreConversationsFromRun(run);
     setConversations(restoredConvos);
@@ -327,7 +308,7 @@ export default function InterviewWorkbench() {
             interviewStarted={interviewStarted}
             elapsedSeconds={elapsedSeconds}
             questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
-            selectedAreas={selectedAreasMap[0] || []}
+            selectedAreas={selectedAreas}
           />
         </AccordionDetails>
       </Accordion>
@@ -343,7 +324,7 @@ export default function InterviewWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={pickedAreasMap[idx] || []} onToggleArea={(areaKey) => handleToggleAreaPick(idx, areaKey)} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={allVariantsReady} studentName={selectedStudent?.displayName} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={teacherPickedAreas} onToggleArea={handleToggleAreaPick} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={areasReady} studentName={selectedStudent?.displayName} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>

@@ -94,23 +94,23 @@ describe("buildSavePayload", () => {
     assert.deepEqual(payload.ranBy, { uid: "u1", name: "Thilak" });
   });
 
-  it("includes interviewMode and per-variant selectedAreas for interview feature", () => {
+  it("includes interviewMode and selectedAreas for interview feature", () => {
     const args = {
       ...baseArgs,
       featureId: "interview_question_gen",
       interviewMode: "teacher_pick",
-      selectedAreasMap: { 0: ["Self-Regulation", "Mathematics"] },
+      selectedAreas: ["Self-Regulation", "Mathematics"],
     };
     const payload = buildSavePayload(args);
     assert.equal(payload.interviewMode, "teacher_pick");
-    assert.deepEqual(payload.variants[0].selectedAreas, ["Self-Regulation", "Mathematics"]);
+    assert.deepEqual(payload.selectedAreas, ["Self-Regulation", "Mathematics"]);
   });
 
   it("omits interviewMode and selectedAreas for non-interview features", () => {
-    const args = { ...baseArgs, interviewMode: "random", selectedAreasMap: { 0: ["X"] } };
+    const args = { ...baseArgs, interviewMode: "random", selectedAreas: ["X"] };
     const payload = buildSavePayload(args);
     assert.equal(payload.interviewMode, undefined);
-    assert.equal(payload.variants[0].selectedAreas, undefined);
+    assert.equal(payload.selectedAreas, undefined);
   });
 });
 
