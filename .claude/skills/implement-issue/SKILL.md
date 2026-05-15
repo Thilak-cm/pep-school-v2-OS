@@ -108,45 +108,70 @@ Create a technical execution plan with specific file paths, test specifications,
    - Identify 2-3 viable implementation paths when reasonable (or explain why only one is viable)
    - Compare tradeoffs for each path (delivery speed, regression risk, complexity, maintainability, test impact)
 
-2. Generate execution plan and render as an **HTML artifact** (see `.claude/shared/html-artifacts.md`).
+2. Generate execution plan with sections:
 
-   **Design intent:** The plan should be visual and scannable — not a text dump. Use numbered sections, comparison tables, timelines, and tag badges. Keep prose to 1-2 sentences per section intro. Let the layout communicate.
+```markdown
+## Summary
+[1-2 sentence description of implementation approach]
 
-   **What goes in the HTML file (`plan-{ISSUE-ID}.html`):**
+## Implementation Path Options
 
-   Use the page skeleton from `html-artifacts.md` with breadcrumb `PEP OS / {ISSUE-ID} / Implementation Plan`.
+### Option A (Recommended): [Approach name]
+- **What it changes:** [Short summary]
+- **Pros:** [Speed, reuse, lower risk, etc.]
+- **Cons:** [Complexity, technical debt, migration cost, etc.]
+- **Risk Profile:** Low | Medium | High
+- **Test Impact:** [Which tests are affected / need additions]
 
-   **Section 01 — Implementation Paths** (use the **Comparison Table** pattern)
-   - 2-3 options as side-by-side cards with pro/con mini-tables
-   - Each card gets metric tags at bottom: Risk, Test Impact
-   - Recommended option gets `.recommended` border + label
-   - Keep descriptions to 1-2 sentences per option
+### Option B: [Approach name]
+- **What it changes:** [Short summary]
+- **Pros:** [...]
+- **Cons:** [...]
+- **Risk Profile:** Low | Medium | High
+- **Test Impact:** [...]
 
-   **Section 02 — Files** (use the **File Change List** pattern)
-   - Each file with mono path, short description, and risk tag (low/medium/high)
-   - Separate "Files to Create" from "Files to Modify" only if both exist
+### Decision Notes (Working Draft)
+- Recommended option: [A/B]
+- Open questions for user: [Tradeoffs to confirm before approval]
 
-   **Section 03 — Implementation** (use the **Timeline** pattern)
-   - Step-by-step TDD plan as a vertical timeline
-   - Each step: title, 1-sentence description, file tags
-   - Dot states: done/active/pending as implementation progresses
+## Files to Modify
+- `path/to/file1.js` - [What changes, which components affected]
+- `path/to/file2.jsx` - [What changes]
 
-   **Section 04 — Test Specification** (use **collapsible sections**)
-   - One `<details>` per acceptance criterion
-   - Inside: Test Type, Test File, Test Description, Edge Cases
+## Files to Create (if any)
+- `path/to/newfile.js` - [Purpose]
 
-   **Section 05 — Verification** (simple checklist using scope-item pattern)
-   - All criteria have tests, no regressions, manual testing if UI
+## Test Specification
 
-   **What goes in the terminal:**
-   - 1-2 line summary: "Generated implementation plan for PEP-{id}. {N} options, {N} files affected."
-   - File path: "Open `.claude/artifacts/plan-{ISSUE-ID}.html` to review."
-   - `open .claude/artifacts/plan-{ISSUE-ID}.html`
-   - Then proceed to discussion: "Recommended option is {A/B}. {1 sentence why}. Questions: {open questions from Decision Notes}."
+### Acceptance Criterion 1: [Criterion text]
+- **Test Type:** Unit | Integration | E2E
+- **Test File:** `path/to/test-file.test.js` (new or existing)
+- **Test Description:** Should [expected behavior]
+- **Edge Cases:** [list edge cases to test]
+
+### Acceptance Criterion 2: [Criterion text]
+- **Test Type:** Integration
+- **Test File:** `path/to/test-file.test.js`
+- **Test Description:** Should [expected behavior]
+- **Edge Cases:** [list edge cases to test]
+
+## Implementation Approach
+[Step-by-step technical approach - TDD style: write tests first, then implementation]
+
+## Related Context
+- [Reference overview sections or explore findings that informed this plan]
+- [Any architectural constraints or patterns to follow]
+
+## Verification Checklist
+- [ ] All acceptance criteria have test coverage
+- [ ] All new tests written and passing
+- [ ] Existing related tests still passing (no regressions)
+- [ ] Manual testing completed (if UI changes)
+```
 
 **CRITICAL REQUIREMENT:** Every acceptance criterion MUST map to at least one test.
 
-**Output:** HTML artifact with the full plan + terminal summary with recommendation and open questions for discussion
+**Output:** Complete technical execution plan with test specifications and implementation path tradeoffs
 
 ## Phase 4: Test Discovery & Baseline
 
@@ -181,17 +206,16 @@ Identify existing tests and establish baseline test results.
 Get explicit user approval before making any code changes.
 
 **Steps:**
-1. The HTML plan artifact is already open in the browser (from Phase 3)
-2. In the terminal, summarize: inferred area tags, loaded context, recommended option + why
-3. Discuss tradeoffs with user in the terminal:
+1. Present complete execution plan (all sections above)
+2. Explain inferred area tags and loaded context
+3. Show implementation path options and discuss tradeoffs with user:
    - Why the recommended option was chosen
    - What is gained/lost vs alternatives
    - Risks, rollout concerns, and testing implications
-   - Reference the HTML plan: "See the comparison cards in the plan for details"
-4. Show test discovery results and baseline (terminal text — this is short)
+4. Show test discovery results and baseline
 5. Ask user to confirm the implementation path (approve/edit/switch option)
-6. If "edit": Ask what needs changing, regenerate the HTML plan, re-open it
-7. If "switch option": Revise plan for selected path, regenerate HTML, re-review
+6. If "edit": Ask what needs changing, iterate on plan and tradeoff analysis
+7. If "switch option": Revise plan for selected path, then re-review
 8. If "no": Ask what needs revision, go back to Phase 3
 9. If "yes": Proceed to Phase 6 with finalized path
 

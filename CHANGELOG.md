@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.20.2 — 2026-05-15
+
+### Added
+- Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
+- Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
+
+### Changed
+- Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
+
 # 10.20.1 — 2026-05-13
 
 ### Added
