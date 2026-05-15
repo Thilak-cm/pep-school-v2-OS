@@ -24,6 +24,9 @@
   "hosting": [
     {
       "target": "app",
+      "predeploy": [
+        "npm --prefix montessori-os run build"
+      ],
       "public": "montessori-os/dist",
       "ignore": [
         "firebase.json",

@@ -262,7 +262,8 @@ export default function NoteBottomSheet({
       onFinalize: async () => {
         try {
           const parentId = obs.parentStudentId || obs.studentId;
-          await deleteDoc(doc(db, 'students', parentId, 'observations', obs.id));
+          const targetCollection = obs.type === 'media' ? 'media' : 'observations';
+          await deleteDoc(doc(db, 'students', parentId, targetCollection, obs.id));
           if (typeof onNotesChanged === 'function') onNotesChanged();
           notify.success('Note deleted successfully', { id: notifId, duration: 2500 });
         } catch { notify.error('Error deleting note. Please try again.', { id: notifId, duration: 3500 }); }
