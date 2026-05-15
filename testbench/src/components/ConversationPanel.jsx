@@ -154,7 +154,7 @@ function AnswerBubble({ answer }) {
  * ConversationPanel — renders a turn-by-turn interview conversation
  * in a chat-style layout: LLM questions left, teacher answers right.
  */
-export default function ConversationPanel({ turns, loading, error, teacherInput, onTeacherInputChange, onSendAnswer, inputDisabled, ended }) {
+export default function ConversationPanel({ turns, loading, error, teacherInput, onTeacherInputChange, onSendAnswer, inputDisabled, ended, areaPickPhase, areaPool, pickedAreas, onToggleArea, studentName }) {
   const scrollRef = useRef(null);
 
   // Auto-scroll to bottom on new turns
@@ -192,6 +192,34 @@ export default function ConversationPanel({ turns, loading, error, teacherInput,
   const showInput = turns?.length > 0 && !loading && !ended && onSendAnswer;
 
   if (!turns?.length && !loading && !error) {
+    // Area pick phase — show picker as a chat-like bubble (PEP-220)
+    if (areaPickPhase && areaPool?.length > 0) {
+      return (
+        <Box sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2, minHeight: 200 }}>
+          <Box sx={{ bgcolor: "action.hover", borderRadius: 2, p: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1.5 }}>
+              Today you're picking the direction of this interview! Here are 4 topics I've identified for <strong>{studentName}</strong>. Select 2 and I'll ask questions in those areas.
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+              {areaPool.map((area) => (
+                <Chip
+                  key={area}
+                  label={area}
+                  onClick={() => onToggleArea(area)}
+                  color={pickedAreas?.includes(area) ? "primary" : "default"}
+                  variant={pickedAreas?.includes(area) ? "filled" : "outlined"}
+                  sx={{ cursor: "pointer" }}
+                />
+              ))}
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              {pickedAreas?.length || 0} of 2 selected
+            </Typography>
+          </Box>
+        </Box>
+      );
+    }
+
     return (
       <Paper
         variant="outlined"

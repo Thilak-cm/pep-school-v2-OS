@@ -64,10 +64,10 @@ export default function InterviewWorkbench() {
 
   // Mode + area selection (PEP-220)
   const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
-  const [selectedAreas, setSelectedAreas] = useState([]); // persisted across turns
-  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing Coach Pepper area picker
-  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas for Teacher Pick
-  const [teacherPickedAreas, setTeacherPickedAreas] = useState([]); // teacher's 2 picks before start
+  const [selectedAreasMap, setSelectedAreasMap] = useState({}); // {variantIdx: string[]} — persisted across turns
+  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing area picker in each variant
+  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas (shared across variants)
+  const [pickedAreasMap, setPickedAreasMap] = useState({}); // {variantIdx: string[]} — teacher's picks before start
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -124,13 +124,16 @@ export default function InterviewWorkbench() {
   const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
   const tooFewAreas = totalAreaCount < 2;
 
-  function handleToggleAreaPick(areaKey) {
-    setTeacherPickedAreas((prev) => {
-      if (prev.includes(areaKey)) return prev.filter((k) => k !== areaKey);
-      if (prev.length >= 2) return prev; // max 2
-      return [...prev, areaKey];
+  function handleToggleAreaPick(variantIdx, areaKey) {
+    setPickedAreasMap((prev) => {
+      const current = prev[variantIdx] || [];
+      if (current.includes(areaKey)) return { ...prev, [variantIdx]: current.filter((k) => k !== areaKey) };
+      if (current.length >= 2) return prev; // max 2
+      return { ...prev, [variantIdx]: [...current, areaKey] };
     });
   }
+
+  const allVariantsReady = areaPickPhase && variants.every((_, idx) => (pickedAreasMap[idx] || []).length === 2);
 
   // "Start Interview" click — either enter area pick phase (teacher_pick) or start directly (random)
   function handleStartClick() {
@@ -139,40 +142,45 @@ export default function InterviewWorkbench() {
     if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
 
     if (interviewMode === "teacher_pick") {
-      // Enter area pick phase — Coach Pepper presents 4 areas
+      // Enter area pick phase — each variant shows area picker
       setAreaPool(pickRandomAreas(areas, 4));
-      setTeacherPickedAreas([]);
+      setPickedAreasMap({});
       setAreaPickPhase(true);
     } else {
-      // Random mode — start immediately
-      beginInterview(pickRandomAreas(areas, 2));
+      // Random mode — start immediately with shared random areas
+      const randomAreas = pickRandomAreas(areas, 2);
+      const areasMap = {};
+      for (let idx = 0; idx < variants.length; idx++) areasMap[idx] = randomAreas;
+      beginInterview(areasMap);
     }
   }
 
   // Confirm area picks and start the actual interview
   function confirmAreaPicks() {
     setAreaPickPhase(false);
-    beginInterview(teacherPickedAreas);
+    beginInterview(pickedAreasMap);
   }
 
   function cancelAreaPicks() {
     setAreaPickPhase(false);
     setAreaPool([]);
-    setTeacherPickedAreas([]);
+    setPickedAreasMap({});
   }
 
-  function beginInterview(finalAreas) {
+  function beginInterview(areasMap) {
     try {
       const areas = studentContextData?.openQuestions;
-      const picked = pickRandomQuestion(areas, finalAreas);
-      const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
-      const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
-
-      setSelectedAreas(finalAreas);
-
       const newConversations = {};
-      for (let idx = 0; idx < variants.length; idx++) { newConversations[idx] = [syntheticTurn]; }
 
+      for (let idx = 0; idx < variants.length; idx++) {
+        const finalAreas = areasMap[idx] || [];
+        const picked = pickRandomQuestion(areas, finalAreas);
+        const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
+        const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
+        newConversations[idx] = [syntheticTurn];
+      }
+
+      setSelectedAreasMap(areasMap);
       setConversations(newConversations);
       setInterviewStarted(true);
       setVariants((prev) => prev.map((v) => ({ ...v, dirty: true })));
@@ -201,7 +209,7 @@ export default function InterviewWorkbench() {
       const start = Date.now();
       try {
         const prevMessages = [...buildMessageHistory(conversationsSnapshot[idx] || [], kickoffMessage), { role: "user", content: answer }];
-        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas });
+        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas: selectedAreasMap[idx] || [] });
         const latencyMs = Date.now() - start;
         let parsed; try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
 
@@ -235,7 +243,7 @@ export default function InterviewWorkbench() {
     if (!selectedStudent) return;
     setSaving(true);
     try {
-      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user: auth.currentUser });
+      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreasMap, user: auth.currentUser });
       await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
@@ -250,7 +258,17 @@ export default function InterviewWorkbench() {
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
     setInterviewMode(run.interviewMode || "random");
-    setSelectedAreas(run.selectedAreas || []);
+    // Restore per-variant selectedAreas — handle both legacy flat array and new per-variant map
+    if (run.selectedAreasMap) {
+      setSelectedAreasMap(run.selectedAreasMap);
+    } else if (run.selectedAreas) {
+      // Legacy: flat array → apply same areas to all variants
+      const map = {};
+      (run.variants || []).forEach((_, i) => { map[i] = run.selectedAreas; });
+      setSelectedAreasMap(map);
+    } else {
+      setSelectedAreasMap({});
+    }
     setVariants(restoreVariantsFromRun(run));
     const restoredConvos = restoreConversationsFromRun(run);
     setConversations(restoredConvos);
@@ -283,7 +301,7 @@ export default function InterviewWorkbench() {
       </Box>
 
       {/* Mode toggle (PEP-220) */}
-      <Box sx={{ mb: 3, display: "flex", alignItems: "flex-start", gap: 3, flexWrap: "wrap" }}>
+      <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Exploration Mode</Typography>
           <ToggleButtonGroup value={interviewMode} exclusive onChange={(_, v) => v && setInterviewMode(v)} size="small" disabled={interviewStarted || areaPickPhase}>
@@ -293,56 +311,15 @@ export default function InterviewWorkbench() {
             </Tooltip>
           </ToggleButtonGroup>
         </Box>
-        {interviewStarted && selectedAreas.length > 0 && (
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
-              Selected Areas ({interviewMode === "teacher_pick" ? "Teacher Pick" : "Random"})
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {selectedAreas.map((area) => (
-                <Chip key={area} label={area} color="primary" size="small" />
-              ))}
-            </Box>
-          </Box>
-        )}
-      </Box>
-
-      {/* Coach Pepper area pick phase (PEP-220) */}
-      {areaPickPhase && (
-        <Box sx={{ mb: 3, maxWidth: 600, mx: "auto" }}>
-          <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start", mb: 2 }}>
-            <Box sx={{ width: 36, height: 36, borderRadius: "50%", bgcolor: "primary.main", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>
-              🌶️
-            </Box>
-            <Box sx={{ bgcolor: "action.hover", borderRadius: 2, p: 2, flex: 1 }}>
-              <Typography variant="body2" sx={{ mb: 1.5 }}>
-                Today you're picking the direction of this interview! Here are 4 topics I've identified for <strong>{selectedStudent?.displayName}</strong>. Select 2 and I'll ask questions in those areas.
-              </Typography>
-              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
-                {areaPool.map((area) => (
-                  <Chip
-                    key={area}
-                    label={area}
-                    onClick={() => handleToggleAreaPick(area)}
-                    color={teacherPickedAreas.includes(area) ? "primary" : "default"}
-                    variant={teacherPickedAreas.includes(area) ? "filled" : "outlined"}
-                    sx={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                {teacherPickedAreas.length} of 2 selected
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+        {areaPickPhase && (
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
             <Button size="small" onClick={cancelAreaPicks}>Cancel</Button>
-            <Button size="small" variant="contained" onClick={confirmAreaPicks} disabled={teacherPickedAreas.length !== 2} startIcon={<PlayArrowIcon />}>
+            <Button size="small" variant="contained" onClick={confirmAreaPicks} disabled={!allVariantsReady} startIcon={<PlayArrowIcon />}>
               Begin Interview
             </Button>
           </Box>
-        </Box>
-      )}
+        )}
+      </Box>
 
       {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
       <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
@@ -357,7 +334,7 @@ export default function InterviewWorkbench() {
             interviewStarted={interviewStarted}
             elapsedSeconds={elapsedSeconds}
             questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
-            selectedAreas={selectedAreas}
+            selectedAreas={selectedAreasMap[0] || []}
           />
         </AccordionDetails>
       </Accordion>
@@ -373,7 +350,7 @@ export default function InterviewWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={pickedAreasMap[idx] || []} onToggleArea={(areaKey) => handleToggleAreaPick(idx, areaKey)} studentName={selectedStudent?.displayName} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>

@@ -18,7 +18,7 @@ export function getRunLabel(run) {
   return run.sessionName?.trim() || run.studentName || "";
 }
 
-export function buildSavePayload({ featureId, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user }) {
+export function buildSavePayload({ featureId, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreasMap, user }) {
   const isInterview = featureId === "interview_question_gen";
   const trimmedName = buildSessionNameField(sessionName);
 
@@ -38,12 +38,12 @@ export function buildSavePayload({ featureId, selectedStudent, variants, convers
       },
       output: v.output || "",
       ...(isInterview && conversations[idx] ? { conversation: conversations[idx] } : {}),
+      ...(isInterview && selectedAreasMap?.[idx]?.length ? { selectedAreas: selectedAreasMap[idx] } : {}),
       rating: v.rating,
       notes: v.notes,
     })),
     ...(isInterview ? { kickoffMessage } : {}),
     ...(isInterview && interviewMode ? { interviewMode } : {}),
-    ...(isInterview && selectedAreas?.length ? { selectedAreas } : {}),
     ranBy: { uid: user?.uid, name: user?.displayName || user?.email },
   };
 }
