@@ -70,8 +70,9 @@ export const testBenchRun = functions
       }
       const elapsedMinutes = typeof data?.elapsedMinutes === "number" ? data.elapsedMinutes : null;
       const questionCount = typeof data?.questionCount === "number" ? data.questionCount : null;
+      const selectedAreas = Array.isArray(data?.selectedAreas) ? data.selectedAreas : [];
       const supportsJsonMode = getModelSupportsJson(model);
-      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model: routerModel, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, supportsJsonMode });
+      return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model: routerModel, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, selectedAreas, supportsJsonMode });
     }
 
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);

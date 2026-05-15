@@ -8,6 +8,9 @@ import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import ToggleButton from "@mui/material/ToggleButton";
+import Tooltip from "@mui/material/Tooltip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Accordion from "@mui/material/Accordion";
@@ -58,6 +61,12 @@ export default function InterviewWorkbench() {
   const [contextReloadKey, setContextReloadKey] = useState(0);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
   const soulGenCompleted = useRef(null);
+
+  // Mode + area selection (PEP-220)
+  const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
+  const [selectedAreas, setSelectedAreas] = useState([]); // persisted across turns
+  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas for Teacher Pick
+  const [teacherPickedAreas, setTeacherPickedAreas] = useState([]); // teacher's 2 picks before start
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -111,19 +120,46 @@ export default function InterviewWorkbench() {
 
   // --- Interview functions ---
 
+  // Populate area pool when student context loads in Teacher Pick mode (PEP-220)
+  useEffect(() => {
+    if (interviewMode === "teacher_pick" && studentContextData?.openQuestions && !interviewStarted) {
+      const allKeys = Object.keys(studentContextData.openQuestions);
+      if (allKeys.length >= 2) {
+        setAreaPool(pickRandomAreas(studentContextData.openQuestions, 4));
+        setTeacherPickedAreas([]);
+      } else {
+        // Not enough areas — force random mode
+        setAreaPool([]);
+        setTeacherPickedAreas([]);
+      }
+    }
+  }, [interviewMode, studentContextData, interviewStarted]);
+
+  function handleToggleAreaPick(areaKey) {
+    setTeacherPickedAreas((prev) => {
+      if (prev.includes(areaKey)) return prev.filter((k) => k !== areaKey);
+      if (prev.length >= 2) return prev; // max 2
+      return [...prev, areaKey];
+    });
+  }
+
+  const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
+  const tooFewAreas = totalAreaCount < 2;
+
   async function startInterview() {
     if (!selectedStudent) return;
     try {
-      const oqSnap = await getDoc(doc(db, "students", selectedStudent.id, "ai_summaries", "open_questions"));
-      if (!oqSnap.exists()) { setSoulDialogOpen(true); return; }
-
-      const areas = oqSnap.data()?.areas;
+      const areas = studentContextData?.openQuestions;
       if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
 
-      const selectedAreas = pickRandomAreas(areas, 2);
-      const picked = pickRandomQuestion(areas, selectedAreas);
-      const explorationAreas = selectedAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
+      // Determine the 2 areas based on mode
+      const finalAreas = interviewMode === "teacher_pick" ? teacherPickedAreas : pickRandomAreas(areas, 2);
+
+      const picked = pickRandomQuestion(areas, finalAreas);
+      const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
       const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
+
+      setSelectedAreas(finalAreas);
 
       const newConversations = {};
       for (let idx = 0; idx < variants.length; idx++) { newConversations[idx] = [syntheticTurn]; }
@@ -156,7 +192,7 @@ export default function InterviewWorkbench() {
       const start = Date.now();
       try {
         const prevMessages = [...buildMessageHistory(conversationsSnapshot[idx] || [], kickoffMessage), { role: "user", content: answer }];
-        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1 });
+        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas });
         const latencyMs = Date.now() - start;
         let parsed; try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
 
@@ -190,7 +226,7 @@ export default function InterviewWorkbench() {
     if (!selectedStudent) return;
     setSaving(true);
     try {
-      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, user: auth.currentUser });
+      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user: auth.currentUser });
       await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
@@ -204,6 +240,8 @@ export default function InterviewWorkbench() {
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
+    setInterviewMode(run.interviewMode || "random");
+    setSelectedAreas(run.selectedAreas || []);
     setVariants(restoreVariantsFromRun(run));
     const restoredConvos = restoreConversationsFromRun(run);
     setConversations(restoredConvos);
@@ -220,7 +258,7 @@ export default function InterviewWorkbench() {
         <InterviewQuestionConfig selectedStudent={selectedStudent} reloadKey={contextReloadKey} onConfigLoaded={handleConfigLoaded} onStudentContextLoaded={setStudentContextData} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           {!interviewStarted ? (
-            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={startInterview} disabled={!selectedStudent || variants.some((v) => v.loading)}>Start Interview</Button>
+            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={startInterview} disabled={!selectedStudent || variants.some((v) => v.loading) || (interviewMode === "teacher_pick" && teacherPickedAreas.length !== 2)}>Start Interview</Button>
           ) : !interviewEnded ? (
             <>
               <Chip label={`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`} color={elapsedSeconds >= 600 ? "warning" : "default"} variant="outlined" sx={{ fontFamily: "monospace", fontWeight: 700, minWidth: 64 }} />
@@ -233,6 +271,50 @@ export default function InterviewWorkbench() {
           <Button variant="outlined" startIcon={<SaveIcon />} onClick={saveRun} disabled={saving || !Object.values(conversations).some((c) => c?.length > 0)}>{saving ? "Saving..." : "Save Run"}</Button>
           <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryOpen(true)}>History</Button>
         </Box>
+      </Box>
+
+      {/* Mode toggle + area picker (PEP-220) */}
+      <Box sx={{ mb: 3, display: "flex", alignItems: "flex-start", gap: 3, flexWrap: "wrap" }}>
+        <Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Exploration Mode</Typography>
+          <ToggleButtonGroup value={interviewMode} exclusive onChange={(_, v) => v && setInterviewMode(v)} size="small" disabled={interviewStarted}>
+            <ToggleButton value="random">Random</ToggleButton>
+            <Tooltip title={tooFewAreas ? "Student has fewer than 2 areas — Teacher Pick unavailable" : ""}>
+              <span><ToggleButton value="teacher_pick" disabled={tooFewAreas}>Teacher Pick</ToggleButton></span>
+            </Tooltip>
+          </ToggleButtonGroup>
+        </Box>
+        {interviewMode === "teacher_pick" && areaPool.length > 0 && !interviewStarted && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+              Pick 2 areas ({teacherPickedAreas.length} of 2 selected)
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              {areaPool.map((area) => (
+                <Chip
+                  key={area}
+                  label={area}
+                  onClick={() => handleToggleAreaPick(area)}
+                  color={teacherPickedAreas.includes(area) ? "primary" : "default"}
+                  variant={teacherPickedAreas.includes(area) ? "filled" : "outlined"}
+                  sx={{ cursor: "pointer" }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+        {interviewStarted && selectedAreas.length > 0 && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+              Selected Areas ({interviewMode === "teacher_pick" ? "Teacher Pick" : "Random"})
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              {selectedAreas.map((area) => (
+                <Chip key={area} label={area} color="primary" size="small" />
+              ))}
+            </Box>
+          </Box>
+        )}
       </Box>
 
       {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
@@ -248,6 +330,7 @@ export default function InterviewWorkbench() {
             interviewStarted={interviewStarted}
             elapsedSeconds={elapsedSeconds}
             questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
+            selectedAreas={selectedAreas}
           />
         </AccordionDetails>
       </Accordion>
