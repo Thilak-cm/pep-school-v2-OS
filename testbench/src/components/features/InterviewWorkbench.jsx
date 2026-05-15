@@ -155,8 +155,9 @@ export default function InterviewWorkbench() {
     }
   }
 
-  // Confirm area picks and start the actual interview
+  // Confirm area picks and start the actual interview (only when all variants have 2 picks)
   function confirmAreaPicks() {
+    if (!allVariantsReady) return;
     setAreaPickPhase(false);
     beginInterview(pickedAreasMap);
   }
@@ -311,14 +312,6 @@ export default function InterviewWorkbench() {
             </Tooltip>
           </ToggleButtonGroup>
         </Box>
-        {areaPickPhase && (
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <Button size="small" onClick={cancelAreaPicks}>Cancel</Button>
-            <Button size="small" variant="contained" onClick={confirmAreaPicks} disabled={!allVariantsReady} startIcon={<PlayArrowIcon />}>
-              Begin Interview
-            </Button>
-          </Box>
-        )}
       </Box>
 
       {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
@@ -350,7 +343,7 @@ export default function InterviewWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={pickedAreasMap[idx] || []} onToggleArea={(areaKey) => handleToggleAreaPick(idx, areaKey)} studentName={selectedStudent?.displayName} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={pickedAreasMap[idx] || []} onToggleArea={(areaKey) => handleToggleAreaPick(idx, areaKey)} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={allVariantsReady} studentName={selectedStudent?.displayName} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>

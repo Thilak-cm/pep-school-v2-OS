@@ -51,6 +51,9 @@ export default function VariantColumn({
   areaPool,
   pickedAreas,
   onToggleArea,
+  onConfirmAreas,
+  onCancelAreas,
+  allVariantsReady,
   studentName,
 }) {
   const [editingName, setEditingName] = useState(false);
@@ -172,6 +175,9 @@ export default function VariantColumn({
           areaPool={areaPool}
           pickedAreas={pickedAreas}
           onToggleArea={onToggleArea}
+          onConfirmAreas={onConfirmAreas}
+          onCancelAreas={onCancelAreas}
+          allVariantsReady={allVariantsReady}
           studentName={studentName}
         />
       ) : (

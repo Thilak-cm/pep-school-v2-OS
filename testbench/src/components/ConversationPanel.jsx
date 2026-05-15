@@ -10,6 +10,8 @@ import ExploreIcon from "@mui/icons-material/Explore";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PersonIcon from "@mui/icons-material/Person";
 import SendIcon from "@mui/icons-material/Send";
+import Button from "@mui/material/Button";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 
 function ExplorationAreasCard({ areas }) {
   if (!areas?.length) return null;
@@ -154,7 +156,7 @@ function AnswerBubble({ answer }) {
  * ConversationPanel — renders a turn-by-turn interview conversation
  * in a chat-style layout: LLM questions left, teacher answers right.
  */
-export default function ConversationPanel({ turns, loading, error, teacherInput, onTeacherInputChange, onSendAnswer, inputDisabled, ended, areaPickPhase, areaPool, pickedAreas, onToggleArea, studentName }) {
+export default function ConversationPanel({ turns, loading, error, teacherInput, onTeacherInputChange, onSendAnswer, inputDisabled, ended, areaPickPhase, areaPool, pickedAreas, onToggleArea, onConfirmAreas, onCancelAreas, allVariantsReady, studentName }) {
   const scrollRef = useRef(null);
 
   // Auto-scroll to bottom on new turns
@@ -212,9 +214,17 @@ export default function ConversationPanel({ turns, loading, error, teacherInput,
                 />
               ))}
             </Box>
-            <Typography variant="caption" color="text.secondary">
-              {pickedAreas?.length || 0} of 2 selected
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                {pickedAreas?.length || 0} of 2 selected
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button size="small" onClick={onCancelAreas}>Cancel</Button>
+                <Button size="small" variant="contained" onClick={onConfirmAreas} disabled={!allVariantsReady} startIcon={<PlayArrowIcon />}>
+                  Begin Interview
+                </Button>
+              </Box>
+            </Box>
           </Box>
         </Box>
       );
