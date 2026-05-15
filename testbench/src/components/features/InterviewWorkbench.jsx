@@ -65,6 +65,7 @@ export default function InterviewWorkbench() {
   // Mode + area selection (PEP-220)
   const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
   const [selectedAreas, setSelectedAreas] = useState([]); // persisted across turns
+  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing Coach Pepper area picker
   const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas for Teacher Pick
   const [teacherPickedAreas, setTeacherPickedAreas] = useState([]); // teacher's 2 picks before start
 
@@ -120,20 +121,8 @@ export default function InterviewWorkbench() {
 
   // --- Interview functions ---
 
-  // Populate area pool when student context loads in Teacher Pick mode (PEP-220)
-  useEffect(() => {
-    if (interviewMode === "teacher_pick" && studentContextData?.openQuestions && !interviewStarted) {
-      const allKeys = Object.keys(studentContextData.openQuestions);
-      if (allKeys.length >= 2) {
-        setAreaPool(pickRandomAreas(studentContextData.openQuestions, 4));
-        setTeacherPickedAreas([]);
-      } else {
-        // Not enough areas — force random mode
-        setAreaPool([]);
-        setTeacherPickedAreas([]);
-      }
-    }
-  }, [interviewMode, studentContextData, interviewStarted]);
+  const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
+  const tooFewAreas = totalAreaCount < 2;
 
   function handleToggleAreaPick(areaKey) {
     setTeacherPickedAreas((prev) => {
@@ -143,18 +132,38 @@ export default function InterviewWorkbench() {
     });
   }
 
-  const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
-  const tooFewAreas = totalAreaCount < 2;
-
-  async function startInterview() {
+  // "Start Interview" click — either enter area pick phase (teacher_pick) or start directly (random)
+  function handleStartClick() {
     if (!selectedStudent) return;
+    const areas = studentContextData?.openQuestions;
+    if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
+
+    if (interviewMode === "teacher_pick") {
+      // Enter area pick phase — Coach Pepper presents 4 areas
+      setAreaPool(pickRandomAreas(areas, 4));
+      setTeacherPickedAreas([]);
+      setAreaPickPhase(true);
+    } else {
+      // Random mode — start immediately
+      beginInterview(pickRandomAreas(areas, 2));
+    }
+  }
+
+  // Confirm area picks and start the actual interview
+  function confirmAreaPicks() {
+    setAreaPickPhase(false);
+    beginInterview(teacherPickedAreas);
+  }
+
+  function cancelAreaPicks() {
+    setAreaPickPhase(false);
+    setAreaPool([]);
+    setTeacherPickedAreas([]);
+  }
+
+  function beginInterview(finalAreas) {
     try {
       const areas = studentContextData?.openQuestions;
-      if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
-
-      // Determine the 2 areas based on mode
-      const finalAreas = interviewMode === "teacher_pick" ? teacherPickedAreas : pickRandomAreas(areas, 2);
-
       const picked = pickRandomQuestion(areas, finalAreas);
       const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
       const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
@@ -258,7 +267,7 @@ export default function InterviewWorkbench() {
         <InterviewQuestionConfig selectedStudent={selectedStudent} reloadKey={contextReloadKey} onConfigLoaded={handleConfigLoaded} onStudentContextLoaded={setStudentContextData} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           {!interviewStarted ? (
-            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={startInterview} disabled={!selectedStudent || variants.some((v) => v.loading) || (interviewMode === "teacher_pick" && teacherPickedAreas.length !== 2)}>Start Interview</Button>
+            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={handleStartClick} disabled={!selectedStudent || variants.some((v) => v.loading) || areaPickPhase}>Start Interview</Button>
           ) : !interviewEnded ? (
             <>
               <Chip label={`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`} color={elapsedSeconds >= 600 ? "warning" : "default"} variant="outlined" sx={{ fontFamily: "monospace", fontWeight: 700, minWidth: 64 }} />
@@ -273,36 +282,17 @@ export default function InterviewWorkbench() {
         </Box>
       </Box>
 
-      {/* Mode toggle + area picker (PEP-220) */}
+      {/* Mode toggle (PEP-220) */}
       <Box sx={{ mb: 3, display: "flex", alignItems: "flex-start", gap: 3, flexWrap: "wrap" }}>
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Exploration Mode</Typography>
-          <ToggleButtonGroup value={interviewMode} exclusive onChange={(_, v) => v && setInterviewMode(v)} size="small" disabled={interviewStarted}>
+          <ToggleButtonGroup value={interviewMode} exclusive onChange={(_, v) => v && setInterviewMode(v)} size="small" disabled={interviewStarted || areaPickPhase}>
             <ToggleButton value="random">Random</ToggleButton>
             <Tooltip title={tooFewAreas ? "Student has fewer than 2 areas — Teacher Pick unavailable" : ""}>
               <span><ToggleButton value="teacher_pick" disabled={tooFewAreas}>Teacher Pick</ToggleButton></span>
             </Tooltip>
           </ToggleButtonGroup>
         </Box>
-        {interviewMode === "teacher_pick" && areaPool.length > 0 && !interviewStarted && (
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
-              Pick 2 areas ({teacherPickedAreas.length} of 2 selected)
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {areaPool.map((area) => (
-                <Chip
-                  key={area}
-                  label={area}
-                  onClick={() => handleToggleAreaPick(area)}
-                  color={teacherPickedAreas.includes(area) ? "primary" : "default"}
-                  variant={teacherPickedAreas.includes(area) ? "filled" : "outlined"}
-                  sx={{ cursor: "pointer" }}
-                />
-              ))}
-            </Box>
-          </Box>
-        )}
         {interviewStarted && selectedAreas.length > 0 && (
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
@@ -316,6 +306,43 @@ export default function InterviewWorkbench() {
           </Box>
         )}
       </Box>
+
+      {/* Coach Pepper area pick phase (PEP-220) */}
+      {areaPickPhase && (
+        <Box sx={{ mb: 3, maxWidth: 600, mx: "auto" }}>
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start", mb: 2 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: "50%", bgcolor: "primary.main", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>
+              🌶️
+            </Box>
+            <Box sx={{ bgcolor: "action.hover", borderRadius: 2, p: 2, flex: 1 }}>
+              <Typography variant="body2" sx={{ mb: 1.5 }}>
+                Today you're picking the direction of this interview! Here are 4 topics I've identified for <strong>{selectedStudent?.displayName}</strong>. Select 2 and I'll ask questions in those areas.
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+                {areaPool.map((area) => (
+                  <Chip
+                    key={area}
+                    label={area}
+                    onClick={() => handleToggleAreaPick(area)}
+                    color={teacherPickedAreas.includes(area) ? "primary" : "default"}
+                    variant={teacherPickedAreas.includes(area) ? "filled" : "outlined"}
+                    sx={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                {teacherPickedAreas.length} of 2 selected
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+            <Button size="small" onClick={cancelAreaPicks}>Cancel</Button>
+            <Button size="small" variant="contained" onClick={confirmAreaPicks} disabled={teacherPickedAreas.length !== 2} startIcon={<PlayArrowIcon />}>
+              Begin Interview
+            </Button>
+          </Box>
+        </Box>
+      )}
 
       {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
       <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
