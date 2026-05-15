@@ -8,7 +8,7 @@ import CircularProgress from "@mui/material/CircularProgress";
  * No rendering — context display is handled by FeatureWorkbench's
  * full-width LLM context pipeline section.
  */
-export default function InterviewQuestionConfig({ selectedStudent, onConfigLoaded, onStudentContextLoaded }) {
+export default function InterviewQuestionConfig({ selectedStudent, reloadKey, onConfigLoaded, onStudentContextLoaded }) {
   const [loading, setLoading] = useState(true);
 
   // Load config on mount
@@ -23,7 +23,7 @@ export default function InterviewQuestionConfig({ selectedStudent, onConfigLoade
     } else {
       onStudentContextLoaded?.(null);
     }
-  }, [selectedStudent?.id]);
+  }, [selectedStudent?.id, reloadKey]);
 
   async function loadConfig() {
     setLoading(true);
@@ -45,6 +45,8 @@ export default function InterviewQuestionConfig({ selectedStudent, onConfigLoade
   }
 
   async function loadStudentContext(studentId) {
+    // Clear stale context immediately so downstream consumers don't act on old data
+    onStudentContextLoaded?.(null);
     try {
       const [soulSnap, guidelinesSnap, bcSnap, oqSnap] = await Promise.all([
         getDoc(doc(db, "students", studentId, "ai_summaries", "soul")),

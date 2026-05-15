@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 5175",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/utils/*.test.js src/components/*.test.js src/components/**/*.test.js src/hooks/*.test.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

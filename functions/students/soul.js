@@ -215,8 +215,12 @@ export const generateStudentProfile = functions
     }
 
     const requesterSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!requesterSnap.exists || requesterSnap.data()?.role !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Only superadmins can generate profiles");
+    if (!requesterSnap.exists) {
+      throw new functions.https.HttpsError("permission-denied", "You do not have permission to generate profiles");
+    }
+    const requesterRole = requesterSnap.data().role;
+    if (!["superadmin", "classroomadmin", "teacher"].includes(requesterRole)) {
+      throw new functions.https.HttpsError("permission-denied", "You do not have permission to generate profiles");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -225,8 +229,24 @@ export const generateStudentProfile = functions
     }
 
     const studentInfo = await getStudentWithProgram(studentId);
+    if (!studentInfo.classroomId) {
+      throw new functions.https.HttpsError("failed-precondition", "Student has no classroom assignment");
+    }
     if (!studentInfo.programId || !VALID_PROGRAMS.includes(studentInfo.programId)) {
       throw new functions.https.HttpsError("failed-precondition", `Invalid program: ${studentInfo.programId}`);
+    }
+
+    // Classroom-level access check (defense-in-depth)
+    if (requesterRole === "classroomadmin") {
+      const manageableClassrooms = requesterSnap.data().manageableClassrooms || [];
+      if (!manageableClassrooms.includes(studentInfo.classroomId)) {
+        throw new functions.https.HttpsError("permission-denied", "You do not have access to this student's classroom");
+      }
+    } else if (requesterRole === "teacher") {
+      const classroomSnap = await db.collection("classrooms").doc(studentInfo.classroomId).get();
+      if (!classroomSnap.exists || !(classroomSnap.data().teacherIds || []).includes(context.auth.uid)) {
+        throw new functions.https.HttpsError("permission-denied", "You do not have access to this student's classroom");
+      }
     }
 
     const templateConfig = await getSoulTemplateConfig(studentInfo.programId);
