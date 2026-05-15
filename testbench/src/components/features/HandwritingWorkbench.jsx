@@ -15,6 +15,10 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddIcon from "@mui/icons-material/Add";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import SaveIcon from "@mui/icons-material/Save";
@@ -23,6 +27,7 @@ import StudentPicker from "../StudentPicker.jsx";
 import VariantColumn from "../VariantColumn.jsx";
 import RunHistory from "../RunHistory.jsx";
 import HandwritingConfig from "./HandwritingConfig.jsx";
+import HandwritingPromptPipeline from "../pipeline/HandwritingPromptPipeline.jsx";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
 
@@ -138,6 +143,19 @@ export default function HandwritingWorkbench() {
           <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryOpen(true)}>History</Button>
         </Box>
       </Box>
+
+      {/* Prompt Assembly Pipeline — always visible, content fills on student load (PEP-216) */}
+      <Accordion defaultExpanded={false} variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: 0 }}>
+          <HandwritingPromptPipeline
+            systemPrompt={variants[0]?.systemPrompt}
+            selectedStudent={selectedStudent}
+          />
+        </AccordionDetails>
+      </Accordion>
 
       <Divider sx={{ mb: 3 }} />
 

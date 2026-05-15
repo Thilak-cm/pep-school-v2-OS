@@ -216,24 +216,22 @@ export default function InterviewWorkbench() {
         </Box>
       </Box>
 
-      {/* LLM Context Pipeline — collapsed by default (PEP-223 AC4) */}
-      {studentContextData && (
-        <Accordion defaultExpanded={false} variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
-          </AccordionSummary>
-          <AccordionDetails sx={{ p: 0 }}>
-            <LLMContextPipeline
-              studentContext={studentContextData}
-              selectedStudent={selectedStudent}
-              kickoffMessage={kickoffMessage}
-              interviewStarted={interviewStarted}
-              elapsedSeconds={elapsedSeconds}
-              questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
-            />
-          </AccordionDetails>
-        </Accordion>
-      )}
+      {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
+      <Accordion defaultExpanded={false} variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ p: 0 }}>
+          <LLMContextPipeline
+            studentContext={studentContextData}
+            selectedStudent={selectedStudent}
+            kickoffMessage={kickoffMessage}
+            interviewStarted={interviewStarted}
+            elapsedSeconds={elapsedSeconds}
+            questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
+          />
+        </AccordionDetails>
+      </Accordion>
 
       <Divider sx={{ mb: 3 }} />
 
