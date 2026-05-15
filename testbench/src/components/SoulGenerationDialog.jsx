@@ -52,12 +52,10 @@ export default function SoulGenerationDialog({ open, studentName, studentId, onS
       </DialogTitle>
       <DialogContent>
         <Typography variant="body1" sx={{ mb: 2 }}>
-          <strong>{studentName}</strong> doesn&apos;t have a generated soul profile or open questions yet.
+          <strong>{studentName}</strong> is missing a few documents that Coach Pepper needs before the interview can begin.
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          The interview flow needs these as input context — the AI interviewer uses the student&apos;s
-          soul narrative to understand their background and the open questions to guide the conversation.
-          Generate them now to proceed.
+          Generate them now so you can proceed with the interview.
         </Typography>
 
         {generating && (
