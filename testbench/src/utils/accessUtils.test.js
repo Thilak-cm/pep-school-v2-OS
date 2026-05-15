@@ -4,7 +4,6 @@ import {
   canAccessTestBench,
   hasFeatureAccess,
   filterFeaturesByAccess,
-  buildAccessDoc,
 } from "./accessUtils.js";
 import { ACTIVE_FEATURES } from "./featureRegistry.js";
 
@@ -124,24 +123,6 @@ describe("filterFeaturesByAccess", () => {
   test("feature ID not in registry is silently ignored", () => {
     const result = filterFeaturesByAccess("teacher", ["nonexistent_feature"]);
     assert.equal(result.length, 0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildAccessDoc
-// ---------------------------------------------------------------------------
-
-describe("buildAccessDoc", () => {
-  test("produces correct shape with allowedFeatures and grantedBy", () => {
-    const doc = buildAccessDoc(["soul_generation"], "admin-uid-123");
-    assert.deepEqual(doc.allowedFeatures, ["soul_generation"]);
-    assert.equal(doc.grantedBy, "admin-uid-123");
-    assert.ok(doc.updatedAt instanceof Date);
-  });
-
-  test("defaults to empty array when allowedFeatures is null", () => {
-    const doc = buildAccessDoc(null, "admin-uid");
-    assert.deepEqual(doc.allowedFeatures, []);
   });
 });
 

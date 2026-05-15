@@ -31,13 +31,3 @@ export function filterFeaturesByAccess(role, allowedFeatures) {
   return ACTIVE_FEATURES.filter((f) => allowedFeatures.includes(f.id));
 }
 
-/**
- * Build the Firestore access document shape for writing to testbench_access/{uid}.
- */
-export function buildAccessDoc(allowedFeatures, grantedByUid) {
-  return {
-    allowedFeatures: allowedFeatures || [],
-    grantedBy: grantedByUid,
-    updatedAt: new Date(),
-  };
-}

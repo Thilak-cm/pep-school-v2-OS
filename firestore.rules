@@ -545,7 +545,7 @@ service cloud.firestore {
     // - Teachers can read their own access doc (to know their allowed features)
     match /testbench_access/{uid} {
       allow read: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow write: if isSuperAdmin();
+      allow create, update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
@@ -557,14 +557,17 @@ service cloud.firestore {
       allow read: if isSuperAdmin()
         || (isSignedIn()
             && requesterDoc().data.role in ['teacher', 'classroomadmin']
+            && exists(/databases/$(database)/documents/testbench_access/$(request.auth.uid))
             && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
       allow create: if isSuperAdmin()
         || (isSignedIn()
             && requesterDoc().data.role in ['teacher', 'classroomadmin']
+            && exists(/databases/$(database)/documents/testbench_access/$(request.auth.uid))
             && request.resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures);
       allow update: if (isSuperAdmin()
             || (isSignedIn()
                 && requesterDoc().data.role in ['teacher', 'classroomadmin']
+                && exists(/databases/$(database)/documents/testbench_access/$(request.auth.uid))
                 && resource.data.feature in get(/databases/$(database)/documents/testbench_access/$(request.auth.uid)).data.allowedFeatures))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionName'])
         && (!('sessionName' in request.resource.data) || request.resource.data.sessionName is string);

@@ -36,6 +36,7 @@
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
 - `feedback/{feedbackId}`
  - `config/{docId}`
+- `testbench_access/{uid}`                             // per-teacher test bench feature grants (PEP-224)
 - `testbench/{runId}`                                  // prompt test bench run history (PEP-163)
 
 Notes:
@@ -927,8 +928,28 @@ Migration/backfill (branches)
 
 ---
 
+## 🔑 Test Bench Access (`/testbench_access/{uid}`)
+Purpose: Per-teacher feature grants for the test bench — superadmins grant specific teachers access to specific test bench features (PEP-224).
+
+```typescript
+interface TestBenchAccess {
+  allowedFeatures: string[];    // e.g., ["handwriting_analysis", "interview_question_gen"]
+  grantedBy: string;            // superadmin uid who last modified the grant
+  name: string;                 // cached teacher display name
+  email: string;                // cached teacher email
+  updatedAt: Timestamp;
+}
+```
+
+Security
+- Read: superadmins (full) + teachers can read their own doc (`request.auth.uid == uid`)
+- Create/Update: superadmins only (`isSuperAdmin()`)
+- Delete: superadmins only (revoking access deletes the doc)
+
+---
+
 ## 🧪 Test Bench (`/testbench/{runId}`)
-Purpose: Stores prompt test bench run history — each doc captures a comparison session where a superadmin tested prompt variations against real student data (PEP-163).
+Purpose: Stores prompt test bench run history — each doc captures a comparison session where a user tested prompt variations against real student data (PEP-163, PEP-224).
 
 ```typescript
 interface TestBenchRun {
@@ -968,6 +989,6 @@ interface TestBenchRun {
 ```
 
 Security
-- Read + Create: super admins only (`isSuperAdmin()`)
-- Update: super admins only, restricted to `sessionName` field (PEP-211)
+- Read + Create: superadmins (full) + teachers/classroomadmins with matching feature in `testbench_access/{uid}.allowedFeatures` (PEP-224)
+- Update: superadmins + granted teachers/classroomadmins, restricted to `sessionName` field (PEP-211, PEP-224)
 - Delete: denied

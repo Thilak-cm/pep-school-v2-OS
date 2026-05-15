@@ -15,7 +15,6 @@ import Paper from "@mui/material/Paper";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
-import ListItemSecondaryAction from "@mui/material/ListItemSecondaryAction";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -65,32 +64,39 @@ export default function AccessPanel() {
     } catch (err) {
       console.error("Failed to load users:", err);
       setAllUsers([]);
+    } finally {
+      setUsersLoading(false);
     }
-    setUsersLoading(false);
   };
 
   const loadGrants = async () => {
     setGrantsLoading(true);
-    const snap = await getDocs(collection(db, "testbench_access"));
-    const entries = [];
-    for (const d of snap.docs) {
-      const data = d.data();
-      entries.push({
-        uid: d.id,
-        name: data.name || d.id,
-        email: data.email || "",
-        allowedFeatures: data.allowedFeatures || [],
-      });
+    try {
+      const snap = await getDocs(collection(db, "testbench_access"));
+      const entries = [];
+      for (const d of snap.docs) {
+        const data = d.data();
+        entries.push({
+          uid: d.id,
+          name: data.name || d.id,
+          email: data.email || "",
+          allowedFeatures: data.allowedFeatures || [],
+        });
+      }
+      setGrants(entries);
+    } catch (err) {
+      console.error("Failed to load grants:", err);
+      setGrants([]);
+    } finally {
+      setGrantsLoading(false);
     }
-    setGrants(entries);
-    setGrantsLoading(false);
   };
 
   // Live-filtered user list
   const filteredUsers = useMemo(() => {
     if (!allUsers) return [];
     const q = filterQuery.trim().toLowerCase();
-    if (q.length === 0) return allUsers;
+    if (q.length === 0) return [];
     return allUsers.filter((u) => u.name.toLowerCase().includes(q));
   }, [allUsers, filterQuery]);
 
@@ -119,27 +125,36 @@ export default function AccessPanel() {
   };
 
   // Save access doc
+  const [saveError, setSaveError] = useState(null);
+
   const handleSave = async () => {
     if (!dialogUser) return;
     setSaving(true);
+    setSaveError(null);
 
-    if (dialogFeatures.length === 0) {
-      await deleteDoc(doc(db, "testbench_access", dialogUser.uid));
-    } else {
-      await setDoc(doc(db, "testbench_access", dialogUser.uid), {
-        allowedFeatures: dialogFeatures,
-        name: dialogUser.name,
-        email: dialogUser.email,
-        grantedBy: user.uid,
-        updatedAt: Timestamp.now(),
-      });
+    try {
+      if (dialogFeatures.length === 0) {
+        await deleteDoc(doc(db, "testbench_access", dialogUser.uid));
+      } else {
+        await setDoc(doc(db, "testbench_access", dialogUser.uid), {
+          allowedFeatures: dialogFeatures,
+          name: dialogUser.name,
+          email: dialogUser.email,
+          grantedBy: user.uid,
+          updatedAt: Timestamp.now(),
+        });
+      }
+
+      setDialogOpen(false);
+      setDialogUser(null);
+      setDialogFeatures([]);
+      await loadGrants();
+    } catch (err) {
+      console.error("Failed to save access:", err);
+      setSaveError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    setDialogOpen(false);
-    setDialogUser(null);
-    setDialogFeatures([]);
-    await loadGrants();
   };
 
   return (
@@ -164,11 +179,7 @@ export default function AccessPanel() {
           sx={{ mb: 1 }}
         />
 
-        {usersLoading && filterQuery.trim().length > 0 ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-            <CircularProgress size={24} />
-          </Box>
-        ) : filterQuery.trim().length > 0 ? (
+        {filterQuery.trim().length > 0 ? (
           <List dense sx={{ maxHeight: 320, overflow: "auto" }}>
             {filteredUsers.map((t) => {
               const isSuperadmin = t.role === "superadmin";
@@ -231,6 +242,11 @@ export default function AccessPanel() {
               <ListItem
                 key={g.uid}
                 divider={i < grants.length - 1}
+                secondaryAction={
+                  <IconButton edge="end" size="small" onClick={() => openEditDialog(g)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                }
               >
                 <ListItemText
                   primary={g.name}
@@ -251,11 +267,6 @@ export default function AccessPanel() {
                     </Box>
                   }
                 />
-                <ListItemSecondaryAction>
-                  <IconButton edge="end" size="small" onClick={() => openEditDialog(g)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </ListItemSecondaryAction>
               </ListItem>
             ))}
           </List>
@@ -286,6 +297,11 @@ export default function AccessPanel() {
           {dialogFeatures.length === 0 && (
             <Alert severity="warning" variant="outlined" sx={{ mt: 2 }}>
               Saving with no features selected will revoke this teacher&apos;s access.
+            </Alert>
+          )}
+          {saveError && (
+            <Alert severity="error" variant="outlined" sx={{ mt: 2 }}>
+              {saveError}
             </Alert>
           )}
         </DialogContent>

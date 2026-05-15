@@ -20,6 +20,11 @@ export const testBenchRun = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
+    const feature = String(data?.feature || "").trim();
+    if (!feature) {
+      throw new functions.https.HttpsError("invalid-argument", "feature is required");
+    }
+
     const callerSnap = await db.collection("users").doc(context.auth.uid).get();
     const callerRole = callerSnap.exists ? callerSnap.data().role : null;
 
@@ -27,21 +32,18 @@ export const testBenchRun = functions
       // Non-superadmins need a testbench_access doc with this feature granted
       const accessSnap = await db.collection("testbench_access").doc(context.auth.uid).get();
       const allowed = accessSnap.exists ? accessSnap.data().allowedFeatures || [] : [];
-      const feature = String(data?.feature || "").trim();
       if (!allowed.includes(feature)) {
         throw new functions.https.HttpsError("permission-denied", "You don't have access to this feature");
       }
     }
-
-    const feature = String(data?.feature || "").trim();
     const studentId = String(data?.studentId || "").trim();
     const systemPrompt = String(data?.systemPrompt || "").trim();
     const model = String(data?.model || FRONTIER_MODEL).trim();
     const temperature = typeof data?.temperature === "number" ? data.temperature : 0.3;
     const maxTokens = data?.max_tokens || 2000;
 
-    if (!feature || !studentId || !systemPrompt) {
-      throw new functions.https.HttpsError("invalid-argument", "feature, studentId, and systemPrompt are required");
+    if (!studentId || !systemPrompt) {
+      throw new functions.https.HttpsError("invalid-argument", "studentId and systemPrompt are required");
     }
 
     const apiKey = getOpenRouterKey();
