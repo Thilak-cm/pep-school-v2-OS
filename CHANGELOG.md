@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.22.0 — 2026-05-15
+
+### Added
+- Proactive soul generation dialog in InterviewWorkbench — prompts teachers to generate missing soul/open_questions before starting an interview (PEP-222)
+- Classroom-scoped student picker — teachers see only students from their assigned classrooms, classroom admins see their manageable classrooms (PEP-222)
+- Classroom-level access check in `generateStudentProfile` Cloud Function — defense-in-depth enforcement beyond client-side filtering (PEP-222)
+- Test script for testbench package (`npm test` now runs all 110 testbench tests) (PEP-222)
+
+### Changed
+- `generateStudentProfile` role gate relaxed from superadmin-only to teacher/classroomadmin/superadmin with classroom verification (PEP-222)
+- AuthGate now exposes `manageableClassrooms` in auth context for classroom-scoped features (PEP-222)
+
 # 10.21.0 — 2026-05-15
 
 ### Added
