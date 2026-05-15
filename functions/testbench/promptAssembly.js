@@ -35,7 +35,7 @@ export function assembleSystemPrompt(template, { studentName, age, programId, so
         const questions = openQuestions[area] || [];
         return `### ${area}\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
       });
-      oqBlock = `OPEN QUESTIONS BANK (${totalCount} questions across ${areaKeys.length} areas — use these as a starting point, adapt or rephrase as needed, and generate your own when the conversation goes somewhere new):\n${sections.join("\n\n")}`;
+      oqBlock = `OPEN QUESTIONS BANK (${totalCount} question${totalCount !== 1 ? "s" : ""} across ${areaKeys.length} area${areaKeys.length !== 1 ? "s" : ""} — use these as a starting point, adapt or rephrase as needed, and generate your own when the conversation goes somewhere new):\n${sections.join("\n\n")}`;
     }
   }
   prompt = prompt.replace(/\$\{openQuestions\}/g, () => oqBlock);

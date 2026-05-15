@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.23.0 — 2026-05-15
+
+### Added
+- Teacher Pick exploration mode in Interview Workbench — teachers choose 2 of 4 randomly drawn areas to direct the interview (PEP-220)
+- Area filtering forwarded to Cloud Function on every turn — only selected areas' open questions are sent to the LLM, tightening the question bank for the entire session (PEP-220)
+- Pipeline visualization shows filtered area count and names when area selection is active (PEP-220)
+- Session persistence for interview mode and selected areas — saved runs restore mode and area picks on reload (PEP-220)
+
+### Fixed
+- Random mode now forwards selected areas to the CF on Q2+ turns — previously only Q1 used the 2-area constraint (PEP-220)
+- Singular/plural grammar in open questions bank header (PEP-220)
+
 # 10.22.0 — 2026-05-15
 
 ### Added

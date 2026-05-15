@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { httpsCallable } from "firebase/functions";
-import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { cloudFunctions, db, auth } from "../../firebase.js";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,6 +8,9 @@ import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import ToggleButton from "@mui/material/ToggleButton";
+import Tooltip from "@mui/material/Tooltip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Accordion from "@mui/material/Accordion";
@@ -58,6 +61,13 @@ export default function InterviewWorkbench() {
   const [contextReloadKey, setContextReloadKey] = useState(0);
   const [soulDialogOpen, setSoulDialogOpen] = useState(false);
   const soulGenCompleted = useRef(null);
+
+  // Mode + area selection (PEP-220)
+  const [interviewMode, setInterviewMode] = useState("random"); // "random" | "teacher_pick"
+  const [selectedAreas, setSelectedAreas] = useState([]); // shared across all variants
+  const [areaPickPhase, setAreaPickPhase] = useState(false); // true = showing area picker in conversation panels
+  const [areaPool, setAreaPool] = useState([]); // 4 randomly drawn areas for Teacher Pick
+  const [teacherPickedAreas, setTeacherPickedAreas] = useState([]); // teacher's 2 picks before start (shared)
 
   // Timer
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -111,19 +121,54 @@ export default function InterviewWorkbench() {
 
   // --- Interview functions ---
 
-  async function startInterview() {
+  const totalAreaCount = studentContextData?.openQuestions ? Object.keys(studentContextData.openQuestions).length : 0;
+  const tooFewAreas = totalAreaCount < 2;
+
+  function handleToggleAreaPick(areaKey) {
+    setTeacherPickedAreas((prev) => {
+      if (prev.includes(areaKey)) return prev.filter((k) => k !== areaKey);
+      if (prev.length >= 2) return prev; // max 2
+      return [...prev, areaKey];
+    });
+  }
+
+  const areasReady = areaPickPhase && teacherPickedAreas.length === 2;
+
+  // "Start Interview" click — either enter area pick phase (teacher_pick) or start directly (random)
+  function handleStartClick() {
     if (!selectedStudent) return;
+    const areas = studentContextData?.openQuestions;
+    if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
+
+    if (interviewMode === "teacher_pick") {
+      setAreaPool(pickRandomAreas(areas, 4));
+      setTeacherPickedAreas([]);
+      setAreaPickPhase(true);
+    } else {
+      beginInterview(pickRandomAreas(areas, 2));
+    }
+  }
+
+  function confirmAreaPicks() {
+    if (!areasReady) return;
+    setAreaPickPhase(false);
+    beginInterview(teacherPickedAreas);
+  }
+
+  function cancelAreaPicks() {
+    setAreaPickPhase(false);
+    setAreaPool([]);
+    setTeacherPickedAreas([]);
+  }
+
+  function beginInterview(finalAreas) {
     try {
-      const oqSnap = await getDoc(doc(db, "students", selectedStudent.id, "ai_summaries", "open_questions"));
-      if (!oqSnap.exists()) { setSoulDialogOpen(true); return; }
-
-      const areas = oqSnap.data()?.areas;
-      if (!areas || Object.keys(areas).length === 0) { setSoulDialogOpen(true); return; }
-
-      const selectedAreas = pickRandomAreas(areas, 2);
-      const picked = pickRandomQuestion(areas, selectedAreas);
-      const explorationAreas = selectedAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
+      const areas = studentContextData?.openQuestions;
+      const picked = pickRandomQuestion(areas, finalAreas);
+      const explorationAreas = finalAreas.map((key) => ({ area: key, rationale: `Pre-selected from open questions (${(areas[key] || []).length} questions in this area)` }));
       const syntheticTurn = buildSyntheticTurn({ questionText: picked.question, questionArea: picked.area, explorationAreas });
+
+      setSelectedAreas(finalAreas);
 
       const newConversations = {};
       for (let idx = 0; idx < variants.length; idx++) { newConversations[idx] = [syntheticTurn]; }
@@ -156,7 +201,7 @@ export default function InterviewWorkbench() {
       const start = Date.now();
       try {
         const prevMessages = [...buildMessageHistory(conversationsSnapshot[idx] || [], kickoffMessage), { role: "user", content: answer }];
-        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1 });
+        const result = await testBenchRun({ feature: FEATURE_ID, studentId: selectedStudent.id, systemPrompt: v.systemPrompt, messages: prevMessages, model: v.model, temperature: v.temperature, max_tokens: v.max_tokens, elapsedMinutes, questionCount: questionCount + 1, selectedAreas });
         const latencyMs = Date.now() - start;
         let parsed; try { parsed = JSON.parse(result.data.output); } catch { parsed = {}; }
 
@@ -190,7 +235,7 @@ export default function InterviewWorkbench() {
     if (!selectedStudent) return;
     setSaving(true);
     try {
-      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, user: auth.currentUser });
+      const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, interviewMode, selectedAreas, user: auth.currentUser });
       await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
@@ -204,6 +249,8 @@ export default function InterviewWorkbench() {
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
     setSessionName(run.sessionName || "");
     if (run.kickoffMessage) setKickoffMessage(run.kickoffMessage);
+    setInterviewMode(run.interviewMode || "random");
+    setSelectedAreas(run.selectedAreas || []);
     setVariants(restoreVariantsFromRun(run));
     const restoredConvos = restoreConversationsFromRun(run);
     setConversations(restoredConvos);
@@ -220,7 +267,7 @@ export default function InterviewWorkbench() {
         <InterviewQuestionConfig selectedStudent={selectedStudent} reloadKey={contextReloadKey} onConfigLoaded={handleConfigLoaded} onStudentContextLoaded={setStudentContextData} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           {!interviewStarted ? (
-            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={startInterview} disabled={!selectedStudent || variants.some((v) => v.loading)}>Start Interview</Button>
+            <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={handleStartClick} disabled={!selectedStudent || variants.some((v) => v.loading) || areaPickPhase}>Start Interview</Button>
           ) : !interviewEnded ? (
             <>
               <Chip label={`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`} color={elapsedSeconds >= 600 ? "warning" : "default"} variant="outlined" sx={{ fontFamily: "monospace", fontWeight: 700, minWidth: 64 }} />
@@ -232,6 +279,19 @@ export default function InterviewWorkbench() {
           <TextField label="Session Name" value={sessionName} onChange={(e) => setSessionName(e.target.value)} size="small" placeholder="Optional" sx={{ minWidth: 200 }} />
           <Button variant="outlined" startIcon={<SaveIcon />} onClick={saveRun} disabled={saving || !Object.values(conversations).some((c) => c?.length > 0)}>{saving ? "Saving..." : "Save Run"}</Button>
           <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryOpen(true)}>History</Button>
+        </Box>
+      </Box>
+
+      {/* Mode toggle (PEP-220) */}
+      <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
+        <Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>Exploration Mode</Typography>
+          <ToggleButtonGroup value={interviewMode} exclusive onChange={(_, v) => v && setInterviewMode(v)} size="small" disabled={interviewStarted || areaPickPhase}>
+            <ToggleButton value="random">Random</ToggleButton>
+            <Tooltip title={tooFewAreas ? "Student has fewer than 2 areas — Teacher Pick unavailable" : ""}>
+              <span><ToggleButton value="teacher_pick" disabled={tooFewAreas}>Teacher Pick</ToggleButton></span>
+            </Tooltip>
+          </ToggleButtonGroup>
         </Box>
       </Box>
 
@@ -248,6 +308,7 @@ export default function InterviewWorkbench() {
             interviewStarted={interviewStarted}
             elapsedSeconds={elapsedSeconds}
             questionCount={Object.values(conversations)[0]?.filter((t) => t.type === "question").length || 0}
+            selectedAreas={selectedAreas}
           />
         </AccordionDetails>
       </Accordion>
@@ -263,7 +324,7 @@ export default function InterviewWorkbench() {
       <Box sx={{ display: "flex", gap: 2, overflowX: "auto", pb: 2 }}>
         {variants.map((v, idx) => (
           <Box key={idx} sx={{ flex: variants.length <= SCROLL_AFTER ? `1 0 ${100 / variants.length - 2}%` : "0 0 auto", width: variants.length > SCROLL_AFTER ? 450 : undefined }}>
-            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} />
+            <VariantColumn variant={v} idx={idx} featureId={FEATURE_ID} canRemove={variants.length > 1} onUpdate={handleUpdateVariant} onRemove={tryRemoveColumn} conversations={conversations[idx]} teacherInput={teacherInput} onTeacherInputChange={setTeacherInput} onSendAnswer={sendAnswer} anyLoading={variants.some((vr) => vr.loading)} interviewEnded={interviewEnded} areaPickPhase={areaPickPhase} areaPool={areaPool} pickedAreas={teacherPickedAreas} onToggleArea={handleToggleAreaPick} onConfirmAreas={confirmAreaPicks} onCancelAreas={cancelAreaPicks} allVariantsReady={areasReady} studentName={selectedStudent?.displayName} />
           </Box>
         ))}
         <Box sx={{ minWidth: 80, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, border: 2, borderColor: "divider", borderRadius: 2, borderStyle: "dashed", cursor: "pointer", position: "sticky", right: 0, bgcolor: "background.default", "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" } }} onClick={addColumn}>
