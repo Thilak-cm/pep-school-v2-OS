@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-15T08:41:36.810Z
-App version: 10.21.0
+Generated: 2026-05-15T09:47:09.409Z
+App version: 10.22.0
 
 ## App Snapshot
 
@@ -141,23 +141,23 @@ App version: 10.21.0
 
 ## Recent Changes
 
+### 10.22.0 (2026-05-15)
+- Proactive soul generation dialog in InterviewWorkbench — prompts teachers to generate missing soul/open_questions before starting an interview (PEP-222)
+- Classroom-scoped student picker — teachers see only students from their assigned classrooms, classroom admins see their manageable classrooms (PEP-222)
+- Classroom-level access check in `generateStudentProfile` Cloud Function — defense-in-depth enforcement beyond client-side filtering (PEP-222)
+
 ### 10.21.0 (2026-05-15)
 - Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
 - Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
 - New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
 
+### 10.20.2 (2026-05-15)
+- Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
+- Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
+- Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
+
 ### 10.20.1 (2026-05-13)
 - Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
 - Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
 - StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
-
-### 10.20.0 (2026-05-12)
-- Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
-- MCP tool `get_ai_summary_history` now supports `weekly_snapshot` history queries alongside soul and guidelines (PEP-229)
-- Unified `baseball_card` + `signals` into a single `ai_summaries/weekly_snapshot` doc per student — one read instead of two for every baseball card view (PEP-229)
-
-### 10.19.0 (2026-05-12)
-- Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
-- Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
-- Readiness card displays the date range the scores correspond to (PEP-227)
 
