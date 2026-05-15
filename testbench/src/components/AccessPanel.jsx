@@ -70,15 +70,20 @@ export default function AccessPanel() {
   // Load all users once (small user base), then filter client-side
   const ensureUsersLoaded = useCallback(async () => {
     if (allUsers) return allUsers;
-    const snap = await getDocs(collection(db, "users"));
-    const users = snap.docs.map((d) => ({
-      uid: d.id,
-      name: d.data().name || d.id,
-      email: d.data().email || "",
-      role: d.data().role || "none",
-    }));
-    setAllUsers(users);
-    return users;
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      const users = snap.docs.map((d) => ({
+        uid: d.id,
+        name: d.data().displayName || d.data().name || d.id,
+        email: d.data().email || "",
+        role: d.data().role || "none",
+      }));
+      setAllUsers(users);
+      return users;
+    } catch (err) {
+      console.error("Failed to load users:", err);
+      return [];
+    }
   }, [allUsers]);
 
   // Search users by name (case-insensitive, client-side filter)
