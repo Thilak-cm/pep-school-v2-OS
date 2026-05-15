@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-13T01:16:25.812Z
-App version: 10.20.1
+Generated: 2026-05-15T08:41:36.810Z
+App version: 10.21.0
 
 ## App Snapshot
 
@@ -115,7 +115,7 @@ App version: 10.20.1
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`, `testbench_access`
 - Rule-declared paths:
 - `/{document=**}`
 - `/ai_summaries/{summaryId}`
@@ -132,6 +132,7 @@ App version: 10.20.1
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/students/{studentId}`
+- `/testbench_access/{uid}`
 - `/testbench/{runId}`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
@@ -140,10 +141,15 @@ App version: 10.20.1
 
 ## Recent Changes
 
-### 10.20.1 (2026-05-12)
+### 10.21.0 (2026-05-15)
+- Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
+- Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
+- New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
+
+### 10.20.1 (2026-05-13)
+- Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
 - Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
 - StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
-- LLM context pipeline in interview gen starts collapsed by default (PEP-223)
 
 ### 10.20.0 (2026-05-12)
 - Weekly snapshot history archival — each Monday batch now archives the previous `weekly_snapshot` to a `history/{weekKey}` subcollection before overwriting, enabling longitudinal analysis of student flags and baseball card evolution (PEP-229)
@@ -154,9 +160,4 @@ App version: 10.20.1
 - Date picker in report readiness flow — readiness checks are now time-bound to a selected reporting period (PEP-227)
 - Nudge dialog prompts teachers to run readiness check before generating a report when no check has been done yet (PEP-227)
 - Readiness card displays the date range the scores correspond to (PEP-227)
-
-### 10.18.2 (2026-05-12)
-- Coach Pepper chat input bar now sits flush with mobile keyboard instead of floating with a gap (PEP-232)
-- Welcome text on empty chat screen re-centers in visible area when keyboard opens (PEP-232)
-- ScrollToBottom FAB repositions correctly when keyboard is open (PEP-232)
 
