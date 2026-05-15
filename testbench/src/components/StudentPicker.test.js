@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveInitialState } from "../utils/studentPickerHelpers.js";
+import { resolveInitialState, filterAccessibleClassrooms } from "../utils/studentPickerHelpers.js";
 
 describe("StudentPicker — resolveInitialState", () => {
   describe('scope="hardcoded"', () => {
@@ -43,5 +43,43 @@ describe("StudentPicker — resolveInitialState", () => {
       const state = resolveInitialState({});
       assert.equal(state.shouldFetch, true);
     });
+  });
+});
+
+describe("filterAccessibleClassrooms", () => {
+  const classroomDocs = [
+    { id: "allstars", teacherIds: ["t1", "t2"] },
+    { id: "periwinkle", teacherIds: ["t2", "t3"] },
+    { id: "elementary", teacherIds: ["t4"] },
+  ];
+
+  it("superadmin returns null (no filter)", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "superadmin", uid: "sa1", manageableClassrooms: [] });
+    assert.equal(result, null);
+  });
+
+  it("classroomadmin returns Set of manageableClassrooms", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "classroomadmin", uid: "ca1", manageableClassrooms: ["allstars", "periwinkle"] });
+    assert.deepEqual(result, new Set(["allstars", "periwinkle"]));
+  });
+
+  it("teacher returns Set of classrooms where teacherIds includes uid", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "teacher", uid: "t2", manageableClassrooms: [] });
+    assert.deepEqual(result, new Set(["allstars", "periwinkle"]));
+  });
+
+  it("teacher with single classroom", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "teacher", uid: "t4", manageableClassrooms: [] });
+    assert.deepEqual(result, new Set(["elementary"]));
+  });
+
+  it("unknown role returns empty Set", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "viewer", uid: "v1", manageableClassrooms: [] });
+    assert.deepEqual(result, new Set());
+  });
+
+  it("classroomadmin with empty manageableClassrooms returns empty Set", () => {
+    const result = filterAccessibleClassrooms({ classroomDocs, role: "classroomadmin", uid: "ca2", manageableClassrooms: [] });
+    assert.deepEqual(result, new Set());
   });
 });
