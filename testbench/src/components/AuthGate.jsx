@@ -39,9 +39,9 @@ export default function AuthGate({ children }) {
       setRole(userRole);
       setManageableClassrooms(userData.manageableClassrooms || []);
 
-      // For non-superadmins, check testbench_access for feature grants
+      // For non-superadmins, check testbench/settings/access for feature grants
       if (userRole !== "superadmin") {
-        const accessSnap = await getDoc(doc(db, "testbench_access", u.uid));
+        const accessSnap = await getDoc(doc(db, "testbench/settings/access", u.uid));
         const accessDoc = accessSnap.exists() ? accessSnap.data() : null;
         setAllowedFeatures(accessDoc?.allowedFeatures || null);
       } else {

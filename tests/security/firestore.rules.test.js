@@ -182,17 +182,23 @@ test('Firestore Rules - Classroom scoping functions present', () => {
   );
 });
 
-test('Firestore Rules - Testbench access control collection (PEP-224)', () => {
-  const accessMatch = rulesContent.match(
-    /match\s+\/testbench_access\/\{uid\}[\s\S]*?(?=match\s+\/|$)/
+test('Firestore Rules - Testbench access control (nested under testbench/settings)', () => {
+  const settingsBlock = rulesContent.match(
+    /match\s+\/testbench\/settings[\s\S]*?(?=\n    \/\/ Default deny|$)/
   )?.[0];
-  assert.ok(accessMatch, 'Testbench access control rules not found');
+  assert.ok(settingsBlock, 'Testbench settings block not found');
 
-  // Superadmin can read/write access docs
+  // Settings doc: superadmin read/write
   assert.ok(
-    accessMatch.includes('isSuperAdmin'),
-    'Testbench access rules missing isSuperAdmin check'
+    settingsBlock.includes('isSuperAdmin'),
+    'Testbench settings missing isSuperAdmin check'
   );
+
+  // Access subcollection exists
+  const accessMatch = settingsBlock.match(
+    /match\s+\/access\/\{uid\}[\s\S]*?(?=match\s+\/|$)/
+  )?.[0];
+  assert.ok(accessMatch, 'Testbench access subcollection rules not found');
 
   // Teachers can read their own access doc
   assert.ok(
@@ -208,57 +214,57 @@ test('Firestore Rules - Testbench access control collection (PEP-224)', () => {
 });
 
 test('Firestore Rules - Testbench runs: superadmin + granted teacher access with sessionName-only updates', () => {
-  const testbenchMatch = rulesContent.match(
-    /match\s+\/testbench\/\{runId\}[\s\S]*?(?=match\s+\/|$)/
+  const runsMatch = rulesContent.match(
+    /match\s+\/runs\/\{runId\}[\s\S]*?allow\s+delete:\s*if\s+false;/
   )?.[0];
-  assert.ok(testbenchMatch, 'Testbench collection rules not found');
+  assert.ok(runsMatch, 'Testbench runs subcollection rules not found');
 
   // Superadmin can read and create
   assert.ok(
-    testbenchMatch.includes('isSuperAdmin'),
-    'Testbench rules missing isSuperAdmin check'
+    runsMatch.includes('isSuperAdmin'),
+    'Testbench runs missing isSuperAdmin check'
   );
   assert.ok(
-    testbenchMatch.includes('allow read'),
-    'Testbench missing read rule'
+    runsMatch.includes('allow read'),
+    'Testbench runs missing read rule'
   );
   assert.ok(
-    testbenchMatch.includes('allow create'),
-    'Testbench missing create rule'
+    runsMatch.includes('allow create'),
+    'Testbench runs missing create rule'
   );
 
-  // Teacher access gated by testbench_access feature check (PEP-224)
+  // Teacher access gated by testbench/settings/access feature check (PEP-224)
   assert.ok(
-    testbenchMatch.includes('testbench_access'),
-    'Testbench rules should reference testbench_access for teacher feature grants'
+    runsMatch.includes('testbench/settings/access'),
+    'Testbench runs should reference testbench/settings/access for teacher feature grants'
   );
   assert.ok(
-    testbenchMatch.includes('allowedFeatures'),
-    'Testbench rules should check allowedFeatures array'
+    runsMatch.includes('allowedFeatures'),
+    'Testbench runs should check allowedFeatures array'
   );
 
   // Update restricted to sessionName field only
   assert.ok(
-    testbenchMatch.includes('allow update'),
-    'Testbench should allow update (restricted to sessionName)'
+    runsMatch.includes('allow update'),
+    'Testbench runs should allow update (restricted to sessionName)'
   );
   assert.ok(
-    testbenchMatch.includes('affectedKeys'),
-    'Testbench update rule must use affectedKeys() to restrict fields'
+    runsMatch.includes('affectedKeys'),
+    'Testbench runs update rule must use affectedKeys() to restrict fields'
   );
   assert.ok(
-    testbenchMatch.includes('sessionName'),
-    'Testbench update rule must restrict to sessionName field'
+    runsMatch.includes('sessionName'),
+    'Testbench runs update rule must restrict to sessionName field'
   );
   assert.ok(
-    testbenchMatch.includes('is string'),
-    'Testbench update rule must validate sessionName is string type'
+    runsMatch.includes('is string'),
+    'Testbench runs update rule must validate sessionName is string type'
   );
 
   // Delete still denied
   assert.ok(
-    testbenchMatch.includes('allow delete: if false'),
-    'Testbench docs should not be deletable'
+    runsMatch.includes('allow delete: if false'),
+    'Testbench run docs should not be deletable'
   );
 });
 

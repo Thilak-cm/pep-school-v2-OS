@@ -1033,7 +1033,7 @@ export async function handleListFeedback(db, params) {
 export async function handleListTestbenchRuns(db, params) {
   const { feature, limit: maxResults = 20 } = params || {};
 
-  let query = db.collection("testbench");
+  let query = db.collection("testbench/settings/runs");
 
   if (feature) {
     query = query.where("feature", "==", feature);

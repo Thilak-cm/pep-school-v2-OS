@@ -172,49 +172,58 @@ export const ACCESS_CONTROL_SPEC = [
   // ============================================================================
 
   {
+    name: 'Testbench settings: superadmin read/write',
+    description: 'Superadmins manage the settings anchor doc',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/testbench\/settings[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin/,
+  },
+
+  {
     name: 'Testbench access docs: superadmin read/write + self-read for teachers',
     description: 'Superadmins manage access; teachers read their own doc',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench_access\/\{uid\}[\s\S]*?isSuperAdmin[\s\S]*?request\.auth\.uid\s*==\s*uid/,
+    pattern: /match\s+\/access\/\{uid\}[\s\S]*?isSuperAdmin[\s\S]*?request\.auth\.uid\s*==\s*uid/,
   },
 
   // ============================================================================
-  // TESTBENCH COLLECTION (Firestore) - Prompt test bench results
-  // Superadmins have full access; teachers with testbench_access grants get
+  // TESTBENCH RUNS (Firestore) - Prompt test bench results
+  // Nested under testbench/settings/runs/{runId}
+  // Superadmins have full access; teachers with access grants get
   // feature-scoped read/create (PEP-224)
   // ============================================================================
 
   {
-    name: 'Testbench read: superadmin + granted teachers',
+    name: 'Testbench runs read: superadmin + granted teachers',
     description: 'allow read: if isSuperAdmin() || teacher with feature in allowedFeatures',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin[\s\S]*?testbench_access[\s\S]*?allowedFeatures/,
+    pattern: /match\s+\/runs\/\{runId\}[\s\S]*?allow\s+read:\s*if\s+isSuperAdmin[\s\S]*?testbench\/settings\/access[\s\S]*?allowedFeatures/,
   },
 
   {
-    name: 'Testbench create: superadmin + granted teachers',
+    name: 'Testbench runs create: superadmin + granted teachers',
     description: 'allow create: if isSuperAdmin() || teacher with feature in allowedFeatures',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+create:\s*if\s+isSuperAdmin[\s\S]*?testbench_access[\s\S]*?allowedFeatures/,
+    pattern: /match\s+\/runs\/\{runId\}[\s\S]*?allow\s+create:\s*if\s+isSuperAdmin[\s\S]*?testbench\/settings\/access[\s\S]*?allowedFeatures/,
   },
 
   {
-    name: 'Testbench update restricted to sessionName field only',
+    name: 'Testbench runs update restricted to sessionName field only',
     description: 'allow update with affectedKeys().hasOnly([sessionName]) && sessionName is string',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+update[\s\S]*?affectedKeys\(\)\.hasOnly\(\[['"]sessionName['"]\]\)[\s\S]*?sessionName\s+is\s+string/,
+    pattern: /match\s+\/runs\/\{runId\}[\s\S]*?allow\s+update[\s\S]*?affectedKeys\(\)\.hasOnly\(\[['"]sessionName['"]\]\)[\s\S]*?sessionName\s+is\s+string/,
   },
 
   {
-    name: 'Testbench delete denied',
+    name: 'Testbench runs delete denied',
     description: 'allow delete: if false',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/testbench\/\{runId\}[\s\S]*?allow\s+delete:\s*if\s+false/,
+    pattern: /match\s+\/runs\/\{runId\}[\s\S]*?allow\s+delete:\s*if\s+false/,
   },
 
   // ============================================================================

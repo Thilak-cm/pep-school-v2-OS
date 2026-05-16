@@ -29,8 +29,8 @@ export const testBenchRun = functions
     const callerRole = callerSnap.exists ? callerSnap.data().role : null;
 
     if (callerRole !== "superadmin") {
-      // Non-superadmins need a testbench_access doc with this feature granted
-      const accessSnap = await db.collection("testbench_access").doc(context.auth.uid).get();
+      // Non-superadmins need a testbench/settings/access doc with this feature granted
+      const accessSnap = await db.doc(`testbench/settings/access/${context.auth.uid}`).get();
       const allowed = accessSnap.exists ? accessSnap.data().allowedFeatures || [] : [];
       if (!allowed.includes(feature)) {
         throw new functions.https.HttpsError("permission-denied", "You don't have access to this feature");

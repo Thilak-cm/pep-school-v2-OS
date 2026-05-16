@@ -72,7 +72,7 @@ export default function AccessPanel() {
   const loadGrants = async () => {
     setGrantsLoading(true);
     try {
-      const snap = await getDocs(collection(db, "testbench_access"));
+      const snap = await getDocs(collection(db, "testbench/settings/access"));
       const entries = [];
       for (const d of snap.docs) {
         const data = d.data();
@@ -134,9 +134,9 @@ export default function AccessPanel() {
 
     try {
       if (dialogFeatures.length === 0) {
-        await deleteDoc(doc(db, "testbench_access", dialogUser.uid));
+        await deleteDoc(doc(db, "testbench/settings/access", dialogUser.uid));
       } else {
-        await setDoc(doc(db, "testbench_access", dialogUser.uid), {
+        await setDoc(doc(db, "testbench/settings/access", dialogUser.uid), {
           allowedFeatures: dialogFeatures,
           name: dialogUser.name,
           email: dialogUser.email,

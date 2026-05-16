@@ -36,8 +36,9 @@
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
 - `feedback/{feedbackId}`
  - `config/{docId}`
-- `testbench_access/{uid}`                             // per-teacher test bench feature grants (PEP-224)
-- `testbench/{runId}`                                  // prompt test bench run history (PEP-163)
+- `testbench/settings`                                 // test bench feature registry, defaults, global config
+- `testbench/settings/access/{uid}`                    // per-teacher test bench feature grants (PEP-224)
+- `testbench/settings/runs/{runId}`                    // prompt test bench run history (PEP-163)
 
 Notes:
 - We intentionally defer tags, attendance, and assessments. Add later without breaking this core.
@@ -928,7 +929,29 @@ Migration/backfill (branches)
 
 ---
 
-## 🔑 Test Bench Access (`/testbench_access/{uid}`)
+## 🧪 Test Bench (`/testbench/settings`)
+Purpose: Anchor doc for all test bench data. Holds feature registry, defaults, and global config. Subcollections hold access grants and run history.
+
+```typescript
+interface TestBenchSettings {
+  features: Record<string, {
+    label: string;                // display name, e.g., "Soul Generation"
+    enabled: boolean;
+  }>;
+  defaults: {
+    model: string;                // e.g., "gpt-5.4"
+    temperature: number;
+    max_tokens: number;
+  };
+}
+```
+
+Security
+- Read/Write: superadmins only (`isSuperAdmin()`)
+
+---
+
+### 🔑 Test Bench Access (`/testbench/settings/access/{uid}`)
 Purpose: Per-teacher feature grants for the test bench — superadmins grant specific teachers access to specific test bench features (PEP-224).
 
 ```typescript
@@ -948,7 +971,7 @@ Security
 
 ---
 
-## 🧪 Test Bench (`/testbench/{runId}`)
+### 🧪 Test Bench Runs (`/testbench/settings/runs/{runId}`)
 Purpose: Stores prompt test bench run history — each doc captures a comparison session where a user tested prompt variations against real student data (PEP-163, PEP-224).
 
 ```typescript
@@ -989,6 +1012,6 @@ interface TestBenchRun {
 ```
 
 Security
-- Read + Create: superadmins (full) + teachers/classroomadmins with matching feature in `testbench_access/{uid}.allowedFeatures` (PEP-224)
+- Read + Create: superadmins (full) + teachers/classroomadmins with matching feature in `testbench/settings/access/{uid}.allowedFeatures` (PEP-224)
 - Update: superadmins + granted teachers/classroomadmins, restricted to `sessionName` field (PEP-211, PEP-224)
 - Delete: denied

@@ -191,7 +191,7 @@ export default function InterviewWorkbench() {
     setSaving(true);
     try {
       const payload = buildSavePayload({ featureId: FEATURE_ID, selectedStudent, variants, conversations, sessionName, kickoffMessage, user: auth.currentUser });
-      await addDoc(collection(db, "testbench"), { ...payload, timestamp: Timestamp.now() });
+      await addDoc(collection(db, "testbench/settings/runs"), { ...payload, timestamp: Timestamp.now() });
       setSnackbar({ open: true, message: "Run saved to Firestore", severity: "success" });
     } catch (err) { setSnackbar({ open: true, message: `Save failed: ${err.message}`, severity: "error" }); }
     finally { setSaving(false); }

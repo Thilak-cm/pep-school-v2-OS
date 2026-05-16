@@ -27,7 +27,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
     setLoading(true);
     setFetchError(null);
     const q = query(
-      collection(db, "testbench"),
+      collection(db, "testbench/settings/runs"),
       where("feature", "==", featureId),
       orderBy("timestamp", "desc"),
     );
@@ -54,7 +54,7 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
     const trimmed = renameValue.trim();
     setRenameError(null);
     try {
-      await updateDoc(doc(db, "testbench", runId), { sessionName: trimmed || deleteField() });
+      await updateDoc(doc(db, "testbench/settings/runs", runId), { sessionName: trimmed || deleteField() });
       setRuns((prev) => prev.map((r) => r.id === runId ? { ...r, sessionName: trimmed || undefined } : r));
       setRenamingId(null);
     } catch (err) {
