@@ -131,7 +131,7 @@
       ]
     },
     {
-      "collectionGroup": "testbench",
+      "collectionGroup": "runs",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "feature", "order": "ASCENDING" },
