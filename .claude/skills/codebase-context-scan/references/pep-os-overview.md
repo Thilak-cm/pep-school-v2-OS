@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-15T09:47:09.409Z
-App version: 10.22.0
+Generated: 2026-05-15T21:36:27.918Z
+App version: 10.23.0
 
 ## App Snapshot
 
@@ -141,6 +141,11 @@ App version: 10.22.0
 
 ## Recent Changes
 
+### 10.23.0 (2026-05-15)
+- Teacher Pick exploration mode in Interview Workbench — teachers choose 2 of 4 randomly drawn areas to direct the interview (PEP-220)
+- Area filtering forwarded to Cloud Function on every turn — only selected areas' open questions are sent to the LLM, tightening the question bank for the entire session (PEP-220)
+- Pipeline visualization shows filtered area count and names when area selection is active (PEP-220)
+
 ### 10.22.0 (2026-05-15)
 - Proactive soul generation dialog in InterviewWorkbench — prompts teachers to generate missing soul/open_questions before starting an interview (PEP-222)
 - Classroom-scoped student picker — teachers see only students from their assigned classrooms, classroom admins see their manageable classrooms (PEP-222)
@@ -155,9 +160,4 @@ App version: 10.22.0
 - Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
 - Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
 - Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
-
-### 10.20.1 (2026-05-13)
-- Report readiness archival — previous readiness checks are archived to a `history/{timestamp}` subcollection before each recheck, with user attribution (`generatedBy`, `generatedByName`) for audit trail (PEP-233)
-- Decomposed 829-line FeatureWorkbench monolith into per-feature workbenches (Handwriting, Soul, Interview) backed by shared VariantColumn, variant helpers, and persistence/interview hooks (PEP-223)
-- StudentPicker refactored to prop-based scope API — features declare "hardcoded"/"program"/"school-wide" instead of picker switching on featureId (PEP-223)
 

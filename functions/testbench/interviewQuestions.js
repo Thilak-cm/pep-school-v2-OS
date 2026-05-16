@@ -25,7 +25,7 @@ import { assembleSystemPrompt } from "./promptAssembly.js";
  * @param {string} params.apiKey - OpenRouter API key
  * @returns {{ output: string, totalTokens: number }}
  */
-export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, supportsJsonMode = true }) {
+export async function testBenchInterviewTurn({ studentId, systemPrompt, messages, model, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, selectedAreas = [], supportsJsonMode = true }) {
   // 1. Load student data in parallel
   const studentInfo = await getStudentWithProgram(studentId);
 
@@ -40,7 +40,13 @@ export async function testBenchInterviewTurn({ studentId, systemPrompt, messages
   const soul = soulSnap.exists ? soulSnap.data()?.content ?? null : null;
   const guidelines = guidelinesSnap.exists ? guidelinesSnap.data()?.content ?? null : null;
   const baseballCard = bcSnap.exists ? bcSnap.data() : null;
-  const openQuestions = oqSnap.exists ? oqSnap.data()?.areas ?? null : null;
+  const rawOpenQuestions = oqSnap.exists ? oqSnap.data()?.areas ?? null : null;
+
+  // Filter open questions to selected areas if provided (PEP-220)
+  const openQuestions = rawOpenQuestions && selectedAreas.length > 0
+    ? Object.fromEntries(Object.entries(rawOpenQuestions).filter(([k]) => selectedAreas.includes(k)))
+    : rawOpenQuestions;
+
   const priorInterviews = rawInterviews.map(formatInterviewForPrompt);
 
   // 2. Assemble the full system prompt

@@ -47,6 +47,14 @@ export default function VariantColumn({
   onSendAnswer,
   anyLoading,
   interviewEnded,
+  areaPickPhase,
+  areaPool,
+  pickedAreas,
+  onToggleArea,
+  onConfirmAreas,
+  onCancelAreas,
+  allVariantsReady,
+  studentName,
 }) {
   const [editingName, setEditingName] = useState(false);
 
@@ -163,6 +171,14 @@ export default function VariantColumn({
           onSendAnswer={onSendAnswer}
           inputDisabled={anyLoading}
           ended={interviewEnded}
+          areaPickPhase={areaPickPhase}
+          areaPool={areaPool}
+          pickedAreas={pickedAreas}
+          onToggleArea={onToggleArea}
+          onConfirmAreas={onConfirmAreas}
+          onCancelAreas={onCancelAreas}
+          allVariantsReady={allVariantsReady}
+          studentName={studentName}
         />
       ) : (
         <OutputPanel output={v.output} loading={v.loading} error={v.error} meta={v.outputMeta} featureId={featureId} />
