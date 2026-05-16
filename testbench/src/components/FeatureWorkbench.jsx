@@ -6,6 +6,7 @@ import { hasFeatureAccess } from "../utils/accessUtils.js";
 import HandwritingWorkbench from "./features/HandwritingWorkbench.jsx";
 import SoulWorkbench from "./features/SoulWorkbench.jsx";
 import InterviewWorkbench from "./features/InterviewWorkbench.jsx";
+import MonthlyPlanWorkbench from "./features/MonthlyPlanWorkbench.jsx";
 
 /**
  * Feature router — delegates to per-feature workbench based on featureId.
@@ -33,6 +34,8 @@ export default function FeatureWorkbench({ featureId, onBack }) {
       return <SoulWorkbench />;
     case "interview_question_gen":
       return <InterviewWorkbench />;
+    case "monthly_plan":
+      return <MonthlyPlanWorkbench />;
     default:
       return <div>Unknown feature: {featureId}</div>;
   }

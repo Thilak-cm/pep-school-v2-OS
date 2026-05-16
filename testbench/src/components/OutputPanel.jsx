@@ -6,9 +6,50 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import ReactMarkdown from "react-markdown";
 
+function MonthlyPlanOutput({ output }) {
+  try {
+    const plan = JSON.parse(output);
+    const sections = plan.sections || [];
+    return (
+      <Box>
+        {plan.month && (
+          <Typography variant="subtitle2" color="primary" gutterBottom>
+            Plan for {plan.month}
+          </Typography>
+        )}
+        {sections.map((section, i) => (
+          <Box key={i} sx={{ mb: 2.5 }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
+              {section.name}
+            </Typography>
+            {section.rationale && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontStyle: "italic" }}>
+                {section.rationale}
+              </Typography>
+            )}
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {(section.items || []).map((item, j) => (
+                <Typography component="li" variant="body2" key={j} sx={{ mb: 0.5 }}>
+                  {item}
+                </Typography>
+              ))}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    );
+  } catch {
+    return output;
+  }
+}
+
 function formatOutput(output, featureId) {
   if (featureId === "soul_generation") {
     return <ReactMarkdown>{output}</ReactMarkdown>;
+  }
+
+  if (featureId === "monthly_plan") {
+    return <MonthlyPlanOutput output={output} />;
   }
 
   if (featureId === "handwriting_analysis") {
@@ -54,7 +95,7 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
     );
   }
 
-  const isSoul = featureId === "soul_generation";
+  const isProseOutput = featureId === "soul_generation" || featureId === "monthly_plan";
 
   return (
     <Box>
@@ -70,7 +111,7 @@ export default function OutputPanel({ output, loading, error, meta, featureId })
         sx={{
           p: 2,
           overflow: "auto",
-          ...(isSoul
+          ...(isProseOutput
             ? { fontSize: 14, lineHeight: 1.7, "& h1,& h2,& h3": { mt: 2, mb: 1 }, "& ul,& ol": { pl: 3 } }
             : { fontFamily: "monospace", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" }),
         }}

@@ -20,6 +20,13 @@ export const FEATURES = [
     configDoc: "interview_question_gen",
     status: "active",
   },
+  {
+    id: "monthly_plan",
+    label: "Monthly Plan",
+    description: "Generate structured monthly action plans per student across Language, Sensorial, Math, and Practical Life",
+    configDoc: "monthly_plan",
+    status: "active",
+  },
 ];
 
 export const ACTIVE_FEATURES = FEATURES.filter((f) => f.status === "active");

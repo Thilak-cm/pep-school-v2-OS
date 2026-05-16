@@ -6,6 +6,7 @@ import { getOpenRouterModelId, getModelSupportsJson } from "../config/testBenchM
 import { testBenchSoul } from "../students/soul.js";
 import { testBenchHandwriting } from "../ai/handwriting.js";
 import { testBenchInterviewTurn } from "./interviewQuestions.js";
+import { testBenchMonthlyPlan } from "./monthlyPlan.js";
 
 // -----------------------------------------------
 // Test Bench: Run prompt variations for evaluation (PEP-163, PEP-210)
@@ -73,6 +74,8 @@ export const testBenchRun = functions
       const selectedAreas = Array.isArray(data?.selectedAreas) ? data.selectedAreas : [];
       const supportsJsonMode = getModelSupportsJson(model);
       return await testBenchInterviewTurn({ studentId, systemPrompt, messages, model: routerModel, temperature, maxTokens, apiKey, elapsedMinutes, questionCount, selectedAreas, supportsJsonMode });
+    } else if (feature === "monthly_plan") {
+      return await testBenchMonthlyPlan({ studentId, systemPrompt, model: routerModel, temperature, maxTokens, apiKey });
     }
 
     throw new functions.https.HttpsError("invalid-argument", `Unknown feature: ${feature}`);
