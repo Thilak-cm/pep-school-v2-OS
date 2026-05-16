@@ -134,14 +134,13 @@ export default function RunHistory({ open, onClose, featureId, onLoad }) {
                   {run.sessionName?.trim() && (
                     <Typography variant="caption" color="text.secondary">{run.studentName}</Typography>
                   )}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{formatDate(run.timestamp)}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {run.ranBy?.name ? `${run.ranBy.name} · ` : ""}{formatDate(run.timestamp)}
+                  </Typography>
                   <Box sx={{ display: "flex", gap: 0.5, mt: 0.5, flexWrap: "wrap" }}>
                     <Chip label={`${run.variants?.length ?? 0} variants`} size="small" variant="outlined" />
                     {avg && (
                       <Chip label={`Avg ${avg}/10`} size="small" variant="outlined" />
-                    )}
-                    {run.ranBy?.name && (
-                      <Chip label={run.ranBy.name.split(" ")[0]} size="small" variant="outlined" />
                     )}
                   </Box>
                 </Box>
