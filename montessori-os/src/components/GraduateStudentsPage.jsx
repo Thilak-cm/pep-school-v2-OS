@@ -29,12 +29,10 @@ import { db } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 
-function ymdTodayIST() {
-  // Use local date as string (admins are in IST). Keep simple.
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
+function ymdStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
@@ -59,7 +57,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'selected' | 'unselected'
-  const [lastDayStr, setLastDayStr] = useState(ymdTodayIST());
+  const [lastDayStr, setLastDayStr] = useState(ymdStr());
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { ok: N, failed: [{id, reason}] }
@@ -160,15 +158,29 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
           // Find active placement (endDate == null)
           const activeQ = query(collection(db, 'students', studentId, 'placements'), where('endDate', '==', null), limit(1));
           const activeSnap = await getDocs(activeQ);
-          if (activeSnap.empty) { failures.push({ id: studentId, reason: 'no active placement' }); continue; }
-          const activeDoc = activeSnap.docs[0];
-
-          // Close old placement
-          batch.update(activeDoc.ref, {
-            endDate: lastDayStr,
-            status: 'ended',
-            updatedAt: serverTimestamp(),
-          });
+          if (!activeSnap.empty) {
+            // Close existing active placement
+            const activeDoc = activeSnap.docs[0];
+            batch.update(activeDoc.ref, {
+              endDate: lastDayStr,
+              status: 'ended',
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            // No placement exists — backfill one using student's createdAt so classroom history is preserved
+            if (!stu.createdAt) { failures.push({ id: studentId, reason: 'no placement and no createdAt' }); continue; }
+            const backfillStart = ymdStr(stu.createdAt.toDate());
+            const backfillId = `${backfillStart}__${sourceClassroomId}`;
+            const backfillRef = doc(db, 'students', studentId, 'placements', backfillId);
+            batch.set(backfillRef, {
+              classroomId: sourceClassroomId,
+              startDate: backfillStart,
+              endDate: lastDayStr,
+              status: 'ended',
+              createdAt: stu.createdAt,
+              updatedAt: serverTimestamp(),
+            });
+          }
 
           // Create new placement
           const placementId = `${newStartDate}__${destClassroomId}`;
@@ -371,7 +383,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
                   )}
                   {result.failed?.length > 0 && (
                     <Alert severity="warning">
-                      {result.failed.length} failed: {result.failed.slice(0,3).map(f => f.id).join(', ')}{result.failed.length > 3 ? '…' : ''}
+                      {result.failed.length} failed: {result.failed.slice(0, 5).map(f => `${f.id} (${f.reason})`).join(', ')}{result.failed.length > 5 ? ` … and ${result.failed.length - 5} more` : ''}
                     </Alert>
                   )}
                 </Box>
