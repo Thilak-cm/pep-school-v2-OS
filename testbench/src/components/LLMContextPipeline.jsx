@@ -41,7 +41,6 @@ export default function LLMContextPipeline({ studentContext, selectedStudent, ki
         sublabel="name, age, program"
         content={selectedStudent ? `Name: ${selectedStudent.displayName}\nClassroom: ${selectedStudent.classroomName || selectedStudent.classroomId}` : null}
         charCount={null}
-        defaultExpanded
       />
 
       <FlowArrow />

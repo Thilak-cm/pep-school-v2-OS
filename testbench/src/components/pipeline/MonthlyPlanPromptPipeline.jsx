@@ -22,7 +22,6 @@ export default function MonthlyPlanPromptPipeline({ systemPrompt, selectedStuden
         sublabel="from Firestore config — plan generation instructions"
         content={systemPrompt ?? null}
         charCount={systemPrompt?.length}
-        defaultExpanded
       />
 
       <FlowArrow />

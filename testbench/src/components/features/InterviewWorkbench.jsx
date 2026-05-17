@@ -296,7 +296,7 @@ export default function InterviewWorkbench() {
       </Box>
 
       {/* LLM Context Pipeline — always visible, content fills on student load (PEP-216) */}
-      <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+      <Accordion variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
         </AccordionSummary>

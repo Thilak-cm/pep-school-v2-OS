@@ -23,7 +23,6 @@ export default function SoulPromptPipeline({ systemPrompt, guidelinesContent, se
         sublabel="expert Montessori educator persona + task framing"
         content={preamble}
         charCount={preamble?.length}
-        defaultExpanded
       />
 
       <FlowArrow />

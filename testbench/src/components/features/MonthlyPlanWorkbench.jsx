@@ -159,7 +159,7 @@ export default function MonthlyPlanWorkbench() {
         </Box>
       </Box>
 
-      <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+      <Accordion variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle2" fontWeight={600}>Prompt Assembly Pipeline</Typography>
         </AccordionSummary>

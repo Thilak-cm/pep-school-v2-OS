@@ -22,7 +22,6 @@ export default function HandwritingPromptPipeline({ systemPrompt, selectedStuden
         sublabel="from Firestore config — handwriting analysis instructions"
         content={systemPrompt ?? null}
         charCount={systemPrompt?.length}
-        defaultExpanded
       />
 
       <FlowArrow />
