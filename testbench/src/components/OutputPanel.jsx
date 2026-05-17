@@ -64,7 +64,7 @@ function MonthlyPlanOutput({ output }) {
       </Box>
     );
   } catch {
-    return output;
+    return <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", color: "warning.main" }}>{output}</Typography>;
   }
 }
 

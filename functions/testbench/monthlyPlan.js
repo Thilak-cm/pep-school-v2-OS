@@ -104,30 +104,27 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
   const ageStr = age ? `${age.years}y ${age.months}m` : "unknown age";
   const programId = studentData.programId || "unknown";
 
-  // 2. Fetch observations from last 4 months
+  // 2. Fetch observations, media, and writing analysis in parallel
   const fourMonthsAgo = new Date(now);
   fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4);
 
-  const obsSnap = await db.collection("students").doc(studentId)
-    .collection("observations")
-    .where("observedAt", ">=", fourMonthsAgo)
-    .orderBy("observedAt", "desc")
-    .get();
+  const [obsSnap, mediaSnap, writingSnap] = await Promise.all([
+    db.collection("students").doc(studentId)
+      .collection("observations")
+      .where("observedAt", ">=", fourMonthsAgo)
+      .orderBy("observedAt", "desc")
+      .get(),
+    db.collection("students").doc(studentId)
+      .collection("media")
+      .where("observedAt", ">=", fourMonthsAgo)
+      .orderBy("observedAt", "desc")
+      .get(),
+    db.collection("students").doc(studentId)
+      .collection("ai_summaries").doc("writing_analysis").get(),
+  ]);
 
   const observations = obsSnap.docs.map((d) => d.data());
-
-  // 2b. Fetch media from last 4 months
-  const mediaSnap = await db.collection("students").doc(studentId)
-    .collection("media")
-    .where("observedAt", ">=", fourMonthsAgo)
-    .orderBy("observedAt", "desc")
-    .get();
-
   const mediaDocs = mediaSnap.docs.map((d) => d.data());
-
-  // 3. Fetch writing analysis
-  const writingSnap = await db.collection("students").doc(studentId)
-    .collection("ai_summaries").doc("writing_analysis").get();
   const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
 
   // 4. Build user prompt

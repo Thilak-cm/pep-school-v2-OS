@@ -177,15 +177,15 @@ export const batchAnalyzeWriting = functions
     const studentData = studentSnap.data();
 
     // Classroom-level access check for non-superadmins (PEP-235)
+    if (!studentData.classroomId && callerRole !== "superadmin") {
+      throw new functions.https.HttpsError("failed-precondition", "Student has no assigned classroom");
+    }
     if (callerRole === "classroomadmin") {
       const manageableClassrooms = callerSnap.data().manageableClassrooms || [];
       if (!manageableClassrooms.includes(studentData.classroomId)) {
         throw new functions.https.HttpsError("permission-denied", "No access to this student's classroom");
       }
     } else if (callerRole === "teacher") {
-      if (!studentData.classroomId) {
-        throw new functions.https.HttpsError("failed-precondition", "Student has no assigned classroom");
-      }
       const classroomSnap = await db.collection("classrooms").doc(studentData.classroomId).get();
       const teacherIds = classroomSnap.exists ? (classroomSnap.data().teacherIds || []) : [];
       if (!teacherIds.includes(context.auth.uid)) {
