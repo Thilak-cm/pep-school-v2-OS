@@ -7,6 +7,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 
 export default function MonthlyPlanConfig({ onConfigLoaded }) {
   const [loading, setLoading] = useState(true);
+  const [configFound, setConfigFound] = useState(true);
 
   useEffect(() => {
     loadConfig();
@@ -23,15 +24,28 @@ export default function MonthlyPlanConfig({ onConfigLoaded }) {
           temperature: data.temperature ?? 0.3,
           max_tokens: data.max_tokens || 4000,
         });
+      } else {
+        setConfigFound(false);
+        onConfigLoaded({ systemPrompt: "", model: "gpt-5.4", temperature: 0.3, max_tokens: 4000 });
       }
     } catch (err) {
       console.error("[MonthlyPlanConfig] loadConfig failed:", err);
+      setConfigFound(false);
+      onConfigLoaded({ systemPrompt: "", model: "gpt-5.4", temperature: 0.3, max_tokens: 4000 });
     } finally {
       setLoading(false);
     }
   }
 
   if (loading) return <CircularProgress size={20} />;
+
+  if (!configFound) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography variant="body2" color="warning.main">Config not found — using defaults</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

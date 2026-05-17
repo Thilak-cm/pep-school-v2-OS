@@ -146,7 +146,8 @@ export default function MonthlyPlanWorkbench() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
         <StudentPicker
-          scope="school-wide"
+          scope="program"
+          programFilter="toddler,primary"
           onSelect={setSelectedStudent}
         />
         <MonthlyPlanConfig onConfigLoaded={handleConfigLoaded} />

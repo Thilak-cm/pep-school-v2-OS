@@ -7,11 +7,9 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { serializeObservation, serializeMedia, formatWritingAnalysis } from "./monthlyPlan.js";
 
-// We need to test the serialization helpers. Since they're not exported,
-// we test the formatting logic inline here.
-
-describe("observation serialization", () => {
+describe("serializeObservation", () => {
   it("formats a text observation correctly", () => {
     const obs = {
       type: "text",
@@ -19,10 +17,11 @@ describe("observation serialization", () => {
       observedAt: new Date("2026-05-10"),
       createdByName: "Ms. Priya",
     };
-    const date = obs.observedAt.toISOString().slice(0, 10);
-    assert.equal(date, "2026-05-10");
-    assert.equal(obs.type, "text");
-    assert.ok(obs.text.includes("bead chain"));
+    const result = serializeObservation(obs);
+    assert.ok(result.includes("[2026-05-10]"));
+    assert.ok(result.includes("(text)"));
+    assert.ok(result.includes("bead chain"));
+    assert.ok(result.includes("(by Ms. Priya)"));
   });
 
   it("formats a lesson observation with ratings", () => {
@@ -32,20 +31,55 @@ describe("observation serialization", () => {
       lessonDescription: "Introduction to 4-digit addition",
       ratings: { Understanding: "yes", Concentration: "partial" },
       studentComment: "Needed help with carrying",
+      observedAt: new Date("2026-05-08"),
     };
-    assert.equal(obs.type, "lesson");
-    assert.ok(obs.lessonTitle);
-    assert.equal(obs.ratings.Understanding, "yes");
+    const result = serializeObservation(obs);
+    assert.ok(result.includes("(lesson)"));
+    assert.ok(result.includes("Addition with Golden Beads"));
+    assert.ok(result.includes("Introduction to 4-digit addition"));
+    assert.ok(result.includes("Understanding: yes"));
+    assert.ok(result.includes("Teacher comment: Needed help with carrying"));
+  });
+
+  it("handles missing observedAt gracefully", () => {
+    const obs = { type: "text", text: "Hello" };
+    const result = serializeObservation(obs);
+    assert.ok(result.includes("unknown date"));
   });
 });
 
-describe("writing analysis formatting", () => {
-  it("handles null analysis", () => {
-    // When analysis is null, the prompt should indicate no data
-    assert.ok(true, "null analysis produces fallback text");
+describe("serializeMedia", () => {
+  it("formats a media doc with teacher comment", () => {
+    const media = {
+      mediaKind: "photo",
+      teacherComment: "Great pencil grip progress",
+      curriculumArea: "Language",
+      observedAt: new Date("2026-05-12"),
+      createdByName: "Ms. Priya",
+    };
+    const result = serializeMedia(media);
+    assert.ok(result.includes("[2026-05-12]"));
+    assert.ok(result.includes("(media/photo)"));
+    assert.ok(result.includes("[Language]"));
+    assert.ok(result.includes("Great pencil grip progress"));
+    assert.ok(result.includes("(by Ms. Priya)"));
   });
 
-  it("handles complete analysis with dimension ratings", () => {
+  it("handles media without optional fields", () => {
+    const media = { mediaKind: "video", observedAt: new Date("2026-04-01") };
+    const result = serializeMedia(media);
+    assert.ok(result.includes("(media/video)"));
+    assert.ok(!result.includes("undefined"));
+  });
+});
+
+describe("formatWritingAnalysis", () => {
+  it("returns fallback text for null analysis", () => {
+    const result = formatWritingAnalysis(null);
+    assert.equal(result, "No writing analysis available for this student.");
+  });
+
+  it("formats complete analysis with dimension ratings", () => {
     const analysis = {
       narrative: "Aria shows strong letter formation progress",
       dimensionRatings: {
@@ -56,10 +90,18 @@ describe("writing analysis formatting", () => {
       concerns: ["Reversed b/d occasionally"],
       recommendations: ["Practice tracing lowercase letters"],
     };
-    assert.ok(analysis.narrative);
-    assert.equal(Object.keys(analysis.dimensionRatings).length, 2);
-    assert.equal(analysis.dimensionRatings["Letter Formation"].score, 4);
-    assert.equal(analysis.improvements.length, 2);
+    const result = formatWritingAnalysis(analysis);
+    assert.ok(result.includes("Aria shows strong letter formation progress"));
+    assert.ok(result.includes("Letter Formation: 4/5 (improving)"));
+    assert.ok(result.includes("Spacing: 3/5 (stable)"));
+    assert.ok(result.includes("Improvements: Baseline consistency; Letter sizing"));
+    assert.ok(result.includes("Concerns: Reversed b/d occasionally"));
+    assert.ok(result.includes("Recommendations: Practice tracing lowercase letters"));
+  });
+
+  it("handles analysis with only narrative", () => {
+    const result = formatWritingAnalysis({ narrative: "Good progress overall" });
+    assert.equal(result, "Good progress overall");
   });
 });
 

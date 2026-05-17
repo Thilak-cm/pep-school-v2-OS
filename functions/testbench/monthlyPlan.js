@@ -14,7 +14,7 @@ import { getModelSupportsJson } from "../config/testBenchModels.js";
 /**
  * Serialize a single observation into a text line for the prompt.
  */
-function serializeObservation(obs) {
+export function serializeObservation(obs) {
   const date = obs.observedAt?.toDate?.()
     ?? (obs.observedAt ? new Date(obs.observedAt) : null);
   const dateStr = date ? date.toISOString().slice(0, 10) : "unknown date";
@@ -43,9 +43,26 @@ function serializeObservation(obs) {
 }
 
 /**
+ * Serialize a media doc into a text line for the prompt.
+ */
+export function serializeMedia(media) {
+  const date = media.observedAt?.toDate?.()
+    ?? (media.observedAt ? new Date(media.observedAt) : null);
+  const dateStr = date ? date.toISOString().slice(0, 10) : "unknown date";
+  const kind = media.mediaKind || "photo";
+
+  const parts = [`[${dateStr}] (media/${kind})`];
+  if (media.curriculumArea) parts.push(`[${media.curriculumArea}]`);
+  if (media.teacherComment) parts.push(media.teacherComment);
+  if (media.createdByName) parts.push(`(by ${media.createdByName})`);
+
+  return parts.join(" ");
+}
+
+/**
  * Format writing analysis document into prompt text.
  */
-function formatWritingAnalysis(analysis) {
+export function formatWritingAnalysis(analysis) {
   if (!analysis) return "No writing analysis available for this student.";
 
   const parts = [];
@@ -99,6 +116,15 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
 
   const observations = obsSnap.docs.map((d) => d.data());
 
+  // 2b. Fetch media from last 4 months
+  const mediaSnap = await db.collection("students").doc(studentId)
+    .collection("media")
+    .where("observedAt", ">=", fourMonthsAgo)
+    .orderBy("observedAt", "desc")
+    .get();
+
+  const mediaDocs = mediaSnap.docs.map((d) => d.data());
+
   // 3. Fetch writing analysis
   const writingSnap = await db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("writing_analysis").get();
@@ -126,6 +152,15 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
 
   if (observations.length === 0) {
     userPromptParts.push("(No observations found in the last 4 months)");
+  }
+
+  userPromptParts.push("");
+  userPromptParts.push(`=== Media Notes (${mediaDocs.length} items, most recent first) ===`);
+  for (const media of mediaDocs) {
+    userPromptParts.push(serializeMedia(media));
+  }
+  if (mediaDocs.length === 0) {
+    userPromptParts.push("(No media notes found in the last 4 months)");
   }
 
   const userPrompt = userPromptParts.join("\n");
@@ -163,11 +198,13 @@ export async function testBenchMonthlyPlan({ studentId, systemPrompt, model, tem
     throw new functions.https.HttpsError("internal", `LLM error: ${response.status} — ${errText?.slice?.(0, 200)}`);
   }
 
-  const json = await response.json();
+  const json = await response.json().catch(() => {
+    throw new functions.https.HttpsError("internal", "LLM returned non-JSON response");
+  });
   const rawContent = json?.choices?.[0]?.message?.content?.trim();
   const totalTokens = json?.usage?.total_tokens || 0;
 
-  console.log(`[testBenchMonthlyPlan] ${studentId}: ${observations.length} obs, ${totalTokens} tokens`);
+  console.log(`[testBenchMonthlyPlan] ${studentId}: ${observations.length} obs, ${mediaDocs.length} media, ${totalTokens} tokens`);
 
   return { output: rawContent || "(empty response)", totalTokens };
 }

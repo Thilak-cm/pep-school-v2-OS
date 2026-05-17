@@ -48,10 +48,10 @@ export default function StudentPicker({ scope = "program", defaults, programFilt
         classroomDocs.push({ id: d.id, teacherIds: data.teacherIds || [] });
       }
 
-      // For program scope, only include classrooms matching the program
-      const programId = programFilter || "primary";
+      // For program scope, only include classrooms matching the program(s)
+      const programIds = (programFilter || "primary").split(",").map((p) => p.trim());
       let relevantClassroomIds = scope === "program"
-        ? new Set(Object.entries(classroomMap).filter(([, v]) => v.programId === programId).map(([k]) => k))
+        ? new Set(Object.entries(classroomMap).filter(([, v]) => programIds.includes(v.programId)).map(([k]) => k))
         : null; // school-wide: all classrooms
 
       // Apply classroom access filter based on caller's role (PEP-222)
