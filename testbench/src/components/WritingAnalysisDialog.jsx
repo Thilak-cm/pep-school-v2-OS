@@ -35,7 +35,21 @@ export default function WritingAnalysisDialog({ open, studentName, studentId, on
     setError(null);
     try {
       const analyzeWriting = httpsCallable(cloudFunctions, "batchAnalyzeWriting", { timeout: 300000 });
-      await analyzeWriting({ studentId });
+      const result = await analyzeWriting({ studentId });
+      const status = result.data?.status;
+      if (status === "skipped") {
+        const reason = result.data?.reason === "insufficient_samples"
+          ? `Not enough handwriting samples (found ${result.data?.count || 0}, need ${result.data?.threshold || 3})`
+          : `Not enough images loaded successfully (${result.data?.successfulDownloads || 0} of ${result.data?.totalDocs || 0})`;
+        setError(reason);
+        setGenerating(false);
+        return;
+      }
+      if (status !== "completed") {
+        setError(`Unexpected status: ${status}`);
+        setGenerating(false);
+        return;
+      }
       setGenerating(false);
       onSuccess();
     } catch (err) {
