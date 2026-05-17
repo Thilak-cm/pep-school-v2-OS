@@ -3,7 +3,10 @@ import { getFirestore, Timestamp, FieldPath } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getStorage } from "firebase-admin/storage";
 
-initializeApp({ credential: applicationDefault() });
+initializeApp({
+  credential: applicationDefault(),
+  storageBucket: "pep-os.firebasestorage.app",
+});
 
 const db = getFirestore();
 const auth = getAuth();
