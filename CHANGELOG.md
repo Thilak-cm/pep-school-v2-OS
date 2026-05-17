@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.24.0 — 2026-05-16
+
+### Added
+- Monthly Plan feature in prompt testbench — generates structured monthly action plans per student across Language, Sensorial, Math, and Practical Life (PEP-235)
+- Writing analysis prerequisite dialog — prompts generation when missing before plan creation (PEP-235)
+- Media observations included in monthly plan prompt inputs alongside text, voice, and lesson observations (PEP-235)
+- Multi-program student picker filter — StudentPicker now accepts comma-separated programFilter values (PEP-235)
+
+### Changed
+- `batchAnalyzeWriting` role gate relaxed from superadmin-only to teacher/classroomadmin/superadmin with classroom-level access checks (PEP-235)
+- `firebase-admin` init now specifies explicit `storageBucket` for reliable Storage access (PEP-235)
+
 # 10.23.0 — 2026-05-15
 
 ### Added

@@ -156,10 +156,11 @@ export const batchAnalyzeWriting = functions
       throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
 
-    // Superadmin-only: internal callable invoked by backend cron
+    // Role check: allow superadmin, classroomadmin, teacher (PEP-235)
     const callerSnap = await db.collection("users").doc(context.auth.uid).get();
-    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
-      throw new functions.https.HttpsError("permission-denied", "Superadmin access required");
+    const callerRole = callerSnap.exists ? callerSnap.data().role : null;
+    if (!["superadmin", "classroomadmin", "teacher"].includes(callerRole)) {
+      throw new functions.https.HttpsError("permission-denied", "Insufficient permissions");
     }
 
     const studentId = String(data?.studentId || "").trim();
@@ -167,6 +168,30 @@ export const batchAnalyzeWriting = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
     const dryRun = data?.dryRun === true;
+
+    // Fetch student context for age + name (moved up for classroom access check)
+    const studentSnap = await db.collection("students").doc(studentId).get();
+    if (!studentSnap.exists) {
+      throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
+    }
+    const studentData = studentSnap.data();
+
+    // Classroom-level access check for non-superadmins (PEP-235)
+    if (!studentData.classroomId && callerRole !== "superadmin") {
+      throw new functions.https.HttpsError("failed-precondition", "Student has no assigned classroom");
+    }
+    if (callerRole === "classroomadmin") {
+      const manageableClassrooms = callerSnap.data().manageableClassrooms || [];
+      if (!manageableClassrooms.includes(studentData.classroomId)) {
+        throw new functions.https.HttpsError("permission-denied", "No access to this student's classroom");
+      }
+    } else if (callerRole === "teacher") {
+      const classroomSnap = await db.collection("classrooms").doc(studentData.classroomId).get();
+      const teacherIds = classroomSnap.exists ? (classroomSnap.data().teacherIds || []) : [];
+      if (!teacherIds.includes(context.auth.uid)) {
+        throw new functions.https.HttpsError("permission-denied", "No access to this student's classroom");
+      }
+    }
 
     const config = await getHandwritingAnalysisConfig();
 
@@ -177,13 +202,6 @@ export const batchAnalyzeWriting = functions
     if (mediaDocs.length < config.minSamples) {
       return { status: "skipped", reason: "insufficient_samples", count: mediaDocs.length, threshold: config.minSamples };
     }
-
-    // Fetch student context for age + name
-    const studentSnap = await db.collection("students").doc(studentId).get();
-    if (!studentSnap.exists) {
-      throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
-    }
-    const studentData = studentSnap.data();
     const dob = studentData.dateOfBirth?.toDate?.() ?? (studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null);
     const student = {
       displayName: studentData.displayName || studentId,
