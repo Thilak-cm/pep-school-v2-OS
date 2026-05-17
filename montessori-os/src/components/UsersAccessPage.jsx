@@ -1173,6 +1173,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               payload.guardianPhone = studentForm.guardianPhone.trim();
             }
             tx.set(ref, payload);
+            // Create initial placement doc so graduation and timeline work from day one
+            const today = new Date();
+            const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const placementRef = doc(db, 'students', sid, 'placements', `${startDate}__${studentForm.classroomId}`);
+            tx.set(placementRef, {
+              classroomId: studentForm.classroomId,
+              startDate,
+              endDate: null,
+              status: 'active',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
             const classroomRef = doc(db, 'classrooms', studentForm.classroomId);
             tx.set(classroomRef, { studentCount: increment(1), updatedAt: serverTimestamp() }, { merge: true });
           });

@@ -371,7 +371,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
                   )}
                   {result.failed?.length > 0 && (
                     <Alert severity="warning">
-                      {result.failed.length} failed: {result.failed.slice(0,3).map(f => f.id).join(', ')}{result.failed.length > 3 ? '…' : ''}
+                      {result.failed.length} failed: {result.failed.map(f => `${f.id} (${f.reason})`).join(', ')}
                     </Alert>
                   )}
                 </Box>
