@@ -160,15 +160,33 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
           // Find active placement (endDate == null)
           const activeQ = query(collection(db, 'students', studentId, 'placements'), where('endDate', '==', null), limit(1));
           const activeSnap = await getDocs(activeQ);
-          if (activeSnap.empty) { failures.push({ id: studentId, reason: 'no active placement' }); continue; }
-          const activeDoc = activeSnap.docs[0];
-
-          // Close old placement
-          batch.update(activeDoc.ref, {
-            endDate: lastDayStr,
-            status: 'ended',
-            updatedAt: serverTimestamp(),
-          });
+          if (!activeSnap.empty) {
+            // Close existing active placement
+            const activeDoc = activeSnap.docs[0];
+            batch.update(activeDoc.ref, {
+              endDate: lastDayStr,
+              status: 'ended',
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            // No placement exists — backfill one using student's createdAt so classroom history is preserved
+            if (!stu.createdAt) { failures.push({ id: studentId, reason: 'no placement and no createdAt' }); continue; }
+            const created = stu.createdAt.toDate();
+            const sy = created.getFullYear();
+            const sm = String(created.getMonth() + 1).padStart(2, '0');
+            const sd = String(created.getDate()).padStart(2, '0');
+            const backfillStart = `${sy}-${sm}-${sd}`;
+            const backfillId = `${backfillStart}__${sourceClassroomId}`;
+            const backfillRef = doc(db, 'students', studentId, 'placements', backfillId);
+            batch.set(backfillRef, {
+              classroomId: sourceClassroomId,
+              startDate: backfillStart,
+              endDate: lastDayStr,
+              status: 'ended',
+              createdAt: stu.createdAt,
+              updatedAt: serverTimestamp(),
+            });
+          }
 
           // Create new placement
           const placementId = `${newStartDate}__${destClassroomId}`;
