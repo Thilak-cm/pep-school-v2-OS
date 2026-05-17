@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-15T21:36:27.918Z
-App version: 10.23.0
+Generated: 2026-05-17T10:38:54.679Z
+App version: 10.24.0
 
 ## App Snapshot
 
@@ -115,9 +115,10 @@ App version: 10.23.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `history`, `interviews`, `testbench`, `testbench_access`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
+- `/access/{uid}`
 - `/ai_summaries/{summaryId}`
 - `/branches/{branchId}`
 - `/chats/{chatId}`
@@ -131,15 +132,20 @@ App version: 10.23.0
 - `/observations/{observationId}`
 - `/placements/{placementId}`
 - `/programs/{programId}`
+- `/runs/{runId}`
 - `/students/{studentId}`
-- `/testbench_access/{uid}`
-- `/testbench/{runId}`
+- `/testbench/settings`
 - `/users/{uid}`
 - `/{path=**}/ai_summaries/{summaryId}`
 - `/{path=**}/media/{mediaId}`
 - `/{path=**}/observations/{observationId}`
 
 ## Recent Changes
+
+### 10.24.0 (2026-05-16)
+- Monthly Plan feature in prompt testbench — generates structured monthly action plans per student across Language, Sensorial, Math, and Practical Life (PEP-235)
+- Writing analysis prerequisite dialog — prompts generation when missing before plan creation (PEP-235)
+- Media observations included in monthly plan prompt inputs alongside text, voice, and lesson observations (PEP-235)
 
 ### 10.23.0 (2026-05-15)
 - Teacher Pick exploration mode in Interview Workbench — teachers choose 2 of 4 randomly drawn areas to direct the interview (PEP-220)
@@ -155,9 +161,4 @@ App version: 10.23.0
 - Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
 - Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
 - New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
-
-### 10.20.2 (2026-05-15)
-- Prompt assembly pipeline visualizations for handwriting analysis and soul generation in the test bench — shows how each feature's prompt is structurally assembled before sending to the LLM (PEP-216)
-- Shared pipeline components (ContextBlock, FlowArrow, SectionLabel, RuntimePlaceholder, PipelineWrapper) extracted for reuse across all test bench pipelines (PEP-216)
-- Interview pipeline renders immediately when the feature is selected instead of waiting for student load — structural-first pattern with content populating on student selection (PEP-216)
 
