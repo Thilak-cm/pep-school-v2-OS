@@ -981,7 +981,6 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 <ClassroomStudentCard
                   key={student.id}
                   student={student}
-                  classroomNotes={classroomNotes}
                   onClick={() => handleStudentClick(student)}
                 />
               ))}

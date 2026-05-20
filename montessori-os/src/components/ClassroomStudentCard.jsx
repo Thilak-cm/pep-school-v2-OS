@@ -1,33 +1,13 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography } from '@mui/material';
+import { Box, Card, CardContent, Typography, Skeleton } from '@mui/material';
 import { StickyNote as Notes, User as Person } from '../icons';
+import useStudentNoteCounts from '../hooks/useStudentNoteCounts';
 
-export default function ClassroomStudentCard({ student, classroomNotes, onClick }) {
-  const studentNoteCount = classroomNotes.filter((n) => n.studentId === student.id).length;
+export default function ClassroomStudentCard({ student, onClick }) {
+  const { totalNotes, notesLast7Days, loading } = useStudentNoteCounts(student?.id);
 
-  const last7DaysCount = (() => {
-    if (!classroomNotes?.length) return 0;
-    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return classroomNotes.filter((n) => {
-      if (n.studentId !== student.id) return false;
-      try {
-        let d;
-        if (n.observedAt?.toDate) d = n.observedAt.toDate();
-        else if (n.observedAt?.seconds) d = new Date(n.observedAt.seconds * 1000);
-        else if (n.observedAt) d = new Date(n.observedAt);
-        else if (n.timestamp?.toDate) d = n.timestamp.toDate();
-        else if (n.timestamp?.seconds) d = new Date(n.timestamp.seconds * 1000);
-        else if (n.timestamp) d = new Date(n.timestamp);
-        else d = new Date(0);
-        return d >= lastWeek;
-      } catch {
-        return false;
-      }
-    }).length;
-  })();
-
-  const totalText = `${studentNoteCount} note${studentNoteCount !== 1 ? 's' : ''} overall`;
-  const recentText = `${last7DaysCount} note${last7DaysCount !== 1 ? 's' : ''} in the last 7 days`;
+  const totalText = `${totalNotes} note${totalNotes !== 1 ? 's' : ''} overall`;
+  const recentText = `${notesLast7Days} note${notesLast7Days !== 1 ? 's' : ''} in the last 7 days`;
 
   return (
     <Card
@@ -53,9 +33,13 @@ export default function ClassroomStudentCard({ student, classroomNotes, onClick 
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Notes size={14} style={{ color: 'var(--color-text-soft)' }} />
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-            {totalText} | {recentText}
-          </Typography>
+          {loading ? (
+            <Skeleton width={180} height={16} />
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+              {totalText} | {recentText}
+            </Typography>
+          )}
         </Box>
       </CardContent>
     </Card>
