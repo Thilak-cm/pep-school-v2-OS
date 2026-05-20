@@ -40,6 +40,11 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const studentCount = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
 
   // --- Notes this week (async fetch) ---
+  // For teachers, scope queries to assigned classrooms so the collection group
+  // rule (which checks studentClassroomId) doesn't deny docs from transferred
+  // students. Admins are handled by adminCanQueryObservation() in the rules.
+  // NOTE: a broader "author can always read their own observations" rule would
+  // remove the need for this scoping, but has PII implications — see PEP-251.
   useEffect(() => {
     if (!user?.uid) return;
     let cancelled = false;
@@ -50,17 +55,25 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const ts = Timestamp.fromDate(sevenDaysAgo);
 
+        const classroomIds = classrooms.map(c => c.id).filter(Boolean);
+        const needsClassroomScope = !isAdmin && classroomIds.length > 0;
+
+        const obsFilters = [
+          where('createdBy', '==', user.uid),
+          where('observedAt', '>=', ts),
+        ];
+        const mediaFilters = [
+          where('createdBy', '==', user.uid),
+          where('observedAt', '>=', ts),
+        ];
+        if (needsClassroomScope) {
+          obsFilters.unshift(where('classroomId', 'in', classroomIds));
+          mediaFilters.unshift(where('classroomId', 'in', classroomIds));
+        }
+
         const [obsSnap, mediaSnap] = await Promise.all([
-          getDocs(query(
-            collectionGroup(db, 'observations'),
-            where('createdBy', '==', user.uid),
-            where('observedAt', '>=', ts),
-          )),
-          getDocs(query(
-            collectionGroup(db, 'media'),
-            where('createdBy', '==', user.uid),
-            where('observedAt', '>=', ts),
-          )),
+          getDocs(query(collectionGroup(db, 'observations'), ...obsFilters)),
+          getDocs(query(collectionGroup(db, 'media'), ...mediaFilters)),
         ]);
         if (!cancelled) {
           setNotesThisWeek(obsSnap.size + mediaSnap.size);
@@ -77,7 +90,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
 
     fetchNotes();
     return () => { cancelled = true; };
-  }, [user?.uid]);
+  }, [user?.uid, isAdmin, classrooms]);
 
   // --- Profile data ---
   const displayName = user?.displayName || 'Pep School User';
