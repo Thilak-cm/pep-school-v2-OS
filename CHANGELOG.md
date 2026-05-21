@@ -3,6 +3,10 @@
 # 10.25.0 — 2026-05-21
 
 ### Added
+- Handwriting image gallery with horizontal thumbnail carousel and lightbox in the Handwriting Workbench — view student writing samples inline alongside AI output (PEP-241)
+- StudentPicker upgrade with pinned defaults and free-text school-wide search (PEP-241)
+- Firebase Storage init in testbench for client-side image fetching (PEP-241)
+- Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
 - Weekly/Writing snapshot tabs on student dashboard — teachers can switch between weekly AI summary and writing analysis views (PEP-242)
 - Writing snapshot placeholder with "coming soon" state for upcoming handwriting analysis feature (PEP-242)
 - Shared `calculateAgeFromDob` utility in `utils/dateFormat.js` — eliminates duplication across snapshot components (PEP-242)

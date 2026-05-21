@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveInitialState, filterAccessibleClassrooms } from "../utils/studentPickerHelpers.js";
+import { resolveInitialState, filterAccessibleClassrooms, buildVisibleOptions } from "../utils/studentPickerHelpers.js";
 
 describe("StudentPicker — resolveInitialState", () => {
   describe('scope="hardcoded"', () => {
@@ -81,5 +81,43 @@ describe("filterAccessibleClassrooms", () => {
   it("classroomadmin with empty manageableClassrooms returns empty Set", () => {
     const result = filterAccessibleClassrooms({ classroomDocs, role: "classroomadmin", uid: "ca2", manageableClassrooms: [] });
     assert.deepEqual(result, new Set());
+  });
+});
+
+describe("buildVisibleOptions", () => {
+  const allStudents = [
+    { id: "S1", displayName: "Aanya" },
+    { id: "S2", displayName: "Bharat" },
+    { id: "S3", displayName: "Chitra" },
+    { id: "S4", displayName: "Devi" },
+  ];
+  const pinned = [
+    { id: "S1", displayName: "Aanya", handwrittenCount: 9 },
+    { id: "S3", displayName: "Chitra", handwrittenCount: 4 },
+  ];
+
+  it("returns pinned options when input is empty", () => {
+    const result = buildVisibleOptions({ students: allStudents, pinnedOptions: pinned, inputValue: "" });
+    assert.deepEqual(result, pinned);
+  });
+
+  it("returns pinned options when input is whitespace-only", () => {
+    const result = buildVisibleOptions({ students: allStudents, pinnedOptions: pinned, inputValue: "   " });
+    assert.deepEqual(result, pinned);
+  });
+
+  it("returns full student list when input has text", () => {
+    const result = buildVisibleOptions({ students: allStudents, pinnedOptions: pinned, inputValue: "Bh" });
+    assert.deepEqual(result, allStudents);
+  });
+
+  it("returns full student list when no pinnedOptions provided", () => {
+    const result = buildVisibleOptions({ students: allStudents, pinnedOptions: null, inputValue: "" });
+    assert.deepEqual(result, allStudents);
+  });
+
+  it("returns full student list when pinnedOptions is empty array", () => {
+    const result = buildVisibleOptions({ students: allStudents, pinnedOptions: [], inputValue: "" });
+    assert.deepEqual(result, allStudents);
   });
 });

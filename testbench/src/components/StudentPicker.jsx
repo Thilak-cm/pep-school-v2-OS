@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase.js";
 import { useAuth } from "../contexts/AuthContext.js";
-import { filterAccessibleClassrooms } from "../utils/studentPickerHelpers.js";
+import { filterAccessibleClassrooms, buildVisibleOptions } from "../utils/studentPickerHelpers.js";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -18,11 +18,12 @@ import Box from "@mui/material/Box";
  * - onSelect(student | null): callback when student is picked
  * - renderOptionExtra(student): optional render function for extra content in option rows
  */
-export default function StudentPicker({ scope = "program", defaults, programFilter, onSelect, renderOptionExtra }) {
+export default function StudentPicker({ scope = "program", defaults, pinnedOptions, programFilter, onSelect, renderOptionExtra }) {
   const { role, user, manageableClassrooms } = useAuth();
   const [students, setStudents] = useState(scope === "hardcoded" ? (defaults || []) : []);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [inputValue, setInputValue] = useState("");
 
   // Fetch students for non-hardcoded scopes
   useEffect(() => {
@@ -86,13 +87,17 @@ export default function StudentPicker({ scope = "program", defaults, programFilt
     }
   }
 
+  const visibleOptions = buildVisibleOptions({ students, pinnedOptions, inputValue });
+
   return (
     <Autocomplete
-      options={students}
+      options={visibleOptions}
       loading={loading}
       getOptionLabel={(s) => s.displayName}
       isOptionEqualToValue={(option, value) => option.id === value.id}
       onChange={(_, value) => onSelect(value)}
+      inputValue={inputValue}
+      onInputChange={(_, newValue) => setInputValue(newValue)}
       renderOption={(props, s) => {
         const { key, ...rest } = props;
         return (
