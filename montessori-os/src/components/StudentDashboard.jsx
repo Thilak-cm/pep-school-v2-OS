@@ -242,27 +242,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     return () => { active = false; };
   }, [activeTab, studentId]);
 
-  // Fetch handwritten media when Writing tab is active
-  useEffect(() => {
-    if (activeTab !== 'writing' || !studentId) return;
-    let active = true;
-    const fetchHwMedia = async () => {
-      try {
-        const q = query(
-          collection(db, 'students', studentId, 'media'),
-          where('handwritten', '==', true),
-          orderBy('observedAt', 'desc')
-        );
-        const snap = await getDocs(q);
-        if (!active) return;
-        setHwMedia(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch {
-        if (active) setHwMedia([]);
-      }
-    };
-    fetchHwMedia();
-    return () => { active = false; };
-  }, [activeTab, studentId]);
+  const [hwMediaLoading, setHwMediaLoading] = useState(false);
+  const hwMediaFetchedRef = useRef(null); // tracks studentId for which we already fetched
+
+  const openHwGallery = async () => {
+    setHwGalleryOpen(true);
+    if (hwMediaFetchedRef.current === studentId) return; // already fetched for this student
+    setHwMediaLoading(true);
+    try {
+      const q = query(
+        collection(db, 'students', studentId, 'media'),
+        where('handwritten', '==', true),
+        orderBy('observedAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setHwMedia(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      hwMediaFetchedRef.current = studentId;
+    } catch {
+      setHwMedia([]);
+    } finally {
+      setHwMediaLoading(false);
+    }
+  };
 
   // Resolve download URLs for handwritten media thumbnails
   useEffect(() => {
@@ -659,8 +660,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <Tooltip title="View writing samples" arrow>
                 <Box
                   component="button"
-                  onClick={() => setHwGalleryOpen(true)}
-                  disabled={hwMedia.length === 0}
+                  onClick={openHwGallery}
+                  disabled={!studentId}
                   sx={{
                     ...CHIP_BASE,
                     borderColor: 'var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
@@ -673,7 +674,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   aria-label="View writing samples"
                 >
                   <ImageIcon size={14} />
-                  <span>{hwMedia.length || 0}</span>
+                  {Number.isFinite(writingData?.sampleCount) && <span>{writingData.sampleCount}</span>}
                 </Box>
               </Tooltip>
             )}
@@ -983,7 +984,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <CloseIcon size={20} />
             </Box>
           </Stack>
-          {hwMedia.length === 0 ? (
+          {hwMediaLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={28} sx={{ color: 'var(--color-violet)' }} />
+            </Box>
+          ) : hwMedia.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
               No handwriting samples found.
             </Typography>
