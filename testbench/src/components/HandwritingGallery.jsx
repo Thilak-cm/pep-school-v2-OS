@@ -148,6 +148,10 @@ export default function HandwritingGallery({ studentId, onCountLoaded }) {
         maxWidth="md"
         fullWidth
         PaperProps={{ sx: { bgcolor: "grey.900", color: "white" } }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") { setExpandedIndex((i) => navigateGallery(i, -1, items.length)); e.stopPropagation(); }
+          else if (e.key === "ArrowRight") { setExpandedIndex((i) => navigateGallery(i, 1, items.length)); e.stopPropagation(); }
+        }}
       >
         <DialogContent sx={{ p: 0, position: "relative" }}>
           {/* Close button */}
