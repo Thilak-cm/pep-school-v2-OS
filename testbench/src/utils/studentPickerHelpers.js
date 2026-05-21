@@ -42,3 +42,21 @@ export function filterAccessibleClassrooms({ classroomDocs, role, uid, manageabl
   }
   return new Set();
 }
+
+/**
+ * PEP-241: Build the visible options list for StudentPicker with pinned defaults.
+ *
+ * When inputValue is empty, show only pinnedOptions.
+ * When inputValue is non-empty, filter from the full students list (MUI handles text matching).
+ *
+ * @param {Object} params
+ * @param {Array} params.students - Full fetched student list
+ * @param {Array} params.pinnedOptions - Default students to show when input is empty
+ * @param {string} params.inputValue - Current text in the autocomplete input
+ * @returns {Array} The options list to show
+ */
+export function buildVisibleOptions({ students, pinnedOptions, inputValue }) {
+  if (!pinnedOptions || pinnedOptions.length === 0) return students;
+  if (!inputValue || inputValue.trim() === "") return pinnedOptions;
+  return students;
+}

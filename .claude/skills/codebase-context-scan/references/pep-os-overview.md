@@ -1,6 +1,6 @@
 # Pep OS Overview
 
-Generated: 2026-05-21T20:03:00.000Z
+Generated: 2026-05-21T20:10:00.000Z
 App version: 10.26.0
 
 ## App Snapshot
@@ -147,14 +147,19 @@ App version: 10.26.0
 - Student creation integrated into Add Users form with role tab selector (PEP-247)
 - Parent contact fields visible in student edit dialog and read-only view (PEP-247)
 - Guardian-to-parent migration script for existing student records (PEP-247)
-- New `UsersAccessPage.validation.js` module for parent field validation (PEP-247)
+- Writing snapshot tab wired to real `writing_analysis` data — fetches doc, renders narrative with loading/empty/error states (PEP-256)
+- Handwriting samples gallery on writing tab — toolbar chip with sample count, lazy-loaded grid dialog, NoteBottomSheet lightbox with carousel (PEP-256)
+- Weekly snapshot empty state now shows consistent centered card for both "no data" and "no notes" cases (PEP-256)
 
 ### 10.25.1 (2026-05-21)
 - Author-can-read-own rule on collection group queries for observations and media — fixes SettingsPage permissions for teachers with transferred students (PEP-255)
 
 ### 10.25.0 (2026-05-21)
-- Weekly/Writing snapshot tabs on student dashboard with shared calculateAgeFromDob utility (PEP-242)
-- Renamed BaseballCardSnapshotCard → SnapshotCard and BaseballCardBody → SnapshotBody (PEP-242)
+- Handwriting image gallery with horizontal thumbnail carousel and lightbox in Handwriting Workbench (PEP-241)
+- Weekly/Writing snapshot tabs on student dashboard with tab switching (PEP-242)
+- Renamed BaseballCardSnapshotCard/Body to SnapshotCard/SnapshotBody (PEP-242)
+- StudentPicker upgrade with pinned defaults and free-text search (PEP-241)
+- Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
 
 ### 10.24.1 (2026-05-20)
 - Collection group security rules for observations and media check student's current classroom instead of observation's classroomId — fixes teacher reads for transferred students (PEP-251)

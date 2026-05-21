@@ -7,10 +7,17 @@
 - Student creation integrated into Add Users form with role tab selector (PEP-247)
 - Parent contact fields visible in student edit dialog and read-only view (PEP-247)
 - Guardian-to-parent migration script for existing student records (PEP-247)
+- Writing snapshot tab wired to real handwriting analysis data — fetches `writing_analysis` doc, renders narrative with loading/empty/error states (PEP-256)
+- Handwriting samples gallery on writing tab — toolbar chip with sample count, lazy-loaded grid dialog, NoteBottomSheet lightbox with carousel navigation (PEP-256)
+- Gallery state resets on student navigation, failed URL fetches show placeholder icons (PEP-256)
 
 ### Changed
 - Guardian form fields (guardianName, guardianRelationship, guardianPhone) replaced by parent contact fields (PEP-247)
 - DATA_STRUCTURE.md updated with parent contact field definitions (PEP-247)
+
+### Fixed
+- Weekly snapshot empty state now shows a consistent centered card for both "no data" and "no notes" cases (PEP-256)
+- Media dialog z-index layering bug in StudentTimeline — close dialog before opening lightbox (PEP-256)
 
 # 10.25.1 — 2026-05-21
 
@@ -21,6 +28,10 @@
 # 10.25.0 — 2026-05-21
 
 ### Added
+- Handwriting image gallery with horizontal thumbnail carousel and lightbox in the Handwriting Workbench — view student writing samples inline alongside AI output (PEP-241)
+- StudentPicker upgrade with pinned defaults and free-text school-wide search (PEP-241)
+- Firebase Storage init in testbench for client-side image fetching (PEP-241)
+- Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
 - Weekly/Writing snapshot tabs on student dashboard — teachers can switch between weekly AI summary and writing analysis views (PEP-242)
 - Writing snapshot placeholder with "coming soon" state for upcoming handwriting analysis feature (PEP-242)
 - Shared `calculateAgeFromDob` utility in `utils/dateFormat.js` — eliminates duplication across snapshot components (PEP-242)

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 const firebaseConfig = {
@@ -16,10 +17,11 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(app);
+const storage = getStorage(app);
 const cloudFunctions = getFunctions(app, "asia-south1");
 
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR !== "false") {
   connectFunctionsEmulator(cloudFunctions, "localhost", 5001);
 }
 
-export { auth, provider, db, cloudFunctions, app };
+export { auth, provider, db, storage, cloudFunctions, app };

@@ -1234,7 +1234,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
                           toggleMediaSelection(obs);
                           return;
                         }
-                        if (isReady) handleMediaClick(obs, photosVideos, idx);
+                        if (isReady) { setMediaDialogOpen(false); handleMediaClick(obs, photosVideos, idx); }
                       }}
                       sx={{
                         cursor: mediaSelectMode ? 'pointer' : (isReady ? 'pointer' : 'default'),
