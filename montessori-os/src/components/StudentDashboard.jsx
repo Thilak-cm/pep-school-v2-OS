@@ -225,11 +225,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     let active = true;
     setWritingLoading(true);
     setWritingError('');
+    setWritingData(null);
 
     const fetchWriting = async () => {
       try {
-        const ref = doc(db, 'students', studentId, 'ai_summaries', 'writing_analysis');
-        const snap = await getDoc(ref);
+        const writingRef = doc(db, 'students', studentId, 'ai_summaries', 'writing_analysis');
+        const snap = await getDoc(writingRef);
         if (!active) return;
         setWritingData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
       } catch {
@@ -245,6 +246,17 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   const [hwMediaLoading, setHwMediaLoading] = useState(false);
   const hwMediaFetchedRef = useRef(null); // tracks studentId for which we already fetched
+
+  // Reset handwriting gallery state when student changes
+  useEffect(() => {
+    setHwMedia([]);
+    setHwMediaUrls({});
+    setHwGalleryOpen(false);
+    setHwPreview(null);
+    hwMediaUrlsRef.current = {};
+    hwInFlightRef.current = new Set();
+    hwMediaFetchedRef.current = null;
+  }, [studentId]);
 
   const openHwGallery = async () => {
     setHwGalleryOpen(true);
@@ -265,6 +277,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       setHwMedia(docs);
       hwMediaFetchedRef.current = studentId;
     } catch {
+      notify.error('Failed to load handwriting samples.');
       setHwMedia([]);
     } finally {
       setHwMediaLoading(false);
@@ -308,6 +321,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               setHwMediaUrls(prev => {
                 if (prev[path] === url) return prev;
                 const next = { ...prev, [path]: url };
+                hwMediaUrlsRef.current = next;
+                return next;
+              });
+            },
+            onError: ({ path }) => {
+              setHwMediaUrls(prev => {
+                if (prev[path] === null) return prev;
+                const next = { ...prev, [path]: null };
                 hwMediaUrlsRef.current = next;
                 return next;
               });
@@ -677,7 +698,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
 
             {/* Handwriting samples chip — writing tab only */}
-            {activeTab === 'writing' && (
+            {activeTab === 'writing' && Number.isFinite(writingData?.sampleCount) && (
               <Tooltip title="View writing samples" arrow>
                 <Box
                   component="button"
@@ -756,9 +777,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 writingLoading ? (
                   <SnapshotBody cardLoading={true} />
                 ) : writingError ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-                    <Typography variant="body2" color="error">{writingError}</Typography>
-                  </Box>
+                  <SnapshotBody cardError={writingError} onOpenFeedback={onOpenFeedback} feedbackMessage="Writing analysis failed to load" />
                 ) : (!writingData || writingData.status === 'skipped') ? (
                   <Box sx={{
                     display: 'flex',
@@ -1024,7 +1043,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                     onClick={() => {
                       if (!url) return;
                       setHwGalleryOpen(false);
-                      const path = m.media?.[0]?.storagePath;
                       setHwPreview({
                         observation: { ...m, mediaKind: 'photo', status: 'ready', media: path ? [{ storagePath: path }] : [] },
                         url,
@@ -1044,6 +1062,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   >
                     {url ? (
                       <Box component="img" src={url} alt="Writing sample" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : url === null ? (
+                      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-soft)' }}>
+                        <ImageIcon size={20} />
+                      </Box>
                     ) : (
                       <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <CircularProgress size={20} />
