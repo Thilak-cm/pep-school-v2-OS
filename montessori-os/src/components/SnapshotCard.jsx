@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Card, CardContent, Stack, Typography, IconButton, Chip } from '@mui/material';
 import { RefreshCw as Refresh } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
-import BaseballCardBody from './BaseballCardBody';
+import SnapshotBody from './SnapshotBody';
 
 // Utility function to calculate age in "5y3m" format (similar to functions/index.js)
 function calculateAgeFromDob(dobValue) {
@@ -57,7 +57,7 @@ function calculateAgeFromDob(dobValue) {
   return parts.length > 0 ? parts.join('') : null;
 }
 
-export default function BaseballCardSnapshotCard({
+export default function SnapshotCard({
   title = 'Weekly Snapshot',
   noteCount,
   windowDays,
@@ -201,7 +201,7 @@ export default function BaseballCardSnapshotCard({
             sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
             aria-label="Student summary (scroll for more)"
           >
-            <BaseballCardBody
+            <SnapshotBody
               cardData={cardData}
               cardLoading={cardLoading}
               cardError={cardError}

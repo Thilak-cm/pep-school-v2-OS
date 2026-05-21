@@ -4,10 +4,10 @@ import {
   Box,
   Typography,
   CircularProgress,
-  IconButton,
   Button,
   Stack,
-  Alert,
+  Card,
+  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -15,23 +15,65 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon } from '../icons';
-import { QuickJumpButton } from './ui';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil } from '../icons';
+import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
-import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
+import SnapshotBody from './SnapshotBody';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 
 
 
+function calculateAgeFromDob(dobValue) {
+  if (!dobValue) return null;
+  let dobDate = null;
+  if (typeof dobValue?.toDate === 'function') dobDate = dobValue.toDate();
+  else if (typeof dobValue?.seconds === 'number') dobDate = new Date(dobValue.seconds * 1000);
+  else if (dobValue instanceof Date) dobDate = dobValue;
+  else if (typeof dobValue === 'string') dobDate = new Date(dobValue);
+  if (!dobDate || isNaN(dobDate.getTime())) return null;
+  const today = new Date();
+  let years = today.getFullYear() - dobDate.getFullYear();
+  let months = today.getMonth() - dobDate.getMonth();
+  if (today.getDate() - dobDate.getDate() < 0) months--;
+  if (months < 0) { years--; months += 12; }
+  const parts = [];
+  if (years > 0) parts.push(`${years}y`);
+  if (months > 0) parts.push(`${months}m`);
+  return parts.length > 0 ? parts.join('') : null;
+}
+
+/* Shared chip base sx for uniform toolbar items */
+const CHIP_BASE = {
+  height: 28,
+  borderRadius: '14px',
+  border: '1px solid',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
+  transition: 'all 0.15s ease',
+  flexShrink: 0,
+};
+
+const SNAPSHOT_TABS = [
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Writing', value: 'writing' },
+];
+
 function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice' }) {
   const notify = useNotify();
+  const [activeTab, setActiveTab] = useState('weekly');
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -387,104 +429,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         ? 'var(--color-sky)'
         : 'var(--color-green-bright)';
 
-  const getSeverityChip = () => {
-    if (signalsLoading || signalsStatus !== 'ok') return null;
-
-    const colorMap = {
-      high: 'var(--color-error)',
-      medium: 'var(--color-warning)',
-      med: 'var(--color-warning)',
-      low: 'var(--color-sky)',
-      none: 'var(--color-green-bright)'
-    };
-
-    const paletteColor = colorMap[severity] || colorMap.none;
-    const getSeverityLabel = (sev) => {
-      if (!sev) return 'No flag';
-      if (sev === 'med') return 'Flag: Medium';
-      return `Flag: ${sev.charAt(0).toUpperCase()}${sev.slice(1)}`;
-    };
-    const label = getSeverityLabel(severity);
-    const IconComponent = FlagRounded;
-
-    return (
-      <Tooltip title={label} arrow>
-        <IconButton
-          onClick={(e) => setFlagAnchorEl(e.currentTarget)}
-          sx={{
-            width: 40,
-            height: 40,
-            border: `1px solid ${paletteColor}`,
-            color: paletteColor,
-            backgroundColor: 'rgba(15, 23, 42, 0.04)',
-            '&:hover': {
-              backgroundColor: 'rgba(15, 23, 42, 0.08)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-            }
-          }}
-          aria-label="View flag details"
-        >
-          <IconComponent size={22} />
-        </IconButton>
-      </Tooltip>
-    );
-  };
-
-  const renderCoverageRow = () => {
-    if (signalsLoading) {
-      return (
-        <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-          Checking coverage…
-        </Typography>
-      );
-    }
-    if (signalsStatus !== 'ok') {
-      return (
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <InfoOutlined size={18} style={{ color: 'var(--color-text-faint)' }} />
-          <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-            Coverage pending
-          </Typography>
-        </Stack>
-      );
-    }
-
-    const buttonIcon =
-      coverageTone === 'balanced' ? (
-        <CheckCircle size={18} style={{ color: coverageStyles.iconColor }} />
-      ) : (
-        <WarningIcon size={18} style={{ color: coverageStyles.iconColor }} />
-      );
-
-    const handleCoverageClick = (e) => {
-      setMissingDomainsAnchorEl(e.currentTarget);
-    };
-
-    return (
-      <Button
-        size="small"
-        variant="outlined"
-        startIcon={buttonIcon}
-        onClick={handleCoverageClick}
-        sx={{
-          textTransform: 'none',
-          fontWeight: 700,
-          borderRadius: 2,
-          borderColor: coverageStyles.borderColor,
-          color: coverageStyles.textColor,
-          backgroundColor: coverageStyles.backgroundColor,
-          px: 1.5,
-          '&:hover': {
-            borderColor: coverageStyles.hoverBorderColor,
-            backgroundColor: coverageStyles.hoverBackground
-          }
-        }}
-        aria-label={coverageButtonLabel}
-      >
-        {coverageButtonLabel}
-      </Button>
-    );
-  };
   const studentLabel = getStudentName(student);
   const feedbackMessage = `AI baseball card failed to load for ${studentLabel}. Context: last ${cardWindowWeeks} weeks summary endpoint returned an error. Please investigate the AI generation function/logs.`;
 
@@ -504,40 +448,233 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   }, [cardLoading, cardError, cardData]);
 
 
+  const ageString = calculateAgeFromDob(studentDob);
+
+  const coverageChipIcon = coverageTone === 'balanced'
+    ? <CheckCircle size={14} style={{ color: coverageStyles.iconColor }} />
+    : <WarningIcon size={14} style={{ color: coverageStyles.iconColor }} />;
+
+  const flagColor = severity === 'high'
+    ? 'var(--color-error)'
+    : severity === 'medium' || severity === 'med'
+      ? 'var(--color-warning)'
+      : 'var(--color-green-bright)';
+
   return (
     <Box sx={{
       display: 'flex', flexDirection: 'column', gap: 1.5, position: 'relative',
-      /* Fill the viewport between header and footer nav — no scrolling needed */
       height: { xs: 'calc(100dvh - 64px - 72px - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))', sm: 'calc(100dvh - 64px - 72px - 48px)' },
       minHeight: 0,
     }}>
-      <BaseballCardSnapshotCard
-        noteCount={cardNoteCount}
-        windowDays={cardWindowDays}
-        coverage={renderCoverageRow()}
-        topRightActions={getSeverityChip()}
-        onRegenerateClick={() => setRegenDialogOpen(true)}
-        regenDisabled={regenRunning || !studentId}
-        cardData={cardData}
-        cardLoading={cardLoading}
-        cardError={cardError}
-        cardWindowDays={cardWindowDays}
-        studentLabel={studentLabel}
-        student={studentForCard}
-        onOpenFeedback={onOpenFeedback}
-        onDobMissing={() => {
-          if (onNavigateToManageStudent) {
-            onNavigateToManageStudent(studentId);
-          } else {
-            notify.info('Ask your admin to update the date of birth for this student');
-          }
-        }}
-        feedbackMessage={feedbackMessage}
-        summaryScrollRef={summaryScrollRef}
-        onSummaryScroll={updateScrollFade}
-        showScrollFade={showScrollFade}
-        footer={
-          chartLoading ? (
+      {/* ── Snapshot card with tabs ── */}
+      <Card sx={{
+        borderRadius: 2,
+        border: '1px solid var(--color-border)',
+        background: 'linear-gradient(135deg, var(--color-bg) 0%, var(--color-paper) 100%)',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        minHeight: 0,
+      }}>
+        {/* Tab strip */}
+        <HFTabs
+          tabs={SNAPSHOT_TABS}
+          value={activeTab}
+          onChange={setActiveTab}
+          variant="fullWidth"
+          sx={{ borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}
+        />
+
+        <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
+          {/* ── Uniform toolbar chip row ── */}
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+            {/* Coverage chip */}
+            {signalsLoading ? (
+              <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'var(--color-text-faint)' }}>
+                Checking coverage…
+              </Typography>
+            ) : signalsStatus !== 'ok' ? (
+              <Box sx={{
+                ...CHIP_BASE,
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'rgba(148, 163, 184, 0.06)',
+                color: 'var(--color-text-faint)',
+                px: 1.25, gap: 0.5,
+              }}>
+                <InfoOutlined size={14} />
+                <span>Coverage pending</span>
+              </Box>
+            ) : (
+              <Box
+                onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
+                sx={{
+                  ...CHIP_BASE,
+                  borderColor: coverageStyles.borderColor,
+                  backgroundColor: coverageStyles.backgroundColor,
+                  color: coverageStyles.textColor,
+                  px: 1.25, gap: 0.5,
+                  '&:hover': {
+                    backgroundColor: coverageStyles.hoverBackground,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  },
+                }}
+                aria-label={coverageButtonLabel}
+              >
+                {coverageChipIcon}
+                <span>{coverageButtonLabel}</span>
+              </Box>
+            )}
+
+            {/* Age chip */}
+            {ageString ? (
+              <Box sx={{
+                ...CHIP_BASE,
+                borderColor: 'var(--color-violet-soft)',
+                backgroundColor: 'var(--color-violet-bg)',
+                color: 'var(--color-violet)',
+                px: 1,
+                cursor: 'default',
+              }}>
+                {ageString}
+              </Box>
+            ) : (
+              <Box
+                onClick={() => {
+                  if (onNavigateToManageStudent) onNavigateToManageStudent(studentId);
+                  else notify.info('Ask your admin to update the date of birth for this student');
+                }}
+                sx={{
+                  ...CHIP_BASE,
+                  borderColor: 'rgba(245, 158, 11, 0.2)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  color: 'var(--color-amber-text)', /* hex-alpha fallback removed */
+                  px: 1,
+                  fontSize: '0.65rem',
+                }}
+              >
+                DoB missing
+              </Box>
+            )}
+
+            <Box sx={{ flex: 1 }} />
+
+            {/* Refresh chip */}
+            <Tooltip title="Regenerate snapshot" arrow>
+              <Box
+                component="button"
+                onClick={() => setRegenDialogOpen(true)}
+                disabled={regenRunning || !studentId}
+                sx={{
+                  ...CHIP_BASE,
+                  width: 28,
+                  borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                  backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                  color: 'var(--color-primary)',
+                  p: 0,
+                  '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                  '&:disabled': { opacity: 0.4, cursor: 'default' },
+                }}
+                aria-label="Regenerate snapshot"
+              >
+                <Refresh size={14} />
+              </Box>
+            </Tooltip>
+
+            {/* Flag chip */}
+            {!signalsLoading && signalsStatus === 'ok' && (
+              <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
+                <Box
+                  component="button"
+                  onClick={(e) => setFlagAnchorEl(e.currentTarget)}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: flagColor,
+                    backgroundColor: `color-mix(in srgb, ${flagColor} 6%, transparent)`,
+                    color: flagColor,
+                    p: 0,
+                    '&:hover': { backgroundColor: `color-mix(in srgb, ${flagColor} 13%, transparent)` },
+                  }}
+                  aria-label="View flag details"
+                >
+                  <FlagRounded size={14} />
+                </Box>
+              </Tooltip>
+            )}
+          </Stack>
+
+          {/* ── Note count ── */}
+          <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
+            {activeTab === 'weekly' ? (
+              <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
+            ) : (
+              <>Written notes in past <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>30</strong> days</>
+            )}
+          </Typography>
+
+          {/* ── Tab content — scrollable ── */}
+          <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+            <Box
+              ref={summaryScrollRef}
+              onScroll={updateScrollFade}
+              sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
+              aria-label="Snapshot content (scroll for more)"
+            >
+              {activeTab === 'weekly' ? (
+                <SnapshotBody
+                  cardData={cardData}
+                  cardLoading={cardLoading}
+                  cardError={cardError}
+                  cardWindowDays={cardWindowDays}
+                  studentLabel={studentLabel}
+                  onOpenFeedback={onOpenFeedback}
+                  feedbackMessage={feedbackMessage}
+                />
+              ) : (
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1.5,
+                  height: '100%',
+                  pb: 10,
+                  textAlign: 'center',
+                }}>
+                  <Box sx={{
+                    width: 56, height: 56,
+                    borderRadius: 4,
+                    background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
+                    border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--color-violet)',
+                  }}>
+                    <Pencil size={26} />
+                  </Box>
+                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                    Writing Snapshot
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
+                    Handwriting analysis and writing development insights — coming soon.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+            {showScrollFade && (
+              <Box sx={{
+                position: 'absolute', left: 0, right: 0, bottom: 0, height: 56,
+                pointerEvents: 'none',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 30%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0.97) 80%, rgba(255,255,255,1) 100%)',
+                backdropFilter: 'blur(2px)',
+              }} />
+            )}
+          </Box>
+        </CardContent>
+
+        {/* ── Chart footer ── */}
+        <Box sx={{ borderTop: '1px solid var(--color-border)', px: 2, py: 1.5, flexShrink: 0 }}>
+          {chartLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
               <CircularProgress size={24} sx={{ color: 'var(--color-primary)' }} />
             </Box>
@@ -549,21 +686,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <Box sx={{ height: 120, width: '100%' }}>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts — hex required */}
-                    <XAxis
-                      dataKey="period"
-                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
-                      axisLine={{ stroke: '#e2e8f0' }} /* Recharts */
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 9, fill: '#94a3b8' }} /* Recharts */
-                      axisLine={false}
-                      tickLine={false}
-                      width={30}
-                      tickFormatter={(v) => Math.round(v)}
-                      allowDecimals={false}
-                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts */}
+                    <XAxis dataKey="period" tick={{ fontSize: 9, fill: '#94a3b8' /* Recharts */ }} axisLine={{ stroke: '#e2e8f0' /* Recharts */ }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: '#94a3b8' /* Recharts */ }} axisLine={false} tickLine={false} width={30} tickFormatter={(v) => Math.round(v)} allowDecimals={false} />
                     <RechartsTooltip
                       content={({ active, payload }) => {
                         if (active && payload?.length) {
@@ -581,26 +706,20 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                         return null;
                       }}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#4f46e5" /* Recharts */
-                      strokeWidth={2.5}
-                      dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }} /* Recharts */
-                      activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }} /* Recharts */
-                    />
+                    <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }} activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }} /> {/* Recharts */}
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
             </Box>
-          ) : null
-        }
-      />
+          ) : null}
+        </Box>
+      </Card>
+
       {regenError && (
-        <Typography variant="body2" color="error">
-          {regenError}
-        </Typography>
+        <Typography variant="body2" color="error">{regenError}</Typography>
       )}
+
+      {/* ── Regenerate confirmation dialog ── */}
       <Dialog
         open={regenDialogOpen}
         onClose={() => setRegenDialogOpen(false)}
@@ -618,34 +737,19 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <DialogContent sx={{ pt: 3 }}>
           <Stack spacing={2}>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Box
-                sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
-                  border: '1px solid rgba(99,102,241,0.35)'
-                }}
-              >
+              <Box sx={{
+                width: 48, height: 48, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                border: '1px solid rgba(99,102,241,0.35)',
+              }}>
                 <Refresh size={22} style={{ color: 'var(--color-primary)' }} />
               </Box>
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
-                  Regenerate weekly snapshot?
-                </Typography>
-              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Regenerate weekly snapshot?
+              </Typography>
             </Stack>
-            <Box
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                backgroundColor: 'var(--color-indigo-bg)',
-                border: '1px solid rgba(79, 70, 229, 0.2)'
-              }}
-            >
+            <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'var(--color-indigo-bg)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
               <Typography variant="body2" sx={{ color: 'var(--color-indigo-deep)', fontWeight: 600 }}>
                 Last generated: {formatGeneratedAt(cardData?.generatedAt)}
               </Typography>
@@ -667,31 +771,21 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button
-            onClick={() => setRegenDialogOpen(false)}
-            disabled={regenRunning}
-            sx={{ textTransform: 'none', color: 'var(--grey-600)' }}
-          >
+          <Button onClick={() => setRegenDialogOpen(false)} disabled={regenRunning} sx={{ textTransform: 'none', color: 'var(--grey-600)' }}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={async () => {
-              setRegenDialogOpen(false);
-              await handleRegenerate();
-            }}
+            onClick={async () => { setRegenDialogOpen(false); await handleRegenerate(); }}
             disabled={regenRunning || !studentId}
-            sx={{
-              textTransform: 'none',
-              borderRadius: 999,
-              px: 3,
-              boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)'
-            }}
+            sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
           >
             {regenRunning ? 'Regenerating…' : 'Regenerate'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── Flag popover ── */}
       <Popover
         open={Boolean(flagAnchorEl)}
         anchorEl={flagAnchorEl}
@@ -711,69 +805,57 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </Typography>
       </Popover>
 
+      {/* ── Coverage gaps popover ── */}
       <Popover
         open={Boolean(missingDomainsAnchorEl)}
         anchorEl={missingDomainsAnchorEl}
         onClose={() => setMissingDomainsAnchorEl(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        PaperProps={{
-          sx: {
-            p: 2,
-            maxWidth: 340,
-            border: `1px solid ${coverageStyles.borderColor}`,
-          }
-        }}
+        PaperProps={{ sx: { p: 2, maxWidth: 340, border: `1px solid ${coverageStyles.borderColor}` } }}
       >
-        <Box>
-          <Stack spacing={1.25}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              {coverageTone === 'balanced' ? (
-                <CheckCircle size={20} style={{ color: coverageStyles.iconColor }} />
-              ) : (
-                <WarningIcon size={20} style={{ color: coverageStyles.iconColor }} />
-              )}
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: coverageStyles.textColor }}>
-                {coverageStyles.title}
-              </Typography>
-            </Stack>
-            {coverageTone === 'balanced' ? (
-              <>
-                <Typography variant="body2" sx={{ color: 'var(--grey-900)' }}>
-                  Notes in the past {cardWindowDays} days have been balanced. Great job keeping coverage even!
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Keep rotating through domains to maintain this streak.
-                </Typography>
-              </>
-            ) : (
-              <>
-                <Typography
-                  variant="body2"
-                  sx={{ color: coverageTone === 'alert' ? 'var(--color-error-dark)' : 'var(--color-amber-text)' }}
-                >
-                  {coverageTone === 'warning'
-                    ? 'A few domains need attention. Try adding observations in these areas soon.'
-                    : 'Many domains are missing. Prioritize observations in these areas this week.'}
-                </Typography>
-                {coverageGaps.length > 0 ? (
-                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                    {coverageGaps.map((gap) => (
-                      <Chip key={gap} label={gap} size="small" variant="outlined" />
-                    ))}
-                  </Stack>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Domains list unavailable right now.
-                  </Typography>
-                )}
-              </>
-            )}
+        <Stack spacing={1.25}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {coverageTone === 'balanced'
+              ? <CheckCircle size={20} style={{ color: coverageStyles.iconColor }} />
+              : <WarningIcon size={20} style={{ color: coverageStyles.iconColor }} />}
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: coverageStyles.textColor }}>
+              {coverageStyles.title}
+            </Typography>
           </Stack>
-        </Box>
+          {coverageTone === 'balanced' ? (
+            <>
+              <Typography variant="body2" sx={{ color: 'var(--grey-900)' }}>
+                Notes in the past {cardWindowDays} days have been balanced. Great job keeping coverage even!
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Keep rotating through domains to maintain this streak.
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography variant="body2" sx={{ color: coverageTone === 'alert' ? 'var(--color-error-dark)' : 'var(--color-amber-text)' }}>
+                {coverageTone === 'warning'
+                  ? 'A few domains need attention. Try adding observations in these areas soon.'
+                  : 'Many domains are missing. Prioritize observations in these areas this week.'}
+              </Typography>
+              {coverageGaps.length > 0 ? (
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {coverageGaps.map((gap) => (
+                    <Chip key={gap} label={gap} size="small" variant="outlined" />
+                  ))}
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Domains list unavailable right now.
+                </Typography>
+              )}
+            </>
+          )}
+        </Stack>
       </Popover>
 
-      {/* Action buttons — pinned at bottom, never scrolled */}
+      {/* ── Quick jump buttons — pinned at bottom ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>
         <QuickJumpButton
           icon={<NotesIcon size={22} />}
@@ -794,7 +876,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           onClick={() => { trackEvent('student_dashboard_card_click', { card: 'chat', studentId }).catch(() => {}); onOpenChat?.(); }}
         />
       </Box>
-  </Box>
+    </Box>
   );
 }
 
