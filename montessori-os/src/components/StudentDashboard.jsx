@@ -15,12 +15,14 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, ChevronLeft, ChevronRight } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
-import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
+import { db, cloudFunctions, storage } from '../firebase';
+import { ref, getDownloadURL } from 'firebase/storage';
+import { planMissingMediaUrlPaths, fetchMediaUrlsWithConcurrency } from '../utils/mediaUrlBatching';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
@@ -63,6 +65,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [writingData, setWritingData] = useState(null);
   const [writingLoading, setWritingLoading] = useState(false);
   const [writingError, setWritingError] = useState('');
+  const [hwMedia, setHwMedia] = useState([]);
+  const [hwMediaUrls, setHwMediaUrls] = useState({});
+  const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
+  const [hwLightboxIdx, setHwLightboxIdx] = useState(-1);
+  const hwMediaUrlsRef = useRef({});
+  const hwInFlightRef = useRef(new Set());
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
@@ -233,6 +241,62 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchWriting();
     return () => { active = false; };
   }, [activeTab, studentId]);
+
+  // Fetch handwritten media when Writing tab is active
+  useEffect(() => {
+    if (activeTab !== 'writing' || !studentId) return;
+    let active = true;
+    const fetchHwMedia = async () => {
+      try {
+        const q = query(
+          collection(db, 'students', studentId, 'media'),
+          where('handwritten', '==', true),
+          orderBy('observedAt', 'desc')
+        );
+        const snap = await getDocs(q);
+        if (!active) return;
+        setHwMedia(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch {
+        if (active) setHwMedia([]);
+      }
+    };
+    fetchHwMedia();
+    return () => { active = false; };
+  }, [activeTab, studentId]);
+
+  // Resolve download URLs for handwritten media thumbnails
+  useEffect(() => {
+    const paths = hwMedia
+      .filter(m => m.status === 'ready' && m.media?.[0]?.storagePath)
+      .map(m => m.media[0].storagePath);
+    const missing = planMissingMediaUrlPaths(paths, {
+      mediaUrls: hwMediaUrlsRef.current,
+      inFlightPaths: hwInFlightRef.current,
+    });
+    if (missing.length === 0) return;
+    missing.forEach(p => hwInFlightRef.current.add(p));
+    (async () => {
+      try {
+        await fetchMediaUrlsWithConcurrency(
+          missing,
+          async (path) => getDownloadURL(ref(storage, path)),
+          {
+            concurrency: 6,
+            onSuccess: ({ path, url }) => {
+              setHwMediaUrls(prev => {
+                if (prev[path] === url) return prev;
+                const next = { ...prev, [path]: url };
+                hwMediaUrlsRef.current = next;
+                return next;
+              });
+            },
+          }
+        );
+      } finally {
+        missing.forEach(p => hwInFlightRef.current.delete(p));
+      }
+    })();
+  }, [hwMedia]);
 
   // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
@@ -590,6 +654,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
+            {/* Handwriting samples chip — writing tab only */}
+            {activeTab === 'writing' && (
+              <Tooltip title="View writing samples" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setHwGalleryOpen(true)}
+                  disabled={hwMedia.length === 0}
+                  sx={{
+                    ...CHIP_BASE,
+                    borderColor: 'var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+                    backgroundColor: 'rgba(124, 58, 237, 0.06)',
+                    color: 'var(--color-violet)',
+                    px: 1.25, gap: 0.5,
+                    '&:hover': { backgroundColor: 'rgba(124, 58, 237, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="View writing samples"
+                >
+                  <ImageIcon size={14} />
+                  <span>{hwMedia.length || 0}</span>
+                </Box>
+              </Tooltip>
+            )}
+
             {/* Flag chip — weekly tab only */}
             {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
               <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
@@ -877,6 +965,110 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           )}
         </Stack>
       </Popover>
+
+      {/* ── Handwriting samples gallery dialog ── */}
+      <Dialog
+        open={hwGalleryOpen}
+        onClose={() => setHwGalleryOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, border: '1px solid var(--color-border)' } }}
+      >
+        <DialogContent sx={{ p: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+              Writing Samples ({hwMedia.length})
+            </Typography>
+            <Box component="button" onClick={() => setHwGalleryOpen(false)} sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-soft)', p: 0.5 }}>
+              <CloseIcon size={20} />
+            </Box>
+          </Stack>
+          {hwMedia.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              No handwriting samples found.
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+              {hwMedia.map((m, idx) => {
+                const path = m.media?.[0]?.storagePath;
+                const url = path ? hwMediaUrls[path] : null;
+                return (
+                  <Box
+                    key={m.id}
+                    onClick={() => url && setHwLightboxIdx(idx)}
+                    sx={{
+                      aspectRatio: '1 / 1',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      backgroundColor: 'var(--color-bg)',
+                      cursor: url ? 'pointer' : 'default',
+                      border: '1px solid var(--color-border)',
+                      '&:hover': url ? { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } : undefined,
+                    }}
+                  >
+                    {url ? (
+                      <Box component="img" src={url} alt="Writing sample" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CircularProgress size={20} />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Handwriting lightbox ── */}
+      <Dialog
+        open={hwLightboxIdx >= 0}
+        onClose={() => setHwLightboxIdx(-1)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, backgroundColor: '#000', position: 'relative' } }}
+      >
+        <Box component="button" onClick={() => setHwLightboxIdx(-1)} sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+          <CloseIcon size={20} />
+        </Box>
+        {hwLightboxIdx > 0 && (
+          <Box component="button" onClick={() => setHwLightboxIdx(i => i - 1)} sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+            <ChevronLeft size={24} />
+          </Box>
+        )}
+        {hwLightboxIdx >= 0 && hwLightboxIdx < hwMedia.length - 1 && (
+          <Box component="button" onClick={() => setHwLightboxIdx(i => i + 1)} sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
+            <ChevronRight size={24} />
+          </Box>
+        )}
+        {hwLightboxIdx >= 0 && hwLightboxIdx < hwMedia.length && (() => {
+          const m = hwMedia[hwLightboxIdx];
+          const path = m?.media?.[0]?.storagePath;
+          const url = path ? hwMediaUrls[path] : null;
+          return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
+              {url ? (
+                <Box component="img" src={url} alt="Writing sample" sx={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 2 }} />
+              ) : (
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CircularProgress sx={{ color: '#fff' }} />
+                </Box>
+              )}
+              {m?.teacherComment && (
+                <Typography sx={{ color: 'rgba(255,255,255,0.85)', mt: 1.5, fontSize: '0.85rem', textAlign: 'center' }}>
+                  {m.teacherComment}
+                </Typography>
+              )}
+              {m?.curriculumArea && (
+                <Typography sx={{ color: 'rgba(255,255,255,0.5)', mt: 0.5, fontSize: '0.75rem' }}>
+                  {m.curriculumArea}
+                </Typography>
+              )}
+            </Box>
+          );
+        })()}
+      </Dialog>
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>
