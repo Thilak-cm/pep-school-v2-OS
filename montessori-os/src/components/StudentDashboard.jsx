@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, ChevronLeft, ChevronRight } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -26,6 +26,7 @@ import { planMissingMediaUrlPaths, fetchMediaUrlsWithConcurrency } from '../util
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
+import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { calculateAgeFromDob } from '../utils/dateFormat';
@@ -68,7 +69,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [hwMedia, setHwMedia] = useState([]);
   const [hwMediaUrls, setHwMediaUrls] = useState({});
   const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
-  const [hwLightboxIdx, setHwLightboxIdx] = useState(-1);
+  const [hwPreview, setHwPreview] = useState(null);
   const hwMediaUrlsRef = useRef({});
   const hwInFlightRef = useRef(new Set());
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
@@ -268,6 +269,21 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     } finally {
       setHwMediaLoading(false);
     }
+  };
+
+  const navigateHwPreview = (direction) => {
+    if (!hwPreview?.carouselList) return;
+    const newIdx = hwPreview.carouselIndex + direction;
+    if (newIdx < 0 || newIdx >= hwPreview.carouselList.length) return;
+    const m = hwPreview.carouselList[newIdx];
+    const path = m?.media?.[0]?.storagePath;
+    const url = path ? hwMediaUrls[path] : null;
+    setHwPreview({
+      observation: { ...m, mediaKind: 'photo', status: 'ready', media: path ? [{ storagePath: path }] : [] },
+      url,
+      carouselList: hwPreview.carouselList,
+      carouselIndex: newIdx,
+    });
   };
 
   // Resolve download URLs for handwritten media thumbnails
@@ -1005,7 +1021,17 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 return (
                   <Box
                     key={m.id}
-                    onClick={() => url && setHwLightboxIdx(idx)}
+                    onClick={() => {
+                      if (!url) return;
+                      setHwGalleryOpen(false);
+                      const path = m.media?.[0]?.storagePath;
+                      setHwPreview({
+                        observation: { ...m, mediaKind: 'photo', status: 'ready', media: path ? [{ storagePath: path }] : [] },
+                        url,
+                        carouselList: hwMedia,
+                        carouselIndex: idx,
+                      });
+                    }}
                     sx={{
                       aspectRatio: '1 / 1',
                       borderRadius: 2,
@@ -1031,54 +1057,20 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </DialogContent>
       </Dialog>
 
-      {/* ── Handwriting lightbox ── */}
-      <Dialog
-        open={hwLightboxIdx >= 0}
-        onClose={() => setHwLightboxIdx(-1)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3, backgroundColor: '#000', position: 'relative' } }}
-      >
-        <Box component="button" onClick={() => setHwLightboxIdx(-1)} sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
-          <CloseIcon size={20} />
-        </Box>
-        {hwLightboxIdx > 0 && (
-          <Box component="button" onClick={() => setHwLightboxIdx(i => i - 1)} sx={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
-            <ChevronLeft size={24} />
-          </Box>
-        )}
-        {hwLightboxIdx >= 0 && hwLightboxIdx < hwMedia.length - 1 && (
-          <Box component="button" onClick={() => setHwLightboxIdx(i => i + 1)} sx={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 2, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}>
-            <ChevronRight size={24} />
-          </Box>
-        )}
-        {hwLightboxIdx >= 0 && hwLightboxIdx < hwMedia.length && (() => {
-          const m = hwMedia[hwLightboxIdx];
-          const path = m?.media?.[0]?.storagePath;
-          const url = path ? hwMediaUrls[path] : null;
-          return (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
-              {url ? (
-                <Box component="img" src={url} alt="Writing sample" sx={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 2 }} />
-              ) : (
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CircularProgress sx={{ color: '#fff' }} />
-                </Box>
-              )}
-              {m?.teacherComment && (
-                <Typography sx={{ color: 'rgba(255,255,255,0.85)', mt: 1.5, fontSize: '0.85rem', textAlign: 'center' }}>
-                  {m.teacherComment}
-                </Typography>
-              )}
-              {m?.curriculumArea && (
-                <Typography sx={{ color: 'rgba(255,255,255,0.5)', mt: 0.5, fontSize: '0.75rem' }}>
-                  {m.curriculumArea}
-                </Typography>
-              )}
-            </Box>
-          );
-        })()}
-      </Dialog>
+      {/* ── Handwriting media expansion (NoteBottomSheet) ── */}
+      <NoteBottomSheet
+        open={!!hwPreview}
+        onClose={() => setHwPreview(null)}
+        observation={hwPreview?.observation || null}
+        student={student}
+        currentUser={null}
+        userRole={null}
+        isClassroomContext={false}
+        mediaUrl={hwPreview?.url}
+        carouselList={hwPreview?.carouselList}
+        carouselIndex={hwPreview?.carouselIndex}
+        onCarouselNavigate={navigateHwPreview}
+      />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>
