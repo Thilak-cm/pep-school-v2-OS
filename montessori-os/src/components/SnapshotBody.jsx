@@ -3,7 +3,7 @@ import { Box, Typography, Stack, Button, Skeleton, CircularProgress } from '@mui
 import { CircleAlert as ErrorOutline } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 
-export default function BaseballCardBody({
+export default function SnapshotBody({
   cardData,
   cardLoading,
   cardError,

@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.25.0 — 2026-05-21
+
+### Added
+- Weekly/Writing snapshot tabs on student dashboard — teachers can switch between weekly AI summary and writing analysis views (PEP-242)
+- Writing snapshot placeholder with "coming soon" state for upcoming handwriting analysis feature (PEP-242)
+- Shared `calculateAgeFromDob` utility in `utils/dateFormat.js` — eliminates duplication across snapshot components (PEP-242)
+
+### Changed
+- Renamed `BaseballCardSnapshotCard` → `SnapshotCard` and `BaseballCardBody` → `SnapshotBody` for clarity (PEP-242)
+- Student dashboard toolbar chips (coverage, flag, refresh) now only render on the Weekly tab (PEP-242)
+- Regeneration errors now surface as toast notifications instead of inline text (PEP-242)
+
 # 10.24.0 — 2026-05-16
 
 ### Added

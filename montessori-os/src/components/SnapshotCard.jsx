@@ -2,62 +2,10 @@ import React from 'react';
 import { Box, Card, CardContent, Stack, Typography, IconButton, Chip } from '@mui/material';
 import { RefreshCw as Refresh } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
-import BaseballCardBody from './BaseballCardBody';
+import SnapshotBody from './SnapshotBody';
+import { calculateAgeFromDob } from '../utils/dateFormat';
 
-// Utility function to calculate age in "5y3m" format (similar to functions/index.js)
-function calculateAgeFromDob(dobValue) {
-  if (!dobValue) return null;
-
-  // Normalize timestamp value (handle Firestore Timestamp, Date, or ISO string)
-  let dobDate = null;
-  if (typeof dobValue?.toDate === 'function') {
-    dobDate = dobValue.toDate();
-  } else if (typeof dobValue?.seconds === 'number') {
-    dobDate = new Date(dobValue.seconds * 1000);
-  } else if (dobValue instanceof Date) {
-    dobDate = dobValue;
-  } else if (typeof dobValue === 'string') {
-    dobDate = new Date(dobValue);
-  }
-
-  if (!dobDate || isNaN(dobDate.getTime())) {
-    return null;
-  }
-
-  const today = new Date();
-  const birthDate = new Date(dobDate);
-
-  // Calculate years
-  let years = today.getFullYear() - birthDate.getFullYear();
-  let months = today.getMonth() - birthDate.getMonth();
-  let days = today.getDate() - birthDate.getDate();
-
-  // Adjust for negative days
-  if (days < 0) {
-    months--;
-    const lastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-    days += lastMonth.getDate();
-  }
-
-  // Adjust for negative months
-  if (months < 0) {
-    years--;
-    months += 12;
-  }
-
-  // Format as "5y3m" (only show months if > 0, only show years if > 0)
-  const parts = [];
-  if (years > 0) {
-    parts.push(`${years}y`);
-  }
-  if (months > 0) {
-    parts.push(`${months}m`);
-  }
-
-  return parts.length > 0 ? parts.join('') : null;
-}
-
-export default function BaseballCardSnapshotCard({
+export default function SnapshotCard({
   title = 'Weekly Snapshot',
   noteCount,
   windowDays,
@@ -201,7 +149,7 @@ export default function BaseballCardSnapshotCard({
             sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
             aria-label="Student summary (scroll for more)"
           >
-            <BaseballCardBody
+            <SnapshotBody
               cardData={cardData}
               cardLoading={cardLoading}
               cardError={cardError}

@@ -27,7 +27,7 @@ import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
-import BaseballCardSnapshotCard from './BaseballCardSnapshotCard';
+import SnapshotCard from './SnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
@@ -1222,7 +1222,7 @@ function NotificationsPage() {
         >
           <DialogContent sx={{ p: 0, position: 'relative', flex: 1, overflow: 'visible' }}>
             <Stack spacing={2} sx={{ width: 'min(560px, 100%)', mx: 'auto' }}>
-              <BaseballCardSnapshotCard
+              <SnapshotCard
                 noteCount={cardNoteCount}
                 windowDays={cardWindowDays}
                 coverage={renderCoverageRow(studentId)}
