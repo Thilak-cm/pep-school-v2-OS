@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-21T02:17:00.000Z
-App version: 10.24.1
+Generated: 2026-05-21T20:03:00.000Z
+App version: 10.26.0
 
 ## App Snapshot
 
@@ -141,6 +141,20 @@ App version: 10.24.1
 - `/{path=**}/observations/{observationId}`
 
 ## Recent Changes
+
+### 10.26.0 (2026-05-21)
+- Parent contact fields on student documents — parent1 (name + email required on creation), parent2 (optional), with email validation (PEP-247)
+- Student creation integrated into Add Users form with role tab selector (PEP-247)
+- Parent contact fields visible in student edit dialog and read-only view (PEP-247)
+- Guardian-to-parent migration script for existing student records (PEP-247)
+- New `UsersAccessPage.validation.js` module for parent field validation (PEP-247)
+
+### 10.25.1 (2026-05-21)
+- Author-can-read-own rule on collection group queries for observations and media — fixes SettingsPage permissions for teachers with transferred students (PEP-255)
+
+### 10.25.0 (2026-05-21)
+- Weekly/Writing snapshot tabs on student dashboard with shared calculateAgeFromDob utility (PEP-242)
+- Renamed BaseballCardSnapshotCard → SnapshotCard and BaseballCardBody → SnapshotBody (PEP-242)
 
 ### 10.24.1 (2026-05-20)
 - Collection group security rules for observations and media check student's current classroom instead of observation's classroomId — fixes teacher reads for transferred students (PEP-251)
