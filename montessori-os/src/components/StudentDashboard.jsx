@@ -15,15 +15,18 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
-import { collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
+import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, cloudFunctions } from '../firebase';
+import { db, cloudFunctions, storage } from '../firebase';
+import { ref, getDownloadURL } from 'firebase/storage';
+import { planMissingMediaUrlPaths, fetchMediaUrlsWithConcurrency } from '../utils/mediaUrlBatching';
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
+import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { calculateAgeFromDob } from '../utils/dateFormat';
@@ -60,6 +63,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsData, setSignalsData] = useState(null);
+  const [writingData, setWritingData] = useState(null);
+  const [writingLoading, setWritingLoading] = useState(false);
+  const [writingError, setWritingError] = useState('');
+  const [hwMedia, setHwMedia] = useState([]);
+  const [hwMediaUrls, setHwMediaUrls] = useState({});
+  const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
+  const [hwPreview, setHwPreview] = useState(null);
+  const hwMediaUrlsRef = useRef({});
+  const hwInFlightRef = useRef(new Set());
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
@@ -206,6 +218,128 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchCard();
     return () => { active = false; };
   }, [studentId, reloadKey]);
+
+  // Fetch writing analysis when Writing tab is active
+  useEffect(() => {
+    if (activeTab !== 'writing' || !studentId) return;
+    let active = true;
+    setWritingLoading(true);
+    setWritingError('');
+    setWritingData(null);
+
+    const fetchWriting = async () => {
+      try {
+        const writingRef = doc(db, 'students', studentId, 'ai_summaries', 'writing_analysis');
+        const snap = await getDoc(writingRef);
+        if (!active) return;
+        setWritingData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      } catch {
+        if (active) setWritingError('Failed to load writing analysis.');
+      } finally {
+        if (active) setWritingLoading(false);
+      }
+    };
+
+    fetchWriting();
+    return () => { active = false; };
+  }, [activeTab, studentId]);
+
+  const [hwMediaLoading, setHwMediaLoading] = useState(false);
+  const hwMediaFetchedRef = useRef(null); // tracks studentId for which we already fetched
+
+  // Reset handwriting gallery state when student changes
+  useEffect(() => {
+    setHwMedia([]);
+    setHwMediaUrls({});
+    setHwGalleryOpen(false);
+    setHwPreview(null);
+    hwMediaUrlsRef.current = {};
+    hwInFlightRef.current = new Set();
+    hwMediaFetchedRef.current = null;
+  }, [studentId]);
+
+  const openHwGallery = async () => {
+    setHwGalleryOpen(true);
+    if (hwMediaFetchedRef.current === studentId) return; // already fetched for this student
+    setHwMediaLoading(true);
+    try {
+      const q = query(
+        collection(db, 'students', studentId, 'media'),
+        where('handwritten', '==', true)
+      );
+      const snap = await getDocs(q);
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => {
+        const ta = a.observedAt?.seconds || 0;
+        const tb = b.observedAt?.seconds || 0;
+        return tb - ta;
+      });
+      setHwMedia(docs);
+      hwMediaFetchedRef.current = studentId;
+    } catch {
+      notify.error('Failed to load handwriting samples.');
+      setHwMedia([]);
+    } finally {
+      setHwMediaLoading(false);
+    }
+  };
+
+  const navigateHwPreview = (direction) => {
+    if (!hwPreview?.carouselList) return;
+    const newIdx = hwPreview.carouselIndex + direction;
+    if (newIdx < 0 || newIdx >= hwPreview.carouselList.length) return;
+    const m = hwPreview.carouselList[newIdx];
+    const path = m?.media?.[0]?.storagePath;
+    const url = path ? hwMediaUrls[path] : null;
+    setHwPreview({
+      observation: { ...m, mediaKind: 'photo', status: 'ready', media: path ? [{ storagePath: path }] : [] },
+      url,
+      carouselList: hwPreview.carouselList,
+      carouselIndex: newIdx,
+    });
+  };
+
+  // Resolve download URLs for handwritten media thumbnails
+  useEffect(() => {
+    const paths = hwMedia
+      .filter(m => m.status === 'ready' && m.media?.[0]?.storagePath)
+      .map(m => m.media[0].storagePath);
+    const missing = planMissingMediaUrlPaths(paths, {
+      mediaUrls: hwMediaUrlsRef.current,
+      inFlightPaths: hwInFlightRef.current,
+    });
+    if (missing.length === 0) return;
+    missing.forEach(p => hwInFlightRef.current.add(p));
+    (async () => {
+      try {
+        await fetchMediaUrlsWithConcurrency(
+          missing,
+          async (path) => getDownloadURL(ref(storage, path)),
+          {
+            concurrency: 6,
+            onSuccess: ({ path, url }) => {
+              setHwMediaUrls(prev => {
+                if (prev[path] === url) return prev;
+                const next = { ...prev, [path]: url };
+                hwMediaUrlsRef.current = next;
+                return next;
+              });
+            },
+            onError: ({ path }) => {
+              setHwMediaUrls(prev => {
+                if (prev[path] === null) return prev;
+                const next = { ...prev, [path]: null };
+                hwMediaUrlsRef.current = next;
+                return next;
+              });
+            },
+          }
+        );
+      } finally {
+        missing.forEach(p => hwInFlightRef.current.delete(p));
+      }
+    })();
+  }, [hwMedia]);
 
   // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
@@ -563,6 +697,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
+            {/* Handwriting samples chip — writing tab only */}
+            {activeTab === 'writing' && Number.isFinite(writingData?.sampleCount) && (
+              <Tooltip title="View writing samples" arrow>
+                <Box
+                  component="button"
+                  onClick={openHwGallery}
+                  disabled={!studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    borderColor: 'var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+                    backgroundColor: 'rgba(124, 58, 237, 0.06)',
+                    color: 'var(--color-violet)',
+                    px: 1.25, gap: 0.5,
+                    '&:hover': { backgroundColor: 'rgba(124, 58, 237, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="View writing samples"
+                >
+                  <ImageIcon size={14} />
+                  {Number.isFinite(writingData?.sampleCount) && <span>{writingData.sampleCount}</span>}
+                </Box>
+              </Tooltip>
+            )}
+
             {/* Flag chip — weekly tab only */}
             {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
               <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
@@ -591,7 +749,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {activeTab === 'weekly' ? (
               <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
             ) : (
-              <>Written notes in past <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>30</strong> days</>
+              Number.isFinite(writingData?.sampleCount)
+                ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
+                : <>Writing analysis</>
             )}
           </Typography>
 
@@ -614,32 +774,47 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   feedbackMessage={feedbackMessage}
                 />
               ) : (
-                <Box sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 1.5,
-                  minHeight: 'calc(100% - 48px)',
-                  textAlign: 'center',
-                }}>
+                writingLoading ? (
+                  <SnapshotBody cardLoading={true} />
+                ) : writingError ? (
+                  <SnapshotBody cardError={writingError} onOpenFeedback={onOpenFeedback} feedbackMessage="Writing analysis failed to load" />
+                ) : (!writingData || writingData.status === 'skipped') ? (
                   <Box sx={{
-                    width: 56, height: 56,
-                    borderRadius: 4,
-                    background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                    border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--color-violet)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1.5,
+                    minHeight: 'calc(100% - 48px)',
+                    textAlign: 'center',
                   }}>
-                    <Pencil size={26} />
+                    <Box sx={{
+                      width: 56, height: 56,
+                      borderRadius: 4,
+                      background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
+                      border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--color-violet)',
+                    }}>
+                      <Pencil size={26} />
+                    </Box>
+                    <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                      Writing Snapshot
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
+                      No writing analysis available
+                    </Typography>
                   </Box>
-                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
-                    Writing Snapshot
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
-                    Handwriting analysis and writing development insights — coming soon.
-                  </Typography>
-                </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'var(--grey-700)', whiteSpace: 'pre-line' }}
+                    >
+                      {writingData.narrative}
+                    </Typography>
+                  </Box>
+                )
               )}
             </Box>
             {showScrollFade && (
@@ -831,6 +1006,93 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           )}
         </Stack>
       </Popover>
+
+      {/* ── Handwriting samples gallery dialog ── */}
+      <Dialog
+        open={hwGalleryOpen}
+        onClose={() => setHwGalleryOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, border: '1px solid var(--color-border)' } }}
+      >
+        <DialogContent sx={{ p: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+              Writing Samples ({hwMedia.length})
+            </Typography>
+            <Box component="button" onClick={() => setHwGalleryOpen(false)} sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-soft)', p: 0.5 }}>
+              <CloseIcon size={20} />
+            </Box>
+          </Stack>
+          {hwMediaLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={28} sx={{ color: 'var(--color-violet)' }} />
+            </Box>
+          ) : hwMedia.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              No handwriting samples found.
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+              {hwMedia.map((m, idx) => {
+                const path = m.media?.[0]?.storagePath;
+                const url = path ? hwMediaUrls[path] : null;
+                return (
+                  <Box
+                    key={m.id}
+                    onClick={() => {
+                      if (!url) return;
+                      setHwGalleryOpen(false);
+                      setHwPreview({
+                        observation: { ...m, mediaKind: 'photo', status: 'ready', media: path ? [{ storagePath: path }] : [] },
+                        url,
+                        carouselList: hwMedia,
+                        carouselIndex: idx,
+                      });
+                    }}
+                    sx={{
+                      aspectRatio: '1 / 1',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      backgroundColor: 'var(--color-bg)',
+                      cursor: url ? 'pointer' : 'default',
+                      border: '1px solid var(--color-border)',
+                      '&:hover': url ? { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } : undefined,
+                    }}
+                  >
+                    {url ? (
+                      <Box component="img" src={url} alt="Writing sample" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : url === null ? (
+                      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-soft)' }}>
+                        <ImageIcon size={20} />
+                      </Box>
+                    ) : (
+                      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CircularProgress size={20} />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Handwriting media expansion (NoteBottomSheet) ── */}
+      <NoteBottomSheet
+        open={!!hwPreview}
+        onClose={() => setHwPreview(null)}
+        observation={hwPreview?.observation || null}
+        student={student}
+        currentUser={null}
+        userRole={null}
+        isClassroomContext={false}
+        mediaUrl={hwPreview?.url}
+        carouselList={hwPreview?.carouselList}
+        carouselIndex={hwPreview?.carouselIndex}
+        onCarouselNavigate={navigateHwPreview}
+      />
 
       {/* ── Quick jump buttons — pinned at bottom ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, flexShrink: 0 }}>

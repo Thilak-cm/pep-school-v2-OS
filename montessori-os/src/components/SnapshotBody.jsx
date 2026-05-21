@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Stack, Button, Skeleton, CircularProgress } from '@mui/material';
-import { CircleAlert as ErrorOutline } from '../icons';
+import { CircleAlert as ErrorOutline, ClipboardList } from '../icons';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 
 export default function SnapshotBody({
@@ -81,19 +81,37 @@ export default function SnapshotBody({
     );
   }
 
-  if (!cardData) {
+  if (!cardData || isNoNotes) {
+    const message = isNoNotes
+      ? `No notes have been logged for ${studentLabel} in the past ${cardWindowWeeks} weeks`
+      : 'No weekly snapshot available';
     return (
-      <Typography variant="body2" color="text.secondary">
-        No summary available yet. The nightly job will generate it automatically.
-      </Typography>
-    );
-  }
-
-  if (isNoNotes) {
-    return (
-      <Typography variant="body2" color="error">
-        No notes have been logged for {studentLabel} in the past {cardWindowWeeks} weeks.
-      </Typography>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        minHeight: 'calc(100% - 48px)',
+        textAlign: 'center',
+      }}>
+        <Box sx={{
+          width: 56, height: 56,
+          borderRadius: 4,
+          background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
+          border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--color-violet)',
+        }}>
+          <ClipboardList size={26} />
+        </Box>
+        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
+          Weekly Snapshot
+        </Typography>
+        <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
+          {message}
+        </Typography>
+      </Box>
     );
   }
 

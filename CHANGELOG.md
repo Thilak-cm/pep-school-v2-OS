@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.26.0 — 2026-05-21
+
+### Added
+- Writing snapshot tab wired to real handwriting analysis data — fetches `writing_analysis` doc, renders narrative with loading/empty/error states (PEP-256)
+- Handwriting samples gallery on writing tab — toolbar chip with sample count, lazy-loaded grid dialog, NoteBottomSheet lightbox with carousel navigation (PEP-256)
+- Gallery state resets on student navigation, failed URL fetches show placeholder icons (PEP-256)
+
+### Fixed
+- Weekly snapshot empty state now shows a consistent centered card for both "no data" and "no notes" cases (PEP-256)
+- Media dialog z-index layering bug in StudentTimeline — close dialog before opening lightbox (PEP-256)
+
 # 10.25.0 — 2026-05-21
 
 ### Added
