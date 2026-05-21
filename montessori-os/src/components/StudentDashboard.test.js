@@ -36,16 +36,40 @@ describe('StudentDashboard tab support', () => {
       'Should show "notes over last X days" for weekly tab',
     );
     assert.ok(
-      /written notes/i.test(src),
-      'Should show "written notes" text for writing tab',
+      /writing samples/i.test(src) || /writing analysis/i.test(src),
+      'Should show writing-related text for writing tab',
     );
   });
 
-  it('shows a coming-soon placeholder for writing tab', async () => {
+  it('fetches writing_analysis doc for writing tab', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.ok(
-      /coming soon/i.test(src),
-      'Writing tab should have a coming-soon placeholder',
+      /writing_analysis/.test(src),
+      'Should reference writing_analysis Firestore doc',
+    );
+  });
+
+  it('renders narrative from writing analysis data', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /writingData\??\.(narrative|summary)/.test(src) || /\.narrative/.test(src),
+      'Should render the narrative field from writing analysis',
+    );
+  });
+
+  it('shows empty state when no writing analysis available', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /No writing analysis available/i.test(src),
+      'Should show "No writing analysis available" empty state',
+    );
+  });
+
+  it('writing tab has loading state', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /writingLoading/.test(src),
+      'Should have writingLoading state for the writing tab',
     );
   });
 });
