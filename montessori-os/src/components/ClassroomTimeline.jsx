@@ -29,6 +29,7 @@ import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import useObservationFilters from '../hooks/useObservationFilters';
 import useNotify from '../notifications/useNotify.js';
 import useSwipeTabs from '../hooks/useSwipeTabs';
+import useStudentNoteCounts from '../hooks/useStudentNoteCounts';
 // lessonNoteConstraints moved into extracted card components
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
@@ -522,6 +523,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
     return [...filteredStudents].sort((a, b) => getName(a).localeCompare(getName(b), undefined, { sensitivity: 'base' }));
   }, [filteredStudents]);
 
+  // Batch-fetch note counts for all students (coordinated at parent level)
+  const allStudentIds = useMemo(() => classroomStudents.map(s => s.id), [classroomStudents]);
+  const { counts: studentNoteCounts, loading: noteCountsLoading } = useStudentNoteCounts(allStudentIds);
+
   // Filter notes based on search query (only show notes from students whose names match)
   const filteredNotes = useMemo(() => {
     // Merge observation notes with media docs, deduplicating by id
@@ -981,7 +986,9 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
                 <ClassroomStudentCard
                   key={student.id}
                   student={student}
-                  classroomNotes={classroomNotes}
+                  totalNotes={studentNoteCounts.get(student.id)?.totalNotes}
+                  notesLast7Days={studentNoteCounts.get(student.id)?.notesLast7Days}
+                  loading={noteCountsLoading}
                   onClick={() => handleStudentClick(student)}
                 />
               ))}

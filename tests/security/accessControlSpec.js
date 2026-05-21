@@ -268,6 +268,26 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // COLLECTION GROUP RULES (Firestore) - Cross-student queries use student's current classroom
+  // ============================================================================
+
+  {
+    name: 'Collection group observations: teacher branch uses studentClassroomId',
+    description: 'Teacher read on collectionGroup observations checks studentClassroomId(resource.data.studentId), not resource.data.classroomId',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/\{path=\*\*\}\/observations\/\{observationId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*studentClassroomId\s*\(\s*resource\.data\.studentId\s*\)\s*\)/,
+  },
+
+  {
+    name: 'Collection group media: teacher branch uses studentClassroomId',
+    description: 'Teacher read on collectionGroup media checks studentClassroomId(resource.data.studentId), not resource.data.classroomId',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*studentClassroomId\s*\(\s*resource\.data\.studentId\s*\)\s*\)/,
+  },
+
+  // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================
 
