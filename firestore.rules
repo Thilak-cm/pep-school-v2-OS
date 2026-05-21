@@ -107,8 +107,8 @@ service cloud.firestore {
           isClassroomAdmin() &&
           managesClassroom(classroomId) &&
           request.resource.data.diff(resource.data).changedKeys().hasOnly(['teacherIds', 'updatedAt', 'studentCount']) &&
-          (!('teacherIds' in request.resource.data) || request.resource.data.teacherIds is list) &&
-          (!('studentCount' in request.resource.data) || request.resource.data.studentCount is int)
+          (request.resource.data.teacherIds is list) &&
+          (request.resource.data.studentCount is int)
         );
     }
 

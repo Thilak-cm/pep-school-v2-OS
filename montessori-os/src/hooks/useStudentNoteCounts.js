@@ -1,72 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collectionGroup, collection, query, where, getCountFromServer, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { reportCaughtError } from '../utils/reportCaughtError.js';
 
 /**
- * Lightweight hook that returns total and last-7-day note counts for a student
+ * Batch hook: fetches total + last-7-day note counts for an array of students
  * using Firestore's getCountFromServer (no document data transferred).
  *
- * Counts observations (collectionGroup) + media (subcollection) separately,
- * then sums them.
+ * Returns { counts: Map<studentId, {totalNotes, notesLast7Days}>, loading }.
  */
-export default function useStudentNoteCounts(studentId) {
-  const [totalNotes, setTotalNotes] = useState(null);
-  const [notesLast7Days, setNotesLast7Days] = useState(null);
+export default function useStudentNoteCounts(studentIds) {
+  const [counts, setCounts] = useState(new Map());
+  const [loading, setLoading] = useState(true);
+
+  // Stable dependency: avoid refetching when the array reference changes but contents don't
+  const idsKey = useMemo(
+    () => (studentIds?.length ? [...studentIds].sort().join(',') : ''),
+    [studentIds],
+  );
 
   useEffect(() => {
-    if (!studentId) {
-      setTotalNotes(0);
-      setNotesLast7Days(0);
+    if (!idsKey) {
+      setCounts(new Map());
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
+    setLoading(true);
 
-    const fetchCounts = async () => {
-      try {
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const ts = Timestamp.fromDate(sevenDaysAgo);
+    const ids = idsKey.split(',');
 
-        const obsQuery = query(
-          collectionGroup(db, 'observations'),
-          where('studentId', '==', studentId),
-        );
-        const mediaQuery = query(
-          collection(db, 'students', studentId, 'media'),
-        );
-        const recentObsQuery = query(
-          collectionGroup(db, 'observations'),
-          where('studentId', '==', studentId),
-          where('observedAt', '>=', ts),
-        );
-        const recentMediaQuery = query(
-          collection(db, 'students', studentId, 'media'),
-          where('observedAt', '>=', ts),
-        );
+    const fetchAll = async () => {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const ts = Timestamp.fromDate(sevenDaysAgo);
+      const result = new Map();
 
-        const [obsSnap, mediaSnap, recentObsSnap, recentMediaSnap] = await Promise.all([
-          getCountFromServer(obsQuery),
-          getCountFromServer(mediaQuery),
-          getCountFromServer(recentObsQuery),
-          getCountFromServer(recentMediaQuery),
-        ]);
-
-        if (!cancelled) {
-          setTotalNotes(obsSnap.data().count + mediaSnap.data().count);
-          setNotesLast7Days(recentObsSnap.data().count + recentMediaSnap.data().count);
+      await Promise.all(ids.map(async (studentId) => {
+        try {
+          const [obsSnap, mediaSnap, recentObsSnap, recentMediaSnap] = await Promise.all([
+            getCountFromServer(query(
+              collectionGroup(db, 'observations'),
+              where('studentId', '==', studentId),
+            )),
+            getCountFromServer(query(
+              collection(db, 'students', studentId, 'media'),
+            )),
+            getCountFromServer(query(
+              collectionGroup(db, 'observations'),
+              where('studentId', '==', studentId),
+              where('observedAt', '>=', ts),
+            )),
+            getCountFromServer(query(
+              collection(db, 'students', studentId, 'media'),
+              where('observedAt', '>=', ts),
+            )),
+          ]);
+          result.set(studentId, {
+            totalNotes: obsSnap.data().count + mediaSnap.data().count,
+            notesLast7Days: recentObsSnap.data().count + recentMediaSnap.data().count,
+          });
+        } catch (err) {
+          reportCaughtError(err, 'useStudentNoteCounts', 'fetchCounts');
+          result.set(studentId, { totalNotes: 0, notesLast7Days: 0 });
         }
-      } catch (err) {
-        console.error('[useStudentNoteCounts] count fetch failed', err);
-        if (!cancelled) {
-          setTotalNotes(0);
-          setNotesLast7Days(0);
-        }
+      }));
+
+      if (!cancelled) {
+        setCounts(result);
+        setLoading(false);
       }
     };
 
-    fetchCounts();
-    return () => { cancelled = true; };
-  }, [studentId]);
+    fetchAll().catch((err) => {
+      reportCaughtError(err, 'useStudentNoteCounts', 'fetchAll');
+      if (!cancelled) {
+        setCounts(new Map());
+        setLoading(false);
+      }
+    });
 
-  return { totalNotes, notesLast7Days, loading: totalNotes === null };
+    return () => { cancelled = true; };
+  }, [idsKey]);
+
+  return { counts, loading };
 }

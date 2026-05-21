@@ -1,13 +1,10 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography, Skeleton } from '@mui/material';
 import { StickyNote as Notes, User as Person } from '../icons';
-import useStudentNoteCounts from '../hooks/useStudentNoteCounts';
 
-export default function ClassroomStudentCard({ student, onClick }) {
-  const { totalNotes, notesLast7Days, loading } = useStudentNoteCounts(student?.id);
-
-  const totalText = `${totalNotes} note${totalNotes !== 1 ? 's' : ''} overall`;
-  const recentText = `${notesLast7Days} note${notesLast7Days !== 1 ? 's' : ''} in the last 7 days`;
+export default function ClassroomStudentCard({ student, totalNotes, notesLast7Days, loading, onClick }) {
+  const totalText = `${totalNotes ?? 0} note${totalNotes !== 1 ? 's' : ''} overall`;
+  const recentText = `${notesLast7Days ?? 0} note${notesLast7Days !== 1 ? 's' : ''} in the last 7 days`;
 
   return (
     <Card
