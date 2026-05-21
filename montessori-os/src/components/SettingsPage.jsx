@@ -21,7 +21,7 @@ import {
   FileUp,
   Sparkles,
 } from '../icons';
-import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collectionGroup, query, where, getCountFromServer, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Avatar } from './ui';
 import VersionBadge from './VersionBadge';
@@ -40,8 +40,17 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const studentCount = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
 
   // --- Notes this week (async fetch) ---
+  // All roles scope by classroomId to satisfy collection group security rules.
+  // Without scoping, the rule evaluates resource.data per doc and denies the
+  // entire query if any doc belongs to a classroom the user lost access to (PEP-255).
   useEffect(() => {
     if (!user?.uid) return;
+    const classroomIds = classrooms.map(c => c.id);
+    if (classroomIds.length === 0) {
+      setNotesThisWeek(0);
+      setNotesLoading(false);
+      return;
+    }
     let cancelled = false;
 
     const fetchNotes = async () => {
@@ -50,20 +59,30 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const ts = Timestamp.fromDate(sevenDaysAgo);
 
-        const [obsSnap, mediaSnap] = await Promise.all([
-          getDocs(query(
+        // Firestore 'in' filter supports max 30 values; batch if needed.
+        const chunks = [];
+        for (let i = 0; i < classroomIds.length; i += 30) {
+          chunks.push(classroomIds.slice(i, i + 30));
+        }
+
+        const counts = await Promise.all(chunks.flatMap(chunk => [
+          getCountFromServer(query(
             collectionGroup(db, 'observations'),
+            where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
             where('observedAt', '>=', ts),
           )),
-          getDocs(query(
+          getCountFromServer(query(
             collectionGroup(db, 'media'),
+            where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
             where('observedAt', '>=', ts),
           )),
-        ]);
+        ]));
+
         if (!cancelled) {
-          setNotesThisWeek(obsSnap.size + mediaSnap.size);
+          const total = counts.reduce((sum, snap) => sum + snap.data().count, 0);
+          setNotesThisWeek(total);
           setNotesLoading(false);
         }
       } catch (err) {
@@ -77,7 +96,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
 
     fetchNotes();
     return () => { cancelled = true; };
-  }, [user?.uid]);
+  }, [user?.uid, classrooms]);
 
   // --- Profile data ---
   const displayName = user?.displayName || 'Pep School User';
