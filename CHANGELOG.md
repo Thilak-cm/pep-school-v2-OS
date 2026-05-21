@@ -1,5 +1,15 @@
 # Changelog
 
+# 10.24.1 — 2026-05-20
+
+### Fixed
+- Collection group security rules for observations and media now check student's current classroom instead of observation's classroomId — teachers can read historical observations for transferred students (PEP-251)
+- Classroom update rule restores unconditional type validation for teacherIds and studentCount fields (PEP-251)
+- ClassroomStudentCard note counts use batched getCountFromServer queries instead of per-card hooks (PEP-251)
+
+### Changed
+- Classroom chips in manage-users dialogs grouped by branch and program hierarchy (PEP-251)
+
 # 10.24.0 — 2026-05-16
 
 ### Added
