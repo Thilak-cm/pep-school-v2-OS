@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.25.1 — 2026-05-21
+
+### Fixed
+- "Author can read own" rule on collection group queries for observations and media — fixes SettingsPage "notes this week" permissions error for teachers with transferred students (PEP-255)
+- Security regression tests for the new collection group author-read clauses (PEP-255)
+
 # 10.25.0 — 2026-05-21
 
 ### Added
