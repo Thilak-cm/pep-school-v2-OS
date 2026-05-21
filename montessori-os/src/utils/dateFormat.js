@@ -112,3 +112,32 @@ export const formatTimestamp = (timestamp) => {
   if (!timestamp) return 'No timestamp';
   return formatDate(timestamp, true);
 };
+
+/**
+ * Calculate age from a date of birth value and return a compact string like "5y3m".
+ * Handles Firestore Timestamp, Date, ISO string, and {seconds} objects.
+ * @param {*} dobValue - Date of birth in any supported format
+ * @returns {string|null} Age string (e.g., "5y3m") or null if invalid
+ */
+export function calculateAgeFromDob(dobValue) {
+  const dobDate = normalizeToDate(dobValue);
+  if (!dobDate || isNaN(dobDate.getTime())) return null;
+
+  const today = new Date();
+  let years = today.getFullYear() - dobDate.getFullYear();
+  let months = today.getMonth() - dobDate.getMonth();
+  let days = today.getDate() - dobDate.getDate();
+
+  if (days < 0) {
+    months--;
+  }
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  const parts = [];
+  if (years > 0) parts.push(`${years}y`);
+  if (months > 0) parts.push(`${months}m`);
+  return parts.length > 0 ? parts.join('') : null;
+}

@@ -26,28 +26,7 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardCons
 import SnapshotBody from './SnapshotBody';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
-
-
-
-
-function calculateAgeFromDob(dobValue) {
-  if (!dobValue) return null;
-  let dobDate = null;
-  if (typeof dobValue?.toDate === 'function') dobDate = dobValue.toDate();
-  else if (typeof dobValue?.seconds === 'number') dobDate = new Date(dobValue.seconds * 1000);
-  else if (dobValue instanceof Date) dobDate = dobValue;
-  else if (typeof dobValue === 'string') dobDate = new Date(dobValue);
-  if (!dobDate || isNaN(dobDate.getTime())) return null;
-  const today = new Date();
-  let years = today.getFullYear() - dobDate.getFullYear();
-  let months = today.getMonth() - dobDate.getMonth();
-  if (today.getDate() - dobDate.getDate() < 0) months--;
-  if (months < 0) { years--; months += 12; }
-  const parts = [];
-  if (years > 0) parts.push(`${years}y`);
-  if (months > 0) parts.push(`${months}m`);
-  return parts.length > 0 ? parts.join('') : null;
-}
+import { calculateAgeFromDob } from '../utils/dateFormat';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -84,7 +63,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
-  const [regenError, setRegenError] = useState('');
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
   const [notesSinceGenerated, setNotesSinceGenerated] = useState(null);
   const [notesSinceGeneratedLoading, setNotesSinceGeneratedLoading] = useState(false);
@@ -101,7 +79,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   };
 
   const studentId = student?.id || student?.uid || null;
-  const studentForCard = student ? { ...student, dateOfBirth: studentDob } : null;
 
   const toDate = (value) => {
     if (!value) return null;
@@ -133,13 +110,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   const handleRegenerate = async () => {
     try {
-      setRegenError('');
       setRegenRunning(true);
       const call = httpsCallable(cloudFunctions, 'regenerateBaseballCardForStudent', { timeout: 300_000 });
       await call({ studentId });
       setReloadKey((k) => k + 1);
     } catch (e) {
-      setRegenError(friendlyFunctionError(e));
+      notify.error(friendlyFunctionError(e));
     } finally {
       setRegenRunning(false);
     }
@@ -458,7 +434,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     ? 'var(--color-error)'
     : severity === 'medium' || severity === 'med'
       ? 'var(--color-warning)'
-      : 'var(--color-green-bright)';
+      : severity === 'low'
+        ? 'var(--color-sky)'
+        : 'var(--color-green-bright)';
 
   return (
     <Box sx={{
@@ -489,41 +467,43 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
           {/* ── Uniform toolbar chip row ── */}
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
-            {/* Coverage chip */}
-            {signalsLoading ? (
-              <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'var(--color-text-faint)' }}>
-                Checking coverage…
-              </Typography>
-            ) : signalsStatus !== 'ok' ? (
-              <Box sx={{
-                ...CHIP_BASE,
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'rgba(148, 163, 184, 0.06)',
-                color: 'var(--color-text-faint)',
-                px: 1.25, gap: 0.5,
-              }}>
-                <InfoOutlined size={14} />
-                <span>Coverage pending</span>
-              </Box>
-            ) : (
-              <Box
-                onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
-                sx={{
+            {/* Coverage chip — weekly tab only */}
+            {activeTab === 'weekly' && (
+              signalsLoading ? (
+                <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'var(--color-text-faint)' }}>
+                  Checking coverage…
+                </Typography>
+              ) : signalsStatus !== 'ok' ? (
+                <Box sx={{
                   ...CHIP_BASE,
-                  borderColor: coverageStyles.borderColor,
-                  backgroundColor: coverageStyles.backgroundColor,
-                  color: coverageStyles.textColor,
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'rgba(148, 163, 184, 0.06)',
+                  color: 'var(--color-text-faint)',
                   px: 1.25, gap: 0.5,
-                  '&:hover': {
-                    backgroundColor: coverageStyles.hoverBackground,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  },
-                }}
-                aria-label={coverageButtonLabel}
-              >
-                {coverageChipIcon}
-                <span>{coverageButtonLabel}</span>
-              </Box>
+                }}>
+                  <InfoOutlined size={14} />
+                  <span>Coverage pending</span>
+                </Box>
+              ) : (
+                <Box
+                  onClick={(e) => setMissingDomainsAnchorEl(e.currentTarget)}
+                  sx={{
+                    ...CHIP_BASE,
+                    borderColor: coverageStyles.borderColor,
+                    backgroundColor: coverageStyles.backgroundColor,
+                    color: coverageStyles.textColor,
+                    px: 1.25, gap: 0.5,
+                    '&:hover': {
+                      backgroundColor: coverageStyles.hoverBackground,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    },
+                  }}
+                  aria-label={coverageButtonLabel}
+                >
+                  {coverageChipIcon}
+                  <span>{coverageButtonLabel}</span>
+                </Box>
+              )
             )}
 
             {/* Age chip */}
@@ -548,7 +528,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   ...CHIP_BASE,
                   borderColor: 'rgba(245, 158, 11, 0.2)',
                   backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                  color: 'var(--color-amber-text)', /* hex-alpha fallback removed */
+                  color: 'var(--color-amber-text)',
                   px: 1,
                   fontSize: '0.65rem',
                 }}
@@ -559,30 +539,32 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
             <Box sx={{ flex: 1 }} />
 
-            {/* Refresh chip */}
-            <Tooltip title="Regenerate snapshot" arrow>
-              <Box
-                component="button"
-                onClick={() => setRegenDialogOpen(true)}
-                disabled={regenRunning || !studentId}
-                sx={{
-                  ...CHIP_BASE,
-                  width: 28,
-                  borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
-                  backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                  color: 'var(--color-primary)',
-                  p: 0,
-                  '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
-                  '&:disabled': { opacity: 0.4, cursor: 'default' },
-                }}
-                aria-label="Regenerate snapshot"
-              >
-                <Refresh size={14} />
-              </Box>
-            </Tooltip>
+            {/* Refresh chip — weekly tab only */}
+            {activeTab === 'weekly' && (
+              <Tooltip title="Regenerate snapshot" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setRegenDialogOpen(true)}
+                  disabled={regenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate snapshot"
+                >
+                  <Refresh size={14} />
+                </Box>
+              </Tooltip>
+            )}
 
-            {/* Flag chip */}
-            {!signalsLoading && signalsStatus === 'ok' && (
+            {/* Flag chip — weekly tab only */}
+            {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
               <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
                 <Box
                   component="button"
@@ -713,10 +695,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           ) : null}
         </Box>
       </Card>
-
-      {regenError && (
-        <Typography variant="body2" color="error">{regenError}</Typography>
-      )}
 
       {/* ── Regenerate confirmation dialog ── */}
       <Dialog
