@@ -57,7 +57,7 @@ async function main() {
     if (!dryRun) {
       await doc.ref.update({
         parent1Name: data.guardianName || "",
-        parent1Phone: data.guardianPhone || "",
+        ...(data.guardianPhone ? { parent1Phone: data.guardianPhone } : {}),
         // No parent1Email — none on file for this student
         guardianName: admin.firestore.FieldValue.delete(),
         guardianRelationship: admin.firestore.FieldValue.delete(),

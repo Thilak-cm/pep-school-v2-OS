@@ -8,16 +8,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, 'UsersAccessPage.jsx'), 'utf-8');
 
 // ---------------------------------------------------------------------------
-// Exported validation helpers (will be added to UsersAccessPage.jsx)
+// Exported validation helpers — defined in UsersAccessPage.validation.js
 // ---------------------------------------------------------------------------
 let isValidEmail, validateParentFields;
 try {
   const mod = await import('./UsersAccessPage.validation.js');
   isValidEmail = mod.isValidEmail;
   validateParentFields = mod.validateParentFields;
-} catch {
-  // Will fail in RED phase — that's expected
-}
+} catch { /* import failed */ }
 
 // ===========================================================================
 // AC3: Email validation — isValidEmail()
