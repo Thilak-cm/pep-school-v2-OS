@@ -557,6 +557,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteDeleting, setDeleteDeleting] = useState(false);
 
+  // Student creation dialog state
+  const [createStudentDialogOpen, setCreateStudentDialogOpen] = useState(false);
+
   // Student metadata dialog state
   const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -685,12 +688,29 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStudentId, students.length, notify, onInitialStudentHandled]);
 
+  const openCreateStudentDialog = () => {
+    resetStudentForm();
+    setValidationErrors({});
+    setCreateStudentDialogOpen(true);
+  };
+
+  const closeCreateStudentDialog = () => {
+    if (submitting) return;
+    setCreateStudentDialogOpen(false);
+    resetStudentForm();
+    setValidationErrors({});
+  };
+
   const closeStudentDialog = () => {
     if (studentSaving) return;
     setStudentDialogOpen(false);
     setSelectedStudent(null);
     setStudentEditMode(false);
-    setEditedStudentData({ firstName: '', lastName: '', status: 'active', dob: '' });
+    setEditedStudentData({
+      firstName: '', lastName: '', status: 'active', dob: '',
+      parent1Name: '', parent1Email: '', parent1Phone: '',
+      parent2Name: '', parent2Email: '', parent2Phone: ''
+    });
   };
 
   const handleStudentEditCancel = () => {
@@ -1266,6 +1286,46 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     }
   };
 
+  const validateStudentForm = () => {
+    const errors = {};
+    if (!studentForm.firstName) errors.stuFirstName = 'First name is required';
+    if (!studentForm.classroomId) errors.classroomId = 'Select a classroom';
+    if (!studentForm.dob) {
+      errors.stuDob = 'Date of Birth is required';
+    } else {
+      const dobDate = new Date(studentForm.dob);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const minDate = new Date(today);
+      minDate.setFullYear(today.getFullYear() - 120);
+      if (dobDate > today) {
+        errors.stuDob = 'Date of Birth cannot be in the future';
+      } else if (dobDate < minDate) {
+        errors.stuDob = 'Date of Birth is too far in the past';
+      }
+    }
+    const parentErrors = validateParentFields(studentForm, 'create');
+    Object.assign(errors, parentErrors);
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleCreateStudentDialogSubmit = async () => {
+    if (!validateStudentForm()) return;
+    try {
+      setSubmitting(true);
+      setError('');
+      await handleStudentSubmit();
+      closeCreateStudentDialog();
+      await fetchStudents();
+    } catch (err) {
+      setError(err?.message || 'Operation failed');
+      notify.error(err?.message || 'Operation failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleClassroomDialogSave = async () => {
     if (!classroomDialogTarget) return;
     if (classroomDialogSelection.length === 0) {
@@ -1412,7 +1472,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     const items = [
       { key: 'teacher', label: 'Teacher', icon: <School size={20} /> },
       ...(canManageAdmins ? [{ key: 'classroomadmin', label: 'Classroom Admin', icon: <ManageAccounts size={20} /> }] : []),
-      { key: 'student', label: 'Student', icon: <Groups size={20} /> },
     ];
     const index = Math.max(0, items.findIndex(i => i.key === value));
     return (
@@ -1588,7 +1647,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       <Avatar sx={{ bgcolor: 'var(--color-primary)', width: 56, height: 56 }}><PersonAdd /></Avatar>
                       <Box>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Add Users</Typography>
-                        <Typography variant="body2" color="text.secondary">Create classroom admins, teachers, or students</Typography>
+                        <Typography variant="body2" color="text.secondary">Create classroom admins or teachers</Typography>
                       </Box>
                     </Box>
                   </CardContent>
@@ -1979,6 +2038,18 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               </Box>
             )}
 
+            <Box sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                fullWidth
+                startIcon={<PersonAdd />}
+                onClick={openCreateStudentDialog}
+                sx={{ py: 1.5 }}
+              >
+                Create Student
+              </Button>
+            </Box>
+
             <ClassroomFilterDialog
               open={studentClassroomFilterOpen}
               onClose={() => setStudentClassroomFilterOpen(false)}
@@ -2003,7 +2074,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     Add Users
                   </Typography>
                   <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', mt: 0.5 }}>
-                    Create teachers, classroom admins, or students and assign them to classrooms.
+                    Create teachers or classroom admins and assign them to classrooms.
                   </Typography>
                 </Box>
                 <Divider sx={{ mb: 2 }} />
@@ -2146,175 +2217,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 </>
               )}
 
-              {role === 'student' && (
-                <>
-                  <Grid item xs={12}>
-                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>Student Details</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="First Name"
-                      fullWidth
-                      value={studentForm.firstName}
-                      onChange={(e) => setStudentForm(p => ({ ...p, firstName: e.target.value }))}
-                      error={!!validationErrors.stuFirstName}
-                      helperText={validationErrors.stuFirstName}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      label="Last Name (optional)"
-                      fullWidth
-                      value={studentForm.lastName}
-                      onChange={(e) => setStudentForm(p => ({ ...p, lastName: e.target.value }))}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Classroom</Typography>
-                    <Box
-                      sx={{
-                        backgroundColor: 'white',
-                        p: 0.75,
-                        borderRadius: 1.5,
-                        border: '1px solid var(--color-border)',
-                        maxHeight: 184,
-                        overflowY: 'auto'
-                      }}
-                    >
-                      <List dense disablePadding>
-                        {classrooms.map((c) => (
-                          <ListItem key={c.id} disablePadding>
-                            <ListItemButton
-                              dense
-                              onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id, branchId: c.branchId || '' }))}
-                            >
-                              <ListItemIcon sx={{ minWidth: 32 }}>
-                                <Checkbox
-                                  edge="start"
-                                  tabIndex={-1}
-                                  disableRipple
-                                  checked={studentForm.classroomId === c.id}
-                                />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={`${c.name} (${c.studentCount} students)`}
-                                primaryTypographyProps={{ variant: 'body2' }}
-                              />
-                            </ListItemButton>
-                          </ListItem>
-                        ))}
-                      </List>
-                    </Box>
-                    {validationErrors.classroomId && (
-                      <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
-                    )}
-                  </Grid>
-                  {studentForm.classroomId && studentForm.branchId && (
-                    <Grid item xs={12}>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Branch</Typography>
-                      <Box
-                        sx={{
-                          backgroundColor: 'var(--color-bg)',
-                          p: 1.5,
-                          borderRadius: 1.5,
-                          border: '1px solid var(--color-border)',
-                        }}
-                      >
-                        <Typography variant="body2" color="text.secondary">
-                          {(() => {
-                            const branch = branches.find(b => b.id === studentForm.branchId);
-                            return branch ? (branch.name || branch.id).toUpperCase() : studentForm.branchId.toUpperCase();
-                          })()}
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  )}
-                  <Grid item xs={12}>
-                    <TextField
-                      type="date"
-                      label="Date of Birth"
-                      required
-                      InputLabelProps={{ shrink: true }}
-                      fullWidth
-                      value={studentForm.dob}
-                      onChange={(e) => setStudentForm(p => ({ ...p, dob: e.target.value }))}
-                      error={!!validationErrors.stuDob}
-                      helperText={validationErrors.stuDob}
-                      inputProps={{ max: new Date().toISOString().split('T')[0] }}
-                    />
-                  </Grid>
-                  {/* Parent 1 (required) */}
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 1</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Name"
-                      fullWidth
-                      required
-                      value={studentForm.parent1Name}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Name: e.target.value }))}
-                      error={!!validationErrors.parent1Name}
-                      helperText={validationErrors.parent1Name}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Email"
-                      fullWidth
-                      required
-                      type="email"
-                      value={studentForm.parent1Email}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Email: e.target.value }))}
-                      error={!!validationErrors.parent1Email}
-                      helperText={validationErrors.parent1Email}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Phone"
-                      fullWidth
-                      value={studentForm.parent1Phone}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Phone: e.target.value }))}
-                    />
-                  </Grid>
-
-                  {/* Parent 2 (optional) */}
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 2 (optional)</Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Name"
-                      fullWidth
-                      value={studentForm.parent2Name}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Name: e.target.value }))}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Email"
-                      fullWidth
-                      type="email"
-                      value={studentForm.parent2Email}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Email: e.target.value }))}
-                      error={!!validationErrors.parent2Email}
-                      helperText={validationErrors.parent2Email}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Phone"
-                      fullWidth
-                      value={studentForm.parent2Phone}
-                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Phone: e.target.value }))}
-                    />
-                  </Grid>
-                </>
-              )}
-
               <Grid item xs={12} sx={{ mt: 2 }}>
                 <Button
                   type="submit"
@@ -2325,7 +2227,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   startIcon={<PersonAdd />}
                   sx={{ py: 1.5 }}
                 >
-                  {submitting ? 'Saving...' : (role === 'student' ? 'Create Student' : 'Create User Account')}
+                  {submitting ? 'Saving...' : 'Create User Account'}
                 </Button>
               </Grid>
             </Grid>
@@ -2861,6 +2763,188 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Student dialog */}
+      <Dialog open={createStudentDialogOpen} onClose={closeCreateStudentDialog} maxWidth="sm" fullWidth>
+        <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Avatar sx={{
+            width: 56, height: 56,
+            backgroundColor: 'var(--color-primary)',
+            fontSize: '1.25rem',
+            fontWeight: 600
+          }}>
+            <PersonAdd />
+          </Avatar>
+          <Box sx={{ flex: 1 }}>
+            <Typography component="h2" variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+              Create Student
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Add a new student to a classroom
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
+            <TextField
+              label="First Name"
+              fullWidth
+              required
+              value={studentForm.firstName}
+              onChange={(e) => setStudentForm(p => ({ ...p, firstName: e.target.value }))}
+              error={!!validationErrors.stuFirstName}
+              helperText={validationErrors.stuFirstName}
+            />
+            <TextField
+              label="Last Name (optional)"
+              fullWidth
+              value={studentForm.lastName}
+              onChange={(e) => setStudentForm(p => ({ ...p, lastName: e.target.value }))}
+            />
+
+            {/* Classroom picker */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Classroom</Typography>
+              <Box
+                sx={{
+                  backgroundColor: 'white',
+                  p: 0.75,
+                  borderRadius: 1.5,
+                  border: validationErrors.classroomId ? '1px solid var(--color-error, #d32f2f)' : '1px solid var(--color-border)',
+                  maxHeight: 184,
+                  overflowY: 'auto'
+                }}
+              >
+                <List dense disablePadding>
+                  {classrooms.map((c) => (
+                    <ListItem key={c.id} disablePadding>
+                      <ListItemButton
+                        dense
+                        onClick={() => setStudentForm((p) => ({ ...p, classroomId: c.id, branchId: c.branchId || '' }))}
+                      >
+                        <ListItemIcon sx={{ minWidth: 32 }}>
+                          <Checkbox
+                            edge="start"
+                            tabIndex={-1}
+                            disableRipple
+                            checked={studentForm.classroomId === c.id}
+                          />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={`${c.name} (${c.studentCount} students)`}
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+              {validationErrors.classroomId && (
+                <Typography variant="caption" color="error">{validationErrors.classroomId}</Typography>
+              )}
+            </Box>
+
+            {studentForm.classroomId && studentForm.branchId && (
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Branch</Typography>
+                <Box sx={{
+                  backgroundColor: 'var(--color-bg)',
+                  p: 1.5,
+                  borderRadius: 1.5,
+                  border: '1px solid var(--color-border)',
+                }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {(() => {
+                      const branch = branches.find(b => b.id === studentForm.branchId);
+                      return branch ? (branch.name || branch.id).toUpperCase() : studentForm.branchId.toUpperCase();
+                    })()}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+
+            <TextField
+              type="date"
+              label="Date of Birth"
+              required
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              value={studentForm.dob}
+              onChange={(e) => setStudentForm(p => ({ ...p, dob: e.target.value }))}
+              error={!!validationErrors.stuDob}
+              helperText={validationErrors.stuDob}
+              inputProps={{ max: new Date().toISOString().split('T')[0] }}
+            />
+
+            {/* Parent 1 */}
+            <Divider />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Parent 1</Typography>
+            <TextField
+              label="Name"
+              fullWidth
+              required
+              value={studentForm.parent1Name}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent1Name: e.target.value }))}
+              error={!!validationErrors.parent1Name}
+              helperText={validationErrors.parent1Name}
+            />
+            <TextField
+              label="Email"
+              fullWidth
+              required
+              type="email"
+              value={studentForm.parent1Email}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent1Email: e.target.value }))}
+              error={!!validationErrors.parent1Email}
+              helperText={validationErrors.parent1Email}
+            />
+            <TextField
+              label="Phone"
+              fullWidth
+              value={studentForm.parent1Phone}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent1Phone: e.target.value }))}
+            />
+
+            {/* Parent 2 (optional) */}
+            <Divider />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Parent 2 (optional)</Typography>
+            <TextField
+              label="Name"
+              fullWidth
+              value={studentForm.parent2Name}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent2Name: e.target.value }))}
+            />
+            <TextField
+              label="Email"
+              fullWidth
+              type="email"
+              value={studentForm.parent2Email}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent2Email: e.target.value }))}
+              error={!!validationErrors.parent2Email}
+              helperText={validationErrors.parent2Email}
+            />
+            <TextField
+              label="Phone"
+              fullWidth
+              value={studentForm.parent2Phone}
+              onChange={(e) => setStudentForm(p => ({ ...p, parent2Phone: e.target.value }))}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCreateStudentDialog} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateStudentDialogSubmit}
+            disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={16} /> : <PersonAdd />}
+          >
+            {submitting ? 'Creating...' : 'Create Student'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
