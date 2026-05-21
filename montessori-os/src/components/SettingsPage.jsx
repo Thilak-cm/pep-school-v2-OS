@@ -21,7 +21,7 @@ import {
   FileUp,
   Sparkles,
 } from '../icons';
-import { collectionGroup, query, where, getCountFromServer, Timestamp } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Avatar } from './ui';
 import VersionBadge from './VersionBadge';
@@ -65,14 +65,16 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
           chunks.push(classroomIds.slice(i, i + 30));
         }
 
-        const counts = await Promise.all(chunks.flatMap(chunk => [
-          getCountFromServer(query(
+        // Use getDocs (not getCountFromServer) — aggregation queries on collection
+        // groups don't reliably evaluate resource.data-dependent security rules.
+        const snaps = await Promise.all(chunks.flatMap(chunk => [
+          getDocs(query(
             collectionGroup(db, 'observations'),
             where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
             where('observedAt', '>=', ts),
           )),
-          getCountFromServer(query(
+          getDocs(query(
             collectionGroup(db, 'media'),
             where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
@@ -81,7 +83,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         ]));
 
         if (!cancelled) {
-          const total = counts.reduce((sum, snap) => sum + snap.data().count, 0);
+          const total = snaps.reduce((sum, snap) => sum + snap.size, 0);
           setNotesThisWeek(total);
           setNotesLoading(false);
         }

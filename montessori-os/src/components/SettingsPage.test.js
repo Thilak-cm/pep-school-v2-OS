@@ -80,17 +80,6 @@ describe('SettingsPage redesign (PEP-199)', () => {
       );
     });
 
-    it('uses getCountFromServer instead of getDocs for efficiency', () => {
-      assert.ok(
-        source.includes('getCountFromServer'),
-        'Should use getCountFromServer to fetch only the count'
-      );
-      assert.ok(
-        !source.includes('getDocs'),
-        'Should not use getDocs — only the count is needed'
-      );
-    });
-
     it('scopes all queries by classroomId to avoid permission errors (PEP-255)', () => {
       assert.ok(
         source.includes("'classroomId'") || source.includes('"classroomId"'),
