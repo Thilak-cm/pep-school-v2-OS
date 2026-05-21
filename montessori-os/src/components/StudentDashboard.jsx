@@ -252,11 +252,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     try {
       const q = query(
         collection(db, 'students', studentId, 'media'),
-        where('handwritten', '==', true),
-        orderBy('observedAt', 'desc')
+        where('handwritten', '==', true)
       );
       const snap = await getDocs(q);
-      setHwMedia(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => {
+        const ta = a.observedAt?.seconds || 0;
+        const tb = b.observedAt?.seconds || 0;
+        return tb - ta;
+      });
+      setHwMedia(docs);
       hwMediaFetchedRef.current = studentId;
     } catch {
       setHwMedia([]);
