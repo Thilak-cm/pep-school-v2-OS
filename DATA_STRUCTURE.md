@@ -218,6 +218,14 @@ interface Student {
   dateOfBirth?: Timestamp;
   studentID: string;             // convenience copy of the document ID (e.g., "2025-ADO-001")
 
+  // Parent contacts (PEP-247)
+  parent1Name: string;           // required on creation
+  parent1Email: string;          // required on creation; validated email format
+  parent1Phone?: string;         // optional
+  parent2Name?: string;          // optional
+  parent2Email?: string;         // optional; validated email format when provided
+  parent2Phone?: string;         // optional
+
   // Metadata
   createdAt: Timestamp;          // server time
   updatedAt: Timestamp;          // server time
