@@ -287,6 +287,22 @@ export const ACCESS_CONTROL_SPEC = [
     pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isTeacher\s*\(\s*\)[\s\S]*?isTeacherInClassroom\s*\(\s*studentClassroomId\s*\(\s*resource\.data\.studentId\s*\)\s*\)/,
   },
 
+  {
+    name: 'Collection group observations: author can read own (PEP-255)',
+    description: 'isSignedIn() && resource.data.createdBy == request.auth.uid clause on collectionGroup observations',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/\{path=\*\*\}\/observations\/\{observationId\}[\s\S]*?isSignedIn\s*\(\s*\)\s*&&\s*resource\.data\.createdBy\s*==\s*request\.auth\.uid/,
+  },
+
+  {
+    name: 'Collection group media: author can read own (PEP-255)',
+    description: 'isSignedIn() && resource.data.createdBy == request.auth.uid clause on collectionGroup media',
+    file: 'firestore',
+    criticality: 'critical',
+    pattern: /match\s+\/\{path=\*\*\}\/media\/\{mediaId\}[\s\S]*?isSignedIn\s*\(\s*\)\s*&&\s*resource\.data\.createdBy\s*==\s*request\.auth\.uid/,
+  },
+
   // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================

@@ -40,6 +40,8 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const studentCount = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
 
   // --- Notes this week (async fetch) ---
+  // Query scoped to this teacher's own notes — "author can read own" rule
+  // (PEP-255) permits this without classroom filtering.
   useEffect(() => {
     if (!user?.uid) return;
     let cancelled = false;
