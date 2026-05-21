@@ -638,8 +638,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 1.5,
-                  height: '100%',
-                  pb: 10,
+                  minHeight: 'calc(100% - 48px)',
                   textAlign: 'center',
                 }}>
                   <Box sx={{
