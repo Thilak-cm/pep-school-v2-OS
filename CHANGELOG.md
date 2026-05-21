@@ -7,6 +7,14 @@
 - StudentPicker upgrade with pinned defaults and free-text school-wide search (PEP-241)
 - Firebase Storage init in testbench for client-side image fetching (PEP-241)
 - Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
+- Weekly/Writing snapshot tabs on student dashboard — teachers can switch between weekly AI summary and writing analysis views (PEP-242)
+- Writing snapshot placeholder with "coming soon" state for upcoming handwriting analysis feature (PEP-242)
+- Shared `calculateAgeFromDob` utility in `utils/dateFormat.js` — eliminates duplication across snapshot components (PEP-242)
+
+### Changed
+- Renamed `BaseballCardSnapshotCard` → `SnapshotCard` and `BaseballCardBody` → `SnapshotBody` for clarity (PEP-242)
+- Student dashboard toolbar chips (coverage, flag, refresh) now only render on the Weekly tab (PEP-242)
+- Regeneration errors now surface as toast notifications instead of inline text (PEP-242)
 
 # 10.24.1 — 2026-05-20
 
