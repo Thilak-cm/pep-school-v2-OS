@@ -56,6 +56,11 @@ export default function HandwritingWorkbench() {
 
   const handleCountLoaded = useCallback((count) => setHandwrittenCount(count), []);
 
+  const handleStudentSelect = useCallback((s) => {
+    setSelectedStudent(s);
+    setHandwrittenCount(null);
+  }, []);
+
   useEffect(() => {
     function handleBeforeUnload(e) {
       if (hasUnsavedWork(variants)) e.preventDefault();
@@ -136,7 +141,7 @@ export default function HandwritingWorkbench() {
           <StudentPicker
             scope="school-wide"
             pinnedOptions={HANDWRITING_DEFAULTS}
-            onSelect={(s) => { setSelectedStudent(s); setHandwrittenCount(null); }}
+            onSelect={handleStudentSelect}
             renderOptionExtra={(s) =>
               PINNED_IDS.has(s.id) && s.handwrittenCount != null
                 ? <Chip label={`${s.handwrittenCount} samples`} size="small" color="success" variant="filled" />
