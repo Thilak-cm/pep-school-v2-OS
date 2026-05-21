@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { ref, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase.js";
@@ -8,7 +8,7 @@ import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
-import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -29,53 +29,58 @@ export default function HandwritingGallery({ studentId, onCountLoaded }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const onCountLoadedRef = useRef(onCountLoaded);
+  onCountLoadedRef.current = onCountLoaded;
 
-  const fetchGallery = useCallback(async (sid) => {
+  useEffect(() => {
+    if (!studentId) {
+      setItems([]);
+      setExpandedIndex(null);
+      onCountLoadedRef.current?.(0);
+      return;
+    }
+
+    let ignore = false;
     setLoading(true);
     setError(null);
     setItems([]);
     setExpandedIndex(null);
 
-    try {
-      // Query handwritten media docs
-      const mediaRef = collection(db, `students/${sid}/media`);
-      const q = query(mediaRef, where("handwritten", "==", true), orderBy("observedAt", "asc"));
-      const snap = await getDocs(q);
-      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    (async () => {
+      try {
+        const mediaRef = collection(db, `students/${studentId}/media`);
+        const q = query(mediaRef, where("handwritten", "==", true), orderBy("observedAt", "asc"));
+        const snap = await getDocs(q);
+        if (ignore) return;
 
-      onCountLoaded?.(docs.length);
+        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        onCountLoadedRef.current?.(docs.length);
 
-      if (docs.length === 0) {
-        setItems([]);
-        setLoading(false);
-        return;
+        if (docs.length === 0) {
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const paths = extractStoragePaths(docs);
+        const urlMap = await fetchMediaUrlsWithConcurrency(
+          paths,
+          (path) => getDownloadURL(ref(storage, path)),
+          { concurrency: 6 },
+        );
+        if (ignore) return;
+
+        setItems(buildGalleryItems(docs, urlMap));
+      } catch {
+        if (ignore) return;
+        setError("Failed to load handwriting images");
+      } finally {
+        if (!ignore) setLoading(false);
       }
+    })();
 
-      // Resolve download URLs
-      const paths = extractStoragePaths(docs);
-      const urlMap = await fetchMediaUrlsWithConcurrency(
-        paths,
-        (path) => getDownloadURL(ref(storage, path)),
-        { concurrency: 6, onError: ({ path, error: err }) => console.warn("Failed to fetch URL for", path, err) },
-      );
-
-      setItems(buildGalleryItems(docs, urlMap));
-    } catch (err) {
-      console.error("Gallery fetch failed:", err);
-      setError("Failed to load handwriting images");
-    } finally {
-      setLoading(false);
-    }
-  }, [onCountLoaded]);
-
-  useEffect(() => {
-    if (!studentId) {
-      setItems([]);
-      onCountLoaded?.(0);
-      return;
-    }
-    fetchGallery(studentId);
-  }, [studentId, fetchGallery]);
+    return () => { ignore = true; };
+  }, [studentId]);
 
   if (!studentId) return null;
 
@@ -129,8 +134,20 @@ export default function HandwritingGallery({ studentId, onCountLoaded }) {
               <Typography variant="caption" noWrap sx={{ display: "block", fontWeight: 500 }}>
                 {item.observedAt ? new Date(item.observedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" }) : "—"}
               </Typography>
+              {item.createdByName && (
+                <Typography variant="caption" noWrap sx={{ display: "block", color: "text.secondary", fontSize: "0.65rem" }}>
+                  {item.createdByName}
+                </Typography>
+              )}
               {item.curriculumArea && (
                 <Chip label={item.curriculumArea} size="small" variant="outlined" sx={{ mt: 0.25, height: 18, fontSize: "0.65rem" }} />
+              )}
+              {item.teacherComment && (
+                <Tooltip title={item.teacherComment} arrow>
+                  <Typography variant="caption" noWrap sx={{ display: "block", mt: 0.25, color: "text.secondary", fontStyle: "italic", fontSize: "0.6rem" }}>
+                    "{item.teacherComment}"
+                  </Typography>
+                </Tooltip>
               )}
             </Box>
           </Box>
@@ -149,8 +166,8 @@ export default function HandwritingGallery({ studentId, onCountLoaded }) {
         fullWidth
         PaperProps={{ sx: { bgcolor: "grey.900", color: "white" } }}
         onKeyDown={(e) => {
-          if (e.key === "ArrowLeft") { setExpandedIndex((i) => navigateGallery(i, -1, items.length)); e.stopPropagation(); }
-          else if (e.key === "ArrowRight") { setExpandedIndex((i) => navigateGallery(i, 1, items.length)); e.stopPropagation(); }
+          if (e.key === "ArrowLeft") { setExpandedIndex((i) => navigateGallery(i, -1, items.length)); e.preventDefault(); e.stopPropagation(); }
+          else if (e.key === "ArrowRight") { setExpandedIndex((i) => navigateGallery(i, 1, items.length)); e.preventDefault(); e.stopPropagation(); }
         }}
       >
         <DialogContent sx={{ p: 0, position: "relative" }}>

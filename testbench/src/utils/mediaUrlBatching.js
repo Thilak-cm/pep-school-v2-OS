@@ -3,24 +3,6 @@
  * Copied from montessori-os/src/utils/mediaUrlBatching.js — pure functions, no Firebase deps.
  */
 
-export function planMissingMediaUrlPaths(
-  paths,
-  { mediaUrls = {}, inFlightPaths = new Set() } = {},
-) {
-  const planned = [];
-  const seen = new Set();
-
-  (paths || []).forEach((path) => {
-    if (!path || seen.has(path)) return;
-    seen.add(path);
-    if (mediaUrls[path]) return;
-    if (inFlightPaths.has(path)) return;
-    planned.push(path);
-  });
-
-  return planned;
-}
-
 export async function fetchMediaUrlsWithConcurrency(
   paths,
   fetchUrl,

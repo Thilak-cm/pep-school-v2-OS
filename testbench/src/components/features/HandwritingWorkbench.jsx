@@ -35,13 +35,10 @@ import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPers
 const FEATURE_ID = "handwriting_analysis";
 
 const HANDWRITING_DEFAULTS = [
-  { id: "2025-GUL-030", displayName: "Sudarshan", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 9 },
-  { id: "2025-GUL-003", displayName: "Akshleena Mishra", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 6 },
-  { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
-  { id: "2025-PER-003", displayName: "Anagha Mandyam", classroomId: "periwinkle", classroomName: "Periwinkle", handwrittenCount: 4 },
-  { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
+  { id: "2025-GUL-030", displayName: "Sudarshan", classroomId: "gulmohar", classroomName: "Gulmohar" },
+  { id: "2025-PER-003", displayName: "Anagha Mandyam", classroomId: "amazing", classroomName: "Amazing" },
+  { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "power", classroomName: "Power" },
 ];
-const PINNED_IDS = new Set(HANDWRITING_DEFAULTS.map((s) => s.id));
 
 export default function HandwritingWorkbench() {
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -129,6 +126,7 @@ export default function HandwritingWorkbench() {
 
   function applyLoadRun(run) {
     setSelectedStudent({ id: run.studentId, displayName: run.studentName });
+    setHandwrittenCount(null);
     setSessionName(run.sessionName || "");
     setVariants(restoreVariantsFromRun(run));
     setSnackbar({ open: true, message: `Loaded run: ${run.sessionName || run.studentName}`, severity: "info" });
@@ -142,11 +140,6 @@ export default function HandwritingWorkbench() {
             scope="school-wide"
             pinnedOptions={HANDWRITING_DEFAULTS}
             onSelect={handleStudentSelect}
-            renderOptionExtra={(s) =>
-              PINNED_IDS.has(s.id) && s.handwrittenCount != null
-                ? <Chip label={`${s.handwrittenCount} samples`} size="small" color="success" variant="filled" />
-                : null
-            }
           />
           {selectedStudent && handwrittenCount !== null && (
             <Chip label={`${handwrittenCount} handwriting sample${handwrittenCount !== 1 ? "s" : ""}`} size="small" color="success" variant="filled" />
