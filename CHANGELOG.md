@@ -1,5 +1,13 @@
 # Changelog
 
+# 10.25.0 — 2026-05-21
+
+### Added
+- Handwriting image gallery with horizontal thumbnail carousel and lightbox in the Handwriting Workbench — view student writing samples inline alongside AI output (PEP-241)
+- StudentPicker upgrade with pinned defaults and free-text school-wide search (PEP-241)
+- Firebase Storage init in testbench for client-side image fetching (PEP-241)
+- Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
+
 # 10.24.1 — 2026-05-20
 
 ### Fixed
