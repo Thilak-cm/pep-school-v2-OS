@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.26.0 — 2026-05-21
+
+### Added
+- Parent contact fields on student documents — parent1 (name + email required), parent2 (optional) with email validation (PEP-247)
+- Student creation integrated into Add Users form with role tab selector (PEP-247)
+- Parent contact fields visible in student edit dialog and read-only view (PEP-247)
+- Guardian-to-parent migration script for existing student records (PEP-247)
+
+### Changed
+- Guardian form fields (guardianName, guardianRelationship, guardianPhone) replaced by parent contact fields (PEP-247)
+- DATA_STRUCTURE.md updated with parent contact field definitions (PEP-247)
+
 # 10.25.1 — 2026-05-21
 
 ### Fixed

@@ -30,6 +30,7 @@ import {
 import { increment } from 'firebase/firestore';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { filterTeachersForAdmin, isUserInScope, extractTeacherIdsFromClassrooms, filterStudentsForAdmin, isStudentInScope } from '../utils/scopeUtils.js';
+import { validateParentFields } from './UsersAccessPage.validation.js';
 
 // ============================================================================
 // CONSTANTS
@@ -100,7 +101,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
 
   // Student form
   const [studentForm, setStudentForm] = useState({
-    firstName: '', lastName: '', classroomId: '', branchId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: ''
+    firstName: '', lastName: '', classroomId: '', branchId: '', dob: '',
+    parent1Name: '', parent1Email: '', parent1Phone: '',
+    parent2Name: '', parent2Email: '', parent2Phone: ''
   });
 
   // Shared state
@@ -509,10 +512,8 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
           errors.stuDob = 'Date of Birth is too far in the past';
         }
       }
-      const guardianFields = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone];
-      const hasAny = guardianFields.some(Boolean);
-      const all = guardianFields.every(v => (v || '').trim() !== '');
-      if (hasAny && !all) errors.guardian = 'Provide all guardian fields or clear all';
+      const parentErrors = validateParentFields(studentForm, 'create');
+      Object.assign(errors, parentErrors);
     }
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -560,7 +561,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentEditMode, setStudentEditMode] = useState(false);
-  const [editedStudentData, setEditedStudentData] = useState({ firstName: '', lastName: '', status: 'active', dob: '' });
+  const [editedStudentData, setEditedStudentData] = useState({
+    firstName: '', lastName: '', status: 'active', dob: '',
+    parent1Name: '', parent1Email: '', parent1Phone: '',
+    parent2Name: '', parent2Email: '', parent2Phone: ''
+  });
   const [studentSaving, setStudentSaving] = useState(false);
 
   // ============================================================================
@@ -637,7 +642,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       firstName: student.firstName || '',
       lastName: student.lastName || '',
       status: student.status || 'active',
-      dob: dobString
+      dob: dobString,
+      parent1Name: student.parent1Name || '',
+      parent1Email: student.parent1Email || '',
+      parent1Phone: student.parent1Phone || '',
+      parent2Name: student.parent2Name || '',
+      parent2Email: student.parent2Email || '',
+      parent2Phone: student.parent2Phone || '',
     });
     setStudentEditMode(false);
     setValidationErrors({});
@@ -660,7 +671,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         firstName: target.firstName || '',
         lastName: target.lastName || '',
         status: target.status || 'active',
-        dob: dobString
+        dob: dobString,
+        parent1Name: target.parent1Name || '',
+        parent1Email: target.parent1Email || '',
+        parent1Phone: target.parent1Phone || '',
+        parent2Name: target.parent2Name || '',
+        parent2Email: target.parent2Email || '',
+        parent2Phone: target.parent2Phone || '',
       });
       setStudentEditMode(true);
       setValidationErrors({});
@@ -679,7 +696,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
     setStudentDialogOpen(false);
     setSelectedStudent(null);
     setStudentEditMode(false);
-    setEditedStudentData({ firstName: '', lastName: '', status: 'active', dob: '' });
+    setEditedStudentData({
+      firstName: '', lastName: '', status: 'active', dob: '',
+      parent1Name: '', parent1Email: '', parent1Phone: '',
+      parent2Name: '', parent2Email: '', parent2Phone: ''
+    });
   };
 
   const handleStudentEditCancel = () => {
@@ -694,7 +715,13 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         firstName: selectedStudent.firstName || '',
         lastName: selectedStudent.lastName || '',
         status: selectedStudent.status || 'active',
-        dob: dobString
+        dob: dobString,
+        parent1Name: selectedStudent.parent1Name || '',
+        parent1Email: selectedStudent.parent1Email || '',
+        parent1Phone: selectedStudent.parent1Phone || '',
+        parent2Name: selectedStudent.parent2Name || '',
+        parent2Email: selectedStudent.parent2Email || '',
+        parent2Phone: selectedStudent.parent2Phone || '',
       });
     }
     setStudentEditMode(false);
@@ -729,6 +756,10 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         errors.dob = 'Date of Birth is too far in the past';
       }
     }
+    // Validate parent fields in edit mode (all optional, but format-check emails)
+    const parentErrors = validateParentFields(editedStudentData, 'edit');
+    Object.assign(errors, parentErrors);
+
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       return;
@@ -749,10 +780,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       // Handle DOB - convert string to Timestamp if provided
       if (editedStudentData.dob) {
         updatePayload.dateOfBirth = Timestamp.fromDate(new Date(editedStudentData.dob));
-      } else {
-        // If DOB is cleared, we'll keep the existing one (don't update it)
-        // But if we want to allow clearing, we could use deleteField() here
       }
+      // If DOB is cleared, existing value is preserved — no update needed
+
+      // Parent contact fields
+      updatePayload.parent1Name = (editedStudentData.parent1Name || '').trim();
+      updatePayload.parent1Email = (editedStudentData.parent1Email || '').trim();
+      updatePayload.parent1Phone = (editedStudentData.parent1Phone || '').trim();
+      updatePayload.parent2Name = (editedStudentData.parent2Name || '').trim();
+      updatePayload.parent2Email = (editedStudentData.parent2Email || '').trim();
+      updatePayload.parent2Phone = (editedStudentData.parent2Phone || '').trim();
 
       await updateDoc(studentRef, updatePayload);
       
@@ -1184,13 +1221,16 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               updatedAt: serverTimestamp(),
               createdBy: currentUser?.email || 'ui',
             };
-            const hasGuardian = [studentForm.guardianName, studentForm.guardianRelationship, studentForm.guardianPhone]
-              .every(v => (v||'').trim() !== '');
-            if (hasGuardian) {
-              payload.guardianName = studentForm.guardianName.trim();
-              payload.guardianRelationship = studentForm.guardianRelationship.trim();
-              payload.guardianPhone = studentForm.guardianPhone.trim();
+            // Parent 1 (required on create)
+            payload.parent1Name = studentForm.parent1Name.trim();
+            payload.parent1Email = studentForm.parent1Email.trim();
+            if (studentForm.parent1Phone?.trim()) {
+              payload.parent1Phone = studentForm.parent1Phone.trim();
             }
+            // Parent 2 (optional)
+            if (studentForm.parent2Name?.trim()) payload.parent2Name = studentForm.parent2Name.trim();
+            if (studentForm.parent2Email?.trim()) payload.parent2Email = studentForm.parent2Email.trim();
+            if (studentForm.parent2Phone?.trim()) payload.parent2Phone = studentForm.parent2Phone.trim();
             tx.set(ref, payload);
             // Create initial placement doc so graduation and timeline work from day one
             const today = new Date();
@@ -1217,11 +1257,12 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       
       notify.success(`Student ${studentForm.firstName} ${studentForm.lastName || ''} has been added to the roster!`);
       const addedClassroomId = studentForm.classroomId;
-      setClassrooms(prev => prev.map(c => 
+      setClassrooms(prev => prev.map(c =>
         c.id === addedClassroomId ? { ...c, studentCount: (c.studentCount || 0) + 1 } : c
       ));
       resetStudentForm();
       setSuccess(true);
+      await fetchStudents();
     };
 
     if (matches.length > 0) {
@@ -1304,7 +1345,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
   };
 
   const resetStudentForm = () => {
-    setStudentForm({ firstName: '', lastName: '', classroomId: '', branchId: '', dob: '', guardianName: '', guardianRelationship: '', guardianPhone: '' });
+    setStudentForm({ firstName: '', lastName: '', classroomId: '', branchId: '', dob: '',
+      parent1Name: '', parent1Email: '', parent1Phone: '',
+      parent2Name: '', parent2Email: '', parent2Phone: '' });
   };
 
   // ============================================================================
@@ -2210,36 +2253,73 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                       inputProps={{ max: new Date().toISOString().split('T')[0] }}
                     />
                   </Grid>
+                  {/* Parent 1 (required) */}
                   <Grid item xs={12}>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Guardian (optional)</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 1</Typography>
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <TextField
                       label="Name"
                       fullWidth
-                      value={studentForm.guardianName}
-                      onChange={(e) => setStudentForm(p => ({ ...p, guardianName: e.target.value }))}
-                      error={!!validationErrors.guardian}
+                      required
+                      value={studentForm.parent1Name}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Name: e.target.value }))}
+                      error={!!validationErrors.parent1Name}
+                      helperText={validationErrors.parent1Name}
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <TextField
-                      label="Relationship"
+                      label="Email"
                       fullWidth
-                      value={studentForm.guardianRelationship}
-                      onChange={(e) => setStudentForm(p => ({ ...p, guardianRelationship: e.target.value }))}
-                      error={!!validationErrors.guardian}
+                      required
+                      type="email"
+                      value={studentForm.parent1Email}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Email: e.target.value }))}
+                      error={!!validationErrors.parent1Email}
+                      helperText={validationErrors.parent1Email}
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <TextField
                       label="Phone"
                       fullWidth
-                      value={studentForm.guardianPhone}
-                      onChange={(e) => setStudentForm(p => ({ ...p, guardianPhone: e.target.value }))}
-                      error={!!validationErrors.guardian}
-                      helperText={validationErrors.guardian}
+                      value={studentForm.parent1Phone}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent1Phone: e.target.value }))}
+                    />
+                  </Grid>
+
+                  {/* Parent 2 (optional) */}
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Parent 2 (optional)</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Name"
+                      fullWidth
+                      value={studentForm.parent2Name}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Name: e.target.value }))}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Email"
+                      fullWidth
+                      type="email"
+                      value={studentForm.parent2Email}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Email: e.target.value }))}
+                      error={!!validationErrors.parent2Email}
+                      helperText={validationErrors.parent2Email}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Phone"
+                      fullWidth
+                      value={studentForm.parent2Phone}
+                      onChange={(e) => setStudentForm(p => ({ ...p, parent2Phone: e.target.value }))}
                     />
                   </Grid>
                 </>
@@ -2626,8 +2706,61 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     placeholder="Select date of birth"
                     inputProps={{ max: new Date().toISOString().split('T')[0] }}
                   />
+
+                  {/* Parent 1 */}
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Parent 1</Typography>
+                  <TextField
+                    label="Name"
+                    fullWidth
+                    value={editedStudentData.parent1Name}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent1Name: e.target.value }))}
+                    error={!!validationErrors.parent1Name}
+                    helperText={validationErrors.parent1Name}
+                  />
+                  <TextField
+                    label="Email"
+                    fullWidth
+                    type="email"
+                    value={editedStudentData.parent1Email}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent1Email: e.target.value }))}
+                    error={!!validationErrors.parent1Email}
+                    helperText={validationErrors.parent1Email}
+                  />
+                  <TextField
+                    label="Phone"
+                    fullWidth
+                    value={editedStudentData.parent1Phone}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent1Phone: e.target.value }))}
+                  />
+
+                  {/* Parent 2 (optional) */}
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Parent 2 (optional)</Typography>
+                  <TextField
+                    label="Name"
+                    fullWidth
+                    value={editedStudentData.parent2Name}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent2Name: e.target.value }))}
+                  />
+                  <TextField
+                    label="Email"
+                    fullWidth
+                    type="email"
+                    value={editedStudentData.parent2Email}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent2Email: e.target.value }))}
+                    error={!!validationErrors.parent2Email}
+                    helperText={validationErrors.parent2Email}
+                  />
+                  <TextField
+                    label="Phone"
+                    fullWidth
+                    value={editedStudentData.parent2Phone}
+                    onChange={(e) => setEditedStudentData(p => ({ ...p, parent2Phone: e.target.value }))}
+                  />
                 </Box>
               ) : (
+                <>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -2673,6 +2806,48 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                     )}
                   </Box>
                 </Box>
+                {/* Parent contacts (read-only) */}
+                {(selectedStudent.parent1Name || selectedStudent.parent1Email) && (
+                  <>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Parent 1</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent1Name || 'N/A'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent1Email || 'N/A'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent1Phone || 'N/A'}</Typography>
+                      </Box>
+                    </Box>
+                  </>
+                )}
+                {(selectedStudent.parent2Name || selectedStudent.parent2Email) && (
+                  <>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Parent 2</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent2Name || 'N/A'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent2Email || 'N/A'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</Typography>
+                        <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 500 }}>{selectedStudent.parent2Phone || 'N/A'}</Typography>
+                      </Box>
+                    </Box>
+                  </>
+                )}
+                </>
               )}
             </Box>
           )}
@@ -2713,6 +2888,24 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                 variant="contained"
                 onClick={() => {
                   setValidationErrors({});
+                  if (selectedStudent) {
+                    let dobString = '';
+                    if (selectedStudent.dateOfBirth && selectedStudent.dateOfBirth.toDate) {
+                      dobString = selectedStudent.dateOfBirth.toDate().toISOString().split('T')[0];
+                    }
+                    setEditedStudentData({
+                      firstName: selectedStudent.firstName || '',
+                      lastName: selectedStudent.lastName || '',
+                      status: selectedStudent.status || 'active',
+                      dob: dobString,
+                      parent1Name: selectedStudent.parent1Name || '',
+                      parent1Email: selectedStudent.parent1Email || '',
+                      parent1Phone: selectedStudent.parent1Phone || '',
+                      parent2Name: selectedStudent.parent2Name || '',
+                      parent2Email: selectedStudent.parent2Email || '',
+                      parent2Phone: selectedStudent.parent2Phone || '',
+                    });
+                  }
                   setStudentEditMode(true);
                 }}
                 startIcon={<Edit />}
