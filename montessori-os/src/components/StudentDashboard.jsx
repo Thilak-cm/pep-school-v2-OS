@@ -60,6 +60,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsData, setSignalsData] = useState(null);
+  const [writingData, setWritingData] = useState(null);
+  const [writingLoading, setWritingLoading] = useState(false);
+  const [writingError, setWritingError] = useState('');
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
@@ -206,6 +209,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchCard();
     return () => { active = false; };
   }, [studentId, reloadKey]);
+
+  // Fetch writing analysis when Writing tab is active
+  useEffect(() => {
+    if (activeTab !== 'writing' || !studentId) return;
+    let active = true;
+    setWritingLoading(true);
+    setWritingError('');
+
+    const fetchWriting = async () => {
+      try {
+        const ref = doc(db, 'students', studentId, 'ai_summaries', 'writing_analysis');
+        const snap = await getDoc(ref);
+        if (!active) return;
+        setWritingData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      } catch {
+        if (active) setWritingError('Failed to load writing analysis.');
+      } finally {
+        if (active) setWritingLoading(false);
+      }
+    };
+
+    fetchWriting();
+    return () => { active = false; };
+  }, [activeTab, studentId]);
 
   // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
@@ -591,7 +618,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {activeTab === 'weekly' ? (
               <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
             ) : (
-              <>Written notes in past <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>30</strong> days</>
+              Number.isFinite(writingData?.sampleCount)
+                ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
+                : <>Writing analysis</>
             )}
           </Typography>
 
@@ -614,32 +643,49 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   feedbackMessage={feedbackMessage}
                 />
               ) : (
-                <Box sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 1.5,
-                  minHeight: 'calc(100% - 48px)',
-                  textAlign: 'center',
-                }}>
-                  <Box sx={{
-                    width: 56, height: 56,
-                    borderRadius: 4,
-                    background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
-                    border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--color-violet)',
-                  }}>
-                    <Pencil size={26} />
+                writingLoading ? (
+                  <SnapshotBody cardLoading={true} />
+                ) : writingError ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+                    <Typography variant="body2" color="error">{writingError}</Typography>
                   </Box>
-                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
-                    Writing Snapshot
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
-                    Handwriting analysis and writing development insights — coming soon.
-                  </Typography>
-                </Box>
+                ) : (!writingData || writingData.status === 'skipped') ? (
+                  <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1.5,
+                    minHeight: 'calc(100% - 48px)',
+                    textAlign: 'center',
+                  }}>
+                    <Box sx={{
+                      width: 56, height: 56,
+                      borderRadius: 4,
+                      background: 'linear-gradient(135deg, var(--color-violet-bg) 0%, rgba(79, 70, 229, 0.08) 100%)',
+                      border: '1px solid var(--color-violet-soft, rgba(124, 58, 237, 0.2))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--color-violet)',
+                    }}>
+                      <Pencil size={26} />
+                    </Box>
+                    <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                      Writing Snapshot
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.8rem', color: 'var(--color-text-soft)', maxWidth: 240, lineHeight: 1.5 }}>
+                      No writing analysis available
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'var(--grey-700)', whiteSpace: 'pre-line' }}
+                    >
+                      {writingData.narrative}
+                    </Typography>
+                  </Box>
+                )
               )}
             </Box>
             {showScrollFade && (
