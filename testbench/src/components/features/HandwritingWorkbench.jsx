@@ -28,21 +28,15 @@ import VariantColumn from "../VariantColumn.jsx";
 import RunHistory from "../RunHistory.jsx";
 import HandwritingConfig from "./HandwritingConfig.jsx";
 import HandwritingPromptPipeline from "../pipeline/HandwritingPromptPipeline.jsx";
+import HandwritingGallery from "../HandwritingGallery.jsx";
 import { createVariant, updateVariant as updateVariantHelper, hasUnsavedWork, SCROLL_AFTER } from "../../utils/variantHelpers.js";
 import { buildSavePayload, restoreVariantsFromRun } from "../../hooks/useRunPersistence.js";
 
 const FEATURE_ID = "handwriting_analysis";
 
-const HANDWRITING_DEFAULTS = [
-  { id: "2025-GUL-030", displayName: "Sudarshan", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 9 },
-  { id: "2025-GUL-003", displayName: "Akshleena Mishra", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 6 },
-  { id: "2025-GUL-017", displayName: "Kartik Maheshwari", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
-  { id: "2025-PER-003", displayName: "Anagha Mandyam", classroomId: "periwinkle", classroomName: "Periwinkle", handwrittenCount: 4 },
-  { id: "2025-GUL-021", displayName: "Nuha Rao", classroomId: "gulmohar", classroomName: "Gulmohar", handwrittenCount: 4 },
-];
-
 export default function HandwritingWorkbench() {
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [handwrittenCount, setHandwrittenCount] = useState(null);
   const [variants, setVariants] = useState([createVariant(null, 0), createVariant(null, 1)]);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
@@ -50,6 +44,8 @@ export default function HandwritingWorkbench() {
   const [pendingLoadRun, setPendingLoadRun] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessionName, setSessionName] = useState("");
+
+  const handleCountLoaded = useCallback((count) => setHandwrittenCount(count), []);
 
   useEffect(() => {
     function handleBeforeUnload(e) {
@@ -127,14 +123,15 @@ export default function HandwritingWorkbench() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 3, flexWrap: "wrap" }}>
-        <StudentPicker
-          scope="hardcoded"
-          defaults={HANDWRITING_DEFAULTS}
-          onSelect={setSelectedStudent}
-          renderOptionExtra={(s) => (
-            <Chip label={`${s.handwrittenCount} handwritten images`} size="small" color="success" variant="filled" />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <StudentPicker
+            scope="school-wide"
+            onSelect={(s) => { setSelectedStudent(s); setHandwrittenCount(null); }}
+          />
+          {selectedStudent && handwrittenCount !== null && (
+            <Chip label={`${handwrittenCount} handwriting sample${handwrittenCount !== 1 ? "s" : ""}`} size="small" color="success" variant="filled" />
           )}
-        />
+        </Box>
         <HandwritingConfig onConfigLoaded={handleConfigLoaded} />
         <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
           <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={runAll} disabled={!selectedStudent || variants.some((v) => v.loading)}>Run All</Button>
@@ -152,10 +149,27 @@ export default function HandwritingWorkbench() {
         <AccordionDetails sx={{ p: 0 }}>
           <HandwritingPromptPipeline
             systemPrompt={variants[0]?.systemPrompt}
-            selectedStudent={selectedStudent}
+            selectedStudent={selectedStudent ? { ...selectedStudent, handwrittenCount: handwrittenCount ?? undefined } : null}
           />
         </AccordionDetails>
       </Accordion>
+
+      {/* Handwriting Image Gallery — loads on student select (PEP-241) */}
+      {selectedStudent && (
+        <Accordion defaultExpanded variant="outlined" sx={{ mb: 3, "&::before": { display: "none" } }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              Handwriting Samples
+              {handwrittenCount !== null && (
+                <Chip label={handwrittenCount} size="small" sx={{ ml: 1, height: 20, fontSize: "0.75rem" }} />
+              )}
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <HandwritingGallery studentId={selectedStudent.id} onCountLoaded={handleCountLoaded} />
+          </AccordionDetails>
+        </Accordion>
+      )}
 
       <Divider sx={{ mb: 3 }} />
 
