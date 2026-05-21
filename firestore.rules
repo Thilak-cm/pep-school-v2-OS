@@ -125,8 +125,9 @@ service cloud.firestore {
       }
 
       // Individual doc reads: scoped per role
+      // resource == null handles tx.get() on not-yet-created docs (ID uniqueness check)
       allow get: if isSuperAdmin() ||
-        (isClassroomAdmin() && managesClassroom(resource.data.classroomId)) ||
+        (isClassroomAdmin() && (resource == null || managesClassroom(resource.data.classroomId))) ||
         isTeacherInClassroom(resource.data.classroomId);
       // List queries: teachers allowed (client scopes via classroomId; resource.data unavailable on list)
       allow list: if isPrivilegedAdmin() || isTeacher();
@@ -156,7 +157,9 @@ service cloud.firestore {
           isTeacherInClassroom(studentClassroomId(studentId));
 
         // Create validation
-        allow create: if canManagePlacement() &&
+        // Use request.resource.data.classroomId (not parent doc lookup) so placement
+        // can be created in the same transaction that creates the student doc.
+        allow create: if managesClassroom(request.resource.data.classroomId) &&
           request.resource.data.keys().hasAll(['classroomId','startDate']) &&
           (request.resource.data.classroomId is string) &&
           (request.resource.data.startDate is string &&
@@ -468,7 +471,7 @@ service cloud.firestore {
     // Collection group rule for media (needed for collectionGroup queries)
     match /{path=**}/media/{mediaId} {
       allow read: if isPrivilegedAdmin() ||
-        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
+        (isTeacher() && ('studentId' in resource.data) && isTeacherInClassroom(studentClassroomId(resource.data.studentId)));
     }
 
     // Collection group rule for ai_summaries (needed for collectionGroup queries)
@@ -491,7 +494,7 @@ service cloud.firestore {
       }
 
       allow read: if adminCanQueryObservation() ||
-        (isTeacher() && ('classroomId' in resource.data) && isTeacherInClassroom(resource.data.classroomId));
+        (isTeacher() && ('studentId' in resource.data) && isTeacherInClassroom(studentClassroomId(resource.data.studentId)));
     }
 
     // Feedback collection
