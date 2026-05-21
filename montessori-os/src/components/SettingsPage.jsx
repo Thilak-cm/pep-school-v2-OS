@@ -40,17 +40,10 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
   const studentCount = classrooms.reduce((sum, c) => sum + (c.studentCount || 0), 0);
 
   // --- Notes this week (async fetch) ---
-  // All roles scope by classroomId to satisfy collection group security rules.
-  // Without scoping, the rule evaluates resource.data per doc and denies the
-  // entire query if any doc belongs to a classroom the user lost access to (PEP-255).
+  // The "author can read own" rule (PEP-255) on the collection group allows
+  // querying by createdBy without classroom scoping.
   useEffect(() => {
     if (!user?.uid) return;
-    const classroomIds = classrooms.map(c => c.id);
-    if (classroomIds.length === 0) {
-      setNotesThisWeek(0);
-      setNotesLoading(false);
-      return;
-    }
     let cancelled = false;
 
     const fetchNotes = async () => {
@@ -59,32 +52,20 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const ts = Timestamp.fromDate(sevenDaysAgo);
 
-        // Firestore 'in' filter supports max 30 values; batch if needed.
-        const chunks = [];
-        for (let i = 0; i < classroomIds.length; i += 30) {
-          chunks.push(classroomIds.slice(i, i + 30));
-        }
-
-        // Use getDocs (not getCountFromServer) — aggregation queries on collection
-        // groups don't reliably evaluate resource.data-dependent security rules.
-        const snaps = await Promise.all(chunks.flatMap(chunk => [
+        const [obsSnap, mediaSnap] = await Promise.all([
           getDocs(query(
             collectionGroup(db, 'observations'),
-            where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
             where('observedAt', '>=', ts),
           )),
           getDocs(query(
             collectionGroup(db, 'media'),
-            where('classroomId', 'in', chunk),
             where('createdBy', '==', user.uid),
             where('observedAt', '>=', ts),
           )),
-        ]));
-
+        ]);
         if (!cancelled) {
-          const total = snaps.reduce((sum, snap) => sum + snap.size, 0);
-          setNotesThisWeek(total);
+          setNotesThisWeek(obsSnap.size + mediaSnap.size);
           setNotesLoading(false);
         }
       } catch (err) {
@@ -98,7 +79,7 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
 
     fetchNotes();
     return () => { cancelled = true; };
-  }, [user?.uid, classrooms]);
+  }, [user?.uid]);
 
   // --- Profile data ---
   const displayName = user?.displayName || 'Pep School User';

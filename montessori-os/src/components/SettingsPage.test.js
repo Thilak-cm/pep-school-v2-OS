@@ -80,17 +80,6 @@ describe('SettingsPage redesign (PEP-199)', () => {
       );
     });
 
-    it('scopes all queries by classroomId to avoid permission errors (PEP-255)', () => {
-      assert.ok(
-        source.includes("'classroomId'") || source.includes('"classroomId"'),
-        'Should filter by classroomId to avoid cross-classroom denials'
-      );
-      assert.ok(
-        source.includes('classrooms') && source.includes('.map'),
-        'Should derive classroom IDs from classrooms prop'
-      );
-    });
-
     it('shows a loading state for notes-this-week', () => {
       assert.ok(
         source.includes('notesLoading') || source.includes('skeleton') || source.includes('Skeleton') || source.includes('···'),
