@@ -1,5 +1,10 @@
 # Changelog
 
+# 10.26.1 — 2026-05-22
+
+### Fixed
+- Coach Pepper objective one-liner TextField vanishing on tap on mobile — removed useEffect feedback loop that reset selections on every parent re-render (PEP-265)
+
 # 10.26.0 — 2026-05-21
 
 ### Added
