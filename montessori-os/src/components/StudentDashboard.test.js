@@ -85,6 +85,124 @@ describe('StudentDashboard uniform toolbar', () => {
   });
 });
 
+describe('StudentDashboard collapsible chart drawer (PEP-261)', () => {
+  it('imports NotesOverTimeDrawer', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /import\s+NotesOverTimeDrawer\s+from/.test(src),
+      'StudentDashboard should import NotesOverTimeDrawer',
+    );
+  });
+
+  it('renders NotesOverTimeDrawer only on weekly tab', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // The drawer should be conditionally rendered for weekly tab
+    assert.ok(
+      /NotesOverTimeDrawer/.test(src),
+      'Should render NotesOverTimeDrawer component',
+    );
+    // Writing tab should NOT render the drawer
+    assert.ok(
+      /activeTab\s*[!=]==?\s*['"]writing['"]/.test(src) || /activeTab\s*[!=]==?\s*['"]weekly['"]/.test(src),
+      'Should gate drawer rendering on active tab',
+    );
+  });
+
+  it('gates chart data fetch on activeTab !== writing', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // The chart fetch useEffect should check activeTab
+    assert.ok(
+      /activeTab/.test(src) && /chartObservations|setChartObservations/.test(src),
+      'Chart fetch should reference activeTab',
+    );
+    // activeTab should appear in the chart fetch effect's dependency array or guard
+    const chartFetchBlock = src.slice(
+      src.indexOf('Fetch observations for the "Notes Over Time" chart'),
+      src.indexOf('Fetch observations for the "Notes Over Time" chart') + 600,
+    );
+    assert.ok(
+      /activeTab/.test(chartFetchBlock),
+      'Chart fetch effect should be gated on activeTab',
+    );
+  });
+
+  it('scroll-fade height is 28px (halved from 56)', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // Find the scroll-fade box and check height is 28
+    assert.ok(
+      /height:\s*28\b/.test(src),
+      'Scroll-fade height should be 28px',
+    );
+    // The scroll-fade block (position absolute, bottom 0) should not have height 56
+    const fadeMatch = src.match(/position:\s*'absolute'[^}]*bottom:\s*0[^}]*height:\s*(\d+)/);
+    assert.ok(
+      fadeMatch && Number(fadeMatch[1]) === 28,
+      'Scroll-fade overlay height should be 28, not 56',
+    );
+  });
+
+  it('does not render old chart footer inline', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // The old "Chart footer" comment block should be gone
+    assert.ok(
+      !/Chart footer/.test(src),
+      'Old "Chart footer" section should be removed from StudentDashboard',
+    );
+  });
+});
+
+describe('NotesOverTimeDrawer component', () => {
+  const drawerPath = new URL('./NotesOverTimeDrawer.jsx', import.meta.url);
+
+  it('exists and exports a default function', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /export\s+default\s+function\s+NotesOverTimeDrawer/.test(src),
+      'Should export default function NotesOverTimeDrawer',
+    );
+  });
+
+  it('has collapsed state by default (expanded starts false)', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /useState\(\s*false\s*\)/.test(src),
+      'Expanded state should default to false (collapsed)',
+    );
+  });
+
+  it('renders a mini sparkline in collapsed state', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /LineChart|Line\b/.test(src) || /sparkline/i.test(src),
+      'Should have a sparkline element for collapsed strip',
+    );
+  });
+
+  it('uses chevron icons for expand/collapse', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /ChevronUp/.test(src) && /ChevronDown/.test(src),
+      'Should use ChevronUp and ChevronDown icons',
+    );
+  });
+
+  it('has height transition for animation', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /transition/.test(src) && /height/.test(src),
+      'Should have height transition for expand/collapse animation',
+    );
+  });
+
+  it('renders grab handle', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /grab.*handle|handle|36/i.test(src) && /rgba\(31,\s*35,\s*40/.test(src),
+      'Should render grab handle with specified color',
+    );
+  });
+});
+
 describe('Component rename: BaseballCard → Snapshot', () => {
   it('SnapshotCard.jsx exists and exports default', async () => {
     const src = await readFile(snapshotCardPath, 'utf8');
