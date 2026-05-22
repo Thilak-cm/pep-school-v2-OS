@@ -343,7 +343,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
-    if (!studentId || activeTab === 'writing') {
+    if (!studentId) {
       setChartObservations([]);
       setChartLoading(false);
       return;
@@ -371,7 +371,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     };
     fetchChartObs();
     return () => { active = false; };
-  }, [studentId, cardConfig?.windowDays, activeTab]);
+  }, [studentId, cardConfig?.windowDays]);
 
   const getObservationDate = React.useCallback((obs) => {
     if (obs.observedAt?.toDate) return obs.observedAt.toDate();
@@ -821,23 +821,20 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               <Box sx={{
                 position: 'absolute', left: 0, right: 0, bottom: 0, height: 28,
                 pointerEvents: 'none',
-                background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 30%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0.97) 80%, rgba(255,255,255,1) 100%)',
-                backdropFilter: 'blur(2px)',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 30%, rgba(255,255,255,0.45) 55%, rgba(255,255,255,0.75) 80%, rgba(255,255,255,0.95) 100%)',
               }} />
             )}
           </Box>
         </CardContent>
 
-        {/* ── Collapsible chart drawer — weekly tab only ── */}
-        {activeTab === 'weekly' && (
-          <NotesOverTimeDrawer
-            data={weeklyChartData}
-            loading={chartLoading}
-            onToggle={(expanded) => {
-              trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
-            }}
-          />
-        )}
+        {/* ── Collapsible chart drawer ── */}
+        <NotesOverTimeDrawer
+          data={weeklyChartData}
+          loading={chartLoading}
+          onToggle={(expanded) => {
+            trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
+          }}
+        />
       </Card>
 
       {/* ── Regenerate confirmation dialog ── */}

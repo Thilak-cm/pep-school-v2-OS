@@ -94,35 +94,16 @@ describe('StudentDashboard collapsible chart drawer (PEP-261)', () => {
     );
   });
 
-  it('renders NotesOverTimeDrawer only on weekly tab', async () => {
+  it('renders NotesOverTimeDrawer on both tabs', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    // The drawer should be conditionally rendered for weekly tab
     assert.ok(
       /NotesOverTimeDrawer/.test(src),
       'Should render NotesOverTimeDrawer component',
     );
-    // Writing tab should NOT render the drawer
+    // Drawer should NOT be gated on activeTab
     assert.ok(
-      /activeTab\s*[!=]==?\s*['"]writing['"]/.test(src) || /activeTab\s*[!=]==?\s*['"]weekly['"]/.test(src),
-      'Should gate drawer rendering on active tab',
-    );
-  });
-
-  it('gates chart data fetch on activeTab !== writing', async () => {
-    const src = await readFile(dashboardPath, 'utf8');
-    // The chart fetch useEffect should check activeTab
-    assert.ok(
-      /activeTab/.test(src) && /chartObservations|setChartObservations/.test(src),
-      'Chart fetch should reference activeTab',
-    );
-    // activeTab should appear in the chart fetch effect's dependency array or guard
-    const chartFetchBlock = src.slice(
-      src.indexOf('Fetch observations for the "Notes Over Time" chart'),
-      src.indexOf('Fetch observations for the "Notes Over Time" chart') + 600,
-    );
-    assert.ok(
-      /activeTab/.test(chartFetchBlock),
-      'Chart fetch effect should be gated on activeTab',
+      !/activeTab\s*===\s*['"]weekly['"][^}]*NotesOverTimeDrawer/.test(src),
+      'Drawer should render on both tabs, not gated to weekly only',
     );
   });
 
