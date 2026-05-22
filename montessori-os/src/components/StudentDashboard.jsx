@@ -26,9 +26,9 @@ import { planMissingMediaUrlPaths, fetchMediaUrlsWithConcurrency } from '../util
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
+import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { calculateAgeFromDob } from '../utils/dateFormat';
 
 /* Shared chip base sx for uniform toolbar items */
@@ -343,7 +343,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   // Fetch observations for the "Notes Over Time" chart
   useEffect(() => {
-    if (!studentId) {
+    if (!studentId || activeTab === 'writing') {
       setChartObservations([]);
       setChartLoading(false);
       return;
@@ -371,7 +371,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     };
     fetchChartObs();
     return () => { active = false; };
-  }, [studentId, cardConfig?.windowDays]);
+  }, [studentId, cardConfig?.windowDays, activeTab]);
 
   const getObservationDate = React.useCallback((obs) => {
     if (obs.observedAt?.toDate) return obs.observedAt.toDate();
@@ -819,7 +819,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             </Box>
             {showScrollFade && (
               <Box sx={{
-                position: 'absolute', left: 0, right: 0, bottom: 0, height: 56,
+                position: 'absolute', left: 0, right: 0, bottom: 0, height: 28,
                 pointerEvents: 'none',
                 background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 30%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0.97) 80%, rgba(255,255,255,1) 100%)',
                 backdropFilter: 'blur(2px)',
@@ -828,47 +828,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           </Box>
         </CardContent>
 
-        {/* ── Chart footer ── */}
-        <Box sx={{ borderTop: '1px solid var(--color-border)', px: 2, py: 1.5, flexShrink: 0 }}>
-          {chartLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
-              <CircularProgress size={24} sx={{ color: 'var(--color-primary)' }} />
-            </Box>
-          ) : weeklyChartData.length > 0 ? (
-            <Box>
-              <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }}>
-                Notes over time
-              </Typography>
-              <Box sx={{ height: 120, width: '100%' }}>
-                <ResponsiveContainer width="100%" height={120}>
-                  <LineChart data={weeklyChartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} /> {/* Recharts */}
-                    <XAxis dataKey="period" tick={{ fontSize: 9, fill: '#94a3b8' /* Recharts */ }} axisLine={{ stroke: '#e2e8f0' /* Recharts */ }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: '#94a3b8' /* Recharts */ }} axisLine={false} tickLine={false} width={30} tickFormatter={(v) => Math.round(v)} allowDecimals={false} />
-                    <RechartsTooltip
-                      content={({ active, payload }) => {
-                        if (active && payload?.length) {
-                          return (
-                            <Box sx={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: 1.5, px: 1.5, py: 0.75, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary)' }}>
-                                {payload[0].value} {payload[0].value === 1 ? 'note' : 'notes'}
-                              </Typography>
-                              <Typography sx={{ fontSize: '0.65rem', color: 'var(--color-text-faint)' }}>
-                                {payload[0].payload.period}
-                              </Typography>
-                            </Box>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2.5} dot={{ fill: '#4f46e5', strokeWidth: 2, r: 3, stroke: '#fff' }} activeDot={{ r: 5, stroke: '#4f46e5', strokeWidth: 2, fill: '#fff' }} /> {/* Recharts */}
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-            </Box>
-          ) : null}
-        </Box>
+        {/* ── Collapsible chart drawer — weekly tab only ── */}
+        {activeTab === 'weekly' && (
+          <NotesOverTimeDrawer
+            data={weeklyChartData}
+            loading={chartLoading}
+            onToggle={(expanded) => {
+              trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
+            }}
+          />
+        )}
       </Card>
 
       {/* ── Regenerate confirmation dialog ── */}
