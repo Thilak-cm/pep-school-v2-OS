@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Typography, Button, TextField } from '@mui/material';
 import { NUDGE_IDS, CHIPS, MICROCOPY_KEYS } from './constants';
 
@@ -71,11 +71,6 @@ export default function CoachNudge({ noteText, onApply, onSkip, forcedNudges, ma
   }, [initialSelections]);
 
   const [selections, setSelections] = useState(mergedInitialSelections);
-
-  useEffect(() => {
-    setSelections(mergedInitialSelections);
-    setSaveAttempted(false);
-  }, [mergedInitialSelections]);
 
   const updateSelections = (updater) => {
     setSelections((prev) => {
