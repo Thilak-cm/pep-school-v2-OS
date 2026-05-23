@@ -100,7 +100,7 @@ describe('StudentDashboard collapsible chart drawer (PEP-261)', () => {
       /NotesOverTimeDrawer/.test(src),
       'Should render NotesOverTimeDrawer component',
     );
-    // Drawer should NOT be gated on activeTab
+    // Drawer should NOT be gated on activeTab — visible on both tabs
     assert.ok(
       !/activeTab\s*===\s*['"]weekly['"][^}]*NotesOverTimeDrawer/.test(src),
       'Drawer should render on both tabs, not gated to weekly only',
@@ -151,11 +151,16 @@ describe('NotesOverTimeDrawer component', () => {
     );
   });
 
-  it('renders a mini sparkline in collapsed state', async () => {
+  it('renders a mini sparkline with last-point dot (AC2)', async () => {
     const src = await readFile(drawerPath, 'utf8');
     assert.ok(
       /LineChart|Line\b/.test(src) || /sparkline/i.test(src),
       'Should have a sparkline element for collapsed strip',
+    );
+    // Last-point dot: custom dot renderer checking index === data.length - 1
+    assert.ok(
+      /data\.length\s*-\s*1/.test(src),
+      'Sparkline should render a dot only on the last data point',
     );
   });
 

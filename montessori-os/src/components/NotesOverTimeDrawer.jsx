@@ -11,7 +11,6 @@ import {
   Tooltip as RechartsTooltip,
 } from 'recharts';
 
-const COLLAPSED_HEIGHT = 52;
 const EXPANDED_CHART_HEIGHT = 160;
 
 export default function NotesOverTimeDrawer({ data = [], loading = false, onToggle }) {
@@ -71,7 +70,7 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
                       dataKey="count"
                       stroke="#4f46e5" /* Recharts */
                       strokeWidth={1.5}
-                      dot={false}
+                      dot={({ cx, cy, index }) => index === data.length - 1 ? <circle key="last" cx={cx} cy={cy} r={2.5} fill="#4f46e5" /> : null} /* Recharts */
                       activeDot={false}
                     />
                   </LineChart>
@@ -81,8 +80,8 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
           </Box>
 
           {expanded
-            ? <ChevronDown size={12} style={{ color: 'var(--color-text-soft)' }} />
-            : <ChevronUp size={12} style={{ color: 'var(--color-text-soft)' }} />
+            ? <ChevronUp size={12} style={{ color: 'var(--color-text-soft)' }} />
+            : <ChevronDown size={12} style={{ color: 'var(--color-text-soft)' }} />
           }
         </Box>
       </Box>
