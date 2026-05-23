@@ -85,6 +85,110 @@ describe('StudentDashboard uniform toolbar', () => {
   });
 });
 
+describe('StudentDashboard collapsible chart drawer (PEP-261)', () => {
+  it('imports NotesOverTimeDrawer', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /import\s+NotesOverTimeDrawer\s+from/.test(src),
+      'StudentDashboard should import NotesOverTimeDrawer',
+    );
+  });
+
+  it('renders NotesOverTimeDrawer on both tabs', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /NotesOverTimeDrawer/.test(src),
+      'Should render NotesOverTimeDrawer component',
+    );
+    // Drawer should NOT be gated on activeTab — visible on both tabs
+    assert.ok(
+      !/activeTab\s*===\s*['"]weekly['"][^}]*NotesOverTimeDrawer/.test(src),
+      'Drawer should render on both tabs, not gated to weekly only',
+    );
+  });
+
+  it('scroll-fade height is 28px (halved from 56)', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // Find the scroll-fade box and check height is 28
+    assert.ok(
+      /height:\s*28\b/.test(src),
+      'Scroll-fade height should be 28px',
+    );
+    // The scroll-fade block (position absolute, bottom 0) should not have height 56
+    const fadeMatch = src.match(/position:\s*'absolute'[^}]*bottom:\s*0[^}]*height:\s*(\d+)/);
+    assert.ok(
+      fadeMatch && Number(fadeMatch[1]) === 28,
+      'Scroll-fade overlay height should be 28, not 56',
+    );
+  });
+
+  it('does not render old chart footer inline', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // The old "Chart footer" comment block should be gone
+    assert.ok(
+      !/Chart footer/.test(src),
+      'Old "Chart footer" section should be removed from StudentDashboard',
+    );
+  });
+});
+
+describe('NotesOverTimeDrawer component', () => {
+  const drawerPath = new URL('./NotesOverTimeDrawer.jsx', import.meta.url);
+
+  it('exists and exports a default function', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /export\s+default\s+function\s+NotesOverTimeDrawer/.test(src),
+      'Should export default function NotesOverTimeDrawer',
+    );
+  });
+
+  it('has collapsed state by default (expanded starts false)', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /useState\(\s*false\s*\)/.test(src),
+      'Expanded state should default to false (collapsed)',
+    );
+  });
+
+  it('renders a mini sparkline with last-point dot (AC2)', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /LineChart|Line\b/.test(src) || /sparkline/i.test(src),
+      'Should have a sparkline element for collapsed strip',
+    );
+    // Last-point dot: custom dot renderer checking index === data.length - 1
+    assert.ok(
+      /data\.length\s*-\s*1/.test(src),
+      'Sparkline should render a dot only on the last data point',
+    );
+  });
+
+  it('uses chevron icons for expand/collapse', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /ChevronUp/.test(src) && /ChevronDown/.test(src),
+      'Should use ChevronUp and ChevronDown icons',
+    );
+  });
+
+  it('has height transition for animation', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /transition/.test(src) && /height/.test(src),
+      'Should have height transition for expand/collapse animation',
+    );
+  });
+
+  it('renders grab handle', async () => {
+    const src = await readFile(drawerPath, 'utf8');
+    assert.ok(
+      /grab.*handle|handle|36/i.test(src) && /rgba\(31,\s*35,\s*40/.test(src),
+      'Should render grab handle with specified color',
+    );
+  });
+});
+
 describe('Component rename: BaseballCard → Snapshot', () => {
   it('SnapshotCard.jsx exists and exports default', async () => {
     const src = await readFile(snapshotCardPath, 'utf8');
