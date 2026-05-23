@@ -43,13 +43,6 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
           '&:hover': { backgroundColor: '#f5f5f0' },
         }}
       >
-        {/* Grab handle */}
-        <Box sx={{
-          width: 36, height: 4, borderRadius: 2,
-          backgroundColor: 'rgba(31, 35, 40, 0.25)',
-          mx: 'auto', mb: 1,
-        }} />
-
         {/* Header row */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -80,8 +73,8 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
           </Box>
 
           {expanded
-            ? <ChevronUp size={12} style={{ color: 'var(--color-text-soft)' }} />
-            : <ChevronDown size={12} style={{ color: 'var(--color-text-soft)' }} />
+            ? <ChevronUp size={20} style={{ color: 'var(--color-text-soft)' }} />
+            : <ChevronDown size={20} style={{ color: 'var(--color-text-soft)' }} />
           }
         </Box>
       </Box>
