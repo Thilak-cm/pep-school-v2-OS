@@ -38,8 +38,8 @@ export {
   generateBaseballCards,
 } from "./ai/baseballCard.js";
 
-// AI — Handwriting Analysis
-export { batchAnalyzeWriting } from "./ai/handwriting.js";
+// AI — Writing Analysis (PEP-263: per-program config + weekly scheduled)
+export { batchAnalyzeWriting, generateWritingAnalysis } from "./ai/handwriting.js";
 
 // Chat
 export {
