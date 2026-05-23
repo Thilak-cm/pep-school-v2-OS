@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.26.1 — 2026-05-23
+
+### Changed
+- Notes-over-time chart replaced with collapsible pull-up drawer — collapsed by default with mini sparkline and last-point dot, expands on tap with smooth animation (PEP-261)
+- Scroll-fade gradient on snapshot card softened and halved from 56px to 28px (PEP-261)
+
 # 10.26.0 — 2026-05-21
 
 ### Added
