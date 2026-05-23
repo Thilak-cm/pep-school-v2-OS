@@ -93,44 +93,12 @@ async function fetchUnprocessedHandwriting(studentId) {
 }
 
 /**
- * Fetch ALL handwritten media docs for a student (processed + unprocessed).
- * Used by scheduled CF which re-analyzes the full set each week.
- */
-async function fetchAllHandwriting(studentId) {
-  const mediaRef = db.collection("students").doc(studentId).collection("media");
-  const snap = await mediaRef
-    .where("handwritten", "==", true)
-    .where("status", "==", "ready")
-    .orderBy("observedAt", "asc")
-    .get();
-
-  const docs = [];
-  snap.forEach((doc) => {
-    const d = doc.data();
-    const observedAt = d.observedAt?.toDate?.() ?? (d.observedAt ? new Date(d.observedAt) : null);
-    if (!observedAt) return;
-    docs.push({
-      id: doc.id,
-      observedAt,
-      teacherComment: d.teacherComment || null,
-      copied: d.copied === true,
-      curriculumArea: d.curriculumArea || null,
-      createdByName: d.createdByName || null,
-      storagePath: Array.isArray(d.media) && d.media[0]?.storagePath ? d.media[0].storagePath : null,
-    });
-  });
-
-  return docs;
-}
-
-/**
  * Download an image from Firebase Storage and return as base64 data URI content part.
  */
 export async function downloadImageAsBase64(storagePath) {
   const bucket = storage.bucket();
   const [buffer] = await bucket.file(storagePath).download();
   const base64 = buffer.toString("base64");
-  // Determine content type from path
   const ext = storagePath.split(".").pop()?.toLowerCase();
   const mimeMap = { webp: "image/webp", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
   const mime = mimeMap[ext] || "image/webp";
@@ -200,19 +168,16 @@ async function runVLMCall(systemPrompt, userContent, modelInfo) {
 
 /**
  * Build multimodal user content (text annotations interleaved with base64 images).
- * Shared between the callable and the scheduled CF.
  */
 async function buildUserContent(mediaDocs, promptText) {
   const userContent = [];
   const promptLines = promptText.split("\n");
 
-  // Add preamble (everything before the first [Image line)
   const firstImageIdx = promptLines.findIndex((l) => l.startsWith("[Image "));
   if (firstImageIdx > 0) {
     userContent.push({ type: "text", text: promptLines.slice(0, firstImageIdx).join("\n") });
   }
 
-  // Add each image with its annotation
   let successfulDownloads = 0;
   for (let i = 0; i < mediaDocs.length; i++) {
     const doc = mediaDocs[i];
@@ -271,6 +236,104 @@ async function resolveProgramId(studentData) {
 }
 
 // -----------------------------------------------
+// Core: shared writing analysis runner (PEP-263)
+// Used by both the callable and the scheduled CF.
+// -----------------------------------------------
+
+/**
+ * Run writing analysis for a single student.
+ * Both the callable and scheduled CF delegate to this function.
+ *
+ * @param {string} studentId
+ * @param {Object} options
+ * @param {boolean} options.dryRun - If true, skip Firestore writes
+ * @returns {{ status, analysis?, reason?, count?, threshold? }}
+ */
+async function runWritingAnalysisForStudent(studentId, { dryRun = false } = {}) {
+  const studentSnap = await db.collection("students").doc(studentId).get();
+  if (!studentSnap.exists) {
+    throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
+  }
+  const studentData = studentSnap.data();
+
+  // Resolve program for per-program config
+  const programId = await resolveProgramId(studentData);
+  const config = await getWritingAnalysisConfig(programId);
+
+  // Fetch unprocessed handwritten media only
+  const mediaDocs = await fetchUnprocessedHandwriting(studentId);
+
+  // Threshold gate
+  if (mediaDocs.length < config.minSamples) {
+    return { status: "skipped", reason: "insufficient_samples", count: mediaDocs.length, threshold: config.minSamples };
+  }
+
+  const dob = studentData.dateOfBirth?.toDate?.() ?? (studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null);
+  const student = {
+    displayName: studentData.displayName || studentId,
+    dateOfBirth: dob,
+  };
+
+  // Previous analysis for longitudinal context
+  const prevSnap = await db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("writing_analysis").get();
+  const previousAnalysis = prevSnap.exists ? prevSnap.data() : null;
+
+  // Build prompt and download images
+  const now = new Date();
+  const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, now);
+  const { userContent, successfulDownloads } = await buildUserContent(mediaDocs, promptText);
+
+  if (successfulDownloads < config.minSamples) {
+    return { status: "skipped", reason: "insufficient_images_loaded", successfulDownloads, totalDocs: mediaDocs.length };
+  }
+
+  // VLM call
+  const vlmResult = await runVLMCall(config.systemPrompt, userContent, {
+    model: config.model,
+    temperature: config.temperature,
+    maxTokens: config.max_tokens,
+  });
+
+  const parsed = parseWritingAnalysisResponse(vlmResult);
+  if (!parsed) {
+    throw new functions.https.HttpsError("internal", "Failed to parse VLM response");
+  }
+
+  const age = calculateAge(student.dateOfBirth, now);
+  const analysisDoc = {
+    ...parsed,
+    sampleCount: mediaDocs.length,
+    copiedCount: mediaDocs.filter((d) => d.copied === true).length,
+    studentAge: age,
+    generatedAt: Timestamp.now(),
+    sourceMediaIds: mediaDocs.map((d) => d.id),
+    model: config.model,
+    programId: programId || null,
+    status: "completed",
+  };
+
+  if (dryRun) {
+    return { status: "completed", dryRun: true, analysis: analysisDoc };
+  }
+
+  // Archive previous, write new, mark media as processed
+  const batch = db.batch();
+  await archiveWritingAnalysis(studentId, batch);
+  const analysisRef = db.collection("students").doc(studentId)
+    .collection("ai_summaries").doc("writing_analysis");
+  batch.set(analysisRef, analysisDoc);
+  for (const doc of mediaDocs) {
+    const mediaRef = db.collection("students").doc(studentId).collection("media").doc(doc.id);
+    batch.update(mediaRef, { batchAnalyzedAt: Timestamp.now() });
+  }
+  await batch.commit();
+
+  console.log(`[batchWriting] Completed for ${studentId}: ${mediaDocs.length} samples analyzed`);
+  return { status: "completed", analysis: analysisDoc };
+}
+
+// -----------------------------------------------
 // Callable: On-demand writing analysis (PEP-132, PEP-263)
 // -----------------------------------------------
 
@@ -293,16 +356,14 @@ export const batchAnalyzeWriting = functions
     if (!studentId) {
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
-    const dryRun = data?.dryRun === true;
 
-    // Fetch student context for age + name (moved up for classroom access check)
+    // Classroom-level access check for non-superadmins
     const studentSnap = await db.collection("students").doc(studentId).get();
     if (!studentSnap.exists) {
       throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
     }
     const studentData = studentSnap.data();
 
-    // Classroom-level access check for non-superadmins (PEP-235)
     if (!studentData.classroomId && callerRole !== "superadmin") {
       throw new functions.https.HttpsError("failed-precondition", "Student has no assigned classroom");
     }
@@ -319,97 +380,7 @@ export const batchAnalyzeWriting = functions
       }
     }
 
-    // Resolve program for per-program config (PEP-263)
-    const programId = await resolveProgramId(studentData);
-    const config = await getWritingAnalysisConfig(programId);
-
-    // AC1: Query unprocessed handwritten media (batchAnalyzedAt marker-based filtering)
-    const mediaDocs = await fetchUnprocessedHandwriting(studentId);
-
-    // AC2: Threshold gate
-    if (mediaDocs.length < config.minSamples) {
-      return { status: "skipped", reason: "insufficient_samples", count: mediaDocs.length, threshold: config.minSamples };
-    }
-    const dob = studentData.dateOfBirth?.toDate?.() ?? (studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null);
-    const student = {
-      displayName: studentData.displayName || studentId,
-      dateOfBirth: dob,
-    };
-
-    // Fetch previous analysis for longitudinal context in prompt
-    const prevAnalysisSnap = await db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("writing_analysis").get();
-    const previousAnalysis = prevAnalysisSnap.exists ? prevAnalysisSnap.data() : null;
-
-    // AC3: Build prompt and download images
-    const now = new Date();
-    const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, now);
-    const { userContent, successfulDownloads } = await buildUserContent(mediaDocs, promptText);
-
-    // Guard: don't call VLM if too few images loaded successfully
-    if (successfulDownloads < config.minSamples) {
-      return {
-        status: "skipped",
-        reason: "insufficient_images_loaded",
-        successfulDownloads,
-        totalDocs: mediaDocs.length,
-      };
-    }
-
-    // AC4: Run VLM call
-    let vlmResult;
-    try {
-      vlmResult = await runVLMCall(config.systemPrompt, userContent, {
-        model: config.model,
-        temperature: config.temperature,
-        maxTokens: config.max_tokens,
-      });
-    } catch (err) {
-      console.error("[batchWriting] VLM call failed:", err?.message);
-      throw new functions.https.HttpsError("internal", err?.message || "VLM call failed");
-    }
-
-    const parsed = parseWritingAnalysisResponse(vlmResult);
-    if (!parsed) {
-      console.error("[batchWriting] Failed to parse VLM response:", vlmResult);
-      throw new functions.https.HttpsError("internal", "Failed to parse VLM response");
-    }
-
-    // Build output document
-    const age = calculateAge(student.dateOfBirth, now);
-    const sourceMediaIds = mediaDocs.map((d) => d.id);
-    const copiedCount = mediaDocs.filter((d) => d.copied === true).length;
-
-    const analysisDoc = {
-      ...parsed,
-      sampleCount: mediaDocs.length,
-      copiedCount,
-      studentAge: age,
-      generatedAt: Timestamp.now(),
-      sourceMediaIds,
-      model: config.model,
-      programId: programId || null,
-      status: "completed",
-    };
-
-    if (dryRun) {
-      return { status: "completed", dryRun: true, analysis: analysisDoc };
-    }
-
-    // Archive previous analysis, then write new one + mark processed media (PEP-263)
-    const batch = db.batch();
-    await archiveWritingAnalysis(studentId, batch);
-    const analysisRef = db.collection("students").doc(studentId)
-      .collection("ai_summaries").doc("writing_analysis");
-    batch.set(analysisRef, analysisDoc);
-    for (const doc of mediaDocs) {
-      const mediaRef = db.collection("students").doc(studentId).collection("media").doc(doc.id);
-      batch.update(mediaRef, { batchAnalyzedAt: Timestamp.now() });
-    }
-    await batch.commit();
-
-    console.log(`[batchWriting] Completed for ${studentId}: ${mediaDocs.length} samples analyzed`);
-    return { status: "completed", analysis: analysisDoc };
+    return runWritingAnalysisForStudent(studentId, { dryRun: data?.dryRun === true });
   });
 
 // -----------------------------------------------
@@ -437,86 +408,19 @@ export const generateWritingAnalysis = functions
 
     await runWithConcurrency(studentIds, async (studentId) => {
       try {
-        // Resolve program via classroom
+        // Quick program check — skip students without a program
         const studentCtx = await getStudentWithProgram(studentId);
-        const { programId } = studentCtx;
-
-        if (!programId) {
-          console.warn(`[writingAnalysis] no program for ${studentId}, skipping`);
+        if (!studentCtx.programId) {
           skipped++;
           return;
         }
 
-        const config = await getWritingAnalysisConfig(programId);
-
-        // Fetch ALL handwritten media (scheduled CF re-analyzes the full set)
-        const mediaDocs = await fetchAllHandwriting(studentId);
-
-        // Threshold gate
-        if (mediaDocs.length < config.minSamples) {
+        const result = await runWritingAnalysisForStudent(studentId);
+        if (result.status === "completed") {
+          completed++;
+        } else {
           skipped++;
-          return;
         }
-
-        // Build student object for prompt
-        const studentSnap = await db.collection("students").doc(studentId).get();
-        const studentData = studentSnap.exists ? studentSnap.data() : {};
-        const dob = studentData.dateOfBirth?.toDate?.() ?? (studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null);
-        const student = {
-          displayName: studentData.displayName || studentId,
-          dateOfBirth: dob,
-        };
-
-        // Fetch previous analysis for longitudinal context
-        const prevSnap = await db.collection("students").doc(studentId)
-          .collection("ai_summaries").doc("writing_analysis").get();
-        const previousAnalysis = prevSnap.exists ? prevSnap.data() : null;
-
-        const now = new Date();
-        const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, now);
-        const { userContent, successfulDownloads } = await buildUserContent(mediaDocs, promptText);
-
-        if (successfulDownloads < config.minSamples) {
-          console.warn(`[writingAnalysis] ${studentId}: only ${successfulDownloads}/${mediaDocs.length} images loaded, skipping`);
-          skipped++;
-          return;
-        }
-
-        const vlmResult = await runVLMCall(config.systemPrompt, userContent, {
-          model: config.model,
-          temperature: config.temperature,
-          maxTokens: config.max_tokens,
-        });
-
-        const parsed = parseWritingAnalysisResponse(vlmResult);
-        if (!parsed) {
-          console.error(`[writingAnalysis] ${studentId}: failed to parse VLM response`);
-          errors++;
-          return;
-        }
-
-        const age = calculateAge(student.dateOfBirth, now);
-        const analysisDoc = {
-          ...parsed,
-          sampleCount: mediaDocs.length,
-          copiedCount: mediaDocs.filter((d) => d.copied === true).length,
-          studentAge: age,
-          generatedAt: Timestamp.now(),
-          sourceMediaIds: mediaDocs.map((d) => d.id),
-          model: config.model,
-          programId,
-          status: "completed",
-        };
-
-        // Archive previous, then write new
-        const batch = db.batch();
-        await archiveWritingAnalysis(studentId, batch);
-        const analysisRef = db.collection("students").doc(studentId)
-          .collection("ai_summaries").doc("writing_analysis");
-        batch.set(analysisRef, analysisDoc);
-        await batch.commit();
-
-        completed++;
       } catch (err) {
         console.error(`[writingAnalysis] error for ${studentId}:`, err?.message);
         errors++;
@@ -532,7 +436,6 @@ export const generateWritingAnalysis = functions
 // -----------------------------------------------
 
 export async function testBenchHandwriting({ studentId, systemPrompt, model, temperature, maxTokens, apiKey }) {
-  // Gather same data as batchAnalyzeWriting but skip the threshold gate and use caller's prompt
   const studentSnap = await db.collection("students").doc(studentId).get();
   if (!studentSnap.exists) {
     throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
@@ -571,7 +474,6 @@ export async function testBenchHandwriting({ studentId, systemPrompt, model, tem
 
   const promptText = buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, new Date());
 
-  // Build multimodal user content with images
   const userContent = [];
   const promptLines = promptText.split("\n");
   const firstImageIdx = promptLines.findIndex((l) => l.startsWith("[Image "));
@@ -600,7 +502,6 @@ export async function testBenchHandwriting({ studentId, systemPrompt, model, tem
     }
   }
 
-  // Call LLM directly — do NOT use runVLMCall (it forces JSON output)
   const body = buildChatBody({
     model,
     messages: [

@@ -78,6 +78,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
   const [notesSinceGenerated, setNotesSinceGenerated] = useState(null);
   const [notesSinceGeneratedLoading, setNotesSinceGeneratedLoading] = useState(false);
+  const [writingRegenDialogOpen, setWritingRegenDialogOpen] = useState(false);
+  const [writingRegenRunning, setWritingRegenRunning] = useState(false);
+  const [unprocessedHwCount, setUnprocessedHwCount] = useState(null);
+  const [unprocessedHwLoading, setUnprocessedHwLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const summaryScrollRef = useRef(null);
   const [showScrollFade, setShowScrollFade] = useState(false);
@@ -130,6 +134,19 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       notify.error(friendlyFunctionError(e));
     } finally {
       setRegenRunning(false);
+    }
+  };
+
+  const handleWritingRegenerate = async () => {
+    try {
+      setWritingRegenRunning(true);
+      const call = httpsCallable(cloudFunctions, 'batchAnalyzeWriting', { timeout: 300_000 });
+      await call({ studentId });
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      notify.error(friendlyFunctionError(e));
+    } finally {
+      setWritingRegenRunning(false);
     }
   };
 
@@ -470,6 +487,34 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     return () => { active = false; };
   }, [studentId, cardData?.generatedAt, regenDialogOpen]);
 
+  // Count unprocessed handwritten images when writing regen dialog opens
+  useEffect(() => {
+    let active = true;
+    if (!writingRegenDialogOpen || !studentId) {
+      setUnprocessedHwCount(null);
+      setUnprocessedHwLoading(false);
+      return;
+    }
+
+    setUnprocessedHwLoading(true);
+    const fetchCount = async () => {
+      try {
+        const mediaRef = collection(db, 'students', studentId, 'media');
+        const q = query(mediaRef, where('handwritten', '==', true), where('status', '==', 'ready'));
+        const snap = await getDocs(q);
+        if (!active) return;
+        const unprocessed = snap.docs.filter((d) => !d.data().batchAnalyzedAt).length;
+        setUnprocessedHwCount(unprocessed);
+      } catch {
+        if (active) setUnprocessedHwCount(null);
+      } finally {
+        if (active) setUnprocessedHwLoading(false);
+      }
+    };
+    fetchCount();
+    return () => { active = false; };
+  }, [studentId, writingRegenDialogOpen]);
+
   const cardWindowDays = Number.isFinite(cardConfig?.windowDays) ? cardConfig.windowDays : BASEBALL_CARD_DEFAULTS.windowDays;
   const cardWindowWeeks = Math.max(1, Math.round(cardWindowDays / 7));
   const cardNoteCount = cardData?.noteCount;
@@ -691,6 +736,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                     '&:disabled': { opacity: 0.4, cursor: 'default' },
                   }}
                   aria-label="Regenerate snapshot"
+                >
+                  <Refresh size={14} />
+                </Box>
+              </Tooltip>
+            )}
+
+            {/* Refresh chip — writing tab only */}
+            {activeTab === 'writing' && (
+              <Tooltip title="Regenerate writing analysis" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setWritingRegenDialogOpen(true)}
+                  disabled={writingRegenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate writing analysis"
                 >
                   <Refresh size={14} />
                 </Box>
@@ -933,6 +1002,74 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
           >
             {regenRunning ? 'Regenerating…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Writing analysis regeneration dialog ── */}
+      <Dialog
+        open={writingRegenDialogOpen}
+        onClose={() => setWritingRegenDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
+          }
+        }}
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{
+                width: 48, height: 48, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, rgba(124,58,237,0.08) 70%)',
+                border: '1px solid rgba(124,58,237,0.35)',
+              }}>
+                <Pencil size={22} style={{ color: 'var(--color-violet, #7c3aed)' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Regenerate writing analysis?
+              </Typography>
+            </Stack>
+            {writingData?.generatedAt && (
+              <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'var(--color-indigo-bg)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-indigo-deep)', fontWeight: 600 }}>
+                  Last generated: {formatGeneratedAt(writingData.generatedAt)}
+                </Typography>
+              </Box>
+            )}
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
+              {unprocessedHwLoading
+                ? 'Checking for new handwriting samples...'
+                : Number.isFinite(unprocessedHwCount)
+                  ? unprocessedHwCount >= 3
+                    ? `${unprocessedHwCount} new handwriting sample${unprocessedHwCount === 1 ? '' : 's'} found. This will regenerate the analysis with the new samples.`
+                    : `Only ${unprocessedHwCount} new handwriting sample${unprocessedHwCount === 1 ? '' : 's'} since the last analysis.`
+                  : 'Unable to check for new samples right now.'}
+            </Typography>
+            {!unprocessedHwLoading && Number.isFinite(unprocessedHwCount) && unprocessedHwCount < 3 && (
+              <Typography variant="body2" sx={{ color: 'var(--color-error)', fontStyle: 'italic' }}>
+                At least 3 new handwriting images are needed to regenerate. Take more photos of this student&apos;s writing and try again.
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setWritingRegenDialogOpen(false)} disabled={writingRegenRunning} sx={{ textTransform: 'none', color: 'var(--grey-600)' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => { setWritingRegenDialogOpen(false); await handleWritingRegenerate(); }}
+            disabled={writingRegenRunning || !studentId || unprocessedHwLoading || !Number.isFinite(unprocessedHwCount) || unprocessedHwCount < 3}
+            sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
+          >
+            {writingRegenRunning ? 'Regenerating…' : 'Regenerate'}
           </Button>
         </DialogActions>
       </Dialog>
