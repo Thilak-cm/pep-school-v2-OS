@@ -536,24 +536,6 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {studentsLoading && (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            p: 1.5,
-            borderRadius: 2,
-            backgroundColor: 'var(--color-bg)',
-            border: '1px solid var(--color-border)'
-          }}
-        >
-          <CircularProgress size={18} />
-          <Typography variant="body2" color="text.secondary">
-            Coach Pepper is lining up classrooms and students…
-          </Typography>
-        </Box>
-      )}
 
       {(voiceLoading || voiceData?.text) && (
         <Box
@@ -1013,27 +995,36 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
 
       {/* Selected Students Summary — shown above quick search */}
       {selectedStudents.length > 0 && (
-        <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: 'var(--color-blue-bg-light)', borderRadius: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
-            {`Selected Students (${selectedStudents.length}):`}
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-            {selectedStudents.map((id) => {
-              const student = studentsById[id] || allStudents.find((s) => (s.id || s.uid) === id);
-              const label = student ? getStudentName(student) : 'Unknown Student';
-              return (
-                <Chip
-                  key={id}
-                  label={label}
-                  onDelete={() => handleRemoveStudent(id)}
-                  deleteIcon={<Close size={20} />}
-                  color="primary"
-                  variant="outlined"
-                />
-              );
-            })}
+        studentsLoading ? (
+          <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: 'var(--color-blue-bg-light)', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CircularProgress size={16} />
+            <Typography variant="body2" color="text.secondary">
+              Loading student info…
+            </Typography>
           </Box>
-        </Box>
+        ) : (
+          <Box sx={{ mt: 1, mb: 2, p: 2, backgroundColor: 'var(--color-blue-bg-light)', borderRadius: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
+              {`Selected Students (${selectedStudents.length}):`}
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+              {selectedStudents.map((id) => {
+                const student = studentsById[id] || allStudents.find((s) => (s.id || s.uid) === id);
+                const label = student ? getStudentName(student) : 'Unknown Student';
+                return (
+                  <Chip
+                    key={id}
+                    label={label}
+                    onDelete={() => handleRemoveStudent(id)}
+                    deleteIcon={<Close size={20} />}
+                    color="primary"
+                    variant="outlined"
+                  />
+                );
+              })}
+            </Box>
+          </Box>
+        )
       )}
 
       {/* Search Section (compact) */}
@@ -1220,7 +1211,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                           </ListItemIcon>
                           <ListItemText
                             primary={disabled
-                              ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ' (only 1 student per photo note)'}`
+                              ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
                               : getStudentName(student)}
                             secondary={`${student.classroom_name}`}
                           />
@@ -1333,7 +1324,7 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
                                   </ListItemIcon>
                                   <ListItemText
                                     primary={disabled
-                                      ? `${getStudentName(student)}${disabledStudentIds?.includes?.(student.id) ? ' (can\'t select this student, the note is already assigned to them)' : ' (only 1 student per photo note)'}`
+                                      ? `${getStudentName(student)} (can't select this student, the note is already assigned to them)`
                                       : getStudentName(student)}
                                   />
                                 </ListItemButton>

@@ -2,6 +2,7 @@ import { Typography, IconButton, Box } from '@mui/material';
 import { ArrowLeft } from './icons';
 import MiniTangram from './components/ui/MiniTangram.jsx';
 import Avatar from './components/ui/Avatar.jsx';
+import { calculateAgeFromDob } from './utils/dateFormat';
 
 export const HEADER_HEIGHT = 60;
 
@@ -22,10 +23,15 @@ function getHeaderActions(screen, ctx) {
   }
 }
 
+const AGE_SCREENS = new Set(['studentDashboard', 'timeline', 'studentStats', 'studentReports', 'childChat']);
+
 export default function AppHeader({ screen, ctx, onTitleClick }) {
   const onBack = ctx.showBackButton ? ctx.backNavigation : undefined;
   const actions = getHeaderActions(screen, ctx);
   const title = ctx.pageTitle;
+  const ageString = AGE_SCREENS.has(screen)
+    ? calculateAgeFromDob(ctx.selectedStudent?.dateOfBirth || ctx.selectedStudent?.dob)
+    : null;
 
   return (
     <Box
@@ -93,6 +99,21 @@ export default function AppHeader({ screen, ctx, onTitleClick }) {
           }}
         >
           {title}
+          {ageString && (
+            <Typography
+              component="span"
+              sx={{
+                color: 'var(--color-text-faint)',
+                fontFamily: 'var(--font-body, inherit)',
+                fontWeight: 400,
+                fontSize: '0.82rem',
+                ml: 0.5,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              · {ageString}
+            </Typography>
+          )}
         </Typography>
 
         {actions && (

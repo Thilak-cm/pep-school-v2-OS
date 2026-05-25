@@ -645,19 +645,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
           {/* ── Uniform toolbar chip row ── */}
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
-            {/* Age chip */}
-            {ageString ? (
-              <Box sx={{
-                ...CHIP_BASE,
-                borderColor: 'var(--color-violet-soft)',
-                backgroundColor: 'var(--color-violet-bg)',
-                color: 'var(--color-violet)',
-                px: 1,
-                cursor: 'default',
-              }}>
-                {ageString}
-              </Box>
-            ) : (
+            {/* DoB missing chip — age now shown in header (PEP-243) */}
+            {!ageString && (
               <Box
                 onClick={() => {
                   if (onNavigateToManageStudent) onNavigateToManageStudent(studentId);
