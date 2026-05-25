@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-21T20:10:00.000Z
-App version: 10.26.0
+Generated: 2026-05-25T20:00:24.722Z
+App version: 10.27.0
 
 ## App Snapshot
 
@@ -23,7 +23,7 @@ App version: 10.26.0
 | --- | --- | --- | --- |
 | observation-capture | Observation Capture | Teachers capture text, voice, lesson, and media observations with low-friction mobile flows. | `montessori-os/src/components/AddNoteFab.jsx`<br>`montessori-os/src/components/AddNoteModal.jsx`<br>`montessori-os/src/components/LessonNotesPage.jsx`<br>`montessori-os/src/components/LessonNotes.jsx`<br>`montessori-os/src/VoiceRecorder.jsx`<br>`montessori-os/src/components/MentionTextArea.jsx`<br>`montessori-os/src/components/ClassroomStudentPicker.jsx` |
 | timelines-and-media | Timelines and Media | Student and classroom timelines surface text/voice/lesson/media events with filtering and expansion flows. | `montessori-os/src/components/StudentTimeline.jsx`<br>`montessori-os/src/components/ClassroomTimeline.jsx`<br>`montessori-os/src/components/FilterPanel.jsx`<br>`montessori-os/src/components/StudentDashboard.jsx`<br>`montessori-os/src/components/StudentStatsPage.jsx` |
-| analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/components/BaseballCardSnapshotCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
+| analytics-and-notifications | Analytics and Notifications | Stats, performance cards, and escalation notifications highlight behavior/engagement patterns. | `montessori-os/src/components/StatsPage.jsx`<br>`montessori-os/src/components/NotificationsPage.jsx`<br>`montessori-os/src/components/PerformanceSummaryCard.jsx`<br>`montessori-os/src/notifications/NotificationStack.jsx` |
 | ai-tools-and-chat | AI Tools and Chat | Admin-configurable AI prompts and teacher-facing copilots (cleanup, transcriber, coach, chat). | `montessori-os/src/components/AIHomePage.jsx`<br>`montessori-os/src/components/AITextCleanupEditor.jsx`<br>`montessori-os/src/components/AIVoiceTranscriberEditor.jsx`<br>`montessori-os/src/components/AICoachEditor.jsx`<br>`montessori-os/src/components/ChatCommandCentreEditor.jsx`<br>`montessori-os/src/components/ChildChat.jsx`<br>`montessori-os/src/services/promptProvider.js` |
 | admin-and-access | Admin and Access | Role-aware access, user management, classroom operations, aliases, and graduation workflows. | `montessori-os/src/components/UsersAccessPage.jsx`<br>`montessori-os/src/components/GraduateStudentsPage.jsx`<br>`montessori-os/src/components/StudentAliasesPage.jsx`<br>`montessori-os/src/components/ConfigHomePage.jsx`<br>`montessori-os/src/components/LessonNoteConfigEditor.jsx`<br>`montessori-os/src/utils/roleUtils.js`<br>`firestore.rules` |
 | settings-feedback-shell | Settings, Feedback, and App Shell | Global navigation, profile/settings, feedback loops, and version/update surfaces. | `montessori-os/src/App.jsx`<br>`montessori-os/src/AppHeader.jsx`<br>`montessori-os/src/AppFooter.jsx`<br>`montessori-os/src/components/SettingsPage.jsx`<br>`montessori-os/src/components/ProfilePage.jsx`<br>`montessori-os/src/components/FeedbackPage.jsx`<br>`montessori-os/src/components/UpdateNotification.jsx` |
@@ -44,8 +44,8 @@ App version: 10.26.0
 - `montessori-os/src/components/LessonNoteTagDialog.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
-- Count: 12
-- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
+- Count: 13
+- Components: `ClassroomList`, `ClassroomTimeline`, `ClassroomTimeline.pagination.test`, `classroomTimelineUtils`, `classroomTimelineUtils.extraction.test`, `ExportWizard`, `FeedbackTimeline`, `FilterPanel`, `StudentDashboard`, `StudentDashboard.test`, `StudentStatsPage`, `StudentTimeline`, `StudentTimeline.reassignCleanup.test`
 - Representative paths:
 - `montessori-os/src/components/ClassroomList.jsx`
 - `montessori-os/src/components/ClassroomTimeline.jsx`
@@ -57,10 +57,9 @@ App version: 10.26.0
 - `montessori-os/src/components/FilterPanel.jsx`
 
 ### Analytics and Notifications (`analytics-and-notifications`)
-- Count: 7
-- Components: `BaseballCardSnapshotCard`, `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
+- Count: 6
+- Components: `NewFeaturePill`, `NotificationsPage`, `PerformanceSummaryCard`, `StatsPage`, `StatsPage.noteTypes.test`, `UpdateNotification`
 - Representative paths:
-- `montessori-os/src/components/BaseballCardSnapshotCard.jsx`
 - `montessori-os/src/components/NewFeaturePill.jsx`
 - `montessori-os/src/components/NotificationsPage.jsx`
 - `montessori-os/src/components/PerformanceSummaryCard.jsx`
@@ -80,8 +79,8 @@ App version: 10.26.0
 - `montessori-os/src/components/ChildChat.jsx`
 
 ### Admin and Access (`admin-and-access`)
-- Count: 8
-- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`
+- Count: 10
+- Components: `AccessDenied`, `BaseballCardConfigEditor`, `ConfigHomePage`, `GraduateStudentsPage`, `ReportGenConfigEditor`, `SignIn`, `StudentAliasesPage`, `UsersAccessPage`, `UsersAccessPage.parentFields.test`, `UsersAccessPage.validation`
 - Representative paths:
 - `montessori-os/src/AccessDenied.jsx`
 - `montessori-os/src/components/BaseballCardConfigEditor.jsx`
@@ -93,17 +92,17 @@ App version: 10.26.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 31
-- Components: `App`, `AppFooter`, `AppHeader`, `BaseballCardBody`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `VersionBadge`
+- Count: 32
+- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
-- `montessori-os/src/components/BaseballCardBody.jsx`
 - `montessori-os/src/components/BulkUploadPage.jsx`
 - `montessori-os/src/components/BulkUploadPage.helpers.js`
 - `montessori-os/src/components/BulkUploadPage.test.js`
 - `montessori-os/src/components/ClassroomNoteCard.jsx`
+- `montessori-os/src/components/ClassroomStudentCard.jsx`
 
 ## Existing UX Patterns
 
@@ -142,47 +141,20 @@ App version: 10.26.0
 
 ## Recent Changes
 
+### 10.27.0 (2026-05-25)
+- Per-program writing analysis config — CF resolves `config/writing_analysis_{programId}` with program-specific prompts for primary, elementary, toddler, and adolescent (PEP-263)
+- Weekly scheduled Cloud Function `generateWritingAnalysis` runs writing analysis for all active students every Monday midnight IST (PEP-263)
+- Writing analysis archive — previous analysis saved to `ai_summaries/writing_analysis/history/` subcollection on each weekly run (PEP-263)
+
+### 10.26.1 (2026-05-22)
+- Coach Pepper objective one-liner TextField vanishing on tap on mobile — removed useEffect feedback loop that reset selections on every parent re-render (PEP-265)
+
 ### 10.26.0 (2026-05-21)
-- Parent contact fields on student documents — parent1 (name + email required on creation), parent2 (optional), with email validation (PEP-247)
+- Parent contact fields on student documents — parent1 (name + email required), parent2 (optional) with email validation (PEP-247)
 - Student creation integrated into Add Users form with role tab selector (PEP-247)
 - Parent contact fields visible in student edit dialog and read-only view (PEP-247)
-- Guardian-to-parent migration script for existing student records (PEP-247)
-- Writing snapshot tab wired to real `writing_analysis` data — fetches doc, renders narrative with loading/empty/error states (PEP-256)
-- Handwriting samples gallery on writing tab — toolbar chip with sample count, lazy-loaded grid dialog, NoteBottomSheet lightbox with carousel (PEP-256)
-- Weekly snapshot empty state now shows consistent centered card for both "no data" and "no notes" cases (PEP-256)
 
 ### 10.25.1 (2026-05-21)
-- Author-can-read-own rule on collection group queries for observations and media — fixes SettingsPage permissions for teachers with transferred students (PEP-255)
-
-### 10.25.0 (2026-05-21)
-- Handwriting image gallery with horizontal thumbnail carousel and lightbox in Handwriting Workbench (PEP-241)
-- Weekly/Writing snapshot tabs on student dashboard with tab switching (PEP-242)
-- Renamed BaseballCardSnapshotCard/Body to SnapshotCard/SnapshotBody (PEP-242)
-- StudentPicker upgrade with pinned defaults and free-text search (PEP-241)
-- Batched URL resolution with concurrency-limited download URL fetching (PEP-241)
-
-### 10.24.1 (2026-05-20)
-- Collection group security rules for observations and media check student's current classroom instead of observation's classroomId — fixes teacher reads for transferred students (PEP-251)
-- ClassroomStudentCard note counts use batched getCountFromServer queries via useStudentNoteCounts hook (PEP-251)
-- Classroom chips in manage-users dialogs grouped by branch and program hierarchy (PEP-251)
-
-### 10.24.0 (2026-05-16)
-- Monthly Plan feature in prompt testbench — generates structured monthly action plans per student across Language, Sensorial, Math, and Practical Life (PEP-235)
-- Writing analysis prerequisite dialog — prompts generation when missing before plan creation (PEP-235)
-- Media observations included in monthly plan prompt inputs alongside text, voice, and lesson observations (PEP-235)
-
-### 10.23.0 (2026-05-15)
-- Teacher Pick exploration mode in Interview Workbench — teachers choose 2 of 4 randomly drawn areas to direct the interview (PEP-220)
-- Area filtering forwarded to Cloud Function on every turn — only selected areas' open questions are sent to the LLM, tightening the question bank for the entire session (PEP-220)
-- Pipeline visualization shows filtered area count and names when area selection is active (PEP-220)
-
-### 10.22.0 (2026-05-15)
-- Proactive soul generation dialog in InterviewWorkbench — prompts teachers to generate missing soul/open_questions before starting an interview (PEP-222)
-- Classroom-scoped student picker — teachers see only students from their assigned classrooms, classroom admins see their manageable classrooms (PEP-222)
-- Classroom-level access check in `generateStudentProfile` Cloud Function — defense-in-depth enforcement beyond client-side filtering (PEP-222)
-
-### 10.21.0 (2026-05-15)
-- Superadmin access control panel for the test bench — grant specific teachers access to specific features with per-feature chip toggles and a searchable user picker (PEP-224)
-- Teachers and classroom admins with testbench_access grants can now use the test bench for their allowed features (PEP-224)
-- New `testbench_access/{uid}` Firestore collection for per-teacher feature grants (PEP-224)
+- "Author can read own" rule on collection group queries for observations and media — fixes SettingsPage "notes this week" permissions error for teachers with transferred students (PEP-255)
+- Security regression tests for the new collection group author-read clauses (PEP-255)
 
