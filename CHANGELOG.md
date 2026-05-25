@@ -1,5 +1,16 @@
 # Changelog
 
+# 10.27.1 — 2026-05-25
+
+### Changed
+- Photo note student picker: swap-to-replace instead of blocking toast when selecting a different student (PEP-243)
+- "Analyzing image" indicator moved inline near photos — CTA button stays enabled during analysis (PEP-243)
+- Age chip moved from student dashboard card to app header — shown on all student screens (PEP-243)
+- Removed top-level "Coach Pepper is lining up students" loading placeholder from student picker (PEP-243)
+
+### Fixed
+- Student reports deep-link now hydrates full student record so header age displays correctly (PEP-243)
+
 # 10.27.0 — 2026-05-25
 
 ### Added
