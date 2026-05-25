@@ -71,5 +71,8 @@ export {
   backfillStudentProfiles,
 } from "./students/soul.js";
 
+// Monthly Plan (PEP-260)
+export { generateMonthlyPlan } from "./monthlyPlan/index.js";
+
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";

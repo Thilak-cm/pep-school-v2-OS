@@ -74,6 +74,60 @@ describe('StudentDashboard tab support', () => {
   });
 });
 
+describe('StudentDashboard Plan tab (PEP-260)', () => {
+  it('has plan tab in SNAPSHOT_TABS as the first entry', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // Plan should be the first tab in SNAPSHOT_TABS array
+    const tabsMatch = src.match(/SNAPSHOT_TABS\s*=\s*\[([\s\S]*?)\]/);
+    assert.ok(tabsMatch, 'Should define SNAPSHOT_TABS');
+    const firstTab = tabsMatch[1].trim();
+    assert.ok(
+      /plan/i.test(firstTab.split('},')[0] || firstTab.split('}')[0]),
+      'First tab in SNAPSHOT_TABS should be Plan',
+    );
+  });
+
+  it('defaults activeTab to plan', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /useState\(\s*['"]plan['"]\s*\)/.test(src),
+      'activeTab should default to "plan"',
+    );
+  });
+
+  it('imports MonthlyPlanTab component', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /import\s+MonthlyPlanTab\s+from/.test(src),
+      'Should import MonthlyPlanTab',
+    );
+  });
+
+  it('fetches monthly_plan doc for plan tab', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /monthly_plan/.test(src),
+      'Should reference monthly_plan Firestore doc',
+    );
+  });
+
+  it('superadmin regenerate is role-gated', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /isSuperAdmin/.test(src),
+      'Should check isSuperAdmin for regenerate button visibility',
+    );
+  });
+
+  it('calls generateMonthlyPlan CF on regenerate', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /generateMonthlyPlan/.test(src),
+      'Should reference generateMonthlyPlan callable',
+    );
+  });
+});
+
 describe('StudentDashboard uniform toolbar', () => {
   it('renders coverage, DoB-missing guard, refresh, and flag in a toolbar row', async () => {
     const src = await readFile(dashboardPath, 'utf8');
