@@ -14,7 +14,11 @@
 - `parseWritingAnalysisResponse` now preserves program-specific VLM fields via spread instead of whitelist-picking (PEP-263)
 - Toolbar chip layout made consistent across weekly and writing tabs — age chip always first, refresh button always in same position (PEP-263)
 
-# 10.26.1 — 2026-05-22
+# 10.26.1 — 2026-05-23
+
+### Changed
+- Notes-over-time chart replaced with collapsible pull-up drawer — collapsed by default with mini sparkline and last-point dot, expands on tap with smooth animation (PEP-261)
+- Scroll-fade gradient on snapshot card softened and halved from 56px to 28px (PEP-261)
 
 ### Fixed
 - Coach Pepper objective one-liner TextField vanishing on tap on mobile — removed useEffect feedback loop that reset selections on every parent re-render (PEP-265)
