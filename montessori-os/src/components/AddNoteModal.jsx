@@ -931,9 +931,11 @@ function AddNoteModal({
 
   const handleStudentsChange = (nextStudents) => {
     // Photo mode: swap-to-replace — keep only the newest student (PEP-243)
+    let didSwap = false;
     if (step === STEP_MEDIA && mediaMode === 'photo' && nextStudents?.length > 1) {
       const newStudent = nextStudents.find((id) => !selectedStudents.includes(id));
       nextStudents = newStudent ? [newStudent] : [nextStudents[nextStudents.length - 1]];
+      didSwap = true;
     }
     if ((selectedLessonIds?.length || 0) > 0 && (nextStudents?.length || 0) > 1) {
       setPendingStudents(nextStudents);
@@ -946,6 +948,7 @@ function AddNoteModal({
       const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
       if (prevStu && (!nextStu || nextStu !== prevStu)) {
         setSelectedLessonIds([]);
+        if (didSwap) notify.info('Lesson tag cleared — photo notes are per-student.');
       }
     }
     setSelectedStudents(nextStudents);
@@ -2640,7 +2643,13 @@ function AddNoteModal({
                 return (
                   <Button
                     variant="contained"
-                    onClick={needsStudent ? () => photoStudentPickerRef.current?.focusSearch() : handleCreateMediaNote}
+                    onClick={needsStudent ? () => photoStudentPickerRef.current?.focusSearch() : () => {
+                      if (mediaMode === 'photo' && photoAnalysisLoading) {
+                        notify.info('Image analysis not done yet. Hold on!');
+                        return;
+                      }
+                      handleCreateMediaNote();
+                    }}
                     fullWidth
                     disabled={
                       saving ||

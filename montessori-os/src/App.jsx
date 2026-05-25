@@ -55,6 +55,14 @@ function App() {
 
   const handleNavigateToReport = useCallback(({ studentId: sid, docId }) => {
     setSelectedStudent((prev) => prev?.id === sid ? prev : { id: sid });
+    // Hydrate stub so header can show age (PEP-243)
+    (async () => {
+      try {
+        const ref = doc(db, 'students', sid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) setSelectedStudent({ id: sid, ...snap.data() });
+      } catch { /* ignored */ }
+    })();
     setPendingViewReportId(docId);
     setScreen('studentReports');
   }, []);

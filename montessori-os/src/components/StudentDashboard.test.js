@@ -75,11 +75,11 @@ describe('StudentDashboard tab support', () => {
 });
 
 describe('StudentDashboard uniform toolbar', () => {
-  it('renders coverage, age, refresh, and flag in a toolbar row', async () => {
+  it('renders coverage, DoB-missing guard, refresh, and flag in a toolbar row', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    // All four toolbar elements should be present
+    // Toolbar elements: coverage, DoB-missing chip (age moved to header per PEP-243), refresh, flag
     assert.ok(/coverage/i.test(src), 'Toolbar should have coverage element');
-    assert.ok(/age/i.test(src) || /ageString/.test(src), 'Toolbar should have age chip');
+    assert.ok(/!ageString/.test(src), 'Toolbar should show DoB-missing chip when age is absent (age display moved to header)');
     assert.ok(/[Rr]efresh|[Rr]egenerate/.test(src), 'Toolbar should have refresh/regenerate button');
     assert.ok(/[Ff]lag|severity/.test(src), 'Toolbar should have flag button');
   });

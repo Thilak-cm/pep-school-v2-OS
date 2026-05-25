@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const modalSource = readFileSync(join(__dirname, 'AddNoteModal.jsx'), 'utf-8');
 const pickerSource = readFileSync(join(__dirname, 'ClassroomStudentPicker.jsx'), 'utf-8');
+const headerSource = readFileSync(join(__dirname, '..', 'AppHeader.jsx'), 'utf-8');
+const dashboardSource = readFileSync(join(__dirname, 'StudentDashboard.jsx'), 'utf-8');
 
 describe('PEP-243: Photo note UX polish', () => {
   describe('AC1 — Swap-to-replace student selection', () => {
@@ -15,6 +17,14 @@ describe('PEP-243: Photo note UX polish', () => {
       // Should NOT exist anymore — swap logic replaces it
       const hasOldBlock = /if\s*\(\s*step\s*===\s*STEP_MEDIA\s*&&\s*mediaMode\s*===\s*'photo'\s*&&\s*nextStudents\?\.length\s*>\s*1\s*\)\s*\{[^}]*return;?\s*\}/s.test(modalSource);
       assert.ok(!hasOldBlock, 'Old blocking pattern (early return for >1 student in photo mode) should be replaced with swap logic');
+    });
+
+    it('swap logic IS present — finds the new student and keeps only it', () => {
+      // Positive assertion: the swap logic selects the student not already in selectedStudents
+      assert.ok(
+        modalSource.includes('nextStudents.find((id) => !selectedStudents.includes(id))'),
+        'Swap logic should find the newly-added student by excluding already-selected ones'
+      );
     });
 
     it('ClassroomStudentPicker does not disable unselected rows when maxSelectable=1 and swapMode is enabled', () => {
@@ -73,6 +83,32 @@ describe('PEP-243: Photo note UX polish', () => {
       assert.ok(
         !ctaTernary[0].includes('Analyzing'),
         'CTA ternary should not include "Analyzing" text — analysis indicator is inline near photos'
+      );
+    });
+  });
+
+  describe('AC5 — Age moved to header', () => {
+    it('AppHeader defines AGE_SCREENS with all 5 student screens', () => {
+      assert.ok(headerSource.includes("AGE_SCREENS"), 'AppHeader should define AGE_SCREENS constant');
+      for (const screen of ['studentDashboard', 'timeline', 'studentStats', 'studentReports', 'childChat']) {
+        assert.ok(headerSource.includes(screen), `AGE_SCREENS should include '${screen}'`);
+      }
+    });
+
+    it('AppHeader calls calculateAgeFromDob', () => {
+      assert.ok(
+        headerSource.includes('calculateAgeFromDob'),
+        'AppHeader should call calculateAgeFromDob to compute age string'
+      );
+    });
+
+    it('StudentDashboard does NOT render age chip in toolbar — only DoB-missing guard', () => {
+      // The toolbar should use !ageString (show chip only when DoB is missing), not ageString (show age)
+      const toolbarSection = dashboardSource.match(/Uniform toolbar chip row[\s\S]{0,500}/);
+      assert.ok(toolbarSection, 'Should have toolbar chip row section');
+      assert.ok(
+        toolbarSection[0].includes('!ageString'),
+        'Toolbar should guard with !ageString (DoB-missing only), not render age'
       );
     });
   });

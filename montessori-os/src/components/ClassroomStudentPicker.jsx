@@ -536,7 +536,6 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-
       {(voiceLoading || voiceData?.text) && (
         <Box
           sx={{
