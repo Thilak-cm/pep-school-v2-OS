@@ -10,6 +10,7 @@ import {
   fetchStudentNotesForWindow,
   getStudentContext,
 } from "../shared/studentHelpers.js";
+import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 
 // -----------------------------------------------
 // AI: Baseball Card (Last 6 Weeks summary)
@@ -246,26 +247,6 @@ async function buildSignalsPayload(studentId, baseSignals) {
     improvedThisWeek,
     lastUpdatedAt: Timestamp.now(),
   };
-}
-
-async function fetchActiveStudentIds() {
-  const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
-  return studentsSnap.docs.map((doc) => doc.id);
-}
-
-async function runWithConcurrency(items, worker, limit = 10) {
-  const queue = [...items];
-  const workers = new Array(Math.min(limit, queue.length)).fill(null).map(async () => {
-    while (queue.length) {
-      const next = queue.shift();
-      try {
-        await worker(next);
-      } catch (err) {
-        console.error("[baseballCard] worker error", err);
-      }
-    }
-  });
-  await Promise.all(workers);
 }
 
 async function runBaseballCards({

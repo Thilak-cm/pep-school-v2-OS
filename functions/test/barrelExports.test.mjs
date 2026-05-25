@@ -26,6 +26,7 @@ const EXPECTED_EXPORTS = [
   "regenerateBaseballCardForStudent",
   "generateBaseballCards",
   "batchAnalyzeWriting",
+  "generateWritingAnalysis",
   // Chat
   "childChat",
   "childChatStream",

@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.27.0 — 2026-05-25
+
+### Added
+- Per-program writing analysis config — CF resolves `config/writing_analysis_{programId}` with program-specific prompts for primary, elementary, toddler, and adolescent (PEP-263)
+- Weekly scheduled Cloud Function `generateWritingAnalysis` runs writing analysis for all active students every Monday midnight IST (PEP-263)
+- Writing analysis archive — previous analysis saved to `ai_summaries/writing_analysis/history/` subcollection on each weekly run (PEP-263)
+- Writing analysis refresh button on student dashboard writing tab with unprocessed sample gate (PEP-263)
+- Shared `scheduling.js` utility — `fetchActiveStudentIds` and `runWithConcurrency` extracted for reuse across scheduled CFs (PEP-263)
+- Per-program fallback prompts with toddler→primary alias for graceful degradation when Firestore config is missing (PEP-263)
+
+### Changed
+- `parseWritingAnalysisResponse` now preserves program-specific VLM fields via spread instead of whitelist-picking (PEP-263)
+- Toolbar chip layout made consistent across weekly and writing tabs — age chip always first, refresh button always in same position (PEP-263)
+
 # 10.26.1 — 2026-05-22
 
 ### Fixed
