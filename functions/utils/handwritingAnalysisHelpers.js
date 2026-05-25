@@ -98,7 +98,9 @@ export function buildBatchWritingPrompt(mediaDocs, student, previousAnalysis, no
 
 /**
  * Parse and validate the VLM response for batch writing analysis.
- * Returns normalized object or null if unparseable.
+ * Spreads the full response (to preserve program-specific fields like
+ * stageSummary, motorHandwritingAnalysis, confidence, etc.) then
+ * validates/defaults the required base fields.
  *
  * @param {Object|string|null} response - Parsed JSON from VLM
  * @returns {Object|null}
@@ -107,6 +109,7 @@ export function parseWritingAnalysisResponse(response) {
   if (!response || typeof response !== "object") return null;
 
   return {
+    ...response,
     narrative: typeof response.narrative === "string" ? response.narrative : "",
     improvements: Array.isArray(response.improvements) ? response.improvements : [],
     concerns: Array.isArray(response.concerns) ? response.concerns : [],

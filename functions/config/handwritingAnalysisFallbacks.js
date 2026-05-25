@@ -47,7 +47,7 @@ export function getFallbackPromptForProgram(programId) {
   const key = WRITING_ANALYSIS_FALLBACK_PROMPTS[programId];
   if (!key) return HANDWRITING_ANALYSIS_FALLBACK_PROMPT;
   // toddler aliases to primary
-  if (key === "primary" && programId !== "primary") {
+  if (key === "primary") {
     return WRITING_ANALYSIS_FALLBACK_PROMPTS.primary;
   }
   return key;

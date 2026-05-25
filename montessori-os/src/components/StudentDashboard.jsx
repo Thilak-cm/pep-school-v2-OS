@@ -150,7 +150,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     }
   };
 
-
   useEffect(() => {
     let active = true;
     const loadStudentDob = async () => {
@@ -259,7 +258,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
     fetchWriting();
     return () => { active = false; };
-  }, [activeTab, studentId]);
+  }, [activeTab, studentId, reloadKey]);
 
   const [hwMediaLoading, setHwMediaLoading] = useState(false);
   const hwMediaFetchedRef = useRef(null); // tracks studentId for which we already fetched
@@ -646,6 +645,37 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <CardContent sx={{ p: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1, overflow: 'hidden' }}>
           {/* ── Uniform toolbar chip row ── */}
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+            {/* Age chip */}
+            {ageString ? (
+              <Box sx={{
+                ...CHIP_BASE,
+                borderColor: 'var(--color-violet-soft)',
+                backgroundColor: 'var(--color-violet-bg)',
+                color: 'var(--color-violet)',
+                px: 1,
+                cursor: 'default',
+              }}>
+                {ageString}
+              </Box>
+            ) : (
+              <Box
+                onClick={() => {
+                  if (onNavigateToManageStudent) onNavigateToManageStudent(studentId);
+                  else notify.info('Ask your admin to update the date of birth for this student');
+                }}
+                sx={{
+                  ...CHIP_BASE,
+                  borderColor: 'rgba(245, 158, 11, 0.2)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  color: 'var(--color-amber-text)',
+                  px: 1,
+                  fontSize: '0.65rem',
+                }}
+              >
+                DoB missing
+              </Box>
+            )}
+
             {/* Coverage chip — weekly tab only */}
             {activeTab === 'weekly' && (
               signalsLoading ? (
@@ -685,37 +715,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               )
             )}
 
-            {/* Age chip */}
-            {ageString ? (
-              <Box sx={{
-                ...CHIP_BASE,
-                borderColor: 'var(--color-violet-soft)',
-                backgroundColor: 'var(--color-violet-bg)',
-                color: 'var(--color-violet)',
-                px: 1,
-                cursor: 'default',
-              }}>
-                {ageString}
-              </Box>
-            ) : (
-              <Box
-                onClick={() => {
-                  if (onNavigateToManageStudent) onNavigateToManageStudent(studentId);
-                  else notify.info('Ask your admin to update the date of birth for this student');
-                }}
-                sx={{
-                  ...CHIP_BASE,
-                  borderColor: 'rgba(245, 158, 11, 0.2)',
-                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                  color: 'var(--color-amber-text)',
-                  px: 1,
-                  fontSize: '0.65rem',
-                }}
-              >
-                DoB missing
-              </Box>
-            )}
-
             <Box sx={{ flex: 1 }} />
 
             {/* Refresh chip — weekly tab only */}
@@ -742,30 +741,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
-            {/* Refresh chip — writing tab only */}
-            {activeTab === 'writing' && (
-              <Tooltip title="Regenerate writing analysis" arrow>
-                <Box
-                  component="button"
-                  onClick={() => setWritingRegenDialogOpen(true)}
-                  disabled={writingRegenRunning || !studentId}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
-                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                    color: 'var(--color-primary)',
-                    p: 0,
-                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
-                    '&:disabled': { opacity: 0.4, cursor: 'default' },
-                  }}
-                  aria-label="Regenerate writing analysis"
-                >
-                  <Refresh size={14} />
-                </Box>
-              </Tooltip>
-            )}
-
             {/* Handwriting samples chip — writing tab only */}
             {activeTab === 'writing' && Number.isFinite(writingData?.sampleCount) && (
               <Tooltip title="View writing samples" arrow>
@@ -786,6 +761,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 >
                   <ImageIcon size={14} />
                   {Number.isFinite(writingData?.sampleCount) && <span>{writingData.sampleCount}</span>}
+                </Box>
+              </Tooltip>
+            )}
+
+            {/* Refresh chip — writing tab only */}
+            {activeTab === 'writing' && (
+              <Tooltip title="Regenerate writing analysis" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setWritingRegenDialogOpen(true)}
+                  disabled={writingRegenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate writing analysis"
+                >
+                  <Refresh size={14} />
                 </Box>
               </Tooltip>
             )}
@@ -1047,6 +1046,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               {unprocessedHwLoading
                 ? 'Checking for new handwriting samples...'
                 : Number.isFinite(unprocessedHwCount)
+                  // NB: threshold hardcoded to match CF default (config.minSamples). If changed in Firestore, update here.
                   ? unprocessedHwCount >= 3
                     ? `${unprocessedHwCount} new handwriting sample${unprocessedHwCount === 1 ? '' : 's'} found. This will regenerate the analysis with the new samples.`
                     : `Only ${unprocessedHwCount} new handwriting sample${unprocessedHwCount === 1 ? '' : 's'} since the last analysis.`

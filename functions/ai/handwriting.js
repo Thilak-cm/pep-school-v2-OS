@@ -7,7 +7,6 @@ import {
   HANDWRITING_ANALYSIS_FALLBACK_PROMPT,
   getFallbackPromptForProgram,
 } from "../config/handwritingAnalysisFallbacks.js";
-import { getStudentWithProgram } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
 import { buildBatchWritingPrompt, calculateAge, parseWritingAnalysisResponse } from "../utils/handwritingAnalysisHelpers.js";
 
@@ -36,7 +35,7 @@ async function getWritingAnalysisConfig(programId, { forceRefresh = false } = {}
     : HANDWRITING_ANALYSIS_FALLBACK_PROMPT;
 
   try {
-    const docId = programId ? `writing_analysis_${programId}` : "handwriting_analysis";
+    const docId = programId ? `writing_analysis_${programId}` : "writing_analysis_generic";
     const snap = await db.collection("config").doc(docId).get();
     const data = snap.exists ? (snap.data() || {}) : {};
     const out = {
@@ -247,17 +246,23 @@ async function resolveProgramId(studentData) {
  * @param {string} studentId
  * @param {Object} options
  * @param {boolean} options.dryRun - If true, skip Firestore writes
+ * @param {string} [options.programId] - Pre-resolved programId (skips resolveProgramId read)
+ * @param {boolean} [options.archive] - If true, archive previous analysis before overwriting
+ * @param {Object} [options.studentData] - Pre-fetched student doc data (skips student doc read)
  * @returns {{ status, analysis?, reason?, count?, threshold? }}
  */
-async function runWritingAnalysisForStudent(studentId, { dryRun = false } = {}) {
-  const studentSnap = await db.collection("students").doc(studentId).get();
-  if (!studentSnap.exists) {
-    throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
+async function runWritingAnalysisForStudent(studentId, { dryRun = false, programId: passedProgramId = undefined, archive = false, studentData: passedStudentData = undefined } = {}) {
+  let studentData = passedStudentData;
+  if (!studentData) {
+    const studentSnap = await db.collection("students").doc(studentId).get();
+    if (!studentSnap.exists) {
+      throw new functions.https.HttpsError("not-found", `Student ${studentId} not found`);
+    }
+    studentData = studentSnap.data();
   }
-  const studentData = studentSnap.data();
 
-  // Resolve program for per-program config
-  const programId = await resolveProgramId(studentData);
+  // Resolve program for per-program config (skip if already provided by caller)
+  const programId = passedProgramId !== undefined ? passedProgramId : await resolveProgramId(studentData);
   const config = await getWritingAnalysisConfig(programId);
 
   // Fetch unprocessed handwritten media only
@@ -317,13 +322,21 @@ async function runWritingAnalysisForStudent(studentId, { dryRun = false } = {}) 
     return { status: "completed", dryRun: true, analysis: analysisDoc };
   }
 
-  // Archive previous, write new, mark media as processed
+  // Archive previous (only from scheduled CF), write new, mark media as processed
   const batch = db.batch();
-  await archiveWritingAnalysis(studentId, batch);
+  if (archive) {
+    await archiveWritingAnalysis(studentId, batch);
+  }
   const analysisRef = db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("writing_analysis");
   batch.set(analysisRef, analysisDoc);
-  for (const doc of mediaDocs) {
+  // Cap batch marking at 450 docs (Firestore batch limit is 500; leave room for archive + analysis writes)
+  const markLimit = 450;
+  if (mediaDocs.length > markLimit) {
+    console.warn(`[batchWriting] ${studentId}: ${mediaDocs.length} media docs exceed batch limit, marking only first ${markLimit}`);
+  }
+  const docsToMark = mediaDocs.slice(0, markLimit);
+  for (const doc of docsToMark) {
     const mediaRef = db.collection("students").doc(studentId).collection("media").doc(doc.id);
     batch.update(mediaRef, { batchAnalyzedAt: Timestamp.now() });
   }
@@ -380,7 +393,7 @@ export const batchAnalyzeWriting = functions
       }
     }
 
-    return runWritingAnalysisForStudent(studentId, { dryRun: data?.dryRun === true });
+    return runWritingAnalysisForStudent(studentId, { dryRun: data?.dryRun === true, studentData });
   });
 
 // -----------------------------------------------
@@ -408,14 +421,18 @@ export const generateWritingAnalysis = functions
 
     await runWithConcurrency(studentIds, async (studentId) => {
       try {
-        // Quick program check — skip students without a program
-        const studentCtx = await getStudentWithProgram(studentId);
-        if (!studentCtx.programId) {
-          skipped++;
-          return;
-        }
+        // Read student once, resolve program, then pass both into the runner
+        const studentSnap = await db.collection("students").doc(studentId).get();
+        if (!studentSnap.exists) { skipped++; return; }
+        const studentData = studentSnap.data();
+        const programId = await resolveProgramId(studentData);
+        if (!programId) { skipped++; return; }
 
-        const result = await runWritingAnalysisForStudent(studentId);
+        const result = await runWritingAnalysisForStudent(studentId, {
+          programId,
+          archive: true,
+          studentData,
+        });
         if (result.status === "completed") {
           completed++;
         } else {
