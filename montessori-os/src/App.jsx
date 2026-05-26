@@ -29,7 +29,7 @@ function App() {
   const [manageableClassrooms, setManageableClassrooms] = useState([]);
   const [_unauthorized, setUnauthorized] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
-  const [addNoteInitialStep, setAddNoteInitialStep] = useState('noteType');
+  const [addNoteInitialStep, setAddNoteInitialStep] = useState('record');
   const [prefilledFeedback, setPrefilledFeedback] = useState('');
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
@@ -383,12 +383,11 @@ function App() {
                 )}
                 <AddNoteModal
                   open={addNoteOpen}
-                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('noteType'); }}
+                  onClose={() => { setAddNoteOpen(false); setAddNoteInitialStep('record'); }}
                   initialStep={addNoteInitialStep}
                   initialStudents={selectedStudent && (screen === 'timeline' || screen === 'studentDashboard' || screen === 'studentStats' || screen === 'studentReports') ? [selectedStudent.id] : []}
                   currentUser={user}
                   userRole={role}
-                  onOpenLessonNotePage={() => { setAddNoteOpen(false); openLessonNotesScreen(); }}
                 />
                 <UpdateNotification />
                 {showFooter && (
