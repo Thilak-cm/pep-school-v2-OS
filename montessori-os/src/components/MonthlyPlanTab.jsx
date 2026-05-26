@@ -14,7 +14,7 @@ const SECTIONS = [
 
 export default function MonthlyPlanTab({ planData }) {
   const [activeSection, setActiveSection] = useState(0);
-  const [expandedItem, setExpandedItem] = useState(0); // first item expanded by default
+  const [expandedItem, setExpandedItem] = useState(-1); // all collapsed by default
 
   if (!planData) {
     return (
@@ -33,7 +33,7 @@ export default function MonthlyPlanTab({ planData }) {
 
   const handleSectionChange = (idx) => {
     setActiveSection(idx);
-    setExpandedItem(0); // auto-expand first item on section switch
+    setExpandedItem(-1); // all collapsed on section switch
   };
 
   const handleItemToggle = (idx) => {
@@ -41,7 +41,7 @@ export default function MonthlyPlanTab({ planData }) {
   };
 
   return (
-    <Box>
+    <Box sx={{ overflowX: 'hidden' }}>
       {/* Section pills — horizontally scrollable */}
       <Box sx={{
         display: 'flex',
