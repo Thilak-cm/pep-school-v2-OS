@@ -4,12 +4,12 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import { ChevronDown as ExpandMore, ChevronUp as ExpandLess } from '../icons';
 
-const SECTIONS = [
-  { key: 'Language', name: 'Language', tint: '#4f46e5', soft: '#e0e7ff' },
-  { key: 'Sensorial', name: 'Sensorial', tint: '#0d9488', soft: '#ccfbf1' },
-  { key: 'Math', name: 'Math', tint: '#d97706', soft: '#fef3c7' },
-  { key: 'Practical Life', name: 'Practical Life', tint: '#e11d48', soft: '#ffe4e6' },
-  { key: 'Grace & Courtesy', name: 'Grace & Courtesy', tint: '#7c3aed', soft: '#ede9fe' },
+const SECTIONS = [ // hex required — per-section brand tints, not theme tokens
+  { key: 'Language', name: 'Language', tint: '#4f46e5', soft: '#e0e7ff' }, // hex required
+  { key: 'Sensorial', name: 'Sensorial', tint: '#0d9488', soft: '#ccfbf1' }, // hex required
+  { key: 'Math', name: 'Math', tint: '#d97706', soft: '#fef3c7' }, // hex required
+  { key: 'Practical Life', name: 'Practical Life', tint: '#e11d48', soft: '#ffe4e6' }, // hex required
+  { key: 'Grace & Courtesy', name: 'Grace & Courtesy', tint: '#7c3aed', soft: '#ede9fe' }, // hex required
 ];
 
 export default function MonthlyPlanTab({ planData }) {
@@ -29,7 +29,7 @@ export default function MonthlyPlanTab({ planData }) {
   const sections = planData.sections || [];
   const currentSectionData = sections.find(s => s.name === SECTIONS[activeSection]?.key) || sections[activeSection] || null;
   const sectionMeta = SECTIONS.find(s => s.key === currentSectionData?.name) || SECTIONS[activeSection];
-  const currentTint = sectionMeta?.tint || '#666';
+  const currentTint = sectionMeta?.tint || 'var(--grey-600)';
   const items = currentSectionData?.items || [];
 
   const handleSectionChange = (idx) => {
@@ -65,9 +65,9 @@ export default function MonthlyPlanTab({ planData }) {
                 flexShrink: 0,
                 fontWeight: 600,
                 fontSize: '12px',
-                backgroundColor: isActive ? sec.tint : '#fff',
-                color: isActive ? '#fff' : '#64748b',
-                border: isActive ? 'none' : '1px solid #e2e8f0',
+                backgroundColor: isActive ? sec.tint : 'var(--color-paper)',
+                color: isActive ? 'var(--color-paper)' : 'var(--color-text-soft)',
+                border: isActive ? 'none' : '1px solid var(--color-border)',
                 '&:hover': {
                   backgroundColor: isActive ? sec.tint : sec.soft,
                 },
@@ -87,14 +87,14 @@ export default function MonthlyPlanTab({ planData }) {
               onClick={() => handleItemToggle(idx)}
               sx={{
                 cursor: 'pointer',
-                borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none',
+                borderBottom: idx < items.length - 1 ? '1px solid var(--color-surface)' : 'none',
                 py: 1.25,
               }}
             >
               {/* Collapsed row */}
               <Box>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4 }}>
+                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', lineHeight: 1.4 }}>
                     <Typography component="span" sx={{
                       fontSize: '10px',
                       fontWeight: 700,
@@ -106,14 +106,14 @@ export default function MonthlyPlanTab({ planData }) {
                     </Typography>
                     {item.work}
                   </Typography>
-                  <Box sx={{ pt: '2px', color: '#cbd5e1', flexShrink: 0 }}>
+                  <Box sx={{ pt: '2px', color: 'var(--grey-300)', flexShrink: 0 }}>
                     {isExpanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
                   </Box>
                 </Box>
                 {!isExpanded && item.next && (
                   <Typography sx={{
                     fontSize: '10.5px',
-                    color: '#94a3b8',
+                    color: 'var(--color-text-faint)',
                     mt: 0.25,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -131,17 +131,17 @@ export default function MonthlyPlanTab({ planData }) {
                   <DetailBlock label="NEXT" value={item.next} />
                   {item.hook && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                      <Typography sx={{ fontSize: '9px', fontWeight: 600, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      <Typography sx={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                         HOOK
                       </Typography>
-                      <Typography sx={{ fontSize: '9px', color: '#94a3b8' }}>↳</Typography>
+                      <Typography sx={{ fontSize: '9px', color: 'var(--color-text-faint)' }}>↳</Typography>
                       <Chip
                         label={item.hook}
                         size="small"
                         sx={{
                           height: 20,
                           fontSize: '10px',
-                          backgroundColor: sectionMeta?.soft || '#f1f5f9',
+                          backgroundColor: sectionMeta?.soft || 'var(--color-surface)',
                           color: currentTint,
                           fontWeight: 500,
                         }}
@@ -165,17 +165,16 @@ function DetailBlock({ label, value }) {
       <Typography sx={{
         fontSize: '9px',
         fontWeight: 600,
-        color: '#94a3b8',
+        color: 'var(--color-text-faint)',
         letterSpacing: '0.05em',
         textTransform: 'uppercase',
         mb: 0.25,
       }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
+      <Typography sx={{ fontSize: '11px', color: 'var(--grey-600)', lineHeight: 1.5 }}>
         {value}
       </Typography>
     </Box>
   );
 }
-

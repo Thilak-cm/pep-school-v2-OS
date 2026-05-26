@@ -45,6 +45,8 @@ const EXPECTED_EXPORTS = [
   // Student Soul
   "generateStudentProfile",
   "backfillStudentProfiles",
+  // Monthly Plan
+  "generateMonthlyPlan",
   // Test Bench
   "testBenchRun",
 ];
