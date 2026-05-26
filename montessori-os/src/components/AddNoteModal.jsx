@@ -1817,7 +1817,11 @@ function AddNoteModal({
   const handleRecipientsNext = async () => {
     const noteData = transcriptionData || textData;
     if (!noteData) {
-      notify.warning('No note data available. Please try again.');
+      notify.warning('Add a note before saving.');
+      return;
+    }
+    if (!selectedStudents || selectedStudents.length === 0) {
+      notify.warning('Select at least one student.');
       return;
     }
 
@@ -2817,7 +2821,7 @@ function AddNoteModal({
                 </Button>
                 <Button
                   variant="contained"
-                  disabled={saving || selectedStudents.length === 0}
+                  disabled={saving}
                   onClick={handleRecipientsNext}
                   sx={{ minWidth: 120 }}
                 >
