@@ -91,42 +91,42 @@ export default function MonthlyPlanTab({ planData }) {
               }}
             >
               {/* Collapsed row */}
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                <Typography sx={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  color: currentTint,
-                  fontVariantNumeric: 'tabular-nums',
-                  minWidth: 18,
-                  pt: '2px',
-                }}>
-                  {String(idx + 1).padStart(2, '0')}
-                </Typography>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4 }}>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+                  <Typography sx={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: currentTint,
+                    fontVariantNumeric: 'tabular-nums',
+                    flexShrink: 0,
+                    pt: '3px',
+                  }}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </Typography>
+                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4, flex: 1, minWidth: 0 }}>
                     {item.work}
                   </Typography>
-                  {!isExpanded && item.next && (
-                    <Typography sx={{
-                      fontSize: '10.5px',
-                      color: '#94a3b8',
-                      mt: 0.25,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {item.next}
-                    </Typography>
-                  )}
+                  <Box sx={{ pt: '2px', color: '#cbd5e1', flexShrink: 0 }}>
+                    {isExpanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                  </Box>
                 </Box>
-                <Box sx={{ pt: '2px', color: '#cbd5e1', flexShrink: 0 }}>
-                  {isExpanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
-                </Box>
+                {!isExpanded && item.next && (
+                  <Typography sx={{
+                    fontSize: '10.5px',
+                    color: '#94a3b8',
+                    mt: 0.25,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {item.next}
+                  </Typography>
+                )}
               </Box>
 
               {/* Expanded detail */}
               {isExpanded && (
-                <Box sx={{ ml: '26px', mt: 1 }}>
+                <Box sx={{ mt: 1 }}>
                   <DetailBlock label="WATCH FOR" value={item.watch} />
                   <DetailBlock label="NEXT" value={item.next} />
                   {item.hook && (

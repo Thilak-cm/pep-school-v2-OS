@@ -86,11 +86,11 @@ describe('StudentDashboard Plan tab (PEP-260)', () => {
     );
   });
 
-  it('conditionally defaults activeTab to plan for eligible programs', async () => {
+  it('switches to plan tab when program resolves as toddler/primary', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.ok(
-      /hasPlanTab\s*\?\s*['"]plan['"]/.test(src),
-      'activeTab should default to plan when hasPlanTab is true',
+      /PLAN_PROGRAMS\.includes\(studentProgramId\)[\s\S]*?setActiveTab\(\s*['"]plan['"]\s*\)/.test(src),
+      'Should switch to plan tab when studentProgramId resolves to a plan-eligible program',
     );
   });
 
