@@ -106,7 +106,7 @@ export default function MonthlyPlanTab({ planData }) {
                   <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4 }}>
                     {item.work}
                   </Typography>
-                  {!isExpanded && item.offer && (
+                  {!isExpanded && item.next && (
                     <Typography sx={{
                       fontSize: '10.5px',
                       color: '#94a3b8',
@@ -115,7 +115,7 @@ export default function MonthlyPlanTab({ planData }) {
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}>
-                      {item.offer}
+                      {item.next}
                     </Typography>
                   )}
                 </Box>
@@ -127,7 +127,6 @@ export default function MonthlyPlanTab({ planData }) {
               {/* Expanded detail */}
               {isExpanded && (
                 <Box sx={{ ml: '26px', mt: 1 }}>
-                  <DetailBlock label="OFFER" value={item.offer} />
                   <DetailBlock label="WATCH FOR" value={item.watch} />
                   <DetailBlock label="NEXT" value={item.next} />
                   {item.hook && (

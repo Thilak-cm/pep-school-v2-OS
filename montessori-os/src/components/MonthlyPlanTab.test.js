@@ -53,11 +53,11 @@ describe('MonthlyPlanTab component (PEP-260)', () => {
     );
   });
 
-  it('renders offer field in expanded items', async () => {
+  it('does not render offer field in teacher-facing UI', async () => {
     const src = await readFile(componentPath, 'utf8');
     assert.ok(
-      /\.offer\b/.test(src) || /item\.offer/.test(src) || /OFFER/i.test(src),
-      'Should render offer field in expanded items',
+      !/DetailBlock.*offer/i.test(src) && !/label="OFFER"/.test(src),
+      'Should NOT render offer as a DetailBlock in expanded items',
     );
   });
 
