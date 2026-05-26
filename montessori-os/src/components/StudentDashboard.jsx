@@ -26,10 +26,12 @@ import { planMissingMediaUrlPaths, fetchMediaUrlsWithConcurrency } from '../util
 import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
+import MonthlyPlanTab from './MonthlyPlanTab';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -48,12 +50,20 @@ const CHIP_BASE = {
   flexShrink: 0,
 };
 
-const SNAPSHOT_TABS = [
+const PLAN_PROGRAMS = ['toddler', 'primary'];
+
+const SNAPSHOT_TABS_WITH_PLAN = [
+  { label: 'Plan', value: 'plan' },
   { label: 'Weekly', value: 'weekly' },
   { label: 'Writing', value: 'writing' },
 ];
 
-function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice' }) {
+const SNAPSHOT_TABS_NO_PLAN = [
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Writing', value: 'writing' },
+];
+
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState('weekly');
   const [cardLoading, setCardLoading] = useState(true);
@@ -66,6 +76,11 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [writingData, setWritingData] = useState(null);
   const [writingLoading, setWritingLoading] = useState(false);
   const [writingError, setWritingError] = useState('');
+  const [planData, setPlanData] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+  const [planRegenRunning, setPlanRegenRunning] = useState(false);
+  const [planRegenDialogOpen, setPlanRegenDialogOpen] = useState(false);
   const [hwMedia, setHwMedia] = useState([]);
   const [hwMediaUrls, setHwMediaUrls] = useState({});
   const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
@@ -88,6 +103,10 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [chartObservations, setChartObservations] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
+  const [studentProgramId, setStudentProgramId] = useState(null);
+  const [programResolved, setProgramResolved] = useState(false);
+  const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
+  const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -122,6 +141,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       timeZone: 'Asia/Kolkata'
     }).format(rounded);
     return formatted.replace(/\b(am|pm)\b/, (match) => match.toUpperCase());
+  };
+
+  const formatPlanMonth = (monthStr) => {
+    if (!monthStr) return '';
+    const [year, month] = monthStr.split('-');
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${months[parseInt(month, 10) - 1] || month} ${year}`;
   };
 
   const handleRegenerate = async () => {
@@ -168,6 +195,33 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       }
     };
     loadStudentDob();
+    return () => { active = false; };
+  }, [studentId]);
+
+  // Resolve student's programId from classroom doc
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+    setProgramResolved(false);
+    const resolve = async () => {
+      try {
+        const studentSnap = await getDoc(doc(db, 'students', studentId));
+        if (!active || !studentSnap.exists()) return;
+        const classroomId = studentSnap.data().classroomId;
+        if (!classroomId) { if (active) setProgramResolved(true); return; }
+        const classroomSnap = await getDoc(doc(db, 'classrooms', classroomId));
+        if (!active || !classroomSnap.exists()) { if (active) setProgramResolved(true); return; }
+        const pid = classroomSnap.data().programId || null;
+        if (active) {
+          setStudentProgramId(pid);
+          if (PLAN_PROGRAMS.includes(pid)) setActiveTab('plan');
+          setProgramResolved(true);
+        }
+      } catch {
+        if (active) setProgramResolved(true);
+      }
+    };
+    resolve();
     return () => { active = false; };
   }, [studentId]);
 
@@ -259,6 +313,44 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
     fetchWriting();
     return () => { active = false; };
   }, [activeTab, studentId, reloadKey]);
+
+  // Fetch monthly plan when Plan tab is active
+  useEffect(() => {
+    if (activeTab !== 'plan' || !studentId) return;
+    let active = true;
+    setPlanLoading(true);
+    setPlanError('');
+    setPlanData(null);
+
+    const fetchPlan = async () => {
+      try {
+        const planRef = doc(db, 'students', studentId, 'ai_summaries', 'monthly_plan');
+        const snap = await getDoc(planRef);
+        if (!active) return;
+        setPlanData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      } catch {
+        if (active) setPlanError('Failed to load monthly plan.');
+      } finally {
+        if (active) setPlanLoading(false);
+      }
+    };
+
+    fetchPlan();
+    return () => { active = false; };
+  }, [activeTab, studentId, reloadKey]);
+
+  const handlePlanRegenerate = async () => {
+    try {
+      setPlanRegenRunning(true);
+      const call = httpsCallable(cloudFunctions, 'generateMonthlyPlan', { timeout: 300_000 });
+      await call({ studentId });
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      notify.error(friendlyFunctionError(e));
+    } finally {
+      setPlanRegenRunning(false);
+    }
+  };
 
   const [hwMediaLoading, setHwMediaLoading] = useState(false);
   const hwMediaFetchedRef = useRef(null); // tracks studentId for which we already fetched
@@ -633,9 +725,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         overflow: 'hidden',
         minHeight: 0,
       }}>
-        {/* Tab strip */}
+        {/* Tab strip + card content — wait for programId resolution to avoid 2→3 tab flash */}
+        {!programResolved ? (
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-faint)', fontStyle: 'italic' }}>
+              Coach Pepper is pulling up the summary…
+            </Typography>
+          </Box>
+        ) : <>
         <HFTabs
-          tabs={SNAPSHOT_TABS}
+          tabs={snapshotTabs}
           value={activeTab}
           onChange={setActiveTab}
           variant="fullWidth"
@@ -704,7 +803,38 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               )
             )}
 
+            {/* Plan meta — on the same row as regen button */}
+            {activeTab === 'plan' && planData && (
+              <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0 }}>
+                Plan for <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{formatPlanMonth(planData.month)}</strong> · {planData.dataWindow?.observationCount || 0} obs
+              </Typography>
+            )}
+
             <Box sx={{ flex: 1 }} />
+
+            {/* Regenerate chip — plan tab, superadmin only */}
+            {activeTab === 'plan' && isSuperAdmin(userRole) && (
+              <Tooltip title="Regenerate monthly plan" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setPlanRegenDialogOpen(true)}
+                  disabled={planRegenRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-indigo-soft, rgba(79, 70, 229, 0.18))',
+                    backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                    color: 'var(--color-primary)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(79, 70, 229, 0.13)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Regenerate monthly plan"
+                >
+                  {planRegenRunning ? <CircularProgress size={14} /> : <Refresh size={14} />}
+                </Box>
+              </Tooltip>
+            )}
 
             {/* Refresh chip — weekly tab only */}
             {activeTab === 'weekly' && (
@@ -802,7 +932,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           </Stack>
 
           {/* ── Note count ── */}
-          <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
+          {activeTab !== 'plan' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
             {activeTab === 'weekly' ? (
               <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
             ) : (
@@ -810,7 +940,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                 ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
                 : <>Writing analysis</>
             )}
-          </Typography>
+          </Typography>}
 
           {/* ── Tab content — scrollable ── */}
           <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>
@@ -820,7 +950,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               sx={{ flex: 1, overflowY: 'auto', pr: 1, pb: 6, minHeight: 0 }}
               aria-label="Snapshot content (scroll for more)"
             >
-              {activeTab === 'weekly' ? (
+              {activeTab === 'plan' ? (
+                planLoading ? (
+                  <SnapshotBody cardLoading={true} />
+                ) : planError ? (
+                  <SnapshotBody cardError={planError} onOpenFeedback={onOpenFeedback} feedbackMessage="Monthly plan failed to load" />
+                ) : (
+                  <MonthlyPlanTab planData={planData} />
+                )
+              ) : activeTab === 'weekly' ? (
                 <SnapshotBody
                   cardData={cardData}
                   cardLoading={cardLoading}
@@ -883,6 +1021,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
           </Box>
         </CardContent>
+        </>}
 
         {/* ── Collapsible chart drawer ── */}
         <NotesOverTimeDrawer
@@ -956,6 +1095,63 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
           >
             {regenRunning ? 'Regenerating…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Monthly plan regeneration dialog ── */}
+      <Dialog
+        open={planRegenDialogOpen}
+        onClose={() => setPlanRegenDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
+          }
+        }}
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{
+                width: 48, height: 48, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                border: '1px solid rgba(99,102,241,0.35)',
+              }}>
+                <Refresh size={22} style={{ color: 'var(--color-primary)' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Regenerate monthly plan?
+              </Typography>
+            </Stack>
+            {planData?.generatedAt && (
+              <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'var(--color-indigo-bg)', border: '1px solid rgba(79, 70, 229, 0.2)' }}>
+                <Typography variant="body2" sx={{ color: 'var(--color-indigo-deep)', fontWeight: 600 }}>
+                  Last generated: {formatGeneratedAt(planData.generatedAt)}
+                </Typography>
+              </Box>
+            )}
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
+              This will generate a new monthly action plan using the latest observations. The current plan will be archived.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setPlanRegenDialogOpen(false)} disabled={planRegenRunning} sx={{ textTransform: 'none', color: 'var(--grey-600)' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => { setPlanRegenDialogOpen(false); await handlePlanRegenerate(); }}
+            disabled={planRegenRunning || !studentId}
+            sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
+          >
+            {planRegenRunning ? 'Generating…' : 'Generate'}
           </Button>
         </DialogActions>
       </Dialog>

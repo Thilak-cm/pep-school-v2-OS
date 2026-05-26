@@ -110,6 +110,7 @@ function renderScreen(screen, ctx) {
         <StudentDashboard
           student={ctx.selectedStudent}
           initialNoteType={ctx.studentDashboardNoteType}
+          userRole={ctx.role}
           onOpenTimeline={(noteType) => {
             ctx.setTimelineFilter(noteType || null);
             ctx.setScreen("timeline");

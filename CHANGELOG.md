@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.28.0 — 2026-05-26
+
+### Added
+- Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
+- Plan tab on student dashboard as the default tab for toddler and primary students — section pills, numbered accordion items with watch/next/hook fields (PEP-260)
+- Superadmin-only plan regeneration with confirmation dialog and archive-before-overwrite (PEP-260)
+- Program gate: monthly plans restricted to toddler and primary programs on both CF and UI (PEP-260)
+- Seed script for `config/monthly_plan` Firestore doc with full Montessori prompt (PEP-260)
+
 # 10.27.2 — 2026-05-26
 
 ### Changed

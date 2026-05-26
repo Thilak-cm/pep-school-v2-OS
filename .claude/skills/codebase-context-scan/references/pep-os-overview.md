@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-25T20:00:24.722Z
-App version: 10.27.0
+Generated: 2026-05-26T15:06:11.670Z
+App version: 10.27.2
 
 ## App Snapshot
 
@@ -31,17 +31,17 @@ App version: 10.27.0
 ## Existing Pages and Components
 
 ### Observation Capture (`observation-capture`)
-- Count: 10
-- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
+- Count: 12
+- Components: `AddNoteFab`, `AddNoteFab.test`, `AddNoteModal`, `AddNoteModal.photoUX.test`, `AddNoteModal.saveButton.test`, `ClassroomStudentPicker`, `LessonNoteConfigEditor`, `LessonNotes`, `LessonNotesPage`, `LessonNoteTagDialog`, `MentionTextArea`, `VoiceRecorder`
 - Representative paths:
 - `montessori-os/src/components/AddNoteFab.jsx`
 - `montessori-os/src/components/AddNoteFab.test.js`
 - `montessori-os/src/components/AddNoteModal.jsx`
+- `montessori-os/src/components/AddNoteModal.photoUX.test.js`
+- `montessori-os/src/components/AddNoteModal.saveButton.test.js`
 - `montessori-os/src/components/ClassroomStudentPicker.jsx`
 - `montessori-os/src/components/LessonNoteConfigEditor.jsx`
 - `montessori-os/src/components/LessonNotes.jsx`
-- `montessori-os/src/components/LessonNotesPage.jsx`
-- `montessori-os/src/components/LessonNoteTagDialog.jsx`
 
 ### Timelines and Media (`timelines-and-media`)
 - Count: 13
@@ -92,8 +92,8 @@ App version: 10.27.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 32
-- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 33
+- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -141,20 +141,23 @@ App version: 10.27.0
 
 ## Recent Changes
 
+### 10.27.2 (2026-05-26)
+- Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
+- Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
+- Back button on recipients screen no longer dead-ends during active transcription (PEP-283)
+
+### 10.27.1 (2026-05-25)
+- Photo note student picker: swap-to-replace instead of blocking toast when selecting a different student (PEP-243)
+- "Analyzing image" indicator moved inline near photos — CTA button stays enabled during analysis (PEP-243)
+- Age chip moved from student dashboard card to app header — shown on all student screens (PEP-243)
+
 ### 10.27.0 (2026-05-25)
 - Per-program writing analysis config — CF resolves `config/writing_analysis_{programId}` with program-specific prompts for primary, elementary, toddler, and adolescent (PEP-263)
 - Weekly scheduled Cloud Function `generateWritingAnalysis` runs writing analysis for all active students every Monday midnight IST (PEP-263)
 - Writing analysis archive — previous analysis saved to `ai_summaries/writing_analysis/history/` subcollection on each weekly run (PEP-263)
 
-### 10.26.1 (2026-05-22)
+### 10.26.1 (2026-05-23)
+- Notes-over-time chart replaced with collapsible pull-up drawer — collapsed by default with mini sparkline and last-point dot, expands on tap with smooth animation (PEP-261)
+- Scroll-fade gradient on snapshot card softened and halved from 56px to 28px (PEP-261)
 - Coach Pepper objective one-liner TextField vanishing on tap on mobile — removed useEffect feedback loop that reset selections on every parent re-render (PEP-265)
-
-### 10.26.0 (2026-05-21)
-- Parent contact fields on student documents — parent1 (name + email required), parent2 (optional) with email validation (PEP-247)
-- Student creation integrated into Add Users form with role tab selector (PEP-247)
-- Parent contact fields visible in student edit dialog and read-only view (PEP-247)
-
-### 10.25.1 (2026-05-21)
-- "Author can read own" rule on collection group queries for observations and media — fixes SettingsPage "notes this week" permissions error for teachers with transferred students (PEP-255)
-- Security regression tests for the new collection group author-read clauses (PEP-255)
 
