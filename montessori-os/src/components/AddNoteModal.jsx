@@ -14,7 +14,7 @@ import {
   Divider,
   Tooltip
 } from '@mui/material';
-import { X as Close, Mic as KeyboardVoice, Type as TextFields, Sparkles as AutoFixHigh, Sparkles as AutoAwesome, ArrowLeft as ArrowBack, BookOpen as MenuBook, Image as PhotoLibrary, Upload as CloudUpload, Pencil as Edit, CircleCheck as CheckCircle, Video as Movie, Mic, Paintbrush as Brush, Copy as ContentCopy } from '../icons';
+import { X as Close, Type as TextFields, Sparkles as AutoFixHigh, Sparkles as AutoAwesome, ArrowLeft as ArrowBack, Image as PhotoLibrary, Upload as CloudUpload, Pencil as Edit, CircleCheck as CheckCircle, Video as Movie, Mic, Paintbrush as Brush, Copy as ContentCopy } from '../icons';
 import { keyframes } from '@emotion/react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -293,7 +293,6 @@ function TextInput({
   );
 }
 
-const STEP_NOTE_TYPE = 'noteType';
 const STEP_RECORD = 'record';
 const STEP_TEXT_INPUT = 'textInput';
 const STEP_RECIPIENTS = 'recipients';
@@ -304,10 +303,9 @@ function AddNoteModal({
   open,
   onClose,
   initialStudents = [],
-  initialStep = STEP_NOTE_TYPE,
+  initialStep = STEP_RECORD,
   currentUser,
-  userRole,
-  onOpenLessonNotePage
+  userRole
 }) {
   const notify = useNotify();
   const [step, setStep] = useState(initialStep);
@@ -735,7 +733,6 @@ function AddNoteModal({
   }, [step, mediaMode, mediaItems, photoAnalysisLoading, selectedStudents]);
 
   const handleClose = () => {
-    setStep(STEP_NOTE_TYPE);
     coachRequestIdRef.current += 1;
     resetCoach();
     // Reset all state when closing
@@ -761,7 +758,6 @@ function AddNoteModal({
 
   // Derive if the modal has unsaved work
   const hasUnsavedWork = () => {
-    if (step === STEP_NOTE_TYPE) return false; // silent close for window 1
     if (step === STEP_TEXT_INPUT) return textDirty;
     if (step === STEP_RECORD) return voiceDirty;
     if (step === STEP_MEDIA) return mediaDirty || mediaUploading;
@@ -1071,23 +1067,6 @@ function AddNoteModal({
     const trimmed = String(base || '').trim();
     if (!trimmed) return 'document.pdf';
     return `${trimmed}.pdf`;
-  };
-
-  const handleSelectVoice = () => {
-    setVoiceTranscribing(false);
-    setTextData(null);
-    setStep(STEP_RECORD);
-  };
-
-  const handleSelectLesson = () => {
-    handleClose();
-    if (onOpenLessonNotePage) onOpenLessonNotePage();
-  };
-
-  const handleSelectMedia = (kind = null) => {
-    resetMediaState();
-    setStep(STEP_MEDIA);
-    setMediaMode(kind || 'photo');
   };
 
   const handleVoiceSave = (transcriptionData) => {
@@ -1817,7 +1796,11 @@ function AddNoteModal({
   const handleRecipientsNext = async () => {
     const noteData = transcriptionData || textData;
     if (!noteData) {
-      notify.warning('No note data available. Please try again.');
+      notify.warning('Add a note before saving.');
+      return;
+    }
+    if (!selectedStudents || selectedStudents.length === 0) {
+      notify.warning('Select at least one student.');
       return;
     }
 
@@ -1911,27 +1894,20 @@ function AddNoteModal({
             flexShrink: 0
           }}
         >
-          {step !== STEP_NOTE_TYPE && (
+          {(step === STEP_RECIPIENTS || step === STEP_COACH) ? (
             <IconButton
               aria-label="Go back"
               onClick={() => {
-                if (step === STEP_TEXT_INPUT) {
-                  setStep(STEP_NOTE_TYPE);
-                } else if (step === STEP_RECORD) {
-                  setStep(STEP_NOTE_TYPE);
-                } else if (step === STEP_COACH) {
+                if (step === STEP_COACH) {
                   handleCoachBack();
                 } else if (step === STEP_RECIPIENTS) {
-                  // Go back to previous step based on how we got here
                   if (textData) {
                     setStep(STEP_TEXT_INPUT);
                   } else if (transcriptionData) {
                     setStep(STEP_RECORD);
                   } else {
-                    setStep(STEP_NOTE_TYPE);
+                    setStep(STEP_RECORD);
                   }
-                } else if (step === STEP_MEDIA) {
-                  setStep(STEP_NOTE_TYPE);
                 }
               }}
               sx={{
@@ -1942,8 +1918,7 @@ function AddNoteModal({
             >
               <ArrowBack />
             </IconButton>
-          )}
-          {step === STEP_NOTE_TYPE && <Box />}
+          ) : <Box />}
           <IconButton
             aria-label="Close"
             onClick={() => requestClose('closeButton')}
@@ -1966,129 +1941,6 @@ function AddNoteModal({
             position: 'relative'
           }}
         >
-        {step === STEP_NOTE_TYPE && (
-          <Box
-            sx={{
-              position: 'relative',
-              p: 3,
-              pt: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              alignItems: 'center',
-              minHeight: 'fit-content'
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                width: '100%'
-              }}
-            >
-              {/* Available note types for creation */}
-              {/* Voice Note */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 2,
-                  p: 2,
-                  width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': { 
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-primary)'
-                  }
-                }}
-                onClick={handleSelectVoice}
-                aria-label="Add voice note"
-              >
-                <KeyboardVoice size={32} style={{ color: 'var(--color-primary)' }} />
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
-                      Voice Note
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Record audio note
-                  </Typography>
-                </Box>
-              </Box>
-              {/* Lesson Note */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 2,
-                  p: 2,
-                  width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': { 
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-primary)'
-                  }
-                }}
-                onClick={handleSelectLesson}
-                aria-label="Add lesson note"
-              >
-                <MenuBook size={32} style={{ color: 'var(--color-primary)' }} />
-                <Box sx={{ flex: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
-                      Lesson Note
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Structured lesson observation
-                  </Typography>
-                </Box>
-              </Box>
-              {/* Media Note */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  p: 2,
-                  width: '100%',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  '&:hover': {
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-primary)'
-                  }
-                }}
-                onClick={() => handleSelectMedia('photo')}
-                aria-label="Add media note"
-              >
-                <PhotoLibrary size={32} style={{ color: 'var(--color-primary)' }} />
-                <Box sx={{ flex: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body1" sx={{ color: 'var(--color-text)' }}>
-                      Media Note
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Attach photos, videos, or PDFs
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-        )}
-
         {step === STEP_MEDIA && (
           <Box
             sx={{
@@ -2817,7 +2669,7 @@ function AddNoteModal({
                 </Button>
                 <Button
                   variant="contained"
-                  disabled={saving || selectedStudents.length === 0}
+                  disabled={saving}
                   onClick={handleRecipientsNext}
                   sx={{ minWidth: 120 }}
                 >

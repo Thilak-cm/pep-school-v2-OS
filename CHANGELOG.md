@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.27.2 — 2026-05-26
+
+### Changed
+- Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
+- Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
+
+### Fixed
+- Back button on recipients screen no longer dead-ends during active transcription (PEP-283)
+
 # 10.27.1 — 2026-05-25
 
 ### Changed

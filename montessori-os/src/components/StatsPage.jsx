@@ -480,13 +480,8 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
               });
             }
           } catch (_error) {
-            // If it's an index error, show helpful message but don't break the page
-            if (_error.code === 'failed-precondition' && _error.message?.includes('index')) {
-              // Set empty array so page still loads with other data
-              allObservations = [];
-            } else {
-              allObservations = [];
-            }
+            if (import.meta.env.DEV) console.warn('[StatsPage] observations fetch failed', _error);
+            allObservations = [];
           }
         }
 
