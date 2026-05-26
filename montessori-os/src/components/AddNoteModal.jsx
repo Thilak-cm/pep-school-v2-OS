@@ -1905,6 +1905,8 @@ function AddNoteModal({
                     setStep(STEP_TEXT_INPUT);
                   } else if (transcriptionData) {
                     setStep(STEP_RECORD);
+                  } else {
+                    setStep(STEP_RECORD);
                   }
                 }
               }}
