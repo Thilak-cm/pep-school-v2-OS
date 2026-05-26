@@ -494,7 +494,8 @@ service cloud.firestore {
         );
       }
 
-      allow read: if adminCanQueryObservation() ||
+      allow read: if isSuperAdmin() ||
+        adminCanQueryObservation() ||
         (isTeacher() && ('studentId' in resource.data) && isTeacherInClassroom(studentClassroomId(resource.data.studentId))) ||
         (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
