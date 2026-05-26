@@ -65,15 +65,7 @@ const SNAPSHOT_TABS_NO_PLAN = [
 
 function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole }) {
   const notify = useNotify();
-  const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
-  const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
-  const [activeTab, setActiveTab] = useState(hasPlanTab ? 'plan' : 'weekly');
-  // Switch away from plan tab if program resolves to non-plan program
-  useEffect(() => {
-    if (studentProgramId && !PLAN_PROGRAMS.includes(studentProgramId) && activeTab === 'plan') {
-      setActiveTab('weekly');
-    }
-  }, [studentProgramId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [activeTab, setActiveTab] = useState('plan');
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -112,6 +104,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [chartLoading, setChartLoading] = useState(true);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
   const [studentProgramId, setStudentProgramId] = useState(null);
+  const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
+  const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
+
+  // Switch away from plan tab if program resolves to non-plan program
+  useEffect(() => {
+    if (studentProgramId && !hasPlanTab && activeTab === 'plan') {
+      setActiveTab('weekly');
+    }
+  }, [studentProgramId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
