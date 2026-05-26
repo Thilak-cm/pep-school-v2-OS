@@ -80,7 +80,16 @@ export const generateMonthlyPlan = functions
     const now = new Date();
     const age = calculateAge(dob, now);
     const ageStr = age ? `${age.years}y ${age.months}m` : "unknown age";
-    const programId = studentData.programId || "unknown";
+
+    // Resolve programId from classroom (student docs don't always have it)
+    let programId = studentData.programId || null;
+    if (!programId && studentData.classroomId) {
+      const classroomSnap = await db.collection("classrooms").doc(studentData.classroomId).get();
+      if (classroomSnap.exists) {
+        programId = classroomSnap.data().programId || null;
+      }
+    }
+    programId = programId || "unknown";
 
     // Program gate — toddler and primary only
     if (!["toddler", "primary"].includes(programId)) {
