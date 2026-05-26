@@ -482,3 +482,30 @@ export async function trashDriveFile(drive, fileId) {
     supportsAllDrives: true,
   });
 }
+
+/**
+ * Create a Drive shortcut to an existing file in a target folder.
+ * Shortcuts appear as normal files but point to the original —
+ * no content duplication, edits from either path hit the same file.
+ *
+ * @param {object} drive - Google Drive API client
+ * @param {string} parentFolderId - Folder to place the shortcut in
+ * @param {string} targetFileId - The file the shortcut points to
+ * @param {string} shortcutName - Display name for the shortcut
+ * @returns {{ shortcutId: string }} The created shortcut's file ID
+ */
+export async function createShortcut(drive, parentFolderId, targetFileId, shortcutName) {
+  const file = await drive.files.create({
+    requestBody: {
+      name: shortcutName,
+      mimeType: "application/vnd.google-apps.shortcut",
+      parents: [parentFolderId],
+      shortcutDetails: {
+        targetId: targetFileId,
+      },
+    },
+    supportsAllDrives: true,
+    fields: "id",
+  });
+  return { shortcutId: file.data.id };
+}
