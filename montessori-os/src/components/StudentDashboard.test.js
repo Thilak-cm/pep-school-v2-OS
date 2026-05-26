@@ -75,23 +75,22 @@ describe('StudentDashboard tab support', () => {
 });
 
 describe('StudentDashboard Plan tab (PEP-260)', () => {
-  it('has plan tab in SNAPSHOT_TABS as the first entry', async () => {
+  it('has plan tab in SNAPSHOT_TABS_WITH_PLAN as the first entry', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    // Plan should be the first tab in SNAPSHOT_TABS array
-    const tabsMatch = src.match(/SNAPSHOT_TABS\s*=\s*\[([\s\S]*?)\]/);
-    assert.ok(tabsMatch, 'Should define SNAPSHOT_TABS');
+    const tabsMatch = src.match(/SNAPSHOT_TABS_WITH_PLAN\s*=\s*\[([\s\S]*?)\]/);
+    assert.ok(tabsMatch, 'Should define SNAPSHOT_TABS_WITH_PLAN');
     const firstTab = tabsMatch[1].trim();
     assert.ok(
       /plan/i.test(firstTab.split('},')[0] || firstTab.split('}')[0]),
-      'First tab in SNAPSHOT_TABS should be Plan',
+      'First tab in SNAPSHOT_TABS_WITH_PLAN should be Plan',
     );
   });
 
-  it('defaults activeTab to plan', async () => {
+  it('conditionally defaults activeTab to plan for eligible programs', async () => {
     const src = await readFile(dashboardPath, 'utf8');
     assert.ok(
-      /useState\(\s*['"]plan['"]\s*\)/.test(src),
-      'activeTab should default to "plan"',
+      /hasPlanTab\s*\?\s*['"]plan['"]/.test(src),
+      'activeTab should default to plan when hasPlanTab is true',
     );
   });
 

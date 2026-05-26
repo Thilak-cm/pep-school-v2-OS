@@ -50,15 +50,30 @@ const CHIP_BASE = {
   flexShrink: 0,
 };
 
-const SNAPSHOT_TABS = [
+const PLAN_PROGRAMS = ['toddler', 'primary'];
+
+const SNAPSHOT_TABS_WITH_PLAN = [
   { label: 'Plan', value: 'plan' },
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Writing', value: 'writing' },
+];
+
+const SNAPSHOT_TABS_NO_PLAN = [
   { label: 'Weekly', value: 'weekly' },
   { label: 'Writing', value: 'writing' },
 ];
 
 function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole }) {
   const notify = useNotify();
-  const [activeTab, setActiveTab] = useState('plan');
+  const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
+  const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
+  const [activeTab, setActiveTab] = useState(hasPlanTab ? 'plan' : 'weekly');
+  // Switch away from plan tab if program resolves to non-plan program
+  useEffect(() => {
+    if (studentProgramId && !PLAN_PROGRAMS.includes(studentProgramId) && activeTab === 'plan') {
+      setActiveTab('weekly');
+    }
+  }, [studentProgramId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cardLoading, setCardLoading] = useState(true);
   const [cardError, setCardError] = useState('');
   const [cardData, setCardData] = useState(null);
@@ -96,6 +111,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [chartObservations, setChartObservations] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
+  const [studentProgramId, setStudentProgramId] = useState(null);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -130,6 +146,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       timeZone: 'Asia/Kolkata'
     }).format(rounded);
     return formatted.replace(/\b(am|pm)\b/, (match) => match.toUpperCase());
+  };
+
+  const formatPlanMonth = (monthStr) => {
+    if (!monthStr) return '';
+    const [year, month] = monthStr.split('-');
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${months[parseInt(month, 10) - 1] || month} ${year}`;
   };
 
   const handleRegenerate = async () => {
@@ -176,6 +200,25 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       }
     };
     loadStudentDob();
+    return () => { active = false; };
+  }, [studentId]);
+
+  // Resolve student's programId from classroom doc
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+    const resolve = async () => {
+      try {
+        const studentSnap = await getDoc(doc(db, 'students', studentId));
+        if (!active || !studentSnap.exists()) return;
+        const classroomId = studentSnap.data().classroomId;
+        if (!classroomId) return;
+        const classroomSnap = await getDoc(doc(db, 'classrooms', classroomId));
+        if (!active || !classroomSnap.exists()) return;
+        setStudentProgramId(classroomSnap.data().programId || null);
+      } catch { /* ignore — plan tab just won't show */ }
+    };
+    resolve();
     return () => { active = false; };
   }, [studentId]);
 
@@ -681,7 +724,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       }}>
         {/* Tab strip */}
         <HFTabs
-          tabs={SNAPSHOT_TABS}
+          tabs={snapshotTabs}
           value={activeTab}
           onChange={setActiveTab}
           variant="fullWidth"
@@ -748,6 +791,13 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   <span>{coverageButtonLabel}</span>
                 </Box>
               )
+            )}
+
+            {/* Plan meta — on the same row as regen button */}
+            {activeTab === 'plan' && planData && (
+              <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0 }}>
+                Plan for <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{formatPlanMonth(planData.month)}</strong> · {planData.dataWindow?.observationCount || 0} obs
+              </Typography>
             )}
 
             <Box sx={{ flex: 1 }} />
@@ -872,17 +922,15 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           </Stack>
 
           {/* ── Note count ── */}
-          <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
-            {activeTab === 'plan' ? (
-              planData ? <>Plan for <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{planData.month || 'this month'}</strong></> : <>Monthly plan</>
-            ) : activeTab === 'weekly' ? (
+          {activeTab !== 'plan' && <Typography sx={{ fontSize: '0.78rem', color: 'var(--color-text-soft)', flexShrink: 0, py: 0.25 }}>
+            {activeTab === 'weekly' ? (
               <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{Number.isFinite(cardNoteCount) ? cardNoteCount : '-'}</strong> notes over last <strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{cardWindowDays}</strong> days</>
             ) : (
               Number.isFinite(writingData?.sampleCount)
                 ? <><strong style={{ fontWeight: 700, color: 'var(--color-text)' }}>{writingData.sampleCount}</strong> writing samples analyzed</>
                 : <>Writing analysis</>
             )}
-          </Typography>
+          </Typography>}
 
           {/* ── Tab content — scrollable ── */}
           <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0, display: 'flex' }}>

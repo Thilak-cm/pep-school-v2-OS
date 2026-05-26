@@ -42,16 +42,6 @@ export default function MonthlyPlanTab({ planData }) {
 
   return (
     <Box>
-      {/* Meta row */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-          {formatMonth(planData.month)}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-          · {planData.dataWindow?.observationCount || 0} obs
-        </Typography>
-      </Box>
-
       {/* Section pills — horizontally scrollable */}
       <Box sx={{
         display: 'flex',
@@ -190,10 +180,3 @@ function DetailBlock({ label, value }) {
   );
 }
 
-function formatMonth(monthStr) {
-  if (!monthStr) return '';
-  const [year, month] = monthStr.split('-');
-  const months = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-  return `${months[parseInt(month, 10) - 1] || month} ${year}`;
-}
