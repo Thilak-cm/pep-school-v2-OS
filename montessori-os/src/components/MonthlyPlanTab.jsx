@@ -92,18 +92,17 @@ export default function MonthlyPlanTab({ planData }) {
             >
               {/* Collapsed row */}
               <Box>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
-                  <Typography sx={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    color: currentTint,
-                    fontVariantNumeric: 'tabular-nums',
-                    flexShrink: 0,
-                    pt: '3px',
-                  }}>
-                    {String(idx + 1).padStart(2, '0')}
-                  </Typography>
-                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4, flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1f2328', lineHeight: 1.4 }}>
+                    <Typography component="span" sx={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: currentTint,
+                      fontVariantNumeric: 'tabular-nums',
+                      mr: 0.75,
+                    }}>
+                      {String(idx + 1).padStart(2, '0')}
+                    </Typography>
                     {item.work}
                   </Typography>
                   <Box sx={{ pt: '2px', color: '#cbd5e1', flexShrink: 0 }}>
