@@ -54,11 +54,13 @@ export const generateMonthlyPlan = functions
     const callerUid = context.auth.uid;
     const callerDoc = await db.collection("users").doc(callerUid).get();
     if (!callerDoc.exists || callerDoc.data().role !== "superadmin") {
+      console.error(`[generateMonthlyPlan] permission denied: role=${callerDoc.data()?.role}, uid=${callerUid}`);
       throw new functions.https.HttpsError("permission-denied", "Only superadmins can generate monthly plans");
     }
 
     const { studentId, targetMonth } = data || {};
     if (!studentId) {
+      console.error("[generateMonthlyPlan] missing studentId in request data:", JSON.stringify(data));
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
