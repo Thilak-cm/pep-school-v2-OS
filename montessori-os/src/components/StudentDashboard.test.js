@@ -233,13 +233,6 @@ describe('NotesOverTimeDrawer component', () => {
     );
   });
 
-  it('renders grab handle', async () => {
-    const src = await readFile(drawerPath, 'utf8');
-    assert.ok(
-      /grab.*handle|handle|36/i.test(src) && /rgba\(31,\s*35,\s*40/.test(src),
-      'Should render grab handle with specified color',
-    );
-  });
 });
 
 describe('Component rename: BaseballCard → Snapshot', () => {

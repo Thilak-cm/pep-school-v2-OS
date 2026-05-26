@@ -60,7 +60,9 @@ function App() {
       try {
         const ref = doc(db, 'students', sid);
         const snap = await getDoc(ref);
-        if (snap.exists()) setSelectedStudent({ id: sid, ...snap.data() });
+        if (snap.exists()) {
+          setSelectedStudent((prev) => prev?.id === sid ? { id: sid, ...snap.data() } : prev);
+        }
       } catch { /* ignored */ }
     })();
     setPendingViewReportId(docId);

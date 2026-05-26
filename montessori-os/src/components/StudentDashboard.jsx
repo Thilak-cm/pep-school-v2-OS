@@ -104,18 +104,9 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [chartLoading, setChartLoading] = useState(true);
   const [studentDob, setStudentDob] = useState(student?.dateOfBirth || student?.dob || null);
   const [studentProgramId, setStudentProgramId] = useState(null);
+  const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
-
-  // Switch to plan tab when program resolves as toddler/primary, or away if not
-  useEffect(() => {
-    if (!studentProgramId) return;
-    if (PLAN_PROGRAMS.includes(studentProgramId)) {
-      setActiveTab('plan');
-    } else if (activeTab === 'plan') {
-      setActiveTab('weekly');
-    }
-  }, [studentProgramId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -211,16 +202,24 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   useEffect(() => {
     if (!studentId) return;
     let active = true;
+    setProgramResolved(false);
     const resolve = async () => {
       try {
         const studentSnap = await getDoc(doc(db, 'students', studentId));
         if (!active || !studentSnap.exists()) return;
         const classroomId = studentSnap.data().classroomId;
-        if (!classroomId) return;
+        if (!classroomId) { if (active) setProgramResolved(true); return; }
         const classroomSnap = await getDoc(doc(db, 'classrooms', classroomId));
-        if (!active || !classroomSnap.exists()) return;
-        setStudentProgramId(classroomSnap.data().programId || null);
-      } catch { /* ignore — plan tab just won't show */ }
+        if (!active || !classroomSnap.exists()) { if (active) setProgramResolved(true); return; }
+        const pid = classroomSnap.data().programId || null;
+        if (active) {
+          setStudentProgramId(pid);
+          if (PLAN_PROGRAMS.includes(pid)) setActiveTab('plan');
+          setProgramResolved(true);
+        }
+      } catch {
+        if (active) setProgramResolved(true);
+      }
     };
     resolve();
     return () => { active = false; };
@@ -726,7 +725,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         overflow: 'hidden',
         minHeight: 0,
       }}>
-        {/* Tab strip */}
+        {/* Tab strip + card content — wait for programId resolution to avoid 2→3 tab flash */}
+        {!programResolved ? (
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-faint)', fontStyle: 'italic' }}>
+              Coach Pepper is pulling up the summary…
+            </Typography>
+          </Box>
+        ) : <>
         <HFTabs
           tabs={snapshotTabs}
           value={activeTab}
@@ -1015,6 +1021,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             )}
           </Box>
         </CardContent>
+        </>}
 
         {/* ── Collapsible chart drawer ── */}
         <NotesOverTimeDrawer

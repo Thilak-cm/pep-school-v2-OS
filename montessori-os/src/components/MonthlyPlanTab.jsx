@@ -27,8 +27,9 @@ export default function MonthlyPlanTab({ planData }) {
   }
 
   const sections = planData.sections || [];
-  const currentSectionData = sections[activeSection] || null;
-  const currentTint = SECTIONS[activeSection]?.tint || '#666';
+  const currentSectionData = sections.find(s => s.name === SECTIONS[activeSection]?.key) || sections[activeSection] || null;
+  const sectionMeta = SECTIONS.find(s => s.key === currentSectionData?.name) || SECTIONS[activeSection];
+  const currentTint = sectionMeta?.tint || '#666';
   const items = currentSectionData?.items || [];
 
   const handleSectionChange = (idx) => {
@@ -140,7 +141,7 @@ export default function MonthlyPlanTab({ planData }) {
                         sx={{
                           height: 20,
                           fontSize: '10px',
-                          backgroundColor: SECTIONS[activeSection]?.soft || '#f1f5f9',
+                          backgroundColor: sectionMeta?.soft || '#f1f5f9',
                           color: currentTint,
                           fontWeight: 500,
                         }}
