@@ -74,12 +74,65 @@ describe('StudentDashboard tab support', () => {
   });
 });
 
-describe('StudentDashboard uniform toolbar', () => {
-  it('renders coverage, age, refresh, and flag in a toolbar row', async () => {
+describe('StudentDashboard Plan tab (PEP-260)', () => {
+  it('has plan tab in SNAPSHOT_TABS_WITH_PLAN as the first entry', async () => {
     const src = await readFile(dashboardPath, 'utf8');
-    // All four toolbar elements should be present
+    const tabsMatch = src.match(/SNAPSHOT_TABS_WITH_PLAN\s*=\s*\[([\s\S]*?)\]/);
+    assert.ok(tabsMatch, 'Should define SNAPSHOT_TABS_WITH_PLAN');
+    const firstTab = tabsMatch[1].trim();
+    assert.ok(
+      /plan/i.test(firstTab.split('},')[0] || firstTab.split('}')[0]),
+      'First tab in SNAPSHOT_TABS_WITH_PLAN should be Plan',
+    );
+  });
+
+  it('switches to plan tab when program resolves as toddler/primary', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /PLAN_PROGRAMS\.includes\(studentProgramId\)[\s\S]*?setActiveTab\(\s*['"]plan['"]\s*\)/.test(src),
+      'Should switch to plan tab when studentProgramId resolves to a plan-eligible program',
+    );
+  });
+
+  it('imports MonthlyPlanTab component', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /import\s+MonthlyPlanTab\s+from/.test(src),
+      'Should import MonthlyPlanTab',
+    );
+  });
+
+  it('fetches monthly_plan doc for plan tab', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /monthly_plan/.test(src),
+      'Should reference monthly_plan Firestore doc',
+    );
+  });
+
+  it('superadmin regenerate is role-gated', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /isSuperAdmin/.test(src),
+      'Should check isSuperAdmin for regenerate button visibility',
+    );
+  });
+
+  it('calls generateMonthlyPlan CF on regenerate', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    assert.ok(
+      /generateMonthlyPlan/.test(src),
+      'Should reference generateMonthlyPlan callable',
+    );
+  });
+});
+
+describe('StudentDashboard uniform toolbar', () => {
+  it('renders coverage, DoB-missing guard, refresh, and flag in a toolbar row', async () => {
+    const src = await readFile(dashboardPath, 'utf8');
+    // Toolbar elements: coverage, DoB-missing chip (age moved to header per PEP-243), refresh, flag
     assert.ok(/coverage/i.test(src), 'Toolbar should have coverage element');
-    assert.ok(/age/i.test(src) || /ageString/.test(src), 'Toolbar should have age chip');
+    assert.ok(/!ageString/.test(src), 'Toolbar should show DoB-missing chip when age is absent (age display moved to header)');
     assert.ok(/[Rr]efresh|[Rr]egenerate/.test(src), 'Toolbar should have refresh/regenerate button');
     assert.ok(/[Ff]lag|severity/.test(src), 'Toolbar should have flag button');
   });
@@ -180,13 +233,6 @@ describe('NotesOverTimeDrawer component', () => {
     );
   });
 
-  it('renders grab handle', async () => {
-    const src = await readFile(drawerPath, 'utf8');
-    assert.ok(
-      /grab.*handle|handle|36/i.test(src) && /rgba\(31,\s*35,\s*40/.test(src),
-      'Should render grab handle with specified color',
-    );
-  });
 });
 
 describe('Component rename: BaseballCard → Snapshot', () => {

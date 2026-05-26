@@ -930,10 +930,12 @@ function AddNoteModal({
   };
 
   const handleStudentsChange = (nextStudents) => {
-    // Photo mode: restrict to single student (multi-student photo analysis deferred to PEP-138)
+    // Photo mode: swap-to-replace — keep only the newest student (PEP-243)
+    let didSwap = false;
     if (step === STEP_MEDIA && mediaMode === 'photo' && nextStudents?.length > 1) {
-      notify.warning('Photo analysis supports one student at a time.');
-      return;
+      const newStudent = nextStudents.find((id) => !selectedStudents.includes(id));
+      nextStudents = newStudent ? [newStudent] : [nextStudents[nextStudents.length - 1]];
+      didSwap = true;
     }
     if ((selectedLessonIds?.length || 0) > 0 && (nextStudents?.length || 0) > 1) {
       setPendingStudents(nextStudents);
@@ -946,6 +948,7 @@ function AddNoteModal({
       const nextStu = nextStudents?.length === 1 ? nextStudents[0] : null;
       if (prevStu && (!nextStu || nextStu !== prevStu)) {
         setSelectedLessonIds([]);
+        if (didSwap) notify.info('Lesson tag cleared — photo notes are per-student.');
       }
     }
     setSelectedStudents(nextStudents);
@@ -2437,6 +2440,26 @@ function AddNoteModal({
                             Tap to add more photos/videos.
                           </Typography>
                         </Box>
+                        {/* Inline analysis indicator — shown near photos instead of hijacking the CTA (PEP-243) */}
+                        {mediaMode === 'photo' && photoAnalysisLoading && (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              px: 1.5,
+                              py: 1,
+                              borderRadius: 2,
+                              background: 'linear-gradient(135deg, var(--color-indigo-bg-light) 0%, var(--color-violet-bg-light) 100%)',
+                              border: '1px solid var(--color-violet-soft)',
+                            }}
+                          >
+                            <AutoAwesome size={16} className="icon-pulse" style={{ color: 'var(--color-violet-deeper)' }} />
+                            <Typography variant="caption" sx={{ color: 'var(--color-violet-deeper)', fontWeight: 600 }}>
+                              Analyzing image…
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
                     ) : (
                       <>
@@ -2561,7 +2584,7 @@ function AddNoteModal({
                   currentUser={currentUser}
                   userRole={userRole}
                   disabledStudentIds={[]}
-                  maxSelectable={1}
+                  maxSelectable={null}
                   textData={null}
                   voiceData={null}
                 />
@@ -2615,18 +2638,22 @@ function AddNoteModal({
               }}
             >
               {(() => {
-                const hasUnanalyzedPhotos = mediaMode === 'photo' && photoAnalysisLoading && mediaItems.some((it) => it.kind === 'photo' && !it.analyzed);
                 const hasMedia = mediaMode === 'pdf' ? !!pdfSource : mediaItems.length > 0;
                 const needsStudent = hasMedia && selectedStudents.length === 0;
                 return (
                   <Button
                     variant="contained"
-                    onClick={needsStudent ? () => photoStudentPickerRef.current?.focusSearch() : handleCreateMediaNote}
+                    onClick={needsStudent ? () => photoStudentPickerRef.current?.focusSearch() : () => {
+                      if (mediaMode === 'photo' && photoAnalysisLoading) {
+                        notify.info('Image analysis not done yet. Hold on!');
+                        return;
+                      }
+                      handleCreateMediaNote();
+                    }}
                     fullWidth
                     disabled={
                       saving ||
                       mediaUploading ||
-                      hasUnanalyzedPhotos ||
                       !hasMedia
                     }
                     sx={{
@@ -2635,17 +2662,6 @@ function AddNoteModal({
                       borderRadius: 2,
                       textTransform: 'none',
                       fontSize: '0.95rem',
-                      ...(hasUnanalyzedPhotos && {
-                        background: 'linear-gradient(135deg, var(--color-indigo-bg-light) 0%, var(--color-violet-bg-light) 100%)',
-                        color: 'var(--color-violet-deeper)',
-                        border: '1.5px solid var(--color-violet-soft)',
-                        boxShadow: 'none',
-                        '&.Mui-disabled': {
-                          background: 'linear-gradient(135deg, var(--color-indigo-bg-light) 0%, var(--color-violet-bg-light) 100%)',
-                          color: 'var(--color-violet-deeper)',
-                          border: '1.5px solid var(--color-violet-soft)',
-                        },
-                      }),
                       ...(needsStudent && {
                         bgcolor: 'var(--color-amber-bg)',
                         color: 'var(--color-amber-text)',
@@ -2657,11 +2673,8 @@ function AddNoteModal({
                         },
                       }),
                     }}
-                    startIcon={hasUnanalyzedPhotos ? (
-                      <AutoAwesome size={18} className="icon-pulse" />
-                    ) : undefined}
                   >
-                    {hasUnanalyzedPhotos ? 'Analyzing image\u2026' : needsStudent ? 'Select a student above' : 'Create Media Note'}
+                    {needsStudent ? 'Select a student above' : 'Create Media Note'}
                   </Button>
                 );
               })()}
