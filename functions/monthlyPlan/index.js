@@ -316,16 +316,16 @@ export const exportMonthlyPlanToDrive = functions
       );
     }
 
-    // Idempotency: if Drive IDs already exist, return them
-    if (plan.driveDocId && plan.driveChecklistId) {
-      return {
-        status: "ok",
-        studentId,
-        driveDocId: plan.driveDocId,
-        driveDocLink: plan.driveDocLink,
-        driveChecklistId: plan.driveChecklistId,
-        driveChecklistLink: plan.driveChecklistLink,
-      };
+    // If Drive docs already exist for this plan, trash them before re-creating
+    if (plan.driveDocId || plan.driveChecklistId) {
+      const { drive: cleanupDrive } = await getDriveClients();
+      for (const fileId of [plan.driveDocId, plan.driveChecklistId].filter(Boolean)) {
+        try {
+          await cleanupDrive.files.update({ fileId, requestBody: { trashed: true }, supportsAllDrives: true });
+        } catch (err) {
+          console.warn("[exportMonthlyPlanToDrive] failed to trash old doc:", err.message);
+        }
+      }
     }
 
     // 2. Resolve student + classroom + branch context

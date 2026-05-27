@@ -186,14 +186,13 @@ test("buildDetailedPlanRequests includes student name in header", () => {
   assert.ok(allText.includes("Ruhi / Roohi"), "Should include student name");
 });
 
-test("buildDetailedPlanRequests includes classroom and student code in header", () => {
+test("buildDetailedPlanRequests includes classroom name in header", () => {
   const requests = buildDetailedPlanRequests(SAMPLE_PLAN, STUDENT_META);
   const allText = requests
     .filter((r) => r.insertText)
     .map((r) => r.insertText.text)
     .join("");
   assert.ok(allText.includes("ACCEL COSMOS"), "Should include classroom name in upper case");
-  assert.ok(allText.includes("2025-AC-COS-008"), "Should include student code");
 });
 
 test("buildDetailedPlanRequests includes data window meta line", () => {
@@ -269,13 +268,14 @@ test("buildChecklistRequests returns non-empty array", () => {
   assert.ok(requests.length > 0, "Expected non-empty request array");
 });
 
-test("buildChecklistRequests includes student name in header", () => {
+test("buildChecklistRequests includes student name and Teacher Comments header", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
   const allText = requests
     .filter((r) => r.insertText)
     .map((r) => r.insertText.text)
     .join("");
   assert.ok(allText.includes("Ruhi / Roohi"), "Should include student name");
+  assert.ok(allText.includes("Teacher Comments"), "Should include Teacher Comments column header");
 });
 
 test("buildChecklistRequests includes all 5 section names", () => {
@@ -305,12 +305,12 @@ test("buildChecklistRequests includes all work titles as checklist items", () =>
   );
 });
 
-test("buildChecklistRequests creates a two-column table", () => {
+test("buildChecklistRequests sets wide right margin for teacher notes", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
-  const tableInserts = requests.filter((r) => r.insertTable);
-  assert.ok(tableInserts.length >= 1, "Should insert at least one table");
-  const table = tableInserts[0].insertTable;
-  assert.equal(table.columns, 2, "Table should have 2 columns");
+  const docStyles = requests.filter((r) => r.updateDocumentStyle);
+  assert.ok(docStyles.length >= 1, "Should set document margins");
+  const rightMargin = docStyles[0].updateDocumentStyle.documentStyle.marginRight;
+  assert.ok(rightMargin.magnitude >= 180, "Right margin should be wide (>=180pt) for teacher notes");
 });
 
 test("buildChecklistRequests uses 8pt font size", () => {

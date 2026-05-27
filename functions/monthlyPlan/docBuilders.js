@@ -120,9 +120,9 @@ export function buildDetailedPlanRequests(plan, meta) {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  // Line 1: "{CLASSROOM} · CHILD {NN}"
+  // Line 1: "{CLASSROOM}"
   const classroomUpper = (meta.classroomName || "").toUpperCase();
-  const headerLine1 = `${classroomUpper} · CHILD ${meta.childNumber || "01"}\n`;
+  const headerLine1 = `${classroomUpper}\n`;
   const h1 = ins(headerLine1);
   h1.advance();
   style(h1.start, h1.end, {
@@ -132,27 +132,16 @@ export function buildDetailedPlanRequests(plan, meta) {
     smallCaps: true,
   }, "fontSize,foregroundColor,weightedFontFamily,smallCaps");
 
-  // Line 2: Student name + code badge
-  const nameLine = `${plan.studentName}  ${meta.studentCode || ""}\n`;
+  // Line 2: Student name (no code badge)
+  const nameLine = `${plan.studentName}\n`;
   const nl = ins(nameLine);
   nl.advance();
-  // Style the name part bold + large
-  const nameEnd = nl.start + plan.studentName.length;
-  style(nl.start, nameEnd, {
+  style(nl.start, nl.end, {
     bold: true,
     fontSize: { magnitude: STYLE.studentNameSize, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
-  // Style the code part smaller
-  if (meta.studentCode) {
-    const codeStart = nameEnd + 2; // skip "  "
-    style(codeStart, nl.end - 1, { // -1 for \n
-      fontSize: { magnitude: STYLE.studentCodeSize, unit: "PT" },
-      foregroundColor: { color: { rgbColor: STYLE.labelColor } },
-      weightedFontFamily: { fontFamily: FONT },
-    });
-  }
 
   // Line 3: Data window meta
   const dw = plan.dataWindow || {};
@@ -347,39 +336,20 @@ export function buildChecklistRequests(plan, meta) {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  // Student code in top-right (small)
-  const codeHeader = `${plan.studentName} ${meta.studentCode || ""}\n`;
-  const ch = ins(codeHeader);
-  ch.advance();
-  style(ch.start, ch.end, {
-    fontSize: { magnitude: 7, unit: "PT" },
-    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
-    weightedFontFamily: { fontFamily: FONT },
-  });
-  paraStyle(ch.start, ch.end, { alignment: "END" }, "alignment");
-
-  // Student name (large, bold)
-  const nameLine = `${plan.studentName}  ${meta.studentCode || ""}\n`;
+  // Student name (large, bold) — no student code
+  const nameLine = `${plan.studentName}\n`;
   const nl = ins(nameLine);
   nl.advance();
-  const nameEnd = nl.start + plan.studentName.length;
-  style(nl.start, nameEnd, {
+  style(nl.start, nl.end, {
     bold: true,
     fontSize: { magnitude: 14, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
-  if (meta.studentCode) {
-    style(nameEnd + 2, nl.end - 1, {
-      fontSize: { magnitude: STYLE.studentCodeSize, unit: "PT" },
-      foregroundColor: { color: { rgbColor: STYLE.labelColor } },
-      weightedFontFamily: { fontFamily: FONT },
-    });
-  }
 
   // Classroom + month
   const monthLabel = formatMonthLabel(plan.month);
-  const subLine = `${meta.classroomName || ""}  ·  ${monthLabel} plan\n\n`;
+  const subLine = `${meta.classroomName || ""}  ·  ${monthLabel} plan\n`;
   const sl = ins(subLine);
   sl.advance();
   style(sl.start, sl.end, {
@@ -388,202 +358,105 @@ export function buildChecklistRequests(plan, meta) {
     weightedFontFamily: { fontFamily: FONT },
   });
 
-  // ── Two-column table ────────────────────────────────────────────────────
+  // Two column headers: "Tasks" left, "Teacher Comments" right (on same line using tabs)
+  const colHeaderText = "Tasks\tTeacher Comments\n";
+  const colH = ins(colHeaderText);
+  colH.advance();
+  // Style the whole line
+  style(colH.start, colH.end, {
+    bold: true,
+    fontSize: { magnitude: 8, unit: "PT" },
+    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
+    weightedFontFamily: { fontFamily: FONT },
+  }, "bold,fontSize,foregroundColor,weightedFontFamily");
+  // Right-align "Teacher Comments" via a right-aligned tab stop at the page edge
+  // Page width 612pt - left margin 36pt - right margin 270pt = 306pt content width
+  // Tab stop at 306pt pushes "Teacher Comments" to the right edge of content area
+  paraStyle(colH.start, colH.end, {
+    spaceBelow: { magnitude: 6, unit: "PT" },
+    tabStops: [{ offset: { magnitude: 306, unit: "PT" }, alignment: "END" }],
+  }, "spaceBelow,tabStops");
 
-  // Count total rows: one per section (all sections stack in left column)
-  // We use a single table with N rows (one per section) × 2 columns
-  const sectionCount = (plan.sections || []).length;
-  const tableRows = Math.max(sectionCount, 1);
+  // ── Checklist body ───────────────────────────────────────────────────────
+  //
+  // Wide right margin for teacher notes. Vertical divider line via
+  // borderRight on content paragraphs. Section headers + checkbox items.
 
+  // Set page margins: narrow left, ~50% right for teacher notes column
+  // Page width 612pt. Left margin 36pt. Right margin 270pt → content width ~306pt (~50%)
   requests.push({
-    insertTable: {
-      rows: tableRows,
-      columns: 2,
-      location: { index: idx },
+    updateDocumentStyle: {
+      documentStyle: {
+        marginTop: { magnitude: 36, unit: "PT" },
+        marginBottom: { magnitude: 36, unit: "PT" },
+        marginLeft: { magnitude: 36, unit: "PT" },
+        marginRight: { magnitude: 270, unit: "PT" },
+      },
+      fields: "marginTop,marginBottom,marginLeft,marginRight",
     },
   });
 
-  // After insertTable, the doc structure is:
-  // TABLE_START (idx+1) → ROW_START → CELL_START → PARA → CELL_END → CELL_START → PARA → CELL_END → ROW_END → ...
-  // Each structural element occupies 1 index.
-  // For a table with R rows × C cols:
-  //   Table start: +1
-  //   Per row: row_start(+1) + C * (cell_start(+1) + paragraph(+1) + newline(+1) + cell_end(0)) + row_end(0)
-  //   Actually: table(1) + per_row(1 + cols*(1+1+1)) = table occupies 1 + rows*(1 + cols*3) indexes
-  //   But we need to track the paragraph index inside each cell to insert text.
+  const sections = plan.sections || [];
 
-  // The table element itself uses some index space. We need to find the
-  // paragraph index inside each cell. After insertTable at index `idx`:
-  //   idx+1: table start
-  //   idx+2: row 0 start
-  //   idx+3: cell (0,0) start
-  //   idx+4: paragraph in cell (0,0) — this is where we insert text for left col row 0
-  //   idx+5: cell (0,1) start
-  //   idx+6: paragraph in cell (0,1) — right col row 0
-  //   idx+7: row 1 start
-  //   idx+8: cell (1,0) start
-  //   ...pattern: cell(r,c) paragraph = idx + 1 + r*(1 + 2*2) + 1 + c*2 + 1
-  //   Actually the exact offsets depend on the Docs API spec. Let me use a simpler approach.
-
-  // For an R×C table inserted at index `idx`, the paragraph inside cell(r,c) is at:
-  //   idx + 1                 (table element)
-  //   + r * (1 + C * 2)       (each row: row_start + C cells * (cell_start + paragraph))
-  //   + 1                     (row_start for this row)
-  //   + c * 2                 (skip prior cells: cell_start + paragraph each)
-  //   + 1                     (cell_start for this cell)
-  //   + 1                     (the paragraph itself — where text goes)
-  //
-  // Simplified: paragraphIndex(r, c) = idx + 2 + r*(1 + C*2) + 1 + c*2
-  // Wait, let me be precise. After insertTable with R rows and C columns:
-  //
-  // Structure (indices relative to table insertion point `idx`):
-  //   idx      — paragraph before table (existing)
-  //   idx+1    — table element
-  //   For row r (0-based):
-  //     base = idx + 2 + r * (1 + C * 2)
-  //     base      — row start
-  //     For col c:
-  //       cellBase = base + 1 + c * 2
-  //       cellBase     — cell start
-  //       cellBase + 1 — paragraph inside cell (insert text here)
-
-  const C = 2; // columns
-  function cellParaIndex(r, c) {
-    // Table inserted at `idx`. The paragraph inside cell (r, c):
-    const tableStart = idx + 1;
-    const rowBase = tableStart + r * (1 + C * 2);
-    return rowBase + 1 + c * 2 + 1;
-  }
-
-  // Total index space consumed by the table
-  const tableSize = 1 + tableRows * (1 + C * 2);
-  idx += tableSize;
-
-  // Now insert content into each cell. We must insert in REVERSE order
-  // (highest index first) to avoid shifting issues.
-  const cellInserts = [];
-
-  for (let r = 0; r < sectionCount; r++) {
-    const section = plan.sections[r];
+  for (const section of sections) {
     const sectionColor = SECTION_COLORS[section.name] || DEFAULT_SECTION_COLOR;
 
-    // Left cell: section name + checkbox items
-    const leftParaIdx = cellParaIndex(r, 0);
-    const sectionLabel = section.name.toUpperCase() + "\n";
-    let leftContent = sectionLabel;
+    // Vertical divider: borderRight on every content paragraph
+    const DIVIDER = {
+      borderRight: {
+        color: { color: { rgbColor: STYLE.lightGray } },
+        width: { magnitude: 0.5, unit: "PT" },
+        padding: { magnitude: 12, unit: "PT" },
+        dashStyle: "SOLID",
+      },
+    };
+
+    // Section header
+    const label = section.name.toUpperCase() + "\n";
+    const lbl = ins(label);
+    lbl.advance();
+    style(lbl.start, lbl.end, {
+      bold: true,
+      fontSize: { magnitude: STYLE.checklistSectionSize, unit: "PT" },
+      foregroundColor: { color: { rgbColor: sectionColor } },
+      weightedFontFamily: { fontFamily: FONT },
+      smallCaps: true,
+    }, "bold,fontSize,foregroundColor,weightedFontFamily,smallCaps");
+    paraStyle(lbl.start, lbl.end, {
+      spaceAbove: { magnitude: 12, unit: "PT" },
+      spaceBelow: { magnitude: 4, unit: "PT" },
+      ...DIVIDER,
+    }, "spaceAbove,spaceBelow,borderRight");
+
+    // Checkbox items
     for (const item of (section.items || [])) {
-      leftContent += `☐  ${item.work}\n`;
-    }
-
-    cellInserts.push({
-      paraIdx: leftParaIdx,
-      content: leftContent,
-      sectionColor,
-      sectionLabelLen: sectionLabel.length,
-    });
-
-    // Right cell: empty (teacher notes space) — just leave default paragraph
-  }
-
-  // Insert in reverse index order
-  cellInserts.sort((a, b) => b.paraIdx - a.paraIdx);
-
-  for (const cell of cellInserts) {
-    requests.push({
-      insertText: {
-        location: { index: cell.paraIdx },
-        text: cell.content,
-      },
-    });
-    // Style the section label (bold, colored, small caps)
-    requests.push({
-      updateTextStyle: {
-        range: {
-          startIndex: cell.paraIdx,
-          endIndex: cell.paraIdx + cell.sectionLabelLen,
-        },
-        textStyle: {
-          bold: true,
-          fontSize: { magnitude: STYLE.checklistSectionSize, unit: "PT" },
-          foregroundColor: { color: { rgbColor: cell.sectionColor } },
-          weightedFontFamily: { fontFamily: FONT },
-          smallCaps: true,
-        },
-        fields: "bold,fontSize,foregroundColor,weightedFontFamily,smallCaps",
-      },
-    });
-    // Style the checkbox items
-    const itemsStart = cell.paraIdx + cell.sectionLabelLen;
-    const itemsEnd = cell.paraIdx + cell.content.length;
-    if (itemsEnd > itemsStart) {
-      requests.push({
-        updateTextStyle: {
-          range: { startIndex: itemsStart, endIndex: itemsEnd },
-          textStyle: {
-            fontSize: { magnitude: 8, unit: "PT" },
-            foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
-            weightedFontFamily: { fontFamily: FONT },
-          },
-          fields: "fontSize,foregroundColor,weightedFontFamily",
-        },
+      const line = `☐  ${item.work}\n`;
+      const li = ins(line);
+      li.advance();
+      style(li.start, li.end, {
+        fontSize: { magnitude: 8, unit: "PT" },
+        foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
+        weightedFontFamily: { fontFamily: FONT },
       });
+      paraStyle(li.start, li.end, {
+        spaceBelow: { magnitude: 2, unit: "PT" },
+        ...DIVIDER,
+      }, "spaceBelow,borderRight");
     }
   }
-
-  // ── Table column widths ──────────────────────────────────────────────────
-  // Left column ~55%, right column ~45% (for teacher notes)
-  // Note: Google Docs API doesn't directly support column width percentage in
-  // batchUpdate. We'll set the table's column properties via updateTableColumnProperties.
-  // Page width ~468pt (Letter 612pt - 72pt margins × 2)
-  requests.push({
-    updateTableColumnProperties: {
-      tableStartLocation: { index: idx - tableSize + 1 },
-      columnIndices: [0],
-      tableColumnProperties: {
-        widthType: "FIXED_WIDTH",
-        width: { magnitude: 260, unit: "PT" },
-      },
-      fields: "widthType,width",
-    },
-  });
-  requests.push({
-    updateTableColumnProperties: {
-      tableStartLocation: { index: idx - tableSize + 1 },
-      columnIndices: [1],
-      tableColumnProperties: {
-        widthType: "FIXED_WIDTH",
-        width: { magnitude: 208, unit: "PT" },
-      },
-      fields: "widthType,width",
-    },
-  });
 
   // ── Footer ──────────────────────────────────────────────────────────────
 
-  const footerText = `\nRationale and detailed how-to-offer notes are in the companion Monthly Plan document.\n`;
-  requests.push({
-    insertText: { location: { index: idx }, text: footerText },
-  });
-  requests.push({
-    updateTextStyle: {
-      range: { startIndex: idx, endIndex: idx + footerText.length },
-      textStyle: {
-        italic: true,
-        fontSize: { magnitude: STYLE.checklistFooterSize, unit: "PT" },
-        foregroundColor: { color: { rgbColor: STYLE.lightGray } },
-        weightedFontFamily: { fontFamily: FONT },
-      },
-      fields: "italic,fontSize,foregroundColor,weightedFontFamily",
-    },
-  });
-  requests.push({
-    updateParagraphStyle: {
-      range: { startIndex: idx, endIndex: idx + footerText.length },
-      paragraphStyle: { alignment: "CENTER" },
-      fields: "alignment",
-    },
-  });
-  idx += footerText.length;
+  const footerText = "\nRationale and detailed how-to-offer notes are in the companion Monthly Plan document.\n";
+  const ft = ins(footerText);
+  ft.advance();
+  style(ft.start, ft.end, {
+    italic: true,
+    fontSize: { magnitude: STYLE.checklistFooterSize, unit: "PT" },
+    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
+    weightedFontFamily: { fontFamily: FONT },
+  }, "italic,fontSize,foregroundColor,weightedFontFamily");
+  paraStyle(ft.start, ft.end, { alignment: "CENTER" }, "alignment");
 
   return requests;
 }
