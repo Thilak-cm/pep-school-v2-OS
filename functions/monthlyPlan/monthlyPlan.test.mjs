@@ -10,6 +10,7 @@ import {
   serializeObservation,
   serializeMedia,
   formatWritingAnalysis,
+  formatFeedback,
   buildUserPrompt,
 } from "./helpers.js";
 
@@ -217,5 +218,96 @@ describe("buildUserPrompt", () => {
     assert.ok(prompt.includes("=== Preceding Month Plan ==="));
     assert.ok(prompt.includes("Language"));
     assert.ok(prompt.includes("Sandpaper Letters"));
+  });
+
+  it("includes feedback section when feedback entries provided", () => {
+    const feedback = [
+      {
+        difficulty: "too_easy",
+        pace: "good_pace",
+        section: "Language",
+        text: "Aria already does bead chains independently",
+        createdByName: "Ms. Priya",
+        createdAt: "2026-05-15T10:00:00Z",
+      },
+      {
+        text: "Math items are well calibrated",
+        section: "General",
+        createdByName: "Ms. Priya",
+        createdAt: "2026-05-20T14:00:00Z",
+      },
+    ];
+    const prompt = buildUserPrompt({
+      profile: baseProfile,
+      observations: [],
+      mediaDocs: [],
+      writingAnalysis: null,
+      precedingPlan: null,
+      feedback,
+    });
+
+    assert.ok(prompt.includes("=== Teacher Feedback on Preceding Plan (2 entries) ==="));
+    assert.ok(prompt.includes("too_easy"));
+    assert.ok(prompt.includes("good_pace"));
+    assert.ok(prompt.includes("Language"));
+    assert.ok(prompt.includes("Aria already does bead chains independently"));
+    assert.ok(prompt.includes("Math items are well calibrated"));
+  });
+
+  it("omits feedback section when no feedback provided", () => {
+    const prompt = buildUserPrompt({
+      profile: baseProfile,
+      observations: [],
+      mediaDocs: [],
+      writingAnalysis: null,
+      precedingPlan: null,
+      feedback: [],
+    });
+
+    assert.ok(!prompt.includes("=== Teacher Feedback"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatFeedback
+// ---------------------------------------------------------------------------
+describe("formatFeedback", () => {
+  it("formats a complete feedback entry with all fields", () => {
+    const entry = {
+      difficulty: "too_tough",
+      pace: "too_slow",
+      section: "Math",
+      text: "Number rods are too advanced for this child right now",
+      createdByName: "Ms. Priya",
+      createdAt: "2026-05-15T10:30:00Z",
+    };
+    const result = formatFeedback(entry);
+    assert.ok(result.includes("[2026-05-15]"));
+    assert.ok(result.includes("Difficulty: too_tough"));
+    assert.ok(result.includes("Pace: too_slow"));
+    assert.ok(result.includes("Section: Math"));
+    assert.ok(result.includes("Number rods are too advanced"));
+    assert.ok(result.includes("(by Ms. Priya)"));
+  });
+
+  it("formats a feedback entry with only text", () => {
+    const entry = {
+      text: "Good plan overall",
+      createdAt: "2026-05-20T09:00:00Z",
+    };
+    const result = formatFeedback(entry);
+    assert.ok(result.includes("Good plan overall"));
+    assert.ok(!result.includes("Difficulty:"));
+    assert.ok(!result.includes("Pace:"));
+  });
+
+  it("formats a feedback entry with only difficulty (no text)", () => {
+    const entry = {
+      difficulty: "about_right",
+      createdAt: "2026-05-18T08:00:00Z",
+    };
+    const result = formatFeedback(entry);
+    assert.ok(result.includes("Difficulty: about_right"));
+    assert.ok(!result.includes("Pace:"));
   });
 });
