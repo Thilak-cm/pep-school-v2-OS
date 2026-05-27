@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon, Upload as UploadIcon } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -83,6 +83,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [planRegenRunning, setPlanRegenRunning] = useState(false);
   const [planRegenDialogOpen, setPlanRegenDialogOpen] = useState(false);
   const [planFeedbackOpen, setPlanFeedbackOpen] = useState(false);
+  const [planExportRunning, setPlanExportRunning] = useState(false);
+  const [planExportDialogOpen, setPlanExportDialogOpen] = useState(false);
   const [hwMedia, setHwMedia] = useState([]);
   const [hwMediaUrls, setHwMediaUrls] = useState({});
   const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
@@ -351,6 +353,22 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
       notify.error(friendlyFunctionError(e));
     } finally {
       setPlanRegenRunning(false);
+    }
+  };
+
+  const handlePlanExportToDrive = async () => {
+    try {
+      setPlanExportRunning(true);
+      const call = httpsCallable(cloudFunctions, 'exportMonthlyPlanToDrive', { timeout: 120_000 });
+      const result = await call({ studentId });
+      const { driveDocLink } = result.data;
+      notify.success('Exported to Google Drive');
+      if (driveDocLink) window.open(driveDocLink, '_blank');
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      notify.error(friendlyFunctionError(e));
+    } finally {
+      setPlanExportRunning(false);
     }
   };
 
@@ -836,6 +854,30 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Tooltip>
             )}
 
+            {/* Export to Drive chip — plan tab, superadmin only, only when plan exists */}
+            {activeTab === 'plan' && isSuperAdmin(userRole) && planData && (
+              <Tooltip title="Export to Google Drive" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setPlanExportDialogOpen(true)}
+                  disabled={planExportRunning || !studentId}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'rgba(52, 168, 83, 0.2)',
+                    backgroundColor: 'rgba(52, 168, 83, 0.06)',
+                    color: '#34A853',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(52, 168, 83, 0.15)' },
+                    '&:disabled': { opacity: 0.4, cursor: 'default' },
+                  }}
+                  aria-label="Export to Google Drive"
+                >
+                  {planExportRunning ? <CircularProgress size={14} sx={{ color: '#34A853' }} /> : <UploadIcon size={14} />}
+                </Box>
+              </Tooltip>
+            )}
+
             {/* Regenerate chip — plan tab, superadmin only */}
             {activeTab === 'plan' && isSuperAdmin(userRole) && (
               <Tooltip title="Regenerate monthly plan" arrow>
@@ -1176,6 +1218,56 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
           >
             {planRegenRunning ? 'Generating…' : 'Generate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Monthly plan export to Drive dialog ── */}
+      <Dialog
+        open={planExportDialogOpen}
+        onClose={() => setPlanExportDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'var(--color-paper)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)'
+          }
+        }}
+      >
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{
+                width: 48, height: 48, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'radial-gradient(circle, rgba(52,168,83,0.18) 0%, rgba(52,168,83,0.08) 70%)',
+                border: '1px solid rgba(52,168,83,0.35)',
+              }}>
+                <UploadIcon size={22} style={{ color: '#34A853' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                Export plan to Google Drive?
+              </Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: 'var(--grey-600)' }}>
+              This will create two Google Docs in the shared Drive: a detailed plan with rationale and a printable task checklist. The docs will open in a new tab.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setPlanExportDialogOpen(false)} disabled={planExportRunning} sx={{ textTransform: 'none', color: 'var(--grey-600)' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => { setPlanExportDialogOpen(false); await handlePlanExportToDrive(); }}
+            disabled={planExportRunning || !studentId}
+            sx={{ textTransform: 'none', borderRadius: 999, px: 3, backgroundColor: '#34A853', boxShadow: '0 10px 20px rgba(52, 168, 83, 0.25)', '&:hover': { backgroundColor: '#2E9549' } }}
+          >
+            {planExportRunning ? 'Exporting…' : 'Export'}
           </Button>
         </DialogActions>
       </Dialog>
