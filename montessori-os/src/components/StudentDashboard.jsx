@@ -814,6 +814,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
             <Box sx={{ flex: 1 }} />
 
+            {/* Feedback chip — plan tab, admins only (PEP-282) */}
+            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
+              <Tooltip title="Rate this plan" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setPlanFeedbackOpen(true)}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-green-soft, rgba(22, 163, 74, 0.18))',
+                    backgroundColor: 'rgba(22, 163, 74, 0.06)',
+                    color: 'var(--color-secondary, #16a34a)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(22, 163, 74, 0.13)' },
+                  }}
+                  aria-label="Plan feedback"
+                >
+                  <FeedbackIcon size={14} />
+                </Box>
+              </Tooltip>
+            )}
+
             {/* Regenerate chip — plan tab, superadmin only */}
             {activeTab === 'plan' && isSuperAdmin(userRole) && (
               <Tooltip title="Regenerate monthly plan" arrow>
@@ -834,28 +856,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   aria-label="Regenerate monthly plan"
                 >
                   {planRegenRunning ? <CircularProgress size={14} /> : <Refresh size={14} />}
-                </Box>
-              </Tooltip>
-            )}
-
-            {/* Feedback chip — plan tab, admins only (PEP-282) */}
-            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
-              <Tooltip title="Rate this plan" arrow>
-                <Box
-                  component="button"
-                  onClick={() => setPlanFeedbackOpen(true)}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: 'var(--color-green-soft, rgba(22, 163, 74, 0.18))',
-                    backgroundColor: 'rgba(22, 163, 74, 0.06)',
-                    color: 'var(--color-secondary, #16a34a)',
-                    p: 0,
-                    '&:hover': { backgroundColor: 'rgba(22, 163, 74, 0.13)' },
-                  }}
-                  aria-label="Plan feedback"
-                >
-                  <FeedbackIcon size={14} />
                 </Box>
               </Tooltip>
             )}

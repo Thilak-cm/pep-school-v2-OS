@@ -147,10 +147,8 @@ export default function PlanFeedbackDialog({
           },
         }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 0.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            {submitted ? 'Feedback submitted' : "How's this plan?"}
-          </Typography>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 0.5, fontSize: '1rem', fontWeight: 600 }}>
+          {submitted ? 'Feedback submitted' : "How's this plan?"}
           <IconButton size="small" onClick={handleClose} aria-label="Close feedback">
             <X size={18} />
           </IconButton>
