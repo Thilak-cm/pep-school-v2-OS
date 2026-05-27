@@ -210,10 +210,9 @@ service cloud.firestore {
         }
 
         // Plan feedback from admins (PEP-282)
-        // Classroom admins + superadmins can create feedback entries; read own submissions
+        // Superadmins: full read/create; classroomadmins: scoped to manageable classrooms
         match /feedback/{feedbackId} {
-          allow read: if isPrivilegedAdmin();
-          allow create: if isPrivilegedAdmin();
+          allow read, create: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId));
         }
       }
 

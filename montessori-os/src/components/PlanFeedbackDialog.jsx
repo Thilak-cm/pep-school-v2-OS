@@ -5,14 +5,15 @@
  * feedback on a student's monthly plan. Each submission creates a standalone
  * doc at students/{id}/ai_summaries/monthly_plan/feedback/{autoId}.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, forwardRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Typography, Box, Chip, IconButton, Slide,
 } from '@mui/material';
-import { collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Mic, X } from '../icons';
+import useNotify from '../notifications/useNotify';
 import VoiceRecorder from '../VoiceRecorder';
 
 // ── Option definitions ────────────────────────────────────────────
@@ -32,7 +33,9 @@ const SECTION_TAGS = [
   'General', 'Language', 'Sensorial', 'Math', 'Practical Life', 'Grace & Courtesy',
 ];
 
-const Transition = (props) => <Slide direction="up" {...props} />;
+const Transition = forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 // ── Component ─────────────────────────────────────────────────────
 export default function PlanFeedbackDialog({
@@ -48,38 +51,16 @@ export default function PlanFeedbackDialog({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
-
-  // Pre-fill difficulty & pace from user's most recent feedback on this plan
-  useEffect(() => {
-    if (!open || !studentId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const feedbackRef = collection(
-          db, 'students', studentId, 'ai_summaries', 'monthly_plan', 'feedback',
-        );
-        const q = query(feedbackRef, orderBy('createdAt', 'desc'), limit(1));
-        const snap = await getDocs(q);
-        if (cancelled || snap.empty) return;
-        const latest = snap.docs[0].data();
-        if (latest.difficulty) setDifficulty(latest.difficulty);
-        if (latest.pace) setPace(latest.pace);
-      } catch {
-        // Non-critical — pre-fill is best-effort
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [open, studentId]);
+  const notify = useNotify();
 
   const canSubmit = !!(difficulty || pace || text.trim());
 
   const resetForm = useCallback(() => {
+    setDifficulty(null);
+    setPace(null);
     setText('');
     setSection('General');
     setSubmitted(false);
-    // Keep difficulty/pace pre-filled for repeat visits
   }, []);
 
   const handleClose = useCallback(() => {
@@ -103,13 +84,14 @@ export default function PlanFeedbackDialog({
         planMonth: planMonth || null,
         createdBy: auth.currentUser?.uid || null,
         createdByName: auth.currentUser?.displayName || null,
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
       });
 
+      notify.success('Feedback saved');
       setSubmitted(true);
       setTimeout(() => handleClose(), 1200);
-    } catch (err) {
-      console.error('[PlanFeedback] write failed', err);
+    } catch {
+      notify.error('Could not save feedback. Please try again.');
     } finally {
       setSubmitting(false);
     }

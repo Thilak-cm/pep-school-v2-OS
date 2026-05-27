@@ -109,7 +109,7 @@ export const generateMonthlyPlan = functions
 
     const studentRef = db.collection("students").doc(studentId);
 
-    const [obsSnap, mediaSnap, writingSnap, precedingPlanSnap, feedbackSnap] = await Promise.all([
+    const [obsSnap, mediaSnap, writingSnap, precedingPlanSnap] = await Promise.all([
       studentRef.collection("observations")
         .where("observedAt", ">=", fourMonthsAgo)
         .orderBy("observedAt", "desc")
@@ -120,15 +120,12 @@ export const generateMonthlyPlan = functions
         .get(),
       studentRef.collection("ai_summaries").doc("writing_analysis").get(),
       studentRef.collection("ai_summaries").doc("monthly_plan").get(),
-      studentRef.collection("ai_summaries").doc("monthly_plan")
-        .collection("feedback").orderBy("createdAt", "desc").get(),
     ]);
 
     const observations = obsSnap.docs.map((d) => d.data());
     const mediaDocs = mediaSnap.docs.map((d) => d.data());
     const writingAnalysis = writingSnap.exists ? writingSnap.data() : null;
     const precedingPlan = precedingPlanSnap.exists ? precedingPlanSnap.data() : null;
-    const feedback = feedbackSnap.docs.map((d) => d.data());
 
     // Compute data window
     const allDates = observations
@@ -154,7 +151,6 @@ export const generateMonthlyPlan = functions
       mediaDocs,
       writingAnalysis,
       precedingPlan,
-      feedback,
     });
 
     // 5. Call LLM via OpenRouter

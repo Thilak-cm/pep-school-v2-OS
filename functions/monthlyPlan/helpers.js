@@ -85,24 +85,6 @@ export function formatWritingAnalysis(analysis) {
 }
 
 /**
- * Format a single plan feedback entry into a text line for the prompt.
- */
-export function formatFeedback(entry) {
-  const date = entry.createdAt
-    ? new Date(entry.createdAt).toISOString().slice(0, 10)
-    : "unknown date";
-
-  const parts = [`[${date}]`];
-  if (entry.difficulty) parts.push(`Difficulty: ${entry.difficulty}`);
-  if (entry.pace) parts.push(`Pace: ${entry.pace}`);
-  if (entry.section && entry.section !== "General") parts.push(`Section: ${entry.section}`);
-  if (entry.text) parts.push(entry.text);
-  if (entry.createdByName) parts.push(`(by ${entry.createdByName})`);
-
-  return parts.join(" | ");
-}
-
-/**
  * Build the user prompt from all gathered context.
  *
  * @param {object} opts
@@ -111,7 +93,6 @@ export function formatFeedback(entry) {
  * @param {object[]} opts.mediaDocs    — media docs (already sorted desc)
  * @param {object|null} opts.writingAnalysis — writing_analysis doc data or null
  * @param {object|null} opts.precedingPlan   — previous month's plan doc data or null
- * @param {object[]|null} opts.feedback      — feedback entries from preceding plan (PEP-282)
  * @param {object|null} opts.lessonHistory   — future placeholder, currently null
  * @param {object|null} opts.curriculumSequence — future placeholder, currently null
  * @returns {string}
@@ -122,7 +103,6 @@ export function buildUserPrompt({
   mediaDocs,
   writingAnalysis,
   precedingPlan,
-  feedback = null,
   lessonHistory = null,
   curriculumSequence = null,
 }) {
@@ -172,15 +152,6 @@ export function buildUserPrompt({
           }
         }
       }
-    }
-  }
-
-  // Teacher feedback on the preceding plan (PEP-282)
-  if (feedback && feedback.length > 0) {
-    parts.push("");
-    parts.push(`=== Teacher Feedback on Preceding Plan (${feedback.length} entries) ===`);
-    for (const entry of feedback) {
-      parts.push(formatFeedback(entry));
     }
   }
 
