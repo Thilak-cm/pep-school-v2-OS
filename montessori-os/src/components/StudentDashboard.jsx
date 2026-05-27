@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, MessageSquare as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Gauge as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -812,28 +812,6 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
               </Typography>
             )}
 
-            {/* Feedback chip — plan tab, admins only */}
-            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
-              <Tooltip title="Give feedback on this plan" arrow>
-                <Box
-                  component="button"
-                  onClick={() => setPlanFeedbackOpen(true)}
-                  sx={{
-                    ...CHIP_BASE,
-                    width: 28,
-                    borderColor: 'var(--color-green-soft, rgba(22, 163, 74, 0.18))',
-                    backgroundColor: 'rgba(22, 163, 74, 0.06)',
-                    color: 'var(--color-secondary, #16a34a)',
-                    p: 0,
-                    '&:hover': { backgroundColor: 'rgba(22, 163, 74, 0.13)' },
-                  }}
-                  aria-label="Plan feedback"
-                >
-                  <FeedbackIcon size={14} />
-                </Box>
-              </Tooltip>
-            )}
-
             <Box sx={{ flex: 1 }} />
 
             {/* Regenerate chip — plan tab, superadmin only */}
@@ -856,6 +834,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
                   aria-label="Regenerate monthly plan"
                 >
                   {planRegenRunning ? <CircularProgress size={14} /> : <Refresh size={14} />}
+                </Box>
+              </Tooltip>
+            )}
+
+            {/* Feedback chip — plan tab, admins only (PEP-282) */}
+            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
+              <Tooltip title="Rate this plan" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setPlanFeedbackOpen(true)}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-green-soft, rgba(22, 163, 74, 0.18))',
+                    backgroundColor: 'rgba(22, 163, 74, 0.06)',
+                    color: 'var(--color-secondary, #16a34a)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(22, 163, 74, 0.13)' },
+                  }}
+                  aria-label="Plan feedback"
+                >
+                  <FeedbackIcon size={14} />
                 </Box>
               </Tooltip>
             )}

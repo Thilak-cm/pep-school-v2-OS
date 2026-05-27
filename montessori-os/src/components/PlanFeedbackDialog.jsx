@@ -255,6 +255,7 @@ export default function PlanFeedbackDialog({
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         onSave={handleVoiceSave}
+        autoAdvanceOnSave
       />
     </>
   );
