@@ -208,6 +208,12 @@ service cloud.firestore {
           allow read: if isSuperAdmin();
           allow create, update, delete: if isSuperAdmin();
         }
+
+        // Plan feedback from admins (PEP-282)
+        // Superadmins: full read/create; classroomadmins: scoped to manageable classrooms
+        match /feedback/{feedbackId} {
+          allow read, create: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId));
+        }
       }
 
       // Interview transcripts — append-only, Cloud Functions write via admin SDK

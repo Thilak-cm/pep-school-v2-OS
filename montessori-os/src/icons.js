@@ -116,4 +116,5 @@ export {
   Gauge,
   ListChecks,
   ClipboardList,
+  ThumbsUp,
 } from 'lucide-react';

@@ -15,7 +15,7 @@ import {
   Popover,
   Tooltip
 } from '@mui/material';
-import { StickyNote as NotesIcon, MessageCircle as ChatIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
+import { StickyNote as NotesIcon, MessageCircle as ChatIcon, ThumbsUp as FeedbackIcon, Info as InfoOutlined, RefreshCw as Refresh, Flag as FlagRounded, CircleCheck as CheckCircle, ClipboardList as ReportsIcon, TriangleAlert as WarningIcon, Pencil, Image as ImageIcon, X as CloseIcon } from '../icons';
 import { QuickJumpButton, HFTabs } from './ui';
 import useNotify from '../notifications/useNotify';
 import { collection, collectionGroup, query, getDocs, where, orderBy, doc, getDoc, Timestamp, limit } from 'firebase/firestore';
@@ -27,11 +27,12 @@ import { trackEvent } from '../utils/analytics';
 import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardConstants';
 import SnapshotBody from './SnapshotBody';
 import MonthlyPlanTab from './MonthlyPlanTab';
+import PlanFeedbackDialog from './PlanFeedbackDialog';
 import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
-import { isSuperAdmin } from '../utils/roleUtils';
+import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -81,6 +82,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [planError, setPlanError] = useState('');
   const [planRegenRunning, setPlanRegenRunning] = useState(false);
   const [planRegenDialogOpen, setPlanRegenDialogOpen] = useState(false);
+  const [planFeedbackOpen, setPlanFeedbackOpen] = useState(false);
   const [hwMedia, setHwMedia] = useState([]);
   const [hwMediaUrls, setHwMediaUrls] = useState({});
   const [hwGalleryOpen, setHwGalleryOpen] = useState(false);
@@ -812,6 +814,28 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
             <Box sx={{ flex: 1 }} />
 
+            {/* Feedback chip — plan tab, admins only (PEP-282) */}
+            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
+              <Tooltip title="Rate this plan" arrow>
+                <Box
+                  component="button"
+                  onClick={() => setPlanFeedbackOpen(true)}
+                  sx={{
+                    ...CHIP_BASE,
+                    width: 28,
+                    borderColor: 'var(--color-green-soft, rgba(22, 163, 74, 0.18))',
+                    backgroundColor: 'rgba(22, 163, 74, 0.06)',
+                    color: 'var(--color-secondary, #16a34a)',
+                    p: 0,
+                    '&:hover': { backgroundColor: 'rgba(22, 163, 74, 0.13)' },
+                  }}
+                  aria-label="Plan feedback"
+                >
+                  <FeedbackIcon size={14} />
+                </Box>
+              </Tooltip>
+            )}
+
             {/* Regenerate chip — plan tab, superadmin only */}
             {activeTab === 'plan' && isSuperAdmin(userRole) && (
               <Tooltip title="Regenerate monthly plan" arrow>
@@ -1224,6 +1248,14 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── Plan feedback bottom sheet (PEP-282) ── */}
+      <PlanFeedbackDialog
+        open={planFeedbackOpen}
+        onClose={() => setPlanFeedbackOpen(false)}
+        studentId={studentId}
+        planMonth={planData?.month}
+      />
 
       {/* ── Flag popover ── */}
       <Popover
