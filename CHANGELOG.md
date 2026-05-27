@@ -1,5 +1,11 @@
 # Changelog
 
+# 10.29.0 — 2026-05-27
+
+### Added
+- Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
+- Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
+
 # 10.28.0 — 2026-05-26
 
 ### Added
