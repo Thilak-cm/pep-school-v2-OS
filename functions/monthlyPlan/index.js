@@ -26,6 +26,7 @@ import {
   createShortcut,
   capitalize,
 } from "../utils/driveHelpers.js";
+import { DRIVE_CONSTANTS } from "../config/reportConstants.js";
 import {
   buildDetailedPlanRequests,
   buildChecklistRequests,
@@ -278,6 +279,35 @@ export const generateMonthlyPlan = functions
   });
 
 // ---------------------------------------------------------------------------
+// Drive cleanup helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Search a Drive folder for ALL files matching a name and trash them.
+ * Handles orphaned duplicates from prior failed/repeated exports.
+ */
+async function trashExistingDocsByName(drive, folderId, docName) {
+  try {
+    const search = await drive.files.list({
+      q: `name = '${docName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed = false`,
+      driveId: DRIVE_CONSTANTS.sharedDriveId,
+      corpora: "drive",
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
+      fields: "files(id)",
+    });
+    for (const file of (search.data.files || [])) {
+      await drive.files.update({ fileId: file.id, requestBody: { trashed: true }, supportsAllDrives: true });
+    }
+    if (search.data.files?.length) {
+      console.log(`[trashExistingDocsByName] trashed ${search.data.files.length} existing "${docName}" in folder ${folderId}`);
+    }
+  } catch (err) {
+    console.warn("[trashExistingDocsByName] search/trash failed:", err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // exportMonthlyPlanToDrive (PEP-279)
 // ---------------------------------------------------------------------------
 
@@ -314,18 +344,6 @@ export const exportMonthlyPlanToDrive = functions
         "failed-precondition",
         `Plan status is "${plan.status}", expected "generated"`,
       );
-    }
-
-    // If Drive docs already exist for this plan, trash them before re-creating
-    if (plan.driveDocId || plan.driveChecklistId) {
-      const { drive: cleanupDrive } = await getDriveClients();
-      for (const fileId of [plan.driveDocId, plan.driveChecklistId].filter(Boolean)) {
-        try {
-          await cleanupDrive.files.update({ fileId, requestBody: { trashed: true }, supportsAllDrives: true });
-        } catch (err) {
-          console.warn("[exportMonthlyPlanToDrive] failed to trash old doc:", err.message);
-        }
-      }
     }
 
     // 2. Resolve student + classroom + branch context
@@ -383,8 +401,17 @@ export const exportMonthlyPlanToDrive = functions
       childNumber: "01", // Could be derived from classroom roster position
     };
 
-    // 5. Create Detailed Plan Google Doc
+    // 5. Trash any existing docs with the same name in both folders
     const planDocTitle = buildPlanDocTitle(studentName, plan.month);
+    const checklistTitle = buildChecklistDocTitle(studentName, plan.month);
+    await Promise.all([
+      trashExistingDocsByName(drive, monthFolderId, planDocTitle),
+      trashExistingDocsByName(drive, monthFolderId, checklistTitle),
+      trashExistingDocsByName(drive, studentFolderId, planDocTitle),
+      trashExistingDocsByName(drive, studentFolderId, checklistTitle),
+    ]);
+
+    // 6. Create Detailed Plan Google Doc
     const planFile = await drive.files.create({
       requestBody: {
         name: planDocTitle,
@@ -416,8 +443,7 @@ export const exportMonthlyPlanToDrive = functions
       }
     }
 
-    // 6. Create Task Checklist Google Doc
-    const checklistTitle = buildChecklistDocTitle(studentName, plan.month);
+    // 7. Create Task Checklist Google Doc
     const checklistFile = await drive.files.create({
       requestBody: {
         name: checklistTitle,
