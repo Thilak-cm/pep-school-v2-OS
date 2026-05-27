@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-26T15:06:11.670Z
-App version: 10.27.2
+Generated: 2026-05-27T16:19:55.596Z
+App version: 10.29.0
 
 ## App Snapshot
 
@@ -92,8 +92,8 @@ App version: 10.27.2
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 33
-- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 35
+- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -141,6 +141,16 @@ App version: 10.27.2
 
 ## Recent Changes
 
+### 10.29.0 (2026-05-27)
+- Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
+- Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
+- Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)
+
+### 10.28.0 (2026-05-26)
+- Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
+- Plan tab on student dashboard as the default tab for toddler and primary students — section pills, numbered accordion items with watch/next/hook fields (PEP-260)
+- Superadmin-only plan regeneration with confirmation dialog and archive-before-overwrite (PEP-260)
+
 ### 10.27.2 (2026-05-26)
 - Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
 - Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
@@ -150,14 +160,4 @@ App version: 10.27.2
 - Photo note student picker: swap-to-replace instead of blocking toast when selecting a different student (PEP-243)
 - "Analyzing image" indicator moved inline near photos — CTA button stays enabled during analysis (PEP-243)
 - Age chip moved from student dashboard card to app header — shown on all student screens (PEP-243)
-
-### 10.27.0 (2026-05-25)
-- Per-program writing analysis config — CF resolves `config/writing_analysis_{programId}` with program-specific prompts for primary, elementary, toddler, and adolescent (PEP-263)
-- Weekly scheduled Cloud Function `generateWritingAnalysis` runs writing analysis for all active students every Monday midnight IST (PEP-263)
-- Writing analysis archive — previous analysis saved to `ai_summaries/writing_analysis/history/` subcollection on each weekly run (PEP-263)
-
-### 10.26.1 (2026-05-23)
-- Notes-over-time chart replaced with collapsible pull-up drawer — collapsed by default with mini sparkline and last-point dot, expands on tap with smooth animation (PEP-261)
-- Scroll-fade gradient on snapshot card softened and halved from 56px to 28px (PEP-261)
-- Coach Pepper objective one-liner TextField vanishing on tap on mobile — removed useEffect feedback loop that reset selections on every parent re-render (PEP-265)
 
