@@ -358,24 +358,20 @@ export function buildChecklistRequests(plan, meta) {
     weightedFontFamily: { fontFamily: FONT },
   });
 
-  // Two column headers: "Tasks" left, "Teacher Comments" right (on same line using tabs)
-  const colHeaderText = "Tasks\tTeacher Comments\n";
-  const colH = ins(colHeaderText);
-  colH.advance();
-  // Style the whole line
-  style(colH.start, colH.end, {
+  // Column header: "Teacher Comments →" right-aligned
+  const tcHeader = "Teacher Comments →\n";
+  const tc = ins(tcHeader);
+  tc.advance();
+  style(tc.start, tc.end, {
     bold: true,
     fontSize: { magnitude: 8, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.lightGray } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
-  // Right-align "Teacher Comments" via a right-aligned tab stop at the page edge
-  // Page width 612pt - left margin 36pt - right margin 270pt = 306pt content width
-  // Tab stop at 306pt pushes "Teacher Comments" to the right edge of content area
-  paraStyle(colH.start, colH.end, {
+  paraStyle(tc.start, tc.end, {
+    alignment: "END",
     spaceBelow: { magnitude: 6, unit: "PT" },
-    tabStops: [{ offset: { magnitude: 306, unit: "PT" }, alignment: "END" }],
-  }, "spaceBelow,tabStops");
+  }, "alignment,spaceBelow");
 
   // ── Checklist body ───────────────────────────────────────────────────────
   //
