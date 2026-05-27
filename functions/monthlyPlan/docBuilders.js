@@ -30,7 +30,7 @@ const STYLE = {
   // Header
   headerMetaSize: 8,
   studentNameSize: 16,
-  studentCodeSize: 9,
+
   // Detailed plan
   sectionHeadingSize: 14,
   rationaleSize: 9,
@@ -39,7 +39,7 @@ const STYLE = {
   itemBodySize: 9,
   // Checklist
   checklistSectionSize: 9,
-  checklistItemSize: 8,
+
   checklistFooterSize: 8,
   // Colors
   bodyColor: { red: 51 / 255, green: 51 / 255, blue: 51 / 255 },
@@ -82,7 +82,7 @@ export function buildChecklistDocTitle(studentName, month) {
  *     Section heading
  *     RATIONALE block (position + monthlyAim, gray background)
  *     Items 1–5, each with all 7 fields:
- *       work (title) → WHY → HOW TO OFFER → SUCCESS → NEXT → HOOK → BASIS
+ *       work (title) → WHY → SUCCESS → NEXT → HOOK → BASIS → HOW TO OFFER (de-emphasized)
  *
  * @param {object} plan - The plan JSON from Firestore
  * @param {object} meta - { classroomName, studentCode, childNumber }
@@ -240,11 +240,11 @@ export function buildDetailedPlanRequests(plan, meta) {
       // Field labels and values — all 7 fields
       const fields = [
         { label: "WHY", value: item.why },
-        { label: "HOW TO OFFER", value: item.offer },
         { label: "SUCCESS", value: item.watch },
         { label: "NEXT", value: item.next },
         { label: "HOOK", value: item.hook },
         { label: "BASIS", value: item.basis },
+        { label: "HOW TO OFFER", value: item.offer, deemphasize: true },
       ];
 
       for (const field of fields) {
@@ -261,13 +261,14 @@ export function buildDetailedPlanRequests(plan, meta) {
           foregroundColor: { color: { rgbColor: STYLE.labelColor } },
           weightedFontFamily: { fontFamily: FONT },
         }, "bold,fontSize,foregroundColor,weightedFontFamily");
-        // Value: normal, body color
+        // Value: normal (or italic + smaller + gray when deemphasized)
         style(ff.start + labelText.length, ff.end, {
           bold: false,
-          fontSize: { magnitude: STYLE.itemBodySize, unit: "PT" },
-          foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
+          italic: !!field.deemphasize,
+          fontSize: { magnitude: field.deemphasize ? 7 : STYLE.itemBodySize, unit: "PT" },
+          foregroundColor: { color: { rgbColor: field.deemphasize ? STYLE.lightGray : STYLE.bodyColor } },
           weightedFontFamily: { fontFamily: FONT },
-        }, "bold,fontSize,foregroundColor,weightedFontFamily");
+        }, "bold,italic,fontSize,foregroundColor,weightedFontFamily");
         // Left border continuation + indent
         paraStyle(ff.start, ff.end, {
           indentStart: { magnitude: 18, unit: "PT" },
