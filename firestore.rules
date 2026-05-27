@@ -208,6 +208,13 @@ service cloud.firestore {
           allow read: if isSuperAdmin();
           allow create, update, delete: if isSuperAdmin();
         }
+
+        // Plan feedback from admins (PEP-282)
+        // Classroom admins + superadmins can create feedback entries; read own submissions
+        match /feedback/{feedbackId} {
+          allow read: if isPrivilegedAdmin();
+          allow create: if isPrivilegedAdmin();
+        }
       }
 
       // Interview transcripts — append-only, Cloud Functions write via admin SDK
