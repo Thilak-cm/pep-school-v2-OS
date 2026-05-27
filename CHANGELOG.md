@@ -1,5 +1,13 @@
 # Changelog
 
+# 10.29.0 — 2026-05-27
+
+### Added
+- Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
+- Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
+- Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)
+- `createShortcut` Drive helper for creating shortcut files in shared Drive folders (PEP-279)
+
 # 10.28.0 — 2026-05-26
 
 ### Added
