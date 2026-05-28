@@ -1,30 +1,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Replicate the note-type classification logic from StatsPage
-const isLessonNote = (obs) => obs?.type === 'lesson' || !!obs?.lessonTitle;
-const isVoiceNote = (obs) =>
-  !isLessonNote(obs) &&
-  (obs?.tags?.type === 'voice' ||
-    obs?.type === 'voice' ||
-    obs?.tags?.includes?.('voice') ||
-    !!obs?.duration);
-const isTextNote = (obs) =>
-  !isLessonNote(obs) &&
-  !isVoiceNote(obs) &&
-  (obs?.tags?.type === 'text' ||
-    obs?.type === 'text' ||
-    obs?.tags?.includes?.('text') ||
-    (!obs?.duration && !!obs?.text));
-const isMediaNote = (obs) =>
-  !isLessonNote(obs) && !isVoiceNote(obs) && !isTextNote(obs) && obs?.type === 'media';
+// Import shared classifier from functions (single source of truth, PEP-285)
+import { classifyNote } from '../../../functions/stats/helpers.js';
 
 function classifyNotes(observations) {
   return {
-    lesson: observations.filter(isLessonNote),
-    voice: observations.filter(isVoiceNote),
-    text: observations.filter(isTextNote),
-    media: observations.filter(isMediaNote),
+    lesson: observations.filter(o => classifyNote(o) === 'lesson'),
+    voice: observations.filter(o => classifyNote(o) === 'voice'),
+    text: observations.filter(o => classifyNote(o) === 'text'),
+    media: observations.filter(o => classifyNote(o) === 'media'),
   };
 }
 
