@@ -360,7 +360,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }
 
   return (
-    <Box sx={{ pb: 10, px: 2, pt: 1, maxWidth: 600, mx: 'auto' }}>
+    <Box sx={{ pb: 10, px: 2, pt: 1, maxWidth: 600, mx: 'auto', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -455,7 +455,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 </Typography>
               </Box>
               {mounted && activityChartData.length > 0 ? (
-                <Box sx={{ height: 200, width: '100%' }}>
+                <Box sx={{ height: 200, width: '100%', minWidth: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={activityChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /* Recharts */ />
@@ -559,7 +559,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   {role === 'teacher' ? `My Classrooms · ${classroomPeriodLabel}` : classroomPeriodLabel}
                 </Typography>
                 {mounted ? (
-                  <Box sx={{ height: 300, width: '100%', minHeight: 300 }}>
+                  <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsBarChart
                         data={filteredClassroomStats.map(c => ({
