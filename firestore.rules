@@ -593,6 +593,19 @@ service cloud.firestore {
       }
     }
 
+    // Stats cache (PEP-285) — pre-computed per-classroom stats written by CF
+    // Client reads scoped by role; writes only via admin SDK (Cloud Functions)
+    match /statsCache/{docId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        docId == '_meta' ||
+        (resource.data.classroomId != null &&
+          (managesClassroom(resource.data.classroomId) ||
+           isTeacherInClassroom(resource.data.classroomId)))
+      );
+      allow write: if false;
+    }
+
     // Default deny — any collection not explicitly matched above is blocked
     match /{document=**} {
       allow read, write: if false;

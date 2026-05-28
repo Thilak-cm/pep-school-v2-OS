@@ -937,6 +937,69 @@ Migration/backfill (branches)
 
 ---
 
+## 📊 Stats Cache (`/statsCache/{docId}`)
+Purpose: Pre-computed per-classroom stats written by the `recomputeStats` Cloud Function (PEP-285). The client reads these docs directly — Firestore rules enforce role-scoped access. One doc per active classroom + one `_meta` doc for cache freshness.
+
+### Meta doc (`/statsCache/_meta`)
+```typescript
+interface StatsMetaDoc {
+  cachedAt: Timestamp;        // when CF last ran
+  classroomCount: number;     // number of classroom docs written
+}
+```
+
+### Classroom doc (`/statsCache/classroom_{classroomId}`)
+```typescript
+interface StatsClassroomDoc {
+  cachedAt: Timestamp;
+  classroomId: string;
+  classroomName: string;
+  branchId: string | null;
+
+  noteCounts: {
+    voice: number;
+    text: number;
+    lesson: number;
+    media: number;
+    total: number;
+  };
+
+  activity: {
+    daily: Record<string, number>;   // "YYYY-MM-DD" → count, last 30 days
+    weekly: Record<string, number>;  // "YYYY-Www" → count, last 12 weeks
+    monthly: Record<string, number>; // "YYYY-MM" → count, last 12 months
+  };
+
+  studentCount: number;
+
+  teachers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+    observations: number;           // observation notes in THIS classroom
+    lessons: number;                // lesson notes in THIS classroom
+    otherClassroomNotes: number;    // notes in OTHER classrooms
+    otherClassroomCount: number;    // number of other classrooms
+  }>;
+
+  students: Array<{
+    id: string;
+    name: string;
+    status: string;
+    totalNotes: number;
+    thisWeekNotes: number;
+    last42DaysNotes: number;
+  }>;
+}
+```
+
+### Security rules
+- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users
+- **Write**: `false` — only Cloud Functions write via admin SDK
+
+---
+
 ## ✅ Rationale
 - Fan-out per student + collection group queries balances write cost (bounded by class size) with extremely fast reads
 - Single source of truth for access (`classrooms.teacherIds`) keeps rules simple and auditable
