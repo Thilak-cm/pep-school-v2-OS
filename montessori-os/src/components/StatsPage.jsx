@@ -114,7 +114,7 @@ const computePerformanceSummary = (docs) => {
 
 // ── Component ────────────────────────────────────────────────────────
 
-const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, __onNavigateToBaseballCard }) => {
+const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onNavigateToStudent, __onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
@@ -360,57 +360,53 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }
 
   return (
-    <Box sx={{ pb: 10, px: 2, pt: 1, maxWidth: 600, mx: 'auto', overflow: 'hidden' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {onBack && (
-            <IconButton size="small" onClick={onBack}>
-              <ArrowBack />
-            </IconButton>
-          )}
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>Statistics</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {stale && <Chip size="small" label="Stale" color="warning" variant="outlined" />}
-          {isAdmin && (
-            <IconButton size="small" onClick={refresh} disabled={refreshing}>
-              <RefreshCw style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
-            </IconButton>
-          )}
-        </Box>
-      </Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0, pb: 4, width: '100%', minWidth: 0 }}>
+      <Card sx={{ borderRadius: 3, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', overflow: 'hidden', width: '100%', minWidth: 0 }}>
+        <CardContent sx={{ p: 3, width: '100%', minWidth: 0 }}>
+          {/* Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {stale && <Chip size="small" label="Stale" color="warning" variant="outlined" />}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isAdmin && (
+                <IconButton size="small" onClick={refresh} disabled={refreshing}>
+                  <RefreshCw style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
+                </IconButton>
+              )}
+            </Box>
+          </Box>
 
-      {/* Tabs */}
-      <Box sx={{
-        backgroundColor: 'white',
-        borderRadius: 1,
-        overflow: 'hidden',
-        position: 'sticky',
-        top: 0,
-        zIndex: 1,
-        borderBottom: '1px solid var(--color-border)',
-        mb: 2
-      }}>
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          sx={{
-            '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600 },
-            '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 }
-          }}
-        >
-          <Tab icon={<BarChart />} label="Overview" iconPosition="start" />
-          <Tab icon={<School />} label="Classrooms" iconPosition="start" />
-          <Tab icon={<People />} label="Teachers" iconPosition="start" />
-          <Tab icon={<People />} label="Students" iconPosition="start" />
-        </Tabs>
-      </Box>
+          {/* Tabs */}
+          <Box sx={{
+            backgroundColor: 'white',
+            borderRadius: 1,
+            overflow: 'hidden',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            borderBottom: '1px solid var(--color-border)',
+            mb: 2
+          }}>
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600 },
+                '& .MuiTabs-scrollButtons': { '&.Mui-disabled': { opacity: 0.3 } }
+              }}
+            >
+              <Tab icon={<BarChart />} label="Overview" iconPosition="start" />
+              <Tab icon={<School />} label="Classrooms" iconPosition="start" />
+              <Tab icon={<People />} label="Teachers" iconPosition="start" />
+              <Tab icon={<People />} label="Students" iconPosition="start" />
+            </Tabs>
+          </Box>
 
-      <Box sx={{ width: '100%', minWidth: 0 }}>
+          <Box sx={{ width: '100%', minWidth: 0 }}>
         {/* ── Overview Tab ──────────────────────────────────────── */}
         {activeTab === 0 && (
           <Box sx={{ width: '100%', minWidth: 0 }}>
@@ -455,7 +451,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 </Typography>
               </Box>
               {mounted && activityChartData.length > 0 ? (
-                <Box sx={{ height: 200, width: '100%', minWidth: 0 }}>
+                <Box sx={{ height: 200, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={activityChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /* Recharts */ />
@@ -559,7 +555,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                   {role === 'teacher' ? `My Classrooms · ${classroomPeriodLabel}` : classroomPeriodLabel}
                 </Typography>
                 {mounted ? (
-                  <Box sx={{ height: 300, width: '100%', minWidth: 0, minHeight: 300 }}>
+                  <Box sx={{ height: 300, width: '100%', minHeight: 300 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsBarChart
                         data={filteredClassroomStats.map(c => ({
@@ -713,7 +709,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             )}
           </Box>
         )}
-      </Box>
+          </Box>
+        </CardContent>
+      </Card>
     </Box>
   );
 };
