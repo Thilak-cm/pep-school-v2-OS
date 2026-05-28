@@ -125,6 +125,11 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
   const age = calculateAge(dob, now);
   const ageStr = age ? `${age.years}y ${age.months}m` : "unknown age";
 
+  // Compute joining date from createdAt (PEP-280: cold-start context)
+  const createdAt = studentData.createdAt?.toDate?.()
+    ?? (studentData.createdAt ? new Date(studentData.createdAt) : null);
+  const joiningDate = createdAt ? createdAt.toISOString().slice(0, 10) : null;
+
   // Resolve programId from classroom (student docs don't always have it)
   let programId = studentData.programId || null;
   if (!programId && studentData.classroomId) {
@@ -186,6 +191,7 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
       ageStr,
       programId,
       targetMonth,
+      joiningDate,
     },
     observations,
     mediaDocs,
