@@ -337,27 +337,17 @@ export function buildChecklistRequests(plan, meta) {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  // Student name (large, bold) — no student code
-  const nameLine = `${plan.studentName}\n`;
-  const nl = ins(nameLine);
-  nl.advance();
-  style(nl.start, nl.end, {
+  // Single top row: "Classroom | Month YYYY" — compact, saves vertical space
+  const monthLabel = formatMonthLabel(plan.month);
+  const titleLine = `${meta.classroomName || ""} | ${monthLabel}\n`;
+  const tl = ins(titleLine);
+  tl.advance();
+  style(tl.start, tl.end, {
     bold: true,
     fontSize: { magnitude: 14, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
-
-  // Classroom + month
-  const monthLabel = formatMonthLabel(plan.month);
-  const subLine = `${meta.classroomName || ""}  ·  ${monthLabel} plan\n`;
-  const sl = ins(subLine);
-  sl.advance();
-  style(sl.start, sl.end, {
-    fontSize: { magnitude: STYLE.headerMetaSize, unit: "PT" },
-    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
-    weightedFontFamily: { fontFamily: FONT },
-  });
 
   // Column header: "Teacher Comments →" right-aligned
   const tcHeader = "Teacher Comments →\n";
@@ -379,15 +369,15 @@ export function buildChecklistRequests(plan, meta) {
   // Wide right margin for teacher notes. Vertical divider line via
   // borderRight on content paragraphs. Section headers + checkbox items.
 
-  // Set page margins: narrow left, ~50% right for teacher notes column
-  // Page width 612pt. Left margin 36pt. Right margin 270pt → content width ~306pt (~50%)
+  // Set page margins: narrow left, 50-50 split for teacher notes column
+  // Page width 612pt. Left margin 36pt. Usable 576pt ÷ 2 = 288pt each → right margin 288pt
   requests.push({
     updateDocumentStyle: {
       documentStyle: {
         marginTop: { magnitude: 36, unit: "PT" },
         marginBottom: { magnitude: 36, unit: "PT" },
         marginLeft: { magnitude: 36, unit: "PT" },
-        marginRight: { magnitude: 270, unit: "PT" },
+        marginRight: { magnitude: 288, unit: "PT" },
       },
       fields: "marginTop,marginBottom,marginLeft,marginRight",
     },
