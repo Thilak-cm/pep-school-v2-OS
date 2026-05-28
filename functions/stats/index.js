@@ -85,7 +85,7 @@ export const recomputeStats = functions
       db.collection("students").get(),
       db.collection("users").get(),
       db.collectionGroup("observations").get(),
-      db.collectionGroup("media").where("status", "==", "ready").get(),
+      db.collectionGroup("media").get(),
     ]);
 
     // Parse classrooms
@@ -140,6 +140,7 @@ export const recomputeStats = functions
     }
     for (const doc of mediaSnap.docs) {
       const d = doc.data();
+      if (d.status !== "ready") continue; // filter in-memory instead of query
       const classroomId = d.classroomId ||
         studentClassroomMap.get(d.studentId);
       if (!classroomId) continue;
