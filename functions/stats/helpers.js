@@ -82,9 +82,9 @@ export function getObservationDate(obs) {
  * Bucket observations into tiered activity maps.
  *
  * Returns:
- *   daily   — { "YYYY-MM-DD": count } for the last 30 days
- *   weekly  — { "YYYY-Www": count }   for the last 12 weeks
- *   monthly — { "YYYY-MM": count }    for the last 12 months
+ *   daily   — { "YYYY-MM-DD": { voice, text, lesson, media, total } } for the last 30 days
+ *   weekly  — { "YYYY-Www": { voice, text, lesson, media, total } }   for the last 12 weeks
+ *   monthly — { "YYYY-MM": { voice, text, lesson, media, total } }    for the last 12 months
  *
  * @param {Object[]} observations - Array of observation docs
  * @param {Date}     [now]        - Reference time (default: new Date())
@@ -94,6 +94,8 @@ export function buildActivityTiers(observations, now = new Date()) {
   const daily = {};
   const weekly = {};
   const monthly = {};
+
+  const emptyBucket = () => ({voice: 0, text: 0, lesson: 0, media: 0, total: 0});
 
   // Pre-compute cutoff dates
   const dayMs = 24 * 60 * 60 * 1000;
@@ -108,39 +110,51 @@ export function buildActivityTiers(observations, now = new Date()) {
   // Initialize all daily buckets (last 30 days)
   for (let i = 0; i < 30; i++) {
     const d = new Date(now.getTime() - i * dayMs);
-    daily[formatDateKey(d)] = 0;
+    daily[formatDateKey(d)] = emptyBucket();
   }
 
   // Initialize all weekly buckets (last 12 weeks)
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getTime() - i * 7 * dayMs);
-    weekly[formatWeekKey(d)] = 0;
+    weekly[formatWeekKey(d)] = emptyBucket();
   }
 
   // Initialize all monthly buckets (last 12 months)
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    monthly[formatMonthKey(d)] = 0;
+    monthly[formatMonthKey(d)] = emptyBucket();
   }
 
   // Single pass through observations
   for (const obs of observations) {
     const date = getObservationDate(obs);
     if (date.getTime() === 0) continue; // skip invalid dates
+    const type = classifyNote(obs);
+    const typeKey = (type === "voice" || type === "text" ||
+      type === "lesson" || type === "media") ? type : "text";
 
     if (date >= dailyCutoff) {
       const key = formatDateKey(date);
-      if (key in daily) daily[key]++;
+      if (key in daily) {
+        daily[key][typeKey]++;
+        daily[key].total++;
+      }
     }
 
     if (date >= weeklyCutoff) {
       const key = formatWeekKey(date);
-      if (key in weekly) weekly[key]++;
+      if (key in weekly) {
+        weekly[key][typeKey]++;
+        weekly[key].total++;
+      }
     }
 
     if (date >= monthlyCutoff) {
       const key = formatMonthKey(date);
-      if (key in monthly) monthly[key]++;
+      if (key in monthly) {
+        monthly[key][typeKey]++;
+        monthly[key].total++;
+      }
     }
   }
 

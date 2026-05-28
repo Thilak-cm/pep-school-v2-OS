@@ -29,26 +29,51 @@ import { useStatsData } from '../hooks/useStatsData';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Merge activity tier maps across classroom docs (sum values per key). */
+/** Merge activity tier maps across classroom docs (sum per-type values per key). */
 const mergeActivityMaps = (docs, tier) => {
   const merged = {};
   for (const doc of docs) {
     const map = doc.activity?.[tier] || {};
-    for (const [key, count] of Object.entries(map)) {
-      merged[key] = (merged[key] || 0) + count;
+    for (const [key, bucket] of Object.entries(map)) {
+      if (!merged[key]) merged[key] = { voice: 0, text: 0, lesson: 0, media: 0, total: 0 };
+      if (typeof bucket === 'number') {
+        // Backwards compat: old format was just a count
+        merged[key].total += bucket;
+      } else {
+        merged[key].voice += bucket.voice || 0;
+        merged[key].text += bucket.text || 0;
+        merged[key].lesson += bucket.lesson || 0;
+        merged[key].media += bucket.media || 0;
+        merged[key].total += bucket.total || 0;
+      }
     }
   }
   return merged;
 };
 
-/** Convert an activity tier map to sorted chart data. */
+/** Convert an activity tier map to sorted chart data (uses .total for the count). */
 const tierToChartData = (map, labelFn) => {
   return Object.entries(map)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, count]) => ({
+    .map(([key, bucket]) => ({
       period: labelFn ? labelFn(key) : key,
-      count
+      count: typeof bucket === 'number' ? bucket : (bucket?.total || 0)
     }));
+};
+
+/** Sum per-type counts across a merged activity tier map (for pie chart). */
+const sumTypesFromTier = (mergedMap, sliceCount) => {
+  const entries = Object.entries(mergedMap).sort(([a], [b]) => a.localeCompare(b));
+  const recent = entries.slice(-sliceCount);
+  const totals = { voice: 0, text: 0, lesson: 0, media: 0 };
+  for (const [, bucket] of recent) {
+    if (typeof bucket === 'number') continue;
+    totals.voice += bucket.voice || 0;
+    totals.text += bucket.text || 0;
+    totals.lesson += bucket.lesson || 0;
+    totals.media += bucket.media || 0;
+  }
+  return totals;
 };
 
 /** Label formatters for activity chart */
@@ -178,20 +203,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onN
 
   // ── Derived data ─────────────────────────────────────────────────
 
-  // Overview: aggregate note counts
-  const totalNoteCounts = useMemo(() => {
-    const counts = { voice: 0, text: 0, lesson: 0, media: 0, total: 0 };
-    for (const doc of classroomDocs) {
-      const nc = doc.noteCounts || {};
-      counts.voice += nc.voice || 0;
-      counts.text += nc.text || 0;
-      counts.lesson += nc.lesson || 0;
-      counts.media += nc.media || 0;
-      counts.total += nc.total || 0;
-    }
-    return counts;
-  }, [classroomDocs]);
-
   // Overview: activity chart data
   const activityChartData = useMemo(() => {
     const config = PERIOD_CONFIG[timePeriod] || PERIOD_CONFIG['1W'];
@@ -205,19 +216,18 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onN
     return activityChartData.reduce((sum, d) => sum + d.count, 0);
   }, [activityChartData]);
 
-  // Overview: pie chart data (filtered by time period)
+  // Overview: pie chart data (filtered by time period using per-type activity tiers)
   const pieChartData = useMemo(() => {
-    // For pie chart, we need per-type counts filtered by time period
-    // The cache docs store total noteCounts (all time), so we use those for now
-    // TODO: If per-period type breakdown is needed, add to cache doc schema
-    const nc = totalNoteCounts;
+    const config = PERIOD_CONFIG[timePeriod] || PERIOD_CONFIG['1W'];
+    const merged = mergeActivityMaps(classroomDocs, config.tier);
+    const nc = sumTypesFromTier(merged, config.slice);
     return [
       { name: 'Voice', value: nc.voice, color: '#3b82f6' }, /* Recharts */
       { name: 'Text', value: nc.text, color: '#f59e0b' }, /* Recharts */
       { name: 'Lesson', value: nc.lesson, color: '#059669' }, /* Recharts */
       { name: 'Media', value: nc.media, color: '#ec4899' }, /* Recharts */
     ];
-  }, [totalNoteCounts]);
+  }, [classroomDocs, timePeriod]);
 
   // Classrooms: stats for period (1W or 1M)
   const classroomStatsForPeriod = useMemo(() => {
@@ -361,22 +371,18 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onN
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0, pb: 4, width: '100%', minWidth: 0 }}>
+      {/* Header with refresh — outside the card */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 1, px: 1, gap: 1 }}>
+        {stale && <Chip size="small" label="Stale" color="warning" variant="outlined" />}
+        {isAdmin && (
+          <IconButton size="small" onClick={refresh} disabled={refreshing} title="Refresh stats">
+            <RefreshCw style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
+          </IconButton>
+        )}
+      </Box>
+
       <Card sx={{ borderRadius: 3, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', overflow: 'hidden', width: '100%', minWidth: 0 }}>
         <CardContent sx={{ p: 3, width: '100%', minWidth: 0 }}>
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {stale && <Chip size="small" label="Stale" color="warning" variant="outlined" />}
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {isAdmin && (
-                <IconButton size="small" onClick={refresh} disabled={refreshing}>
-                  <RefreshCw style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
-                </IconButton>
-              )}
-            </Box>
-          </Box>
-
           {/* Tabs */}
           <Box sx={{
             backgroundColor: 'white',
@@ -474,7 +480,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onN
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>Note Distribution</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {PERIOD_CONFIG[timePeriod]?.displayLabel || 'All Time'}
+                  {PERIOD_CONFIG[timePeriod]?.displayLabel || 'Last 7 Days'}
                 </Typography>
               </Box>
               {mounted ? (
@@ -494,7 +500,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack: _onBack, onN
                       Total notes
                     </Typography>
                     <Typography sx={{ fontSize: '32px', fontWeight: 400, color: 'var(--grey-900)', lineHeight: 1, fontFamily: 'var(--font-body)' }}>
-                      {totalNoteCounts.total.toLocaleString()}
+                      {pieChartData.reduce((sum, x) => sum + (Number(x?.value) || 0), 0).toLocaleString()}
                     </Typography>
                   </Box>
                 </Box>

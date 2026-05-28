@@ -151,61 +151,67 @@ describe("buildActivityTiers", () => {
     assert.equal(Object.keys(tiers.weekly).length, 12);
     assert.equal(Object.keys(tiers.monthly).length, 12);
     // All counts should be 0
-    assert.equal(Object.values(tiers.daily).every((v) => v === 0), true);
-    assert.equal(Object.values(tiers.weekly).every((v) => v === 0), true);
-    assert.equal(Object.values(tiers.monthly).every((v) => v === 0), true);
+    assert.equal(Object.values(tiers.daily).every((v) => v.total === 0), true);
+    assert.equal(Object.values(tiers.weekly).every((v) => v.total === 0), true);
+    assert.equal(Object.values(tiers.monthly).every((v) => v.total === 0), true);
   });
 
-  it("counts a recent observation in all three tiers", () => {
+  it("counts a recent observation in all three tiers with type", () => {
     const yesterday = new Date("2026-05-26T15:00:00Z");
-    const obs = [{observedAt: yesterday}];
+    const obs = [{observedAt: yesterday, type: "voice", duration: 10}];
     const tiers = buildActivityTiers(obs, refDate);
 
-    assert.equal(tiers.daily["2026-05-26"], 1);
+    assert.equal(tiers.daily["2026-05-26"].total, 1);
+    assert.equal(tiers.daily["2026-05-26"].voice, 1);
+    assert.equal(tiers.daily["2026-05-26"].text, 0);
 
-    // Find the weekly bucket that contains yesterday
-    const weeklyValues = Object.values(tiers.weekly);
-    const weeklyTotal = weeklyValues.reduce((a, b) => a + b, 0);
+    // Weekly total
+    const weeklyTotal = Object.values(tiers.weekly).reduce((a, b) => a + b.total, 0);
     assert.equal(weeklyTotal, 1);
 
-    assert.equal(tiers.monthly["2026-05"], 1);
+    assert.equal(tiers.monthly["2026-05"].total, 1);
+    assert.equal(tiers.monthly["2026-05"].voice, 1);
   });
 
   it("does not count observations older than 30 days in daily", () => {
     const old = new Date("2026-04-01T10:00:00Z"); // ~56 days before refDate
-    const obs = [{observedAt: old}];
+    const obs = [{observedAt: old, type: "text", text: "hello"}];
     const tiers = buildActivityTiers(obs, refDate);
 
-    const dailyTotal = Object.values(tiers.daily).reduce((a, b) => a + b, 0);
+    const dailyTotal = Object.values(tiers.daily).reduce((a, b) => a + b.total, 0);
     assert.equal(dailyTotal, 0);
   });
 
   it("counts observations in correct monthly bucket across year boundary", () => {
     const refJan = new Date("2026-01-15T12:00:00Z");
     const decObs = new Date("2025-12-20T10:00:00Z");
-    const obs = [{observedAt: decObs}];
+    const obs = [{observedAt: decObs, type: "lesson"}];
     const tiers = buildActivityTiers(obs, refJan);
 
-    assert.equal(tiers.monthly["2025-12"], 1);
+    assert.equal(tiers.monthly["2025-12"].total, 1);
+    assert.equal(tiers.monthly["2025-12"].lesson, 1);
   });
 
-  it("handles multiple observations in same bucket", () => {
+  it("handles multiple observations with different types in same bucket", () => {
     const d1 = new Date("2026-05-27T08:00:00Z");
     const d2 = new Date("2026-05-27T14:00:00Z");
     const d3 = new Date("2026-05-27T20:00:00Z");
     const obs = [
-      {observedAt: d1},
-      {observedAt: d2},
-      {observedAt: d3},
+      {observedAt: d1, type: "voice", duration: 5},
+      {observedAt: d2, type: "text", text: "hello"},
+      {observedAt: d3, type: "media"},
     ];
     const tiers = buildActivityTiers(obs, refDate);
-    assert.equal(tiers.daily["2026-05-27"], 3);
+    assert.equal(tiers.daily["2026-05-27"].total, 3);
+    assert.equal(tiers.daily["2026-05-27"].voice, 1);
+    assert.equal(tiers.daily["2026-05-27"].text, 1);
+    assert.equal(tiers.daily["2026-05-27"].media, 1);
   });
 
   it("skips observations with invalid dates", () => {
     const obs = [{observedAt: null}, {}];
     const tiers = buildActivityTiers(obs, refDate);
-    const dailyTotal = Object.values(tiers.daily).reduce((a, b) => a + b, 0);
+    const dailyTotal = Object.values(tiers.daily).reduce((a, b) => a + b.total, 0);
     assert.equal(dailyTotal, 0);
   });
 });
