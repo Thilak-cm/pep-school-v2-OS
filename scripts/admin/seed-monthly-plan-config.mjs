@@ -38,6 +38,7 @@ You will receive:
    - age
    - program
    - targetMonth
+   - joiningDate (how long the child has been in this school)
    - classroom context, if available
    - prior Montessori experience, if known
 2. writingAnalysis:
@@ -62,11 +63,38 @@ You will receive:
 - Do not diagnose medical, developmental, emotional, or learning conditions.
 - Write for classroom teachers. Be concrete and concise.
 
+## Data Sufficiency and Planning Mode
+
+Before planning, classify the child as either:
+
+1. observationBased
+   - There are enough meaningful child-specific observations to locate the child in at least some Montessori areas.
+   - Use observations, lesson history, observed affinity hooks, and age-based progression together.
+   - Where observations are missing in a section, use diagnostic presentations and age-based Montessori sequence.
+
+2. coldStart
+   - There are very few meaningful child-specific observations, or the child is new to the school/classroom.
+   - Do not invent interests, strengths, affinities, completed lessons, or needs.
+   - Build the plan primarily from the child's age, program, and broad Montessori primary sequence.
+   - Use diagnostic presentations to locate the child in each area.
+   - Give conditional progression paths based on how the child responds.
+
+Meaningful observations exclude generic attendance notes, duplicated class-wide notes, and notes that do not reveal the child's current work, independence, interests, social behavior, or readiness.
+
+Default threshold:
+- 4 or more meaningful observations: observationBased
+- 0-3 meaningful observations: coldStart
+
+If the child's joiningDate is recent (under 2-3 months), sparse observations are expected and normal — classify as coldStart without treating it as a gap in teacher logging. For established students (6+ months) with very few observations, note the data gap in dataSufficiency.summary so it can surface to administrators.
+
+If age is missing and data is sparse, state that age is required for a useful cold-start plan.
+
 ## Evidence Basis
 
 Every action item must include a basis:
 
 - observed: directly supported by observations or lesson history
+- ageBenchmark: recommended because it is appropriate for the child's age/program
 - diagnostic: used to locate the child in the sequence when evidence is thin
 - conditional: next step only if the child connects with the previous material
 
@@ -75,6 +103,8 @@ For sparse data, do not invent ability. Start with diagnostic presentations, the
 ## Affinity Hook Requirement
 
 Identify the child's observed affinities, recurring interests, preferred materials, repeated topics, social anchors, or fixations. Use these as bridges into Montessori work.
+
+In coldStart mode, do not invent affinities. Use an empty affinities array or only include affinities explicitly supplied in the student profile.
 
 Examples:
 - animals -> animal classification cards, sound games, habitat sorting, story dictation
@@ -121,7 +151,7 @@ Each section must include:
 
 Each item must include:
 - work: material or work sequence, using compact progression notation when useful
-- basis: observed, diagnostic, or conditional
+- basis: observed, ageBenchmark, diagnostic, or conditional
 - why: evidence or reason in one short sentence
 - hook: the interest, routine, or observation used as the bridge
 - offer: concise teacher strategy for how to present or scaffold
@@ -162,6 +192,11 @@ Return ONLY valid JSON matching this structure:
   "studentName": "<student name>",
   "age": "<age>",
   "month": "<YYYY-MM>",
+  "planningMode": "observationBased | coldStart",
+  "dataSufficiency": {
+    "meaningfulObservationCount": 0,
+    "summary": "..."
+  },
   "dataWindow": {
     "from": "<YYYY-MM-DD>",
     "to": "<YYYY-MM-DD>",
@@ -250,7 +285,7 @@ async function run() {
     ...MONTHLY_PLAN_CONFIG,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
-    description: "Monthly student plan generation prompt and model settings. 5 sections (Language, Sensorial, Math, Practical Life, Grace & Courtesy), 5 items each with 7-field schema (work, basis, why, hook, offer, next, watch). Used by both production CF and prompt test bench.",
+    description: "Monthly student plan generation prompt and model settings. Cold-start classification (observationBased vs coldStart) with joiningDate signal. 5 sections (Language, Sensorial, Math, Practical Life, Grace & Courtesy), 5 items each with 7-field schema (work, basis, why, hook, offer, next, watch). Used by both production CF and prompt test bench.",
   }, { merge: true });
 
   console.log("\nWritten to config/monthly_plan");
