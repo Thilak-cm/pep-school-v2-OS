@@ -359,10 +359,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const handlePlanExportToDrive = async () => {
     try {
       setPlanExportRunning(true);
+      notify.info('You may continue your work — we\'ll notify you when exporting to Google Drive is done.');
+ 
       const call = httpsCallable(cloudFunctions, 'exportMonthlyPlanToDrive', { timeout: 120_000 });
       const result = await call({ studentId });
       const { driveDocLink } = result.data;
-      notify.success('Exported to Google Drive');
+      notify.success('Exported to Google Drive — opening doc');
       if (driveDocLink) window.open(driveDocLink, '_blank');
       setReloadKey((k) => k + 1);
     } catch (e) {

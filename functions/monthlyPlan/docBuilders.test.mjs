@@ -325,14 +325,14 @@ test("buildChecklistRequests uses 8pt font size", () => {
   assert.ok(fontSizes.includes(8), "Should use 8pt font size for checklist body text");
 });
 
-test("buildChecklistRequests includes footer reference to companion doc", () => {
+test("buildChecklistRequests has no footer text", () => {
   const requests = buildChecklistRequests(SAMPLE_PLAN, STUDENT_META);
   const allText = requests
     .filter((r) => r.insertText)
     .map((r) => r.insertText.text)
     .join("");
   assert.ok(
-    allText.includes("companion") || allText.includes("Monthly Plan"),
-    "Should include footer referencing the detailed plan doc",
+    !allText.includes("companion"),
+    "Should not include footer referencing the detailed plan doc",
   );
 });

@@ -337,47 +337,69 @@ export function buildChecklistRequests(plan, meta) {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  // Single top row: "Classroom | Month YYYY" — compact, saves vertical space
+  // Single row: "Student Name   CLASSROOM · Month YYYY"
   const monthLabel = formatMonthLabel(plan.month);
-  const titleLine = `${meta.classroomName || ""} | ${monthLabel}\n`;
-  const tl = ins(titleLine);
-  tl.advance();
-  style(tl.start, tl.end, {
+  const studentName = plan.studentName || "";
+  const classroomMonth = `  ${(meta.classroomName || "").toUpperCase()} · ${monthLabel}`;
+  const headerLine = `${studentName}${classroomMonth}\n`;
+  const hl = ins(headerLine);
+  hl.advance();
+  // Student name: bold 14pt dark
+  style(hl.start, hl.start + studentName.length, {
     bold: true,
     fontSize: { magnitude: 14, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.bodyColor } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
+  // Classroom · month: smaller, gray, inline after name
+  style(hl.start + studentName.length, hl.end - 1, {
+    bold: false,
+    fontSize: { magnitude: 9, unit: "PT" },
+    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
+    weightedFontFamily: { fontFamily: FONT },
+    smallCaps: true,
+  }, "bold,fontSize,foregroundColor,weightedFontFamily,smallCaps");
+  paraStyle(hl.start, hl.end, {
+    spaceBelow: { magnitude: 4, unit: "PT" },
+  }, "spaceBelow");
 
-  // Column header: "Teacher Comments →" right-aligned
-  const tcHeader = "Teacher Comments →\n";
-  const tc = ins(tcHeader);
-  tc.advance();
-  style(tc.start, tc.end, {
+  // Column headers: "Checklist" left-aligned, "Teacher Comments →" right-aligned
+  // Right-aligned text sits at the right edge of the content area (= at the divider)
+  const colHeaderLine = "Checklist | Teacher Comments →\n";
+  const clChecklistEnd = "Checklist".length;
+  const cl = ins(colHeaderLine);
+  cl.advance();
+  style(cl.start, cl.start + clChecklistEnd, {
     bold: true,
     fontSize: { magnitude: 8, unit: "PT" },
     foregroundColor: { color: { rgbColor: STYLE.lightGray } },
     weightedFontFamily: { fontFamily: FONT },
   }, "bold,fontSize,foregroundColor,weightedFontFamily");
-  paraStyle(tc.start, tc.end, {
-    alignment: "END",
+  // Spaces + "Teacher Comments →" in same style
+  style(cl.start + clChecklistEnd, cl.end, {
+    bold: true,
+    fontSize: { magnitude: 8, unit: "PT" },
+    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
+    weightedFontFamily: { fontFamily: FONT },
+  }, "bold,fontSize,foregroundColor,weightedFontFamily");
+  paraStyle(cl.start, cl.end, {
     spaceBelow: { magnitude: 6, unit: "PT" },
-  }, "alignment,spaceBelow");
+  }, "spaceBelow");
 
   // ── Checklist body ───────────────────────────────────────────────────────
   //
   // Wide right margin for teacher notes. Vertical divider line via
   // borderRight on content paragraphs. Section headers + checkbox items.
 
-  // Set page margins: narrow left, 50-50 split for teacher notes column
-  // Page width 612pt. Left margin 36pt. Usable 576pt ÷ 2 = 288pt each → right margin 288pt
+  // Page width 612pt. Left margin 36pt. Content column ~248pt, teacher notes ~328pt right margin
+  // Divider shifted ~40pt left from the 50-50 midpoint
   requests.push({
     updateDocumentStyle: {
       documentStyle: {
         marginTop: { magnitude: 36, unit: "PT" },
         marginBottom: { magnitude: 36, unit: "PT" },
         marginLeft: { magnitude: 36, unit: "PT" },
-        marginRight: { magnitude: 288, unit: "PT" },
+        marginRight: { magnitude: 328, unit: "PT" },
       },
       fields: "marginTop,marginBottom,marginLeft,marginRight",
     },
@@ -431,19 +453,6 @@ export function buildChecklistRequests(plan, meta) {
       }, "spaceBelow,borderRight");
     }
   }
-
-  // ── Footer ──────────────────────────────────────────────────────────────
-
-  const footerText = "\nRationale and detailed how-to-offer notes are in the companion Monthly Plan document.\n";
-  const ft = ins(footerText);
-  ft.advance();
-  style(ft.start, ft.end, {
-    italic: true,
-    fontSize: { magnitude: STYLE.checklistFooterSize, unit: "PT" },
-    foregroundColor: { color: { rgbColor: STYLE.lightGray } },
-    weightedFontFamily: { fontFamily: FONT },
-  }, "italic,fontSize,foregroundColor,weightedFontFamily");
-  paraStyle(ft.start, ft.end, { alignment: "CENTER" }, "alignment");
 
   return requests;
 }
