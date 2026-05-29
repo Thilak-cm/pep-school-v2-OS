@@ -1,13 +1,16 @@
 # Changelog
 
-# 10.29.1 — 2026-05-28
+# 10.30.0 — 2026-05-29
 
 ### Added
-- Joining date cold-start context for monthly plans — `generatePlanInternal` computes a human-readable relative joining date (e.g., "joined 3 weeks ago") from the student's `createdAt` field and passes it into the LLM prompt (PEP-280)
-- Cold-start classification in monthly plan system prompt — LLM classifies students as `observationBased` or `coldStart` based on meaningful observation count and joining recency, with `ageBenchmark` basis type for age-appropriate recommendations (PEP-280)
+- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
+- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
+- Firestore rules for `statsCache/` with role-based read access (PEP-285)
+- `useStatsData` hook for reading cached stats docs with auto-trigger on first deploy (PEP-285)
 
-### Fixed
-- Checklist header consolidated from two lines to single "Classroom | Month" row, 50-50 column split for teacher notes (PEP-279)
+### Changed
+- StatsPage rewritten as thin rendering layer — all client-side aggregation and localStorage caching removed (PEP-285)
+- Cache TTL set to 24 hours with user-driven refresh instead of short-TTL auto-recompute (PEP-285)
 
 # 10.29.0 — 2026-05-27
 

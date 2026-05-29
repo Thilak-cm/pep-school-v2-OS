@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-29T02:17:25.780Z
-App version: 10.29.1
+Generated: 2026-05-29T05:38:55.948Z
+App version: 10.30.0
 
 ## App Snapshot
 
@@ -114,7 +114,7 @@ App version: 10.29.1
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -132,6 +132,7 @@ App version: 10.29.1
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/runs/{runId}`
+- `/statsCache/{docId}`
 - `/students/{studentId}`
 - `/testbench/settings`
 - `/users/{uid}`
@@ -141,10 +142,10 @@ App version: 10.29.1
 
 ## Recent Changes
 
-### 10.29.1 (2026-05-28)
-- Joining date cold-start context for monthly plans — `generatePlanInternal` computes a human-readable relative joining date (e.g., "joined 3 weeks ago") from the student's `createdAt` field and passes it into the LLM prompt (PEP-280)
-- Cold-start classification in monthly plan system prompt — LLM classifies students as `observationBased` or `coldStart` based on meaningful observation count and joining recency, with `ageBenchmark` basis type for age-appropriate recommendations (PEP-280)
-- Checklist header consolidated from two lines to single "Classroom | Month" row, 50-50 column split for teacher notes (PEP-279)
+### 10.30.0 (2026-05-29)
+- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
+- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
+- Firestore rules for `statsCache/` with role-based read access (PEP-285)
 
 ### 10.29.0 (2026-05-27)
 - Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)

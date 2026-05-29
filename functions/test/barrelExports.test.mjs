@@ -49,6 +49,8 @@ const EXPECTED_EXPORTS = [
   "generateMonthlyPlan",
   "exportMonthlyPlanToDrive",
   "batchGenerateMonthlyPlans",
+  // Stats
+  "recomputeStats",
   // Test Bench
   "testBenchRun",
 ];
