@@ -47,6 +47,8 @@ const EXPECTED_EXPORTS = [
   "backfillStudentProfiles",
   // Monthly Plan
   "generateMonthlyPlan",
+  "exportMonthlyPlanToDrive",
+  "batchGenerateMonthlyPlans",
   // Test Bench
   "testBenchRun",
 ];

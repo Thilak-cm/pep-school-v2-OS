@@ -1,10 +1,23 @@
 # Changelog
 
+# 10.29.1 — 2026-05-28
+
+### Added
+- Joining date cold-start context for monthly plans — `generatePlanInternal` computes a human-readable relative joining date (e.g., "joined 3 weeks ago") from the student's `createdAt` field and passes it into the LLM prompt (PEP-280)
+- Cold-start classification in monthly plan system prompt — LLM classifies students as `observationBased` or `coldStart` based on meaningful observation count and joining recency, with `ageBenchmark` basis type for age-appropriate recommendations (PEP-280)
+
+### Fixed
+- Checklist header consolidated from two lines to single "Classroom | Month" row, 50-50 column split for teacher notes (PEP-279)
+
 # 10.29.0 — 2026-05-27
 
 ### Added
 - Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
 - Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
+- Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
+- Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
+- Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)
+- `createShortcut` Drive helper for creating shortcut files in shared Drive folders (PEP-279)
 
 # 10.28.0 — 2026-05-26
 

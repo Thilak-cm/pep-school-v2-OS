@@ -130,7 +130,7 @@ describe("buildUserPrompt", () => {
     targetMonth: "2026-06",
   };
 
-  it("assembles prompt with all inputs present", () => {
+  it("assembles prompt with all inputs present (including joiningDate)", () => {
     const observations = [
       { type: "text", text: "Worked with sandpaper letters", observedAt: new Date("2026-05-10"), createdByName: "Ms. Priya" },
     ];
@@ -141,7 +141,7 @@ describe("buildUserPrompt", () => {
     const precedingPlan = { month: "2026-05", sections: [{ name: "Language", items: [] }] };
 
     const prompt = buildUserPrompt({
-      profile: baseProfile,
+      profile: { ...baseProfile, joiningDate: "joined 10 months ago" },
       observations,
       mediaDocs,
       writingAnalysis,
@@ -153,6 +153,7 @@ describe("buildUserPrompt", () => {
     assert.ok(prompt.includes("Age: 3y 11m"));
     assert.ok(prompt.includes("Program: primary"));
     assert.ok(prompt.includes("Target Month: 2026-06"));
+    assert.ok(prompt.includes("Joined: joined 10 months ago"));
     assert.ok(prompt.includes("=== Writing Analysis ==="));
     assert.ok(prompt.includes("Strong letter formation"));
     assert.ok(prompt.includes("=== Observations (1 notes, most recent first) ==="));
@@ -197,6 +198,48 @@ describe("buildUserPrompt", () => {
     });
 
     assert.ok(!prompt.includes("=== Preceding Month Plan ==="));
+  });
+
+  it("includes Joined line when joiningDate is present", () => {
+    const prompt = buildUserPrompt({
+      profile: { ...baseProfile, joiningDate: "joined 2 months ago" },
+      observations: [],
+      mediaDocs: [],
+      writingAnalysis: null,
+      precedingPlan: null,
+    });
+
+    assert.ok(prompt.includes("Joined: joined 2 months ago"));
+    // Verify it appears between Target Month and the first section
+    const joinedIdx = prompt.indexOf("Joined:");
+    const targetMonthIdx = prompt.indexOf("Target Month:");
+    const writingIdx = prompt.indexOf("=== Writing Analysis ===");
+    assert.ok(joinedIdx > targetMonthIdx, "Joined should appear after Target Month");
+    assert.ok(joinedIdx < writingIdx, "Joined should appear before Writing Analysis");
+  });
+
+  it("omits Joined line when joiningDate is absent", () => {
+    const prompt = buildUserPrompt({
+      profile: baseProfile,
+      observations: [],
+      mediaDocs: [],
+      writingAnalysis: null,
+      precedingPlan: null,
+    });
+
+    assert.ok(!prompt.includes("Joined:"));
+  });
+
+  it("omits Joined line when joiningDate is null", () => {
+    const prompt = buildUserPrompt({
+      profile: { ...baseProfile, joiningDate: null },
+      observations: [],
+      mediaDocs: [],
+      writingAnalysis: null,
+      precedingPlan: null,
+    });
+
+    assert.ok(!prompt.includes("Joined:"));
   });
 
   it("includes preceding plan when present", () => {
