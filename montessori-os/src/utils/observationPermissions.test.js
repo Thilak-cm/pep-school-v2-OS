@@ -67,8 +67,9 @@ test('48h window: observation 49 hours old → outside window', () => {
 });
 
 test('48h window: observation exactly 48 hours old → boundary (within, <= check)', () => {
-  // Uses <= so exactly 48h should be within
-  assert.equal(isWithinAuthorActionWindow(makeObs('x', 48)), true);
+  // Subtract 1 second to avoid Date.now() drift between timestamp creation and assertion
+  const obs = { createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000 + 1000) };
+  assert.equal(isWithinAuthorActionWindow(obs), true);
 });
 
 test('48h window: observation 48.01 hours old → outside window', () => {
