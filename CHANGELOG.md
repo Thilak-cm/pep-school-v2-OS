@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.29.1 — 2026-05-28
+
+### Added
+- Joining date cold-start context for monthly plans — `generatePlanInternal` computes a human-readable relative joining date (e.g., "joined 3 weeks ago") from the student's `createdAt` field and passes it into the LLM prompt (PEP-280)
+- Cold-start classification in monthly plan system prompt — LLM classifies students as `observationBased` or `coldStart` based on meaningful observation count and joining recency, with `ageBenchmark` basis type for age-appropriate recommendations (PEP-280)
+
+### Fixed
+- Checklist header consolidated from two lines to single "Classroom | Month" row, 50-50 column split for teacher notes (PEP-279)
+
 # 10.29.0 — 2026-05-27
 
 ### Added
