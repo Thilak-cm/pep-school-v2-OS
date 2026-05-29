@@ -38,7 +38,7 @@ You will receive:
    - age
    - program
    - targetMonth
-   - joiningDate (how long the child has been in this school)
+   - Joined: (e.g., "joined 3 weeks ago" — how long the child has been at this school)
    - classroom context, if available
    - prior Montessori experience, if known
 2. writingAnalysis:

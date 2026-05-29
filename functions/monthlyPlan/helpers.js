@@ -88,7 +88,7 @@ export function formatWritingAnalysis(analysis) {
  * Build the user prompt from all gathered context.
  *
  * @param {object} opts
- * @param {object} opts.profile       — { displayName, studentId, ageStr, programId, targetMonth, joiningDate? }
+ * @param {object} opts.profile       — { displayName, studentId, ageStr, programId, targetMonth, joiningDate? (relative, e.g. "joined 3 weeks ago") }
  * @param {object[]} opts.observations — observation docs (already sorted desc)
  * @param {object[]} opts.mediaDocs    — media docs (already sorted desc)
  * @param {object|null} opts.writingAnalysis — writing_analysis doc data or null

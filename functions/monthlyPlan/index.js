@@ -125,10 +125,30 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
   const age = calculateAge(dob, now);
   const ageStr = age ? `${age.years}y ${age.months}m` : "unknown age";
 
-  // Compute joining date from createdAt (PEP-280: cold-start context)
+  // Compute human-readable joining date from createdAt (PEP-280: cold-start context)
   const createdAt = studentData.createdAt?.toDate?.()
     ?? (studentData.createdAt ? new Date(studentData.createdAt) : null);
-  const joiningDate = createdAt ? createdAt.toISOString().slice(0, 10) : null;
+  let joiningDate = null;
+  if (createdAt) {
+    const diffMs = now - createdAt;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) {
+      joiningDate = null; // future createdAt (data-entry error) — omit
+    } else if (diffDays === 0) {
+      joiningDate = "joined today";
+    } else if (diffDays < 7) {
+      joiningDate = `joined ${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+    } else if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7);
+      joiningDate = `joined ${weeks} week${weeks !== 1 ? "s" : ""} ago`;
+    } else {
+      const months = (now.getFullYear() - createdAt.getFullYear()) * 12 +
+        (now.getMonth() - createdAt.getMonth());
+      joiningDate = months < 1
+        ? "joined 1 month ago"
+        : `joined ${months} month${months !== 1 ? "s" : ""} ago`;
+    }
+  }
 
   // Resolve programId from classroom (student docs don't always have it)
   let programId = studentData.programId || null;
