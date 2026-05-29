@@ -34,6 +34,7 @@
 - `students/{studentId}/ai_summaries/writing_analysis/history/{isoTimestamp}` // writing analysis archives (PEP-263)
 - `students/{studentId}/ai_summaries/open_questions`    // AI-generated interview question bank (PEP-173)
 - `students/{studentId}/ai_summaries/monthly_plan`      // AI-generated monthly plan (PEP-260)
+- `students/{studentId}/ai_summaries/monthly_plan/feedback/{autoId}` // admin feedback on plans (PEP-282)
 - `students/{studentId}/ai_summaries/monthly_plan/history/{YYYY-MM}_{timestamp}` // monthly plan archives (PEP-260)
 - `students/{studentId}/ai_summaries/weekly_snapshot`   // unified baseball card + signals + missing domains (PEP-229)
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
@@ -257,6 +258,7 @@ Subcollections
 - `ai_summaries/writing_analysis` – per-program writing analysis (PEP-132, PEP-263). Config resolved via `config/writing_analysis_{programId}`. Overwritten each cycle; previous doc archived to `history/` subcollection on weekly scheduled runs only (not on-demand callable). Shape: `{ narrative: string, improvements: string[], concerns: string[], recommendations: Array<{ area: string, action: string, montessoriApproach: string, rationale: string, priority: number }> | string[], dimensionRatings: Record<string, { score: number, trend: "improving"|"stable"|"declining", evidence: string }>, sampleCount: number, copiedCount: number, studentAge: { years: number, months: number } | null, generatedAt: Timestamp, sourceMediaIds: string[], model: string, programId: string | null, status: "completed", ...programSpecificFields }`. Program-specific fields (e.g., `stageSummary`, `motorHandwritingAnalysis`, `languageCompositionAnalysis`, `confidence`) are preserved via spread from the VLM response. Consumed by the weekly plan generator (PEP-128).
 - `ai_summaries/writing_analysis/history/{isoTimestamp}` – archived writing analysis snapshots (PEP-263). Shape: full copy of previous `writing_analysis` doc plus `{ archivedAt: Timestamp }`. Created automatically before each weekly scheduled regeneration — on-demand callable does NOT archive.
 - `ai_summaries/monthly_plan` – AI-generated monthly plan for toddler and primary students (PEP-260). Generated on-demand by superadmins via `generateMonthlyPlan` callable. Overwritten each generation; previous plan archived to `history/` subcollection before overwrite. Config resolved via `config/monthly_plan`. Shape: `{ studentId: string, studentName: string, age: string, month: string (YYYY-MM), dataWindow: { from: string, to: string, observationCount: number }, affinities: string[], sections: Array<{ name: string, position: number, monthlyAim: string, items: Array<{ work: string, basis: string, why: string, hook: string, offer: string, next: string, watch: string }> }>, generatedAt: string (ISO), generatedBy: string (uid) | 'system:batchCron', generatedByName: string, model: string, totalTokens: number, status: 'generated', driveDocId?: string, driveDocLink?: string, driveChecklistId?: string, driveChecklistLink?: string, driveExportedAt?: string (ISO), driveExportedBy?: string (uid) | 'system:batchCron' }`. Drive fields are populated by `exportMonthlyPlanToDrive` or the batch cron (PEP-279).
+- `ai_summaries/monthly_plan/feedback/{autoId}` – admin feedback on monthly plans (PEP-282). Append-only — each submission creates a new doc. Classroom admins scoped to manageable classrooms; superadmins have full access. Shape: `{ difficulty?: "too_easy" | "about_right" | "too_tough", pace?: "too_slow" | "good_pace" | "too_fast", section: "General" | "Language" | "Sensorial" | "Math" | "Practical Life" | "Grace & Courtesy", text?: string, planMonth: string (YYYY-MM) | null, createdBy: string (uid), createdByName: string, createdAt: Timestamp (serverTimestamp) }`. At least one of `difficulty`, `pace`, or `text` is present (validated client-side). Not yet consumed by plan generation CF — future integration planned.
 - `ai_summaries/monthly_plan/history/{YYYY-MM}_{timestamp}` – archived monthly plan snapshots (PEP-260). Shape: full copy of the previous `monthly_plan` doc plus `{ archivedAt: string (ISO), archivedReason: string }`. History key includes both the plan month and a timestamp to avoid collisions on same-month regeneration.
 - `ai_summaries/signals` – **DEPRECATED (PEP-229)**: merged into `weekly_snapshot`. Docs may still exist in Firestore until cleanup script runs.
 - `ai_summaries/soul` – AI-generated student soul narrative (PEP-149). A free-form markdown document representing the AI's understanding of who this child is. Regenerated weekly from ALL observations and interviews. Shape: `{ content: string (markdown narrative with ## section headers), programId: ProgramId, hasEmergentObservations: boolean, guidelinesSuggestions: Array<{ area: string, discipline: string, rationale: string }> | null, sourceStats: { observationCount: number, interviewCount: number, lastGeneratedAt: Timestamp, lastObservationAt: Timestamp | null, lastInterviewAt: Timestamp | null }, createdAt: Timestamp, updatedAt: Timestamp, updatedBy: string }`. The `guidelinesSuggestions` array contains AI-proposed new skill areas extracted from the soul generation response — consumed by the guideline approval flow (PEP-151). Section headers are informed by the student's guidelines doc, not hardcoded. The `hasEmergentObservations` flag is true when the soul contains non-empty content under `## Emergent Observations` — signals that don't fit existing guidelines categories. Note: the `hasInformationGaps` field was removed in PEP-207 — exploration gaps are now tracked via the `open_questions` doc's `areas` keys.
@@ -932,6 +934,69 @@ Migration/backfill (branches)
 - Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
 - For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins (super + program), optionally set `homeBranchId`.
 - Validate invariants and fix mismatches before enabling rules.
+
+---
+
+## 📊 Stats Cache (`/statsCache/{docId}`)
+Purpose: Pre-computed per-classroom stats written by the `recomputeStats` Cloud Function (PEP-285). The client reads these docs directly — Firestore rules enforce role-scoped access. One doc per active classroom + one `_meta` doc for cache freshness.
+
+### Meta doc (`/statsCache/_meta`)
+```typescript
+interface StatsMetaDoc {
+  cachedAt: Timestamp;        // when CF last ran
+  classroomCount: number;     // number of classroom docs written
+}
+```
+
+### Classroom doc (`/statsCache/classroom_{classroomId}`)
+```typescript
+interface StatsClassroomDoc {
+  cachedAt: Timestamp;
+  classroomId: string;
+  classroomName: string;
+  branchId: string | null;
+
+  noteCounts: {
+    voice: number;
+    text: number;
+    lesson: number;
+    media: number;
+    total: number;
+  };
+
+  activity: {
+    daily: Record<string, number>;   // "YYYY-MM-DD" → count, last 30 days
+    weekly: Record<string, number>;  // "YYYY-Www" → count, last 12 weeks
+    monthly: Record<string, number>; // "YYYY-MM" → count, last 12 months
+  };
+
+  studentCount: number;
+
+  teachers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+    observations: number;           // observation notes in THIS classroom
+    lessons: number;                // lesson notes in THIS classroom
+    otherClassroomNotes: number;    // notes in OTHER classrooms
+    otherClassroomCount: number;    // number of other classrooms
+  }>;
+
+  students: Array<{
+    id: string;
+    name: string;
+    status: string;
+    totalNotes: number;
+    thisWeekNotes: number;
+    last42DaysNotes: number;
+  }>;
+}
+```
+
+### Security rules
+- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users
+- **Write**: `false` — only Cloud Functions write via admin SDK
 
 ---
 

@@ -1,8 +1,22 @@
 # Changelog
 
+# 10.30.0 — 2026-05-29
+
+### Added
+- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
+- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
+- Firestore rules for `statsCache/` with role-based read access (PEP-285)
+- `useStatsData` hook for reading cached stats docs with auto-trigger on first deploy (PEP-285)
+
+### Changed
+- StatsPage rewritten as thin rendering layer — all client-side aggregation and localStorage caching removed (PEP-285)
+- Cache TTL set to 24 hours with user-driven refresh instead of short-TTL auto-recompute (PEP-285)
+
 # 10.29.0 — 2026-05-27
 
 ### Added
+- Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
+- Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
 - Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
 - Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
 - Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)

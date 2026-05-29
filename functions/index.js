@@ -74,5 +74,8 @@ export {
 // Monthly Plan (PEP-260, PEP-279)
 export { generateMonthlyPlan, exportMonthlyPlanToDrive, batchGenerateMonthlyPlans } from "./monthlyPlan/index.js";
 
+// Stats (PEP-285)
+export { recomputeStats } from "./stats/index.js";
+
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";

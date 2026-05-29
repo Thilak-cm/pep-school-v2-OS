@@ -218,4 +218,5 @@ describe("buildUserPrompt", () => {
     assert.ok(prompt.includes("Language"));
     assert.ok(prompt.includes("Sandpaper Letters"));
   });
+
 });

@@ -208,6 +208,12 @@ service cloud.firestore {
           allow read: if isSuperAdmin();
           allow create, update, delete: if isSuperAdmin();
         }
+
+        // Plan feedback from admins (PEP-282)
+        // Superadmins: full read/create; classroomadmins: scoped to manageable classrooms
+        match /feedback/{feedbackId} {
+          allow read, create: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId));
+        }
       }
 
       // Interview transcripts — append-only, Cloud Functions write via admin SDK
@@ -585,6 +591,19 @@ service cloud.firestore {
           && (!('sessionName' in request.resource.data) || request.resource.data.sessionName is string);
         allow delete: if false;
       }
+    }
+
+    // Stats cache (PEP-285) — pre-computed per-classroom stats written by CF
+    // Client reads scoped by role; writes only via admin SDK (Cloud Functions)
+    match /statsCache/{docId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        docId == '_meta' ||
+        (resource.data.classroomId != null &&
+          (managesClassroom(resource.data.classroomId) ||
+           isTeacherInClassroom(resource.data.classroomId)))
+      );
+      allow write: if false;
     }
 
     // Default deny — any collection not explicitly matched above is blocked
