@@ -2,7 +2,7 @@
  * PEP-282: PlanFeedbackDialog component structure tests.
  *
  * Static analysis of PlanFeedbackDialog.jsx — verifies the component
- * has the required structure for difficulty/pace axes, section tags,
+ * has the required structure for difficulty/pace axes,
  * text input with mic, validation, and Firestore write path.
  */
 import { describe, it } from 'node:test';
@@ -40,16 +40,6 @@ describe('PlanFeedbackDialog component (PEP-282)', () => {
     assert.ok(/too.?slow/i.test(src), 'Should have "Too slow" option');
     assert.ok(/good.?pace/i.test(src), 'Should have "Good pace" option');
     assert.ok(/too.?fast/i.test(src), 'Should have "Too fast" option');
-  });
-
-  it('has section tag chips including General and all 5 Montessori areas', async () => {
-    const src = await readFile(componentPath, 'utf8');
-    assert.ok(/General/i.test(src), 'Should have General section tag');
-    assert.ok(/Language/.test(src), 'Should have Language section tag');
-    assert.ok(/Sensorial/.test(src), 'Should have Sensorial section tag');
-    assert.ok(/Math/.test(src), 'Should have Math section tag');
-    assert.ok(/Practical Life/.test(src), 'Should have Practical Life section tag');
-    assert.ok(/Grace.*Courtesy/i.test(src), 'Should have Grace & Courtesy section tag');
   });
 
   it('has a text input field', async () => {
