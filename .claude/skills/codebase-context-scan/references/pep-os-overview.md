@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-27T17:30:19.096Z
-App version: 10.29.0
+Generated: 2026-05-29T05:38:55.948Z
+App version: 10.30.0
 
 ## App Snapshot
 
@@ -114,7 +114,7 @@ App version: 10.29.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -132,6 +132,7 @@ App version: 10.29.0
 - `/placements/{placementId}`
 - `/programs/{programId}`
 - `/runs/{runId}`
+- `/statsCache/{docId}`
 - `/students/{studentId}`
 - `/testbench/settings`
 - `/users/{uid}`
@@ -141,12 +142,15 @@ App version: 10.29.0
 
 ## Recent Changes
 
+### 10.30.0 (2026-05-29)
+- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
+- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
+- Firestore rules for `statsCache/` with role-based read access (PEP-285)
+
 ### 10.29.0 (2026-05-27)
 - Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
 - Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
 - Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
-- Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
-- Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)
 
 ### 10.28.0 (2026-05-26)
 - Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
@@ -157,9 +161,4 @@ App version: 10.29.0
 - Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
 - Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
 - Back button on recipients screen no longer dead-ends during active transcription (PEP-283)
-
-### 10.27.1 (2026-05-25)
-- Photo note student picker: swap-to-replace instead of blocking toast when selecting a different student (PEP-243)
-- "Analyzing image" indicator moved inline near photos — CTA button stays enabled during analysis (PEP-243)
-- Age chip moved from student dashboard card to app header — shown on all student screens (PEP-243)
 
