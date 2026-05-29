@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-27T17:30:19.096Z
-App version: 10.29.0
+Generated: 2026-05-29T02:17:25.780Z
+App version: 10.29.1
 
 ## App Snapshot
 
@@ -141,12 +141,15 @@ App version: 10.29.0
 
 ## Recent Changes
 
+### 10.29.1 (2026-05-28)
+- Joining date cold-start context for monthly plans — `generatePlanInternal` computes a human-readable relative joining date (e.g., "joined 3 weeks ago") from the student's `createdAt` field and passes it into the LLM prompt (PEP-280)
+- Cold-start classification in monthly plan system prompt — LLM classifies students as `observationBased` or `coldStart` based on meaningful observation count and joining recency, with `ageBenchmark` basis type for age-appropriate recommendations (PEP-280)
+- Checklist header consolidated from two lines to single "Classroom | Month" row, 50-50 column split for teacher notes (PEP-279)
+
 ### 10.29.0 (2026-05-27)
 - Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
 - Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
 - Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
-- Batch cron `batchGenerateMonthlyPlans` auto-generates and exports plans for all toddler/primary students on the last-day-minus-4 of each month at midnight IST (PEP-279)
-- Export to Drive button on student dashboard plan tab (superadmin only) with confirmation dialog (PEP-279)
 
 ### 10.28.0 (2026-05-26)
 - Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
@@ -157,9 +160,4 @@ App version: 10.29.0
 - Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
 - Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
 - Back button on recipients screen no longer dead-ends during active transcription (PEP-283)
-
-### 10.27.1 (2026-05-25)
-- Photo note student picker: swap-to-replace instead of blocking toast when selecting a different student (PEP-243)
-- "Analyzing image" indicator moved inline near photos — CTA button stays enabled during analysis (PEP-243)
-- Age chip moved from student dashboard card to app header — shown on all student screens (PEP-243)
 
