@@ -26,7 +26,20 @@ import PerformanceSummaryCard from './PerformanceSummaryCard';
 import { isAdminRole } from '../utils/roleUtils';
 import { useStatsData } from '../hooks/useStatsData';
 
-const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, __onNavigateToBaseballCard }) => {
+/** Format ms timestamp as a short relative string, e.g. "3 min ago", "2 hours ago" */
+const formatRelativeTime = (ms) => {
+  if (!ms) return null;
+  const diff = Date.now() - ms;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
+const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateToStudent, onNavigateToBaseballCard: _onNavigateToBaseballCard }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [timePeriod, setTimePeriod] = useState('1W');
   const [classroomTimePeriod, setClassroomTimePeriod] = useState('1W');
@@ -42,17 +55,22 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   // ── Stats data from server-side cache (PEP-285) ──────────────────
   // Discover teacher classrooms for the hook
   const [teacherClassrooms, setTeacherClassrooms] = useState([]);
+  const [teacherClassroomError, setTeacherClassroomError] = useState(null);
   useEffect(() => {
     if (role !== 'teacher' || !user?.uid) return;
     (async () => {
       try {
+        setTeacherClassroomError(null);
         const snap = await getDocs(query(collection(db, 'classrooms'), where('teacherIds', 'array-contains', user.uid)));
         setTeacherClassrooms(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (_e) { setTeacherClassrooms([]); }
+      } catch (e) {
+        setTeacherClassrooms([]);
+        setTeacherClassroomError(e?.message || 'Failed to load your classrooms');
+      }
     })();
   }, [role, user?.uid]);
 
-  const { classroomDocs, loading: hookLoading, error: _HookError, stale: _Stale, refreshing: _Refreshing, refresh: _Refresh } = useStatsData({
+  const { classroomDocs, loading: hookLoading, error: hookError, refreshing, refresh, cachedAt } = useStatsData({
     user, role, manageableClassrooms, userClassrooms: teacherClassrooms,
   });
 
@@ -61,10 +79,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     id: d.classroomId, name: d.classroomName, branchId: d.branchId,
     teacherIds: (d.teachers || []).map(t => t.id),
   })), [classroomDocs]);
-
-  const _Students = useMemo(() => classroomDocs.flatMap(d =>
-    (d.students || []).map(s => ({ ...s, classroomId: d.classroomId }))
-  ), [classroomDocs]);
 
   // Build stats object matching the original shape for compatibility
   const stats = useMemo(() => {
@@ -83,7 +97,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     : '';
 
   // Tab loading (all data arrives at once now, no per-tab lazy loading)
-  const tabLoadingStates = { 0: false, 1: false, 2: false, 3: false };
+
 
   const singleBranchId = useMemo(() => {
     if (!isClassroomAdmin) return null;
@@ -314,7 +328,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }
 
   // Generate activity data from pre-computed tiers
-  const generateActivityData = (_observations, period) => {
+  const generateActivityData = (period) => {
     const tierKey = (period === '1D' || period === '1W') ? 'daily'
       : (period === '1M') ? 'weekly' : 'monthly';
 
@@ -602,7 +616,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   };
 
   const ActivityTrendChart = () => {
-    const activityData = generateActivityData(stats.allObservations, timePeriod);
+    const activityData = generateActivityData(timePeriod);
     
     if (!mounted) {
       return (
@@ -745,7 +759,26 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       width: '100%',
       minWidth: 0
     }}>
-      {/* Header removed (filters deprecated) */}
+      {/* Error / stale / refresh bar */}
+      {(hookError || teacherClassroomError) && (
+        <Alert severity="error" sx={{ mx: 1, mt: 1 }}>{hookError || teacherClassroomError}</Alert>
+      )}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1, pt: 1 }}>
+        {cachedAt && (
+          <Typography variant="caption" color="text.secondary">
+            Updated {formatRelativeTime(cachedAt)}
+          </Typography>
+        )}
+        <Button
+          size="small"
+          variant="text"
+          onClick={refresh}
+          disabled={refreshing || hookLoading}
+          sx={{ textTransform: 'none', minWidth: 'auto' }}
+        >
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </Button>
+      </Box>
 
       {/* Statistics Content */}
       <Card sx={{ 
@@ -1035,14 +1068,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
             
             {/* Classrooms Tab */}
             {activeTab === 1 && (
-                  tabLoadingStates[1] ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-                <CircularProgress />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-                  Loading classrooms data...
-                </Typography>
-              </Box>
-            ) : (
             <Box>
               <Box sx={{ mb: 2, maxWidth: 320, minWidth: 220 }}>
                 <ToggleButtonGroup
@@ -1166,19 +1191,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     </Alert>
                   )}
                     </Box>
-                  )
                 )}
-              
+
             {/* Teachers Tab */}
             {activeTab === 2 && (
-                  tabLoadingStates[2] ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-                <CircularProgress />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-                  Loading teachers data...
-                </Typography>
-              </Box>
-            ) : (
             <Box>
               <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
                 <Box sx={{ maxWidth: 320, minWidth: 220, flex: '1 1 220px' }}>
@@ -1282,19 +1298,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                 </Box>
               )}
             </Box>
-                  )
                 )}
-              
+
             {/* Students Tab */}
             {activeTab === 3 && (
-                  tabLoadingStates[3] ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-                <CircularProgress />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-                  Loading students data...
-                </Typography>
-              </Box>
-            ) : (
             <Box>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                 Student Performance
@@ -1355,7 +1362,6 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
                     </Alert>
                   )}
                     </Box>
-                  )
                 )}
             </Box>
         </CardContent>

@@ -18,7 +18,7 @@ import {
 /**
  * Recompute all per-classroom stats and write to statsCache/.
  *
- * Callable by superadmin and classroomadmin. Teachers read cached docs only.
+ * Callable by any authenticated user (superadmin, classroomadmin, teacher).
  * Checks a `_meta` doc for freshness; skips recompute if cache is < TTL old
  * (unless forceRefresh is set).
  *
@@ -47,10 +47,10 @@ export const recomputeStats = functions
     }
 
     const {role} = callerSnap.data();
-    if (role !== "superadmin" && role !== "classroomadmin") {
+    if (!["superadmin", "classroomadmin", "teacher"].includes(role)) {
       throw new functions.https.HttpsError(
         "permission-denied",
-        "Only admins can trigger stats recompute",
+        "Unknown role",
       );
     }
 

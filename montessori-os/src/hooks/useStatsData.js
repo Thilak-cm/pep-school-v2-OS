@@ -2,16 +2,14 @@
  * useStatsData — client hook for reading pre-computed stats cache docs (PEP-285).
  *
  * Reads `statsCache/classroom_{id}` docs the user has access to (Firestore
- * rules enforce role scoping). If the cache is stale (> TTL), auto-triggers
- * recomputeStats CF for admins. Teachers see stale data with an indicator.
+ * rules enforce role scoping). Exposes cachedAt timestamp and a manual refresh
+ * trigger. Auto-triggers recomputeStats CF only when no cache exists at all.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, doc, getDocs, getDoc, query, where, documentId } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, cloudFunctions } from '../firebase';
-
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — matches CF
 
 /**
  * @param {Object} params
@@ -24,16 +22,17 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
   const [classroomDocs, setClassroomDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [stale, setStale] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [cachedAt, setCachedAt] = useState(null); // ms timestamp of last recompute
   const mountedRef = useRef(true);
 
-  const isAdmin = role === 'superadmin' || role === 'classroomadmin';
+  // Any authenticated user can trigger recompute — CF validates role server-side
+  const canTrigger = !!user?.uid;
 
   // Stable key for manageableClassrooms to avoid unnecessary re-renders
-  const classroomKey = (manageableClassrooms || []).sort().join(',');
+  const classroomKey = [...(manageableClassrooms || [])].sort().join(',');
   const teacherClassroomIds = (userClassrooms || []).map(c => c.id || c).filter(Boolean);
-  const teacherKey = teacherClassroomIds.sort().join(',');
+  const teacherKey = [...teacherClassroomIds].sort().join(',');
 
   // Fetch stats cache docs based on role
   const fetchDocs = useCallback(async (opts = {}) => {
@@ -89,24 +88,16 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
       try {
         const metaSnap = await getDoc(doc(statsCacheRef, '_meta'));
         if (metaSnap.exists()) {
-          const cachedAt = metaSnap.data()?.cachedAt;
-          const cachedMs = cachedAt?.toDate ? cachedAt.toDate().getTime()
-            : cachedAt?.seconds ? cachedAt.seconds * 1000 : 0;
-          const isStale = Date.now() - cachedMs > CACHE_TTL_MS;
-          if (mountedRef.current) setStale(isStale);
-
-          if (isStale && isAdmin && triggerIfStale) {
-            triggerRecompute(false);
-          }
-        } else if (isAdmin && triggerIfStale) {
-          if (mountedRef.current) setStale(true);
+          const metaCachedAt = metaSnap.data()?.cachedAt;
+          const cachedMs = metaCachedAt?.toDate ? metaCachedAt.toDate().getTime()
+            : metaCachedAt?.seconds ? metaCachedAt.seconds * 1000 : 0;
+          if (mountedRef.current) setCachedAt(cachedMs || null);
+        } else if (canTrigger && triggerIfStale) {
+          // No cache at all — auto-trigger first compute (global recompute regardless of caller role)
           triggerRecompute(true);
-        } else {
-          if (mountedRef.current) setStale(true);
         }
       } catch (_metaErr) {
-        // _meta read failed — non-critical
-        if (mountedRef.current) setStale(true);
+        // _meta read failed — non-critical, cachedAt stays null
       }
     } catch (e) {
       if (mountedRef.current) {
@@ -115,12 +106,13 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
     } finally {
       if (mountedRef.current) setLoading(false);
     }
+  // triggerRecompute omitted: circular dep with fetchDocs. Safe because uid is stable after mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, role, classroomKey, teacherKey, isAdmin]);
+  }, [user?.uid, role, classroomKey, teacherKey, canTrigger]);
 
   // Trigger the CF to recompute stats
   const triggerRecompute = useCallback(async (forceRefresh = false) => {
-    if (!isAdmin) return;
+    if (!canTrigger) return;
     try {
       setRefreshing(true);
       const callFn = httpsCallable(cloudFunctions, 'recomputeStats', { timeout: 120_000 });
@@ -131,16 +123,18 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
         await fetchDocs({ triggerIfStale: false, silent: true });
       }
       if (mountedRef.current) {
-        setStale(false);
         setRefreshing(false);
+        // Use server-provided timestamp when cache was already fresh; otherwise now
+        setCachedAt(result.data?.fresh ? (result.data.cachedAt || Date.now()) : Date.now());
       }
     } catch (e) {
       if (mountedRef.current) {
         setRefreshing(false);
+        setError(e?.message || 'Stats refresh failed');
         if (import.meta.env.DEV) console.warn('[useStatsData] recompute failed', e);
       }
     }
-  }, [isAdmin, fetchDocs]);
+  }, [canTrigger, fetchDocs]);
 
   // Manual refresh (exposed to UI)
   const refresh = useCallback(() => {
@@ -154,5 +148,5 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
     return () => { mountedRef.current = false; };
   }, [fetchDocs]);
 
-  return { classroomDocs, loading, error, stale, refreshing, refresh };
+  return { classroomDocs, loading, error, refreshing, refresh, cachedAt };
 };
