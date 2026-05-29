@@ -182,23 +182,47 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
     });
   }, [classroomTimePeriod, classroomDocs]);
 
-  // Pie chart data from pre-computed note counts (all-time)
+  // Pie chart data filtered by time period using per-type activity tiers
   const pieChartData = useMemo(() => {
-    const nc = { voice: 0, text: 0, lesson: 0, media: 0 };
-    for (const doc of classroomDocs) {
-      const c = doc.noteCounts || {};
-      nc.voice += c.voice || 0;
-      nc.text += c.text || 0;
-      nc.lesson += c.lesson || 0;
-      nc.media += c.media || 0;
+    const tierKey = (timePeriod === '1D' || timePeriod === '1W') ? 'daily'
+      : (timePeriod === '1M') ? 'weekly' : 'monthly';
+    const sliceMap = { '1D': 1, '1W': 7, '1M': 4, '3M': 3, '6M': 6, '1Y': 12 };
+    const sliceN = sliceMap[timePeriod] || 7;
+
+    const sumTier = (type) => {
+      let total = 0;
+      for (const doc of classroomDocs) {
+        const tierMap = doc.activityByType?.[type]?.[tierKey] || {};
+        const entries = Object.entries(tierMap).sort(([a], [b]) => a.localeCompare(b));
+        total += entries.slice(-sliceN).reduce((sum, [, count]) => sum + count, 0);
+      }
+      return total;
+    };
+
+    // Fall back to all-time noteCounts if activityByType not yet in cache docs
+    const hasTypeTiers = classroomDocs.some(d => d.activityByType);
+    if (!hasTypeTiers) {
+      const nc = { voice: 0, text: 0, lesson: 0, media: 0 };
+      for (const doc of classroomDocs) {
+        const c = doc.noteCounts || {};
+        nc.voice += c.voice || 0; nc.text += c.text || 0;
+        nc.lesson += c.lesson || 0; nc.media += c.media || 0;
+      }
+      return [
+        { name: 'Voice', value: nc.voice, color: '#3b82f6' }, /* Recharts */
+        { name: 'Text', value: nc.text, color: '#f59e0b' }, /* Recharts */
+        { name: 'Lesson', value: nc.lesson, color: '#059669' }, /* Recharts */
+        { name: 'Media', value: nc.media, color: '#ec4899' } /* Recharts */
+      ];
     }
+
     return [
-      { name: 'Voice', value: nc.voice, color: '#3b82f6' }, /* Recharts */
-      { name: 'Text', value: nc.text, color: '#f59e0b' }, /* Recharts */
-      { name: 'Lesson', value: nc.lesson, color: '#059669' }, /* Recharts */
-      { name: 'Media', value: nc.media, color: '#ec4899' } /* Recharts */
+      { name: 'Voice', value: sumTier('voice'), color: '#3b82f6' }, /* Recharts */
+      { name: 'Text', value: sumTier('text'), color: '#f59e0b' }, /* Recharts */
+      { name: 'Lesson', value: sumTier('lesson'), color: '#059669' }, /* Recharts */
+      { name: 'Media', value: sumTier('media'), color: '#ec4899' } /* Recharts */
     ];
-  }, [classroomDocs]);
+  }, [classroomDocs, timePeriod]);
 
   const handleTimePeriodChange = (event, newPeriod) => {
     if (newPeriod !== null) setTimePeriod(newPeriod);

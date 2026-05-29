@@ -191,8 +191,21 @@ export const recomputeStats = functions
         noteCounts.total++;
       }
 
-      // Activity tiers
+      // Activity tiers (aggregate + per-type)
       const activity = buildActivityTiers(classroomObs, now);
+
+      // Per-type activity tiers for time-filtered pie chart
+      const obsByType = {voice: [], text: [], lesson: [], media: []};
+      for (const obs of classroomObs) {
+        const t = classifyNote(obs);
+        if (t in obsByType) obsByType[t].push(obs);
+      }
+      const activityByType = {
+        voice: buildActivityTiers(obsByType.voice, now),
+        text: buildActivityTiers(obsByType.text, now),
+        lesson: buildActivityTiers(obsByType.lesson, now),
+        media: buildActivityTiers(obsByType.media, now),
+      };
 
       // Teacher stats for this classroom
       const teacherIds = classroom.teacherIds || [];
@@ -276,6 +289,7 @@ export const recomputeStats = functions
         branchId: classroom.branchId || null,
         noteCounts,
         activity,
+        activityByType,
         studentCount: classroomStudents.length,
         teachers,
         students,
