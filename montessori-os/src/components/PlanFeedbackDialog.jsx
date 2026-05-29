@@ -29,10 +29,6 @@ const PACE_OPTIONS = [
   { value: 'too_fast', label: 'Too fast' },
 ];
 
-const SECTION_TAGS = [
-  'General', 'Language', 'Sensorial', 'Math', 'Practical Life', 'Grace & Courtesy',
-];
-
 const Transition = forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
@@ -46,7 +42,6 @@ export default function PlanFeedbackDialog({
 }) {
   const [difficulty, setDifficulty] = useState(null);
   const [pace, setPace] = useState(null);
-  const [section, setSection] = useState('General');
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -59,7 +54,6 @@ export default function PlanFeedbackDialog({
     setDifficulty(null);
     setPace(null);
     setText('');
-    setSection('General');
     setSubmitted(false);
   }, []);
 
@@ -79,7 +73,6 @@ export default function PlanFeedbackDialog({
       await addDoc(feedbackRef, {
         ...(difficulty && { difficulty }),
         ...(pace && { pace }),
-        section,
         ...(text.trim() && { text: text.trim() }),
         planMonth: planMonth || null,
         createdBy: auth.currentUser?.uid || null,
@@ -168,23 +161,6 @@ export default function PlanFeedbackDialog({
                   variant="outlined"
                   onClick={() => setPace(pace === opt.value ? null : opt.value)}
                   sx={chipSx(pace === opt.value)}
-                />
-              ))}
-            </Box>
-
-            {/* Section tag */}
-            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mb: 0.5, display: 'block' }}>
-              About
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>
-              {SECTION_TAGS.map((tag) => (
-                <Chip
-                  key={tag}
-                  label={tag}
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setSection(tag)}
-                  sx={chipSx(section === tag)}
                 />
               ))}
             </Box>
