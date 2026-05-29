@@ -5,14 +5,14 @@
  * feedback on a student's monthly plan. Each submission creates a standalone
  * doc at students/{id}/ai_summaries/monthly_plan/feedback/{autoId}.
  */
-import { useState, useCallback, forwardRef } from 'react';
+import { useState, useCallback } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, Typography, Box, Chip, IconButton, Slide,
+  Dialog, DialogContent, DialogActions, Stack,
+  Button, TextField, Typography, Box, Chip, IconButton,
 } from '@mui/material';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Mic, X } from '../icons';
+import { Mic, ThumbsUp } from '../icons';
 import useNotify from '../notifications/useNotify';
 import VoiceRecorder from '../VoiceRecorder';
 
@@ -28,10 +28,6 @@ const PACE_OPTIONS = [
   { value: 'good_pace', label: 'Good pace' },
   { value: 'too_fast', label: 'Too fast' },
 ];
-
-const Transition = forwardRef(function Transition(props, ref) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
 
 // ── Component ─────────────────────────────────────────────────────
 export default function PlanFeedbackDialog({
@@ -109,95 +105,111 @@ export default function PlanFeedbackDialog({
       <Dialog
         open={open}
         onClose={handleClose}
-        TransitionComponent={Transition}
         fullWidth
-        maxWidth="sm"
+        maxWidth="xs"
         PaperProps={{
           sx: {
-            position: 'fixed',
-            bottom: 0,
-            m: 0,
-            borderRadius: '16px 16px 0 0',
-            maxHeight: '80vh',
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, var(--color-indigo-bg) 0%, var(--color-paper) 55%)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)',
           },
         }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 0.5, fontSize: '1rem', fontWeight: 600 }}>
-          {submitted ? 'Feedback submitted' : "How's this plan?"}
-          <IconButton size="small" onClick={handleClose} aria-label="Close feedback">
-            <X size={18} />
-          </IconButton>
-        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            {/* Header row — icon + title */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box sx={{
+                width: 48, height: 48, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.08) 70%)',
+                border: '1px solid rgba(99,102,241,0.35)',
+              }}>
+                <ThumbsUp size={22} style={{ color: 'var(--color-primary)' }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'var(--grey-900)' }}>
+                {submitted ? 'Feedback submitted' : "How's this plan?"}
+              </Typography>
+            </Stack>
+
+            {!submitted && (
+              <>
+                {/* Difficulty axis */}
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mb: 0.5, display: 'block' }}>
+                    Difficulty
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                    {DIFFICULTY_OPTIONS.map((opt) => (
+                      <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setDifficulty(difficulty === opt.value ? null : opt.value)}
+                        sx={chipSx(difficulty === opt.value)}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+
+                {/* Pace axis */}
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mb: 0.5, display: 'block' }}>
+                    Pace
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                    {PACE_OPTIONS.map((opt) => (
+                      <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setPace(pace === opt.value ? null : opt.value)}
+                        sx={chipSx(pace === opt.value)}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+
+                {/* Text input + mic */}
+                <Box sx={{ position: 'relative' }}>
+                  <TextField
+                    multiline
+                    minRows={2}
+                    maxRows={4}
+                    fullWidth
+                    placeholder="What did you notice?"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    size="small"
+                    sx={{ '& .MuiOutlinedInput-root': { pr: 5 } }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => setVoiceOpen(true)}
+                    sx={{ position: 'absolute', right: 8, top: 8, color: 'var(--color-primary)' }}
+                    aria-label="Record voice feedback"
+                  >
+                    <Mic size={18} />
+                  </IconButton>
+                </Box>
+              </>
+            )}
+          </Stack>
+        </DialogContent>
 
         {!submitted && (
-          <DialogContent sx={{ pt: 1 }}>
-            {/* Difficulty axis */}
-            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mb: 0.5, display: 'block' }}>
-              Difficulty
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>
-              {DIFFICULTY_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.value}
-                  label={opt.label}
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setDifficulty(difficulty === opt.value ? null : opt.value)}
-                  sx={chipSx(difficulty === opt.value)}
-                />
-              ))}
-            </Box>
-
-            {/* Pace axis */}
-            <Typography variant="caption" sx={{ color: 'var(--color-text-soft)', mb: 0.5, display: 'block' }}>
-              Pace
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>
-              {PACE_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.value}
-                  label={opt.label}
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setPace(pace === opt.value ? null : opt.value)}
-                  sx={chipSx(pace === opt.value)}
-                />
-              ))}
-            </Box>
-
-            {/* Text input + mic */}
-            <Box sx={{ position: 'relative' }}>
-              <TextField
-                multiline
-                minRows={2}
-                maxRows={4}
-                fullWidth
-                placeholder="What did you notice?"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                size="small"
-                sx={{ '& .MuiOutlinedInput-root': { pr: 5 } }}
-              />
-              <IconButton
-                size="small"
-                onClick={() => setVoiceOpen(true)}
-                sx={{ position: 'absolute', right: 8, top: 8, color: 'var(--color-primary)' }}
-                aria-label="Record voice feedback"
-              >
-                <Mic size={18} />
-              </IconButton>
-            </Box>
-          </DialogContent>
-        )}
-
-        {!submitted && (
-          <DialogActions sx={{ px: 3, pb: 2 }}>
+          <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+            <Button onClick={handleClose} disabled={submitting} sx={{ textTransform: 'none', color: 'var(--grey-600)' }}>
+              Cancel
+            </Button>
             <Button
               variant="contained"
-              size="small"
               disabled={!canSubmit || submitting}
               onClick={handleSubmit}
-              sx={{ textTransform: 'none', borderRadius: 2 }}
+              sx={{ textTransform: 'none', borderRadius: 999, px: 3, boxShadow: '0 10px 20px rgba(79, 70, 229, 0.25)' }}
             >
               {submitting ? 'Submitting...' : 'Submit'}
             </Button>
