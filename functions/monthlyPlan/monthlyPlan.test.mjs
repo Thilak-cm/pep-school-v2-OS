@@ -11,6 +11,8 @@ import {
   serializeMedia,
   formatWritingAnalysis,
   buildUserPrompt,
+  resolveTargetMonth,
+  shouldArchivePrecedingPlan,
 } from "./helpers.js";
 
 // ---------------------------------------------------------------------------
@@ -262,4 +264,77 @@ describe("buildUserPrompt", () => {
     assert.ok(prompt.includes("Sandpaper Letters"));
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// resolveTargetMonth (PEP-292)
+// ---------------------------------------------------------------------------
+describe("resolveTargetMonth", () => {
+  it("returns explicit targetMonth when provided, regardless of date", () => {
+    const now = new Date("2026-05-10T12:00:00Z"); // before 24th
+    assert.equal(resolveTargetMonth(now, "2026-08"), "2026-08");
+  });
+
+  it("defaults to current month before the 24th", () => {
+    const now = new Date("2026-06-15T12:00:00Z"); // June 15
+    assert.equal(resolveTargetMonth(now), "2026-06");
+  });
+
+  it("defaults to current month on the 23rd", () => {
+    const now = new Date("2026-06-23T23:59:00Z");
+    assert.equal(resolveTargetMonth(now), "2026-06");
+  });
+
+  it("defaults to next month on the 24th", () => {
+    const now = new Date("2026-06-24T00:00:00Z");
+    assert.equal(resolveTargetMonth(now), "2026-07");
+  });
+
+  it("defaults to next month on the 31st", () => {
+    const now = new Date("2026-05-31T12:00:00Z");
+    assert.equal(resolveTargetMonth(now), "2026-06");
+  });
+
+  it("handles December → January year rollover", () => {
+    const now = new Date("2026-12-25T12:00:00Z"); // after 24th
+    assert.equal(resolveTargetMonth(now), "2027-01");
+  });
+
+  it("handles December before 24th → same month", () => {
+    const now = new Date("2026-12-10T12:00:00Z");
+    assert.equal(resolveTargetMonth(now), "2026-12");
+  });
+
+  it("pads single-digit months", () => {
+    const now = new Date("2026-01-05T12:00:00Z"); // Jan 5, before 24th
+    assert.equal(resolveTargetMonth(now), "2026-01");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldArchivePrecedingPlan (PEP-292)
+// ---------------------------------------------------------------------------
+describe("shouldArchivePrecedingPlan", () => {
+  it("returns false when no preceding plan", () => {
+    assert.equal(shouldArchivePrecedingPlan(null, "2026-06"), false);
+  });
+
+  it("returns false when preceding plan has no month field", () => {
+    assert.equal(shouldArchivePrecedingPlan({}, "2026-06"), false);
+  });
+
+  it("returns false when same month (replace in place)", () => {
+    const plan = { month: "2026-06", sections: [] };
+    assert.equal(shouldArchivePrecedingPlan(plan, "2026-06"), false);
+  });
+
+  it("returns true when different month (cross-month archive)", () => {
+    const plan = { month: "2026-05", sections: [] };
+    assert.equal(shouldArchivePrecedingPlan(plan, "2026-06"), true);
+  });
+
+  it("returns true for year boundary cross-month", () => {
+    const plan = { month: "2026-12", sections: [] };
+    assert.equal(shouldArchivePrecedingPlan(plan, "2027-01"), true);
+  });
 });

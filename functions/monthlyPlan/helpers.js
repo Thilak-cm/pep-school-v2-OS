@@ -171,3 +171,40 @@ export function buildUserPrompt({
 
   return parts.join("\n");
 }
+
+/**
+ * Resolve the target month for plan generation (PEP-292).
+ *
+ * - If an explicit targetMonth is provided, use it as-is.
+ * - Before the 24th of the month → current month (refining this month's plan).
+ * - On/after the 24th → next month (preparing next month's plan).
+ *
+ * @param {Date} now - current timestamp
+ * @param {string} [explicitMonth] - optional YYYY-MM override
+ * @returns {string} YYYY-MM
+ */
+export function resolveTargetMonth(now, explicitMonth) {
+  if (explicitMonth) return explicitMonth;
+
+  if (now.getUTCDate() >= 24) {
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Determine whether the preceding plan should be archived (PEP-292).
+ *
+ * Archive only on cross-month transitions. Same-month regeneration
+ * replaces in place without creating a history entry.
+ *
+ * @param {object|null} precedingPlan - existing plan doc data (or null)
+ * @param {string} targetMonth - YYYY-MM of the plan being generated
+ * @returns {boolean}
+ */
+export function shouldArchivePrecedingPlan(precedingPlan, targetMonth) {
+  if (!precedingPlan || !precedingPlan.month) return false;
+  return precedingPlan.month !== targetMonth;
+}

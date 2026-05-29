@@ -21,7 +21,7 @@ import { db } from "../shared/firebase.js";
 import { buildChatBody } from "../shared/openai.js";
 import { OPENROUTER_ENDPOINT, OPENROUTER_API_KEY, getOpenRouterKey } from "../shared/openrouter.js";
 import { calculateAge } from "../utils/handwritingAnalysisHelpers.js";
-import { buildUserPrompt } from "./helpers.js";
+import { buildUserPrompt, resolveTargetMonth, shouldArchivePrecedingPlan } from "./helpers.js";
 import {
   getDriveClients,
   getOrCreateClassroomFolder,
@@ -275,9 +275,10 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
     throw new functions.https.HttpsError("internal", "LLM response is not valid JSON");
   }
 
-  // 7. Archive previous plan (if exists) before overwriting
+  // 7. Archive previous plan only on cross-month transitions (PEP-292).
+  //    Same-month regeneration replaces in place without archiving.
   const planDocRef = studentRef.collection("ai_summaries").doc("monthly_plan");
-  if (precedingPlan && precedingPlan.month) {
+  if (shouldArchivePrecedingPlan(precedingPlan, targetMonth)) {
     const historyKey = `${precedingPlan.month}_${now.toISOString().replace(/[:.]/g, "-")}`;
     await planDocRef.collection("history").doc(historyKey).set({
       ...precedingPlan,
@@ -285,6 +286,8 @@ async function generatePlanInternal(studentId, targetMonth, generatedBy, generat
       archivedReason: "overwritten by new plan generation",
     });
     console.log(`[generatePlanInternal] archived previous plan for ${studentId} (${historyKey})`);
+  } else if (precedingPlan && precedingPlan.month === targetMonth) {
+    console.log(`[generatePlanInternal] replacing ${studentId} plan in place (same month: ${targetMonth})`);
   }
 
   // 8. Save new plan to active doc
@@ -528,10 +531,9 @@ export const generateMonthlyPlan = functions
       throw new functions.https.HttpsError("invalid-argument", "studentId is required");
     }
 
-    // Resolve target month (default: next month)
+    // Resolve target month: before 24th → current month, on/after 24th → next month (PEP-292)
     const now = new Date();
-    const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const resolvedMonth = targetMonth || `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
+    const resolvedMonth = resolveTargetMonth(now, targetMonth);
 
     const planDoc = await generatePlanInternal(
       studentId,
