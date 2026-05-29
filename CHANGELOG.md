@@ -1,5 +1,17 @@
 # Changelog
 
+# 10.30.0 — 2026-05-29
+
+### Added
+- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
+- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
+- Firestore rules for `statsCache/` with role-based read access (PEP-285)
+- `useStatsData` hook for reading cached stats docs with auto-trigger on first deploy (PEP-285)
+
+### Changed
+- StatsPage rewritten as thin rendering layer — all client-side aggregation and localStorage caching removed (PEP-285)
+- Cache TTL set to 24 hours with user-driven refresh instead of short-TTL auto-recompute (PEP-285)
+
 # 10.29.0 — 2026-05-27
 
 ### Added
