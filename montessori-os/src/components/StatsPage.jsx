@@ -751,10 +751,11 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }
 
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
       gap: 0,
+      mt: -2,
       pb: 4,
       width: '100%',
       minWidth: 0
@@ -763,7 +764,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       {(hookError || teacherClassroomError) && (
         <Alert severity="error" sx={{ mx: 1, mt: 1 }}>{hookError || teacherClassroomError}</Alert>
       )}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1, pt: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1 }}>
         {cachedAt && (
           <Typography variant="caption" color="text.secondary">
             Updated {formatRelativeTime(cachedAt)}
