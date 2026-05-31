@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Skeleton } from '@mui/material';
+import { Box, Card, CardContent, Typography, Skeleton, Chip } from '@mui/material';
 import { Clock as AccessTime, User as Person } from '../icons';
 import { formatTimestamp } from '../utils/observationUtils.jsx';
 import { getTypeChipConfig, getTeacherForNote } from './classroomTimelineUtils.js';
@@ -104,6 +104,7 @@ export default function ClassroomNoteCard({
               >
                 {teacher.displayName}
               </Typography>
+              {teacher.status === 'inactive' && <Chip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
             </Box>
           ) : (
             <Typography
@@ -133,6 +134,7 @@ export default function ClassroomNoteCard({
             <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
               {teacher.displayName}
             </Typography>
+            {teacher.status === 'inactive' && <Chip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
           </Box>
         )}
 

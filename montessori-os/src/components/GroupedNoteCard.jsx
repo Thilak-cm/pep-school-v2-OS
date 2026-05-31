@@ -186,6 +186,7 @@ export default function GroupedNoteCard({
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
             {teacher.displayName}
           </Typography>
+          {teacher.status === 'inactive' && <MuiChip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
         </Box>
 
         {/* Content */}

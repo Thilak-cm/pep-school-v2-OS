@@ -14,7 +14,7 @@ const TYPE_LABELS = {
 
 const TYPE_ICONS = { Eye, Mic, BookOpen, Image };
 
-export default function SharedHeader({ observation, student, teacherName, onClose }) {
+export default function SharedHeader({ observation, student, teacherName, isFormerTeacher, onClose }) {
   if (!observation) return null;
   const chipConfig = getTypeChipConfig(observation.type);
   const label = TYPE_LABELS[observation.type] || 'OBSERVATION';
@@ -80,6 +80,7 @@ export default function SharedHeader({ observation, student, teacherName, onClos
         <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.82rem' }}>
           by <strong>{teacherName || 'Unknown Teacher'}</strong> · {formatTimestamp(observation.observedAt || observation.timestamp)}
         </Typography>
+        {isFormerTeacher && <Chip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
       </Box>
     </Box>
   );

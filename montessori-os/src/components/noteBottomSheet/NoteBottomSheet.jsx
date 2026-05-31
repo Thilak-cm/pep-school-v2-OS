@@ -411,6 +411,7 @@ export default function NoteBottomSheet({
           observation={observation}
           student={student}
           teacherName={teacherName}
+          isFormerTeacher={teacher?.status === 'inactive'}
           onClose={handleClose}
         />
 
