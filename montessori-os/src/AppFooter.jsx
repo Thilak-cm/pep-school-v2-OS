@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Box, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
+import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
 import { Home, Settings, Bell as Notifications, Inbox } from './icons';
 
 const FOOTER_HEIGHT = 64;
 
-function AppFooter({ onHome, onNavigate, active = null, pendingAlertCount = 0 }) {
+function AppFooter({ onHome, onNavigate, active = null }) {
   const [value, setValue] = useState(active || 'none');
 
   useEffect(() => {
@@ -106,11 +106,7 @@ function AppFooter({ onHome, onNavigate, active = null, pendingAlertCount = 0 })
           <BottomNavigationAction
             label="Alerts"
             value="alerts"
-            icon={
-              pendingAlertCount > 0
-                ? <Badge color="error" variant="dot"><Notifications /></Badge>
-                : <Notifications />
-            }
+            icon={<Notifications />}
             onClick={() => handleClickSelected('alerts')}
           />
           <BottomNavigationAction

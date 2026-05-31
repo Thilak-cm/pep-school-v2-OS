@@ -4,7 +4,7 @@ import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
 import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
-import { doc, getDoc, collection, query, where, getDocs, documentId, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
 import AddNoteFab from './components/AddNoteFab';
@@ -34,7 +34,6 @@ function App() {
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const [pendingDeletionCount, setPendingDeletionCount] = useState(0);
 
   const {
     screen, setScreen,
@@ -300,24 +299,6 @@ function App() {
     fetchClassrooms();
   }, [user, role, manageableClassrooms]);
 
-  // ── Pending deletion badge count (PEP-250) ─────────────────────────────
-  useEffect(() => {
-    if (!user || !role || (role !== 'superadmin' && role !== 'classroomadmin')) {
-      setPendingDeletionCount(0);
-      return;
-    }
-    let q;
-    if (role === 'superadmin') {
-      q = query(collection(db, 'pending_deletions'), where('status', '==', 'pending'));
-    } else {
-      // classroomadmin — scope to their manageable classrooms
-      if (!manageableClassrooms.length) { setPendingDeletionCount(0); return; }
-      q = query(collection(db, 'pending_deletions'), where('status', '==', 'pending'), where('classroomId', 'in', manageableClassrooms.slice(0, 10)));
-    }
-    const unsub = onSnapshot(q, (snap) => setPendingDeletionCount(snap.size), () => setPendingDeletionCount(0));
-    return unsub;
-  }, [user, role, manageableClassrooms]);
-
   // ── Derived values ─────────────────────────────────────────────────────
 
   const titleState = { isTeacher, isSuperAdminUser, selectedClassroom, selectedStudent, timelineTitleAsDashboard, usersAccessView, getStudentDisplayName: () => getStudentDisplayName(selectedStudent) };
@@ -416,7 +397,6 @@ function App() {
                     onHome={handleHome}
                     onNavigate={handleNavigation}
                     active={FOOTER_TAB_SCREENS[screen] || null}
-                    pendingAlertCount={pendingDeletionCount}
                   />
                 )}
               </>

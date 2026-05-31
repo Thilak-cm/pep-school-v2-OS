@@ -530,15 +530,6 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin();
     }
 
-    // Pending deletions — HITL approval queue for students inactive > 1 year (PEP-250)
-    // Reads: superadmins see all; classroomadmins see docs where classroomId is in their manageableClassrooms
-    // Writes: admin SDK only (Cloud Functions create docs; approve/reject via callable)
-    match /pending_deletions/{docId} {
-      allow read: if isSuperAdmin() ||
-        (isClassroomAdmin() && resource.data.classroomId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.manageableClassrooms);
-      allow write: if false; // admin SDK only
-    }
-
     // Branches (center metadata)
     // - Read allowed for signed-in users (used by client UI for branch selection)
     // - Writes restricted to admins (typically performed via admin scripts)
