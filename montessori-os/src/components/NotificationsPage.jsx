@@ -372,12 +372,12 @@ function NotificationsPage() {
         const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
           try {
             const sSnap = await getDoc(doc(db, 'students', sid));
-            if (!sSnap.exists()) return [sid, { name: sid, classroomId: '' }];
+            if (!sSnap.exists()) return [sid, { name: sid, classroomId: '', status: 'active' }];
             const s = sSnap.data() || {};
             const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
-            return [sid, { name: label, classroomId: s.classroomId || '' }];
+            return [sid, { name: label, classroomId: s.classroomId || '', status: s.status || 'active' }];
           } catch {
-            return [sid, { name: sid, classroomId: '' }];
+            return [sid, { name: sid, classroomId: '', status: 'active' }];
           }
         }));
         const studentInfoMap = Object.fromEntries(nameEntries);
@@ -396,6 +396,12 @@ function NotificationsPage() {
             });
           }
         }
+
+        // Exclude inactive students from signals
+        filteredSignals = filteredSignals.filter((r) => {
+          const info = studentInfoMap[r.studentId];
+          return !info || (info.status || 'active') === 'active';
+        });
 
         // Limit student info to filtered signals to keep cache smaller
         const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));

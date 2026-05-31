@@ -102,7 +102,7 @@ export default function ClassroomNoteCard({
                 variant="subtitle2"
                 sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--color-text)' }}
               >
-                {teacher.displayName}
+                {teacher.displayName}{teacher.status === 'inactive' ? ' (removed)' : ''}
               </Typography>
             </Box>
           ) : (
@@ -131,7 +131,7 @@ export default function ClassroomNoteCard({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
             <Person size={14} style={{ color: 'var(--color-text-faint)' }} />
             <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
-              {teacher.displayName}
+              {teacher.displayName}{teacher.status === 'inactive' ? ' (removed)' : ''}
             </Typography>
           </Box>
         )}

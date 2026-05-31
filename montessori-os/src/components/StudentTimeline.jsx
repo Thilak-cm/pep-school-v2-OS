@@ -20,7 +20,7 @@ import {
   Skeleton
 } from '@mui/material';
 import { Trash2 as Delete, Filter as FilterList, Download, Image as PhotoLibrary, Video as Movie, File as InsertDriveFile, Upload as CloudUpload, CircleAlert as ErrorOutline, ChevronDown as ExpandMore, FileText as Description, ChevronLeft, ChevronRight, Sparkles as AutoAwesome, User, MessageCircle } from '../icons';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, deleteDoc, startAfter, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, doc, getDoc, deleteDoc, startAfter, getDocs } from 'firebase/firestore';
 import { db, storage } from '../firebase';
 import useNotify from '../notifications/useNotify.js';
 
@@ -484,31 +484,31 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
     };
   }, [student]);
 
-  // Extract classroom teachers from observations data
+  // Extract classroom teachers from observations data, fetching user docs for status
   useEffect(() => {
     if (!observations.length) return;
-    
-    // Get unique teachers from observations for this classroom
-    const teacherMap = new Map();
-    
+
+    // Get unique teacher IDs from observations
+    const uniqueIds = new Set();
     observations.forEach(obs => {
       const teacherId = obs.createdBy || obs.teacherId;
-      if (teacherId) {
-        const teacherName = obs.createdByName || obs.teacherName || obs.createdByEmail || obs.teacherEmail || `Teacher ${teacherId.slice(-4)}`;
-        const teacherEmail = obs.createdByEmail || obs.teacherEmail || `teacher-${teacherId.slice(-4)}@example.com`;
-        
-        if (!teacherMap.has(teacherId)) {
-          teacherMap.set(teacherId, {
-            id: teacherId,
-            displayName: teacherName,
-            email: teacherEmail
-          });
-        }
-      }
+      if (teacherId) uniqueIds.add(teacherId);
     });
-    
-    const teachers = Array.from(teacherMap.values());
-    setClassroomTeachers(teachers);
+
+    // Fetch user docs to get status (needed for "Former" chip on inactive teachers)
+    (async () => {
+      const teachers = await Promise.all([...uniqueIds].map(async (teacherId) => {
+        const obs = observations.find(o => (o.createdBy || o.teacherId) === teacherId);
+        const fallbackName = obs?.createdByName || obs?.teacherName || obs?.createdByEmail || obs?.teacherEmail || `Teacher ${teacherId.slice(-4)}`;
+        const fallbackEmail = obs?.createdByEmail || obs?.teacherEmail || `teacher-${teacherId.slice(-4)}@example.com`;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', teacherId));
+          if (userDoc.exists()) return { id: teacherId, ...userDoc.data() };
+        } catch { /* fall through */ }
+        return { id: teacherId, displayName: fallbackName, email: fallbackEmail, role: 'teacher' };
+      }));
+      setClassroomTeachers(teachers);
+    })();
   }, [observations]);
 
   // Sync selectedObservation with updated observations data
@@ -1097,6 +1097,7 @@ function StudentTimeline({ student, currentUser, userRole, noteTypeFilter = null
         currentUser={currentUser}
         userRole={userRole}
         isClassroomContext={false}
+        classroomTeachers={classroomTeachers}
         mediaUrl={mediaPreview?.url}
         carouselList={mediaPreview?.carouselList}
         carouselIndex={mediaPreview?.carouselIndex}

@@ -1,5 +1,23 @@
 # Changelog
 
+# 10.31.0 — 2026-05-31
+
+### Changed
+- Student and teacher deletion is now soft-delete — sets `status: 'inactive'` instead of removing the document, preserving all observation data and subcollections (PEP-250)
+- Confirmation dialogs say "Remove" instead of "Delete" with softer language explaining data is preserved (PEP-250)
+- Observations by removed teachers display "(removed)" suffix on the author name (PEP-250)
+- All student queries migrated from `isActive` boolean to `status` string field (PEP-250)
+
+### Added
+- `inactivatedAt` and `deletionRequestedBy` fields on soft-deleted student docs (PEP-250)
+- `deletedStudentCount` counter on classroom docs (PEP-250)
+- Firestore rules updated for classroomadmin to write `deletedStudentCount` (PEP-250)
+- Admin scripts: `find-orphaned-students.mjs`, `migrate-remove-isActive.mjs`, `restore-jenisha.mjs` (PEP-250)
+
+### Fixed
+- 57 orphaned student profiles recovered — subcollection data was intact but parent docs had been hard-deleted (PEP-250)
+- Inactive students no longer appear in student pickers, timelines, graduation page, notifications, or @mention suggestions (PEP-250)
+
 # 10.30.0 — 2026-05-29
 
 ### Added

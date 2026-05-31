@@ -89,7 +89,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
     }
     (async () => {
       try {
-        const q = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId));
+        const q = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId), where('status', '==', 'active'));
         const snap = await getDocs(q);
         const rows = snap.docs.map(d => ({ id: d.id, ...(d.data()||{}) }));
         rows.sort((a,b) => (a.displayName||`${a.firstName||''} ${a.lastName||''}`).localeCompare(b.displayName||`${b.firstName||''} ${b.lastName||''}`));
@@ -220,7 +220,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
       }
       // Refresh list and clear selections
       if (successCount > 0) {
-        const q2 = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId));
+        const q2 = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId), where('status', '==', 'active'));
         const snap2 = await getDocs(q2);
         const updated = snap2.docs.map(d => ({ id: d.id, ...(d.data()||{}) }));
         setStudents(updated);

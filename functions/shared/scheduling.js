@@ -5,7 +5,7 @@ import { db } from "./firebase.js";
  * Shared by scheduled CFs (baseball cards, writing analysis, etc.).
  */
 export async function fetchActiveStudentIds() {
-  const studentsSnap = await db.collection("students").where("isActive", "==", true).get();
+  const studentsSnap = await db.collection("students").where("status", "==", "active").get();
   return studentsSnap.docs.map((doc) => doc.id);
 }
 

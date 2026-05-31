@@ -165,7 +165,7 @@ export default function BulkUploadPage({ currentUser, userRole }) {
     try {
       // Fetch students
       const studentsSnap = await getDocs(
-        query(collection(db, 'students'), where('isActive', '==', true))
+        query(collection(db, 'students'), where('status', '==', 'active'))
       );
       const students = studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAllStudents(students);

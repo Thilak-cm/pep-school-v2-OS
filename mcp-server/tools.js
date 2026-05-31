@@ -499,7 +499,7 @@ export async function handleGetStudent(db, params) {
     const needle = name.toLowerCase();
     let query = db.collection("students");
     if (!includeInactive) {
-      query = query.where("isActive", "==", true);
+      query = query.where("status", "==", "active");
     }
     const snap = await query.get();
 
@@ -542,7 +542,7 @@ export async function handleListStudents(db, params) {
 
   let query = db.collection("students").where("classroomId", "==", classroomId);
   if (!includeInactive) {
-    query = query.where("isActive", "==", true);
+    query = query.where("status", "==", "active");
   }
   const snap = await query.get();
 
@@ -701,7 +701,7 @@ export async function handleListMedia(db, params) {
 export async function handleGetMediaStats(db, params) {
   const { classroomId } = params || {};
 
-  let studentQuery = db.collection("students").where("isActive", "==", true);
+  let studentQuery = db.collection("students").where("status", "==", "active");
   if (classroomId) {
     studentQuery = studentQuery.where("classroomId", "==", classroomId);
   }

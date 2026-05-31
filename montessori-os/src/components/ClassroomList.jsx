@@ -195,7 +195,8 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
         for (const classroom of classroomsToShow) {
           const studentsQuery = query(
             collection(db, 'students'),
-            where('classroomId', '==', classroom.id)
+            where('classroomId', '==', classroom.id),
+            where('status', '==', 'active')
           );
           const studentsSnap = await getDocs(studentsQuery);
           counts[classroom.id] = studentsSnap.size;
@@ -270,6 +271,7 @@ function ClassroomList({ onSelectClassroom, currentUser, userRole, manageableCla
 
         const addStudent = (doc) => {
           const data = doc.data() || {};
+          if ((data.status || 'active') !== 'active') return;
           const normalizedClassroomId = normalizeClassroomId(data.classroomId);
           studentsToShow.push({
             id: doc.id,

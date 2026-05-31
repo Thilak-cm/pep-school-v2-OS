@@ -356,7 +356,7 @@ export const backfillStudentProfiles = functions
     const startAfter = data?.startAfter || null;
 
     let query = db.collection("students")
-      .where("isActive", "==", true)
+      .where("status", "==", "active")
       .orderBy(FieldPath.documentId())
       .limit(batchSize);
 

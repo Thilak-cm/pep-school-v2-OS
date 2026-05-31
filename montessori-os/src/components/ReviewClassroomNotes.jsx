@@ -192,7 +192,7 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
             const batch = allowedIds.slice(i, i + BATCH_LIMIT);
             const q = query(collection(db, 'students'), where('classroomId', 'in', batch));
             const snap = await getDocs(q);
-            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter(s => (s.status || 'active') === 'active'));
           }
         } else if (isClassroomAdminUser) {
           const adminClassroomIds = classrooms.map((cls) => cls.id).filter(Boolean);
@@ -205,11 +205,11 @@ function ReviewClassroomNotes({ currentUser, userRole, manageableClassrooms = []
             const batch = adminClassroomIds.slice(i, i + BATCH_LIMIT);
             const q = query(collection(db, 'students'), where('classroomId', 'in', batch));
             const snap = await getDocs(q);
-            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+            results.push(...snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter(s => (s.status || 'active') === 'active'));
           }
         } else {
           const snap = await getDocs(collection(db, 'students'));
-          results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter(s => (s.status || 'active') === 'active');
         }
 
         const deduped = new Map();
