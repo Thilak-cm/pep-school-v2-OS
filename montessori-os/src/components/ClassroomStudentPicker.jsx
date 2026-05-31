@@ -150,8 +150,9 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
           const allStudentsSnap = await getDocs(collection(db, 'students'));
           const allStudents = allStudentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           
-          // Filter students to only those in assigned classrooms
+          // Filter to active students in assigned classrooms
           studentList = allStudents.filter(student => {
+            if ((student.status || 'active') !== 'active') return false;
             // Handle different classroomId formats
             let classroomId;
             if (student.classroomId) {
@@ -174,9 +175,11 @@ const ClassroomStudentPicker = forwardRef(function ClassroomStudentPicker({
           });
           
         } else {
-          // For admins: get all students
+          // For admins: get all active students
           const studentSnap = await getDocs(collection(db, 'students'));
-          studentList = studentSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          studentList = studentSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter(s => (s.status || 'active') === 'active');
         }
         
         // Add classroom name to each student for display

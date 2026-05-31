@@ -89,7 +89,7 @@ export default function GraduateStudentsPage({ _currentUser, _userRole }) {
     }
     (async () => {
       try {
-        const q = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId));
+        const q = query(collection(db, 'students'), where('classroomId', '==', sourceClassroomId), where('status', '==', 'active'));
         const snap = await getDocs(q);
         const rows = snap.docs.map(d => ({ id: d.id, ...(d.data()||{}) }));
         rows.sort((a,b) => (a.displayName||`${a.firstName||''} ${a.lastName||''}`).localeCompare(b.displayName||`${b.firstName||''} ${b.lastName||''}`));
