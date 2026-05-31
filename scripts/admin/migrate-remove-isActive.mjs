@@ -38,7 +38,7 @@ async function main() {
   let withField = 0;
   let missingStatus = 0;
 
-  const batch = db.batch();
+  let batch = db.batch();
   let batchCount = 0;
 
   for (const doc of snap.docs) {
@@ -68,6 +68,7 @@ async function main() {
       // Firestore batches max 500 writes
       if (batchCount >= 490) {
         await batch.commit();
+        batch = db.batch();
         batchCount = 0;
       }
     }

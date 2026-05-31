@@ -377,7 +377,7 @@ function NotificationsPage() {
             const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
             return [sid, { name: label, classroomId: s.classroomId || '', status: s.status || 'active' }];
           } catch {
-            return [sid, { name: sid, classroomId: '' }];
+            return [sid, { name: sid, classroomId: '', status: 'active' }];
           }
         }));
         const studentInfoMap = Object.fromEntries(nameEntries);

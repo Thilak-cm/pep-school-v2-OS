@@ -97,7 +97,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         const students = studentsSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        }));
+        })).filter(s => (s.status || 'active') === 'active');
         setClassroomStudents(students);
         return students;
       } catch {
@@ -359,6 +359,29 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
       }
     };
   }, [classroom, hasClassroomAccess, scopedClassroomsKey, notesReloadToken]);
+
+  // Supplement teacher list with user docs for observation authors not in teacherIds (e.g. former teachers)
+  useEffect(() => {
+    if (!classroomNotes.length) return;
+    const knownIds = new Set(classroomTeachers.map(t => t.id));
+    const missingIds = new Set();
+    classroomNotes.forEach(n => {
+      const tid = n.createdBy || n.teacherId;
+      if (tid && !knownIds.has(tid)) missingIds.add(tid);
+    });
+    if (missingIds.size === 0) return;
+    (async () => {
+      const extras = (await Promise.all([...missingIds].map(async (tid) => {
+        try {
+          const snap = await getDoc(doc(db, 'users', tid));
+          if (snap.exists()) return { id: tid, ...snap.data() };
+        } catch { /* ignore */ }
+        return null;
+      }))).filter(Boolean);
+      if (extras.length > 0) setClassroomTeachers(prev => [...prev, ...extras]);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomNotes]);
 
   // Fetch media URLs for classroom media docs (PEP-33)
   useEffect(() => {

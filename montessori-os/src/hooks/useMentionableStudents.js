@@ -80,7 +80,7 @@ export default function useMentionableStudents({ currentUser, userRole }) {
             classroom_name: classroomName,
             ...names,
           };
-        });
+        }).filter(s => (s.status || 'active') === 'active');
 
         if (allowedClassroomIds) {
           list = list.filter((stu) => allowedClassroomIds.has(stu.classroomId));

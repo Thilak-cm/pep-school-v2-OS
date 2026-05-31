@@ -50,7 +50,6 @@ async function main() {
     classroomId: "accel_cosmos",
     branchId: "whitefield",
     status: "active",
-    isActive: true,
     createdBy: "admin-restore",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -103,7 +103,7 @@ function StudentAliasesPage({ currentUser, userRole }) {
             ...data,
             classroomId
           };
-        });
+        }).filter(s => (s.status || 'active') === 'active');
 
         const allowedClassroomIds = new Set(classList.map((cls) => cls.id));
         const scopedStudents =

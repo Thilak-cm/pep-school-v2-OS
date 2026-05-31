@@ -902,7 +902,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         if (user.classroomId) {
           setClassrooms(prev => prev.map(c =>
             c.id === user.classroomId
-              ? { ...c, studentCount: Math.max(0, (c.studentCount || 0) - 1) }
+              ? { ...c, studentCount: Math.max(0, (c.studentCount || 0) - 1), deletedStudentCount: (c.deletedStudentCount || 0) + 1 }
               : c
           ));
         }

@@ -184,9 +184,8 @@ export default function GroupedNoteCard({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
           <Person size={14} style={{ color: 'var(--color-text-faint)' }} />
           <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
-            {teacher.displayName}
+            {teacher.displayName}{teacher.status === 'inactive' ? ' (removed)' : ''}
           </Typography>
-          {teacher.status === 'inactive' && <MuiChip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
         </Box>
 
         {/* Content */}

@@ -215,7 +215,7 @@ function LessonNoteWizard({
             ...data,
             classroomId: normalizeClassroomId(data.classroomId)
           };
-        });
+        }).filter(s => (s.status || 'active') === 'active');
 
         const allowedClassroomIds = new Set(classList.map((cls) => cls.id));
         const scopedStudents =

@@ -110,6 +110,7 @@ interface User {
   branchIds?: BranchId[];        // branches this user can access (teachers/coaches can have multiple)
   homeBranchId?: BranchId;       // preferred/default branch for UI selection
   status: 'active' | 'inactive' | 'suspended';
+  inactivatedAt?: Timestamp;     // set when status changes to 'inactive' via UI removal (PEP-250)
   
   // Lesson shortcuts
   studentAliases?: Record<string, StudentAlias>; // keyed by aliasId

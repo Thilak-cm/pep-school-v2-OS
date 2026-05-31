@@ -78,9 +78,8 @@ export default function SharedHeader({ observation, student, teacherName, isForm
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Avatar name={teacherName || 'Unknown'} size="sm" />
         <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.82rem' }}>
-          by <strong>{teacherName || 'Unknown Teacher'}</strong> · {formatTimestamp(observation.observedAt || observation.timestamp)}
+          by <strong>{teacherName || 'Unknown Teacher'}{isFormerTeacher ? ' (removed)' : ''}</strong> · {formatTimestamp(observation.observedAt || observation.timestamp)}
         </Typography>
-        {isFormerTeacher && <Chip size="small" label="Former" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', color: 'var(--color-text-faint)' }} />}
       </Box>
     </Box>
   );
