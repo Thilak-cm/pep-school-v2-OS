@@ -234,7 +234,7 @@ async function main() {
   // Pick 3 active students from different classrooms for variety
   const studentSnap = await db
     .collection("students")
-    .where("isActive", "==", true)
+    .where("status", "==", "active")
     .limit(50)
     .get();
 

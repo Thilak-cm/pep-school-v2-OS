@@ -881,24 +881,30 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         setSuperAdmins(prev => prev.filter(a => a.id !== user.id));
         notify.success('Super Admin deleted successfully');
       } else if (type === 'student') {
+        batch.update(doc(db, 'students', user.id), {
+          status: 'inactive',
+          inactivatedAt: serverTimestamp(),
+          deletionRequestedBy: currentUser.uid,
+          updatedAt: serverTimestamp()
+        });
         if (user.classroomId) {
           batch.update(doc(db, 'classrooms', user.classroomId), {
             studentCount: increment(-1),
+            deletedStudentCount: increment(1),
             updatedAt: serverTimestamp()
           });
         }
-        batch.delete(doc(db, 'students', user.id));
         await batch.commit();
-        
+
         if (user.classroomId) {
-          setClassrooms(prev => prev.map(c => 
-            c.id === user.classroomId 
+          setClassrooms(prev => prev.map(c =>
+            c.id === user.classroomId
               ? { ...c, studentCount: Math.max(0, (c.studentCount || 0) - 1) }
               : c
           ));
         }
         setStudents(prev => prev.filter(s => s.id !== user.id));
-        notify.success('Student deleted successfully');
+        notify.success('Student removed successfully');
       }
 
       setDeleteConfirmOpen(false);
@@ -1215,7 +1221,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               classroomId: studentForm.classroomId,
               branchId: studentForm.branchId,
               status: 'active',
-              isActive: true,
               dateOfBirth: Timestamp.fromDate(new Date(studentForm.dob)),
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
@@ -1397,7 +1402,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         }
       }
 
-      const isActive = (s.status ? s.status === 'active' : (typeof s.isActive === 'boolean' ? s.isActive : true));
+      const isActive = (s.status || 'active') === 'active';
       if (studentStatusFilter === 'active' && !isActive) return false;
       if (studentStatusFilter === 'inactive' && isActive) return false;
 
@@ -2584,7 +2589,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
       <Dialog open={deleteConfirmOpen} onClose={() => !deleteDeleting && setDeleteConfirmOpen(false)}>
         <DialogTitle component="div">
           <Typography component="h2" variant="h6">
-            Delete {deleteTarget?.type === 'teacher' ? 'Teacher' : deleteTarget?.type === 'classroomadmin' ? 'Classroom Admin' : deleteTarget?.type === 'superadmin' ? 'Super Admin' : 'Student'}?
+            {deleteTarget?.type === 'student' ? 'Remove' : 'Delete'} {deleteTarget?.type === 'teacher' ? 'Teacher' : deleteTarget?.type === 'classroomadmin' ? 'Classroom Admin' : deleteTarget?.type === 'superadmin' ? 'Super Admin' : 'Student'}?
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -2593,9 +2598,11 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
               You cannot delete your own account. Please ask another admin to perform this action.
             </Alert>
           )}
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This action cannot be undone. Are you sure you want to delete this user?
-          </Alert>
+          {deleteTarget?.type !== 'student' && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This action cannot be undone. Are you sure you want to delete this user?
+            </Alert>
+          )}
           {deleteTarget?.user && (
             <Box>
               <Typography variant="body2" sx={{ mb: 1 }}>
@@ -2609,9 +2616,9 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
                   This will remove the teacher from all assigned classrooms.
                 </Typography>
               )}
-              {deleteTarget.type === 'student' && deleteTarget.user.classroomId && (
+              {deleteTarget.type === 'student' && (
                 <Typography variant="body2" color="text.secondary">
-                  This will remove the student from their classroom and decrement the student count.
+                  The student will be removed from the classroom. Their observations and data will be preserved and can be restored later.
                 </Typography>
               )}
             </Box>
@@ -2626,7 +2633,7 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
             disabled={deleteDeleting || (deleteTarget?.user?.id === currentUser?.uid)}
             startIcon={deleteDeleting ? <CircularProgress size={16} /> : <Delete />}
           >
-            {deleteDeleting ? 'Deleting...' : 'Delete'}
+            {deleteDeleting ? 'Removing...' : deleteTarget?.type === 'student' ? 'Remove' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -148,7 +148,7 @@ export default function ReportGenConfigEditor({ currentUser, userRole }) {
     if (!isAdmin) return;
     setStudentsLoading(true);
     try {
-      const studentsQuery = query(collection(db, 'students'), where('isActive', '==', true));
+      const studentsQuery = query(collection(db, 'students'), where('status', '==', 'active'));
       const snap = await getDocs(studentsQuery);
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       list.sort((a, b) => {
