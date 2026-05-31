@@ -172,6 +172,7 @@ interface Classroom {
   
   // Server-maintained summary
   studentCount: number;          // count of active students
+  deletedStudentCount?: number;  // count of soft-deleted (inactive) students (PEP-250)
 
   // Google Drive export (PEP-61)
   driveFolderId?: string;        // Google Drive folder ID for report exports (set on first export)
@@ -217,7 +218,10 @@ interface Student {
   branchId: BranchId;            // denorm; must equal the classroom's branchId
 
   status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'withdrawn';
-  isActive: boolean;             // mirrors status == 'active' for fast filters
+
+  // Soft-delete fields (PEP-250)
+  inactivatedAt?: Timestamp;     // set when status changes to 'inactive' via UI removal
+  deletionRequestedBy?: string;  // uid of admin who initiated removal
 
   dateOfBirth?: Timestamp;
   studentID: string;             // convenience copy of the document ID (e.g., "2025-ADO-001")
@@ -237,7 +241,7 @@ interface Student {
 }
 ```
 Guidance
-- Queries commonly include `classroomId` and `isActive`.
+- Queries commonly include `classroomId` and `status`.
 - If a student moves classrooms, update `classroomId` and adjust `studentCount` in both rooms server-side.
  - When a student transfers across branches, update `branchId` to the new classroom's branch; historical observations remain under their original `branchId` for analytics integrity.
  - Student IDs follow `YYYY-XXX-NNN` where:
@@ -818,7 +822,7 @@ Admin UI
 ## 🔎 Core Query Patterns
 - Branch listing (for UI): list `branches` (all docs)
 - Teacher’s classrooms (by branch): `classrooms` where `branchId == B` AND `teacherIds` array-contains `uid`
-- Students in a classroom: `students` where `branchId == B` AND `classroomId == X` AND `isActive == true`
+- Students in a classroom: `students` where `branchId == B` AND `classroomId == X` AND `status == 'active'`
 - Student timeline: `students/{studentId}/observations` order by `observedAt` desc
 - Classroom timeline: collection group `observations` where `branchId == B` AND `classroomId == X` order by `observedAt` desc
 - Teacher’s notes: collection group `observations` where `branchId == B` AND `createdBy == uid` order by `observedAt` desc
@@ -832,7 +836,7 @@ Admin UI
 - `classrooms`
   - `branchId ASC, status ASC`
 - `students`
-  - `branchId ASC, classroomId ASC, isActive ASC`
+  - `branchId ASC, classroomId ASC, status ASC`
 - collection group `observations`
   - `branchId ASC, observedAt DESC`
   - `branchId ASC, createdBy ASC, observedAt DESC`

@@ -773,7 +773,6 @@ const UsersAccessPage = ({ onBack, currentUser, userRole, manageableClassrooms =
         lastName: (editedStudentData.lastName || '').trim(),
         displayName: `${editedStudentData.firstName.trim()} ${(editedStudentData.lastName || '').trim()}`.trim(),
         status: editedStudentData.status,
-        isActive: editedStudentData.status === 'active',
         updatedAt: serverTimestamp(),
       };
 

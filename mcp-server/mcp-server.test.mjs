@@ -126,7 +126,6 @@ describe("handleGetStudent", () => {
       programId: "adolescent",
       dateOfBirth: null,
       status: "active",
-      isActive: true,
     }),
     mockDoc("2025-PER-001", {
       displayName: "Devisha Yadav",
@@ -136,7 +135,6 @@ describe("handleGetStudent", () => {
       programId: "primary",
       dateOfBirth: null,
       status: "active",
-      isActive: true,
     }),
     mockDoc("2025-ALL-002", {
       displayName: "Arjun Mehta",
@@ -146,7 +144,6 @@ describe("handleGetStudent", () => {
       programId: "adolescent",
       dateOfBirth: null,
       status: "inactive",
-      isActive: false,
     }),
   ];
 
@@ -349,14 +346,12 @@ describe("handleListStudents", () => {
       displayName: "Agastya Sharma",
       classroomId: "allstars",
       programId: "adolescent",
-      isActive: true,
       status: "active",
     }),
     mockDoc("2025-ALL-002", {
       displayName: "Arjun Mehta",
       classroomId: "allstars",
       programId: "adolescent",
-      isActive: false,
       status: "inactive",
     }),
   ];
