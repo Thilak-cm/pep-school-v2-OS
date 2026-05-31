@@ -21,7 +21,7 @@ import {
   Popover
 } from '@mui/material';
 import { CircleAlert as ErrorOutline, CircleCheck as CheckCircleOutline, ChevronDown as ExpandMoreIcon, Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, TrendingUp, MinusCircle as RemoveCircleOutline, TrendingDown } from '../icons';
-import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
@@ -202,6 +202,7 @@ function NotificationsPage() {
   const [expandedClassrooms, setExpandedClassrooms] = useState(new Set());
   const [expandedFlagTypes, setExpandedFlagTypes] = useState(new Set());
   const [studentDobMap, setStudentDobMap] = useState({});
+  const [pendingDeletions, setPendingDeletions] = useState([]);
 
   useEffect(() => {
     prepareNotificationsFeature();
@@ -291,6 +292,27 @@ function NotificationsPage() {
     loadAccessScope();
     return () => { active = false; };
   }, []);
+
+  // Load pending deletions for admins (PEP-250)
+  useEffect(() => {
+    if (!accessLoaded) return;
+    if (currentRole !== 'superadmin' && currentRole !== 'classroomadmin') {
+      setPendingDeletions([]);
+      return;
+    }
+    let q;
+    if (currentRole === 'superadmin') {
+      q = query(collection(db, 'pending_deletions'), where('status', '==', 'pending'));
+    } else {
+      const scope = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
+      if (!scope.length) { setPendingDeletions([]); return; }
+      q = query(collection(db, 'pending_deletions'), where('status', '==', 'pending'), where('classroomId', 'in', scope.slice(0, 10)));
+    }
+    const unsub = onSnapshot(q, (snap) => {
+      setPendingDeletions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => setPendingDeletions([]));
+    return unsub;
+  }, [accessLoaded, currentRole, accessibleClassrooms]);
 
   useEffect(() => {
     let active = true;
@@ -1480,6 +1502,54 @@ function NotificationsPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {renderBaseballCardModal()}
+      {/* Pending Deletions section — admins only (PEP-250) */}
+      {pendingDeletions.length > 0 && (currentRole === 'superadmin' || currentRole === 'classroomadmin') && (
+        <Paper elevation={0} sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, border: '1px solid var(--color-border)' }}>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <WarningIcon size={18} style={{ color: 'var(--color-warning)' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--color-text)', fontSize: '0.875rem' }}>
+                Pending Student Deletions ({pendingDeletions.length})
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ color: 'var(--color-text-soft)', fontSize: '0.78rem' }}>
+              These students have been inactive for over a year. Review and approve permanent deletion or reactivate them.
+            </Typography>
+            {pendingDeletions.map((pd) => (
+              <Paper key={pd.id} variant="outlined" sx={{ p: 2, borderRadius: 1.5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{pd.studentName || pd.studentId}</Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-soft)' }}>
+                      {pd.classroomId} · Inactive since {pd.inactivatedAt?.toDate ? pd.inactivatedAt.toDate().toLocaleDateString() : 'unknown'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                      {pd.observationCount > 0 && <Chip size="small" label={`${pd.observationCount} observations`} sx={{ height: 20, fontSize: '0.65rem' }} />}
+                      {pd.mediaCount > 0 && <Chip size="small" label={`${pd.mediaCount} media`} sx={{ height: 20, fontSize: '0.65rem' }} />}
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                    <Button size="small" variant="outlined" color="primary" onClick={() => {
+                      const fn = httpsCallable(cloudFunctions, 'resolvePendingDeletion');
+                      fn({ pendingDeletionId: pd.id, action: 'reactivate' });
+                    }}>
+                      Reactivate
+                    </Button>
+                    <Button size="small" variant="contained" color="error" onClick={() => {
+                      if (window.confirm(`Permanently delete ${pd.studentName || pd.studentId} and all their data? This cannot be undone.`)) {
+                        const fn = httpsCallable(cloudFunctions, 'resolvePendingDeletion');
+                        fn({ pendingDeletionId: pd.id, action: 'delete' });
+                      }
+                    }}>
+                      Delete
+                    </Button>
+                  </Box>
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        </Paper>
+      )}
       {isLoading ? (
         <Box sx={{
           display: 'flex',
