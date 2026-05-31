@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-05-29T05:38:55.948Z
-App version: 10.30.0
+Generated: 2026-05-31T23:47:20.648Z
+App version: 10.31.0
 
 ## App Snapshot
 
@@ -142,6 +142,11 @@ App version: 10.30.0
 
 ## Recent Changes
 
+### 10.31.0 (2026-05-31)
+- Student and teacher deletion is now soft-delete — sets `status: 'inactive'` instead of removing the document, preserving all observation data and subcollections (PEP-250)
+- Confirmation dialogs say "Remove" instead of "Delete" with softer language explaining data is preserved (PEP-250)
+- Observations by removed teachers display "(removed)" suffix on the author name (PEP-250)
+
 ### 10.30.0 (2026-05-29)
 - Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
 - "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
@@ -156,9 +161,4 @@ App version: 10.30.0
 - Monthly action plan generation: new `generateMonthlyPlan` Cloud Function gathers observations, writing analysis, and preceding plan to produce a structured 25-item plan via LLM (PEP-260)
 - Plan tab on student dashboard as the default tab for toddler and primary students — section pills, numbered accordion items with watch/next/hook fields (PEP-260)
 - Superadmin-only plan regeneration with confirmation dialog and archive-before-overwrite (PEP-260)
-
-### 10.27.2 (2026-05-26)
-- Save Note button is always enabled — toast guards replace silent disabled state when students or note text are missing (PEP-283)
-- Removed note type picker modal — voice recording screen is now the default entry point (PEP-283)
-- Back button on recipients screen no longer dead-ends during active transcription (PEP-283)
 
