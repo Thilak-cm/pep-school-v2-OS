@@ -296,7 +296,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                     {Object.entries(groupDefaults).map(([dimension, rating]) => {
-                      const color = LESSON_RATING_COLORS[rating] || '#475569';
+                      const color = LESSON_RATING_COLORS[rating] || LESSON_RATING_COLORS.na;
                       return (
                         <Chip
                           key={`group-default-${dimension}`}
@@ -323,7 +323,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
                   {dimensions.map((dimension) => {
                     const rating = dimension.value || 'na';
                     const label = LESSON_RATING_LABELS[rating] || 'N/A';
-                    const color = LESSON_RATING_COLORS[rating] || '#475569';
+                    const color = LESSON_RATING_COLORS[rating] || LESSON_RATING_COLORS.na;
                     return (
                       <Chip
                         key={`${note.id}-${dimension.name}`}
@@ -458,7 +458,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
                                 const defaultRating = groupDefaults[dimension];
                                 const isCustom = studentRating && studentRating !== defaultRating;
                                 const displayRating = studentRating || defaultRating || 'na';
-                                const color = LESSON_RATING_COLORS[displayRating] || '#475569';
+                                const color = LESSON_RATING_COLORS[displayRating] || LESSON_RATING_COLORS.na;
                                 return (
                                   <Chip
                                     key={`${student.id}-${dimension}`}
