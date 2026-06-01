@@ -1053,6 +1053,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         onClose={() => setSelectedGroupNote(null)}
         groupedNote={selectedGroupNote}
         classroomStudents={classroomStudents}
+        classroomTeachers={classroomTeachers}
         userRole={userRole}
         onNavigateToStudent={onNavigateToStudent}
       />

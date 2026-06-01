@@ -28,7 +28,7 @@ function renderLessonSummary(note, showGroupDefaults = false) {
           {note.groupComment}
         </Typography>
       )}
-      {showGroupDefaults && Object.keys(groupDefaults).length > 0 && (
+      {showGroupDefaults && Object.keys(groupDefaults).length > 0 ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
             Group Defaults:
@@ -52,8 +52,7 @@ function renderLessonSummary(note, showGroupDefaults = false) {
             })}
           </Box>
         </Box>
-      )}
-      {dimensions.length > 0 && (
+      ) : dimensions.length > 0 ? (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
           {dimensions.map(({ name, value }) => {
             const color = LESSON_RATING_COLORS[value] || '#475569'; // hex required — downstream concatenation
@@ -79,7 +78,7 @@ function renderLessonSummary(note, showGroupDefaults = false) {
             );
           })}
         </Box>
-      )}
+      ) : null}
     </Box>
   );
 }

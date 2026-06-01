@@ -34,6 +34,7 @@ function App() {
   const [classrooms, setClassrooms] = useState([]);
   const [classroomsLoaded, setClassroomsLoaded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
 
   const {
     screen, setScreen,
@@ -186,7 +187,12 @@ function App() {
       } catch { /* ignored */ }
     };
     window.addEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
-    return () => window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+    const handleNoteDrawerToggle = (e) => setNoteDrawerOpen(!!e?.detail?.open);
+    window.addEventListener('noteDrawerToggle', handleNoteDrawerToggle);
+    return () => {
+      window.removeEventListener('navigateToStudentNotes', handleNavigateToStudentNotes);
+      window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
+    };
   }, []);
 
   useEffect(() => { if (screen !== 'timeline' && timelineTitleAsDashboard) setTimelineTitleAsDashboard(false); }, [screen, timelineTitleAsDashboard]);
@@ -372,7 +378,7 @@ function App() {
                   </Box>
                 </Box>
 
-                {!FAB_HIDDEN_SCREENS.has(screen) && (
+                {!FAB_HIDDEN_SCREENS.has(screen) && !noteDrawerOpen && (
                   <AddNoteFab
                     onVoice={() => { setAddNoteInitialStep('record'); setAddNoteOpen(true); }}
                     onLesson={() => openLessonNotesScreen()}

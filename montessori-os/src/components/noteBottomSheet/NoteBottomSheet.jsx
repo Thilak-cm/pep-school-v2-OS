@@ -126,6 +126,11 @@ export default function NoteBottomSheet({
 
   // ===== Effects =====
 
+  // Notify App to hide FAB when drawer is open
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('noteDrawerToggle', { detail: { open } }));
+  }, [open]);
+
   // Reset on open
   React.useEffect(() => {
     if (open && observation) {
