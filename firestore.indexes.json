@@ -74,13 +74,6 @@
       ]
     },
     {
-      "collectionGroup": "monthly_plan_feedback",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "chats",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -147,6 +140,15 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "monthly_plan_feedback",
+      "fieldPath": "createdAt",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
     {
       "collectionGroup": "ai_summaries",
       "fieldPath": "weekKey",
