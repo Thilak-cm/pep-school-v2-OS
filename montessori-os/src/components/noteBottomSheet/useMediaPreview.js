@@ -37,7 +37,7 @@ export default function useMediaPreview(observation, currentUser, notify) {
       setMediaEditSaving(true);
       const parentId = observation.parentStudentId || observation.studentId;
       if (!parentId) throw new Error('Missing student ID');
-      const obsRef = doc(db, 'students', parentId, 'observations', observation.id);
+      const obsRef = doc(db, 'students', parentId, 'media', observation.id);
       await updateDoc(obsRef, {
         teacherComment: mediaEditComment.trim(),
         updatedAt: serverTimestamp(),

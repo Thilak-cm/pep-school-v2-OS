@@ -295,7 +295,8 @@ export default function NoteBottomSheet({
       setReassigning(true);
       const newStudentId = reassignSelectedStudents[0];
       const oldParentId = observation.parentStudentId || observation.studentId;
-      const srcRef = doc(db, 'students', oldParentId, 'observations', observation.id);
+      const targetCollection = observation.type === 'media' ? 'media' : 'observations';
+      const srcRef = doc(db, 'students', oldParentId, targetCollection, observation.id);
       const srcSnap = await getDoc(srcRef);
       if (!srcSnap.exists()) throw new Error('Source observation not found');
       const srcData = srcSnap.data() || {};
@@ -304,7 +305,7 @@ export default function NoteBottomSheet({
         const targetStuSnap = await getDoc(doc(db, 'students', newStudentId));
         targetClassroomId = targetStuSnap.data()?.classroomId || targetClassroomId;
       } catch (e) { reportCaughtError(e, 'NoteBottomSheet', 'reassign target classroom'); }
-      const destRef = doc(db, 'students', newStudentId, 'observations', observation.id);
+      const destRef = doc(db, 'students', newStudentId, targetCollection, observation.id);
       await setDoc(destRef, { ...srcData, studentId: newStudentId, classroomId: targetClassroomId, updatedAt: serverTimestamp(), lastEditedBy: currentUser.uid, lastEditedAt: serverTimestamp() });
       await deleteDoc(srcRef);
       setReassignConfirmOpen(false);
@@ -574,13 +575,25 @@ export default function NoteBottomSheet({
                   <strong>To:</strong> {reassignToStudentName}
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ fontStyle: 'italic', backgroundColor: 'var(--color-bg)', padding: 2, borderRadius: 2, border: '1px solid var(--color-border)', mb: 2 }}>
-                {(() => {
-                  const src = observation?.type === 'lesson' ? (observation?.lessonTitle || 'Lesson Note') : (observation?.text || '');
-                  if (!src) return 'No preview available';
-                  return `"${src.substring(0, 100)}${src.length > 100 ? '...' : ''}"`;
-                })()}
-              </Typography>
+              {isMedia && mediaUrl ? (
+                <Box sx={{ backgroundColor: 'var(--color-bg)', borderRadius: 2, border: '1px solid var(--color-border)', mb: 2, overflow: 'hidden' }}>
+                  {observation?.mediaKind === 'photo' ? (
+                    <img src={mediaUrl} alt="Media preview" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }} />
+                  ) : observation?.mediaKind === 'video' ? (
+                    <video src={mediaUrl} style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <Typography variant="body2" sx={{ fontStyle: 'italic', p: 2 }}>PDF document</Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" sx={{ fontStyle: 'italic', backgroundColor: 'var(--color-bg)', padding: 2, borderRadius: 2, border: '1px solid var(--color-border)', mb: 2 }}>
+                  {(() => {
+                    const src = observation?.type === 'lesson' ? (observation?.lessonTitle || 'Lesson Note') : (observation?.text || '');
+                    if (!src) return 'No preview available';
+                    return `"${src.substring(0, 100)}${src.length > 100 ? '...' : ''}"`;
+                  })()}
+                </Typography>
+              )}
             </>
           )}
         </DialogContent>

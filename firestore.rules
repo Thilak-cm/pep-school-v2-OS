@@ -422,7 +422,7 @@ service cloud.firestore {
             ]) &&
             isMedia(data) &&
             validMediaKind(data.mediaKind) &&
-            data.status == 'pending_upload' &&
+            data.status in ['pending_upload', 'ready'] &&
             (data.media is list) &&
             data.media.size() <= 1 &&
             (
