@@ -3,7 +3,7 @@
  *
  * Allows classroom admins and superadmins to submit structured + free-text
  * feedback on a student's monthly plan. Each submission creates a standalone
- * doc at students/{id}/ai_summaries/monthly_plan/feedback/{autoId}.
+ * doc at students/{id}/ai_summaries/monthly_plan/monthly_plan_feedback/{autoId}.
  */
 import { useState, useCallback } from 'react';
 import {
@@ -64,7 +64,7 @@ export default function PlanFeedbackDialog({
 
     try {
       const feedbackRef = collection(
-        db, 'students', studentId, 'ai_summaries', 'monthly_plan', 'feedback',
+        db, 'students', studentId, 'ai_summaries', 'monthly_plan', 'monthly_plan_feedback',
       );
       await addDoc(feedbackRef, {
         ...(difficulty && { difficulty }),

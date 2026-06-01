@@ -74,6 +74,13 @@
       ]
     },
     {
+      "collectionGroup": "monthly_plan_feedback",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "chats",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

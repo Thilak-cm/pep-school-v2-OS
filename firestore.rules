@@ -212,7 +212,7 @@ service cloud.firestore {
 
         // Plan feedback from admins (PEP-282)
         // Superadmins: full read/create; classroomadmins: scoped to manageable classrooms
-        match /feedback/{feedbackId} {
+        match /monthly_plan_feedback/{feedbackId} {
           allow read, create: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId));
         }
       }
