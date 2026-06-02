@@ -2,6 +2,8 @@ name: Security Rules Validation
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'firestore.rules'
       - 'storage.rules'
@@ -10,7 +12,6 @@ on:
   pull_request:
     branches:
       - master
-      - dev
     paths:
       - 'firestore.rules'
       - 'storage.rules'

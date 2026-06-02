@@ -2,6 +2,8 @@ name: Unit Tests
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'montessori-os/src/**'
       - 'montessori-os/package.json'
@@ -15,7 +17,6 @@ on:
   pull_request:
     branches:
       - master
-      - dev
     paths:
       - 'montessori-os/src/**'
       - 'montessori-os/package.json'
