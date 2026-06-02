@@ -223,7 +223,7 @@ export default function GroupedNoteDialog({ open, onClose, groupedNote, classroo
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
             <Chip
               icon={<BookOpen size={14} style={{ color: chipColors.color }} />}
-              label="LESSON NOTE"
+              label={isLesson ? 'LESSON NOTE' : 'GROUP NOTE'}
               size="small"
               sx={{
                 bgcolor: chipColors.bg,

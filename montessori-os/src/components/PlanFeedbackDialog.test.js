@@ -50,15 +50,15 @@ describe('PlanFeedbackDialog component (PEP-282)', () => {
     );
   });
 
-  it('references VoiceRecorder with autoAdvanceOnSave for mic input', async () => {
+  it('uses inline voice input for mic input', async () => {
     const src = await readFile(componentPath, 'utf8');
     assert.ok(
-      /VoiceRecorder/.test(src),
-      'Should reference VoiceRecorder component for STT',
+      /useInlineVoice/.test(src),
+      'Should use useInlineVoice hook for STT',
     );
     assert.ok(
-      /autoAdvanceOnSave/.test(src),
-      'Should pass autoAdvanceOnSave to VoiceRecorder so transcription auto-transfers',
+      /InlineVoiceOverlay/.test(src),
+      'Should render InlineVoiceOverlay component for recording UI',
     );
   });
 

@@ -1,0 +1,100 @@
+name: Deploy to Firebase on merge
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  # Detect which resources changed
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      hosting: ${{ steps.filter.outputs.hosting }}
+      functions: ${{ steps.filter.outputs.functions }}
+      firestore: ${{ steps.filter.outputs.firestore }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            hosting:
+              - 'montessori-os/**'
+              - 'functions/config/**'
+              - 'scripts/config/**'
+              - 'firebase.json'
+              - '.firebaserc'
+            functions:
+              - 'functions/**'
+            firestore:
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+              - 'storage.rules'
+
+  deploy_hosting:
+    name: Deploy Hosting
+    needs: changes
+    if: needs.changes.outputs.hosting == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+      VITE_OPENAI_SPEECH_TO_TEXT_API_KEY: ${{ secrets.VITE_OPENAI_SPEECH_TO_TEXT_API_KEY }}
+      VITE_OPENAI_TEXT_CLEANUP_API_KEY: ${{ secrets.VITE_OPENAI_TEXT_CLEANUP_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd montessori-os && npm install && npm run build
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
+          channelId: live
+          projectId: pep-os
+          target: app
+
+  deploy_functions:
+    name: Deploy Cloud Functions
+    needs: changes
+    if: needs.changes.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: functions
+        run: npm install
+      - name: Lint
+        working-directory: functions
+        run: npm run lint
+      - name: Deploy to Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only functions
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
+
+  deploy_firestore:
+    name: Deploy Firestore Rules & Indexes
+    needs: changes
+    if: needs.changes.outputs.firestore == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy to Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only firestore:rules,firestore:indexes,storage
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}

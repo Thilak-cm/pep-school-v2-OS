@@ -35,7 +35,7 @@ function renderLessonSummary(note, showGroupDefaults = false) {
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
             {Object.entries(groupDefaults).map(([dimension, rating]) => {
-              const color = LESSON_RATING_COLORS[rating] || '#475569'; // hex required — downstream concatenation
+              const color = LESSON_RATING_COLORS[rating] || LESSON_RATING_COLORS.na;
               return (
                 <MuiChip
                   key={`group-default-${dimension}`}
@@ -55,7 +55,7 @@ function renderLessonSummary(note, showGroupDefaults = false) {
       ) : dimensions.length > 0 ? (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
           {dimensions.map(({ name, value }) => {
-            const color = LESSON_RATING_COLORS[value] || '#475569'; // hex required — downstream concatenation
+            const color = LESSON_RATING_COLORS[value] || LESSON_RATING_COLORS.na;
             return (
               <Box
                 key={name}

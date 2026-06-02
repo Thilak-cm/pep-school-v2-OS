@@ -210,10 +210,9 @@ service cloud.firestore {
           allow create, update, delete: if isSuperAdmin();
         }
 
-        // Plan feedback from admins (PEP-282)
-        // Superadmins: full read/create; classroomadmins: scoped to manageable classrooms
+        // Plan feedback (PEP-282) — any authenticated user can read/write
         match /monthly_plan_feedback/{feedbackId} {
-          allow read, create: if isSuperAdmin() || hasManageableClassroom(studentClassroomId(studentId));
+          allow read, create: if request.auth != null;
         }
       }
 
@@ -293,7 +292,7 @@ service cloud.firestore {
             ]) &&
             isMedia(data) &&
             validMediaKind(data.mediaKind) &&
-            data.status == 'pending_upload' &&
+            data.status == 'pending_upload' && // observations path: only pending_upload (media path allows 'ready' too for reassignment)
             (data.media is list) &&
             data.media.size() <= 1 &&
             (

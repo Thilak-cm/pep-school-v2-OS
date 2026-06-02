@@ -245,7 +245,7 @@ export default function useInlineVoice({ onTranscribed } = {}) {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        if (discardRef.current) {
+        if (discardRef.current || !mediaRecorderRef.current) {
           audioChunksRef.current = [];
           discardRef.current = false;
           resetRecordingState();
@@ -264,7 +264,7 @@ export default function useInlineVoice({ onTranscribed } = {}) {
           return;
         }
 
-        const actualMime = mediaRecorderRef.current.mimeType || 'audio/webm;codecs=opus';
+        const actualMime = mediaRecorderRef.current?.mimeType || 'audio/webm;codecs=opus';
         const blob = new Blob(audioChunksRef.current, { type: actualMime });
 
         if (!blob || blob.size === 0) {

@@ -582,35 +582,39 @@ function LessonNoteWizard({
     markDirty();
   };
 
-  const getTargetValue = (target) => {
-    if (!target) return '';
-    if (target.field === 'lessonDescription') return context.lessonDescription || '';
-    if (target.field === 'groupComment') return context.groupComment || '';
-    if (target.field === 'studentComment') return studentOverrides[target.studentId]?.comment || '';
-    return '';
-  };
-
   const handleVoiceTranscribed = useCallback((text) => {
     const target = activeVoiceFieldRef.current;
     if (!text?.trim() || !target) return;
-
-    const currentValue = getTargetValue(target);
-    // Append transcribed text (separated by space if field already has content)
-    const nextValue = currentValue ? `${currentValue} ${text.trim()}` : text.trim();
+    const trimmed = text.trim();
 
     if (target.field === 'lessonDescription') {
-      setContextField('lessonDescription', nextValue);
+      setContext((prev) => ({ ...prev, lessonDescription: prev.lessonDescription ? `${prev.lessonDescription} ${trimmed}` : trimmed }));
+      markDirty();
     } else if (target.field === 'groupComment') {
-      setContextField('groupComment', nextValue);
+      setContext((prev) => ({ ...prev, groupComment: prev.groupComment ? `${prev.groupComment} ${trimmed}` : trimmed }));
+      markDirty();
     } else if (target.field === 'studentComment') {
-      setStudentComment(target.studentId, nextValue);
+      setStudentOverrides((prev) => {
+        const current = prev[target.studentId]?.comment || '';
+        return { ...prev, [target.studentId]: { ...(prev[target.studentId] || {}), comment: current ? `${current} ${trimmed}` : trimmed } };
+      });
+      markDirty();
     }
 
     setActiveVoiceField(null);
     activeVoiceFieldRef.current = null;
+    setIsDirty(true);
   }, []);
 
   const voice = useInlineVoice({ onTranscribed: handleVoiceTranscribed });
+
+  // Clear activeVoiceField when voice becomes inactive (cancel/error)
+  useEffect(() => {
+    if (!voice.active) {
+      setActiveVoiceField(null);
+      activeVoiceFieldRef.current = null;
+    }
+  }, [voice.active]);
 
   const startVoiceFor = (target) => {
     setActiveVoiceField(target);
