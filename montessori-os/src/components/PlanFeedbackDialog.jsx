@@ -8,13 +8,17 @@
 import { useState, useCallback } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Stack,
-  Button, TextField, Typography, Box, Chip, IconButton,
+  Button, TextField, Typography, Box, Chip, IconButton, Alert,
+  CircularProgress, Tooltip,
 } from '@mui/material';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Mic, ThumbsUp } from '../icons';
+import { Mic, ThumbsUp, Sparkles as AutoFixHigh } from '../icons';
 import useNotify from '../notifications/useNotify';
-import VoiceRecorder from '../VoiceRecorder';
+import useInlineVoice from '../hooks/useInlineVoice';
+import InlineVoiceOverlay from './InlineVoiceOverlay';
+import { cleanUpText } from '../textCleanup';
+import { trackEvent, lengthBucket } from '../utils/analytics';
 
 // ── Option definitions ────────────────────────────────────────────
 const DIFFICULTY_OPTIONS = [
@@ -41,8 +45,15 @@ export default function PlanFeedbackDialog({
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanedOnce, setCleanedOnce] = useState(false);
+  const [prevText, setPrevText] = useState('');
   const notify = useNotify();
+  const voice = useInlineVoice({
+    onTranscribed: (transcribed) => {
+      if (transcribed) setText((prev) => prev ? `${prev} ${transcribed}` : transcribed);
+    },
+  });
 
   const canSubmit = !!(difficulty || pace || text.trim());
 
@@ -51,6 +62,9 @@ export default function PlanFeedbackDialog({
     setPace(null);
     setText('');
     setSubmitted(false);
+    setCleaning(false);
+    setCleanedOnce(false);
+    setPrevText('');
   }, []);
 
   const handleClose = useCallback(() => {
@@ -86,9 +100,33 @@ export default function PlanFeedbackDialog({
     }
   };
 
-  const handleVoiceSave = ({ text: transcribed }) => {
-    if (transcribed) setText((prev) => prev ? `${prev} ${transcribed}` : transcribed);
-    setVoiceOpen(false);
+  const handlePolish = async () => {
+    if (!text.trim() || cleaning || cleanedOnce) return;
+    try {
+      setCleaning(true);
+      trackEvent('polish_click', {
+        source: 'plan_feedback',
+        component: 'PlanFeedbackDialog',
+        length_bucket: lengthBucket(text.length),
+      });
+      const cleaned = await cleanUpText(text);
+      if (cleaned && cleaned !== text) {
+        setPrevText(text);
+        setText(cleaned);
+        setCleanedOnce(true);
+      }
+    } catch {
+      notify.error('Unable to polish text. Please try again.');
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const handleUndoPolish = () => {
+    if (!prevText) return;
+    setText(prevText);
+    setPrevText('');
+    setCleanedOnce(false);
   };
 
   const chipSx = (selected) => ({
@@ -173,27 +211,67 @@ export default function PlanFeedbackDialog({
                   </Box>
                 </Box>
 
-                {/* Text input + mic */}
+                {/* Text input + polish + mic */}
                 <Box sx={{ position: 'relative' }}>
-                  <TextField
-                    multiline
-                    minRows={2}
-                    maxRows={4}
-                    fullWidth
-                    placeholder="What did you notice?"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { pr: 5 } }}
-                  />
-                  <IconButton
-                    size="small"
-                    onClick={() => setVoiceOpen(true)}
-                    sx={{ position: 'absolute', right: 8, top: 8, color: 'var(--color-primary)' }}
-                    aria-label="Record voice feedback"
-                  >
-                    <Mic size={18} />
-                  </IconButton>
+                  {voice.active ? (
+                    <InlineVoiceOverlay {...voice} />
+                  ) : (
+                    <>
+                      <TextField
+                        multiline
+                        minRows={2}
+                        maxRows={4}
+                        fullWidth
+                        placeholder="What did you notice?"
+                        value={text}
+                        onChange={(e) => {
+                          setText(e.target.value);
+                          if (cleanedOnce) { setCleanedOnce(false); setPrevText(''); }
+                        }}
+                        size="small"
+                        sx={{ '& .MuiOutlinedInput-root': { pr: 9 } }}
+                      />
+                      <Box sx={{ position: 'absolute', right: 8, top: 8, display: 'flex', gap: 0.5 }}>
+                        <Tooltip title={!text.trim() ? 'Add text first to polish with AI' : cleanedOnce ? 'Already polished' : 'Polish with AI'}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={handlePolish}
+                              disabled={!text.trim() || cleaning || cleanedOnce}
+                              aria-label="Polish feedback with AI"
+                              sx={{
+                                color: cleanedOnce ? 'var(--color-secondary)' : cleaning ? 'var(--color-violet-dark)' : !text.trim() ? 'text.disabled' : 'var(--color-violet-dark)',
+                              }}
+                            >
+                              {cleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={18} />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          onClick={voice.startRecording}
+                          sx={{ color: 'var(--color-primary)' }}
+                          aria-label="Record voice feedback"
+                        >
+                          <Mic size={18} />
+                        </IconButton>
+                      </Box>
+                    </>
+                  )}
+                  {cleanedOnce && prevText && (
+                    <Button
+                      variant="text"
+                      onClick={handleUndoPolish}
+                      sx={{ color: 'var(--color-text-soft)', textTransform: 'none', minWidth: 'auto', px: 1, mt: 0.5, fontSize: '0.75rem' }}
+                    >
+                      Undo polish
+                    </Button>
+                  )}
+                  {voice.error && (
+                    <Alert severity="error" sx={{ mt: 1 }} onClose={voice.clearError}>
+                      {voice.error}
+                    </Alert>
+                  )}
                 </Box>
               </>
             )}
@@ -216,15 +294,6 @@ export default function PlanFeedbackDialog({
           </DialogActions>
         )}
       </Dialog>
-
-      {/* VoiceRecorder dialog for STT */}
-      <VoiceRecorder
-        dialog
-        open={voiceOpen}
-        onClose={() => setVoiceOpen(false)}
-        onSave={handleVoiceSave}
-        autoAdvanceOnSave
-      />
     </>
   );
 }

@@ -32,7 +32,7 @@ import NotesOverTimeDrawer from './NotesOverTimeDrawer';
 import NoteBottomSheet from './noteBottomSheet/NoteBottomSheet';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { calculateAgeFromDob } from '../utils/dateFormat';
-import { isSuperAdmin, isAdminRole } from '../utils/roleUtils';
+import { isSuperAdmin } from '../utils/roleUtils';
 
 /* Shared chip base sx for uniform toolbar items */
 const CHIP_BASE = {
@@ -834,8 +834,8 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
             <Box sx={{ flex: 1 }} />
 
-            {/* Feedback chip — plan tab, admins only (PEP-282) */}
-            {activeTab === 'plan' && planData && isAdminRole(userRole) && (
+            {/* Feedback chip — plan tab, all roles (PEP-282) */}
+            {activeTab === 'plan' && planData && (
               <Tooltip title="Rate this plan" arrow>
                 <Box
                   component="button"

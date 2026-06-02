@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -13,7 +13,7 @@ import {
   ToggleButton,
   IconButton,
   InputAdornment,
-  Dialog,
+  Alert,
   Collapse,
   Checkbox,
   List,
@@ -24,7 +24,8 @@ import {
   Autocomplete,
   Tooltip
 } from '@mui/material';
-import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, Users as Group, User as Person, Search, Mic, X as Close, Sparkles as AutoFixHigh } from '../icons';
+import { ChevronDown as ExpandMore, ChevronUp as ExpandLess, Users as Group, User as Person, Search, Mic, Sparkles as AutoFixHigh } from '../icons';
+
 import {
   collection,
   getDocs,
@@ -38,7 +39,8 @@ import {
 import { db } from '../firebase';
 import useNotify from '../notifications/useNotify';
 import { genericFuzzySearch } from '../utils/fuzzySearch';
-import VoiceRecorder from '../VoiceRecorder';
+import useInlineVoice from '../hooks/useInlineVoice';
+import InlineVoiceOverlay from './InlineVoiceOverlay';
 import { enqueueSaveQueueItems } from '../services/saveQueue';
 import { cleanUpText } from '../textCleanup';
 import { trackEvent, lengthBucket } from '../utils/analytics';
@@ -123,9 +125,8 @@ function LessonNoteWizard({
   const [autoScrolled, setAutoScrolled] = useState({ defaults: false, overrides: false });
   const [studentsLocked, setStudentsLocked] = useState(false); // user confirms selection in group mode
   const [lessonConfig, setLessonConfig] = useState(null);
-  const [dictationOpen, setDictationOpen] = useState(false);
-  const [dictationTarget, setDictationTarget] = useState(null);
-  const [dictationSelection, setDictationSelection] = useState({ start: null, end: null });
+  const [activeVoiceField, setActiveVoiceField] = useState(null); // { field, studentId? }
+  const activeVoiceFieldRef = useRef(null);
   const [descriptionCleaning, setDescriptionCleaning] = useState(false);
   const [descriptionCleanedOnce, setDescriptionCleanedOnce] = useState(false);
   const [descriptionPrevText, setDescriptionPrevText] = useState('');
@@ -589,57 +590,32 @@ function LessonNoteWizard({
     return '';
   };
 
-  const getInputElementForTarget = (target) => {
-    if (!target) return null;
-    if (target.field === 'lessonDescription') return inputRefs.current.lessonDescription;
-    if (target.field === 'groupComment') return inputRefs.current.groupComment;
-    if (target.field === 'studentComment') {
-      return inputRefs.current.studentComment?.[target.studentId] || null;
-    }
-    return null;
-  };
+  const handleVoiceTranscribed = useCallback((text) => {
+    const target = activeVoiceFieldRef.current;
+    if (!text?.trim() || !target) return;
 
-  const insertAtSelection = (baseValue, insertText, selection) => {
-    if (!insertText) return baseValue;
-    const start = Number.isInteger(selection?.start) ? selection.start : baseValue.length;
-    const end = Number.isInteger(selection?.end) ? selection.end : baseValue.length;
-    return `${baseValue.slice(0, start)}${insertText}${baseValue.slice(end)}`;
-  };
+    const currentValue = getTargetValue(target);
+    // Append transcribed text (separated by space if field already has content)
+    const nextValue = currentValue ? `${currentValue} ${text.trim()}` : text.trim();
 
-  const openDictationFor = (target) => {
-    const inputEl = getInputElementForTarget(target);
-    const start = inputEl && Number.isInteger(inputEl.selectionStart) ? inputEl.selectionStart : null;
-    const end = inputEl && Number.isInteger(inputEl.selectionEnd) ? inputEl.selectionEnd : null;
-    setDictationSelection({ start, end });
-    setDictationTarget(target);
-    setDictationOpen(true);
-  };
-
-  const closeDictation = () => {
-    setDictationOpen(false);
-    setDictationTarget(null);
-    setDictationSelection({ start: null, end: null });
-  };
-
-  const handleDictationSave = (transcriptionData) => {
-    const insertText = transcriptionData?.text?.trim();
-    if (!insertText || !dictationTarget) {
-      closeDictation();
-      return;
-    }
-
-    const currentValue = getTargetValue(dictationTarget);
-    const nextValue = insertAtSelection(currentValue, insertText, dictationSelection);
-
-    if (dictationTarget.field === 'lessonDescription') {
+    if (target.field === 'lessonDescription') {
       setContextField('lessonDescription', nextValue);
-    } else if (dictationTarget.field === 'groupComment') {
+    } else if (target.field === 'groupComment') {
       setContextField('groupComment', nextValue);
-    } else if (dictationTarget.field === 'studentComment') {
-      setStudentComment(dictationTarget.studentId, nextValue);
+    } else if (target.field === 'studentComment') {
+      setStudentComment(target.studentId, nextValue);
     }
 
-    closeDictation();
+    setActiveVoiceField(null);
+    activeVoiceFieldRef.current = null;
+  }, []);
+
+  const voice = useInlineVoice({ onTranscribed: handleVoiceTranscribed });
+
+  const startVoiceFor = (target) => {
+    setActiveVoiceField(target);
+    activeVoiceFieldRef.current = target;
+    voice.startRecording();
   };
 
   const handlePolishDescription = async () => {
@@ -1130,67 +1106,76 @@ function LessonNoteWizard({
               />
             </Box>
           )}
-          <TextField
-            fullWidth
-            label="Short Description (optional)"
-            multiline
-            minRows={2}
-            placeholder="Add a short description (optional)"
-            value={context.lessonDescription}
-            onChange={(e) => {
-              setContextField('lessonDescription', e.target.value);
-              if (descriptionCleanedOnce) {
-                setDescriptionCleanedOnce(false);
-                setDescriptionPrevText('');
-              }
-            }}
-            inputRef={(el) => {
-              inputRefs.current.lessonDescription = el;
-            }}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Tooltip
-                      title="Add text first to polish with AI"
-                      disableHoverListener={!!context.lessonDescription.trim()}
-                      disableFocusListener={!!context.lessonDescription.trim()}
-                    >
-                      <span>
-                        <IconButton
-                          aria-label="Polish short description with AI"
-                          onClick={handlePolishDescription}
-                          disabled={!context.lessonDescription.trim() || descriptionCleaning || descriptionCleanedOnce}
-                          size="small"
-                          sx={{
-                            border: 1,
-                            borderColor: 'divider',
-                            bgcolor: 'action.hover',
-                            color: descriptionCleanedOnce ? 'var(--color-secondary)' : descriptionCleaning ? 'var(--color-violet-dark)' : !context.lessonDescription.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
-                          }}
-                        >
-                          {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <IconButton
-                      aria-label="Dictate short description"
-                      onClick={() => openDictationFor({ field: 'lessonDescription' })}
-                      color="primary"
-                      size="small"
-                      sx={{
-                        border: 1,
-                        borderColor: 'divider',
-                        bgcolor: 'action.hover'
-                      }}
-                    >
-                      <Mic size={20} />
-                    </IconButton>
-                  </Box>
-                </InputAdornment>
-              )
-            }}
-          />
+          {voice.active && activeVoiceField?.field === 'lessonDescription' ? (
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>Short Description</Typography>
+              <InlineVoiceOverlay {...voice} />
+              {voice.error && <Alert severity="error" sx={{ mt: 1 }} onClose={voice.clearError}>{voice.error}</Alert>}
+            </Box>
+          ) : (
+            <TextField
+              fullWidth
+              label="Short Description (optional)"
+              multiline
+              minRows={2}
+              placeholder="Add a short description (optional)"
+              value={context.lessonDescription}
+              onChange={(e) => {
+                setContextField('lessonDescription', e.target.value);
+                if (descriptionCleanedOnce) {
+                  setDescriptionCleanedOnce(false);
+                  setDescriptionPrevText('');
+                }
+              }}
+              inputRef={(el) => {
+                inputRefs.current.lessonDescription = el;
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Tooltip
+                        title="Add text first to polish with AI"
+                        disableHoverListener={!!context.lessonDescription.trim()}
+                        disableFocusListener={!!context.lessonDescription.trim()}
+                      >
+                        <span>
+                          <IconButton
+                            aria-label="Polish short description with AI"
+                            onClick={handlePolishDescription}
+                            disabled={!context.lessonDescription.trim() || descriptionCleaning || descriptionCleanedOnce}
+                            size="small"
+                            sx={{
+                              border: 1,
+                              borderColor: 'divider',
+                              bgcolor: 'action.hover',
+                              color: descriptionCleanedOnce ? 'var(--color-secondary)' : descriptionCleaning ? 'var(--color-violet-dark)' : !context.lessonDescription.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
+                            }}
+                          >
+                            {descriptionCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <IconButton
+                        aria-label="Dictate short description"
+                        onClick={() => startVoiceFor({ field: 'lessonDescription' })}
+                        disabled={voice.active}
+                        color="primary"
+                        size="small"
+                        sx={{
+                          border: 1,
+                          borderColor: 'divider',
+                          bgcolor: 'action.hover'
+                        }}
+                      >
+                        <Mic size={20} />
+                      </IconButton>
+                    </Box>
+                  </InputAdornment>
+                )
+              }}
+            />
+          )}
           {descriptionCleanedOnce && descriptionPrevText && (
             <Button
               variant="text"
@@ -1202,68 +1187,77 @@ function LessonNoteWizard({
           )}
           {lessonMode === 'group' && (
             <>
-              <TextField
-                fullWidth
-                label="Group Comment (optional)"
-                multiline
-                minRows={2}
-                placeholder="Add a note that appears for every student (optional)"
-                helperText="Optional note that appears for every student"
-                value={context.groupComment}
-                onChange={(e) => {
-                  setContextField('groupComment', e.target.value);
-                  if (groupCommentCleanedOnce) {
-                    setGroupCommentCleanedOnce(false);
-                    setGroupCommentPrevText('');
-                  }
-                }}
-                inputRef={(el) => {
-                  inputRefs.current.groupComment = el;
-                }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        <Tooltip
-                          title="Add text first to polish with AI"
-                          disableHoverListener={!!context.groupComment.trim()}
-                          disableFocusListener={!!context.groupComment.trim()}
-                        >
-                          <span>
-                            <IconButton
-                              aria-label="Polish group comment with AI"
-                              onClick={handlePolishGroupComment}
-                              disabled={!context.groupComment.trim() || groupCommentCleaning || groupCommentCleanedOnce}
-                              size="small"
-                              sx={{
-                                border: 1,
-                                borderColor: 'divider',
-                                bgcolor: 'action.hover',
-                                color: groupCommentCleanedOnce ? 'var(--color-secondary)' : groupCommentCleaning ? 'var(--color-violet-dark)' : !context.groupComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
-                              }}
-                            >
-                              {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <IconButton
-                          aria-label="Dictate group comment"
-                          onClick={() => openDictationFor({ field: 'groupComment' })}
-                          color="primary"
-                          size="small"
-                          sx={{
-                            border: 1,
-                            borderColor: 'divider',
-                            bgcolor: 'action.hover'
-                          }}
-                        >
-                          <Mic size={20} />
-                        </IconButton>
-                      </Box>
-                    </InputAdornment>
-                  )
-                }}
-              />
+              {voice.active && activeVoiceField?.field === 'groupComment' ? (
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>Group Comment</Typography>
+                  <InlineVoiceOverlay {...voice} />
+                  {voice.error && <Alert severity="error" sx={{ mt: 1 }} onClose={voice.clearError}>{voice.error}</Alert>}
+                </Box>
+              ) : (
+                <TextField
+                  fullWidth
+                  label="Group Comment (optional)"
+                  multiline
+                  minRows={2}
+                  placeholder="Add a note that appears for every student (optional)"
+                  helperText="Optional note that appears for every student"
+                  value={context.groupComment}
+                  onChange={(e) => {
+                    setContextField('groupComment', e.target.value);
+                    if (groupCommentCleanedOnce) {
+                      setGroupCommentCleanedOnce(false);
+                      setGroupCommentPrevText('');
+                    }
+                  }}
+                  inputRef={(el) => {
+                    inputRefs.current.groupComment = el;
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Tooltip
+                            title="Add text first to polish with AI"
+                            disableHoverListener={!!context.groupComment.trim()}
+                            disableFocusListener={!!context.groupComment.trim()}
+                          >
+                            <span>
+                              <IconButton
+                                aria-label="Polish group comment with AI"
+                                onClick={handlePolishGroupComment}
+                                disabled={!context.groupComment.trim() || groupCommentCleaning || groupCommentCleanedOnce}
+                                size="small"
+                                sx={{
+                                  border: 1,
+                                  borderColor: 'divider',
+                                  bgcolor: 'action.hover',
+                                  color: groupCommentCleanedOnce ? 'var(--color-secondary)' : groupCommentCleaning ? 'var(--color-violet-dark)' : !context.groupComment.trim() ? 'text.disabled' : 'var(--color-violet-dark)'
+                                }}
+                              >
+                                {groupCommentCleaning ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh size={20} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <IconButton
+                            aria-label="Dictate group comment"
+                            onClick={() => startVoiceFor({ field: 'groupComment' })}
+                            disabled={voice.active}
+                            color="primary"
+                            size="small"
+                            sx={{
+                              border: 1,
+                              borderColor: 'divider',
+                              bgcolor: 'action.hover'
+                            }}
+                          >
+                            <Mic size={20} />
+                          </IconButton>
+                        </Box>
+                      </InputAdornment>
+                    )
+                  }}
+                />
+              )}
               {groupCommentCleanedOnce && groupCommentPrevText && (
                 <Button
                   variant="text"
@@ -1531,41 +1525,50 @@ function LessonNoteWizard({
                         );
                       })}
                     </Stack>
-                    <TextField
-                      fullWidth
-                      label="Student comment (optional)"
-                      multiline
-                      minRows={1}
-                      placeholder="Add a student-specific comment (optional)"
-                      value={studentOverrides[student.id]?.comment || ''}
-                      onChange={(e) => setStudentComment(student.id, e.target.value)}
-                      sx={{ mt: 1 }}
-                      inputRef={(el) => {
-                        if (!inputRefs.current.studentComment) {
-                          inputRefs.current.studentComment = {};
-                        }
-                        inputRefs.current.studentComment[student.id] = el;
-                      }}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              aria-label={`Dictate comment for ${getStudentDisplayName(student)}`}
-                              onClick={() => openDictationFor({ field: 'studentComment', studentId: student.id })}
-                            color="primary"
-                            size="small"
-                            sx={{
-                              border: 1,
-                              borderColor: 'divider',
-                              bgcolor: 'action.hover'
-                            }}
-                            >
-                              <Mic size={20} />
-                            </IconButton>
-                          </InputAdornment>
-                        )
-                      }}
-                    />
+                    {voice.active && activeVoiceField?.field === 'studentComment' && activeVoiceField?.studentId === student.id ? (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', mb: 0.5, display: 'block' }}>Student comment</Typography>
+                        <InlineVoiceOverlay {...voice} />
+                        {voice.error && <Alert severity="error" sx={{ mt: 1 }} onClose={voice.clearError}>{voice.error}</Alert>}
+                      </Box>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        label="Student comment (optional)"
+                        multiline
+                        minRows={1}
+                        placeholder="Add a student-specific comment (optional)"
+                        value={studentOverrides[student.id]?.comment || ''}
+                        onChange={(e) => setStudentComment(student.id, e.target.value)}
+                        sx={{ mt: 1 }}
+                        inputRef={(el) => {
+                          if (!inputRefs.current.studentComment) {
+                            inputRefs.current.studentComment = {};
+                          }
+                          inputRefs.current.studentComment[student.id] = el;
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label={`Dictate comment for ${getStudentDisplayName(student)}`}
+                                onClick={() => startVoiceFor({ field: 'studentComment', studentId: student.id })}
+                                disabled={voice.active}
+                                color="primary"
+                                size="small"
+                                sx={{
+                                  border: 1,
+                                  borderColor: 'divider',
+                                  bgcolor: 'action.hover'
+                                }}
+                              >
+                                <Mic size={20} />
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                      />
+                    )}
                   </Paper>
                 ))}
               </Stack>
@@ -1587,36 +1590,6 @@ function LessonNoteWizard({
         </Button>
       </Box>
 
-      <Dialog
-        open={dictationOpen}
-        onClose={closeDictation}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            overflow: 'hidden'
-          }
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1.5, py: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            Dictate for lesson note
-          </Typography>
-          <IconButton aria-label="Close dictation" onClick={closeDictation}>
-            <Close />
-          </IconButton>
-        </Box>
-        <Divider />
-        <Box sx={{ p: 2 }}>
-          <VoiceRecorder
-            variant="cardless"
-            onSave={handleDictationSave}
-            onNext={closeDictation}
-            autoAdvanceOnSave
-          />
-        </Box>
-      </Dialog>
     </Box>
   );
 }
