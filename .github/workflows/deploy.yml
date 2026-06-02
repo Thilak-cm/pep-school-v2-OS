@@ -31,7 +31,6 @@ jobs:
             firestore:
               - 'firestore.rules'
               - 'firestore.indexes.json'
-              - 'storage.rules'
 
   deploy_hosting:
     name: Deploy Hosting
@@ -95,6 +94,6 @@ jobs:
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only firestore:rules,firestore:indexes,storage
+          args: deploy --only firestore:rules,firestore:indexes
         env:
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PEP_OS }}
