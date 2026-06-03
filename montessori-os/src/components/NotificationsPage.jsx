@@ -419,7 +419,9 @@ function NotificationsPage() {
             const historyRef = collection(db, 'students', sid, 'ai_summaries', 'weekly_snapshot', 'history');
             const historySnap = await getDocs(query(historyRef, where('__name__', 'in', pastKeys)));
             for (const hDoc of historySnap.docs) {
-              historyMap[sid][hDoc.id] = hDoc.data()?.severity || 'clear';
+              const hData = hDoc.data() || {};
+              // no_notes = student had no observations that week → show as empty
+              historyMap[sid][hDoc.id] = hData.status === 'no_notes' ? null : (hData.severity || 'clear');
             }
           } catch {
             // Swallow — missing history is expected for new students
@@ -429,7 +431,7 @@ function NotificationsPage() {
         // Add current week
         for (const sig of filteredSignals) {
           if (sig.studentId && historyMap[sig.studentId]) {
-            historyMap[sig.studentId][weekKey] = sig.severity || 'clear';
+            historyMap[sig.studentId][weekKey] = sig.status === 'no_notes' ? null : (sig.severity || 'clear');
           }
         }
 
@@ -603,8 +605,12 @@ function NotificationsPage() {
       const sev = history[wk];
       return sev ? severityToFlag(sev) : null;
     });
-    const currentFlag = weeks[5] || severityToFlag(sig.severity);
-    weeks[5] = currentFlag;
+    // If current week has no data (no_notes), keep it null for dotted box
+    const currentWeekHasData = weeks[5] !== null && weeks[5] !== undefined;
+    if (!currentWeekHasData && sig.status !== 'no_notes') {
+      weeks[5] = severityToFlag(sig.severity);
+    }
+    const currentFlag = weeks[5] || 'g';
     return { id: sid, name: info.name || sid, weeks, flag: currentFlag, classroomId: info.classroomId };
   });
 
