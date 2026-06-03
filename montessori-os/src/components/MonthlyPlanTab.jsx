@@ -172,7 +172,7 @@ function PlanItem({ item, index, isExpanded, isLast, currentTint, sectionMeta, o
         transition: 'height 280ms ease, opacity 250ms ease 80ms',
       }}>
         <Box ref={measureRef} sx={{ mt: 1 }}>
-          <DetailBlock label="OFFER" value={item.next} />
+          <DetailBlock label="NEXT" value={item.next} />
           <DetailBlock label="WATCH FOR" value={item.watch} />
           {item.hook && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
