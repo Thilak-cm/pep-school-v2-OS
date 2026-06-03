@@ -16,6 +16,7 @@ import { GraduationCap as School, Users as Group, ArrowRight as ArrowForward, Se
 import { MiniTangram } from './ui';
 import { collection, getDocs, query, where, doc, getDoc, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
+import { trackEvent } from '../utils/analytics';
 
 const CACHE_KEY_PREFIX = 'classroomListCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -455,6 +456,7 @@ const estimateStudentListHeight = (count) => {
 const handleStudentClick = (student) => {
   setExpandedClassroomId(null);
   if (onNavigateToStudent) {
+    trackEvent('student_card_click', { source: 'classroom_list_dropdown' });
     onNavigateToStudent(student);
   }
   };

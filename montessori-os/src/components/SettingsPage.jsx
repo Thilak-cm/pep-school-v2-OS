@@ -25,6 +25,7 @@ import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/fire
 import { db } from '../firebase';
 import { Avatar } from './ui';
 import VersionBadge from './VersionBadge';
+import { trackEvent } from '../utils/analytics';
 import { isSuperAdmin, isAdminRole, isClassroomAdmin, getRoleLabel } from '../utils/roleUtils';
 
 function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }) {
@@ -168,12 +169,12 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
         <SettingsRow
           icon={<Bell size={20} />}
           label="Notifications"
-          onClick={() => onNavigate('alerts')}
+          onClick={() => { trackEvent('settings_action', { target: 'notifications' }); onNavigate('alerts'); }}
         />
         <SettingsRow
           icon={<Users size={20} />}
           label="My Student Groups"
-          onClick={() => onNavigate('/aliases')}
+          onClick={() => { trackEvent('settings_action', { target: 'student_groups' }); onNavigate('/aliases'); }}
         />
       </Paper>
 

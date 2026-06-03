@@ -35,6 +35,7 @@ import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { toDate, groupByCalendarDay } from './classroomTimelineUtils.js';
 import { groupReportsByDate } from '../utils/reportTimelineUtils.js';
 import { HFTabs, DayHeader, HFSearchInput, HFFilterChip } from './ui';
+import { trackEvent } from '../utils/analytics';
 
 const NOTES_PAGE_SIZE = 20;
 
@@ -420,6 +421,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
   }, [classroomMediaDocs]);
 
   const handleStudentClick = (student) => {
+    trackEvent('student_card_click', { source: 'classroom_students_tab' });
     onNavigateToStudent(student);
   };
 
@@ -809,7 +811,10 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
         classroomTeachers={classroomTeachers}
         onStudentClick={() => {
           const student = classroomStudents.find(s => s.id === item.studentId);
-          if (student) onNavigateToStudent(student);
+          if (student) {
+            trackEvent('student_card_click', { source: 'classroom_timeline' });
+            onNavigateToStudent(student);
+          }
         }}
         onNoteClick={() => handleNoteClick(item)}
         mediaUrls={mediaUrls}
@@ -897,7 +902,7 @@ function ClassroomTimeline({ classroom, currentUser, userRole, manageableClassro
             { label: 'Students', icon: <Group size={16} />, value: 1 },
           ]}
           value={activeTab}
-          onChange={(v) => setActiveTab(v)}
+          onChange={(v) => { trackEvent('classroom_tab', { tab: v === 0 ? 'notes' : 'students' }); setActiveTab(v); }}
           variant="fullWidth"
         />
       </Box>

@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db, cloudFunctions } from "./firebase";
 import SignIn from "./SignIn";
 import AppFooter from "./AppFooter";
-import { setAnalyticsUserId, setUserProperty, setAppVersionProperty } from './utils/analytics';
+import { setAnalyticsUserId, setUserProperty, setAppVersionProperty, trackEvent } from './utils/analytics';
 import { doc, getDoc, collection, query, where, getDocs, documentId } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { Box, Typography, CircularProgress, Card } from "@mui/material";
@@ -194,6 +194,13 @@ function App() {
       window.removeEventListener('noteDrawerToggle', handleNoteDrawerToggle);
     };
   }, []);
+
+  // ── Track screen views for GA4 path analysis ──
+  useEffect(() => {
+    if (screen && screen !== 'loading') {
+      trackEvent('screen_view', { screen_name: screen });
+    }
+  }, [screen]);
 
   useEffect(() => { if (screen !== 'timeline' && timelineTitleAsDashboard) setTimelineTitleAsDashboard(false); }, [screen, timelineTitleAsDashboard]);
   useEffect(() => { if (screen === 'classroomList') setStudentDashboardReturnScreen('classroomList'); }, [screen]);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
 import { Home, Settings, Bell as Notifications, Inbox } from './icons';
+import { trackEvent } from './utils/analytics';
 
 const FOOTER_HEIGHT = 64;
 
@@ -26,6 +27,7 @@ function AppFooter({ onHome, onNavigate, active = null }) {
   const handleChange = (_, newValue) => {
     setValue(newValue);
     if (newValue !== 'none') {
+      trackEvent('footer_nav', { target: newValue });
       handleAction(newValue);
     }
   };

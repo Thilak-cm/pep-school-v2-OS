@@ -758,7 +758,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         <HFTabs
           tabs={snapshotTabs}
           value={activeTab}
-          onChange={setActiveTab}
+          onChange={(v) => { trackEvent('student_dashboard_tab', { tab: v }); setActiveTab(v); }}
           variant="fullWidth"
           sx={{ borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}
         />

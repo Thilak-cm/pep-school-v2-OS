@@ -25,6 +25,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, B
 import PerformanceSummaryCard from './PerformanceSummaryCard';
 import { isAdminRole } from '../utils/roleUtils';
 import { useStatsData } from '../hooks/useStatsData';
+import { trackEvent } from '../utils/analytics';
 
 /** Format ms timestamp as a short relative string, e.g. "3 min ago", "2 hours ago" */
 const formatRelativeTime = (ms) => {
@@ -137,7 +138,9 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
 
 
   // ── Simplified handleTabChange (no lazy loading needed) ──────────
+  const STATS_TAB_NAMES = ['overview', 'classrooms', 'teachers', 'students'];
   const handleTabChange = (event, newValue) => {
+    trackEvent('stats_tab', { tab: STATS_TAB_NAMES[newValue] || newValue });
     setActiveTab(newValue);
   };
 

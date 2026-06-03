@@ -3,6 +3,7 @@ import React from 'react';
 import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram, QuickJumpButton } from './ui';
+import { trackEvent } from '../utils/analytics';
 
 // Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
 const FALLBACK_PALETTES = [
@@ -39,14 +40,14 @@ function LandingPage({
 
   // --- Quick jump cards (role-based) ---
   const quickJumps = [
-    { label: 'Stats', icon: <BarChart3 size={22} />, iconColor: 'var(--color-warning)', action: () => onNavigate('/stats'), roles: 'all' },
-    { label: 'People', icon: <UserPlus size={22} />, iconColor: 'var(--color-primary-light)', action: () => onNavigate('/addUser'), roles: 'admin' },
-    { label: 'Export', icon: <Download size={22} />, iconColor: 'var(--color-secondary-light)', action: onNavigateToClassroomNotes, roles: 'admin' },
+    { label: 'Stats', icon: <BarChart3 size={22} />, iconColor: 'var(--color-warning)', action: () => { trackEvent('quick_jump', { target: 'stats' }); onNavigate('/stats'); }, roles: 'all' },
+    { label: 'People', icon: <UserPlus size={22} />, iconColor: 'var(--color-primary-light)', action: () => { trackEvent('quick_jump', { target: 'people' }); onNavigate('/addUser'); }, roles: 'admin' },
+    { label: 'Export', icon: <Download size={22} />, iconColor: 'var(--color-secondary-light)', action: () => { trackEvent('quick_jump', { target: 'export' }); onNavigateToClassroomNotes?.(); }, roles: 'admin' },
     {
       label: 'Feedback',
       icon: <MessageSquare size={22} />,
       iconColor: 'var(--color-pink)',
-      action: isTeacher ? onNavigateToFeedback : onNavigateToFeedbackDashboard,
+      action: () => { trackEvent('quick_jump', { target: 'feedback' }); (isTeacher ? onNavigateToFeedback : onNavigateToFeedbackDashboard)?.(); },
       roles: 'all',
     },
   ].filter(j => j.roles === 'all' || (!isTeacher && j.roles === 'admin'));
