@@ -73,7 +73,7 @@ describe('Heatmap flag palette', () => {
 // --- Heatmap card structure ---
 
 describe('Heatmap card UI structure', () => {
-  it('renders "Flag pattern" hand-font header', () => {
+  it('renders "Flag pattern" header', () => {
     assert.ok(source.includes('Flag pattern'), 'Missing "Flag pattern" header');
   });
 
@@ -81,13 +81,9 @@ describe('Heatmap card UI structure', () => {
     assert.ok(source.includes('LAST 6 WEEKS'), 'Missing "LAST 6 WEEKS" label');
   });
 
-  it('renders week column headers (5w through Now)', () => {
-    assert.ok(source.includes('5w'), 'Missing 5w column header');
-    assert.ok(source.includes('4w'), 'Missing 4w column header');
-    assert.ok(source.includes('3w'), 'Missing 3w column header');
-    assert.ok(source.includes('2w'), 'Missing 2w column header');
-    assert.ok(source.includes('1w'), 'Missing 1w column header');
-    assert.ok(source.includes('Now'), 'Missing Now column header');
+  it('renders dynamic week column headers with NOW as last label', () => {
+    assert.ok(source.includes("'NOW'"), 'Missing NOW column header');
+    assert.ok(source.includes('weekKeyToLabel'), 'Should use weekKeyToLabel for past week labels');
   });
 
   it('renders legend with four labels', () => {

@@ -24,6 +24,35 @@ import SnapshotCard from './SnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 
+// ── Week label helper ───────────────────────────────────────────────────────
+
+const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+const weekKeyToLabel = (weekKey) => {
+  // Parse "2026-W23" → find the Monday of that ISO week, then derive "MAY W4"
+  const match = weekKey.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return weekKey;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  // ISO week 1 contains Jan 4; find Monday of week 1
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = (jan4.getUTCDay() + 6) % 7; // Monday=0
+  const week1Monday = new Date(jan4.getTime() - dayOfWeek * 86400000);
+  const targetMonday = new Date(week1Monday.getTime() + (week - 1) * 7 * 86400000);
+  const month = targetMonday.getUTCMonth();
+  // Week of month: which week of this month does this Monday fall in?
+  const firstOfMonth = new Date(Date.UTC(year, month, 1));
+  const firstMonday = new Date(firstOfMonth.getTime() + ((8 - firstOfMonth.getUTCDay()) % 7) * 86400000);
+  // If firstMonday is after the 7th, the first partial week counts as W1
+  let weekOfMonth;
+  if (targetMonday < firstMonday) {
+    weekOfMonth = 1;
+  } else {
+    weekOfMonth = Math.floor((targetMonday.getTime() - firstMonday.getTime()) / (7 * 86400000)) + (firstOfMonth.getUTCDay() === 1 ? 1 : 2);
+  }
+  return `${MONTH_ABBR[month]} W${weekOfMonth}`;
+};
+
 // ── Flag palette ────────────────────────────────────────────────────────────
 
 const FLAG_PALETTE = {
@@ -566,29 +595,36 @@ function NotificationsPage() {
   const steadyCount = signals.length - escalatedCount - improvedCount;
 
   // Build roster: each student with their 6-week color array
-  const roster = signals
-    .map((sig) => {
-      const sid = sig.studentId;
-      const info = studentInfo[sid] || {};
-      const history = weekHistoryMap[sid] || {};
-      const weeks = allWeekKeys.map((wk) => {
-        const sev = history[wk];
-        return sev ? severityToFlag(sev) : null;
-      });
-      const currentFlag = weeks[5] || severityToFlag(sig.severity);
-      weeks[5] = currentFlag;
-      return { id: sid, name: info.name || sid, weeks, flag: currentFlag, classroomId: info.classroomId };
-    })
+  const rawRoster = signals.map((sig) => {
+    const sid = sig.studentId;
+    const info = studentInfo[sid] || {};
+    const history = weekHistoryMap[sid] || {};
+    const weeks = allWeekKeys.map((wk) => {
+      const sev = history[wk];
+      return sev ? severityToFlag(sev) : null;
+    });
+    const currentFlag = weeks[5] || severityToFlag(sig.severity);
+    weeks[5] = currentFlag;
+    return { id: sid, name: info.name || sid, weeks, flag: currentFlag, classroomId: info.classroomId };
+  });
+
+  // Disambiguate duplicate names by appending classroom
+  const nameCounts = {};
+  for (const s of rawRoster) { nameCounts[s.name] = (nameCounts[s.name] || 0) + 1; }
+  const roster = rawRoster
+    .map((s) => nameCounts[s.name] > 1 && s.classroomId
+      ? { ...s, displayName: `${s.name} (${s.classroomId})` }
+      : { ...s, displayName: s.name }
+    )
     .sort((a, b) => {
-      // Sort: red first, then yellow, blue, green
       const order = { 'r': 0, 'y': 1, 'b': 2, 'g': 3 };
       const diff = (order[a.flag] ?? 4) - (order[b.flag] ?? 4);
       if (diff !== 0) return diff;
-      return a.name.localeCompare(b.name);
+      return a.displayName.localeCompare(b.displayName);
     });
 
   const filteredRoster = searchQuery.trim()
-    ? roster.filter((s) => s.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    ? roster.filter((s) => s.displayName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : roster;
 
   const getStudentName = (studentId) => (studentInfo[studentId]?.name || studentId);
@@ -728,18 +764,13 @@ function NotificationsPage() {
           fullWidth={false}
           PaperProps={{
             sx: {
-              position: 'fixed',
-              bottom: 0,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              m: 0,
-              width: '100%',
-              maxWidth: { xs: '100%', sm: '420px' },
-              borderRadius: '22px 22px 0 0',
-              maxHeight: '88vh',
+              m: { xs: 1, sm: 2 },
+              width: 'min(560px, calc(100% - 16px))',
+              borderRadius: 3,
+              maxHeight: '85vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 -8px 40px rgba(15,23,42,0.18)',
+              boxShadow: '0 18px 50px rgba(15,23,42,0.18)',
             }
           }}
           slotProps={{
@@ -896,7 +927,7 @@ function NotificationsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const WEEK_LABELS = ['5w', '4w', '3w', '2w', '1w', 'Now'];
+  const WEEK_LABELS = [...pastKeys.map(weekKeyToLabel), 'NOW'];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pb: 2 }}>
@@ -923,7 +954,7 @@ function NotificationsPage() {
             {/* Card header */}
             <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
-                <Typography sx={{ fontFamily: 'var(--f-hand, Georgia, serif)', fontSize: '15px', fontWeight: 700, color: 'var(--grey-900)' }}>
+                <Typography sx={{ fontFamily: 'inherit', fontSize: '15px', fontWeight: 700, color: 'var(--grey-900)' }}>
                   Flag pattern
                 </Typography>
                 <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', letterSpacing: '0.05em', color: 'var(--color-text-faint)', textTransform: 'uppercase' }}>
@@ -942,12 +973,19 @@ function NotificationsPage() {
               </Box>
             </Box>
 
-            {/* Search row (expandable) */}
-            {searchOpen && (
+            {/* Search row (expandable with smooth transition) */}
+            <Box sx={{
+              height: searchOpen ? 44 : 0,
+              transition: 'height 280ms ease',
+              overflow: 'hidden',
+              mb: searchOpen ? 1 : 0,
+            }}>
               <Box sx={{
+                opacity: searchOpen ? 1 : 0,
+                transition: 'opacity 250ms ease 80ms',
                 display: 'flex', alignItems: 'center', gap: 1,
                 backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '10px',
-                px: '11px', py: '8px', mb: 1,
+                px: '11px', py: '8px',
               }}>
                 <Search size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
                 <InputBase
@@ -965,7 +1003,7 @@ function NotificationsPage() {
                   </IconButton>
                 )}
               </Box>
-            )}
+            </Box>
 
             {/* Trend summary */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, mt: 0.5 }}>
@@ -1001,8 +1039,8 @@ function NotificationsPage() {
                 <Box key={label} sx={{ textAlign: 'center' }}>
                   <Typography sx={{
                     fontFamily: 'var(--f-mono, monospace)', fontSize: '9px',
-                    color: label === 'Now' ? 'var(--color-error)' : 'var(--color-text-faint)',
-                    fontWeight: label === 'Now' ? 700 : 400,
+                    color: label === 'NOW' ? 'var(--color-error)' : 'var(--color-text-faint)',
+                    fontWeight: label === 'NOW' ? 700 : 400,
                   }}>{label}</Typography>
                 </Box>
               ))}
@@ -1051,7 +1089,7 @@ function NotificationsPage() {
                       <Typography sx={{
                         fontSize: '11px', fontWeight: 600, color: 'var(--grey-900)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{student.name}</Typography>
+                      }}>{student.displayName}</Typography>
 
                       {/* Week cells */}
                       {student.weeks.map((flag, i) => (
@@ -1094,7 +1132,7 @@ function NotificationsPage() {
 
           {/* ── Others section ──────────────────────────────────────────── */}
           <Box>
-            <Typography sx={{ fontFamily: 'var(--f-hand, Georgia, serif)', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 0.5 }}>
+            <Typography sx={{ fontFamily: 'inherit', fontSize: '16px', fontWeight: 700, color: 'var(--grey-900)', mb: 0.5 }}>
               Others
             </Typography>
             <Box sx={{
