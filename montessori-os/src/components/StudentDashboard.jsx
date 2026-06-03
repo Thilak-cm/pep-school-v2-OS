@@ -1091,15 +1091,16 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
         </CardContent>
         </>}
 
-        {/* ── Collapsible chart drawer ── */}
-        <NotesOverTimeDrawer
-          data={weeklyChartData}
-          loading={chartLoading}
-          onToggle={(expanded) => {
-            trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
-          }}
-        />
       </Card>
+
+      {/* ── Notes over time — separate card ── */}
+      <NotesOverTimeDrawer
+        data={weeklyChartData}
+        loading={chartLoading}
+        onToggle={(expanded) => {
+          trackEvent('student_dashboard_chart_toggle', { expanded, studentId }).catch(() => {});
+        }}
+      />
 
       {/* ── Regenerate confirmation dialog ── */}
       <Dialog

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Card, Typography } from '@mui/material';
 import { ChevronUp, ChevronDown } from '../icons';
 import {
   ResponsiveContainer,
@@ -26,7 +26,13 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
   if (data.length === 0) return null;
 
   return (
-    <Box sx={{ borderTop: '1px solid var(--color-border)', flexShrink: 0, overflow: 'hidden' }}>
+    <Card sx={{
+      borderRadius: 2,
+      border: '1px solid var(--color-border)',
+      background: 'var(--color-paper)',
+      flexShrink: 0,
+      overflow: 'hidden',
+    }}>
       {/* Grab handle + header — always visible, acts as tap target */}
       <Box
         onClick={toggle}
@@ -35,12 +41,10 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
         aria-label={expanded ? 'Collapse notes chart' : 'Expand notes chart'}
         sx={{
           cursor: 'pointer',
-          backgroundColor: '#fafaf7',
-          pt: 1,
-          pb: expanded ? 0.5 : 1,
+          py: 1.25,
           px: 2,
           transition: 'background-color 0.15s ease',
-          '&:hover': { backgroundColor: '#f5f5f0' },
+          '&:hover': { backgroundColor: 'rgba(0,0,0,0.02)' },
         }}
       >
         {/* Header row */}
@@ -84,7 +88,6 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
         height: expanded ? EXPANDED_CHART_HEIGHT : 0,
         transition: 'height 280ms ease',
         overflow: 'hidden',
-        backgroundColor: '#fafaf7',
       }}>
         <Box sx={{
           opacity: expanded ? 1 : 0,
@@ -144,6 +147,6 @@ export default function NotesOverTimeDrawer({ data = [], loading = false, onTogg
           </Box>
         </Box>
       </Box>
-    </Box>
+    </Card>
   );
 }

@@ -104,24 +104,28 @@ function AppFooter({ onHome, onNavigate, active = null }) {
             value="settings"
             icon={<Settings />}
             onClick={() => handleClickSelected('settings')}
+            disableRipple
           />
           <BottomNavigationAction
             label="Alerts"
             value="alerts"
             icon={<Notifications />}
             onClick={() => handleClickSelected('alerts')}
+            disableRipple
           />
           <BottomNavigationAction
             label="Interviews"
             value="interviews"
             icon={<Inbox />}
             onClick={() => handleClickSelected('interviews')}
+            disableRipple
           />
           <BottomNavigationAction
             label="Home"
             value="home"
             icon={<Home />}
             onClick={() => handleClickSelected('home')}
+            disableRipple
           />
         </BottomNavigation>
       </Box>

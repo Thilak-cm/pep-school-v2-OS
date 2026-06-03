@@ -62,6 +62,7 @@ export default function HFTabs({ tabs, value, onChange, variant = 'scrollable', 
             label={tab.label}
             icon={tab.icon}
             iconPosition="start"
+            disableRipple
           />
         ))}
       </Tabs>
