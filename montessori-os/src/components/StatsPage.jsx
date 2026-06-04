@@ -303,8 +303,12 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
         periodObservations: periodEstimate,
         periodObservationNotes: Math.round(periodEstimate * (1 - lessonRatio)),
         periodLessonNotes: Math.round(periodEstimate * lessonRatio),
-        otherClassroomCount: t.otherClassroomCount || 0,
-        otherClassroomNotes: t.otherClassroomNotes || 0,
+        otherClassroomCount: teacherTimePeriod === '1W'
+          ? (t.otherCount7d || 0)
+          : (t.otherCount30d || 0),
+        otherClassroomNotes: teacherTimePeriod === '1W'
+          ? (t.otherNotes7d || 0)
+          : (t.otherNotes30d || 0),
       };
     });
 
@@ -754,11 +758,10 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
   }
 
   return (
-    <Box sx={{
-      display: 'flex',
-      flexDirection: 'column',
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
       gap: 0,
-      mt: -2,
       pb: 4,
       width: '100%',
       minWidth: 0
@@ -767,7 +770,7 @@ const StatsPage = ({ user, role, manageableClassrooms = [], onBack, onNavigateTo
       {(hookError || teacherClassroomError) && (
         <Alert severity="error" sx={{ mx: 1, mt: 1 }}>{hookError || teacherClassroomError}</Alert>
       )}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1, pt: 1 }}>
         {cachedAt && (
           <Typography variant="caption" color="text.secondary">
             Updated {formatRelativeTime(cachedAt)}
