@@ -337,12 +337,22 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleCtaTap = (e, alert) => {
+  const handleCtaTap = useCallback((e, alert) => {
     e.stopPropagation();
     if (alert.data?.studentId) {
       onNavigateToStudent?.(alert.data);
     }
-  };
+  }, [onNavigateToStudent]);
+
+  // After transition ends, silently reset virtualIndex to middle range (no animation)
+  const handleTransitionEnd = useCallback(() => {
+    if (!isTransitioning) return;
+    setIsTransitioning(false);
+    setVirtualIndex((prev) => {
+      const len = alerts.length || 1;
+      return ((prev % len) + len) % len;
+    });
+  }, [isTransitioning, alerts.length]);
 
   // ── Loading state ────────────────────────────────────────────────────────────
 
@@ -364,24 +374,13 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
   }
 
   // ── Infinite carousel: render 3 copies, position in the middle copy ─────────
-  // virtualIndex grows unbounded; we position within a 3x-repeated track.
-  // After each animated transition, silently snap back to the middle copy.
   const stride = PILL_HEIGHT + CARD_GAP;
   const n = alerts.length;
-  // Track index within the 3x array (middle copy starts at index n)
   const trackIndex = n + ((virtualIndex % n + n) % n);
   const baseOffset = -trackIndex * stride;
   const carouselY = baseOffset - dragOffset;
 
   const multipleAlerts = alerts.length > 1;
-
-  // After transition ends, silently reset virtualIndex to middle range (no animation)
-  const handleTransitionEnd = useCallback(() => {
-    if (!isTransitioning) return;
-    setIsTransitioning(false);
-    // Reset virtualIndex to canonical range [0, n) without animation
-    setVirtualIndex((prev) => ((prev % n) + n) % n);
-  }, [isTransitioning, n]);
 
   return (
     <Box>
