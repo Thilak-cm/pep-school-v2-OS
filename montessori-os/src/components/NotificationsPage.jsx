@@ -14,7 +14,7 @@ import {
   InputBase
 } from '@mui/material';
 import { Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, Search, ChevronRight, X as CloseIcon } from '../icons';
-import { collectionGroup, collection, query, where, getDocs, doc, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collectionGroup, collection, query, where, getDocs, doc, getDoc, documentId, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
 import { prepareNotificationsFeature } from '../utils/notificationsFeature';
@@ -347,65 +347,116 @@ function NotificationsPage() {
           return;
         }
 
-        // Fetch current week snapshots
-        const signalsQuery = query(
-          collectionGroup(db, 'ai_summaries'),
-          where('weekKey', '==', weekKey)
-        );
-        const snapshot = await getDocs(signalsQuery);
-        if (!active) return;
+        // Two fetch paths:
+        // - Privileged admins: collectionGroup query (passes isPrivilegedAdmin() rule)
+        // - Teachers: direct doc reads per student (passes isTeacherInClassroom() rule)
+        const isPrivileged = currentRole === 'superadmin' || currentRole === 'classroomadmin';
 
-        const rows = snapshot.docs
-          .filter((d) => d.id === 'weekly_snapshot')
-          .map((d) => {
-            const studentId = d.ref.parent?.parent?.id || null;
-            const data = d.data() || {};
-            return {
-              id: d.id, studentId, ...data,
-              severity: data.severity || 'clear',
-              severityScore: Number.isFinite(data.severityScore) ? data.severityScore : 0,
-              evidenceCount: Number.isFinite(data.evidenceCount) ? data.evidenceCount : (Number.isFinite(data.noteCount) ? data.noteCount : 0),
-            };
+        let filteredSignals;
+        let filteredStudentInfo;
+
+        if (isPrivileged) {
+          // Admin path: collectionGroup query
+          const signalsQuery = query(
+            collectionGroup(db, 'ai_summaries'),
+            where('weekKey', '==', weekKey)
+          );
+          const snapshot = await getDocs(signalsQuery);
+          if (!active) return;
+
+          const rows = snapshot.docs
+            .filter((d) => d.id === 'weekly_snapshot')
+            .map((d) => {
+              const studentId = d.ref.parent?.parent?.id || null;
+              const data = d.data() || {};
+              return {
+                id: d.id, studentId, ...data,
+                severity: data.severity || 'clear',
+                severityScore: Number.isFinite(data.severityScore) ? data.severityScore : 0,
+                evidenceCount: Number.isFinite(data.evidenceCount) ? data.evidenceCount : (Number.isFinite(data.noteCount) ? data.noteCount : 0),
+              };
+            });
+
+          // Fetch student info
+          const uniqueIds = Array.from(new Set(rows.map((r) => r.studentId).filter(Boolean)));
+          const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
+            try {
+              const sSnap = await getDoc(doc(db, 'students', sid));
+              if (!sSnap.exists()) return [sid, { name: sid, classroomId: '', status: 'active' }];
+              const s = sSnap.data() || {};
+              const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
+              return [sid, { name: label, classroomId: s.classroomId || '', status: s.status || 'active' }];
+            } catch { return [sid, { name: sid, classroomId: '', status: 'active' }]; }
+          }));
+          const studentInfoMap = Object.fromEntries(nameEntries);
+
+          // Scope classroomadmins to their classrooms (superadmins see all)
+          filteredSignals = currentRole === 'superadmin' ? rows : rows.filter((r) => {
+            const cid = studentInfoMap[r.studentId]?.classroomId;
+            return cid && accessibleClassrooms.includes(cid);
           });
 
-        // Fetch student info
-        const ids = rows.map((r) => r.studentId).filter(Boolean);
-        const uniqueIds = Array.from(new Set(ids));
-        const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
-          try {
-            const sSnap = await getDoc(doc(db, 'students', sid));
-            if (!sSnap.exists()) return [sid, { name: sid, classroomId: '', status: 'active' }];
-            const s = sSnap.data() || {};
-            const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
-            return [sid, { name: label, classroomId: s.classroomId || '', status: s.status || 'active' }];
-          } catch { return [sid, { name: sid, classroomId: '', status: 'active' }]; }
-        }));
-        const studentInfoMap = Object.fromEntries(nameEntries);
+          // Exclude inactive students
+          filteredSignals = filteredSignals.filter((r) => {
+            const info = studentInfoMap[r.studentId];
+            return !info || (info.status || 'active') === 'active';
+          });
 
-        // Scope to accessible classrooms
-        const isSuperAdmin = currentRole === 'superadmin';
-        let filteredSignals = rows;
-        if (!isSuperAdmin) {
+          const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));
+          filteredStudentInfo = Object.fromEntries(
+            Object.entries(studentInfoMap).filter(([sid]) => allowedIds.has(sid))
+          );
+        } else {
+          // Teacher path: get students in accessible classrooms, read snapshots directly
           const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
           if (scopedClassrooms.length === 0) {
             filteredSignals = [];
+            filteredStudentInfo = {};
           } else {
-            filteredSignals = rows.filter((r) => {
-              const classroomId = studentInfoMap[r.studentId]?.classroomId;
-              return classroomId && scopedClassrooms.includes(classroomId);
-            });
+            // Fetch students in teacher's classrooms
+            const studentSnaps = await Promise.all(
+              scopedClassrooms.map((cid) =>
+                getDocs(query(collection(db, 'students'), where('classroomId', '==', cid), where('status', '==', 'active')))
+              )
+            );
+            if (!active) return;
+
+            const studentInfoMap = {};
+            const studentIds = [];
+            for (const snap of studentSnaps) {
+              for (const sDoc of snap.docs) {
+                const s = sDoc.data() || {};
+                const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sDoc.id;
+                studentInfoMap[sDoc.id] = { name: label, classroomId: s.classroomId || '', status: s.status || 'active' };
+                studentIds.push(sDoc.id);
+              }
+            }
+
+            // Read each student's weekly_snapshot directly (Path 1 rule)
+            const rows = await Promise.all(studentIds.map(async (sid) => {
+              try {
+                const snapRef = doc(db, 'students', sid, 'ai_summaries', 'weekly_snapshot');
+                const snap = await getDoc(snapRef);
+                if (!snap.exists()) return null;
+                const data = snap.data() || {};
+                if (data.weekKey !== weekKey) return null;
+                return {
+                  id: snap.id, studentId: sid, ...data,
+                  severity: data.severity || 'clear',
+                  severityScore: Number.isFinite(data.severityScore) ? data.severityScore : 0,
+                  evidenceCount: Number.isFinite(data.evidenceCount) ? data.evidenceCount : (Number.isFinite(data.noteCount) ? data.noteCount : 0),
+                };
+              } catch { return null; }
+            }));
+
+            filteredSignals = rows.filter(Boolean);
+            filteredStudentInfo = studentInfoMap;
           }
         }
 
-        // Exclude inactive students
-        filteredSignals = filteredSignals.filter((r) => {
-          const info = studentInfoMap[r.studentId];
-          return !info || (info.status || 'active') === 'active';
-        });
-
         const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));
-        const filteredStudentInfo = Object.fromEntries(
-          Object.entries(studentInfoMap).filter(([sid]) => allowedIds.has(sid))
+        const filteredStudentInfoFinal = Object.fromEntries(
+          Object.entries(filteredStudentInfo).filter(([sid]) => allowedIds.has(sid))
         );
 
         // Fetch 5 past week histories
@@ -420,7 +471,7 @@ function NotificationsPage() {
         await Promise.all(Array.from(allowedIds).map(async (sid) => {
           try {
             const historyRef = collection(db, 'students', sid, 'ai_summaries', 'weekly_snapshot', 'history');
-            const historySnap = await getDocs(query(historyRef, where('__name__', 'in', pastKeys)));
+            const historySnap = await getDocs(query(historyRef, where(documentId(), 'in', pastKeys)));
             for (const hDoc of historySnap.docs) {
               const hData = hDoc.data() || {};
               // no_notes = student had no observations that week → show as empty
@@ -440,13 +491,14 @@ function NotificationsPage() {
 
         // Cache
         setCachedData(cacheKey, 'signals', filteredSignals);
-        setCachedData(cacheKey, 'studentInfo', filteredStudentInfo);
+        setCachedData(cacheKey, 'studentInfo', filteredStudentInfoFinal);
         setCachedData(cacheKey, 'weekHistory', historyMap);
 
         setSignals(filteredSignals);
-        setStudentInfo(filteredStudentInfo);
+        setStudentInfo(filteredStudentInfoFinal);
         setWeekHistoryMap(historyMap);
-      } catch {
+      } catch (err) {
+        console.error('[NotificationsPage] fetchSignals error:', err);
         setError('Failed to load alerts.');
       } finally {
         if (active) setLoading(false);
