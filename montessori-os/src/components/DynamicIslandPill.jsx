@@ -339,6 +339,7 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
 
   const handleCtaTap = useCallback((e, alert) => {
     e.stopPropagation();
+    if (DEV_MOCK_ALERTS) return; // Mock mode — don't navigate
     if (alert.data?.studentId) {
       onNavigateToStudent?.(alert.data);
     }
