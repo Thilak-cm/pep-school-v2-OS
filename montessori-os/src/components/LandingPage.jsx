@@ -4,6 +4,7 @@ import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { BarChart3, UserPlus, Download, MessageSquare, ChevronRight } from '../icons';
 import { Avatar, MiniTangram, QuickJumpButton } from './ui';
 import { trackEvent } from '../utils/analytics';
+import DynamicIslandPill from './DynamicIslandPill';
 
 // Fallback palette: [cardColor, bgColor, borderColor] — CSS-var safe
 const FALLBACK_PALETTES = [
@@ -24,6 +25,7 @@ function LandingPage({
   onNavigateToFeedback,
   onNavigateToClassroomNotes,
   onNavigate,
+  onNavigateToStudent,
 }) {
   const isTeacher = userRole === 'teacher';
 
@@ -75,6 +77,12 @@ function LandingPage({
           src={currentUser?.photoURL || undefined}
         />
       </Box>
+
+      {/* ── Dynamic Island alert pill ─────────────────────── */}
+      <DynamicIslandPill
+        onNavigateToStudent={onNavigateToStudent}
+        classrooms={classrooms}
+      />
 
       {/* ── Classrooms section ─────────────────────────────── */}
       <Box>

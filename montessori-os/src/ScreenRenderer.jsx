@@ -65,6 +65,12 @@ function renderScreen(screen, ctx) {
             else if (path === "/aliases") ctx.setScreen("studentAliases");
             else if (path === "/config" && ctx.isSuperAdminUser) ctx.setScreen("config");
           }}
+          onNavigateToStudent={({ studentId, studentName, classroomId }) => {
+            ctx.setSelectedStudent({ id: studentId, displayName: studentName, classroomId });
+            ctx.setStudentDashboardReturnScreen("landingPage");
+            ctx.setStudentDashboardFlagOpen(true);
+            ctx.setScreen("studentDashboard");
+          }}
         />
       );
 
@@ -123,6 +129,8 @@ function renderScreen(screen, ctx) {
             ctx.setUsersAccessView("manage");
             ctx.setScreen("addUser");
           }}
+          initialFlagOpen={ctx.studentDashboardFlagOpen}
+          onClearFlagOpen={() => ctx.setStudentDashboardFlagOpen(false)}
         />
       );
 
