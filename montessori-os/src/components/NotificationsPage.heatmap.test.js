@@ -87,12 +87,10 @@ describe('Heatmap card UI structure', () => {
   });
 
   it('renders legend with four labels', () => {
-    assert.ok(source.includes('Thriving'), 'Missing Thriving legend');
-    assert.ok(source.includes('Steady'), 'Missing Steady legend');
-    assert.ok(source.includes('Watch'), 'Missing Watch legend');
-    // "Flag" appears in many contexts, check for legend context
-    const legendPattern = /Thriving[\s\S]*Steady[\s\S]*Watch[\s\S]*Flag/;
-    assert.ok(legendPattern.test(source), 'Legend should have all four labels in order');
+    assert.ok(source.includes("'Clear'"), 'Missing Clear legend');
+    assert.ok(source.includes("'Low'"), 'Missing Low legend');
+    assert.ok(source.includes("'Medium'"), 'Missing Medium legend');
+    assert.ok(source.includes("'Critical'"), 'Missing Critical legend');
   });
 
   it('renders tap affordance hint', () => {

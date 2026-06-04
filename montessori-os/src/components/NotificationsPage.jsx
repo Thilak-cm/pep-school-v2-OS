@@ -56,11 +56,14 @@ const weekKeyToLabel = (weekKey) => {
 // ── Flag palette ────────────────────────────────────────────────────────────
 
 const FLAG_PALETTE = {
-  'g': { color: 'var(--color-secondary-light)', label: 'Thriving' },
-  'b': { color: 'var(--color-info)', label: 'Steady' },
-  'y': { color: 'var(--color-warning)', label: 'Watch' },
-  'r': { color: 'var(--color-error)', label: 'Flag' },
+  'g': { color: 'var(--color-secondary-light)', label: 'Clear' },
+  'b': { color: 'var(--color-info)', label: 'Low' },
+  'y': { color: 'var(--color-warning)', label: 'Medium' },
+  'r': { color: 'var(--color-error)', label: 'Critical' },
 };
+
+const FLAG_SORT_ORDER = { 'r': 0, 'y': 1, 'b': 2, 'g': 3 };
+const flagSortValue = (f) => FLAG_SORT_ORDER[f] ?? 4; // null/missing = lowest priority
 
 const severityToFlag = (severity) => {
   if (!severity || severity === 'clear') return 'g';
@@ -623,9 +626,17 @@ function NotificationsPage() {
       : { ...s, displayName: s.name }
     )
     .sort((a, b) => {
-      const order = { 'r': 0, 'y': 1, 'b': 2, 'g': 3 };
-      const diff = (order[a.flag] ?? 4) - (order[b.flag] ?? 4);
-      if (diff !== 0) return diff;
+      // 1. Students with any red flag in past 6 weeks float to top
+      const aHasRed = a.weeks.some((w) => w === 'r');
+      const bHasRed = b.weeks.some((w) => w === 'r');
+      if (aHasRed !== bHasRed) return aHasRed ? -1 : 1;
+
+      // 2. Sort by NOW column, then walk backwards through weeks to break ties
+      for (let i = 5; i >= 0; i--) {
+        const diff = flagSortValue(a.weeks[i]) - flagSortValue(b.weeks[i]);
+        if (diff !== 0) return diff;
+      }
+
       return a.displayName.localeCompare(b.displayName);
     });
 
@@ -1124,7 +1135,7 @@ function NotificationsPage() {
 
             {/* Legend */}
             <Box sx={{
-              display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: '9px', pt: '9px',
+              display: 'flex', justifyContent: 'space-between', mt: '9px', pt: '9px',
               borderTop: '1px solid var(--color-surface)',
             }}>
               {Object.values(FLAG_PALETTE).map(({ color, label }) => (
