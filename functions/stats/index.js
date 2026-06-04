@@ -170,6 +170,7 @@ export const recomputeStats = functions
     // ── Compute per-classroom stats ────────────────────────────────
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const fortyTwoDaysAgo = new Date(
       now.getTime() - 42 * 24 * 60 * 60 * 1000,
     );
@@ -233,13 +234,23 @@ export const recomputeStats = functions
         }
 
         // Cross-classroom: count this teacher's notes in OTHER classrooms
+        // filtered by time window (7d and 30d)
         const allTeacherObs = obsByCreator.get(tid) || [];
-        let otherClassroomNotes = 0;
-        const otherClassroomIds = new Set();
+        let otherNotes7d = 0;
+        let otherNotes30d = 0;
+        const otherIds7d = new Set();
+        const otherIds30d = new Set();
         for (const o of allTeacherObs) {
           if (o._classroomId !== classroom.id) {
-            otherClassroomNotes++;
-            otherClassroomIds.add(o._classroomId);
+            const d = getObservationDate(o);
+            if (d >= weekAgo) {
+              otherNotes7d++;
+              otherIds7d.add(o._classroomId);
+            }
+            if (d >= thirtyDaysAgo) {
+              otherNotes30d++;
+              otherIds30d.add(o._classroomId);
+            }
           }
         }
 
@@ -250,8 +261,10 @@ export const recomputeStats = functions
           status: user.status,
           observations,
           lessons,
-          otherClassroomNotes,
-          otherClassroomCount: otherClassroomIds.size,
+          otherNotes7d,
+          otherCount7d: otherIds7d.size,
+          otherNotes30d,
+          otherCount30d: otherIds30d.size,
         };
       });
 
