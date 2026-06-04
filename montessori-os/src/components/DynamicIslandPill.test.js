@@ -111,10 +111,21 @@ describe('DynamicIslandPill component (PEP-213)', () => {
       );
     });
 
-    it('shows peek of adjacent cards during drag', () => {
+    it('renders up/down navigation buttons', () => {
       assert.ok(
-        source.includes('peek') || source.includes('Peek') || source.includes('PEEK'),
-        'Should show peek of adjacent cards'
+        source.includes('Previous alert') && source.includes('Next alert'),
+        'Should render up and down nav buttons with aria-labels'
+      );
+      assert.ok(
+        source.includes('ChevronUp') && source.includes('ChevronDown'),
+        'Should use chevron icons for nav buttons'
+      );
+    });
+
+    it('uses a vertical carousel track for smooth sliding', () => {
+      assert.ok(
+        source.includes('translateY') && source.includes('carouselY'),
+        'Should translate the carousel track vertically'
       );
     });
   });
