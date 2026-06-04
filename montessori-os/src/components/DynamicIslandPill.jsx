@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { keyframes } from '@emotion/react';
 import { Box, Typography, ButtonBase } from '@mui/material';
-import { Flag } from '../icons';
+import { Flag, Calendar, ShieldCheck } from '../icons';
 import { collectionGroup, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { getIstIsoWeekKey } from '../utils/weekKey';
@@ -38,20 +38,20 @@ const MOCK_ALERTS = [
     data: { studentId: 'mock-2', studentName: 'Arjun K.' },
   },
   {
-    type: 'redFlag', label: 'RED FLAG',
-    title: 'Priya M. — withdrawal from group activities',
-    subtitle: 'Flagged by Ms. Sharma \u00b7 1 day ago',
-    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
-    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
-    data: { studentId: 'mock-3', studentName: 'Priya M.' },
+    type: 'interview', label: 'INTERVIEW \u00b7 2:30 TODAY',
+    title: 'Riya V. — parent conference',
+    subtitle: 'Room 2 \u00b7 prep sheet ready',
+    ctaLabel: 'Open prep', ctaIcon: <Calendar size={16} />,
+    color: { label: 'var(--color-secondary)', cta: 'var(--color-secondary)', ctaBg: 'var(--color-secondary)', dot: 'var(--color-secondary)' },
+    data: { studentId: 'mock-3', studentName: 'Riya V.' },
   },
   {
-    type: 'redFlag', label: 'RED FLAG',
-    title: 'Rohan D. — repeated conflicts at lunch',
-    subtitle: 'Flagged by Ms. Anita \u00b7 3 days ago',
-    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
-    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
-    data: { studentId: 'mock-4', studentName: 'Rohan D.' },
+    type: 'broadcast', label: 'FROM OFFICE',
+    title: 'Early dismissal \u00b7 Friday 6th',
+    subtitle: 'Ms. Rao \u00b7 all staff',
+    ctaLabel: 'Got it', ctaIcon: <ShieldCheck size={16} />,
+    color: { label: 'var(--color-primary)', cta: 'var(--color-primary)', ctaBg: 'var(--color-primary)', dot: 'var(--color-primary)' },
+    data: {},
   },
 ];
 
@@ -285,7 +285,20 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     const maxDrag = PILL_HEIGHT * 0.6;
     const clamped = Math.sign(delta) * Math.min(Math.abs(delta), maxDrag * 1.5);
     setDragOffset(clamped);
-    e.preventDefault();
+    // preventDefault is called via native listener (passive: false) — see useEffect below
+  }, [isDragging, alerts.length]);
+
+  // Attach native touchmove with { passive: false } to allow preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const nativeTouchMove = (e) => {
+      if (isDragging && alerts.length > 1) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('touchmove', nativeTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', nativeTouchMove);
   }, [isDragging, alerts.length]);
 
   const handleTouchEnd = useCallback(() => {
