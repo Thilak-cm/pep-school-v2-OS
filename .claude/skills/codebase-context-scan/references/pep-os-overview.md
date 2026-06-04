@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-04T15:28:45.498Z
-App version: 10.32.0
+Generated: 2026-06-04T19:10:32.123Z
+App version: 10.33.0
 
 ## App Snapshot
 
@@ -93,8 +93,8 @@ App version: 10.32.0
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 38
-- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 40
+- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `deadCodeRemoval.pep115.test`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
@@ -144,6 +144,11 @@ App version: 10.32.0
 
 ## Recent Changes
 
+### 10.33.0 (2026-06-04)
+- Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
+- CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
+- Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
+
 ### 10.32.0 (2026-06-04)
 - Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
 - Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
@@ -158,9 +163,4 @@ App version: 10.32.0
 - Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
 - "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
 - Firestore rules for `statsCache/` with role-based read access (PEP-285)
-
-### 10.29.0 (2026-05-27)
-- Plan feedback bottom sheet for admins — classroom admins and superadmins can rate difficulty, pace, and leave free-text/voice comments on a student's monthly plan (PEP-282)
-- Firestore security rules for feedback subcollection with classroom-scoped access control (PEP-282)
-- Monthly plan Drive export: `exportMonthlyPlanToDrive` CF creates two Google Docs per student (detailed plan + printable task checklist) in the shared Drive with shortcuts in student folders (PEP-279)
 
