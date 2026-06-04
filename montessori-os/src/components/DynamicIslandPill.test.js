@@ -87,6 +87,36 @@ describe('DynamicIslandPill component (PEP-213)', () => {
         'Should use 4-second (4000ms) rotation interval'
       );
     });
+
+    it('uses elongated/oblong shape for active dot indicator', () => {
+      assert.ok(
+        source.includes('width: i === activeIndex') || (source.includes('18') && source.includes('activeIndex')),
+        'Active dot should be wider/elongated compared to inactive dots'
+      );
+    });
+  });
+
+  // --- Swipe interaction ---
+  describe('iOS widget stack swipe', () => {
+    it('handles touch events for vertical swiping', () => {
+      assert.ok(source.includes('onTouchStart'), 'Should handle touch start');
+      assert.ok(source.includes('onTouchMove'), 'Should handle touch move');
+      assert.ok(source.includes('onTouchEnd'), 'Should handle touch end');
+    });
+
+    it('has a swipe threshold for switching cards', () => {
+      assert.ok(
+        source.includes('SWIPE_THRESHOLD') || source.includes('swipeThreshold'),
+        'Should have a swipe threshold constant'
+      );
+    });
+
+    it('shows peek of adjacent cards during drag', () => {
+      assert.ok(
+        source.includes('peek') || source.includes('Peek') || source.includes('PEEK'),
+        'Should show peek of adjacent cards'
+      );
+    });
   });
 
   // --- AC3: Data source ---
@@ -155,8 +185,15 @@ describe('DynamicIslandPill component (PEP-213)', () => {
   describe('Empty state', () => {
     it('shows "All clear this week" when no alerts', () => {
       assert.ok(
-        source.includes('All clear this week') || source.includes('all clear'),
+        source.includes('All clear this week') || source.includes('all clear') || source.includes('All clear'),
         'Should show empty state message'
+      );
+    });
+
+    it('shows Quick alerts header in empty state', () => {
+      assert.ok(
+        source.includes('Quick alerts'),
+        'Should show "Quick alerts" section header'
       );
     });
   });

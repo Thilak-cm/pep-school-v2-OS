@@ -10,9 +10,50 @@ import { getIstIsoWeekKey } from '../utils/weekKey';
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const ROTATION_MS = 4000;
+const PILL_HEIGHT = 72;
+const SWIPE_THRESHOLD = 30;
+const PEEK_AMOUNT = 10; // px of adjacent card to show during drag
 
 const CACHE_KEY_PREFIX = 'notificationsPageCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Set to true to show fake alerts for design testing
+const DEV_MOCK_ALERTS = true;
+
+const MOCK_ALERTS = [
+  {
+    type: 'redFlag', label: 'RED FLAG',
+    title: 'Maya S. — second incident this week',
+    subtitle: 'Flagged by Ms. Devi \u00b7 2 days ago',
+    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
+    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
+    data: { studentId: 'mock-1', studentName: 'Maya S.' },
+  },
+  {
+    type: 'redFlag', label: 'RED FLAG',
+    title: 'Arjun K. — aggressive behaviour noted',
+    subtitle: 'Flagged by Ms. Rao \u00b7 today',
+    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
+    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
+    data: { studentId: 'mock-2', studentName: 'Arjun K.' },
+  },
+  {
+    type: 'redFlag', label: 'RED FLAG',
+    title: 'Priya M. — withdrawal from group activities',
+    subtitle: 'Flagged by Ms. Sharma \u00b7 1 day ago',
+    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
+    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
+    data: { studentId: 'mock-3', studentName: 'Priya M.' },
+  },
+  {
+    type: 'redFlag', label: 'RED FLAG',
+    title: 'Rohan D. — repeated conflicts at lunch',
+    subtitle: 'Flagged by Ms. Anita \u00b7 3 days ago',
+    ctaLabel: 'Read note', ctaIcon: <Flag size={16} />,
+    color: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
+    data: { studentId: 'mock-4', studentName: 'Rohan D.' },
+  },
+];
 
 // Alert type color map (extensible for future alert types)
 const ALERT_COLORS = {
@@ -60,9 +101,22 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
   const [animKey, setAnimKey] = useState(0);
   const timerRef = useRef(null);
 
+  // Swipe state
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartRef = useRef({ y: 0, time: 0 });
+  const containerRef = useRef(null);
+
   // ── Fetch red flag alerts ────────────────────────────────────────────────────
 
   const fetchRedFlags = useCallback(async () => {
+    // Dev mock mode
+    if (DEV_MOCK_ALERTS) {
+      setAlerts(MOCK_ALERTS);
+      setLoading(false);
+      return;
+    }
+
     try {
       const uid = auth?.currentUser?.uid;
       if (!uid) { setLoading(false); return; }
@@ -202,7 +256,7 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
   // ── Rotation timer ───────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (alerts.length <= 1 || paused) {
+    if (alerts.length <= 1 || paused || isDragging) {
       clearInterval(timerRef.current);
       return;
     }
@@ -211,14 +265,53 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
       setAnimKey((k) => k + 1);
     }, ROTATION_MS);
     return () => clearInterval(timerRef.current);
-  }, [alerts.length, paused]);
+  }, [alerts.length, paused, isDragging]);
+
+  // ── Touch/swipe handlers (iOS widget stack style) ────────────────────────────
+
+  const handleTouchStart = useCallback((e) => {
+    if (alerts.length <= 1) return;
+    const touch = e.touches[0];
+    touchStartRef.current = { y: touch.clientY, time: Date.now() };
+    setIsDragging(true);
+    setPaused(true);
+  }, [alerts.length]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isDragging || alerts.length <= 1) return;
+    const touch = e.touches[0];
+    const delta = touchStartRef.current.y - touch.clientY;
+    // Clamp drag offset — allow overscroll with rubber-band effect
+    const maxDrag = PILL_HEIGHT * 0.6;
+    const clamped = Math.sign(delta) * Math.min(Math.abs(delta), maxDrag * 1.5);
+    setDragOffset(clamped);
+    e.preventDefault();
+  }, [isDragging, alerts.length]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isDragging) return;
+    const elapsed = Date.now() - touchStartRef.current.time;
+    const velocity = Math.abs(dragOffset) / Math.max(elapsed, 1);
+
+    // Determine if we should switch — either threshold or fast flick
+    if (Math.abs(dragOffset) > SWIPE_THRESHOLD || velocity > 0.3) {
+      if (dragOffset > 0) {
+        // Swiped up → next
+        setActiveIndex((prev) => (prev + 1) % alerts.length);
+      } else {
+        // Swiped down → previous
+        setActiveIndex((prev) => (prev - 1 + alerts.length) % alerts.length);
+      }
+      setAnimKey((k) => k + 1);
+    }
+
+    setDragOffset(0);
+    setIsDragging(false);
+    // Resume auto-rotation after a delay
+    setTimeout(() => setPaused(false), 2000);
+  }, [isDragging, dragOffset, alerts.length]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
-
-  const handlePillTap = () => {
-    if (alerts.length <= 1) return;
-    setPaused((p) => !p);
-  };
 
   const handleCtaTap = (e, alert) => {
     e.stopPropagation();
@@ -231,17 +324,15 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
 
   if (loading) return null;
 
-  // ── Empty state ──────────────────────────────────────────────────────────────
+  // ── Empty state — plain text, no pill ────────────────────────────────────────
 
   if (alerts.length === 0) {
     return (
-      <Box sx={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 64, borderRadius: '22px',
-        background: 'var(--color-surface-dark, #1a1a2e)',
-        px: 2.5,
-      }}>
-        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', fontWeight: 500 }}>
+      <Box>
+        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 0.5, display: 'block' }}>
+          Quick alerts
+        </Typography>
+        <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
           All clear this week
         </Typography>
       </Box>
@@ -250,18 +341,104 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
 
   const current = alerts[activeIndex] || alerts[0];
   const alertColor = current.color || ALERT_COLORS.redFlag;
+  const prevIndex = (activeIndex - 1 + alerts.length) % alerts.length;
+  const nextIndex = (activeIndex + 1) % alerts.length;
+  const hasPeek = alerts.length > 1 && isDragging && Math.abs(dragOffset) > 5;
+
+  // Peek visibility: how much of adjacent card to reveal based on drag distance
+  const peekProgress = Math.min(Math.abs(dragOffset) / (PILL_HEIGHT * 0.5), 1);
+  const currentScale = 1 - peekProgress * 0.04;
+  const currentTranslateY = isDragging ? -dragOffset * 0.3 : 0;
 
   return (
-    <ButtonBase
-      onClick={handlePillTap}
-      disableRipple
+    <Box>
+      <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
+        Quick alerts
+      </Typography>
+
+      {/* ── Pill stack container ── */}
+      <Box
+        ref={containerRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        sx={{
+          position: 'relative',
+          height: PILL_HEIGHT,
+          touchAction: 'none',
+          userSelect: 'none',
+        }}
+      >
+        {/* ── Peek: previous card (above) ── */}
+        {hasPeek && dragOffset < 0 && (
+          <Box sx={{
+            position: 'absolute', left: 0, right: 0,
+            bottom: '100%', mb: '-4px',
+            height: PEEK_AMOUNT * peekProgress,
+            overflow: 'hidden',
+            display: 'flex', alignItems: 'flex-end',
+          }}>
+            <AlertCard
+              alert={alerts[prevIndex]}
+              onCtaTap={handleCtaTap}
+              sx={{ opacity: 0.5 * peekProgress, transform: 'scale(0.97)' }}
+            />
+          </Box>
+        )}
+
+        {/* ── Current card ── */}
+        <Box sx={{
+          position: 'absolute', inset: 0,
+          transform: `translateY(${currentTranslateY}px) scale(${currentScale})`,
+          transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          zIndex: 2,
+        }}>
+          <AlertCard
+            alert={current}
+            onCtaTap={handleCtaTap}
+            alerts={alerts}
+            activeIndex={activeIndex}
+            animKey={animKey}
+            paused={paused || isDragging}
+          />
+        </Box>
+
+        {/* ── Peek: next card (below) ── */}
+        {hasPeek && dragOffset > 0 && (
+          <Box sx={{
+            position: 'absolute', left: 0, right: 0,
+            top: '100%', mt: '-4px',
+            height: PEEK_AMOUNT * peekProgress,
+            overflow: 'hidden',
+          }}>
+            <AlertCard
+              alert={alerts[nextIndex]}
+              onCtaTap={handleCtaTap}
+              sx={{ opacity: 0.5 * peekProgress, transform: 'scale(0.97)' }}
+            />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+// ── AlertCard sub-component ──────────────────────────────────────────────────
+
+function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, sx = {} }) {
+  const alertColor = alert.color || ALERT_COLORS.redFlag;
+  const showIndicators = alerts && alerts.length > 1;
+
+  return (
+    <Box
       sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', height: 64, borderRadius: '22px',
+        width: '100%', height: PILL_HEIGHT, borderRadius: '22px',
         background: 'var(--color-surface-dark, #1a1a2e)',
         px: 2.5, py: 1.5,
         position: 'relative', overflow: 'hidden',
-        textAlign: 'left',
+        boxSizing: 'border-box',
+        ...sx,
       }}
     >
       {/* ── Text content ── */}
@@ -271,27 +448,27 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
           textTransform: 'uppercase', color: alertColor.label,
           lineHeight: 1,
         }}>
-          {current.label}
+          {alert.label}
         </Typography>
         <Typography sx={{
           fontSize: '0.9rem', fontWeight: 700, color: '#fff',
           lineHeight: 1.3, mt: 0.25,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {current.title}
+          {alert.title}
         </Typography>
         <Typography sx={{
           fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)',
           lineHeight: 1.2, mt: 0.15,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {current.subtitle}
+          {alert.subtitle}
         </Typography>
       </Box>
 
       {/* ── CTA button ── */}
       <ButtonBase
-        onClick={(e) => handleCtaTap(e, current)}
+        onClick={(e) => onCtaTap(e, alert)}
         sx={{
           display: 'flex', alignItems: 'center', gap: 0.75,
           px: 2, py: 0.75, borderRadius: '14px',
@@ -301,25 +478,27 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
           '&:hover': { opacity: 0.9 },
         }}
       >
-        {current.ctaIcon}
-        {current.ctaLabel}
+        {alert.ctaIcon}
+        {alert.ctaLabel}
       </ButtonBase>
 
-      {/* ── Dot indicators ── */}
-      {alerts.length > 1 && (
+      {/* ── Dot indicators (elongated active dot) ── */}
+      {showIndicators && (
         <Box sx={{
-          position: 'absolute', bottom: 8, right: 16,
-          display: 'flex', gap: 0.5, alignItems: 'center',
+          position: 'absolute', bottom: 10, right: 16,
+          display: 'flex', gap: '5px', alignItems: 'center',
         }}>
-          {alerts.map((alert, i) => (
+          {alerts.map((a, i) => (
             <Box
               key={i}
               sx={{
-                width: 6, height: 6, borderRadius: '50%',
+                height: 6,
+                width: i === activeIndex ? 18 : 6,
+                borderRadius: i === activeIndex ? '3px' : '50%',
                 backgroundColor: i === activeIndex
-                  ? (alert.color?.dot || 'var(--color-error)')
+                  ? (a.color?.dot || 'var(--color-error)')
                   : 'rgba(255,255,255,0.25)',
-                transition: 'background-color 0.3s ease',
+                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
             />
           ))}
@@ -327,7 +506,7 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
       )}
 
       {/* ── Progress bar ── */}
-      {alerts.length > 1 && !paused && (
+      {showIndicators && !paused && (
         <Box sx={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           height: 2, backgroundColor: 'rgba(255,255,255,0.08)',
@@ -343,7 +522,7 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
           />
         </Box>
       )}
-    </ButtonBase>
+    </Box>
   );
 }
 
