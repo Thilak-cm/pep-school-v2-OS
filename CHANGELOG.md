@@ -1,5 +1,25 @@
 # Changelog
 
+# 10.32.0 — 2026-06-04
+
+### Added
+- Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
+- Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
+- Search within heatmap card — icon expands into input row, filters roster by student name (PEP-198)
+- Bottom-sheet modal with weekly snapshot card, refresh/flag buttons, and "View Dashboard" navigation (PEP-198)
+- Students without a current-week snapshot appear in the heatmap with dotted boxes; students with zero history are hidden (PEP-198)
+- `heatmapUtils.js` utility with `severityToFlag`, `flagSortValue` helpers and behavioral tests (PEP-198)
+
+### Changed
+- Teacher alerts fetch uses direct doc reads per student instead of collectionGroup queries to respect Firestore rules (PEP-198)
+- Admin path fetches all active students from covered classrooms, not just those with current snapshots (PEP-198)
+- Orphaned snapshot entries (deleted student docs) now excluded from admin heatmap (PEP-198)
+
+### Fixed
+- Red-flagged students sort first in roster with cascade tiebreak by week (PEP-198)
+- Search icon toggles to X when expanded, clears query on close (PEP-198)
+- Missing-data weeks show dotted box instead of green (PEP-198)
+
 # 10.31.0 — 2026-05-31
 
 ### Changed
