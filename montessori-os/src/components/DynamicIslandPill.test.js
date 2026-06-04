@@ -122,14 +122,10 @@ describe('DynamicIslandPill component (PEP-213)', () => {
       );
     });
 
-    it('uses minimize/maximize transition for card switching', () => {
+    it('uses a vertical carousel track for smooth sliding', () => {
       assert.ok(
-        source.includes('slideInFromBelow') && source.includes('slideInFromAbove'),
-        'Should use slide-in keyframe animations for card transitions'
-      );
-      assert.ok(
-        source.includes('transition') && source.includes('scale'),
-        'Should scale cards during transitions'
+        source.includes('translateY') && source.includes('carouselY'),
+        'Should translate the carousel track vertically'
       );
     });
   });

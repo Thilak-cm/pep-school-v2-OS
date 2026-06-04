@@ -159,9 +159,6 @@ function LandingPage({
 
       {/* ── Quick jump ─────────────────────────────────────── */}
       <Box>
-        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
-          Quick jump
-        </Typography>
         <Box sx={{
           display: 'grid',
           gridTemplateColumns: `repeat(${Math.min(quickJumps.length, 4)}, 1fr)`,

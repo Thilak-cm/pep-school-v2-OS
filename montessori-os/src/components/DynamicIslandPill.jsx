@@ -69,16 +69,6 @@ const progressFill = keyframes`
   to   { width: 100%; }
 `;
 
-const slideInFromBelow = keyframes`
-  from { transform: scale(0.85) translateY(60%); opacity: 0.3; }
-  to   { transform: scale(1) translateY(0); opacity: 1; }
-`;
-
-const slideInFromAbove = keyframes`
-  from { transform: scale(0.85) translateY(-60%); opacity: 0.3; }
-  to   { transform: scale(1) translateY(0); opacity: 1; }
-`;
-
 // ── Cache helpers (read from NotificationsPage cache) ──────────────────────────
 
 const buildCacheKey = (uid, weekKey, role, accessibleClassrooms = []) => {
@@ -106,16 +96,22 @@ const getCachedData = (key, dataType) => {
 function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeIndex, setActiveIndex] = useState(0);
+  // virtualIndex can grow beyond alerts.length — maps to 3x repeated track
+  const [virtualIndex, setVirtualIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [animKey, setAnimKey] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const timerRef = useRef(null);
+  const trackRef = useRef(null);
 
   // Swipe state
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartRef = useRef({ y: 0, time: 0 });
   const containerRef = useRef(null);
+
+  // Derived: real index into alerts array
+  const activeIndex = alerts.length > 0 ? ((virtualIndex % alerts.length) + alerts.length) % alerts.length : 0;
 
   // ── Fetch red flag alerts ────────────────────────────────────────────────────
 
@@ -255,33 +251,23 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     fetchRedFlags();
   }, [fetchRedFlags]);
 
-  // ── Transition state ──────────────────────────────────────────────────────────
-  // direction: 1 = next (card exits up, new enters from below)
-  //           -1 = prev (card exits down, new enters from above)
-  const [transition, setTransition] = useState(null); // { from, to, direction }
-  const transitionTimerRef = useRef(null);
-  const TRANSITION_MS = 350;
+  // ── Navigation helpers ───────────────────────────────────────────────────────
 
-  const triggerTransition = useCallback((direction) => {
-    if (transition) return; // mid-transition, ignore
-    const from = activeIndex;
-    const to = direction === 1
-      ? (activeIndex + 1) % alerts.length
-      : (activeIndex - 1 + alerts.length) % alerts.length;
-    setTransition({ from, to, direction });
+  const goNext = useCallback(() => {
+    setVirtualIndex((prev) => prev + 1);
     setAnimKey((k) => k + 1);
+    setIsTransitioning(true);
     setPaused(true);
+    setTimeout(() => setPaused(false), 3000);
+  }, []);
 
-    clearTimeout(transitionTimerRef.current);
-    transitionTimerRef.current = setTimeout(() => {
-      setActiveIndex(to);
-      setTransition(null);
-      setTimeout(() => setPaused(false), 2500);
-    }, TRANSITION_MS);
-  }, [activeIndex, alerts.length, transition]);
-
-  const goNext = useCallback(() => triggerTransition(1), [triggerTransition]);
-  const goPrev = useCallback(() => triggerTransition(-1), [triggerTransition]);
+  const goPrev = useCallback(() => {
+    setVirtualIndex((prev) => prev - 1);
+    setAnimKey((k) => k + 1);
+    setIsTransitioning(true);
+    setPaused(true);
+    setTimeout(() => setPaused(false), 3000);
+  }, []);
 
   // ── Rotation timer ───────────────────────────────────────────────────────────
 
@@ -290,9 +276,13 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
       clearInterval(timerRef.current);
       return;
     }
-    timerRef.current = setInterval(goNext, ROTATION_MS);
+    timerRef.current = setInterval(() => {
+      setVirtualIndex((prev) => prev + 1);
+      setAnimKey((k) => k + 1);
+      setIsTransitioning(true);
+    }, ROTATION_MS);
     return () => clearInterval(timerRef.current);
-  }, [alerts.length, paused, isDragging, goNext]);
+  }, [alerts.length, paused, isDragging]);
 
   // ── Touch/swipe handlers (vertical carousel) ────────────────────────────────
 
@@ -330,11 +320,15 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     const velocity = Math.abs(dragOffset) / Math.max(elapsed, 1);
 
     if (Math.abs(dragOffset) > SWIPE_THRESHOLD || velocity > 0.3) {
-      if (dragOffset > 0) goNext();
-      else goPrev();
+      if (dragOffset > 0) {
+        goNext();
+      } else {
+        goPrev();
+      }
     } else {
-      // Didn't meet threshold — resume auto-play
-      setTimeout(() => setPaused(false), 1000);
+      // Snap back — still needs animated transition
+      setIsTransitioning(true);
+      setTimeout(() => setIsTransitioning(false), 400);
     }
 
     setDragOffset(0);
@@ -369,20 +363,25 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     );
   }
 
+  // ── Infinite carousel: render 3 copies, position in the middle copy ─────────
+  // virtualIndex grows unbounded; we position within a 3x-repeated track.
+  // After each animated transition, silently snap back to the middle copy.
+  const stride = PILL_HEIGHT + CARD_GAP;
+  const n = alerts.length;
+  // Track index within the 3x array (middle copy starts at index n)
+  const trackIndex = n + ((virtualIndex % n + n) % n);
+  const baseOffset = -trackIndex * stride;
+  const carouselY = baseOffset - dragOffset;
+
   const multipleAlerts = alerts.length > 1;
 
-  // Determine which cards to show during transition
-  const showIndex = transition ? transition.from : activeIndex;
-  const incomingIndex = transition ? transition.to : null;
-  const dir = transition ? transition.direction : 0;
-
-  // During drag: compute a visual squeeze of the current card
-  const dragProgress = multipleAlerts && isDragging
-    ? Math.min(Math.abs(dragOffset) / (PILL_HEIGHT * 0.5), 1)
-    : 0;
-  const dragScale = 1 - dragProgress * 0.08;
-
-  const easing = 'cubic-bezier(0.16, 1, 0.3, 1)';
+  // After transition ends, silently reset virtualIndex to middle range (no animation)
+  const handleTransitionEnd = useCallback(() => {
+    if (!isTransitioning) return;
+    setIsTransitioning(false);
+    // Reset virtualIndex to canonical range [0, n) without animation
+    setVirtualIndex((prev) => ((prev % n) + n) % n);
+  }, [isTransitioning, n]);
 
   return (
     <Box>
@@ -391,7 +390,7 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
       </Typography>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {/* ── Fixed pill frame (border stays in place) ── */}
+        {/* ── Carousel viewport ── */}
         <Box
           ref={containerRef}
           onTouchStart={handleTouchStart}
@@ -400,60 +399,41 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
           sx={{
             flex: 1, minWidth: 0,
             height: PILL_HEIGHT,
-            borderRadius: '22px',
-            border: '1.5px solid rgba(255,255,255,0.08)',
-            position: 'relative',
             overflow: 'hidden',
+            borderRadius: '22px',
+            position: 'relative',
             touchAction: 'none',
             userSelect: 'none',
           }}
         >
-          {/* ── Outgoing card (current — minimizes during transition) ── */}
-          <Box sx={{
-            position: 'absolute', inset: 0,
-            transform: transition
-              ? `scale(0.88) translateY(${dir === 1 ? '-30%' : '30%'})`
-              : `scale(${dragScale})`,
-            opacity: transition ? 0 : 1,
-            transition: transition
-              ? `transform ${TRANSITION_MS}ms ${easing}, opacity ${TRANSITION_MS * 0.6}ms ease`
-              : (isDragging ? 'none' : `transform 0.2s ${easing}`),
-            zIndex: 1,
-          }}>
-            <AlertCard
-              alert={alerts[showIndex]}
-              onCtaTap={handleCtaTap}
-              alerts={alerts}
-              activeIndex={showIndex}
-              animKey={animKey}
-              paused={paused || isDragging || !!transition}
-            />
+          {/* ── Sliding track — 3x repeated for infinite wrap ── */}
+          <Box
+            ref={trackRef}
+            onTransitionEnd={handleTransitionEnd}
+            sx={{
+              position: 'absolute', left: 0, right: 0,
+              transform: `translateY(${carouselY}px)`,
+              transition: (isDragging || !isTransitioning)
+                ? 'none'
+                : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            {[...alerts, ...alerts, ...alerts].map((alert, i) => (
+              <Box key={i} sx={{ height: PILL_HEIGHT, mb: `${CARD_GAP}px` }}>
+                <AlertCard
+                  alert={alert}
+                  onCtaTap={handleCtaTap}
+                  alerts={alerts}
+                  activeIndex={activeIndex}
+                  animKey={animKey}
+                  paused={paused || isDragging}
+                />
+              </Box>
+            ))}
           </Box>
-
-          {/* ── Incoming card (slides in + maximizes during transition) ── */}
-          {incomingIndex !== null && (
-            <Box sx={{
-              position: 'absolute', inset: 0,
-              transform: 'scale(1) translateY(0)',
-              opacity: 1,
-              transition: `transform ${TRANSITION_MS}ms ${easing}, opacity ${TRANSITION_MS * 0.4}ms ease`,
-              zIndex: 2,
-              // Start state is set via animation — initial position via keyframe
-              animation: `${dir === 1 ? slideInFromBelow : slideInFromAbove} ${TRANSITION_MS}ms ${easing} forwards`,
-            }}>
-              <AlertCard
-                alert={alerts[incomingIndex]}
-                onCtaTap={handleCtaTap}
-                alerts={alerts}
-                activeIndex={incomingIndex}
-                animKey={animKey}
-                paused={true}
-              />
-            </Box>
-          )}
         </Box>
 
-        {/* ── Up/Down nav buttons (light outlined) ── */}
+        {/* ── Up/Down nav buttons ── */}
         {multipleAlerts && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
             <IconButton
@@ -463,9 +443,9 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
                 width: 32, height: 32,
                 backgroundColor: 'transparent',
                 color: 'var(--color-text-soft)',
-                border: '1.5px solid var(--color-border, #e0e0e0)',
+                border: '1px solid var(--color-border, rgba(0,0,0,0.1))',
                 borderRadius: '10px',
-                '&:hover': { backgroundColor: 'var(--color-hover, rgba(0,0,0,0.04))' },
+                '&:hover': { backgroundColor: 'var(--color-bg-hover, rgba(0,0,0,0.04))', color: 'var(--color-text)' },
               }}
               aria-label="Previous alert"
             >
@@ -478,9 +458,9 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
                 width: 32, height: 32,
                 backgroundColor: 'transparent',
                 color: 'var(--color-text-soft)',
-                border: '1.5px solid var(--color-border, #e0e0e0)',
+                border: '1px solid var(--color-border, rgba(0,0,0,0.1))',
                 borderRadius: '10px',
-                '&:hover': { backgroundColor: 'var(--color-hover, rgba(0,0,0,0.04))' },
+                '&:hover': { backgroundColor: 'var(--color-bg-hover, rgba(0,0,0,0.04))', color: 'var(--color-text)' },
               }}
               aria-label="Next alert"
             >
