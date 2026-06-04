@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getPastWeekKeys } from '../utils/weekKey.js';
+import { severityToFlag, flagSortValue, FLAG_SORT_ORDER } from '../utils/heatmapUtils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, 'NotificationsPage.jsx'), 'utf-8');
@@ -41,6 +42,98 @@ describe('getPastWeekKeys', () => {
     assert.equal(keys.length, 5);
     // Some keys should reference 2025 or 2026-W01
     assert.ok(keys[0] < '2026-W03', 'First key should be before W03');
+  });
+});
+
+// --- severityToFlag behavioral tests ---
+
+describe('severityToFlag', () => {
+  it('maps "high" to "r"', () => {
+    assert.equal(severityToFlag('high'), 'r');
+  });
+
+  it('maps "medium" to "y"', () => {
+    assert.equal(severityToFlag('medium'), 'y');
+  });
+
+  it('maps "med" to "y"', () => {
+    assert.equal(severityToFlag('med'), 'y');
+  });
+
+  it('maps "low" to "b"', () => {
+    assert.equal(severityToFlag('low'), 'b');
+  });
+
+  it('maps "clear" to "g"', () => {
+    assert.equal(severityToFlag('clear'), 'g');
+  });
+
+  it('maps null/undefined to "g"', () => {
+    assert.equal(severityToFlag(null), 'g');
+    assert.equal(severityToFlag(undefined), 'g');
+  });
+
+  it('maps unknown string to "g"', () => {
+    assert.equal(severityToFlag('banana'), 'g');
+  });
+});
+
+// --- flagSortValue behavioral tests ---
+
+describe('flagSortValue', () => {
+  it('returns 0 for "r" (highest priority)', () => {
+    assert.equal(flagSortValue('r'), 0);
+  });
+
+  it('returns 1 for "y"', () => {
+    assert.equal(flagSortValue('y'), 1);
+  });
+
+  it('returns 2 for "b"', () => {
+    assert.equal(flagSortValue('b'), 2);
+  });
+
+  it('returns 3 for "g"', () => {
+    assert.equal(flagSortValue('g'), 3);
+  });
+
+  it('returns 4 for null (lowest priority)', () => {
+    assert.equal(flagSortValue(null), 4);
+  });
+
+  it('returns 4 for undefined', () => {
+    assert.equal(flagSortValue(undefined), 4);
+  });
+
+  it('sorts red-flagged students before green', () => {
+    const students = [
+      { name: 'A', flag: 'g' },
+      { name: 'B', flag: 'r' },
+      { name: 'C', flag: 'y' },
+      { name: 'D', flag: null },
+    ];
+    students.sort((a, b) => flagSortValue(a.flag) - flagSortValue(b.flag));
+    assert.equal(students[0].name, 'B'); // red first
+    assert.equal(students[1].name, 'C'); // yellow second
+    assert.equal(students[2].name, 'A'); // green third
+    assert.equal(students[3].name, 'D'); // null last
+  });
+});
+
+// --- FLAG_SORT_ORDER ---
+
+describe('FLAG_SORT_ORDER', () => {
+  it('contains all four flag keys', () => {
+    assert.ok('r' in FLAG_SORT_ORDER);
+    assert.ok('y' in FLAG_SORT_ORDER);
+    assert.ok('b' in FLAG_SORT_ORDER);
+    assert.ok('g' in FLAG_SORT_ORDER);
+  });
+
+  it('orders r < y < b < g', () => {
+    assert.ok(FLAG_SORT_ORDER['r'] < FLAG_SORT_ORDER['y']);
+    assert.ok(FLAG_SORT_ORDER['y'] < FLAG_SORT_ORDER['b']);
+    assert.ok(FLAG_SORT_ORDER['b'] < FLAG_SORT_ORDER['g']);
   });
 });
 

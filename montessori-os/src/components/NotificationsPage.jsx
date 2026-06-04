@@ -23,6 +23,7 @@ import { BASEBALL_CARD_DEFAULTS } from '../../../scripts/config/baseballCardCons
 import SnapshotCard from './SnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
+import { FLAG_SORT_ORDER, flagSortValue, severityToFlag } from '../utils/heatmapUtils.js';
 
 // ── Week label helper ───────────────────────────────────────────────────────
 
@@ -62,16 +63,6 @@ const FLAG_PALETTE = {
   'r': { color: 'var(--color-error)', label: 'Critical' },
 };
 
-const FLAG_SORT_ORDER = { 'r': 0, 'y': 1, 'b': 2, 'g': 3 };
-const flagSortValue = (f) => FLAG_SORT_ORDER[f] ?? 4; // null/missing = lowest priority
-
-const severityToFlag = (severity) => {
-  if (!severity || severity === 'clear') return 'g';
-  if (severity === 'low') return 'b';
-  if (severity === 'medium' || severity === 'med') return 'y';
-  if (severity === 'high') return 'r';
-  return 'g';
-};
 
 // ── Confetti (kept for coverage celebration) ────────────────────────────────
 
@@ -305,8 +296,8 @@ function NotificationsPage() {
   // ── Fetch DOB when modal opens ────────────────────────────────────────────
 
   useEffect(() => {
-    let active = true;
     if (!expandedStudentId) return;
+    let active = true;
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'students', expandedStudentId));
@@ -382,7 +373,7 @@ function NotificationsPage() {
           const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
             try {
               const sSnap = await getDoc(doc(db, 'students', sid));
-              if (!sSnap.exists()) return [sid, { name: sid, classroomId: '', status: 'active' }];
+              if (!sSnap.exists()) return [sid, { name: sid, classroomId: '', status: 'deleted' }];
               const s = sSnap.data() || {};
               const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid;
               return [sid, { name: label, classroomId: s.classroomId || '', status: s.status || 'active' }];
@@ -402,9 +393,41 @@ function NotificationsPage() {
             return !info || (info.status || 'active') === 'active';
           });
 
-          const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));
+          // Also fetch all active students from covered classrooms so students
+          // without a current snapshot still appear in the heatmap.
+          const coveredClassrooms = Array.from(
+            new Set(Object.values(studentInfoMap).map((i) => i.classroomId).filter(Boolean))
+          );
+          const scopeClassrooms = currentRole === 'classroomadmin'
+            ? coveredClassrooms.filter((cid) => accessibleClassrooms.includes(cid))
+            : coveredClassrooms;
+
+          if (scopeClassrooms.length > 0) {
+            const allStudentSnaps = await Promise.all(
+              scopeClassrooms.map((cid) =>
+                getDocs(query(collection(db, 'students'), where('classroomId', '==', cid), where('status', '==', 'active')))
+              )
+            );
+            if (!active) return;
+            for (const snap of allStudentSnaps) {
+              for (const sDoc of snap.docs) {
+                if (!studentInfoMap[sDoc.id]) {
+                  const s = sDoc.data() || {};
+                  const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sDoc.id;
+                  studentInfoMap[sDoc.id] = { name: label, classroomId: s.classroomId || '', status: s.status || 'active' };
+                }
+              }
+            }
+          }
+
+          // filteredStudentInfo includes ALL active students (with and without snapshots)
           filteredStudentInfo = Object.fromEntries(
-            Object.entries(studentInfoMap).filter(([sid]) => allowedIds.has(sid))
+            Object.entries(studentInfoMap).filter(([sid]) => {
+              const info = studentInfoMap[sid];
+              if (!info || (info.status || 'active') !== 'active') return false;
+              if (currentRole === 'superadmin') return true;
+              return info.classroomId && accessibleClassrooms.includes(info.classroomId);
+            })
           );
         } else {
           // Teacher path: get students in accessible classrooms, read snapshots directly
@@ -454,10 +477,9 @@ function NotificationsPage() {
           }
         }
 
-        const allowedIds = new Set(filteredSignals.map((s) => s.studentId).filter(Boolean));
-        const filteredStudentInfoFinal = Object.fromEntries(
-          Object.entries(filteredStudentInfo).filter(([sid]) => allowedIds.has(sid))
-        );
+        // allowedIds = ALL active students (with or without a current snapshot)
+        const allowedIds = new Set(Object.keys(filteredStudentInfo));
+        const filteredStudentInfoFinal = { ...filteredStudentInfo };
 
         // Fetch 5 past week histories
         const pastKeys = getPastWeekKeys(5);
@@ -498,7 +520,7 @@ function NotificationsPage() {
         setStudentInfo(filteredStudentInfoFinal);
         setWeekHistoryMap(historyMap);
       } catch (err) {
-        console.error('[NotificationsPage] fetchSignals error:', err);
+        reportCaughtError(err, 'NotificationsPage', 'fetchSignals');
         setError('Failed to load alerts.');
       } finally {
         if (active) setLoading(false);
@@ -651,28 +673,33 @@ function NotificationsPage() {
   const improvedCount = signals.filter((s) => s.improvedThisWeek).length;
   const steadyCount = signals.length - escalatedCount - improvedCount;
 
-  // Build roster: each student with their 6-week color array
-  const rawRoster = signals.map((sig) => {
-    const sid = sig.studentId;
+  // Build roster from ALL students (not just those with signals)
+  const signalsBySid = {};
+  for (const sig of signals) { if (sig.studentId) signalsBySid[sig.studentId] = sig; }
+
+  const rawRoster = Object.keys(studentInfo).map((sid) => {
+    const sig = signalsBySid[sid];
     const info = studentInfo[sid] || {};
     const history = weekHistoryMap[sid] || {};
     const weeks = allWeekKeys.map((wk) => {
       const sev = history[wk];
       return sev ? severityToFlag(sev) : null;
     });
-    // If current week has no data (no_notes), keep it null for dotted box
-    const currentWeekHasData = weeks[5] !== null && weeks[5] !== undefined;
-    if (!currentWeekHasData && sig.status !== 'no_notes') {
+    // If current week has no data from history, try the signal
+    if (weeks[5] === null && sig && sig.status !== 'no_notes') {
       weeks[5] = severityToFlag(sig.severity);
     }
-    const currentFlag = weeks[5] || 'g';
+    const currentFlag = weeks[5] || null;
     return { id: sid, name: info.name || sid, weeks, flag: currentFlag, classroomId: info.classroomId };
   });
 
+  // Hide students with zero data (no history and no current snapshot)
+  const activeRoster = rawRoster.filter((s) => s.weeks.some((w) => w !== null));
+
   // Disambiguate duplicate names by appending classroom
   const nameCounts = {};
-  for (const s of rawRoster) { nameCounts[s.name] = (nameCounts[s.name] || 0) + 1; }
-  const roster = rawRoster
+  for (const s of activeRoster) { nameCounts[s.name] = (nameCounts[s.name] || 0) + 1; }
+  const roster = activeRoster
     .map((s) => nameCounts[s.name] > 1 && s.classroomId
       ? { ...s, displayName: `${s.name} (${s.classroomId})` }
       : { ...s, displayName: s.name }
