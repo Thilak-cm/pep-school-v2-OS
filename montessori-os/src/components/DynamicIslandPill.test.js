@@ -225,4 +225,21 @@ describe('DynamicIslandPill component (PEP-213)', () => {
       );
     });
   });
+
+  // --- Dev flag guard ---
+  describe('Dev mock flag', () => {
+    it('DEV_MOCK_ALERTS is explicitly declared', () => {
+      assert.ok(
+        source.includes('DEV_MOCK_ALERTS'),
+        'Should declare DEV_MOCK_ALERTS flag'
+      );
+    });
+
+    it('uses idiomatic Firestore parent traversal for student ID', () => {
+      assert.ok(
+        source.includes('.parent?.parent?.id'),
+        'Should use d.ref.parent?.parent?.id instead of path.split'
+      );
+    });
+  });
 });

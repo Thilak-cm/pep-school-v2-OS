@@ -55,11 +55,9 @@ const MOCK_ALERTS = [
   },
 ];
 
-// Alert type color map (extensible for future alert types)
+// Alert type color map — future types (broadcast, interview) added when their data paths ship
 const ALERT_COLORS = {
   redFlag: { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' },
-  broadcast: { label: 'var(--color-primary)', cta: 'var(--color-primary)', ctaBg: 'var(--color-primary)', dot: 'var(--color-primary)' },
-  interview: { label: 'var(--color-secondary)', cta: 'var(--color-secondary)', ctaBg: 'var(--color-secondary)', dot: 'var(--color-secondary)' },
 };
 
 // ── Progress bar animation ─────────────────────────────────────────────────────
@@ -102,7 +100,8 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
   const [animKey, setAnimKey] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timerRef = useRef(null);
-  const trackRef = useRef(null);
+  const pauseTimerRef = useRef(null);
+  const snapBackTimerRef = useRef(null);
 
   // Swipe state
   const [dragOffset, setDragOffset] = useState(0);
@@ -151,6 +150,12 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
       }
 
       // 2. Try NotificationsPage cache first
+      // NOTE: For teachers, accessibleClassrooms is derived from the classrooms prop which
+      // excludes adolescent classrooms (filtered in App.jsx). NotificationsPage derives scope
+      // from a raw Firestore query that includes all classrooms. This means cache keys may
+      // differ for teachers with adolescent classrooms, causing a cache miss (not a correctness
+      // issue — just a redundant Firestore read). Aligning this requires refactoring the shared
+      // scope derivation into a common utility.
       const cacheKey = buildCacheKey(uid, weekKey, role, accessibleClassrooms);
       const cachedSignals = getCachedData(cacheKey, 'signals');
       const cachedStudentInfo = getCachedData(cacheKey, 'studentInfo');
@@ -170,8 +175,8 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
         snap.forEach((d) => {
           if (d.id !== 'weekly_snapshot') return;
           const data = d.data() || {};
-          const pathParts = d.ref.path.split('/');
-          const studentId = pathParts[1];
+          const studentId = d.ref.parent?.parent?.id;
+          if (!studentId) return;
           rows.push({ studentId, ...data });
           studentIds.add(studentId);
         });
@@ -258,7 +263,8 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     setAnimKey((k) => k + 1);
     setIsTransitioning(true);
     setPaused(true);
-    setTimeout(() => setPaused(false), 3000);
+    clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => setPaused(false), 3000);
   }, []);
 
   const goPrev = useCallback(() => {
@@ -266,7 +272,8 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     setAnimKey((k) => k + 1);
     setIsTransitioning(true);
     setPaused(true);
-    setTimeout(() => setPaused(false), 3000);
+    clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => setPaused(false), 3000);
   }, []);
 
   // ── Rotation timer ───────────────────────────────────────────────────────────
@@ -328,12 +335,20 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
     } else {
       // Snap back — still needs animated transition
       setIsTransitioning(true);
-      setTimeout(() => setIsTransitioning(false), 400);
+      clearTimeout(snapBackTimerRef.current);
+      snapBackTimerRef.current = setTimeout(() => setIsTransitioning(false), 400);
     }
 
     setDragOffset(0);
     setIsDragging(false);
   }, [isDragging, dragOffset, goNext, goPrev]);
+
+  // ── Cleanup all timers on unmount ────────────────────────────────────────────
+  useEffect(() => () => {
+    clearInterval(timerRef.current);
+    clearTimeout(pauseTimerRef.current);
+    clearTimeout(snapBackTimerRef.current);
+  }, []);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -408,7 +423,6 @@ function DynamicIslandPill({ onNavigateToStudent, classrooms = [] }) {
         >
           {/* ── Sliding track — 3x repeated for infinite wrap ── */}
           <Box
-            ref={trackRef}
             onTransitionEnd={handleTransitionEnd}
             sx={{
               position: 'absolute', left: 0, right: 0,

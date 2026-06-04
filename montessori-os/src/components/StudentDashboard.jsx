@@ -115,12 +115,20 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   // Auto-open flag popover when navigating from Dynamic Island pill (PEP-213)
   useEffect(() => {
+    if (!initialFlagOpen || signalsLoading) return;
+    onClearFlagOpen?.(); // always clear navigation intent to prevent ghost opens
     const status = signalsData?.status || null;
-    if (initialFlagOpen && !signalsLoading && status === 'ok' && flagChipRef.current) {
-      setFlagAnchorEl(flagChipRef.current);
-      onClearFlagOpen?.();
+    if (status === 'ok') {
+      setActiveTab('weekly'); // force weekly tab so flag chip is rendered
+      requestAnimationFrame(() => {
+        if (flagChipRef.current) {
+          setFlagAnchorEl(flagChipRef.current);
+        }
+      });
+    } else {
+      notify.info('No active flag found for this student this week.');
     }
-  }, [initialFlagOpen, signalsLoading, signalsData, onClearFlagOpen]);
+  }, [initialFlagOpen, signalsLoading, signalsData, onClearFlagOpen, notify]);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
