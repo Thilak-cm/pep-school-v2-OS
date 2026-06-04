@@ -1,5 +1,14 @@
 # Changelog
 
+# 10.33.0 — 2026-06-04
+
+### Added
+- Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
+- CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
+- Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
+- "All clear this week" empty state when no active red flags exist (PEP-213)
+- Extensible alert type system — typed alert objects with per-type colors for future alert types (PEP-213)
+
 # 10.32.0 — 2026-06-04
 
 ### Added

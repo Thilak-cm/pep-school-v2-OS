@@ -64,7 +64,7 @@ const SNAPSHOT_TABS_NO_PLAN = [
   { label: 'Writing', value: 'writing' },
 ];
 
-function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole }) {
+function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat, onOpenReports, onNavigateToManageStudent, initialNoteType = 'textVoice', userRole, initialFlagOpen = false, onClearFlagOpen }) {
   const notify = useNotify();
   const [activeTab, setActiveTab] = useState('weekly');
   const [cardLoading, setCardLoading] = useState(true);
@@ -92,6 +92,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const hwMediaUrlsRef = useRef({});
   const hwInFlightRef = useRef(new Set());
   const [flagAnchorEl, setFlagAnchorEl] = useState(null);
+  const flagChipRef = useRef(null);
   const [missingDomainsAnchorEl, setMissingDomainsAnchorEl] = useState(null);
   const [regenRunning, setRegenRunning] = useState(false);
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
@@ -111,6 +112,23 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
   const [programResolved, setProgramResolved] = useState(false);
   const hasPlanTab = PLAN_PROGRAMS.includes(studentProgramId);
   const snapshotTabs = hasPlanTab ? SNAPSHOT_TABS_WITH_PLAN : SNAPSHOT_TABS_NO_PLAN;
+
+  // Auto-open flag popover when navigating from Dynamic Island pill (PEP-213)
+  useEffect(() => {
+    if (!initialFlagOpen || signalsLoading) return;
+    onClearFlagOpen?.(); // always clear navigation intent to prevent ghost opens
+    const status = signalsData?.status || null;
+    if (status === 'ok') {
+      setActiveTab('weekly'); // force weekly tab so flag chip is rendered
+      requestAnimationFrame(() => {
+        if (flagChipRef.current) {
+          setFlagAnchorEl(flagChipRef.current);
+        }
+      });
+    } else {
+      notify.info('No active flag found for this student this week.');
+    }
+  }, [initialFlagOpen, signalsLoading, signalsData, onClearFlagOpen, notify]);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
@@ -980,6 +998,7 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
             {activeTab === 'weekly' && !signalsLoading && signalsStatus === 'ok' && (
               <Tooltip title={severity ? (severity === 'med' ? 'Flag: Medium' : `Flag: ${severity.charAt(0).toUpperCase()}${severity.slice(1)}`) : 'No flag'} arrow>
                 <Box
+                  ref={flagChipRef}
                   component="button"
                   onClick={(e) => setFlagAnchorEl(e.currentTarget)}
                   sx={{
