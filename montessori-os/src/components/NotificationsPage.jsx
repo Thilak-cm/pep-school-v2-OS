@@ -982,10 +982,13 @@ function NotificationsPage() {
                 <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', color: 'var(--grey-300)' }}>
                   {filteredRoster.length}
                 </Typography>
-                <IconButton size="small" onClick={() => { setSearchOpen(prev => !prev); if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50); }}
+                <IconButton size="small" onClick={() => {
+                  if (searchOpen) { setSearchQuery(''); setSearchOpen(false); }
+                  else { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50); }
+                }}
                   sx={{ p: 0.5, color: searchOpen ? 'var(--color-primary-light)' : 'var(--color-text-faint)' }}
                 >
-                  <Search size={16} />
+                  {searchOpen ? <CloseIcon size={16} /> : <Search size={16} />}
                 </IconButton>
               </Box>
             </Box>
