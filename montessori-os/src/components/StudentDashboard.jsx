@@ -115,11 +115,12 @@ function StudentDashboard({ student, onOpenTimeline, onOpenFeedback, onOpenChat,
 
   // Auto-open flag popover when navigating from Dynamic Island pill (PEP-213)
   useEffect(() => {
-    if (initialFlagOpen && !signalsLoading && signalsStatus === 'ok' && flagChipRef.current) {
+    const status = signalsData?.status || null;
+    if (initialFlagOpen && !signalsLoading && status === 'ok' && flagChipRef.current) {
       setFlagAnchorEl(flagChipRef.current);
       onClearFlagOpen?.();
     }
-  }, [initialFlagOpen, signalsLoading, signalsStatus, onClearFlagOpen]);
+  }, [initialFlagOpen, signalsLoading, signalsData, onClearFlagOpen]);
 
   const getStudentName = (s) => {
     if (!s) return 'Student';
