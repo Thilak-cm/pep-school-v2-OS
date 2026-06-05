@@ -11,6 +11,8 @@ const ROTATION_MS = 4000;
 const PILL_HEIGHT = 72;
 const CARD_GAP = 6;
 const SWIPE_THRESHOLD = 25;
+const PEEK_EDGE = 12;
+const PEEK_RESTORE_MS = 2000;
 
 // ── Icon map for CTA buttons ──────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ const progressFill = keyframes`
   to   { width: 100%; }
 `;
 
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] }) {
@@ -39,6 +42,10 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const timerRef = useRef(null);
   const pauseTimerRef = useRef(null);
   const snapBackTimerRef = useRef(null);
+
+  // Peek state — tap to shrink current card and reveal neighbor edges
+  const [peeking, setPeeking] = useState(false);
+  const peekTimerRef = useRef(null);
 
   // Swipe state
   const [dragOffset, setDragOffset] = useState(0);
@@ -70,8 +77,10 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
     setVirtualIndex((prev) => prev + 1);
     setAnimKey((k) => k + 1);
     setIsTransitioning(true);
+    setPeeking(false);
     setPaused(true);
     clearTimeout(pauseTimerRef.current);
+    clearTimeout(peekTimerRef.current);
     pauseTimerRef.current = setTimeout(() => setPaused(false), 3000);
   }, []);
 
@@ -79,8 +88,10 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
     setVirtualIndex((prev) => prev - 1);
     setAnimKey((k) => k + 1);
     setIsTransitioning(true);
+    setPeeking(false);
     setPaused(true);
     clearTimeout(pauseTimerRef.current);
+    clearTimeout(peekTimerRef.current);
     pauseTimerRef.current = setTimeout(() => setPaused(false), 3000);
   }, []);
 
@@ -116,11 +127,30 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
     setIsDragging(false);
   }, [isDragging, dragOffset, goNext, goPrev]);
 
+  // ── Peek tap — shrink card to reveal neighbor edges ──────────────────────
+
+  const handlePeekTap = useCallback(() => {
+    if (alerts.length <= 1) return;
+    setPeeking((prev) => {
+      const next = !prev;
+      clearTimeout(peekTimerRef.current);
+      if (next) {
+        // Auto-restore after delay
+        peekTimerRef.current = setTimeout(() => setPeeking(false), PEEK_RESTORE_MS);
+        setPaused(true);
+      } else {
+        setPaused(false);
+      }
+      return next;
+    });
+  }, [alerts.length]);
+
   // ── Cleanup all timers on unmount ────────────────────────────────────────────
   useEffect(() => () => {
     clearInterval(timerRef.current);
     clearTimeout(pauseTimerRef.current);
     clearTimeout(snapBackTimerRef.current);
+    clearTimeout(peekTimerRef.current);
   }, []);
 
   // ── CTA handler — type-dispatch routing (PEP-296) ──────────────────────
@@ -155,9 +185,31 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
     });
   }, [isTransitioning, alerts.length]);
 
-  // ── Loading state ────────────────────────────────────────────────────────
+  // ── Loading state — pill-shaped placeholder ──────────────────────────────
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <Box>
+        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
+          Quick alerts
+        </Typography>
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '100%', height: PILL_HEIGHT, borderRadius: '22px',
+          background: 'var(--color-surface, #f5f5f5)',
+          border: '1px solid var(--color-border, rgba(0,0,0,0.1))',
+          px: 2.5,
+        }}>
+          <Typography sx={{
+            fontSize: '0.82rem', color: 'var(--color-text-soft)',
+            fontWeight: 500,
+          }}>
+            Coach Pepper is scanning for alerts...
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
 
   // ── Empty state — plain text, no pill ────────────────────────────────────
 
@@ -175,11 +227,15 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   }
 
   // ── Infinite carousel: render 3 copies, position in the middle copy ─────────
-  const stride = PILL_HEIGHT + CARD_GAP;
+  const cardHeight = peeking ? PILL_HEIGHT - 2 * PEEK_EDGE : PILL_HEIGHT;
+  const cardGap = peeking ? 2 : CARD_GAP;
+  const stride = cardHeight + cardGap;
   const n = alerts.length;
   const trackIndex = n + ((virtualIndex % n + n) % n);
   const baseOffset = -trackIndex * stride;
-  const carouselY = baseOffset - dragOffset;
+  // When peeking, offset the track down by PEEK_EDGE so the prev card edge peeks at the top
+  const peekShift = peeking ? PEEK_EDGE : 0;
+  const carouselY = baseOffset - dragOffset + peekShift;
 
   const multipleAlerts = alerts.length > 1;
 
@@ -190,9 +246,10 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
       </Typography>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {/* ── Carousel viewport ── */}
+        {/* ── Carousel viewport — fixed border container ── */}
         <Box
           ref={containerRef}
+          onClick={handlePeekTap}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -201,6 +258,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
             height: PILL_HEIGHT,
             overflow: 'hidden',
             borderRadius: '22px',
+            border: multipleAlerts ? '1px solid var(--color-border, rgba(0,0,0,0.1))' : 'none',
             position: 'relative',
             touchAction: 'none',
             userSelect: 'none',
@@ -212,13 +270,17 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
             sx={{
               position: 'absolute', left: 0, right: 0,
               transform: `translateY(${carouselY}px)`,
-              transition: (isDragging || !isTransitioning)
+              transition: isDragging
                 ? 'none'
                 : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
             {[...alerts, ...alerts, ...alerts].map((alert, i) => (
-              <Box key={i} sx={{ height: PILL_HEIGHT, mb: `${CARD_GAP}px` }}>
+              <Box key={i} sx={{
+                height: cardHeight,
+                mb: `${cardGap}px`,
+                transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}>
                 <AlertCard
                   alert={alert}
                   onCtaTap={handleCtaTap}
@@ -226,6 +288,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
                   activeIndex={activeIndex}
                   animKey={animKey}
                   paused={paused || isDragging}
+                  compact={peeking}
                 />
               </Box>
             ))}
@@ -274,7 +337,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
 
 // ── AlertCard sub-component ──────────────────────────────────────────────────
 
-function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, sx = {} }) {
+function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, compact = false, sx = {} }) {
   const alertColor = alert.color || { label: 'var(--color-error)', cta: 'var(--color-error)', ctaBg: 'var(--color-error)', dot: 'var(--color-error)' };
   const showIndicators = alerts && alerts.length > 1;
   const ctaIcon = typeof alert.ctaIcon === 'string' ? ICON_MAP[alert.ctaIcon] : alert.ctaIcon;
@@ -283,11 +346,13 @@ function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, sx =
     <Box
       sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', height: PILL_HEIGHT, borderRadius: '22px',
-        background: 'var(--color-surface-dark, #1a1a2e)',
-        px: 2.5, py: 1.5,
+        width: '100%', height: '100%', borderRadius: compact ? '14px' : '22px',
+        background: 'var(--color-surface, #f5f5f5)',
+        border: compact ? 'none' : '1px solid var(--color-border, rgba(0,0,0,0.1))',
+        px: 2.5, py: compact ? 0.5 : 1.5,
         position: 'relative', overflow: 'hidden',
         boxSizing: 'border-box',
+        transition: 'border-radius 0.35s ease, padding 0.35s ease',
         ...sx,
       }}
     >
@@ -301,14 +366,14 @@ function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, sx =
           {alert.label}{alert.labelDetail ? ` · ${alert.labelDetail}` : ''}
         </Typography>
         <Typography sx={{
-          fontSize: '0.9rem', fontWeight: 700, color: '#fff',
+          fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-text)',
           lineHeight: 1.3, mt: 0.25,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {alert.title}
         </Typography>
         <Typography sx={{
-          fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)',
+          fontSize: '0.72rem', color: 'var(--color-text-soft)',
           lineHeight: 1.2, mt: 0.15,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
@@ -316,50 +381,49 @@ function AlertCard({ alert, onCtaTap, alerts, activeIndex, animKey, paused, sx =
         </Typography>
       </Box>
 
-      {/* ── CTA button ── */}
-      <ButtonBase
-        onClick={(e) => onCtaTap(e, alert)}
-        sx={{
-          display: 'flex', alignItems: 'center', gap: 0.75,
-          px: 2, py: 0.75, borderRadius: '14px',
-          backgroundColor: alertColor.ctaBg,
-          color: '#fff', fontSize: '0.8rem', fontWeight: 700,
-          flexShrink: 0,
-          '&:hover': { opacity: 0.9 },
-        }}
-      >
-        {ctaIcon}
-        {alert.ctaLabel}
-      </ButtonBase>
+      {/* ── CTA + dot indicators column ── */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, gap: 0.5 }}>
+        <ButtonBase
+          onClick={(e) => onCtaTap(e, alert)}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 0.75,
+            px: 2, py: 0.75, borderRadius: '14px',
+            backgroundColor: alertColor.ctaBg,
+            color: '#fff', fontSize: '0.8rem', fontWeight: 700,
+            '&:hover': { opacity: 0.9 },
+          }}
+        >
+          {ctaIcon}
+          {alert.ctaLabel}
+        </ButtonBase>
 
-      {/* ── Dot indicators (elongated active dot) ── */}
-      {showIndicators && (
-        <Box sx={{
-          position: 'absolute', bottom: 10, right: 16,
-          display: 'flex', gap: '5px', alignItems: 'center',
-        }}>
-          {alerts.map((a, i) => (
-            <Box
-              key={i}
-              sx={{
-                height: 6,
-                width: i === activeIndex ? 18 : 6,
-                borderRadius: i === activeIndex ? '3px' : '50%',
-                backgroundColor: i === activeIndex
-                  ? (a.color?.dot || 'var(--color-error)')
-                  : 'rgba(255,255,255,0.25)',
-                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-            />
-          ))}
-        </Box>
-      )}
+        {showIndicators && (
+          <Box sx={{
+            display: 'flex', gap: '5px', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {alerts.map((a, i) => (
+              <Box
+                key={i}
+                sx={{
+                  height: 6,
+                  width: i === activeIndex ? 18 : 6,
+                  borderRadius: i === activeIndex ? '3px' : '50%',
+                  backgroundColor: i === activeIndex
+                    ? (a.color?.dot || 'var(--color-text)')
+                    : 'var(--color-text-soft, rgba(0,0,0,0.3))',
+                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              />
+            ))}
+          </Box>
+        )}
+      </Box>
 
       {/* ── Progress bar ── */}
       {showIndicators && !paused && (
         <Box sx={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          height: 2, backgroundColor: 'rgba(255,255,255,0.08)',
+          height: 2, backgroundColor: 'var(--color-border, rgba(0,0,0,0.08))',
         }}>
           <Box
             key={animKey}
