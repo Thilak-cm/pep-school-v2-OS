@@ -117,7 +117,7 @@ Every individual finding MUST use this exact structure:
 ```markdown
 #### {SHORT_TITLE}
 - **File:** `{file_path}:{start_line}-{end_line}`
-- **Category:** correctness | security | error-handling | dead-code | pattern-violation | test-gap | scope
+- **Category:** correctness | security | error-handling | dead-code | pattern-violation | test-gap | scope | impact
 - **What's wrong:** {1-2 sentence description of the actual problem}
 - **Why it matters:** {1 sentence on impact}
 - **Suggested fix:** {Concrete, actionable instruction. NOT vague. Include the specific change needed.}
