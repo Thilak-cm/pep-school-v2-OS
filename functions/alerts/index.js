@@ -2,7 +2,7 @@
 // createAlert: shared helper for any CF to write alert docs
 // cleanupExpiredAlerts: scheduled CF to delete expired alerts
 
-import functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import { db, Timestamp } from "../shared/firebase.js";
 
 /**
