@@ -304,6 +304,42 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   // ============================================================================
+  // ALERTS COLLECTION (Firestore) - Alert bus for Dynamic Island + Alerts page (PEP-296)
+  // ============================================================================
+
+  {
+    name: 'Alerts collection read restricted to signed-in users',
+    description: 'allow read: if isSignedIn() on alerts/{alertId}',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+read:\s*if\s+isSignedIn\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Alerts collection create restricted to superadmin',
+    description: 'allow create: if isSuperAdmin() on alerts/{alertId}',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+create:\s*if\s+isSuperAdmin\s*\(\s*\)/,
+  },
+
+  {
+    name: 'Alerts collection update restricted to dismissedBy field only',
+    description: 'allow update: if isSignedIn() && affectedKeys().hasOnly([dismissedBy])',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSignedIn[\s\S]*?affectedKeys[\s\S]*?dismissedBy/,
+  },
+
+  {
+    name: 'Alerts collection delete denied for clients',
+    description: 'allow delete: if false on alerts/{alertId}',
+    file: 'firestore',
+    criticality: 'important',
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+delete:\s*if\s+false/,
+  },
+
+  // ============================================================================
   // STORAGE RULES (Storage) - Media upload/download with strict budget
   // ============================================================================
 
