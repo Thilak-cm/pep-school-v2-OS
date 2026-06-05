@@ -79,3 +79,6 @@ export { recomputeStats } from "./stats/index.js";
 
 // Test Bench
 export { testBenchRun } from "./testbench/index.js";
+
+// Alerts (PEP-296)
+export { cleanupExpiredAlerts } from "./alerts/index.js";

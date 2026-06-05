@@ -81,6 +81,7 @@ function LandingPage({
       {/* ── Dynamic Island alert pill ─────────────────────── */}
       <DynamicIslandPill
         onNavigateToStudent={onNavigateToStudent}
+        onNavigate={onNavigate}
         classrooms={classrooms}
       />
 
