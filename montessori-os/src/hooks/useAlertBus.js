@@ -42,7 +42,15 @@ export function useAlertBus(classrooms = []) {
   const [redFlagAlerts, setRedFlagAlerts] = useState([]);
   const [busAlerts, setBusAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const unsubRef = useRef(null);
+  const mountedRef = useRef(true);
+  // Role + classroom refs populated by fetchRedFlags; used by the alert filter effect
+  const userRoleRef = useRef(null);
+  const accessibleClassroomsRef = useRef([]);
+  // Raw snapshot docs stored for re-filtering when role/classroom refs are populated
+  const rawSnapshotDocsRef = useRef([]);
+  const [refVersion, setRefVersion] = useState(0);
+  // Stable key to avoid re-fetches on reference-only changes to classrooms array
+  const classroomsKey = classrooms.map((c) => c.id).sort().join(',');
 
   // ── Source 1: weekly_snapshot red flags (one-shot, cached) ──────────────
 
@@ -151,19 +159,29 @@ export function useAlertBus(classrooms = []) {
         signals = rows.filter(Boolean);
       }
 
+      // Store role + accessible classrooms for targeting filter in onSnapshot
+      userRoleRef.current = role;
+      accessibleClassroomsRef.current = accessibleClassrooms;
+      // Bump version so bus alerts are re-filtered with populated refs (race fix)
+      setRefVersion((v) => v + 1);
+
       // Transform to DIP display shape
       const transformed = signals
         .map((s) => transformRedFlag(s, studentInfo))
         .filter(Boolean);
 
-      setRedFlagAlerts(transformed);
+      if (mountedRef.current) setRedFlagAlerts(transformed);
     } catch {
       // Silently fail — pill shows empty state
     }
-  }, [classrooms]);
+  // classroomsKey is a stable string derived from classrooms — avoids re-fetch on reference-only changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomsKey]);
 
   // ── Source 2: alerts collection (realtime via onSnapshot) ──────────────
 
+  // Store raw snapshot docs; filtering happens in a separate effect so it
+  // re-runs when userRoleRef / accessibleClassroomsRef are populated (race fix).
   useEffect(() => {
     const uid = auth?.currentUser?.uid;
     if (!uid) {
@@ -177,41 +195,69 @@ export function useAlertBus(classrooms = []) {
     );
 
     const unsub = onSnapshot(alertsQuery, (snapshot) => {
-      const alerts = [];
+      const docs = [];
       snapshot.forEach((d) => {
-        const data = d.data() || {};
-
-        // Client-side role/classroom/dismissedBy filtering
-        if (data.dismissedBy && data.dismissedBy[uid]) return;
-        // expiresAt filtering (belt-and-suspenders with cleanup CF)
-        if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) return;
-
-        const display = transformForDisplay({ id: d.id, ...data });
-        alerts.push({
-          ...display,
-          id: d.id,
-          priority: data.priority ?? 99,
-          createdAt: data.createdAt,
-          _source: 'alerts',
-        });
+        docs.push({ id: d.id, ...(d.data() || {}) });
       });
-      setBusAlerts(alerts);
+      rawSnapshotDocsRef.current = docs;
+      // Bump version to trigger re-filter
+      setRefVersion((v) => v + 1);
     }, () => {
       // onSnapshot error — silently degrade
+      rawSnapshotDocsRef.current = [];
       setBusAlerts([]);
     });
 
-    unsubRef.current = unsub;
     return () => { unsub(); };
   }, []);
+
+  // Re-filter raw snapshot docs whenever refs or snapshot data change
+  useEffect(() => {
+    const uid = auth?.currentUser?.uid;
+    if (!uid) return;
+
+    const userRole = userRoleRef.current;
+    const userClassrooms = accessibleClassroomsRef.current;
+    const alerts = [];
+
+    for (const data of rawSnapshotDocsRef.current) {
+      // Client-side dismissedBy filtering
+      if (data.dismissedBy && data.dismissedBy[uid]) continue;
+      // expiresAt filtering (belt-and-suspenders with cleanup CF)
+      if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) continue;
+
+      // Client-side targeting filter — empty arrays mean "all" (no filtering)
+      if (Array.isArray(data.targetRoles) && data.targetRoles.length > 0) {
+        if (!userRole || !data.targetRoles.includes(userRole)) continue;
+      }
+      if (Array.isArray(data.targetClassrooms) && data.targetClassrooms.length > 0) {
+        if (!userClassrooms.length || !data.targetClassrooms.some((c) => userClassrooms.includes(c))) continue;
+      }
+      if (Array.isArray(data.targetTeachers) && data.targetTeachers.length > 0) {
+        if (!data.targetTeachers.includes(uid)) continue;
+      }
+
+      const display = transformForDisplay({ id: data.id, ...data });
+      alerts.push({
+        ...display,
+        id: data.id,
+        priority: data.priority ?? 99,
+        createdAt: data.createdAt,
+        _source: 'alerts',
+      });
+    }
+    setBusAlerts(alerts);
+  // refVersion changes when either fetchRedFlags populates refs or onSnapshot delivers new data
+  }, [refVersion]);
 
   // ── Fetch red flags on mount ────────────────────────────────────────────
 
   useEffect(() => {
+    mountedRef.current = true;
     (async () => {
-      await fetchRedFlags();
-      setLoading(false);
+      try { await fetchRedFlags(); } finally { if (mountedRef.current) setLoading(false); }
     })();
+    return () => { mountedRef.current = false; };
   }, [fetchRedFlags]);
 
   // ── Merge and sort both sources ─────────────────────────────────────────

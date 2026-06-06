@@ -324,11 +324,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Alerts collection update restricted to dismissedBy field only',
-    description: 'allow update: if isSignedIn() && affectedKeys().hasOnly([dismissedBy])',
+    name: 'Alerts collection update restricted to dismissedBy field only and map key is own uid',
+    description: 'allow update: if isSignedIn() && affectedKeys().hasOnly([dismissedBy]) && dismissedBy map key constrained to request.auth.uid',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSignedIn[\s\S]*?affectedKeys[\s\S]*?dismissedBy/,
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSignedIn[\s\S]*?affectedKeys\(\)\.hasOnly\(\['dismissedBy'\]\)[\s\S]*?dismissedBy\.diff[\s\S]*?affectedKeys\(\)\.hasOnly\(\[request\.auth\.uid\]\)/,
   },
 
   {

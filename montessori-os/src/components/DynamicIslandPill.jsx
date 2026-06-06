@@ -4,10 +4,11 @@ import { keyframes } from '@emotion/react';
 import { Box, Typography, ButtonBase, IconButton } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
+import { dismissAlert } from '../utils/alertService';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const ROTATION_MS = 4000;
+const ROTATION_MS = 10000;
 const PILL_HEIGHT = 72;
 const CARD_GAP = 6;
 const SWIPE_THRESHOLD = 25;
@@ -34,11 +35,10 @@ const progressFill = keyframes`
 
 function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] }) {
   const { alerts, loading } = useAlertBus(classrooms);
-  // virtualIndex can grow beyond alerts.length — maps to 3x repeated track
-  const [virtualIndex, setVirtualIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [animKey, setAnimKey] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const directionRef = useRef(1); // 1 = forward (down), -1 = backward (up)
   const timerRef = useRef(null);
   const pauseTimerRef = useRef(null);
   const snapBackTimerRef = useRef(null);
@@ -53,41 +53,64 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const touchStartRef = useRef({ y: 0, time: 0 });
   const containerRef = useRef(null);
 
-  // Derived: real index into alerts array
-  const activeIndex = alerts.length > 0 ? ((virtualIndex % alerts.length) + alerts.length) % alerts.length : 0;
+  // Clamp activeIndex when alerts array shrinks
+  useEffect(() => {
+    if (alerts.length > 0 && activeIndex >= alerts.length) {
+      setActiveIndex(alerts.length - 1);
+    }
+  }, [alerts.length, activeIndex]);
 
   // ── Auto-rotation timer ─────────────────────────────────────────────────
 
   useEffect(() => {
-    if (alerts.length <= 1 || paused) {
+    if (alerts.length <= 1 || paused || isDragging) {
       clearInterval(timerRef.current);
       return;
     }
     timerRef.current = setInterval(() => {
-      setVirtualIndex((prev) => prev + 1);
-      setAnimKey((k) => k + 1);
-      setIsTransitioning(true);
+      setActiveIndex((prev) => {
+        const dir = directionRef.current;
+        const next = prev + dir;
+        if (next >= alerts.length) {
+          // Hit the end — reverse to go up
+          directionRef.current = -1;
+          setAnimKey((k) => k + 1);
+          return prev - 1;
+        }
+        if (next < 0) {
+          // Hit the start — reverse to go down
+          directionRef.current = 1;
+          setAnimKey((k) => k + 1);
+          return prev + 1;
+        }
+        setAnimKey((k) => k + 1);
+        return next;
+      });
     }, ROTATION_MS);
     return () => clearInterval(timerRef.current);
-  }, [alerts.length, paused]);
+  }, [alerts.length, paused, isDragging]);
 
   // ── Navigation helpers ───────────────────────────────────────────────────
 
   const goNext = useCallback(() => {
-    setVirtualIndex((prev) => prev + 1);
-    setAnimKey((k) => k + 1);
-    setIsTransitioning(true);
+    setActiveIndex((prev) => {
+      if (prev >= alerts.length - 1) return prev;
+      setAnimKey((k) => k + 1);
+      return prev + 1;
+    });
     setPeeking(false);
     setPaused(true);
     clearTimeout(pauseTimerRef.current);
     clearTimeout(peekTimerRef.current);
     pauseTimerRef.current = setTimeout(() => setPaused(false), 3000);
-  }, []);
+  }, [alerts.length]);
 
   const goPrev = useCallback(() => {
-    setVirtualIndex((prev) => prev - 1);
-    setAnimKey((k) => k + 1);
-    setIsTransitioning(true);
+    setActiveIndex((prev) => {
+      if (prev <= 0) return prev;
+      setAnimKey((k) => k + 1);
+      return prev - 1;
+    });
     setPeeking(false);
     setPaused(true);
     clearTimeout(pauseTimerRef.current);
@@ -169,21 +192,17 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
       return;
     }
 
+    // Dismiss broadcast/system/agent alerts on CTA tap (acknowledgment actions)
+    if (['broadcast', 'system', 'agent'].includes(alert.colorKey) && alert.id && alert._source === 'alerts') {
+      dismissAlert(alert.id);
+    }
+
     // Generic screen navigation (alerts page, interviews page, etc.)
     if (ctaRoute && onNavigate) {
       onNavigate(ctaRoute, ctaParams);
     }
   }, [onNavigateToStudent, onNavigate]);
 
-  // After transition ends, silently reset virtualIndex to middle range (no animation)
-  const handleTransitionEnd = useCallback(() => {
-    if (!isTransitioning) return;
-    setIsTransitioning(false);
-    setVirtualIndex((prev) => {
-      const len = alerts.length || 1;
-      return ((prev % len) + len) % len;
-    });
-  }, [isTransitioning, alerts.length]);
 
   // ── Loading state — pill-shaped placeholder ──────────────────────────────
 
@@ -226,16 +245,13 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
     );
   }
 
-  // ── Infinite carousel: render 3 copies, position in the middle copy ─────────
+  // ── Clamped carousel: single copy, no wrap ──────────────────────────────────
   const cardHeight = peeking ? PILL_HEIGHT - 2 * PEEK_EDGE : PILL_HEIGHT;
   const cardGap = peeking ? 2 : CARD_GAP;
   const stride = cardHeight + cardGap;
-  const n = alerts.length;
-  const trackIndex = n + ((virtualIndex % n + n) % n);
-  const baseOffset = -trackIndex * stride;
-  // When peeking, offset the track down by PEEK_EDGE so the prev card edge peeks at the top
+  const baseOffset = -activeIndex * stride;
   const peekShift = peeking ? PEEK_EDGE : 0;
-  const carouselY = baseOffset - dragOffset + peekShift;
+  const carouselY = baseOffset + dragOffset + peekShift;
 
   const multipleAlerts = alerts.length > 1;
 
@@ -264,9 +280,8 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
             userSelect: 'none',
           }}
         >
-          {/* ── Sliding track — 3x repeated for infinite wrap ── */}
+          {/* ── Sliding track — single copy, clamped ── */}
           <Box
-            onTransitionEnd={handleTransitionEnd}
             sx={{
               position: 'absolute', left: 0, right: 0,
               transform: `translateY(${carouselY}px)`,
@@ -275,7 +290,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
                 : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
-            {[...alerts, ...alerts, ...alerts].map((alert, i) => (
+            {alerts.map((alert, i) => (
               <Box key={i} sx={{
                 height: cardHeight,
                 mb: `${cardGap}px`,
@@ -300,6 +315,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
             <IconButton
               onClick={goPrev}
+              disabled={activeIndex <= 0}
               size="small"
               sx={{
                 width: 32, height: 32,
@@ -308,6 +324,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
                 border: '1px solid var(--color-border, rgba(0,0,0,0.1))',
                 borderRadius: '10px',
                 '&:hover': { backgroundColor: 'var(--color-bg-hover, rgba(0,0,0,0.04))', color: 'var(--color-text)' },
+                '&.Mui-disabled': { opacity: 0.3 },
               }}
               aria-label="Previous alert"
             >
@@ -315,6 +332,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
             </IconButton>
             <IconButton
               onClick={goNext}
+              disabled={activeIndex >= alerts.length - 1}
               size="small"
               sx={{
                 width: 32, height: 32,
@@ -323,6 +341,7 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
                 border: '1px solid var(--color-border, rgba(0,0,0,0.1))',
                 borderRadius: '10px',
                 '&:hover': { backgroundColor: 'var(--color-bg-hover, rgba(0,0,0,0.04))', color: 'var(--color-text)' },
+                '&.Mui-disabled': { opacity: 0.3 },
               }}
               aria-label="Next alert"
             >

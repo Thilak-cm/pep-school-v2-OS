@@ -59,6 +59,7 @@ function renderScreen(screen, ctx) {
           onNavigateToFeedbackDashboard={() => ctx.setScreen("feedbackTimeline")}
           onNavigateToFeedback={() => { ctx.setFeedbackReturnScreen?.(null); ctx.setScreen("feedback"); }}
           onNavigateToClassroomNotes={() => ctx.setScreen("classroomNotesReview")}
+          // TODO: ctaParams (alertId, etc.) not yet consumed — deep-linking to specific alerts is a follow-up
           onNavigate={(path, _params) => {
             if (path === "/stats") ctx.setScreen("stats");
             else if (path === "/addUser") ctx.setScreen("addUser");

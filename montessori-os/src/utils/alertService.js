@@ -12,8 +12,12 @@ export async function dismissAlert(alertId) {
   const uid = auth?.currentUser?.uid;
   if (!uid || !alertId) return;
 
-  const alertRef = doc(db, 'alerts', alertId);
-  await updateDoc(alertRef, {
-    [`dismissedBy.${uid}`]: serverTimestamp(),
-  });
+  try {
+    const alertRef = doc(db, 'alerts', alertId);
+    await updateDoc(alertRef, {
+      [`dismissedBy.${uid}`]: serverTimestamp(),
+    });
+  } catch {
+    // Silently degrade — alert stays visible, which is safe
+  }
 }

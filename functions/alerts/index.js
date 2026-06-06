@@ -17,8 +17,7 @@ export async function createAlert(docId, alertData) {
     throw new Error("createAlert requires docId and alertData.type");
   }
 
-  const alertId = docId;
-  const doc = {
+  const alertDoc = {
     type: alertData.type,
     dip: alertData.dip ?? false,
     priority: alertData.priority ?? 50,
@@ -33,7 +32,20 @@ export async function createAlert(docId, alertData) {
     createdBy: alertData.createdBy || "system",
   };
 
-  await db.collection("alerts").doc(alertId).set(doc, { merge: true });
+  // Transaction ensures idempotent upsert: new docs get dismissedBy: {},
+  // re-upserts update all fields but preserve existing user dismissals.
+  const ref = db.collection("alerts").doc(docId);
+  await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists) {
+      t.set(ref, alertDoc);
+    } else {
+      // Exclude dismissedBy so existing dismissals are preserved
+      // eslint-disable-next-line no-unused-vars
+      const { dismissedBy: _dismissed, ...fieldsToMerge } = alertDoc;
+      t.set(ref, fieldsToMerge, { merge: true });
+    }
+  });
 }
 
 /**
@@ -47,6 +59,8 @@ export const cleanupExpiredAlerts = functions
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const now = Timestamp.now();
+    // Alerts with expiresAt: null are retained indefinitely —
+    // they must be deleted manually or via admin action.
     const snapshot = await db
       .collection("alerts")
       .where("expiresAt", "<=", now)
@@ -57,11 +71,12 @@ export const cleanupExpiredAlerts = functions
       return null;
     }
 
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-    await batch.commit();
+    const BATCH_LIMIT = 500;
+    for (let i = 0; i < snapshot.docs.length; i += BATCH_LIMIT) {
+      const batch = db.batch();
+      snapshot.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
 
     functions.logger.info(
       `cleanupExpiredAlerts: deleted ${snapshot.size} expired alerts`

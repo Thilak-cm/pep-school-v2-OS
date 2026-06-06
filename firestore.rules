@@ -600,7 +600,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSuperAdmin();
       allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
+        && request.resource.data.dismissedBy is map
+        && resource.data.dismissedBy is map
+        && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]);
       allow delete: if false;
     }
 

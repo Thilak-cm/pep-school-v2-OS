@@ -36,7 +36,7 @@ export function transformForDisplay(alert) {
       return {
         label: 'INTERVIEW',
         labelDetail: payload.interviewTime || null,
-        title: `${payload.studentName || 'Student'} — ${payload.interviewType || 'parent conference'}`,
+        title: payload.studentName || 'Student',
         subtitle: [payload.classroomName, payload.prepStatus].filter(Boolean).join(' · ') || '',
         ctaLabel: 'Open prep',
         ctaIcon: 'Calendar',
@@ -107,6 +107,11 @@ export function transformForDisplay(alert) {
 // ── Transform weekly_snapshot red flag → DIP display shape ───────────────────
 // Used by useAlertBus for Source 1 (weekly_snapshot red flags)
 
+/**
+ * Transform a weekly_snapshot red flag into DIP display shape.
+ * Only 'high' severity red flags are surfaced in DIP by design —
+ * medium/low severity flags are filtered out here (returns null).
+ */
 export function transformRedFlag(signal, studentInfo) {
   const student = studentInfo[signal.studentId] || {};
   const severity = signal.redFlag?.severity;
