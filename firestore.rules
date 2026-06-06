@@ -593,6 +593,20 @@ service cloud.firestore {
       }
     }
 
+    // Alerts bus (PEP-296) — alert docs for Dynamic Island pill + Alerts page
+    // CFs create via admin SDK (bypasses rules); superadmins create via frontend (broadcasts)
+    // All signed-in users can read; update restricted to dismissedBy field only
+    match /alerts/{alertId} {
+      allow read: if isSignedIn();
+      allow create: if isSuperAdmin();
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
+        && request.resource.data.dismissedBy is map
+        && resource.data.dismissedBy is map
+        && request.resource.data.dismissedBy.diff(resource.data.dismissedBy).affectedKeys().hasOnly([request.auth.uid]);
+      allow delete: if false;
+    }
+
     // Stats cache (PEP-285) — pre-computed per-classroom stats written by CF
     // Client reads scoped by role; writes only via admin SDK (Cloud Functions)
     match /statsCache/{docId} {

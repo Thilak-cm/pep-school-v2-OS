@@ -7,28 +7,14 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, 'DynamicIslandPill.jsx'), 'utf-8');
 
-describe('DynamicIslandPill component (PEP-213)', () => {
+describe('DynamicIslandPill component (PEP-213 + PEP-296)', () => {
 
-  // --- AC1: Pill visual structure ---
+  // --- Pill visual structure ---
   describe('Pill component structure', () => {
     it('exports a default component', () => {
       assert.ok(
         source.includes('export default'),
         'Should export default DynamicIslandPill'
-      );
-    });
-
-    it('renders RED FLAG label', () => {
-      assert.ok(
-        source.includes('RED FLAG'),
-        'Should render "RED FLAG" label text'
-      );
-    });
-
-    it('renders CTA button with "Read note" text', () => {
-      assert.ok(
-        source.includes('Read note'),
-        'Should render "Read note" CTA text'
       );
     });
 
@@ -38,16 +24,9 @@ describe('DynamicIslandPill component (PEP-213)', () => {
         'Should use rounded pill shape'
       );
     });
-
-    it('renders a flag icon in the CTA', () => {
-      assert.ok(
-        source.includes('Flag') || source.includes('flag'),
-        'Should use a flag icon in CTA'
-      );
-    });
   });
 
-  // --- AC2: Rotation behavior ---
+  // --- Rotation behavior ---
   describe('Rotation and animation', () => {
     it('uses a timer for rotation (setInterval or setTimeout)', () => {
       assert.ok(
@@ -130,69 +109,55 @@ describe('DynamicIslandPill component (PEP-213)', () => {
     });
   });
 
-  // --- AC3: Data source ---
-  describe('Data fetching', () => {
-    it('reads from ai_summaries/weekly_snapshot', () => {
+  // --- PEP-296: useAlertBus integration ---
+  describe('useAlertBus hook integration (PEP-296)', () => {
+    it('imports useAlertBus hook', () => {
       assert.ok(
-        source.includes('weekly_snapshot'),
-        'Should read from weekly_snapshot document'
+        source.includes('useAlertBus'),
+        'Should import and use useAlertBus hook'
       );
     });
 
-    it('checks redFlag.severity for filtering', () => {
+    it('does NOT contain DEV_MOCK_ALERTS', () => {
       assert.ok(
-        source.includes('redFlag') && source.includes('severity'),
-        'Should check redFlag.severity field'
+        !source.includes('DEV_MOCK_ALERTS'),
+        'DEV_MOCK_ALERTS should be removed — live data only'
       );
     });
 
-    it('uses getIstIsoWeekKey for current week', () => {
+    it('does NOT contain MOCK_ALERTS array', () => {
       assert.ok(
-        source.includes('getIstIsoWeekKey'),
-        'Should use getIstIsoWeekKey utility'
-      );
-    });
-
-    it('supports role-aware fetch paths', () => {
-      assert.ok(
-        source.includes('collectionGroup') || source.includes('collection_group'),
-        'Should support collectionGroup for admin path'
-      );
-      assert.ok(
-        source.includes('getDoc') || source.includes('getDocs'),
-        'Should support direct doc reads for teacher path'
+        !source.includes('MOCK_ALERTS'),
+        'MOCK_ALERTS should be removed — live data only'
       );
     });
   });
 
-  // --- AC4: Role scoping ---
-  describe('Role scoping', () => {
-    it('filters by accessible classrooms', () => {
+  // --- PEP-296: CTA type-dispatch ---
+  describe('CTA type-dispatch routing (PEP-296)', () => {
+    it('reads ctaRoute from alert for navigation', () => {
       assert.ok(
-        source.includes('accessibleClassroom') || source.includes('classroomId'),
-        'Should filter signals by classroom scope'
+        source.includes('ctaRoute'),
+        'CTA handler should read ctaRoute for screen navigation'
       );
     });
 
-    it('handles superadmin seeing all students', () => {
+    it('reads ctaParams from alert for screen params', () => {
       assert.ok(
-        source.includes('superadmin'),
-        'Should handle superadmin role'
+        source.includes('ctaParams'),
+        'CTA handler should read ctaParams for navigation params'
       );
     });
-  });
 
-  // --- AC5: CTA navigation ---
-  describe('CTA navigation', () => {
-    it('calls onNavigateToStudent when CTA is tapped', () => {
+    it('accepts onNavigate prop for generic routing', () => {
       assert.ok(
-        source.includes('onNavigateToStudent'),
-        'Should accept and call onNavigateToStudent prop'
+        source.includes('onNavigate'),
+        'Should accept onNavigate prop for non-student CTAs'
       );
     });
   });
 
-  // --- AC6: Empty state ---
+  // --- Empty state ---
   describe('Empty state', () => {
     it('shows "All clear this week" when no alerts', () => {
       assert.ok(
@@ -209,7 +174,7 @@ describe('DynamicIslandPill component (PEP-213)', () => {
     });
   });
 
-  // --- AC7: Alert type extensibility ---
+  // --- Alert type extensibility ---
   describe('Alert type extensibility', () => {
     it('accepts alerts as a typed array', () => {
       assert.ok(
@@ -220,25 +185,8 @@ describe('DynamicIslandPill component (PEP-213)', () => {
 
     it('supports type-specific colors per alert', () => {
       assert.ok(
-        source.includes('color') && (source.includes('.type') || source.includes('alert.color') || source.includes('alertColor')),
+        source.includes('color') && (source.includes('.type') || source.includes('alert.color') || source.includes('alertColor') || source.includes('colorKey')),
         'Should support per-alert-type colors'
-      );
-    });
-  });
-
-  // --- Dev flag guard ---
-  describe('Dev mock flag', () => {
-    it('DEV_MOCK_ALERTS is explicitly declared', () => {
-      assert.ok(
-        source.includes('DEV_MOCK_ALERTS'),
-        'Should declare DEV_MOCK_ALERTS flag'
-      );
-    });
-
-    it('uses idiomatic Firestore parent traversal for student ID', () => {
-      assert.ok(
-        source.includes('.parent?.parent?.id'),
-        'Should use d.ref.parent?.parent?.id instead of path.split'
       );
     });
   });

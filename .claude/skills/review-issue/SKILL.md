@@ -35,10 +35,15 @@ Orchestrator (this skill — thin, stays in main context)
     │   ├── Quick auditor (.claude/agents/code-auditor, scope=quick)  — fast mechanical checks
     │   └── Deep auditor  (.claude/agents/code-auditor, scope=deep)   — reasoning-heavy checks
     │
-    ├── INTEGRATION CHECK ─────────────────────────────
-    │   └── Explore subagent (exploration_focus="integration")
-    │       → traces consumers of modified exports/interfaces
-    │       → verifies contracts aren't broken
+    ├── IMPACT CHECK ──────────────────────────────────
+    │   └── Impact checker (.claude/agents/impact-checker)
+    │       → transitive consumer tracing (not just 1-hop)
+    │       → cross-boundary contracts (frontend ↔ functions ↔ rules)
+    │       → security rule cascade analysis
+    │       → navigation graph integrity
+    │       → config/flag dependency check
+    │       → data shape ripple check
+    │       → behavioral side effect detection
     │
     ├── OVERLAPPED FIX ────────────────────────────────
     │   ├── Fixer-A (.claude/agents/code-fixer)  — fixes quick findings (starts as soon as quick audit returns)
@@ -142,54 +147,43 @@ The orchestrator determines file overlap by extracting the `File:` field from ea
 
 Concatenate both reports into a single merged report for the user. Use the deep report's Scope Alignment section. Combine findings from both reports under the standard Blockers/Warnings/Nits/User Decision sections. Deduplicate any findings that appear in both (same file + same line range = duplicate; keep the higher-severity version).
 
-### Phase 3: Integration Check
+### Phase 3: Impact Check
 
-**Purpose:** Verify that the modified code integrates correctly with its consumers — components, services, and modules that import or depend on what changed. The spec audit checks "does the diff do what the issue asked?" — the integration check asks "does the diff break anything around it?"
+**Purpose:** Trace the full blast radius of the diff — every downstream effect, intended or not. The spec audit checks "is the diff correct?" The impact check asks "does the diff break or change anything beyond its immediate scope?" This catches the things that slip through code review: security rule cascades that gate unrelated features, shared utility behavior changes that ripple through 12 consumers, config keys that three features depend on.
 
-**3a. Extract modified interfaces**
+**3a. Launch impact checker**
 
-From the diff, identify:
-- **Modified exports** — functions, components, hooks, constants whose signature or return shape changed
-- **Modified props contracts** — components whose expected props changed (added required props, removed props, changed prop types)
-- **Modified data shapes** — objects/documents whose structure changed (new required fields, renamed fields, removed fields)
-- **Modified event/callback contracts** — handlers whose arguments or invocation patterns changed
+Spawn the **`impact-checker` agent** (`.claude/agents/impact-checker.md`) with:
+- **Diff:** The full diff from Phase 1 (`git diff dev...HEAD` + any uncommitted changes)
+- **Diff stat:** The file-level summary from Phase 1
+- **Linear issue context:** Title + acceptance criteria (so it can distinguish intended from unintended effects)
+- **Codebase overview:** The full text of `pep-os-overview.md` (already loaded in Phase 1)
 
-If none of the above apply (e.g., the diff is purely internal logic with no interface changes), skip to Phase 4.
+The impact checker runs 7 analysis phases internally:
+1. **Change classification** — categorizes every change by type (exports, props, data shapes, rules, config, navigation, CF contracts, utilities, hooks, services, styles)
+2. **Transitive consumer tracing** — follows dependency chains to leaf nodes, not just 1-hop
+3. **Security rule cascade analysis** — parses changed `match` blocks, maps ALL code paths hitting those paths, cross-references role/auth conditions
+4. **Navigation graph analysis** — builds screen transition graph, checks for broken edges and unreachable screens
+5. **Config/flag dependency check** — traces all usages of changed config keys across frontend, functions, and scripts
+6. **Data shape ripple check** — finds all readers of changed Firestore collections, checks field compatibility
+7. **Behavioral side effect detection** — identifies shared service/utility behavior changes where the interface is the same but the behavior is different
 
-**3b. Trace consumers**
+**3b. Process impact results**
 
-Spawn a `codebase-explorer` agent (`.claude/agents/codebase-explorer.md`) with:
-- `overview_content`: The full text of `pep-os-overview.md` (already loaded in Phase 1)
-- `target_areas`: Areas containing the modified files + areas likely to consume them
-- `issue_context`: "Integration check — trace consumers of: {list of modified exports/interfaces with their file paths}"
-- `exploration_focus`: `"integration"`
-- `specific_files`: Files from the diff that have modified interfaces
+The impact checker returns an Impact Analysis Report with findings in the standard audit report contract format (category: `impact`). Each finding includes an `Impact chain` field showing the dependency path from the change to the affected code.
 
-The explorer should:
-1. For each modified export/interface, grep for imports/usages across the codebase
-2. Read each consumer file at the relevant call sites
-3. Check whether the consumer's usage is still compatible with the new interface
-4. Report any mismatches
+Handle the verdict:
+- **NO_IMPACT** — no downstream effects. Skip to Phase 4.
+- **CONTAINED** — consumers traced, all compatible. Note in the PR body. Skip to Phase 4.
+- **HAS_IMPACT** — findings exist. Merge into the main audit report and proceed to Phase 4.
 
-**3c. Classify integration findings**
+**3c. Merge into findings**
 
-The explorer returns a structured list. The orchestrator classifies each as:
-
-| Finding type | Severity | Example |
-|---|---|---|
-| Consumer passes old prop that was renamed/removed | **Blocker** | `<Timeline showMedia={true}>` but prop was renamed to `mediaEnabled` |
-| Consumer doesn't handle a new required field/state | **Blocker** | Renderer doesn't handle new observation type, crashes on switch default |
-| Consumer works but ignores new optional capability | **Warning** | Timeline doesn't render new `caption` field, but doesn't crash |
-| Consumer uses deprecated pattern that still works | **Nit** | Old callback style still functions but new pattern is cleaner |
-| No consumers found (dead export) | **Warning** | Export is unused — possible dead code or future-use |
-
-**3d. Merge into findings**
-
-Integration findings are added to the merged audit report under the same Blockers/Warnings/Nits structure with category `integration`. They flow into the fix loop alongside audit findings.
+Impact findings are added to the merged audit report under the same Blockers/Warnings/Nits structure with category `impact`. They flow into the fix loop alongside audit findings. The orchestrator does NOT need to re-classify severity — the impact checker already applies the severity rules from the audit report contract.
 
 ### Phase 4: Process Results (Orchestrator)
 
-The orchestrator reads the merged audit report (now including integration findings) and decides next steps.
+The orchestrator reads the merged audit report (now including impact findings) and decides next steps.
 
 1. **Display the full merged report to the user** (audit + integration findings combined)
 
@@ -200,7 +194,7 @@ The orchestrator reads the merged audit report (now including integration findin
 
 3. **Check the merged verdict**
    - If all clean → proceed to Phase 6 (Version Bump)
-   - If findings exist → the fixers already started in Phase 2b for audit findings. For integration findings, spawn a fixer now. Then proceed to Phase 5 (Re-audit).
+   - If findings exist → the fixers already started in Phase 2b for audit findings. For impact findings, spawn a fixer now. Then proceed to Phase 5 (Re-audit).
 
 ### Phase 5: Re-audit Loop
 
@@ -343,7 +337,7 @@ Check whether the diff involves Firestore schema changes. Run this check automat
 
      ## Review
      - Independent audit: **passed** ({N} findings fixed in {N} iterations)
-     - Integration check: **passed** ({N} consumer contracts verified)
+     - Impact check: **{verdict}** ({N} downstream effects traced, {N} findings fixed)
      - {if user decisions were made, note them}
 
      ## Test Results
@@ -420,7 +414,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
    **Audit Summary:**
    - {N} findings found, {N} fixed across {N} iterations
-   - Integration check: {N} consumers verified, {N} issues found and fixed
+   - Impact check: {verdict} — {N} downstream effects traced, {N} findings fixed
    - Final verdict: CLEAN
    - {any user decisions made}
 
@@ -447,7 +441,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 - **Fresh session required:** This skill assumes it's running in a session that did NOT implement the code. The audit's value comes from independence.
 - **Subagents do the heavy lifting:** The orchestrator does NOT read the full diff itself. It passes the diff to the audit agent. This protects main context.
 - **Each audit is fresh:** Re-audits spawn a new audit agent. No memory of previous audits. This prevents the audit from becoming lenient after seeing fixes.
-- **Integration check is mandatory for interface changes:** If the diff modifies any export signatures, prop contracts, or data shapes, the integration check MUST run. It is not optional.
+- **Impact check always runs:** The impact checker runs on every diff. It conditionally skips internal phases (e.g., rule cascade analysis only runs if rules changed), but Phase 1 (change classification) and Phase 2 (transitive consumer tracing) always execute. If Phase 1 finds NO external-facing changes, the agent returns NO_IMPACT quickly.
 - **Max 3 fix iterations:** If 3 rounds of fix+audit don't resolve everything, stop and escalate to the user. Don't loop forever.
 - **Do not merge:** This skill opens a PR. It does NOT merge into `dev`. That's `/merge-issue`'s job.
 - **Do not invent test results:** Report actual test output. If tests weren't run, say so.
@@ -458,7 +452,7 @@ After the PR is opened, Devin (AI code reviewer) will automatically review it. T
 
 1. Linear issue fetched and used as source of truth for the audit
 2. Audit subagent produced a structured report following the contract format
-3. Integration check verified all consumers of modified interfaces
+3. Impact check traced all downstream effects (transitive consumers, cross-boundary contracts, rule cascades)
 4. All blockers and warnings were fixed (or user accepted remaining items)
 5. Final audit verdict is CLEAN
 6. Version bumped (or user chose skip) with changelog updated

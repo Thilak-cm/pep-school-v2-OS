@@ -38,6 +38,7 @@
 - `students/{studentId}/ai_summaries/monthly_plan/history/{YYYY-MM}_{timestamp}` // monthly plan archives (PEP-260)
 - `students/{studentId}/ai_summaries/weekly_snapshot`   // unified baseball card + signals + missing domains (PEP-229)
 - `students/{studentId}/ai_summaries/weekly_snapshot/history/{weekKey}` // weekly snapshot archives
+- `alerts/{alertId}`                                    // universal alert bus for DIP + Alerts page (PEP-296)
 - `feedback/{feedbackId}`
  - `config/{docId}`
 - `testbench/settings`                                 // test bench feature registry, defaults, global config
@@ -939,6 +940,49 @@ Migration/backfill (branches)
 - Add `branchId: 'hsr'` to all existing `classrooms`, `students`, and `observations`.
 - For `users` with role `teacher`, set `branchIds` based on assigned classrooms; for admins (super + program), optionally set `homeBranchId`.
 - Validate invariants and fix mismatches before enabling rules.
+
+---
+
+## 🔔 Alerts (`/alerts/{alertId}`)
+Purpose: Universal alert bus for the Dynamic Island Pill (DIP) and Alerts page (PEP-296). Any system — Cloud Functions, frontend (superadmin broadcasts), or future agents — can create alert docs. The DIP subscribes in realtime to docs with `dip: true`; the Alerts page reads the full collection.
+
+Doc IDs: Deterministic for CF-produced alerts to prevent duplicates on retries (e.g., `cf:interviewCap:teacherUid:2026-W23`). Auto-generated for frontend-created alerts (broadcasts).
+
+```typescript
+interface AlertDoc {
+  // Bus contract — required on every alert
+  type: 'redFlag' | 'interview' | 'broadcast' | 'system' | 'agent';
+  dip: boolean;                    // true = surfaces in Dynamic Island Pill
+  priority: number;                // DIP carousel sort order (lower = more urgent)
+  source: string;                  // producer ID (e.g., "cf:interviewScheduler", "admin:broadcast")
+  payload: Record<string, any>;    // type-specific raw data (see below)
+  createdAt: Timestamp;
+  createdBy: string;               // uid or system identifier
+
+  // Targeting — who sees this alert
+  targetRoles: string[];           // [] = all roles
+  targetClassrooms: string[];      // [] = all classrooms
+  targetTeachers: string[];        // [] = all matching roles
+
+  // Lifecycle
+  dismissedBy: Record<string, Timestamp>;  // { [uid]: Timestamp } — per-user ack
+  expiresAt: Timestamp | null;     // auto-hide after this time; cleanup CF deletes weekly
+}
+```
+
+Type-specific payloads:
+- `interview`: `{ studentName, interviewTime, classroomName, prepStatus, studentId }`
+- `broadcast`: `{ message, senderName, audience }`
+- `system`: `{ message, severity, detail }`
+- `agent`: `{ message, detail }`
+
+Display contract: NOT stored in Firestore. The DIP component transforms `type` + `payload` into display fields (`label`, `title`, `subtitle`, `ctaLabel`, etc.) at read time via `transformForDisplay()`. This allows display changes via frontend deploy without data migration.
+
+Security rules:
+- **Read**: any authenticated user (`isSignedIn()`)
+- **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
+- **Update**: any authenticated user, restricted to `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
+- **Delete**: denied for clients; cleanup CF uses admin SDK
 
 ---
 

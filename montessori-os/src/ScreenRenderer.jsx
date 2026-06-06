@@ -59,11 +59,15 @@ function renderScreen(screen, ctx) {
           onNavigateToFeedbackDashboard={() => ctx.setScreen("feedbackTimeline")}
           onNavigateToFeedback={() => { ctx.setFeedbackReturnScreen?.(null); ctx.setScreen("feedback"); }}
           onNavigateToClassroomNotes={() => ctx.setScreen("classroomNotesReview")}
-          onNavigate={(path) => {
+          // TODO: ctaParams (alertId, etc.) not yet consumed — deep-linking to specific alerts is a follow-up
+          onNavigate={(path, _params) => {
             if (path === "/stats") ctx.setScreen("stats");
             else if (path === "/addUser") ctx.setScreen("addUser");
             else if (path === "/aliases") ctx.setScreen("studentAliases");
             else if (path === "/config" && ctx.isSuperAdminUser) ctx.setScreen("config");
+            // DIP alert CTA routing (PEP-296)
+            else if (path === "alerts") ctx.setScreen("alerts");
+            else if (path === "interviews") ctx.setScreen("interviews");
           }}
           onNavigateToStudent={({ studentId, studentName, classroomId }) => {
             ctx.setSelectedStudent({ id: studentId, displayName: studentName, classroomId });

@@ -73,11 +73,12 @@ Every individual finding (blocker, warning, nit, or user-decision) MUST use this
 ```markdown
 #### {SHORT_TITLE}
 - **File:** `{file_path}:{start_line}-{end_line}`
-- **Category:** correctness | security | error-handling | dead-code | pattern-violation | test-gap | scope
+- **Category:** correctness | security | error-handling | dead-code | pattern-violation | test-gap | scope | impact
 - **What's wrong:** {1-2 sentence description of the actual problem}
 - **Why it matters:** {1 sentence on impact — what breaks, what's exposed, what regresses}
 - **Suggested fix:** {Concrete, actionable instruction. NOT vague. Include the specific change needed.}
 - **Reference pattern:** `{file_path}:{line}` — {brief description of existing code that shows the correct pattern}
+- **Impact chain:** `{source} → {intermediate} → {affected}` — {only for category: impact — the dependency path connecting the change to this finding}
 ```
 
 ### Field Rules
@@ -90,6 +91,7 @@ Every individual finding (blocker, warning, nit, or user-decision) MUST use this
 | Why it matters | Always | Explains severity. Helps the orchestrator validate severity classification. |
 | Suggested fix | Always | For blockers/warnings: a specific code-level instruction. For user-decisions: describe the tradeoff. |
 | Reference pattern | If exists | Point to existing code in the repo that demonstrates the correct approach. Massively helps the fix agent. Omit only if no reference exists. |
+| Impact chain | If category=impact | The dependency path from the changed code to the affected code (e.g., `roleUtils.js → AdminPanel.jsx → UserRow.jsx`). Required for impact findings, omit for all others. |
 
 ## Categories Explained
 
@@ -102,6 +104,7 @@ Every individual finding (blocker, warning, nit, or user-decision) MUST use this
 | **pattern-violation** | Deviates from established codebase patterns (e.g., uses local state where codebase uses context, skips SaveQueue, inconsistent naming) |
 | **test-gap** | Acceptance criterion lacks test coverage, edge case not tested, test assertions too weak |
 | **scope** | Under-delivery (missing AC) or scope creep (unjustified change). These go in Scope Alignment, not Findings. |
+| **impact** | Downstream effects on code outside the diff — broken consumers, security rule cascades, data shape ripples, navigation graph breaks, config dependency conflicts, behavioral side effects in shared services. Produced by the impact-checker agent, not the code-auditor. |
 
 ## Severity Classification Rules
 
@@ -113,6 +116,11 @@ The audit agent MUST classify each finding using these rules:
 - Any `scope` finding where an acceptance criterion is missing (under-delivery)
 - Any `test-gap` where an acceptance criterion has zero test coverage
 - Any `error-handling` issue that causes silent data loss
+- Any `impact` finding where a consumer calls a changed function/component with an incompatible signature
+- Any `impact` finding where a security rule change silently denies access to an unrelated feature
+- Any `impact` finding where a required Firestore field is added but existing readers don't handle it
+- Any `impact` finding where a navigation edge is broken, making a screen unreachable
+- Any `impact` finding where a Cloud Function response shape changed but the frontend reads old fields
 
 **Warning** — should fix, real problem:
 - `correctness` bugs in edge cases (non-happy-path)
@@ -120,17 +128,28 @@ The audit agent MUST classify each finding using these rules:
 - `pattern-violation` that makes the code inconsistent with surrounding code
 - `dead-code` that's clearly debug artifacts (console.log, commented blocks)
 - `test-gap` where edge cases aren't covered (but happy path is)
+- `impact` findings where a consumer works but ignores a new optional capability
+- `impact` findings where a behavioral change in a shared service might affect consumers (uncertain)
+- `impact` findings where a config key changed but some consumers use cached/stale values
+- `impact` findings where a dead export is discovered (nothing imports it)
+- `impact` findings where storage rules are approaching the 2-`firestore.get()` budget
 
 **Nit** — optional, cosmetic:
 - Minor naming inconsistencies
 - Slightly verbose code that could be cleaner
 - Style preferences not enforced by linter
+- `impact` findings where a consumer uses a deprecated pattern that still works
+- `impact` findings where a styling change slightly affects a different component
 
 **Needs User Decision** — cannot be resolved by the fix agent:
 - Scope creep that might be intentional (the user may want the extra change)
 - Architectural choices with genuine tradeoffs (e.g., "this works but doesn't follow the pattern used elsewhere — intentional?")
 - Missing acceptance criteria that suggest the issue description is incomplete
 - Performance tradeoffs (e.g., "this adds a Firestore read per render — acceptable?")
+- `impact` findings where the diff affects a feature it doesn't seem to intend to modify — is this intentional?
+- `impact` findings where a behavioral side effect could go either way depending on product intent
+- `impact` findings where a security rule change loosens access — intentional or accidental?
+- `impact` findings where a data shape change requires a migration for existing documents
 
 ## Verdict Rules
 
