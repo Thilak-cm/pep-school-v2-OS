@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      - dev
+      - alt-dev
     paths:
       - 'firestore.rules'
       - 'storage.rules'
@@ -12,6 +14,8 @@ on:
   pull_request:
     branches:
       - master
+      - dev
+      - alt-dev
     paths:
       - 'firestore.rules'
       - 'storage.rules'
