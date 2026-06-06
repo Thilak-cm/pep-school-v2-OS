@@ -1,5 +1,22 @@
 # Changelog
 
+# 10.34.0 — 2026-06-05
+
+### Added
+- Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
+- DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
+- Transform-at-read display contract — `transformForDisplay()` maps alert type + payload into DIP display shape, evolves with frontend deploys without data migration (PEP-296)
+- Client-side targeting filter — alerts scoped by `targetRoles`, `targetClassrooms`, `targetTeachers` fields (PEP-296)
+- `dismissAlert()` frontend utility with per-user acknowledgment via `dismissedBy` map (PEP-296)
+- `createAlert()` Cloud Function helper with deterministic doc IDs for idempotent upserts (PEP-296)
+- `cleanupExpiredAlerts` scheduled CF — runs weekly, deletes expired alerts with 500-doc batch chunking (PEP-296)
+- Firestore security rules for `alerts/{alertId}` with uid-scoped `dismissedBy` map-key constraint (PEP-296)
+
+### Changed
+- DIP carousel changed from infinite loop to clamped bounce — auto-rotation ping-pongs between first and last alert (PEP-296)
+- DIP timer increased to 10 seconds between transitions (PEP-296)
+- Removed `DEV_MOCK_ALERTS` and all mock data from DynamicIslandPill (PEP-296)
+
 # 10.33.0 — 2026-06-04
 
 ### Added
