@@ -491,7 +491,7 @@ export const regenerateBaseballCardForStudent = functions
 export const generateBaseballCards = functions
   .region("asia-south1")
   .runWith({ timeoutSeconds: 540, memory: "1GB", secrets: [OPENAI_API_KEY] })
-  .pubsub.schedule("0 0 * * 1")
+  .pubsub.schedule("0 0 * * 0")
   .timeZone(BASEBALL_CARD_DEFAULTS.timezone)
   .onRun(async () => {
     const openAiKey = getOpenAiKey();
