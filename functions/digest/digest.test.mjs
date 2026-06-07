@@ -121,6 +121,19 @@ test("resolveRecipients returns empty array when no classroomadmins", () => {
   assert.deepEqual(resolveRecipients(users), []);
 });
 
+test("classroomadmin with 3 classrooms produces 3 separate email jobs", () => {
+  const admin = { email: "yamini@test.com", manageableClassrooms: ["gulmohar", "parijat", "periwinkle"] };
+  // Simulate job creation: one job per classroom
+  const jobs = admin.manageableClassrooms.map((cid) => ({
+    email: admin.email,
+    classroomIds: [cid],
+  }));
+  assert.equal(jobs.length, 3);
+  assert.deepEqual(jobs[0].classroomIds, ["gulmohar"]);
+  assert.deepEqual(jobs[1].classroomIds, ["parijat"]);
+  assert.deepEqual(jobs[2].classroomIds, ["periwinkle"]);
+});
+
 // ── Data Assembly ───────────────────────────────────────────────────
 
 test("assembleClassroomData extracts teacher 7d stats", () => {

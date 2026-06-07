@@ -146,13 +146,27 @@ async function fetchDigestConfig() {
   };
 }
 
-async function fetchRecipients() {
+async function fetchClassroomAdminRecipients() {
   const snap = await db
     .collection("users")
     .where("role", "==", "classroomadmin")
     .where("status", "==", "active")
     .get();
   return resolveRecipients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+}
+
+async function fetchSuperAdminRecipients() {
+  const snap = await db
+    .collection("users")
+    .where("role", "==", "superadmin")
+    .where("status", "==", "active")
+    .get();
+  return snap.docs
+    .filter((d) => {
+      const data = d.data();
+      return data.email && !data.isPending;
+    })
+    .map((d) => ({ id: d.id, ...d.data() }));
 }
 
 async function fetchStatsCacheDocs(classroomIds) {
@@ -310,7 +324,7 @@ export const weeklyDigest = functions
     memory: "512MB",
     secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY],
   })
-  .pubsub.schedule("0 8 * * 1") // Monday 8:00 AM IST (placeholder — TBD)
+  .pubsub.schedule("0 18 * * 0") // Sunday 6:00 PM IST
   .timeZone("Asia/Kolkata")
   .onRun(async () => {
     const langfuse = new Langfuse();
@@ -321,41 +335,50 @@ export const weeklyDigest = functions
     });
 
     try {
-      // 1. Trigger stats recompute for fresh data
-      trace.span({ name: "recompute-stats-trigger" });
-      // Note: recomputeStats is a callable CF — invoke it internally
-      // by calling the same logic. For now, we read statsCache directly
-      // since the scheduled baseball card CF runs Sunday 00:00 and
-      // stats are refreshed when anyone opens the Stats page.
-      // TODO: Add direct recomputeStats invocation here.
-
-      // 2. Fetch config
+      // 1. Fetch config
       const config = await fetchDigestConfig();
       trace.span({ name: "config-loaded", input: {
         model: config.model,
         temperature: config.temperature,
       }});
 
-      // 3. Resolve recipients
-      const recipients = await fetchRecipients();
+      // 2. Resolve recipients (both roles)
+      const [classroomAdmins, superAdmins] = await Promise.all([
+        fetchClassroomAdminRecipients(),
+        fetchSuperAdminRecipients(),
+      ]);
       trace.span({
         name: "recipients-resolved",
-        metadata: { count: recipients.length },
+        metadata: {
+          classroomAdmins: classroomAdmins.length,
+          superAdmins: superAdmins.length,
+        },
       });
 
-      if (recipients.length === 0) {
+      if (classroomAdmins.length === 0 && superAdmins.length === 0) {
         console.log("[weeklyDigest] No recipients found, skipping.");
         trace.update({ output: "No recipients" });
         await langfuse.flushAsync();
         return null;
       }
 
-      // 4. Collect all unique classrooms across recipients
+      // 3. Collect all unique classrooms across all recipients
+      const adminClassroomIds = [
+        ...new Set(classroomAdmins.flatMap((r) => r.manageableClassrooms)),
+      ];
+      // Superadmins need ALL active classrooms
+      const allClassroomsSnap = await db
+        .collection("classrooms")
+        .where("status", "==", "active")
+        .get();
       const allClassroomIds = [
-        ...new Set(recipients.flatMap((r) => r.manageableClassrooms)),
+        ...new Set([
+          ...adminClassroomIds,
+          ...allClassroomsSnap.docs.map((d) => d.id),
+        ]),
       ];
 
-      // 5. Fetch data
+      // 4. Fetch data
       const dataSpan = trace.span({ name: "data-assembly" });
       const studentClassroomMap =
         await fetchStudentClassroomMap(allClassroomIds);
@@ -365,74 +388,85 @@ export const weeklyDigest = functions
       ]);
       dataSpan.end();
 
-      // 6. Per recipient: assemble data → call agent → send email
       let sentCount = 0;
       let errorCount = 0;
 
-      await runWithConcurrency(
-        recipients,
-        async (recipient) => {
-          const recipientSpan = trace.span({
-            name: `recipient-${recipient.email}`,
-            input: {
-              classrooms: recipient.manageableClassrooms,
-            },
-          });
-
-          try {
-            // Assemble per-classroom data for this recipient
-            const classroomDataList = recipient.manageableClassrooms.map(
-              (cid) =>
-                assembleClassroomData(
-                  cid,
-                  statsDocs.get(cid) || null,
-                  escalationsByClassroom.get(cid) || []
-                )
-            );
-
-            const agentContext = buildAgentContext(classroomDataList);
-
-            // Call LLM
-            const emailBody = await generateDigestEmail(
-              config.systemPrompt,
-              agentContext,
-              config,
-              recipientSpan
-            );
-
-            // Determine subject line
-            const hasAnyRedFlags = classroomDataList.some(
-              (cd) => cd.hasRedFlags
-            );
-            const subject = hasAnyRedFlags
-              ? "⚠️ Weekly Classroom Digest — Action Required"
+      // Helper: generate + send one digest email
+      const sendDigest = async (email, classroomIds, label, parentSpan) => {
+        const span = parentSpan.span({
+          name: label,
+          input: { classrooms: classroomIds },
+        });
+        try {
+          const classroomDataList = classroomIds.map((cid) =>
+            assembleClassroomData(
+              cid,
+              statsDocs.get(cid) || null,
+              escalationsByClassroom.get(cid) || []
+            )
+          );
+          const agentContext = buildAgentContext(classroomDataList);
+          const emailBody = await generateDigestEmail(
+            config.systemPrompt,
+            agentContext,
+            config,
+            span
+          );
+          const hasAnyRedFlags = classroomDataList.some(
+            (cd) => cd.hasRedFlags
+          );
+          const classroomName = classroomDataList.length === 1
+            ? classroomDataList[0].classroomName
+            : null;
+          const subject = hasAnyRedFlags
+            ? classroomName
+              ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
+              : "⚠️ Weekly Classroom Digest — Action Required"
+            : classroomName
+              ? `${classroomName} — Weekly Digest`
               : "Weekly Classroom Digest";
 
-            // Send email
-            await sendEmail({
-              to: recipient.email,
-              subject,
-              html: emailBody,
-            });
+          await sendEmail({ to: email, subject, html: emailBody });
+          span.end({ output: "sent" });
+          sentCount++;
+        } catch (err) {
+          console.error(`[weeklyDigest] Error for ${email} (${label}):`, err.message);
+          span.end({ output: err.message, level: "ERROR" });
+          errorCount++;
+        }
+      };
 
-            recipientSpan.end({ output: "sent" });
-            sentCount++;
-          } catch (err) {
-            console.error(
-              `[weeklyDigest] Error for ${recipient.email}:`,
-              err.message
-            );
-            recipientSpan.end({
-              output: err.message,
-              level: "ERROR",
-            });
-            errorCount++;
-          }
-        },
-        3 // concurrency limit
+      // 5. Classroomadmins: one email PER classroom
+      const adminJobs = [];
+      for (const admin of classroomAdmins) {
+        for (const cid of admin.manageableClassrooms) {
+          adminJobs.push({ email: admin.email, classroomIds: [cid], label: `admin-${admin.email}-${cid}` });
+        }
+      }
+      const adminSpan = trace.span({ name: "classroomadmin-digests", metadata: { jobCount: adminJobs.length } });
+      await runWithConcurrency(
+        adminJobs,
+        (job) => sendDigest(job.email, job.classroomIds, job.label, adminSpan),
+        3
       );
+      adminSpan.end();
 
-      const summary = { sentCount, errorCount, recipientCount: recipients.length };
+      // 6. Superadmins: one consolidated email with ALL classrooms
+      const allActiveClassroomIds = allClassroomsSnap.docs.map((d) => d.id);
+      const superSpan = trace.span({ name: "superadmin-digests", metadata: { count: superAdmins.length } });
+      await runWithConcurrency(
+        superAdmins,
+        (sa) => sendDigest(sa.email, allActiveClassroomIds, `super-${sa.email}`, superSpan),
+        3
+      );
+      superSpan.end();
+
+      const summary = {
+        sentCount,
+        errorCount,
+        classroomAdminEmails: adminJobs.length,
+        superAdminEmails: superAdmins.length,
+      };
       console.log("[weeklyDigest] Complete:", JSON.stringify(summary));
       trace.update({ output: summary });
       await langfuse.flushAsync();
