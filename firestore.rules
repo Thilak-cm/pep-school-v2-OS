@@ -84,9 +84,13 @@ service cloud.firestore {
         (isClassroomAdmin() && request.resource.data.role == 'teacher');
       
       allow update: if
+        // Branch 1: Superadmin can update any user doc
         (isSuperAdmin() && isValidAdminPayload(request.resource.data)) ||
+        // Branch 2: Classroomadmin can manage teacher profiles (not their own doc)
         (isClassroomAdmin() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher') ||
-        (isSelf() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher' &&
+        // Branch 3: Self-update — safe fields only, no role change
+        (isSelf() && resource.data.role in ['teacher', 'classroomadmin'] &&
+          request.resource.data.role == resource.data.role &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'displayName', 'photoURL', 'status', 'lastLoginAt', 'updatedAt', 'studentAliases', 'fcmToken', 'notificationPreferences'
           ]));
