@@ -11,9 +11,12 @@ import {
   IconButton,
   Tooltip,
   Popover,
-  InputBase
+  InputBase,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { Flag as FlagRounded, TriangleAlert as WarningIcon, RefreshCw as Refresh, CircleCheck as CheckCircle, Info as InfoOutlined, Search, ChevronRight, X as CloseIcon } from '../icons';
+import MiniTangram from './ui/MiniTangram';
 import { collectionGroup, collection, query, where, getDocs, doc, getDoc, documentId, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, cloudFunctions } from '../firebase';
@@ -24,6 +27,7 @@ import SnapshotCard from './SnapshotCard';
 import { reportCaughtError } from '../utils/reportCaughtError.js';
 import { friendlyFunctionError } from '../utils/cloudFunctionErrors';
 import { FLAG_SORT_ORDER, flagSortValue, severityToFlag } from '../utils/heatmapUtils.js';
+import { useHeatmapCache } from '../hooks/useHeatmapCache.js';
 
 // ── Week label helper ───────────────────────────────────────────────────────
 
@@ -189,12 +193,17 @@ function NotificationsPage() {
   const [accessLoaded, setAccessLoaded] = useState(false);
   const weekKey = getIstIsoWeekKey();
 
+  // Heatmap cache (PEP-303) — reads from statsCache/heatmap_* docs
+  const { heatmapDocs, loading: cacheLoading } = useHeatmapCache({
+    role: currentRole, accessibleClassrooms, accessLoaded,
+  });
+
   // Heatmap-specific state
   const [weekHistoryMap, setWeekHistoryMap] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [hoveredStudentId, setHoveredStudentId] = useState(null);
-  const searchInputRef = useRef(null);
+  const [selectedClassroom, setSelectedClassroom] = useState('all');
+  const [classroomMeta, setClassroomMeta] = useState({});  // { id: { name, color } }
 
   // Baseball card / modal state
   const [expandedStudentId, setExpandedStudentId] = useState(null);
@@ -293,6 +302,45 @@ function NotificationsPage() {
     return () => { active = false; };
   }, []);
 
+  // ── Fetch classroom metadata (name + color) for the dropdown ──────────────
+
+  useEffect(() => {
+    let active = true;
+    const loadClassroomMeta = async () => {
+      try {
+        if (!accessLoaded) return;
+        const ids = accessibleClassrooms.length > 0 ? accessibleClassrooms : [];
+        let classroomDocs;
+        if (ids.length > 0) {
+          // Batch fetch in groups of 30 (Firestore 'in' limit)
+          const batches = [];
+          for (let i = 0; i < ids.length; i += 30) {
+            batches.push(getDocs(query(collection(db, 'classrooms'), where(documentId(), 'in', ids.slice(i, i + 30)))));
+          }
+          const snaps = await Promise.all(batches);
+          classroomDocs = snaps.flatMap((s) => s.docs);
+        } else if (currentRole === 'superadmin') {
+          const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
+          classroomDocs = snap.docs;
+        } else {
+          classroomDocs = [];
+        }
+        if (!active) return;
+        const meta = {};
+        for (const d of classroomDocs) {
+          const data = d.data() || {};
+          if ((data.status || 'active') === 'archived') continue;
+          meta[d.id] = { name: data.name || d.id, color: data.color || null };
+        }
+        setClassroomMeta(meta);
+      } catch {
+        // Non-critical — dropdown will fall back to classroomId strings
+      }
+    };
+    loadClassroomMeta();
+    return () => { active = false; };
+  }, [accessLoaded, currentRole, accessibleClassrooms]);
+
   // ── Fetch DOB when modal opens ────────────────────────────────────────────
 
   useEffect(() => {
@@ -311,21 +359,61 @@ function NotificationsPage() {
     return () => { active = false; };
   }, [expandedStudentId]);
 
-  // ── Fetch signals + week history ──────────────────────────────────────────
+  // ── Build signals + week history from heatmap cache or legacy fetch ───────
 
   useEffect(() => {
+    if (!accessLoaded || cacheLoading) return;
+
+    // ── Fast path: build from heatmap cache docs (PEP-303) ──────────────
+    if (heatmapDocs.length > 0) {
+      const pastKeys = getPastWeekKeys(5);
+      const allWeekKeys = [...pastKeys, weekKey];
+      const builtSignals = [];
+      const builtStudentInfo = {};
+      const builtHistoryMap = {};
+
+      for (const cacheDoc of heatmapDocs) {
+        const roster = Array.isArray(cacheDoc.roster) ? cacheDoc.roster : [];
+        for (const row of roster) {
+          const sid = row.studentId;
+          builtStudentInfo[sid] = { name: row.displayName, classroomId: row.classroomId };
+          builtHistoryMap[sid] = {};
+          const weeks = Array.isArray(row.weeks) ? row.weeks : [];
+          for (let i = 0; i < allWeekKeys.length; i++) {
+            builtHistoryMap[sid][allWeekKeys[i]] = weeks[i] ?? null;
+          }
+          // Build a minimal signal entry for current-week derived data
+          const currentSeverity = weeks[weeks.length - 1] || null;
+          if (currentSeverity) {
+            builtSignals.push({
+              studentId: sid,
+              severity: currentSeverity,
+              escalatedThisWeek: !!row.escalatedThisWeek,
+              improvedThisWeek: !!row.improvedThisWeek,
+            });
+          }
+        }
+      }
+
+      setSignals(builtSignals);
+      setStudentInfo(builtStudentInfo);
+      setWeekHistoryMap(builtHistoryMap);
+      setLoading(false);
+      return;
+    }
+
+    // ── Legacy path: direct Firestore reads (fallback when cache empty) ──
     let active = true;
     const fetchSignals = async () => {
       try {
         const uid = auth?.currentUser?.uid;
         if (!uid) { setLoading(false); return; }
-        if (!accessLoaded) return;
         setLoading(true);
         setError('');
 
         const cacheKey = buildCacheKey(uid, weekKey, currentRole, accessibleClassrooms);
 
-        // Try cache
+        // Try localStorage cache
         const cachedSignals = getCachedData(cacheKey, 'signals');
         const cachedStudentInfo = getCachedData(cacheKey, 'studentInfo');
         const cachedWeekHistory = getCachedData(cacheKey, 'weekHistory');
@@ -338,16 +426,12 @@ function NotificationsPage() {
           return;
         }
 
-        // Two fetch paths:
-        // - Privileged admins: collectionGroup query (passes isPrivilegedAdmin() rule)
-        // - Teachers: direct doc reads per student (passes isTeacherInClassroom() rule)
         const isPrivileged = currentRole === 'superadmin' || currentRole === 'classroomadmin';
 
         let filteredSignals;
         let filteredStudentInfo;
 
         if (isPrivileged) {
-          // Admin path: collectionGroup query
           const signalsQuery = query(
             collectionGroup(db, 'ai_summaries'),
             where('weekKey', '==', weekKey)
@@ -368,7 +452,6 @@ function NotificationsPage() {
               };
             });
 
-          // Fetch student info
           const uniqueIds = Array.from(new Set(rows.map((r) => r.studentId).filter(Boolean)));
           const nameEntries = await Promise.all(uniqueIds.map(async (sid) => {
             try {
@@ -381,20 +464,16 @@ function NotificationsPage() {
           }));
           const studentInfoMap = Object.fromEntries(nameEntries);
 
-          // Scope classroomadmins to their classrooms (superadmins see all)
           filteredSignals = currentRole === 'superadmin' ? rows : rows.filter((r) => {
             const cid = studentInfoMap[r.studentId]?.classroomId;
             return cid && accessibleClassrooms.includes(cid);
           });
 
-          // Exclude inactive students
           filteredSignals = filteredSignals.filter((r) => {
             const info = studentInfoMap[r.studentId];
             return !info || (info.status || 'active') === 'active';
           });
 
-          // Also fetch all active students from covered classrooms so students
-          // without a current snapshot still appear in the heatmap.
           const coveredClassrooms = Array.from(
             new Set(Object.values(studentInfoMap).map((i) => i.classroomId).filter(Boolean))
           );
@@ -420,7 +499,6 @@ function NotificationsPage() {
             }
           }
 
-          // filteredStudentInfo includes ALL active students (with and without snapshots)
           filteredStudentInfo = Object.fromEntries(
             Object.entries(studentInfoMap).filter(([sid]) => {
               const info = studentInfoMap[sid];
@@ -430,13 +508,11 @@ function NotificationsPage() {
             })
           );
         } else {
-          // Teacher path: get students in accessible classrooms, read snapshots directly
           const scopedClassrooms = Array.isArray(accessibleClassrooms) ? accessibleClassrooms : [];
           if (scopedClassrooms.length === 0) {
             filteredSignals = [];
             filteredStudentInfo = {};
           } else {
-            // Fetch students in teacher's classrooms
             const studentSnaps = await Promise.all(
               scopedClassrooms.map((cid) =>
                 getDocs(query(collection(db, 'students'), where('classroomId', '==', cid), where('status', '==', 'active')))
@@ -455,7 +531,6 @@ function NotificationsPage() {
               }
             }
 
-            // Read each student's weekly_snapshot directly (Path 1 rule)
             const rows = await Promise.all(studentIds.map(async (sid) => {
               try {
                 const snapRef = doc(db, 'students', sid, 'ai_summaries', 'weekly_snapshot');
@@ -477,41 +552,34 @@ function NotificationsPage() {
           }
         }
 
-        // allowedIds = ALL active students (with or without a current snapshot)
         const allowedIds = new Set(Object.keys(filteredStudentInfo));
         const filteredStudentInfoFinal = { ...filteredStudentInfo };
 
-        // Fetch 5 past week histories
         const pastKeys = getPastWeekKeys(5);
         const historyMap = {};
-        // Initialize all students with empty history
         for (const sid of allowedIds) {
           historyMap[sid] = {};
         }
 
-        // Batch fetch past weekly snapshots from history subcollections
         await Promise.all(Array.from(allowedIds).map(async (sid) => {
           try {
             const historyRef = collection(db, 'students', sid, 'ai_summaries', 'weekly_snapshot', 'history');
             const historySnap = await getDocs(query(historyRef, where(documentId(), 'in', pastKeys)));
             for (const hDoc of historySnap.docs) {
               const hData = hDoc.data() || {};
-              // no_notes = student had no observations that week → show as empty
               historyMap[sid][hDoc.id] = hData.status === 'no_notes' ? null : (hData.severity || 'clear');
             }
           } catch {
-            // Swallow — missing history is expected for new students
+            // Missing history is expected for new students
           }
         }));
 
-        // Add current week
         for (const sig of filteredSignals) {
           if (sig.studentId && historyMap[sig.studentId]) {
             historyMap[sig.studentId][weekKey] = sig.status === 'no_notes' ? null : (sig.severity || 'clear');
           }
         }
 
-        // Cache
         setCachedData(cacheKey, 'signals', filteredSignals);
         setCachedData(cacheKey, 'studentInfo', filteredStudentInfoFinal);
         setCachedData(cacheKey, 'weekHistory', historyMap);
@@ -529,7 +597,7 @@ function NotificationsPage() {
 
     fetchSignals();
     return () => { active = false; };
-  }, [weekKey, accessLoaded, currentRole, accessibleClassrooms]);
+  }, [weekKey, accessLoaded, currentRole, accessibleClassrooms, cacheLoading, heatmapDocs]);
 
   // ── Load baseball card data for modal ─────────────────────────────────────
 
@@ -669,9 +737,13 @@ function NotificationsPage() {
   const pastKeys = getPastWeekKeys(5);
   const allWeekKeys = [...pastKeys, weekKey];
 
-  const escalatedCount = signals.filter((s) => s.escalatedThisWeek).length;
-  const improvedCount = signals.filter((s) => s.improvedThisWeek).length;
-  const steadyCount = signals.length - escalatedCount - improvedCount;
+  // Trend counts are computed after classroom filter so they reflect the visible set
+  const classroomScopedSignals = selectedClassroom === 'all'
+    ? signals
+    : signals.filter((s) => studentInfo[s.studentId]?.classroomId === selectedClassroom);
+  const escalatedCount = classroomScopedSignals.filter((s) => s.escalatedThisWeek).length;
+  const improvedCount = classroomScopedSignals.filter((s) => s.improvedThisWeek).length;
+  const steadyCount = classroomScopedSignals.length - escalatedCount - improvedCount;
 
   // Build roster from ALL students (not just those with signals)
   const signalsBySid = {};
@@ -719,9 +791,21 @@ function NotificationsPage() {
       return a.displayName.localeCompare(b.displayName);
     });
 
+  const classroomFilteredRoster = selectedClassroom === 'all'
+    ? roster
+    : roster.filter((s) => s.classroomId === selectedClassroom);
+
   const filteredRoster = searchQuery.trim()
-    ? roster.filter((s) => s.displayName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-    : roster;
+    ? classroomFilteredRoster.filter((s) => s.displayName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : classroomFilteredRoster;
+
+  // Derive classroom options from the roster (only classrooms that have students)
+  const classroomOptions = (() => {
+    const ids = new Set(roster.map((s) => s.classroomId).filter(Boolean));
+    return Array.from(ids)
+      .map((id) => ({ id, name: classroomMeta[id]?.name || id, color: classroomMeta[id]?.color || null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })();
 
   const getStudentName = (studentId) => (studentInfo[studentId]?.name || studentId);
 
@@ -1040,6 +1124,70 @@ function NotificationsPage() {
         </Box>
       ) : (
         <>
+          {/* ── Search + Classroom filter toolbar ──────────────────────── */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Persistent search field */}
+            <Box sx={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', gap: 1,
+              backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '10px',
+              px: '11px', py: '8px',
+            }}>
+              <Search size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
+              <InputBase
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Look up a student…"
+                fullWidth
+                sx={{ fontSize: '12.5px', '& input': { p: 0 } }}
+              />
+              {searchQuery && (
+                <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
+                  <CloseIcon size={13} />
+                </IconButton>
+              )}
+            </Box>
+
+            {/* Classroom dropdown */}
+            {classroomOptions.length > 1 && (
+              <Select
+                value={selectedClassroom}
+                onChange={(e) => setSelectedClassroom(e.target.value)}
+                size="small"
+                displayEmpty
+                renderValue={(value) => {
+                  if (value === 'all') return 'All classrooms';
+                  const opt = classroomOptions.find((c) => c.id === value);
+                  return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      {opt?.color && <MiniTangram size={16} color={opt.color} />}
+                      <span>{opt?.name || value}</span>
+                    </Box>
+                  );
+                }}
+                sx={{
+                  minWidth: 160,
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--color-paper)',
+                  borderRadius: '10px',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border)' },
+                  '& .MuiSelect-select': { py: '8px', display: 'flex', alignItems: 'center' },
+                }}
+              >
+                <MenuItem value="all" sx={{ fontSize: '12.5px', fontWeight: 600 }}>
+                  All classrooms
+                </MenuItem>
+                {classroomOptions.map((c) => (
+                  <MenuItem key={c.id} value={c.id} sx={{ fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    {c.color && <MiniTangram size={16} color={c.color} />}
+                    {c.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+          </Box>
+
           {/* ── Heatmap card ────────────────────────────────────────────── */}
           <Box sx={{
             backgroundColor: 'var(--color-paper)',
@@ -1057,51 +1205,9 @@ function NotificationsPage() {
                   LAST 6 WEEKS
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', color: 'var(--grey-300)' }}>
-                  {filteredRoster.length}
-                </Typography>
-                <IconButton size="small" onClick={() => {
-                  if (searchOpen) { setSearchQuery(''); setSearchOpen(false); }
-                  else { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50); }
-                }}
-                  sx={{ p: 0.5, color: searchOpen ? 'var(--color-primary-light)' : 'var(--color-text-faint)' }}
-                >
-                  {searchOpen ? <CloseIcon size={16} /> : <Search size={16} />}
-                </IconButton>
-              </Box>
-            </Box>
-
-            {/* Search row (expandable with smooth transition) */}
-            <Box sx={{
-              height: searchOpen ? 44 : 0,
-              transition: 'height 280ms ease',
-              overflow: 'hidden',
-              mb: searchOpen ? 1 : 0,
-            }}>
-              <Box sx={{
-                opacity: searchOpen ? 1 : 0,
-                transition: 'opacity 250ms ease 80ms',
-                display: 'flex', alignItems: 'center', gap: 1,
-                backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '10px',
-                px: '11px', py: '8px',
-              }}>
-                <Search size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} />
-                <InputBase
-                  inputRef={searchInputRef}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Look up a student…"
-                  fullWidth
-                  sx={{ fontSize: '12.5px', '& input': { p: 0 } }}
-                  onBlur={() => { if (!searchQuery.trim()) setSearchOpen(false); }}
-                />
-                {searchQuery && (
-                  <IconButton size="small" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} sx={{ p: 0.25 }}>
-                    <CloseIcon size={13} />
-                  </IconButton>
-                )}
-              </Box>
+              <Typography sx={{ fontFamily: 'var(--f-mono, monospace)', fontSize: '9px', color: 'var(--grey-300)' }}>
+                {filteredRoster.length}
+              </Typography>
             </Box>
 
             {/* Trend summary */}
