@@ -194,7 +194,7 @@ async function archivePreviousDigest(digestRef, weekKey) {
 
 // ── CF 1: Per-Classroom Digest ──────────────────────────────────────
 
-export const weeklyDigest = functions
+export const weeklyDigestClassroomAdmin = functions
   .region("asia-south1")
   .runWith({
     timeoutSeconds: 540,
@@ -347,7 +347,7 @@ export const weeklyDigest = functions
             digestCount++;
           } catch (err) {
             console.error(
-              `[weeklyDigest] Error for ${classroom.id}:`,
+              `[weeklyDigestClassroomAdmin] Error for ${classroom.id}:`,
               err.message
             );
             classroomSpan.end({ output: err.message, level: "ERROR" });
@@ -358,12 +358,12 @@ export const weeklyDigest = functions
       );
 
       const summary = { digestCount, errorCount, weekKey };
-      console.log("[weeklyDigest] CF1 complete:", JSON.stringify(summary));
+      console.log("[weeklyDigestClassroomAdmin] CF1 complete:", JSON.stringify(summary));
       trace.update({ output: summary });
       await langfuse.flushAsync();
       return summary;
     } catch (err) {
-      console.error("[weeklyDigest] Fatal error:", err);
+      console.error("[weeklyDigestClassroomAdmin] Fatal error:", err);
       trace.update({ output: err.message, level: "ERROR" });
       await langfuse.flushAsync();
       return null;

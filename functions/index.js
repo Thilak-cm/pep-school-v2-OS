@@ -81,4 +81,4 @@ export { recomputeStats } from "./stats/index.js";
 export { testBenchRun } from "./testbench/index.js";
 
 // Weekly Digest (PEP-297)
-export { weeklyDigest, weeklyDigestSuperadmin } from "./digest/index.js";
+export { weeklyDigestClassroomAdmin, weeklyDigestSuperadmin } from "./digest/index.js";
