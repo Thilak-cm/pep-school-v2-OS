@@ -258,3 +258,4 @@ export async function patchHeatmapStudent(studentId) {
     `[heatmapCache] patched student ${studentId} in heatmap_${classroomId}`
   );
 }
+
