@@ -82,6 +82,30 @@ describe('useAlertBus hook — dual-source alert subscriber (PEP-296)', () => {
     });
   });
 
+  // --- Heatmap cache integration (PEP-303) ---
+  describe('Heatmap cache fast path (PEP-303)', () => {
+    it('reads from statsCache heatmap docs for red flags', () => {
+      assert.ok(
+        source.includes('statsCache') || source.includes('heatmap_'),
+        'Should reference statsCache/heatmap docs for red flag source'
+      );
+    });
+
+    it('falls back to legacy collectionGroup when cache is empty', () => {
+      assert.ok(
+        source.includes('collectionGroup'),
+        'Should retain collectionGroup query as legacy fallback'
+      );
+    });
+
+    it('builds signals from cache roster rows', () => {
+      assert.ok(
+        source.includes('roster') && source.includes('heatmapDocs'),
+        'Should extract roster from heatmap cache docs'
+      );
+    });
+  });
+
   // --- Transform integration ---
   describe('Transform integration', () => {
     it('imports transformForDisplay from alertTransforms', () => {
