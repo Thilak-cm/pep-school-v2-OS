@@ -22,7 +22,7 @@ export async function sendEmail({ to, subject, html, from }) {
   sgMail.setApiKey(key);
   await sgMail.send({
     to,
-    from: from || "noreply@pepschoolv2.com",
+    from: from || "tech@pepschoolv2.com",
     subject,
     html,
   });
