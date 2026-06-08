@@ -12,11 +12,12 @@ import assert from "node:assert/strict";
 
 // ── Inline copies of pure logic under test ─────────────────────────
 
+// ── Recipient Resolution ────────────────────────────────────────────
+
 /**
- * Resolve digest recipients from a list of user docs.
- * Returns active classroomadmins with non-empty manageableClassrooms.
+ * Resolve classroomadmin digest recipients.
  */
-function resolveRecipients(users) {
+function resolveClassroomAdminRecipients(users) {
   return users.filter(
     (u) =>
       u.role === "classroomadmin" &&
@@ -29,77 +30,170 @@ function resolveRecipients(users) {
 }
 
 /**
- * Assemble per-classroom digest data from statsCache docs and
- * weekly_snapshot escalation docs.
+ * Resolve superadmin recipients.
  */
-function assembleClassroomData(classroomId, statsCacheDoc, escalations) {
+function resolveSuperAdminRecipients(users) {
+  return users.filter(
+    (u) =>
+      u.role === "superadmin" &&
+      (u.status || "active") === "active" &&
+      !u.isPending &&
+      u.email
+  );
+}
+
+/**
+ * Resolve superadmin classroom overrides.
+ * Returns Map<email, classroomId[]> for superadmins who should also
+ * receive per-classroom emails.
+ */
+function resolveSuperAdminOverrides(config, superAdmins) {
+  const overrides = config?.superadminClassroomOverrides || {};
+  const result = new Map();
+  for (const sa of superAdmins) {
+    const classrooms = overrides[sa.id];
+    if (Array.isArray(classrooms) && classrooms.length > 0) {
+      result.set(sa.email, classrooms);
+    }
+  }
+  return result;
+}
+
+// ── Data Assembly ───────────────────────────────────────────────────
+
+/**
+ * Build the first user message for the per-classroom agent.
+ * Contains mandatory context: classroom doc + statsCache.
+ */
+function buildFirstUserMessage(classroomDoc, statsCacheDoc) {
+  const classroom = {
+    id: classroomDoc.id,
+    name: classroomDoc.name || classroomDoc.id,
+    program: classroomDoc.program || "unknown",
+    teacherIds: classroomDoc.teacherIds || [],
+    studentCount: classroomDoc.studentCount || 0,
+  };
+
   const teachers = (statsCacheDoc?.teachers || []).map((t) => ({
     name: t.name,
     observations7d: t.observations7d || 0,
     lessons7d: t.lessons7d || 0,
     total7d: (t.observations7d || 0) + (t.lessons7d || 0),
+    observations: t.observations || 0,
+    lessons: t.lessons || 0,
   }));
 
-  const escalatedStudents = escalations
-    .filter(
-      (e) =>
-        e.escalatedThisWeek === true ||
-        e.severity === "high" ||
-        e.severity === "medium"
-    )
-    .map((e) => ({
-      studentName: e.studentName || e.studentId,
-      severity: e.severity,
-      isRedFlag: e.redFlag?.severity === "high",
-      redFlagReason: e.redFlag?.reason || null,
-      coverageGaps: e.coverageGaps || [],
-    }))
-    .sort((a, b) => {
-      const order = { high: 0, medium: 1, low: 2, clear: 3 };
-      return (order[a.severity] ?? 3) - (order[b.severity] ?? 3);
-    });
+  const students = (statsCacheDoc?.students || []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    thisWeekNotes: s.thisWeekNotes || 0,
+    last42DaysNotes: s.last42DaysNotes || 0,
+    totalNotes: s.totalNotes || 0,
+  }));
 
-  return {
-    classroomId,
-    classroomName: statsCacheDoc?.classroomName || classroomId,
-    teachers,
-    escalatedStudents,
-    hasRedFlags: escalatedStudents.some((s) => s.isRedFlag),
-  };
+  return [
+    `# Classroom: ${classroom.name}`,
+    `Program: ${classroom.program}`,
+    `Teachers: ${classroom.teacherIds.length}`,
+    `Students: ${students.length}`,
+    "",
+    "## Teacher Activity (last 7 days)",
+    ...teachers.map(
+      (t) =>
+        `- ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons) | all-time: ${t.observations + t.lessons}`
+    ),
+    "",
+    "## Student Note Counts",
+    ...students.map(
+      (s) =>
+        `- ${s.name} [${s.id}]: this week ${s.thisWeekNotes}, last 42d ${s.last42DaysNotes}, total ${s.totalNotes}`
+    ),
+    "",
+    "Generate a weekly digest email for this classroom. Use the tools available to investigate any anomalies, trends, or students who need attention. Start by checking weekly snapshots for students with low or declining activity.",
+  ].join("\n");
 }
+
+// ── Progressive Disclosure ──────────────────────────────────────────
 
 /**
- * Build the user message for the digest agent from assembled data.
+ * Tracks which students have had their weekly_snapshot fetched.
+ * Enforces: snapshot_history can only be accessed after weekly_snapshot.
  */
-function buildAgentContext(classroomDataList) {
-  const sections = classroomDataList.map((cd) => {
-    const teacherLines = cd.teachers
-      .map((t) => `  - ${t.name}: ${t.total7d} notes (${t.observations7d} obs, ${t.lessons7d} lessons)`)
-      .join("\n");
+class ToolGatekeeper {
+  constructor() {
+    this.snapshotFetched = new Set();
+  }
 
-    const escalationLines =
-      cd.escalatedStudents.length === 0
-        ? "  None"
-        : cd.escalatedStudents
-          .map((s) => {
-            let line = `  - ${s.studentName} [${s.severity.toUpperCase()}]`;
-            if (s.isRedFlag) line += ` ⚠️ RED FLAG: ${s.redFlagReason || "no reason given"}`;
-            if (s.coverageGaps.length) line += ` (gaps: ${s.coverageGaps.join(", ")})`;
-            return line;
-          })
-          .join("\n");
+  recordSnapshotFetch(studentId) {
+    this.snapshotFetched.add(studentId);
+  }
 
-    return `## ${cd.classroomName}\n\nTeacher Activity (last 7 days):\n${teacherLines}\n\nStudent Escalations:\n${escalationLines}`;
-  });
-
-  return sections.join("\n\n---\n\n");
+  canAccessHistory(studentId) {
+    return this.snapshotFetched.has(studentId);
+  }
 }
 
-// ── Tests ───────────────────────────────────────────────────────────
+// ── Agent Loop (inline for testing) ─────────────────────────────────
+
+/**
+ * Simulate agent loop logic: process LLM responses, handle tool calls.
+ * Returns { finalContent, toolCallLog }.
+ */
+async function runAgentLoop(mockResponses, toolExecutor, maxIterations = 10) {
+  const messages = [
+    { role: "system", content: "test system prompt" },
+    { role: "user", content: "test user message" },
+  ];
+  const toolCallLog = [];
+  let iteration = 0;
+
+  for (const response of mockResponses) {
+    iteration++;
+    if (iteration > maxIterations) {
+      throw new Error("Max iterations exceeded");
+    }
+
+    // Append assistant message
+    messages.push(response);
+
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      // Process tool calls
+      for (const tc of response.tool_calls) {
+        const result = await toolExecutor(tc.function.name, JSON.parse(tc.function.arguments));
+        toolCallLog.push({ name: tc.function.name, args: JSON.parse(tc.function.arguments), result });
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(result),
+        });
+      }
+    } else if (response.content) {
+      // Final response — agent is done
+      return { finalContent: response.content, toolCallLog, messages, iterations: iteration };
+    }
+  }
+
+  throw new Error("Agent loop ended without final content");
+}
+
+// ── Digest Storage Schema ───────────────────────────────────────────
+
+/**
+ * Validate a digest doc matches the expected schema.
+ */
+function validateDigestDoc(doc) {
+  const required = ["weekKey", "htmlContent", "agentModel", "generatedAt", "recipientEmails", "hasRedFlags", "toolCallCount"];
+  const missing = required.filter((k) => !(k in doc));
+  return { valid: missing.length === 0, missing };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════
 
 // ── Recipient Resolution ────────────────────────────────────────────
 
-test("resolveRecipients filters to active classroomadmins with classrooms", () => {
+test("resolveClassroomAdminRecipients filters correctly", () => {
   const users = [
     { email: "yamini@test.com", role: "classroomadmin", status: "active", manageableClassrooms: ["gulmohar", "parijat"], isPending: false },
     { email: "rahul@test.com", role: "superadmin", status: "active", manageableClassrooms: [], isPending: false },
@@ -108,161 +202,195 @@ test("resolveRecipients filters to active classroomadmins with classrooms", () =
     { email: "pending@test.com", role: "classroomadmin", status: "active", manageableClassrooms: ["amazing"], isPending: true },
     { email: "empty@test.com", role: "classroomadmin", status: "active", manageableClassrooms: [], isPending: false },
   ];
-
-  const result = resolveRecipients(users);
+  const result = resolveClassroomAdminRecipients(users);
   assert.equal(result.length, 1);
   assert.equal(result[0].email, "yamini@test.com");
 });
 
-test("resolveRecipients returns empty array when no classroomadmins", () => {
+test("resolveSuperAdminRecipients returns active superadmins", () => {
   const users = [
-    { email: "rahul@test.com", role: "superadmin", status: "active", manageableClassrooms: [], isPending: false },
+    { email: "rahul@test.com", role: "superadmin", status: "active", isPending: false },
+    { email: "thilak@test.com", role: "superadmin", status: "active", isPending: false },
+    { email: "yamini@test.com", role: "classroomadmin", status: "active", isPending: false },
   ];
-  assert.deepEqual(resolveRecipients(users), []);
+  const result = resolveSuperAdminRecipients(users);
+  assert.equal(result.length, 2);
 });
 
-test("classroomadmin with 3 classrooms produces 3 separate email jobs", () => {
+test("classroomadmin with 3 classrooms produces 3 email jobs", () => {
   const admin = { email: "yamini@test.com", manageableClassrooms: ["gulmohar", "parijat", "periwinkle"] };
-  // Simulate job creation: one job per classroom
   const jobs = admin.manageableClassrooms.map((cid) => ({
     email: admin.email,
-    classroomIds: [cid],
+    classroomId: cid,
   }));
   assert.equal(jobs.length, 3);
-  assert.deepEqual(jobs[0].classroomIds, ["gulmohar"]);
-  assert.deepEqual(jobs[1].classroomIds, ["parijat"]);
-  assert.deepEqual(jobs[2].classroomIds, ["periwinkle"]);
+  assert.equal(jobs[0].classroomId, "gulmohar");
 });
 
-// ── Data Assembly ───────────────────────────────────────────────────
+// ── Superadmin Overrides ────────────────────────────────────────────
 
-test("assembleClassroomData extracts teacher 7d stats", () => {
+test("resolveSuperAdminOverrides maps UID to classrooms", () => {
+  const config = {
+    superadminClassroomOverrides: {
+      "uid-rahul": ["allstars"],
+      "uid-chetan": ["power", "amazing"],
+    },
+  };
+  const superAdmins = [
+    { id: "uid-rahul", email: "rahul@test.com" },
+    { id: "uid-chetan", email: "chetan@test.com" },
+    { id: "uid-thilak", email: "thilak@test.com" },
+  ];
+  const result = resolveSuperAdminOverrides(config, superAdmins);
+  assert.equal(result.size, 2);
+  assert.deepEqual(result.get("rahul@test.com"), ["allstars"]);
+  assert.deepEqual(result.get("chetan@test.com"), ["power", "amazing"]);
+  assert.equal(result.has("thilak@test.com"), false);
+});
+
+test("resolveSuperAdminOverrides handles missing config", () => {
+  const result = resolveSuperAdminOverrides({}, [{ id: "uid-1", email: "a@test.com" }]);
+  assert.equal(result.size, 0);
+});
+
+// ── First User Message ──────────────────────────────────────────────
+
+test("buildFirstUserMessage includes classroom and stats data", () => {
+  const classroomDoc = { id: "amazing", name: "Amazing", program: "primary", teacherIds: ["t1", "t2"], studentCount: 20 };
   const statsDoc = {
-    classroomName: "Amazing",
     teachers: [
-      { name: "Geetha", observations7d: 5, lessons7d: 3 },
-      { name: "Naina", observations7d: 0, lessons7d: 0 },
+      { name: "Geetha", observations7d: 5, lessons7d: 3, observations: 421, lessons: 577 },
+      { name: "Naina", observations7d: 0, lessons7d: 0, observations: 100, lessons: 50 },
+    ],
+    students: [
+      { id: "s1", name: "Alice", thisWeekNotes: 3, last42DaysNotes: 15, totalNotes: 30 },
+      { id: "s2", name: "Bob", thisWeekNotes: 0, last42DaysNotes: 8, totalNotes: 20 },
     ],
   };
-
-  const result = assembleClassroomData("amazing", statsDoc, []);
-  assert.equal(result.teachers.length, 2);
-  assert.equal(result.teachers[0].total7d, 8);
-  assert.equal(result.teachers[1].total7d, 0);
-  assert.equal(result.escalatedStudents.length, 0);
-  assert.equal(result.hasRedFlags, false);
+  const msg = buildFirstUserMessage(classroomDoc, statsDoc);
+  assert.ok(msg.includes("# Classroom: Amazing"));
+  assert.ok(msg.includes("Program: primary"));
+  assert.ok(msg.includes("Geetha: 8 notes"));
+  assert.ok(msg.includes("Naina: 0 notes"));
+  assert.ok(msg.includes("Alice [s1]: this week 3"));
+  assert.ok(msg.includes("Bob [s2]: this week 0"));
 });
 
-test("assembleClassroomData sorts escalations by severity", () => {
-  const escalations = [
-    { studentId: "s1", studentName: "Alice", severity: "medium", escalatedThisWeek: true },
-    { studentId: "s2", studentName: "Bob", severity: "high", escalatedThisWeek: true, redFlag: { severity: "high", reason: "Aggressive behavior" } },
-    { studentId: "s3", studentName: "Charlie", severity: "low", escalatedThisWeek: false },
+test("buildFirstUserMessage handles missing statsCache", () => {
+  const msg = buildFirstUserMessage({ id: "test", name: "Test" }, null);
+  assert.ok(msg.includes("# Classroom: Test"));
+  assert.ok(msg.includes("## Teacher Activity"));
+  assert.ok(msg.includes("## Student Note Counts"));
+});
+
+// ── Progressive Disclosure ──────────────────────────────────────────
+
+test("ToolGatekeeper blocks history before snapshot fetch", () => {
+  const gate = new ToolGatekeeper();
+  assert.equal(gate.canAccessHistory("student-1"), false);
+});
+
+test("ToolGatekeeper allows history after snapshot fetch", () => {
+  const gate = new ToolGatekeeper();
+  gate.recordSnapshotFetch("student-1");
+  assert.equal(gate.canAccessHistory("student-1"), true);
+});
+
+test("ToolGatekeeper is per-student, not global", () => {
+  const gate = new ToolGatekeeper();
+  gate.recordSnapshotFetch("student-1");
+  assert.equal(gate.canAccessHistory("student-1"), true);
+  assert.equal(gate.canAccessHistory("student-2"), false);
+});
+
+// ── Agent Loop ──────────────────────────────────────────────────────
+
+test("agent loop terminates on content-only response", async () => {
+  const responses = [
+    { role: "assistant", content: "<div>Final email</div>" },
   ];
-
-  const result = assembleClassroomData("power", { classroomName: "Power" }, escalations);
-  // Only high + medium pass the filter (low with escalatedThisWeek=false is excluded)
-  assert.equal(result.escalatedStudents.length, 2);
-  assert.equal(result.escalatedStudents[0].studentName, "Bob");  // high first
-  assert.equal(result.escalatedStudents[0].isRedFlag, true);
-  assert.equal(result.escalatedStudents[1].studentName, "Alice"); // medium second
-  assert.equal(result.hasRedFlags, true);
+  const result = await runAgentLoop(responses, () => ({}));
+  assert.equal(result.finalContent, "<div>Final email</div>");
+  assert.equal(result.toolCallLog.length, 0);
+  assert.equal(result.iterations, 1);
 });
 
-test("assembleClassroomData handles missing statsCache gracefully", () => {
-  const result = assembleClassroomData("unknown", null, []);
-  assert.equal(result.classroomName, "unknown");
-  assert.equal(result.teachers.length, 0);
-  assert.equal(result.escalatedStudents.length, 0);
-});
-
-test("assembleClassroomData includes escalatedThisWeek even if severity is low", () => {
-  const escalations = [
-    { studentId: "s1", studentName: "Dana", severity: "low", escalatedThisWeek: true },
-  ];
-  const result = assembleClassroomData("test", { classroomName: "Test" }, escalations);
-  assert.equal(result.escalatedStudents.length, 1);
-  assert.equal(result.escalatedStudents[0].studentName, "Dana");
-});
-
-// ── Red Flag Emphasis ───────────────────────────────────────────────
-
-test("assembleClassroomData marks red flags distinctly", () => {
-  const escalations = [
+test("agent loop processes tool calls then terminates", async () => {
+  const responses = [
     {
-      studentId: "s1",
-      studentName: "Eve",
-      severity: "high",
-      escalatedThisWeek: true,
-      redFlag: { severity: "high", reason: "Repeated withdrawal from group activities" },
-      coverageGaps: ["social-emotional"],
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        { id: "tc1", function: { name: "fetch_weekly_snapshot", arguments: '{"studentId":"s1"}' } },
+      ],
+    },
+    {
+      role: "assistant",
+      content: "<div>Email with snapshot insight</div>",
     },
   ];
-
-  const result = assembleClassroomData("test", { classroomName: "Test" }, escalations);
-  assert.equal(result.escalatedStudents[0].isRedFlag, true);
-  assert.equal(result.escalatedStudents[0].redFlagReason, "Repeated withdrawal from group activities");
-  assert.deepEqual(result.escalatedStudents[0].coverageGaps, ["social-emotional"]);
+  const executor = () => ({ severity: "high", escalatedThisWeek: true });
+  const result = await runAgentLoop(responses, executor);
+  assert.equal(result.finalContent, "<div>Email with snapshot insight</div>");
+  assert.equal(result.toolCallLog.length, 1);
+  assert.equal(result.toolCallLog[0].name, "fetch_weekly_snapshot");
+  assert.equal(result.iterations, 2);
 });
 
-// ── Agent Context Building ──────────────────────────────────────────
-
-test("buildAgentContext produces structured context for single classroom", () => {
-  const data = [{
-    classroomId: "amazing",
-    classroomName: "Amazing",
-    teachers: [
-      { name: "Geetha", observations7d: 5, lessons7d: 3, total7d: 8 },
-      { name: "Naina", observations7d: 0, lessons7d: 0, total7d: 0 },
-    ],
-    escalatedStudents: [
-      { studentName: "Bob", severity: "high", isRedFlag: true, redFlagReason: "Aggressive behavior", coverageGaps: [] },
-    ],
-    hasRedFlags: true,
-  }];
-
-  const context = buildAgentContext(data);
-  assert.ok(context.includes("## Amazing"));
-  assert.ok(context.includes("Geetha: 8 notes"));
-  assert.ok(context.includes("Naina: 0 notes"));
-  assert.ok(context.includes("Bob [HIGH]"));
-  assert.ok(context.includes("RED FLAG"));
-  assert.ok(context.includes("Aggressive behavior"));
+test("agent loop handles multiple tool calls in one response", async () => {
+  const responses = [
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        { id: "tc1", function: { name: "fetch_weekly_snapshot", arguments: '{"studentId":"s1"}' } },
+        { id: "tc2", function: { name: "fetch_weekly_snapshot", arguments: '{"studentId":"s2"}' } },
+      ],
+    },
+    {
+      role: "assistant",
+      content: "<div>Done</div>",
+    },
+  ];
+  const executor = () => ({ severity: "clear" });
+  const result = await runAgentLoop(responses, executor);
+  assert.equal(result.toolCallLog.length, 2);
 });
 
-test("buildAgentContext shows None for classrooms with no escalations", () => {
-  const data = [{
-    classroomId: "power",
-    classroomName: "Power",
-    teachers: [{ name: "Dewanshi", observations7d: 10, lessons7d: 5, total7d: 15 }],
-    escalatedStudents: [],
+test("agent loop enforces max iterations", async () => {
+  // 3 responses, all tool calls, no final content — should exceed max
+  const responses = Array(3).fill({
+    role: "assistant",
+    content: null,
+    tool_calls: [{ id: "tc", function: { name: "test", arguments: "{}" } }],
+  });
+  await assert.rejects(
+    () => runAgentLoop(responses, () => ({}), 2),
+    { message: "Max iterations exceeded" }
+  );
+});
+
+// ── Digest Storage Schema ───────────────────────────────────────────
+
+test("validateDigestDoc passes with all required fields", () => {
+  const doc = {
+    weekKey: "2026-W23",
+    htmlContent: "<div>test</div>",
+    agentModel: "openai/gpt-4.1-mini",
+    generatedAt: new Date(),
+    recipientEmails: ["yamini@test.com"],
     hasRedFlags: false,
-  }];
-
-  const context = buildAgentContext(data);
-  assert.ok(context.includes("None"));
+    toolCallCount: 0,
+  };
+  const result = validateDigestDoc(doc);
+  assert.equal(result.valid, true);
+  assert.equal(result.missing.length, 0);
 });
 
-test("buildAgentContext handles multiple classrooms with separator", () => {
-  const data = [
-    {
-      classroomId: "amazing",
-      classroomName: "Amazing",
-      teachers: [],
-      escalatedStudents: [],
-      hasRedFlags: false,
-    },
-    {
-      classroomId: "power",
-      classroomName: "Power",
-      teachers: [],
-      escalatedStudents: [],
-      hasRedFlags: false,
-    },
-  ];
-
-  const context = buildAgentContext(data);
-  assert.ok(context.includes("## Amazing"));
-  assert.ok(context.includes("## Power"));
-  assert.ok(context.includes("---"));
+test("validateDigestDoc fails on missing fields", () => {
+  const doc = { weekKey: "2026-W23", htmlContent: "<div>test</div>" };
+  const result = validateDigestDoc(doc);
+  assert.equal(result.valid, false);
+  assert.ok(result.missing.includes("agentModel"));
+  assert.ok(result.missing.includes("generatedAt"));
 });
