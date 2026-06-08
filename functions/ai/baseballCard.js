@@ -11,6 +11,7 @@ import {
   getStudentContext,
 } from "../shared/studentHelpers.js";
 import { fetchActiveStudentIds, runWithConcurrency } from "../shared/scheduling.js";
+import { writeHeatmapCache, patchHeatmapStudent } from "../heatmap/index.js";
 
 // -----------------------------------------------
 // AI: Baseball Card (Last 6 Weeks summary)
@@ -479,6 +480,13 @@ export const regenerateBaseballCardForStudent = functions
       concurrency: 1,
     });
 
+    // Patch heatmap cache with updated student data (PEP-303)
+    try {
+      await patchHeatmapStudent(studentId);
+    } catch (err) {
+      console.error("[baseballCard] heatmap patch failed:", err);
+    }
+
     // Regeneration writes directly to Firestore; return a simple ack.
     return {
       status: "ok",
@@ -515,5 +523,13 @@ export const generateBaseballCards = functions
     });
 
     console.log("[baseballCard] generation run complete");
+
+    // Build heatmap cache from fresh snapshots (PEP-303)
+    try {
+      await writeHeatmapCache();
+    } catch (err) {
+      console.error("[baseballCard] heatmap cache write failed:", err);
+    }
+
     return null;
   });
