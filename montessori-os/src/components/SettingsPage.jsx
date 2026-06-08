@@ -20,9 +20,11 @@ import {
   LogOut,
   FileUp,
   Sparkles,
+  Send,
 } from '../icons';
 import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, cloudFunctions } from '../firebase';
 import { Avatar } from './ui';
 import VersionBadge from './VersionBadge';
 import { trackEvent } from '../utils/analytics';
@@ -213,6 +215,21 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 iconColor="var(--color-violet)"
                 label="AI Configurations"
                 onClick={() => onNavigate('/config')}
+              />
+              <SettingsRow
+                icon={<Send size={20} />}
+                iconColor="var(--color-violet)"
+                label="Test Weekly Digest"
+                onClick={async () => {
+                  try {
+                    if (!window.confirm('Run the full weekly digest pipeline? Emails will be sent to testOverrideEmails only.')) return;
+                    const call = httpsCallable(cloudFunctions, 'triggerDigestTest', { timeout: 540_000 });
+                    const result = await call();
+                    window.alert(`Digest complete!\n\nCF1: ${result.data.cf1.classrooms} classrooms, ${result.data.cf1.errors} errors\nCF2: ${JSON.stringify(result.data.cf2)}\nWeek: ${result.data.weekKey}`);
+                  } catch (err) {
+                    window.alert(`Digest failed: ${err.message}`);
+                  }
+                }}
               />
             </>
           )}

@@ -178,7 +178,19 @@ async function fetchDigestConfig() {
     classroomPrompt: d.classroomPrompt || DEFAULT_CLASSROOM_PROMPT,
     superadminPrompt: d.superadminPrompt || DEFAULT_SUPERADMIN_PROMPT,
     superadminClassroomOverrides: d.superadminClassroomOverrides || {},
+    testOverrideEmails: d.testOverrideEmails || null,
   };
+}
+
+/**
+ * Apply test email override if configured.
+ * When testOverrideEmails is set, ALL emails go to those addresses only.
+ */
+function applyEmailOverride(emails, config) {
+  if (Array.isArray(config.testOverrideEmails) && config.testOverrideEmails.length > 0) {
+    return config.testOverrideEmails;
+  }
+  return emails;
 }
 
 async function archivePreviousDigest(digestRef, weekKey) {
@@ -332,7 +344,8 @@ export const weeklyDigestClassroomAdmin = functions
               ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
               : `${classroomName} — Weekly Digest`;
 
-            for (const email of recipientEmails) {
+            const sendTo = applyEmailOverride(recipientEmails, config);
+            for (const email of sendTo) {
               await sendEmail({ to: email, subject, html: result.content });
             }
 
@@ -496,7 +509,8 @@ export const weeklyDigestSuperadmin = functions
         ? "⚠️ Weekly School Digest — Action Required"
         : "Weekly School Digest";
 
-      for (const email of recipientEmails) {
+      const sendTo = applyEmailOverride(recipientEmails, config);
+      for (const email of sendTo) {
         await sendEmail({ to: email, subject, html: result.content });
       }
 
@@ -519,4 +533,216 @@ export const weeklyDigestSuperadmin = functions
       await langfuse.flushAsync();
       return null;
     }
+  });
+
+// ── Test Trigger (callable, for e2e testing only) ───────────────────
+
+export const triggerDigestTest = functions
+  .region("asia-south1")
+  .runWith({
+    timeoutSeconds: 540,
+    memory: "1GB",
+    secrets: [OPENROUTER_API_KEY, SENDGRID_API_KEY],
+  })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Must be signed in");
+    }
+    // Only superadmins can trigger test
+    const callerSnap = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
+      throw new functions.https.HttpsError("permission-denied", "Superadmin only");
+    }
+
+    const config = await fetchDigestConfig();
+    if (!config.testOverrideEmails) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Set testOverrideEmails in config/weekly_digest before running test"
+      );
+    }
+
+    const langfuse = new Langfuse();
+    const weekKey = getWeekKey();
+
+    // ── Run CF 1 logic (per-classroom digests) ──────────────────────
+    const cf1Trace = langfuse.trace({
+      name: "digest-test-classrooms",
+      metadata: { triggeredBy: context.auth.uid, test: true },
+    });
+
+    const classroomsSnap = await db
+      .collection("classrooms")
+      .where("status", "==", "active")
+      .get();
+    const classrooms = classroomsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // Fetch statsCache
+    const statsDocs = new Map();
+    const classroomIds = classrooms.map((c) => c.id);
+    const chunks = [];
+    for (let i = 0; i < classroomIds.length; i += 30) {
+      chunks.push(classroomIds.slice(i, i + 30));
+    }
+    for (const chunk of chunks) {
+      const docIds = chunk.map((id) => `classroom_${id}`);
+      const snap = await db.collection("statsCache").where("__name__", "in", docIds).get();
+      for (const doc of snap.docs) {
+        const cid = doc.data().classroomId || doc.id.replace("classroom_", "");
+        statsDocs.set(cid, doc.data());
+      }
+    }
+
+    let cf1Count = 0;
+    let cf1Errors = 0;
+
+    // Run sequentially for test (easier to debug)
+    for (const classroom of classrooms) {
+      const span = cf1Trace.span({ name: `classroom-${classroom.id}` });
+      try {
+        const statsDoc = statsDocs.get(classroom.id) || null;
+        const userMessage = buildFirstUserMessage(classroom, statsDoc);
+        const gatekeeper = new ToolGatekeeper();
+        const toolExecutor = createToolExecutor(gatekeeper);
+
+        const result = await runAgentLoop({
+          messages: [
+            { role: "system", content: config.classroomPrompt },
+            { role: "user", content: userMessage },
+          ],
+          tools: DIGEST_TOOLS,
+          toolExecutor,
+          model: { model: config.model, temperature: config.temperature, maxTokens: config.maxTokens },
+          trace: span,
+        });
+
+        const hasRedFlags = result.toolCallLog.some(
+          (tc) => tc.name === "fetch_weekly_snapshot" && tc.result?.redFlag?.severity === "high"
+        );
+
+        // Resolve recipients + override
+        const usersSnap = await db.collection("users").get();
+        const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const admins = resolveClassroomAdminRecipients(allUsers);
+        const superAdmins = resolveSuperAdminRecipients(allUsers);
+        const overrides = resolveSuperAdminOverrides(config, superAdmins);
+        const recipientEmails = [
+          ...admins.filter((a) => a.manageableClassrooms.includes(classroom.id)).map((a) => a.email),
+          ...[...overrides.entries()].filter(([, cids]) => cids.includes(classroom.id)).map(([email]) => email),
+        ];
+
+        const digestRef = db.doc(`classrooms/${classroom.id}/digests/weekly_email`);
+        await archivePreviousDigest(digestRef, weekKey);
+        await digestRef.set({
+          weekKey,
+          htmlContent: result.content,
+          agentModel: config.model,
+          generatedAt: Timestamp.now(),
+          recipientEmails,
+          hasRedFlags,
+          toolCallCount: result.toolCallLog.length,
+          iterations: result.iterations,
+        });
+
+        const classroomName = classroom.name || classroom.id;
+        const subject = hasRedFlags
+          ? `⚠️ ${classroomName} — Weekly Digest — Action Required`
+          : `${classroomName} — Weekly Digest`;
+        const sendTo = applyEmailOverride(recipientEmails, config);
+        for (const email of sendTo) {
+          await sendEmail({ to: email, subject, html: result.content });
+        }
+
+        span.end({ output: { status: "sent", toolCalls: result.toolCallLog.length } });
+        cf1Count++;
+      } catch (err) {
+        console.error(`[triggerDigestTest] CF1 error for ${classroom.id}:`, err.message);
+        span.end({ output: err.message, level: "ERROR" });
+        cf1Errors++;
+      }
+    }
+
+    await langfuse.flushAsync();
+
+    // ── Run CF 2 logic (superadmin consolidated) ────────────────────
+    const cf2Trace = langfuse.trace({
+      name: "digest-test-superadmin",
+      metadata: { triggeredBy: context.auth.uid, test: true },
+    });
+
+    const digests = [];
+    const classroomNames = new Map(classrooms.map((c) => [c.id, c.name || c.id]));
+    for (const cid of classroomIds) {
+      const snap = await db.doc(`classrooms/${cid}/digests/weekly_email`).get();
+      if (snap.exists && snap.data().weekKey === weekKey) {
+        digests.push({ classroomId: cid, classroomName: classroomNames.get(cid) || cid, ...snap.data() });
+      }
+    }
+
+    let cf2Result = null;
+    if (digests.length > 0) {
+      const digestSummaries = digests
+        .map((d) => `## ${d.classroomName}${d.hasRedFlags ? " ⚠️ RED FLAGS" : ""}\n\n${d.htmlContent}`)
+        .join("\n\n---\n\n");
+
+      const userMessage = [
+        `# All Classroom Digests for ${weekKey}`,
+        `Total classrooms: ${digests.length}`,
+        `Classrooms with red flags: ${digests.filter((d) => d.hasRedFlags).length}`,
+        "", digestSummaries, "",
+        "Generate a consolidated executive summary email for superadmins. Highlight the most critical items across all classrooms. Identify cross-classroom patterns. Use tools to investigate specific cases if needed.",
+      ].join("\n");
+
+      const gatekeeper = new ToolGatekeeper();
+      const toolExecutor = createToolExecutor(gatekeeper);
+
+      const result = await runAgentLoop({
+        messages: [
+          { role: "system", content: config.superadminPrompt },
+          { role: "user", content: userMessage },
+        ],
+        tools: DIGEST_TOOLS,
+        toolExecutor,
+        model: { model: config.model, temperature: config.temperature, maxTokens: config.maxTokens },
+        trace: cf2Trace,
+      });
+
+      const hasRedFlags = digests.some((d) => d.hasRedFlags);
+      const usersSnap = await db.collection("users").get();
+      const allUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const superAdmins = resolveSuperAdminRecipients(allUsers);
+      const recipientEmails = superAdmins.map((sa) => sa.email);
+
+      const digestRef = db.doc("classrooms/_digest_all/digests/weekly_email");
+      await archivePreviousDigest(digestRef, weekKey);
+      await digestRef.set({
+        weekKey,
+        htmlContent: result.content,
+        agentModel: config.model,
+        generatedAt: Timestamp.now(),
+        recipientEmails,
+        hasRedFlags,
+        toolCallCount: result.toolCallLog.length,
+        iterations: result.iterations,
+      });
+
+      const subject = hasRedFlags
+        ? "⚠️ Weekly School Digest — Action Required"
+        : "Weekly School Digest";
+      const sendTo = applyEmailOverride(recipientEmails, config);
+      for (const email of sendTo) {
+        await sendEmail({ to: email, subject, html: result.content });
+      }
+
+      cf2Result = { sent: sendTo.length, toolCalls: result.toolCallLog.length };
+    }
+
+    cf2Trace.update({ output: cf2Result || "No digests to consolidate" });
+    await langfuse.flushAsync();
+
+    return {
+      cf1: { classrooms: cf1Count, errors: cf1Errors },
+      cf2: cf2Result,
+      weekKey,
+    };
   });
