@@ -5,9 +5,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Chip,
   Select, MenuItem, FormControl, InputLabel, CircularProgress,
   Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  Divider,
 } from '@mui/material';
-import { Megaphone, Trash2, Eye, CircleCheck, Search, Send, Pencil, Plus } from '../icons';
+import { Trash2, Eye, CircleCheck, Search, Send, Pencil, Plus } from '../icons';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -51,6 +50,15 @@ function userDisplayName(u) {
   return u.id;
 }
 
+// ── Helper: Firestore timestamp → datetime-local string ────────────────────
+
+function toDatetimeLocal(ts) {
+  const d = ts?.toDate ? ts.toDate() : ts ? new Date(ts) : null;
+  if (!d || isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function BroadcastComposer({ currentUser, userRole }) {
@@ -61,6 +69,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [resetDismissConfirm, setResetDismissConfirm] = useState(null);
   const notify = useNotify();
   const [composeOpen, setComposeOpen] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = create mode, string = editing broadcast ID
@@ -83,7 +92,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     } catch {
       notify.error('Failed to load broadcasts');
     }
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     if (!isSuperAdminUser) return;
@@ -136,7 +145,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   // ── Audience summary ──────────────────────────────────────────────────
 
-  const getAudienceSummary = useCallback(() => {
+  const getAudienceSummary = () => {
     const parts = [];
     if (form.targetClassrooms.length > 0) {
       parts.push(form.targetClassrooms.map(id => {
@@ -148,7 +157,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       parts.push(`${form.targetTeachers.length} teacher${form.targetTeachers.length > 1 ? 's' : ''}`);
     }
     return parts.length > 0 ? parts.join(' + ') : 'All staff';
-  }, [form.targetClassrooms, form.targetTeachers, classrooms]);
+  };
 
   // ── Submit broadcast ──────────────────────────────────────────────────
 
@@ -182,12 +191,20 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       };
 
       if (editingId) {
+        const existing = broadcasts.find(b => b.id === editingId);
+        const dismissCount = existing?.dismissedBy ? Object.keys(existing.dismissedBy).length : 0;
+        if (dismissCount > 0 && !resetDismissConfirm) {
+          setResetDismissConfirm({ fields: broadcastFields, dismissCount });
+          setSubmitting(false);
+          return;
+        }
         await updateBroadcast(editingId, broadcastFields);
       } else {
         await createBroadcast(broadcastFields);
       }
 
       notify.success(editingId ? 'Broadcast updated' : 'Broadcast published');
+      setResetDismissConfirm(null);
       resetForm();
       setComposeOpen(false);
       await loadBroadcasts();
@@ -227,9 +244,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   const handleEdit = (broadcast) => {
     const p = broadcast.payload || {};
-    const exp = broadcast.expiresAt?.toDate ? broadcast.expiresAt.toDate() : broadcast.expiresAt ? new Date(broadcast.expiresAt) : null;
-    // Format for datetime-local input: YYYY-MM-DDTHH:MM
-    const expiresAtStr = exp ? `${exp.getFullYear()}-${String(exp.getMonth() + 1).padStart(2, '0')}-${String(exp.getDate()).padStart(2, '0')}T${String(exp.getHours()).padStart(2, '0')}:${String(exp.getMinutes()).padStart(2, '0')}` : '';
+    const expiresAtStr = toDatetimeLocal(broadcast.expiresAt);
 
     setForm({
       label: p.label || 'FROM OFFICE',
@@ -318,14 +333,8 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   // ── Audience display chips ────────────────────────────────────────────
 
-  const classroomChips = form.targetClassrooms.map(id => {
-    const c = classrooms.find(cl => cl.id === id);
-    return c?.name || id;
-  });
-  const teacherChips = form.targetTeachers.map(id => {
-    const t = teachers.find(tc => tc.id === id);
-    return t ? userDisplayName(t) : id;
-  });
+  const hasClassroomChips = form.targetClassrooms.length > 0;
+  const hasTeacherChips = form.targetTeachers.length > 0;
 
   return (
     <Box sx={{ px: 2, pb: 4, maxWidth: 600, mx: 'auto' }}>
@@ -515,11 +524,12 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               <span>Select Classrooms</span>
               <Chip size="small" label={form.targetClassrooms.length || 'All'} sx={{ height: 22, fontSize: '0.75rem' }} />
             </Button>
-            {classroomChips.length > 0 && (
+            {hasClassroomChips && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {classroomChips.map(name => (
-                  <Chip key={name} size="small" label={name} sx={{ height: 24, fontSize: '0.7rem' }} />
-                ))}
+                {form.targetClassrooms.map(id => {
+                  const c = classrooms.find(cl => cl.id === id);
+                  return <Chip key={id} size="small" label={c?.name || id} sx={{ height: 24, fontSize: '0.7rem' }} />;
+                })}
               </Box>
             )}
           </Box>
@@ -536,11 +546,12 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               <span>Select Users</span>
               <Chip size="small" label={form.targetTeachers.length || 'All'} sx={{ height: 22, fontSize: '0.75rem' }} />
             </Button>
-            {teacherChips.length > 0 && (
+            {hasTeacherChips && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {teacherChips.map(name => (
-                  <Chip key={name} size="small" label={name} sx={{ height: 24, fontSize: '0.7rem' }} />
-                ))}
+                {form.targetTeachers.map(id => {
+                  const t = teachers.find(tc => tc.id === id);
+                  return <Chip key={id} size="small" label={t ? userDisplayName(t) : id} sx={{ height: 24, fontSize: '0.7rem' }} />;
+                })}
               </Box>
             )}
           </Box>
@@ -620,6 +631,68 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         </DialogActions>
       </Dialog>
 
+      {/* ── Reset dismissals confirmation dialog ── */}
+      <Dialog open={!!resetDismissConfirm} onClose={() => setResetDismissConfirm(null)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Reset Acknowledgments?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            {resetDismissConfirm?.dismissCount} teacher{resetDismissConfirm?.dismissCount !== 1 ? 's have' : ' has'} already acknowledged this broadcast. What would you like to do?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, flexDirection: 'column', gap: 1 }}>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={async () => {
+              setSubmitting(true);
+              try {
+                await updateBroadcast(editingId, { ...resetDismissConfirm.fields, resetDismissals: true });
+                notify.success('Broadcast updated \u2014 acknowledgments reset');
+                resetForm();
+                setComposeOpen(false);
+                setResetDismissConfirm(null);
+                await loadBroadcasts();
+              } catch (err) {
+                notify.error(err.message || 'Failed to update broadcast');
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+          >
+            Reset & show updated broadcast
+          </Button>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={async () => {
+              setSubmitting(true);
+              try {
+                await updateBroadcast(editingId, resetDismissConfirm.fields);
+                notify.success('Broadcast updated');
+                resetForm();
+                setComposeOpen(false);
+                setResetDismissConfirm(null);
+                await loadBroadcasts();
+              } catch (err) {
+                notify.error(err.message || 'Failed to update broadcast');
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Keep existing acknowledgments
+          </Button>
+          <Button
+            onClick={() => setResetDismissConfirm(null)}
+            sx={{ color: 'var(--color-text-faint)', textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* ── Classroom picker modal ── */}
       <Dialog
         open={classroomPickerOpen}
@@ -647,6 +720,11 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               </ListItem>
             ))}
           </List>
+          {classrooms.length === 0 && (
+            <Typography variant="body2" sx={{ p: 2, textAlign: 'center', color: 'var(--color-text-faint)' }}>
+              No classrooms found
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setClassroomPickerOpen(false)} sx={{ color: 'var(--color-text-faint)' }}>

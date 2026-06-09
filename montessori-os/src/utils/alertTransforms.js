@@ -56,8 +56,6 @@ export function transformForDisplay(alert) {
         ctaIcon: 'ShieldCheck',
         colorKey: 'broadcast',
         color: ALERT_COLORS.broadcast,
-        ctaRoute: 'alerts',
-        ctaParams: { alertId: alert.id },
         message: payload.message || '',
       };
 

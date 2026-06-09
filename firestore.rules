@@ -603,7 +603,7 @@ service cloud.firestore {
     match /alerts/{alertId} {
       allow read: if isSignedIn();
       allow create: if isSuperAdmin();
-      allow update: if isSuperAdmin()
+      allow update: if (isSuperAdmin() && resource.data.type == 'broadcast')
         || (isSignedIn()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedBy'])
           && request.resource.data.dismissedBy is map

@@ -105,24 +105,32 @@ export async function listBroadcasts() {
  */
 export async function updateBroadcast(alertId, fields) {
   if (!alertId) return;
+  const uid = auth?.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+
+  const { resetDismissals, ...rest } = fields;
 
   const updates = {
-    dip: fields.dip ?? true,
-    priority: fields.priority ?? 3,
+    dip: rest.dip ?? true,
+    priority: rest.priority ?? 3,
     payload: {
-      label: fields.label,
-      title: fields.title,
-      subtitle: fields.subtitle || fields.audience || 'All staff',
-      ctaLabel: fields.ctaLabel || 'Got it',
-      message: fields.message,
-      senderName: fields.senderName,
-      audience: fields.audience || 'All staff',
+      label: rest.label,
+      title: rest.title,
+      subtitle: rest.subtitle || rest.audience || 'All staff',
+      ctaLabel: rest.ctaLabel || 'Got it',
+      message: rest.message,
+      senderName: rest.senderName,
+      audience: rest.audience || 'All staff',
     },
-    targetRoles: fields.targetRoles || [],
-    targetClassrooms: fields.targetClassrooms || [],
-    targetTeachers: fields.targetTeachers || [],
-    expiresAt: fields.expiresAt,
+    targetRoles: rest.targetRoles || [],
+    targetClassrooms: rest.targetClassrooms || [],
+    targetTeachers: rest.targetTeachers || [],
+    expiresAt: rest.expiresAt,
   };
+
+  if (resetDismissals) {
+    updates.dismissedBy = {};
+  }
 
   await updateDoc(doc(db, ALERTS_COL, alertId), updates);
 }
@@ -133,6 +141,8 @@ export async function updateBroadcast(alertId, fields) {
  */
 export async function deleteBroadcast(alertId) {
   if (!alertId) return;
+  const uid = auth?.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
   await deleteDoc(doc(db, ALERTS_COL, alertId));
 }
 
@@ -143,5 +153,7 @@ export async function deleteBroadcast(alertId) {
  */
 export async function toggleBroadcastDip(alertId, dip) {
   if (!alertId) return;
+  const uid = auth?.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
   await updateDoc(doc(db, ALERTS_COL, alertId), { dip });
 }

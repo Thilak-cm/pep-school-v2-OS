@@ -62,6 +62,7 @@ describe("getPageTitle", () => {
     assert.equal(getPageTitle("alerts", {}), "Alerts");
     assert.equal(getPageTitle("interviews", {}), "Interviews");
     assert.equal(getPageTitle("childChat", {}), "Chat with Coach Pepper");
+    assert.equal(getPageTitle("broadcastComposer", {}), "Broadcasts");
   });
 
   it("returns addUser title based on usersAccessView", () => {
@@ -208,7 +209,7 @@ describe("FAB_HIDDEN_SCREENS", () => {
       "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
       "studentAliases", "settings", "addUser", "childChat", "config",
       "configLessonNotes", "configAiTools", "chatCommandCentre", "baseballCardConfig",
-      "reportGenConfig", "bulkUpload", "alerts", "interviews",
+      "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
     ];
     for (const s of expected) {
       assert.ok(FAB_HIDDEN_SCREENS.has(s), `Expected FAB_HIDDEN_SCREENS to contain "${s}"`);

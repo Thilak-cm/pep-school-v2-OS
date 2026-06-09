@@ -1093,19 +1093,12 @@ export async function handleListAlerts(db, params) {
     query = query.where("type", "==", type);
   }
 
-  query = query.limit(maxResults);
+  query = query.orderBy("createdAt", "desc").limit(maxResults);
   const snap = await query.get();
 
   const results = [];
   snap.forEach((doc) => {
     results.push(serializeTimestamps({ id: doc.id, ...doc.data() }));
-  });
-
-  // Sort by createdAt descending client-side
-  results.sort((a, b) => {
-    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return tb - ta;
   });
 
   return results;

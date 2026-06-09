@@ -972,7 +972,7 @@ interface AlertDoc {
 
 Type-specific payloads:
 - `interview`: `{ studentName, interviewTime, classroomName, prepStatus, studentId }`
-- `broadcast`: `{ message, senderName, audience }`
+- `broadcast`: `{ label, title, subtitle, ctaLabel, message, senderName, audience }`
 - `system`: `{ message, severity, detail }`
 - `agent`: `{ message, detail }`
 
@@ -981,8 +981,8 @@ Display contract: NOT stored in Firestore. The DIP component transforms `type` +
 Security rules:
 - **Read**: any authenticated user (`isSignedIn()`)
 - **Create**: superadmins only (`isSuperAdmin()`); CFs use admin SDK (bypasses rules)
-- **Update**: any authenticated user, restricted to `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
-- **Delete**: denied for clients; cleanup CF uses admin SDK
+- **Update**: superadmins can update broadcast-type alerts (`isSuperAdmin() && type == 'broadcast'`); any authenticated user can update `dismissedBy` field only (`affectedKeys().hasOnly(['dismissedBy'])`)
+- **Delete**: superadmins only (`isSuperAdmin()`); cleanup CF uses admin SDK
 
 ---
 

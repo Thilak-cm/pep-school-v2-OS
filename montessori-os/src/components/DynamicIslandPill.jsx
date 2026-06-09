@@ -5,7 +5,7 @@ import { Box, Typography, ButtonBase, IconButton, Dialog, DialogTitle, DialogCon
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert } from '../utils/alertService';
-import useNotify from '../notifications/useNotify';
+
 import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -53,7 +53,6 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [ackDialog, setAckDialog] = useState(null); // broadcast alert pending confirmation
-  const notify = useNotify();
   const touchStartRef = useRef({ y: 0, time: 0 });
   const containerRef = useRef(null);
 
@@ -217,10 +216,9 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   const handleBroadcastAck = useCallback(() => {
     if (ackDialog?.id) {
       dismissAlert(ackDialog.id);
-      notify.success('Broadcast acknowledged');
     }
     setAckDialog(null);
-  }, [ackDialog, notify]);
+  }, [ackDialog]);
 
 
   // ── Loading state — pill-shaped placeholder ──────────────────────────────

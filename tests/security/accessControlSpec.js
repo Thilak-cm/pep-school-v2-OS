@@ -324,11 +324,11 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Alerts collection update: superadmin full edit OR dismissedBy-only for others',
-    description: 'allow update: if isSuperAdmin() || (isSignedIn() && affectedKeys dismissedBy-only)',
+    name: 'Alerts collection update: superadmin broadcast edit OR dismissedBy-only for others',
+    description: 'allow update: if (isSuperAdmin() && type == broadcast) || (isSignedIn() && affectedKeys dismissedBy-only)',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSuperAdmin[\s\S]*?isSignedIn[\s\S]*?affectedKeys\(\)\.hasOnly\(\['dismissedBy'\]\)/,
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSuperAdmin[\s\S]*?broadcast[\s\S]*?isSignedIn[\s\S]*?affectedKeys\(\)\.hasOnly\(\['dismissedBy'\]\)/,
   },
 
   {
