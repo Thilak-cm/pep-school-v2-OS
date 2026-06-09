@@ -4,7 +4,7 @@ import {
   Box, Typography, Paper, Button, TextField, Switch, FormControlLabel,
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Chip,
   Select, MenuItem, FormControl, InputLabel, CircularProgress,
-  Alert as MuiAlert, Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
   Divider,
 } from '@mui/material';
 import { Megaphone, Trash2, Eye, CircleCheck, Search, Send, Pencil, Plus } from '../icons';
@@ -15,6 +15,7 @@ import {
   BROADCAST_PRIORITIES,
 } from '../services/broadcastService';
 import { isSuperAdmin } from '../utils/roleUtils';
+import useNotify from '../notifications/useNotify';
 
 // ── Default form state ──────────────────────────────────────────────────────
 
@@ -59,9 +60,8 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const notify = useNotify();
   const [composeOpen, setComposeOpen] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = create mode, string = editing broadcast ID
 
@@ -81,7 +81,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       const list = await listBroadcasts();
       setBroadcasts(list);
     } catch {
-      setError('Failed to load broadcasts');
+      notify.error('Failed to load broadcasts');
     }
   }, []);
 
@@ -132,7 +132,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const resetForm = () => {
     setForm(INITIAL_FORM);
     setEditingId(null);
-    setError(null);
   };
 
   // ── Audience summary ──────────────────────────────────────────────────
@@ -155,12 +154,11 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   const handleSubmit = async () => {
     if (!form.label || !form.title || !form.message || !form.expiresAt) {
-      setError('Label, title, message, and expiry are required');
+      notify.error('Label, title, message, and expiry are required');
       return;
     }
 
     setSubmitting(true);
-    setError(null);
     try {
       const senderName = currentUser?.displayName || currentUser?.name
         || [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ')
@@ -189,12 +187,12 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         await createBroadcast(broadcastFields);
       }
 
-      setSuccess(editingId ? 'Broadcast updated' : 'Broadcast published');
+      notify.success(editingId ? 'Broadcast updated' : 'Broadcast published');
       resetForm();
+      setComposeOpen(false);
       await loadBroadcasts();
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to publish broadcast');
+      notify.error(err.message || 'Failed to publish broadcast');
     } finally {
       setSubmitting(false);
     }
@@ -206,9 +204,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     try {
       await deleteBroadcast(alertId);
       setDeleteConfirm(null);
+      notify.success('Broadcast deleted');
       await loadBroadcasts();
     } catch {
-      setError('Failed to delete broadcast');
+      notify.error('Failed to delete broadcast');
     }
   };
 
@@ -217,9 +216,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const handleToggleDip = async (alertId, currentDip) => {
     try {
       await toggleBroadcastDip(alertId, !currentDip);
+      notify.success(!currentDip ? 'Added to DIP' : 'Removed from DIP');
       await loadBroadcasts();
     } catch {
-      setError('Failed to update DIP visibility');
+      notify.error('Failed to update DIP visibility');
     }
   };
 
@@ -245,7 +245,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     });
     setEditingId(broadcast.id);
     setComposeOpen(true);
-    setError(null);
   };
 
   // ── Classroom picker handlers ─────────────────────────────────────────
@@ -330,10 +329,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   return (
     <Box sx={{ px: 2, pb: 4, maxWidth: 600, mx: 'auto' }}>
-      {/* ── Status messages ── */}
-      {success && <MuiAlert severity="success" sx={{ mb: 2, borderRadius: 2 }}>{success}</MuiAlert>}
-      {error && <MuiAlert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</MuiAlert>}
-
       {/* ── Published broadcasts list (on top) ── */}
       {broadcasts.length > 0 && (
         <Box sx={{ mb: 3 }}>
@@ -604,7 +599,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               fontWeight: 600, fontSize: '0.95rem',
             }}
           >
-            {submitting ? <CircularProgress size={20} /> : editingId ? 'Save Changes' : 'Publish Broadcast'}
+            {editingId ? 'Save Changes' : 'Publish Broadcast'}
           </Button>
         </Box>
       )}

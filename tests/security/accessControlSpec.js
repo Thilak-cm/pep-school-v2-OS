@@ -324,19 +324,19 @@ export const ACCESS_CONTROL_SPEC = [
   },
 
   {
-    name: 'Alerts collection update restricted to dismissedBy field only and map key is own uid',
-    description: 'allow update: if isSignedIn() && affectedKeys().hasOnly([dismissedBy]) && dismissedBy map key constrained to request.auth.uid',
+    name: 'Alerts collection update: superadmin full edit OR dismissedBy-only for others',
+    description: 'allow update: if isSuperAdmin() || (isSignedIn() && affectedKeys dismissedBy-only)',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSignedIn[\s\S]*?affectedKeys\(\)\.hasOnly\(\['dismissedBy'\]\)[\s\S]*?dismissedBy\.diff[\s\S]*?affectedKeys\(\)\.hasOnly\(\[request\.auth\.uid\]\)/,
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+update:[\s\S]*?isSuperAdmin[\s\S]*?isSignedIn[\s\S]*?affectedKeys\(\)\.hasOnly\(\['dismissedBy'\]\)/,
   },
 
   {
-    name: 'Alerts collection delete denied for clients',
-    description: 'allow delete: if false on alerts/{alertId}',
+    name: 'Alerts collection delete restricted to superadmin',
+    description: 'allow delete: if isSuperAdmin() on alerts/{alertId}',
     file: 'firestore',
     criticality: 'important',
-    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+delete:\s*if\s+false/,
+    pattern: /match\s+\/alerts\/\{alertId\}[\s\S]*?allow\s+delete:\s*if\s+isSuperAdmin\(\)/,
   },
 
   // ============================================================================
