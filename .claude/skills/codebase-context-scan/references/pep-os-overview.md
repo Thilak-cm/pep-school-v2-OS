@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-06T06:18:06.884Z
-App version: 10.34.0
+Generated: 2026-06-09T01:17:13.085Z
+App version: 10.34.1
 
 ## App Snapshot
 
@@ -145,6 +145,11 @@ App version: 10.34.0
 
 ## Recent Changes
 
+### 10.34.1 (2026-06-08)
+- Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
+- `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
+- `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
+
 ### 10.34.0 (2026-06-05)
 - Firestore `alerts` collection as universal alert bus — any system (Cloud Functions, frontend, future agents) can write alert docs that surface in the Dynamic Island Pill (PEP-296)
 - DIP dual-source subscriber — merges weekly_snapshot red flags with realtime alerts collection into a single sorted carousel (PEP-296)
@@ -159,9 +164,4 @@ App version: 10.34.0
 - Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
 - Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
 - Search within heatmap card — icon expands into input row, filters roster by student name (PEP-198)
-
-### 10.31.0 (2026-05-31)
-- Student and teacher deletion is now soft-delete — sets `status: 'inactive'` instead of removing the document, preserving all observation data and subcollections (PEP-250)
-- Confirmation dialogs say "Remove" instead of "Delete" with softer language explaining data is preserved (PEP-250)
-- Observations by removed teachers display "(removed)" suffix on the author name (PEP-250)
 
