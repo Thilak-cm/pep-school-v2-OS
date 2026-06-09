@@ -134,8 +134,8 @@ describe("heatmap cache module (PEP-303)", () => {
 
     it("recomputes counts after patching", () => {
       assert.ok(
-        source.includes("cacheRef.update"),
-        "Should update the cache doc with new roster + counts"
+        source.includes("tx.update") || source.includes("runTransaction"),
+        "Should update the cache doc transactionally with new roster + counts"
       );
     });
   });

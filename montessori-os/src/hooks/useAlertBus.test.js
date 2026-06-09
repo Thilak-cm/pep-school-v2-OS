@@ -86,8 +86,8 @@ describe('useAlertBus hook — dual-source alert subscriber (PEP-296)', () => {
   describe('Heatmap cache fast path (PEP-303)', () => {
     it('reads from statsCache heatmap docs for red flags', () => {
       assert.ok(
-        source.includes('statsCache') || source.includes('heatmap_'),
-        'Should reference statsCache/heatmap docs for red flag source'
+        source.includes('fetchHeatmapDocs') || source.includes('heatmap_'),
+        'Should use shared fetchHeatmapDocs utility for red flag source'
       );
     });
 

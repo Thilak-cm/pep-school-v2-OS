@@ -987,7 +987,7 @@ Security rules:
 ---
 
 ## 📊 Stats Cache (`/statsCache/{docId}`)
-Purpose: Pre-computed per-classroom stats written by the `recomputeStats` Cloud Function (PEP-285). The client reads these docs directly — Firestore rules enforce role-scoped access. One doc per active classroom + one `_meta` doc for cache freshness.
+Purpose: Pre-computed per-classroom stats and heatmap cache written by Cloud Functions (`recomputeStats` PEP-285, `writeHeatmapCache` PEP-303). The client reads these docs directly — Firestore rules enforce role-scoped access via `classroomId` field. Doc ID conventions: `classroom_{id}` for stats, `heatmap_{id}` for heatmap cache, `_meta` / `heatmap_meta` for freshness sentinels.
 
 ### Meta doc (`/statsCache/_meta`)
 ```typescript
@@ -1043,8 +1043,41 @@ interface StatsClassroomDoc {
 }
 ```
 
+### Heatmap doc (`/statsCache/heatmap_{classroomId}`) — PEP-303
+```typescript
+interface HeatmapCacheDoc {
+  classroomId: string;
+  weekKey: string;              // e.g. "2026-W23"
+  cachedAt: Timestamp;
+  counts: {
+    escalated: number;
+    steady: number;
+    improved: number;
+    total: number;
+  };
+  roster: Array<{
+    studentId: string;
+    displayName: string;
+    classroomId: string;
+    weeks: Array<string | null>; // 6-element array (oldest → newest), severity or null
+    escalatedThisWeek: boolean;
+    improvedThisWeek: boolean;
+  }>;
+}
+```
+
+### Heatmap meta doc (`/statsCache/heatmap_meta`) — PEP-303
+```typescript
+interface HeatmapMetaDoc {
+  cachedAt: Timestamp;
+  classroomCount: number;
+  weekKey: string;
+}
+```
+Note: `heatmap_meta` is only readable by superadmins (no `classroomId` field). Not read by any client code — exists for operational diagnostics.
+
 ### Security rules
-- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users
+- **Read**: superadmin reads all; classroomadmin reads docs where `classroomId` is in `manageableClassrooms`; teacher reads docs where they are in `classroom.teacherIds`; `_meta` readable by all signed-in users. `heatmap_meta` has no explicit rule arm — readable only by superadmins via the `isSuperAdmin()` catch-all.
 - **Write**: `false` — only Cloud Functions write via admin SDK
 
 ---

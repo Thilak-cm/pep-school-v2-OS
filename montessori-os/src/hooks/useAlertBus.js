@@ -5,11 +5,12 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  collection, collectionGroup, query, where, getDocs, getDoc, doc, documentId, onSnapshot,
+  collection, collectionGroup, query, where, getDocs, getDoc, doc, onSnapshot,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { transformForDisplay, transformRedFlag } from '../utils/alertTransforms';
+import { fetchHeatmapDocs } from '../utils/heatmapFetch';
 
 // ── Cache helpers (read from NotificationsPage cache) ──────────────────────────
 
@@ -91,26 +92,12 @@ export function useAlertBus(classrooms = []) {
       let studentInfo = {};
 
       // ── Fast path: read from heatmap cache docs (PEP-303) ─────────────
-      const statsCacheRef = collection(db, 'statsCache');
       let heatmapDocs = [];
 
       try {
-        if (role === 'superadmin') {
-          const snap = await getDocs(
-            query(statsCacheRef, where('classroomId', '!=', null))
-          );
-          heatmapDocs = snap.docs
-            .filter((d) => d.id.startsWith('heatmap_') && d.id !== 'heatmap_meta');
-        } else if (accessibleClassrooms.length > 0) {
-          for (let i = 0; i < accessibleClassrooms.length; i += 10) {
-            const batch = accessibleClassrooms.slice(i, i + 10);
-            const docIds = batch.map((id) => `heatmap_${id}`);
-            const snap = await getDocs(
-              query(statsCacheRef, where(documentId(), 'in', docIds))
-            );
-            heatmapDocs.push(...snap.docs);
-          }
-        }
+        heatmapDocs = await fetchHeatmapDocs({ role, accessibleClassrooms });
+        // Discard stale cache from a previous week
+        heatmapDocs = heatmapDocs.filter((d) => d.weekKey === weekKey);
       } catch {
         // Cache read failed — fall through to legacy path
       }
@@ -118,8 +105,7 @@ export function useAlertBus(classrooms = []) {
       if (heatmapDocs.length > 0) {
         // Build signals + studentInfo from cache
         for (const cacheDoc of heatmapDocs) {
-          const data = cacheDoc.data() || {};
-          const roster = Array.isArray(data.roster) ? data.roster : [];
+          const roster = Array.isArray(cacheDoc.roster) ? cacheDoc.roster : [];
           for (const row of roster) {
             const currentSeverity = Array.isArray(row.weeks)
               ? row.weeks[row.weeks.length - 1] : null;

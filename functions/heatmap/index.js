@@ -113,9 +113,6 @@ export async function writeHeatmapCache() {
         return sev === undefined ? null : sev;
       });
 
-      // Only include students with at least one week of data
-      if (weeks.every((w) => w === null)) continue;
-
       roster.push({
         studentId: sid,
         displayName: info.displayName,
@@ -186,18 +183,10 @@ export async function patchHeatmapStudent(studentId) {
     `${studentData.firstName || ""} ${studentData.lastName || ""}`.trim() ||
     studentId;
 
-  // 2. Read the heatmap cache doc
   const cacheRef = db.collection("statsCache")
     .doc(`heatmap_${classroomId}`);
-  const cacheSnap = await cacheRef.get();
-  if (!cacheSnap.exists) {
-    // No cache yet — nothing to patch (will be built on next scheduled run)
-    return;
-  }
-  const cacheData = cacheSnap.data() || {};
-  const roster = Array.isArray(cacheData.roster) ? [...cacheData.roster] : [];
 
-  // 3. Read the student's fresh weekly_snapshot
+  // 2. Read the student's fresh weekly_snapshot
   const weekKey = getIstIsoWeekKey();
   const snapshotRef = db.collection("students").doc(studentId)
     .collection("ai_summaries").doc("weekly_snapshot");
@@ -216,42 +205,63 @@ export async function patchHeatmapStudent(studentId) {
     }
   }
 
-  // 4. Update or insert the student's row
-  const existingIdx = roster.findIndex((r) => r.studentId === studentId);
-  if (existingIdx >= 0) {
-    // Patch: update current week (last element) + flags
-    const row = {...roster[existingIdx]};
-    const weeks = [...(row.weeks || [])];
-    weeks[weeks.length - 1] = currentSeverity;
-    row.weeks = weeks;
-    row.escalatedThisWeek = escalatedThisWeek;
-    row.improvedThisWeek = improvedThisWeek;
-    row.displayName = displayName;
-    roster[existingIdx] = row;
-  } else if (currentSeverity !== null) {
-    // Insert: build weeks array with nulls for past + current
-    const pastKeys = getPastWeekKeys(5);
-    const weeks = pastKeys.map(() => null);
-    weeks.push(currentSeverity);
-    roster.push({
-      studentId,
-      displayName,
-      classroomId,
-      weeks,
-      escalatedThisWeek,
-      improvedThisWeek,
+  // 3. Transactional read-modify-write to avoid concurrent patch races
+  await db.runTransaction(async (tx) => {
+    const cacheSnap = await tx.get(cacheRef);
+    if (!cacheSnap.exists) {
+      // No cache yet — nothing to patch (will be built on next scheduled run)
+      return;
+    }
+    const cacheData = cacheSnap.data() || {};
+
+    // Guard: bail if cache is from a previous week — the next scheduled
+    // writeHeatmapCache run will rebuild it with fresh week keys.
+    if (cacheData.weekKey !== weekKey) {
+      console.warn(
+        `[heatmapCache] skipping patch — cache weekKey ${cacheData.weekKey}` +
+        ` != current ${weekKey}`
+      );
+      return;
+    }
+
+    const roster = Array.isArray(cacheData.roster)
+      ? [...cacheData.roster] : [];
+
+    // 4. Update or insert the student's row
+    const existingIdx = roster.findIndex((r) => r.studentId === studentId);
+    if (existingIdx >= 0) {
+      const row = {...roster[existingIdx]};
+      const weeks = [...(row.weeks || [])];
+      weeks[weeks.length - 1] = currentSeverity;
+      row.weeks = weeks;
+      row.escalatedThisWeek = escalatedThisWeek;
+      row.improvedThisWeek = improvedThisWeek;
+      row.displayName = displayName;
+      roster[existingIdx] = row;
+    } else if (currentSeverity !== null) {
+      const pastKeys = getPastWeekKeys(5);
+      const weeks = pastKeys.map(() => null);
+      weeks.push(currentSeverity);
+      roster.push({
+        studentId,
+        displayName,
+        classroomId,
+        weeks,
+        escalatedThisWeek,
+        improvedThisWeek,
+      });
+    }
+
+    // 5. Recompute counts
+    const escalated = roster.filter((r) => r.escalatedThisWeek).length;
+    const improved = roster.filter((r) => r.improvedThisWeek).length;
+    const steady = roster.length - escalated - improved;
+
+    tx.update(cacheRef, {
+      roster,
+      counts: {escalated, steady, improved, total: roster.length},
+      cachedAt: Timestamp.now(),
     });
-  }
-
-  // 5. Recompute counts
-  const escalated = roster.filter((r) => r.escalatedThisWeek).length;
-  const improved = roster.filter((r) => r.improvedThisWeek).length;
-  const steady = roster.length - escalated - improved;
-
-  await cacheRef.update({
-    roster,
-    counts: {escalated, steady, improved, total: roster.length},
-    cachedAt: Timestamp.now(),
   });
 
   console.log(
