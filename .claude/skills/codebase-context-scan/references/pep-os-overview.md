@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-09T01:17:13.085Z
-App version: 10.34.1
+Generated: 2026-06-09T17:51:19.320Z
+App version: 10.35.0
 
 ## App Snapshot
 
@@ -93,17 +93,17 @@ App version: 10.34.1
 - `montessori-os/src/components/UsersAccessPage.jsx`
 
 ### Settings, Feedback, and App Shell (`settings-feedback-shell`)
-- Count: 39
-- Components: `App`, `AppFooter`, `AppHeader`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
+- Count: 41
+- Components: `App`, `AppFooter`, `AppHeader`, `BroadcastComposer`, `BroadcastComposer.test`, `BulkUploadPage`, `BulkUploadPage.helpers`, `BulkUploadPage.test`, `ClassroomNoteCard`, `ClassroomStudentCard`, `CopyToClipboardButton`, `DynamicIslandPill`, `DynamicIslandPill.test`, `FeedbackPage`, `GroupedNoteCard`, `GroupedNoteDialog`, `InlineVoiceOverlay`, `InterviewsPage`, `InterviewsPage.helpers`, `InterviewsPage.test`, `LandingPage`, `LandingPage.test`, `MonthlyPlanTab`, `MonthlyPlanTab.test`, `NoteBottomSheet.structure.test`, `NotesOverTimeDrawer`, `PlanFeedbackDialog`, `PlanFeedbackDialog.test`, `ProfilePage`, `ReadinessCheckDialog`, `ReportGenerateDialog`, `ReportPreviewDialog`, `ReportsCard`, `ReportsPage`, `ReportsPage.test`, `ReviewClassroomNotes`, `SettingsPage`, `SettingsPage.test`, `SnapshotBody`, `SnapshotCard`, `VersionBadge`
 - Representative paths:
 - `montessori-os/src/App.jsx`
 - `montessori-os/src/AppFooter.jsx`
 - `montessori-os/src/AppHeader.jsx`
+- `montessori-os/src/components/BroadcastComposer.jsx`
+- `montessori-os/src/components/BroadcastComposer.test.js`
 - `montessori-os/src/components/BulkUploadPage.jsx`
 - `montessori-os/src/components/BulkUploadPage.helpers.js`
 - `montessori-os/src/components/BulkUploadPage.test.js`
-- `montessori-os/src/components/ClassroomNoteCard.jsx`
-- `montessori-os/src/components/ClassroomStudentCard.jsx`
 
 ## Existing UX Patterns
 
@@ -145,6 +145,11 @@ App version: 10.34.1
 
 ## Recent Changes
 
+### 10.35.0 (2026-06-09)
+- Superadmin broadcast composer in Settings → Admin Tools — compose, edit, and manage broadcast alerts with label, title, message body, audience targeting, priority, DIP toggle, and expiry (PEP-307)
+- Broadcast acknowledgment modal in DIP — tapping a broadcast CTA shows the full message with "I've read this" confirmation before dismissing (PEP-307)
+- Broadcast management view — list all published broadcasts (live + expired) with edit, delete, and DIP visibility toggle (PEP-307)
+
 ### 10.34.1 (2026-06-08)
 - Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
 - `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
@@ -159,9 +164,4 @@ App version: 10.34.1
 - Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
 - CTA navigation from pill to student dashboard with auto-opened flag popover on the weekly tab (PEP-213)
 - Role-aware data fetching — teachers see assigned classrooms, classroomadmins see manageable classrooms, superadmins see all (PEP-213)
-
-### 10.32.0 (2026-06-04)
-- Heatmap-led alerts page replacing the accordion-based design — 6-week flag history grid per student with severity-to-color mapping (PEP-198)
-- Trend summary row with escalated/steady/improved counts and SVG trend glyphs (PEP-198)
-- Search within heatmap card — icon expands into input row, filters roster by student name (PEP-198)
 
