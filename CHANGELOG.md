@@ -1,5 +1,19 @@
 # Changelog
 
+# 10.34.1 — 2026-06-08
+
+### Added
+- Per-classroom heatmap cache in `statsCache/heatmap_{classroomId}` docs — reduces Alerts page cold-load from ~420 reads to ~20 reads for superadmins (PEP-303)
+- `writeHeatmapCache` called after weekly `generateBaseballCards` run; `patchHeatmapStudent` called after on-demand single-student regen (PEP-303)
+- `useHeatmapCache` hook + shared `fetchHeatmapDocs` utility for role-scoped cache reads with weekKey freshness check (PEP-303)
+- `useAlertBus` (DIP) now reads from heatmap cache with legacy fallback (PEP-303)
+- Classroom filter dropdown and persistent search bar on Alerts page
+
+### Fixed
+- `useStatsData` superadmin query now filters by `classroom_` prefix to prevent heatmap docs from polluting StatsPage charts
+- `patchHeatmapStudent` uses Firestore transaction to prevent concurrent regen race conditions
+- Week boundary guard prevents stale cache corruption when patching across week boundaries
+
 # 10.34.0 — 2026-06-05
 
 ### Added
