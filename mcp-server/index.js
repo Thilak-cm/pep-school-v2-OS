@@ -47,6 +47,7 @@ import {
   handleListTestbenchRuns,
   handleGetConfig,
   handleListConfig,
+  handleListAlerts,
 } from "./tools.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -111,6 +112,7 @@ const HANDLERS = {
   list_testbench_runs: (p) => handleListTestbenchRuns(db, p),
   get_config: (p) => handleGetConfig(db, p),
   list_config: () => handleListConfig(db),
+  list_alerts: (p) => handleListAlerts(db, p),
 };
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
