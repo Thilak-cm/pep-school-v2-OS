@@ -1,12 +1,12 @@
 // BroadcastComposer.jsx — Superadmin broadcast composer + management screen (PEP-307)
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Paper, Button, TextField, Switch, FormControlLabel,
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Chip,
   Select, MenuItem, FormControl, InputLabel, CircularProgress,
-  Alert as MuiAlert,
+  Alert as MuiAlert, Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
 } from '@mui/material';
-import { Megaphone, Trash2, Plus, Eye, CircleCheck } from '../icons';
+import { Megaphone, Trash2, Plus, Eye, CircleCheck, Search } from '../icons';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -27,17 +27,26 @@ const INITIAL_FORM = {
   dip: true,
   expiresAt: '',
   targetClassrooms: [],
+  targetTeachers: [],
 };
 
 // ── Label presets ───────────────────────────────────────────────────────────
 
 const LABEL_PRESETS = ['FROM OFFICE', 'ANNOUNCEMENT', 'REMINDER', 'URGENT'];
 
+// ── Helper: display name for a teacher ──────────────────────────────────────
+
+function teacherDisplayName(t) {
+  const name = [t.firstName, t.lastName].filter(Boolean).join(' ');
+  return name || t.email || t.id;
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function BroadcastComposer({ currentUser, userRole }) {
   const [broadcasts, setBroadcasts] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
@@ -46,9 +55,16 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const [success, setSuccess] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  // Audience picker modals
+  const [classroomPickerOpen, setClassroomPickerOpen] = useState(false);
+  const [teacherPickerOpen, setTeacherPickerOpen] = useState(false);
+  const [pendingClassrooms, setPendingClassrooms] = useState([]);
+  const [pendingTeachers, setPendingTeachers] = useState([]);
+  const [teacherSearch, setTeacherSearch] = useState('');
+
   const isSuperAdminUser = isSuperAdmin(userRole);
 
-  // ── Load broadcasts + classrooms ──────────────────────────────────────
+  // ── Load broadcasts + classrooms + teachers ──────────────────────────
 
   const loadBroadcasts = useCallback(async () => {
     try {
@@ -71,13 +87,34 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         const snap = await getDocs(query(collection(db, 'classrooms'), where('status', '==', 'active')));
         setClassrooms(snap.docs.map(d => ({ id: d.id, name: d.data().name || d.id })));
       } catch {
-        // Non-critical — audience picker falls back to empty
+        // Non-critical
+      }
+
+      // Load teachers for teacher picker
+      try {
+        const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'teacher')));
+        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+        list.sort((a, b) => teacherDisplayName(a).localeCompare(teacherDisplayName(b)));
+        setTeachers(list);
+      } catch {
+        // Non-critical
       }
 
       setLoading(false);
     };
     load();
   }, [isSuperAdminUser, loadBroadcasts]);
+
+  // ── Filtered teachers for search ──────────────────────────────────────
+
+  const filteredTeachers = useMemo(() => {
+    if (!teacherSearch.trim()) return teachers;
+    const q = teacherSearch.toLowerCase();
+    return teachers.filter(t =>
+      teacherDisplayName(t).toLowerCase().includes(q) ||
+      (t.email || '').toLowerCase().includes(q)
+    );
+  }, [teachers, teacherSearch]);
 
   // ── Form helpers ──────────────────────────────────────────────────────
 
@@ -87,6 +124,22 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     setForm(INITIAL_FORM);
     setError(null);
   };
+
+  // ── Audience summary ──────────────────────────────────────────────────
+
+  const getAudienceSummary = useCallback(() => {
+    const parts = [];
+    if (form.targetClassrooms.length > 0) {
+      parts.push(form.targetClassrooms.map(id => {
+        const c = classrooms.find(cl => cl.id === id);
+        return c?.name || id;
+      }).join(', '));
+    }
+    if (form.targetTeachers.length > 0) {
+      parts.push(`${form.targetTeachers.length} teacher${form.targetTeachers.length > 1 ? 's' : ''}`);
+    }
+    return parts.length > 0 ? parts.join(' + ') : 'All staff';
+  }, [form.targetClassrooms, form.targetTeachers, classrooms]);
 
   // ── Submit broadcast ──────────────────────────────────────────────────
 
@@ -103,12 +156,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         || [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ')
         || 'Admin';
 
-      const audienceSummary = form.targetClassrooms.length > 0
-        ? form.targetClassrooms.map(id => {
-            const c = classrooms.find(cl => cl.id === id);
-            return c?.name || id;
-          }).join(', ')
-        : 'All staff';
+      const audienceSummary = getAudienceSummary();
 
       await createBroadcast({
         label: form.label,
@@ -122,6 +170,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         dip: form.dip,
         expiresAt: Timestamp.fromDate(new Date(form.expiresAt)),
         targetClassrooms: form.targetClassrooms,
+        targetTeachers: form.targetTeachers,
       });
 
       setSuccess('Broadcast published');
@@ -159,6 +208,43 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     }
   };
 
+  // ── Classroom picker handlers ─────────────────────────────────────────
+
+  const openClassroomPicker = () => {
+    setPendingClassrooms([...form.targetClassrooms]);
+    setClassroomPickerOpen(true);
+  };
+
+  const toggleClassroom = (id) => {
+    setPendingClassrooms(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const confirmClassrooms = () => {
+    updateField('targetClassrooms', pendingClassrooms);
+    setClassroomPickerOpen(false);
+  };
+
+  // ── Teacher picker handlers ───────────────────────────────────────────
+
+  const openTeacherPicker = () => {
+    setPendingTeachers([...form.targetTeachers]);
+    setTeacherSearch('');
+    setTeacherPickerOpen(true);
+  };
+
+  const toggleTeacher = (id) => {
+    setPendingTeachers(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const confirmTeachers = () => {
+    updateField('targetTeachers', pendingTeachers);
+    setTeacherPickerOpen(false);
+  };
+
   // ── Helpers ───────────────────────────────────────────────────────────
 
   const isExpired = (broadcast) => {
@@ -190,6 +276,17 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       </Box>
     );
   }
+
+  // ── Audience display chips ────────────────────────────────────────────
+
+  const classroomChips = form.targetClassrooms.map(id => {
+    const c = classrooms.find(cl => cl.id === id);
+    return c?.name || id;
+  });
+  const teacherChips = form.targetTeachers.map(id => {
+    const t = teachers.find(tc => tc.id === id);
+    return t ? teacherDisplayName(t) : id;
+  });
 
   return (
     <Box sx={{ px: 2, pb: 4, maxWidth: 600, mx: 'auto' }}>
@@ -237,7 +334,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             >
               <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'var(--color-primary)', letterSpacing: 0.5 }}>
                       {broadcast.payload?.label || 'BROADCAST'}
                     </Typography>
@@ -362,10 +459,10 @@ export default function BroadcastComposer({ currentUser, userRole }) {
           {/* Subtitle */}
           <TextField
             size="small"
-            label="Subtitle (optional — auto-generated if empty)"
+            label="Subtitle (optional — defaults to sender + audience)"
             value={form.subtitle}
             onChange={(e) => updateField('subtitle', e.target.value)}
-            placeholder="Auto: sender name · audience"
+            placeholder="Leave empty to use sender name + audience"
             fullWidth
           />
 
@@ -389,38 +486,61 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             rows={4}
             required
             fullWidth
-            placeholder="The detailed message teachers see when they tap 'Got it'..."
+            placeholder="The detailed message teachers see when they tap the CTA..."
           />
 
-          {/* Audience picker */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Audience (classrooms)</InputLabel>
-            <Select
-              multiple
-              value={form.targetClassrooms}
-              label="Audience (classrooms)"
-              onChange={(e) => updateField('targetClassrooms', e.target.value)}
-              renderValue={(selected) =>
-                selected.length === 0
-                  ? 'All staff'
-                  : selected.map(id => classrooms.find(c => c.id === id)?.name || id).join(', ')
-              }
+          {/* ── Audience: Classrooms ── */}
+          <Box>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={openClassroomPicker}
+              fullWidth
+              sx={{ justifyContent: 'space-between', textTransform: 'none', borderColor: 'var(--color-border)', color: 'var(--color-text)', py: 1.2 }}
             >
-              {classrooms.map(c => (
-                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', mt: -1.5 }}>
-            Leave empty to send to all staff
+              <span>Select Classrooms</span>
+              <Chip size="small" label={form.targetClassrooms.length || 'All'} sx={{ height: 22, fontSize: '0.75rem' }} />
+            </Button>
+            {classroomChips.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                {classroomChips.map(name => (
+                  <Chip key={name} size="small" label={name} sx={{ height: 24, fontSize: '0.7rem' }} />
+                ))}
+              </Box>
+            )}
+          </Box>
+
+          {/* ── Audience: Teachers ── */}
+          <Box>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={openTeacherPicker}
+              fullWidth
+              sx={{ justifyContent: 'space-between', textTransform: 'none', borderColor: 'var(--color-border)', color: 'var(--color-text)', py: 1.2 }}
+            >
+              <span>Select Teachers</span>
+              <Chip size="small" label={form.targetTeachers.length || 'All'} sx={{ height: 22, fontSize: '0.75rem' }} />
+            </Button>
+            {teacherChips.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                {teacherChips.map(name => (
+                  <Chip key={name} size="small" label={name} sx={{ height: 24, fontSize: '0.7rem' }} />
+                ))}
+              </Box>
+            )}
+          </Box>
+
+          <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', mt: -1 }}>
+            Leave both empty to send to all staff
           </Typography>
 
           {/* Priority */}
           <FormControl size="small" fullWidth>
-            <InputLabel>Priority</InputLabel>
+            <InputLabel>Priority (decides order of DIP carousel)</InputLabel>
             <Select
               value={form.priority}
-              label="Priority"
+              label="Priority (decides order of DIP carousel)"
               onChange={(e) => updateField('priority', e.target.value)}
             >
               {BROADCAST_PRIORITIES.map(p => (
@@ -465,6 +585,105 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
           >
             {submitting ? <CircularProgress size={20} /> : 'Publish Broadcast'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Classroom picker modal ── */}
+      <Dialog
+        open={classroomPickerOpen}
+        onClose={() => setClassroomPickerOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Select Classrooms</DialogTitle>
+        <DialogContent sx={{ px: 1, py: 0 }}>
+          <List dense>
+            {classrooms.map(c => (
+              <ListItem key={c.id} disablePadding>
+                <ListItemButton onClick={() => toggleClassroom(c.id)} dense>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <Checkbox
+                      edge="start"
+                      checked={pendingClassrooms.includes(c.id)}
+                      disableRipple
+                      size="small"
+                    />
+                  </ListItemIcon>
+                  <ListItemText primary={c.name} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setClassroomPickerOpen(false)} sx={{ color: 'var(--color-text-faint)' }}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={confirmClassrooms} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
+            OK ({pendingClassrooms.length} selected)
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Teacher picker modal ── */}
+      <Dialog
+        open={teacherPickerOpen}
+        onClose={() => setTeacherPickerOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Select Teachers</DialogTitle>
+        <DialogContent sx={{ px: 1, py: 0 }}>
+          {/* Search bar */}
+          <Box sx={{ px: 1, pb: 1 }}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Search teachers..."
+              value={teacherSearch}
+              onChange={(e) => setTeacherSearch(e.target.value)}
+              slotProps={{
+                input: {
+                  startAdornment: <Search size={16} style={{ marginRight: 8, color: 'var(--color-text-faint)' }} />,
+                },
+              }}
+            />
+          </Box>
+          <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
+            {filteredTeachers.map(t => (
+              <ListItem key={t.id} disablePadding>
+                <ListItemButton onClick={() => toggleTeacher(t.id)} dense>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <Checkbox
+                      edge="start"
+                      checked={pendingTeachers.includes(t.id)}
+                      disableRipple
+                      size="small"
+                    />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={teacherDisplayName(t)}
+                    secondary={t.email || null}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            {filteredTeachers.length === 0 && (
+              <Typography variant="body2" sx={{ p: 2, textAlign: 'center', color: 'var(--color-text-faint)' }}>
+                No teachers found
+              </Typography>
+            )}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setTeacherPickerOpen(false)} sx={{ color: 'var(--color-text-faint)' }}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={confirmTeachers} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}>
+            OK ({pendingTeachers.length} selected)
           </Button>
         </DialogActions>
       </Dialog>

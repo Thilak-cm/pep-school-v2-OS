@@ -102,10 +102,32 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307)', () => {
     );
   });
 
-  it('has audience/classroom picker', () => {
+  it('has classroom picker with checkboxes and OK/Cancel', () => {
     assert.ok(
-      source.includes('classroom') || source.includes('audience') || source.includes('Classroom'),
-      'Should have an audience/classroom picker'
+      source.includes('Checkbox') && source.includes('classroomPicker'),
+      'Should have a checkbox-based classroom picker modal'
+    );
+    assert.ok(
+      source.includes('confirmClassrooms') || source.includes('pendingClassrooms'),
+      'Should use pending state with OK/Cancel confirmation'
+    );
+  });
+
+  it('has teacher picker with search and checkboxes', () => {
+    assert.ok(
+      source.includes('teacherPicker') && source.includes('teacherSearch'),
+      'Should have a teacher picker modal with search'
+    );
+    assert.ok(
+      source.includes('filteredTeachers'),
+      'Should filter teachers by search query'
+    );
+  });
+
+  it('fetches teachers from users collection', () => {
+    assert.ok(
+      source.includes("'teacher'") && source.includes('users'),
+      'Should fetch users with role teacher'
     );
   });
 
