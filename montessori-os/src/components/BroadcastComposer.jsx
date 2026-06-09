@@ -5,8 +5,9 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Chip,
   Select, MenuItem, FormControl, InputLabel, CircularProgress,
   Alert as MuiAlert, Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
+  Divider,
 } from '@mui/material';
-import { Megaphone, Trash2, Plus, Eye, CircleCheck, Search } from '../icons';
+import { Megaphone, Trash2, Eye, CircleCheck, Search, Send } from '../icons';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -48,7 +49,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const [classrooms, setClassrooms] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -175,7 +175,6 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
       setSuccess('Broadcast published');
       resetForm();
-      setComposeOpen(false);
       await loadBroadcasts();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -292,135 +291,11 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     <Box sx={{ px: 2, pb: 4, maxWidth: 600, mx: 'auto' }}>
       {/* ── Status messages ── */}
       {success && <MuiAlert severity="success" sx={{ mb: 2, borderRadius: 2 }}>{success}</MuiAlert>}
-      {error && !composeOpen && <MuiAlert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</MuiAlert>}
+      {error && <MuiAlert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</MuiAlert>}
 
-      {/* ── New Broadcast button ── */}
-      <Button
-        variant="contained"
-        startIcon={<Plus size={18} />}
-        onClick={() => { resetForm(); setComposeOpen(true); }}
-        fullWidth
-        sx={{
-          mb: 3, py: 1.5, borderRadius: 2, textTransform: 'none',
-          fontWeight: 600, fontSize: '0.95rem',
-          background: 'var(--color-primary)',
-        }}
-      >
-        New Broadcast
-      </Button>
-
-      {/* ── Broadcast list ── */}
-      {broadcasts.length === 0 ? (
-        <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 3, border: '1px solid var(--color-border)' }}>
-          <Megaphone size={32} style={{ color: 'var(--color-text-faint)', marginBottom: 8 }} />
-          <Typography variant="body2" sx={{ color: 'var(--color-text-faint)' }}>
-            No broadcasts yet
-          </Typography>
-        </Paper>
-      ) : (
-        broadcasts.map(broadcast => {
-          const expired = isExpired(broadcast);
-          const priorityInfo = BROADCAST_PRIORITIES.find(p => p.value === broadcast.priority);
-
-          return (
-            <Paper
-              key={broadcast.id}
-              elevation={0}
-              sx={{
-                mb: 1.5, p: 2, borderRadius: 3,
-                border: '1px solid var(--color-border)',
-                opacity: expired ? 0.6 : 1,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'var(--color-primary)', letterSpacing: 0.5 }}>
-                      {broadcast.payload?.label || 'BROADCAST'}
-                    </Typography>
-                    <Chip
-                      size="small"
-                      label={expired ? 'Expired' : 'Live'}
-                      sx={{
-                        height: 20, fontSize: '0.65rem', fontWeight: 600,
-                        backgroundColor: expired ? 'var(--color-error-light, #fde8e8)' : 'var(--color-success-light, #e6f9e6)',
-                        color: expired ? 'var(--color-error)' : 'var(--color-success, #16a34a)',
-                      }}
-                    />
-                    {broadcast.dip && (
-                      <Chip size="small" label="DIP" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: 'var(--color-indigo-bg)', color: 'var(--color-primary)' }} />
-                    )}
-                    {priorityInfo && (
-                      <Chip size="small" label={priorityInfo.label} sx={{ height: 20, fontSize: '0.65rem' }} />
-                    )}
-                  </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {broadcast.payload?.title || broadcast.payload?.message || ''}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'var(--color-text-faint)' }}>
-                    {broadcast.payload?.audience || 'All staff'} · Expires {formatDate(broadcast.expiresAt)}
-                  </Typography>
-                  {broadcast.dismissedBy && Object.keys(broadcast.dismissedBy).length > 0 && (
-                    <Typography variant="caption" sx={{ display: 'block', color: 'var(--color-text-faint)', mt: 0.5 }}>
-                      <CircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                      {Object.keys(broadcast.dismissedBy).length} acknowledged
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleToggleDip(broadcast.id, broadcast.dip)}
-                    title={broadcast.dip ? 'Remove from DIP' : 'Show in DIP'}
-                    sx={{ color: broadcast.dip ? 'var(--color-primary)' : 'var(--color-text-faint)' }}
-                  >
-                    <Eye size={18} />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => setDeleteConfirm(broadcast)}
-                    title="Delete broadcast"
-                    sx={{ color: 'var(--color-error)' }}
-                  >
-                    <Trash2 size={18} />
-                  </IconButton>
-                </Box>
-              </Box>
-            </Paper>
-          );
-        })
-      )}
-
-      {/* ── Delete confirmation dialog ── */}
-      <Dialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)}>
-        <DialogTitle sx={{ fontWeight: 700 }}>Delete Broadcast?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2">
-            This will permanently remove the broadcast "{deleteConfirm?.payload?.title}". This cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteConfirm(null)} sx={{ color: 'var(--color-text-faint)' }}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={() => handleDelete(deleteConfirm?.id)} sx={{ borderRadius: 2, textTransform: 'none' }}>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Compose dialog ── */}
-      <Dialog
-        open={composeOpen}
-        onClose={() => setComposeOpen(false)}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Megaphone size={20} />
-          New Broadcast
-        </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
-          {error && <MuiAlert severity="error" sx={{ borderRadius: 2 }}>{error}</MuiAlert>}
+      {/* ── Compose form (inline) ── */}
+      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: '1px solid var(--color-border)', mb: 3 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 
           {/* Label — preset picker or custom */}
           <FormControl size="small" fullWidth>
@@ -572,19 +447,119 @@ export default function BroadcastComposer({ currentUser, userRole }) {
             }
             label="Show in DIP carousel"
           />
-        </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setComposeOpen(false)} sx={{ color: 'var(--color-text-faint)' }}>
-            Cancel
-          </Button>
+          {/* Submit */}
           <Button
             variant="contained"
             onClick={handleSubmit}
             disabled={submitting}
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            startIcon={submitting ? <CircularProgress size={18} /> : <Send size={18} />}
+            fullWidth
+            sx={{
+              py: 1.5, borderRadius: 2, textTransform: 'none',
+              fontWeight: 600, fontSize: '0.95rem',
+            }}
           >
-            {submitting ? <CircularProgress size={20} /> : 'Publish Broadcast'}
+            Publish Broadcast
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* ── Published broadcasts list ── */}
+      {broadcasts.length > 0 && (
+        <>
+          <Divider sx={{ mb: 2 }}>
+            <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, letterSpacing: 0.5 }}>
+              PUBLISHED BROADCASTS
+            </Typography>
+          </Divider>
+
+          {broadcasts.map(broadcast => {
+            const expired = isExpired(broadcast);
+            const priorityInfo = BROADCAST_PRIORITIES.find(p => p.value === broadcast.priority);
+
+            return (
+              <Paper
+                key={broadcast.id}
+                elevation={0}
+                sx={{
+                  mb: 1.5, p: 2, borderRadius: 3,
+                  border: '1px solid var(--color-border)',
+                  opacity: expired ? 0.6 : 1,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'var(--color-primary)', letterSpacing: 0.5 }}>
+                        {broadcast.payload?.label || 'BROADCAST'}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={expired ? 'Expired' : 'Live'}
+                        sx={{
+                          height: 20, fontSize: '0.65rem', fontWeight: 600,
+                          backgroundColor: expired ? 'var(--color-error-light, #fde8e8)' : 'var(--color-success-light, #e6f9e6)',
+                          color: expired ? 'var(--color-error)' : 'var(--color-success, #16a34a)',
+                        }}
+                      />
+                      {broadcast.dip && (
+                        <Chip size="small" label="DIP" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: 'var(--color-indigo-bg)', color: 'var(--color-primary)' }} />
+                      )}
+                      {priorityInfo && (
+                        <Chip size="small" label={priorityInfo.label} sx={{ height: 20, fontSize: '0.65rem' }} />
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {broadcast.payload?.title || broadcast.payload?.message || ''}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-faint)' }}>
+                      {broadcast.payload?.audience || 'All staff'} · Expires {formatDate(broadcast.expiresAt)}
+                    </Typography>
+                    {broadcast.dismissedBy && Object.keys(broadcast.dismissedBy).length > 0 && (
+                      <Typography variant="caption" sx={{ display: 'block', color: 'var(--color-text-faint)', mt: 0.5 }}>
+                        <CircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        {Object.keys(broadcast.dismissedBy).length} acknowledged
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleDip(broadcast.id, broadcast.dip)}
+                      title={broadcast.dip ? 'Remove from DIP' : 'Show in DIP'}
+                      sx={{ color: broadcast.dip ? 'var(--color-primary)' : 'var(--color-text-faint)' }}
+                    >
+                      <Eye size={18} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => setDeleteConfirm(broadcast)}
+                      title="Delete broadcast"
+                      sx={{ color: 'var(--color-error)' }}
+                    >
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              </Paper>
+            );
+          })}
+        </>
+      )}
+
+      {/* ── Delete confirmation dialog ── */}
+      <Dialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Delete Broadcast?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This will permanently remove the broadcast "{deleteConfirm?.payload?.title}". This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteConfirm(null)} sx={{ color: 'var(--color-text-faint)' }}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={() => handleDelete(deleteConfirm?.id)} sx={{ borderRadius: 2, textTransform: 'none' }}>
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
