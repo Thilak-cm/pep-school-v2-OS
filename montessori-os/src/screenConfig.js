@@ -29,6 +29,7 @@ const STATIC_TITLES = {
   alerts: "Alerts",
   interviews: "Interviews",
   childChat: "Chat with Coach Pepper",
+  broadcastComposer: "Broadcasts",
 };
 
 /**
@@ -140,6 +141,7 @@ export function getBackNavigation(screen, state, setters) {
     case "configAiTools":
       return () => setters.setScreen?.("config");
     case "bulkUpload":
+    case "broadcastComposer":
       return () => setters.setScreen?.("settings");
     case "baseballCardConfig":
     case "aiTextEditor":
@@ -169,7 +171,7 @@ export const FAB_HIDDEN_SCREENS = new Set([
   "accessDenied", "classroomNotesReview", "graduateStudents", "lessonNotes",
   "studentAliases", "settings", "addUser", "childChat", "config",
   "configLessonNotes", "configAiTools", "chatCommandCentre", "baseballCardConfig",
-  "reportGenConfig", "bulkUpload", "alerts", "interviews",
+  "reportGenConfig", "bulkUpload", "alerts", "interviews", "broadcastComposer",
 ]);
 
 // ── Footer tab mapping ─────────────────────────────────────────────────────

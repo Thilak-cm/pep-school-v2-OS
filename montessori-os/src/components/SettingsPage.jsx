@@ -20,6 +20,7 @@ import {
   LogOut,
   FileUp,
   Sparkles,
+  Megaphone,
 } from '../icons';
 import { collectionGroup, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -213,6 +214,12 @@ function SettingsPage({ user, userRole, classrooms = [], onNavigate, onSignOut }
                 iconColor="var(--color-violet)"
                 label="AI Configurations"
                 onClick={() => onNavigate('/config')}
+              />
+              <SettingsRow
+                icon={<Megaphone size={20} />}
+                iconColor="var(--color-violet)"
+                label="Broadcast Message"
+                onClick={() => onNavigate('/broadcastComposer')}
               />
             </>
           )}

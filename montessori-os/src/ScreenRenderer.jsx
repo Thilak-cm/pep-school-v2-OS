@@ -30,6 +30,7 @@ import NotificationsPage from "./components/NotificationsPage.jsx";
 import InterviewsPage from "./components/InterviewsPage.jsx";
 import ConfigHomePage from "./components/ConfigHomePage.jsx";
 import BulkUploadPage from "./components/BulkUploadPage.jsx";
+import BroadcastComposer from "./components/BroadcastComposer.jsx";
 import LessonNoteConfigEditor from "./components/LessonNoteConfigEditor.jsx";
 
 /**
@@ -299,6 +300,9 @@ function renderScreen(screen, ctx) {
 
     case "bulkUpload":
       return <BulkUploadPage currentUser={ctx.user} userRole={ctx.role} />;
+
+    case "broadcastComposer":
+      return <BroadcastComposer currentUser={ctx.user} userRole={ctx.role} />;
 
     case "configAiTools":
       return (
