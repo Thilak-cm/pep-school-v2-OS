@@ -7,7 +7,7 @@
 
 import {
   collection, addDoc, doc, getDocs, deleteDoc, updateDoc,
-  query, where, orderBy, serverTimestamp,
+  query, where, serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 
@@ -93,6 +93,38 @@ export async function listBroadcasts() {
     return tb - ta;
   });
   return docs;
+}
+
+/**
+ * Update an existing broadcast alert doc.
+ * Only updates payload + targeting + display fields — does not touch dismissedBy or createdAt.
+ *
+ * @param {string} alertId
+ * @param {object} fields - Same shape as createBroadcast fields
+ * @returns {Promise<void>}
+ */
+export async function updateBroadcast(alertId, fields) {
+  if (!alertId) return;
+
+  const updates = {
+    dip: fields.dip ?? true,
+    priority: fields.priority ?? 3,
+    payload: {
+      label: fields.label,
+      title: fields.title,
+      subtitle: fields.subtitle || fields.audience || 'All staff',
+      ctaLabel: fields.ctaLabel || 'Got it',
+      message: fields.message,
+      senderName: fields.senderName,
+      audience: fields.audience || 'All staff',
+    },
+    targetRoles: fields.targetRoles || [],
+    targetClassrooms: fields.targetClassrooms || [],
+    targetTeachers: fields.targetTeachers || [],
+    expiresAt: fields.expiresAt,
+  };
+
+  await updateDoc(doc(db, ALERTS_COL, alertId), updates);
 }
 
 /**

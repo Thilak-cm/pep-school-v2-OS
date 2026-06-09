@@ -7,11 +7,11 @@ import {
   Alert as MuiAlert, Checkbox, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
   Divider,
 } from '@mui/material';
-import { Megaphone, Trash2, Eye, CircleCheck, Search, Send } from '../icons';
+import { Megaphone, Trash2, Eye, CircleCheck, Search, Send, Pencil, Plus } from '../icons';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
-  createBroadcast, listBroadcasts, deleteBroadcast, toggleBroadcastDip,
+  createBroadcast, updateBroadcast, listBroadcasts, deleteBroadcast, toggleBroadcastDip,
   BROADCAST_PRIORITIES,
 } from '../services/broadcastService';
 import { isSuperAdmin } from '../utils/roleUtils';
@@ -54,6 +54,8 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null); // null = create mode, string = editing broadcast ID
 
   // Audience picker modals
   const [classroomPickerOpen, setClassroomPickerOpen] = useState(false);
@@ -122,6 +124,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
   const resetForm = () => {
     setForm(INITIAL_FORM);
+    setEditingId(null);
     setError(null);
   };
 
@@ -158,7 +161,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
 
       const audienceSummary = getAudienceSummary();
 
-      await createBroadcast({
+      const broadcastFields = {
         label: form.label,
         title: form.title,
         subtitle: form.subtitle || `${senderName} · ${audienceSummary}`,
@@ -171,9 +174,15 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         expiresAt: Timestamp.fromDate(new Date(form.expiresAt)),
         targetClassrooms: form.targetClassrooms,
         targetTeachers: form.targetTeachers,
-      });
+      };
 
-      setSuccess('Broadcast published');
+      if (editingId) {
+        await updateBroadcast(editingId, broadcastFields);
+      } else {
+        await createBroadcast(broadcastFields);
+      }
+
+      setSuccess(editingId ? 'Broadcast updated' : 'Broadcast published');
       resetForm();
       await loadBroadcasts();
       setTimeout(() => setSuccess(null), 3000);
@@ -205,6 +214,31 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     } catch {
       setError('Failed to update DIP visibility');
     }
+  };
+
+  // ── Edit broadcast handler ─────────────────────────────────────────────
+
+  const handleEdit = (broadcast) => {
+    const p = broadcast.payload || {};
+    const exp = broadcast.expiresAt?.toDate ? broadcast.expiresAt.toDate() : broadcast.expiresAt ? new Date(broadcast.expiresAt) : null;
+    // Format for datetime-local input: YYYY-MM-DDTHH:MM
+    const expiresAtStr = exp ? `${exp.getFullYear()}-${String(exp.getMonth() + 1).padStart(2, '0')}-${String(exp.getDate()).padStart(2, '0')}T${String(exp.getHours()).padStart(2, '0')}:${String(exp.getMinutes()).padStart(2, '0')}` : '';
+
+    setForm({
+      label: p.label || 'FROM OFFICE',
+      title: p.title || '',
+      subtitle: p.subtitle || '',
+      ctaLabel: p.ctaLabel || 'Got it',
+      message: p.message || '',
+      priority: broadcast.priority ?? 3,
+      dip: broadcast.dip ?? true,
+      expiresAt: expiresAtStr,
+      targetClassrooms: broadcast.targetClassrooms || [],
+      targetTeachers: broadcast.targetTeachers || [],
+    });
+    setEditingId(broadcast.id);
+    setComposeOpen(true);
+    setError(null);
   };
 
   // ── Classroom picker handlers ─────────────────────────────────────────
@@ -293,7 +327,111 @@ export default function BroadcastComposer({ currentUser, userRole }) {
       {success && <MuiAlert severity="success" sx={{ mb: 2, borderRadius: 2 }}>{success}</MuiAlert>}
       {error && <MuiAlert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</MuiAlert>}
 
-      {/* ── Compose form (inline) ── */}
+      {/* ── Published broadcasts list (on top) ── */}
+      {broadcasts.length > 0 && (
+        <Box sx={{ mb: 3 }}>
+          {broadcasts.map(broadcast => {
+            const expired = isExpired(broadcast);
+            const priorityInfo = BROADCAST_PRIORITIES.find(p => p.value === broadcast.priority);
+
+            return (
+              <Paper
+                key={broadcast.id}
+                elevation={0}
+                sx={{
+                  mb: 1.5, p: 2, borderRadius: 3,
+                  border: '1px solid var(--color-border)',
+                  opacity: expired ? 0.6 : 1,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'var(--color-primary)', letterSpacing: 0.5 }}>
+                        {broadcast.payload?.label || 'BROADCAST'}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={expired ? 'Expired' : 'Live'}
+                        sx={{
+                          height: 20, fontSize: '0.65rem', fontWeight: 600,
+                          backgroundColor: expired ? 'var(--color-error-light, #fde8e8)' : 'var(--color-success-light, #e6f9e6)',
+                          color: expired ? 'var(--color-error)' : 'var(--color-success, #16a34a)',
+                        }}
+                      />
+                      {broadcast.dip && (
+                        <Chip size="small" label="DIP" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: 'var(--color-indigo-bg)', color: 'var(--color-primary)' }} />
+                      )}
+                      {priorityInfo && (
+                        <Chip size="small" label={priorityInfo.label} sx={{ height: 20, fontSize: '0.65rem' }} />
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {broadcast.payload?.title || broadcast.payload?.message || ''}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'var(--color-text-faint)' }}>
+                      {broadcast.payload?.audience || 'All staff'} · Expires {formatDate(broadcast.expiresAt)}
+                    </Typography>
+                    {broadcast.dismissedBy && Object.keys(broadcast.dismissedBy).length > 0 && (
+                      <Typography variant="caption" sx={{ display: 'block', color: 'var(--color-text-faint)', mt: 0.5 }}>
+                        <CircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        {Object.keys(broadcast.dismissedBy).length} acknowledged
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEdit(broadcast)}
+                      title="Edit broadcast"
+                      sx={{ color: 'var(--color-text-faint)' }}
+                    >
+                      <Pencil size={18} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleDip(broadcast.id, broadcast.dip)}
+                      title={broadcast.dip ? 'Remove from DIP' : 'Show in DIP'}
+                      sx={{ color: broadcast.dip ? 'var(--color-primary)' : 'var(--color-text-faint)' }}
+                    >
+                      <Eye size={18} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => setDeleteConfirm(broadcast)}
+                      title="Delete broadcast"
+                      sx={{ color: 'var(--color-error)' }}
+                    >
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              </Paper>
+            );
+          })}
+        </Box>
+      )}
+
+      {/* ── Create New Broadcast toggle ── */}
+      <Button
+        variant={composeOpen && !editingId ? 'outlined' : 'contained'}
+        startIcon={composeOpen ? null : <Plus size={18} />}
+        onClick={() => {
+          if (composeOpen) { setComposeOpen(false); setEditingId(null); }
+          else { resetForm(); setComposeOpen(true); }
+        }}
+        fullWidth
+        sx={{
+          mb: 2, py: 1.5, borderRadius: 2, textTransform: 'none',
+          fontWeight: 600, fontSize: '0.95rem',
+          ...(composeOpen ? { borderColor: 'var(--color-border)', color: 'var(--color-text-faint)' } : {}),
+        }}
+      >
+        {composeOpen ? 'Cancel' : 'Create New Broadcast'}
+      </Button>
+
+      {/* ── Compose form (toggled) ── */}
+      {composeOpen && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
 
           {/* Label — preset picker or custom */}
@@ -459,91 +597,9 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               fontWeight: 600, fontSize: '0.95rem',
             }}
           >
-            Publish Broadcast
+            {submitting ? <CircularProgress size={20} /> : editingId ? 'Save Changes' : 'Publish Broadcast'}
           </Button>
         </Box>
-
-      {/* ── Published broadcasts list ── */}
-      {broadcasts.length > 0 && (
-        <>
-          <Divider sx={{ mb: 2 }}>
-            <Typography variant="caption" sx={{ color: 'var(--color-text-faint)', fontWeight: 600, letterSpacing: 0.5 }}>
-              PUBLISHED BROADCASTS
-            </Typography>
-          </Divider>
-
-          {broadcasts.map(broadcast => {
-            const expired = isExpired(broadcast);
-            const priorityInfo = BROADCAST_PRIORITIES.find(p => p.value === broadcast.priority);
-
-            return (
-              <Paper
-                key={broadcast.id}
-                elevation={0}
-                sx={{
-                  mb: 1.5, p: 2, borderRadius: 3,
-                  border: '1px solid var(--color-border)',
-                  opacity: expired ? 0.6 : 1,
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'var(--color-primary)', letterSpacing: 0.5 }}>
-                        {broadcast.payload?.label || 'BROADCAST'}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={expired ? 'Expired' : 'Live'}
-                        sx={{
-                          height: 20, fontSize: '0.65rem', fontWeight: 600,
-                          backgroundColor: expired ? 'var(--color-error-light, #fde8e8)' : 'var(--color-success-light, #e6f9e6)',
-                          color: expired ? 'var(--color-error)' : 'var(--color-success, #16a34a)',
-                        }}
-                      />
-                      {broadcast.dip && (
-                        <Chip size="small" label="DIP" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: 'var(--color-indigo-bg)', color: 'var(--color-primary)' }} />
-                      )}
-                      {priorityInfo && (
-                        <Chip size="small" label={priorityInfo.label} sx={{ height: 20, fontSize: '0.65rem' }} />
-                      )}
-                    </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {broadcast.payload?.title || broadcast.payload?.message || ''}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'var(--color-text-faint)' }}>
-                      {broadcast.payload?.audience || 'All staff'} · Expires {formatDate(broadcast.expiresAt)}
-                    </Typography>
-                    {broadcast.dismissedBy && Object.keys(broadcast.dismissedBy).length > 0 && (
-                      <Typography variant="caption" sx={{ display: 'block', color: 'var(--color-text-faint)', mt: 0.5 }}>
-                        <CircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                        {Object.keys(broadcast.dismissedBy).length} acknowledged
-                      </Typography>
-                    )}
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleToggleDip(broadcast.id, broadcast.dip)}
-                      title={broadcast.dip ? 'Remove from DIP' : 'Show in DIP'}
-                      sx={{ color: broadcast.dip ? 'var(--color-primary)' : 'var(--color-text-faint)' }}
-                    >
-                      <Eye size={18} />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => setDeleteConfirm(broadcast)}
-                      title="Delete broadcast"
-                      sx={{ color: 'var(--color-error)' }}
-                    >
-                      <Trash2 size={18} />
-                    </IconButton>
-                  </Box>
-                </Box>
-              </Paper>
-            );
-          })}
-        </>
       )}
 
       {/* ── Delete confirmation dialog ── */}
