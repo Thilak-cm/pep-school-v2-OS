@@ -5,6 +5,7 @@ import { Box, Typography, ButtonBase, IconButton } from '@mui/material';
 import { Flag, Calendar, ShieldCheck, ChevronUp, ChevronDown } from '../icons';
 import { useAlertBus } from '../hooks/useAlertBus';
 import { dismissAlert } from '../utils/alertService';
+import NewFeaturePill from './NewFeaturePill';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -209,9 +210,12 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   if (loading) {
     return (
       <Box>
-        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
-          Quick alerts
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+            Quick alerts
+          </Typography>
+          <NewFeaturePill />
+        </Box>
         <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: '100%', height: PILL_HEIGHT, borderRadius: '22px',
@@ -235,9 +239,12 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
   if (alerts.length === 0) {
     return (
       <Box>
-        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 0.5, display: 'block' }}>
-          Quick alerts
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+            Quick alerts
+          </Typography>
+          <NewFeaturePill />
+        </Box>
         <Typography sx={{ color: 'var(--color-text-soft)', fontSize: '0.85rem' }}>
           All clear this week
         </Typography>
@@ -257,9 +264,12 @@ function DynamicIslandPill({ onNavigateToStudent, onNavigate, classrooms = [] })
 
   return (
     <Box>
-      <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1, mb: 1, display: 'block' }}>
-        Quick alerts
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="overline" sx={{ fontWeight: 700, color: 'var(--color-text)', letterSpacing: 1 }}>
+          Quick alerts
+        </Typography>
+        <NewFeaturePill />
+      </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {/* ── Carousel viewport — fixed border container ── */}
