@@ -617,11 +617,9 @@ export const triggerDigestTest = functions
     if (!callerSnap.exists || callerSnap.data().role !== "superadmin") {
       throw new functions.https.HttpsError("permission-denied", "Superadmin only");
     }
-    const callerEmail = callerSnap.data().email;
-
     const config = await fetchDigestConfig();
-    // Override emails to only send to the caller
-    config.testOverrideEmails = [callerEmail];
+    // TODO: revert to [callerSnap.data().email] after pepschoolv2.com domain is verified in Resend
+    config.testOverrideEmails = ["tech@pepschoolv2.com"];
 
     const langfuse = new Langfuse();
     const weekKey = getWeekKey();
