@@ -27,7 +27,7 @@ export async function sendEmail({ to, subject, html, from }) {
   const resend = new Resend(key);
   await resend.emails.send({
     to,
-    from: from || "tech@pepschoolv2.com",
+    from: from || "onboarding@resend.dev",
     subject,
     html,
   });
