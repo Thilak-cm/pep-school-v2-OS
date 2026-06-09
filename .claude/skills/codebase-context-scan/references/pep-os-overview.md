@@ -1,7 +1,7 @@
 # Pep OS Overview
 
-Generated: 2026-06-04T19:10:32.123Z
-App version: 10.33.0
+Generated: 2026-06-09T16:42:55.643Z
+App version: 10.34.0
 
 ## App Snapshot
 
@@ -115,7 +115,7 @@ App version: 10.33.0
 
 ## Firestore/Data Surface
 
-- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
+- Core collections/signals: `users`, `branches`, `programs`, `classrooms`, `students`, `observations`, `media`, `ai_summaries`, `config`, `feedback`, `placements`, `chats`, `messages`, `access`, `digests`, `history`, `interviews`, `monthly_plan_feedback`, `runs`, `statsCache`, `testbench`
 - Rule-declared paths:
 - `/{document=**}`
 - `/access/{uid}`
@@ -124,8 +124,10 @@ App version: 10.33.0
 - `/chats/{chatId}`
 - `/classrooms/{classroomId}`
 - `/config/{docId}`
+- `/digests/{digestId}`
 - `/feedback/{feedbackId}`
 - `/history/{historyId}`
+- `/history/{weekKey}`
 - `/interviews/{interviewId}`
 - `/media/{mediaId}`
 - `/messages/{messageId}`
@@ -141,8 +143,15 @@ App version: 10.33.0
 - `/{path=**}/ai_summaries/{summaryId}`
 - `/{path=**}/media/{mediaId}`
 - `/{path=**}/observations/{observationId}`
+- `/classrooms/_digest_all/digests/{digestId}`
+- `/classrooms/_digest_all/digests/{digestId}/history/{weekKey}`
 
 ## Recent Changes
+
+### 10.34.0 (2026-06-09)
+- Weekly classroom digest agent — two-stage agentic pipeline (CF1 per-classroom, CF2 superadmin consolidation) with tool-calling agent loop, 8 Firestore investigation tools, and progressive disclosure gating (PEP-297)
+- Resend email integration replacing SendGrid for transactional digest emails (PEP-297)
+- Langfuse observability tracing on every agent run — tool calls, LLM responses, email delivery status (PEP-297)
 
 ### 10.33.0 (2026-06-04)
 - Dynamic Island alert pill on Home page — rotating dark pill surfaces red-flagged students from weekly AI snapshots with iOS-style vertical carousel, swipe gestures, and dot indicators (PEP-213)
@@ -158,9 +167,4 @@ App version: 10.33.0
 - Student and teacher deletion is now soft-delete — sets `status: 'inactive'` instead of removing the document, preserving all observation data and subcollections (PEP-250)
 - Confirmation dialogs say "Remove" instead of "Delete" with softer language explaining data is preserved (PEP-250)
 - Observations by removed teachers display "(removed)" suffix on the author name (PEP-250)
-
-### 10.30.0 (2026-05-29)
-- Server-side stats recompute: `recomputeStats` Cloud Function pre-computes per-classroom stats and caches in `statsCache/` collection (PEP-285)
-- "Updated X ago" timestamp and manual Refresh button on stats page — any user can trigger a refresh (PEP-285)
-- Firestore rules for `statsCache/` with role-based read access (PEP-285)
 
