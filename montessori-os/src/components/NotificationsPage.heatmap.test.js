@@ -255,6 +255,46 @@ describe('Bottom-sheet modal', () => {
   });
 });
 
+// --- Heatmap cache integration (PEP-303) ---
+
+describe('Heatmap cache integration (PEP-303)', () => {
+  it('imports useHeatmapCache hook', () => {
+    assert.ok(
+      source.includes('useHeatmapCache'),
+      'Should import and use useHeatmapCache hook for cached heatmap reads'
+    );
+  });
+
+  it('reads heatmapDocs from cache hook', () => {
+    assert.ok(
+      source.includes('heatmapDocs'),
+      'Should destructure heatmapDocs from useHeatmapCache'
+    );
+  });
+
+  it('has fast path that builds roster from cache docs', () => {
+    assert.ok(
+      source.includes('heatmapDocs.length > 0'),
+      'Should check heatmapDocs.length to take the fast cache path'
+    );
+  });
+
+  it('falls back to legacy fetch when cache is empty', () => {
+    // The legacy collectionGroup query should still exist as fallback
+    assert.ok(
+      source.includes('collectionGroup'),
+      'Should retain collectionGroup query as legacy fallback'
+    );
+  });
+
+  it('builds studentInfo from cache roster rows', () => {
+    assert.ok(
+      source.includes('builtStudentInfo') || source.includes('row.displayName'),
+      'Should build student info from cache roster data'
+    );
+  });
+});
+
 // --- Trend summary ---
 
 describe('Trend summary', () => {

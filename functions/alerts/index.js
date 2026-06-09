@@ -1,6 +1,15 @@
 // Alert bus Cloud Function helpers (PEP-296)
 // createAlert: shared helper for any CF to write alert docs
 // cleanupExpiredAlerts: scheduled CF to delete expired alerts
+//
+// Architecture note (2026-06-06):
+// The alerts/notifications page is becoming a multi-source aggregator. It currently
+// pulls from: (1) this top-level `alerts/` collection, and (2) `weekly_snapshot` docs
+// for red-flag signals. With the interview scheduler (PEP-298), it will also pull from
+// per-classroom interview schedule docs. As more features land, expect more sources.
+// The dedicated `alerts/` collection remains the right home for agent-originated alerts
+// that have no other collection — but avoid duplicating data here when a purpose-built
+// doc already exists elsewhere. Let the alerts page aggregate, not this collection.
 
 import * as functions from "firebase-functions/v1";
 import { db, Timestamp } from "../shared/firebase.js";

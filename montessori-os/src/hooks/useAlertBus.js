@@ -10,6 +10,7 @@ import {
 import { auth, db } from '../firebase';
 import { getIstIsoWeekKey } from '../utils/weekKey';
 import { transformForDisplay, transformRedFlag } from '../utils/alertTransforms';
+import { fetchHeatmapDocs } from '../utils/heatmapFetch';
 
 // ── Cache helpers (read from NotificationsPage cache) ──────────────────────────
 
@@ -82,88 +83,120 @@ export function useAlertBus(classrooms = []) {
           : classrooms.map((c) => c.id);
       }
 
-      // Try NotificationsPage cache first
-      const cacheKey = buildCacheKey(uid, weekKey, role, accessibleClassrooms);
-      const cachedSignals = getCachedData(cacheKey, 'signals');
-      const cachedStudentInfo = getCachedData(cacheKey, 'studentInfo');
+      // Store role + accessible classrooms for targeting filter in onSnapshot
+      userRoleRef.current = role;
+      accessibleClassroomsRef.current = accessibleClassrooms;
+      setRefVersion((v) => v + 1);
 
       let signals = [];
       let studentInfo = {};
 
-      if (cachedSignals && cachedStudentInfo) {
-        signals = cachedSignals;
-        studentInfo = cachedStudentInfo;
-      } else if (role === 'superadmin' || role === 'classroomadmin') {
-        const snap = await getDocs(
-          query(collectionGroup(db, 'ai_summaries'), where('weekKey', '==', weekKey))
-        );
-        const rows = [];
-        const studentIds = new Set();
-        snap.forEach((d) => {
-          if (d.id !== 'weekly_snapshot') return;
-          const data = d.data() || {};
-          const studentId = d.ref.parent?.parent?.id;
-          if (!studentId) return;
-          rows.push({ studentId, ...data });
-          studentIds.add(studentId);
-        });
+      // ── Fast path: read from heatmap cache docs (PEP-303) ─────────────
+      let heatmapDocs = [];
 
-        const studentSnaps = await Promise.all(
-          Array.from(studentIds).map(async (sid) => {
-            try {
-              const s = await getDoc(doc(db, 'students', sid));
-              if (!s.exists()) return null;
-              const d = s.data() || {};
-              return { id: sid, name: d.displayName || d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim() || sid, classroomId: d.classroomId || '', status: d.status || 'active' };
-            } catch { return null; }
-          })
-        );
-        studentSnaps.filter(Boolean).forEach((s) => { studentInfo[s.id] = s; });
-
-        signals = role === 'superadmin' ? rows : rows.filter((r) => {
-          const cid = studentInfo[r.studentId]?.classroomId;
-          return cid && accessibleClassrooms.includes(cid);
-        });
-        signals = signals.filter((r) => (studentInfo[r.studentId]?.status || 'active') === 'active');
-      } else {
-        const scopedClassrooms = accessibleClassrooms.length > 0 ? accessibleClassrooms : [];
-        if (scopedClassrooms.length === 0) return;
-
-        const studentSnaps = await Promise.all(
-          scopedClassrooms.map((cid) =>
-            getDocs(query(collection(db, 'students'), where('classroomId', '==', cid), where('status', '==', 'active')))
-          )
-        );
-
-        const studentIds = [];
-        studentSnaps.forEach((snap) => {
-          snap.docs.forEach((sDoc) => {
-            const s = sDoc.data() || {};
-            const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sDoc.id;
-            studentInfo[sDoc.id] = { name: label, classroomId: s.classroomId || '', status: s.status || 'active' };
-            studentIds.push(sDoc.id);
-          });
-        });
-
-        const rows = await Promise.all(studentIds.map(async (sid) => {
-          try {
-            const snapRef = doc(db, 'students', sid, 'ai_summaries', 'weekly_snapshot');
-            const snap = await getDoc(snapRef);
-            if (!snap.exists()) return null;
-            const data = snap.data() || {};
-            if (data.weekKey !== weekKey) return null;
-            return { studentId: sid, ...data };
-          } catch { return null; }
-        }));
-
-        signals = rows.filter(Boolean);
+      try {
+        heatmapDocs = await fetchHeatmapDocs({ role, accessibleClassrooms });
+        // Discard stale cache from a previous week
+        heatmapDocs = heatmapDocs.filter((d) => d.weekKey === weekKey);
+      } catch {
+        // Cache read failed — fall through to legacy path
       }
 
-      // Store role + accessible classrooms for targeting filter in onSnapshot
-      userRoleRef.current = role;
-      accessibleClassroomsRef.current = accessibleClassrooms;
-      // Bump version so bus alerts are re-filtered with populated refs (race fix)
-      setRefVersion((v) => v + 1);
+      if (heatmapDocs.length > 0) {
+        // Build signals + studentInfo from cache
+        for (const cacheDoc of heatmapDocs) {
+          const roster = Array.isArray(cacheDoc.roster) ? cacheDoc.roster : [];
+          for (const row of roster) {
+            const currentSeverity = Array.isArray(row.weeks)
+              ? row.weeks[row.weeks.length - 1] : null;
+            if (!currentSeverity) continue;
+            studentInfo[row.studentId] = {
+              name: row.displayName, classroomId: row.classroomId, status: 'active',
+            };
+            signals.push({
+              studentId: row.studentId,
+              severity: currentSeverity,
+              redFlag: currentSeverity === 'high' ? { severity: 'high' } : null,
+              escalatedThisWeek: !!row.escalatedThisWeek,
+              improvedThisWeek: !!row.improvedThisWeek,
+            });
+          }
+        }
+      } else {
+        // ── Legacy path: direct Firestore reads ─────────────────────────
+        const cacheKey = buildCacheKey(uid, weekKey, role, accessibleClassrooms);
+        const cachedSignals = getCachedData(cacheKey, 'signals');
+        const cachedStudentInfo = getCachedData(cacheKey, 'studentInfo');
+
+        if (cachedSignals && cachedStudentInfo) {
+          signals = cachedSignals;
+          studentInfo = cachedStudentInfo;
+        } else if (role === 'superadmin' || role === 'classroomadmin') {
+          const snap = await getDocs(
+            query(collectionGroup(db, 'ai_summaries'), where('weekKey', '==', weekKey))
+          );
+          const rows = [];
+          const studentIds = new Set();
+          snap.forEach((d) => {
+            if (d.id !== 'weekly_snapshot') return;
+            const data = d.data() || {};
+            const studentId = d.ref.parent?.parent?.id;
+            if (!studentId) return;
+            rows.push({ studentId, ...data });
+            studentIds.add(studentId);
+          });
+
+          const studentSnaps = await Promise.all(
+            Array.from(studentIds).map(async (sid) => {
+              try {
+                const s = await getDoc(doc(db, 'students', sid));
+                if (!s.exists()) return null;
+                const d = s.data() || {};
+                return { id: sid, name: d.displayName || d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim() || sid, classroomId: d.classroomId || '', status: d.status || 'active' };
+              } catch { return null; }
+            })
+          );
+          studentSnaps.filter(Boolean).forEach((s) => { studentInfo[s.id] = s; });
+
+          signals = role === 'superadmin' ? rows : rows.filter((r) => {
+            const cid = studentInfo[r.studentId]?.classroomId;
+            return cid && accessibleClassrooms.includes(cid);
+          });
+          signals = signals.filter((r) => (studentInfo[r.studentId]?.status || 'active') === 'active');
+        } else {
+          const scopedClassrooms = accessibleClassrooms.length > 0 ? accessibleClassrooms : [];
+          if (scopedClassrooms.length === 0) return;
+
+          const studentSnaps = await Promise.all(
+            scopedClassrooms.map((cid) =>
+              getDocs(query(collection(db, 'students'), where('classroomId', '==', cid), where('status', '==', 'active')))
+            )
+          );
+
+          const studentIds = [];
+          studentSnaps.forEach((snap) => {
+            snap.docs.forEach((sDoc) => {
+              const s = sDoc.data() || {};
+              const label = s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sDoc.id;
+              studentInfo[sDoc.id] = { name: label, classroomId: s.classroomId || '', status: s.status || 'active' };
+              studentIds.push(sDoc.id);
+            });
+          });
+
+          const rows = await Promise.all(studentIds.map(async (sid) => {
+            try {
+              const snapRef = doc(db, 'students', sid, 'ai_summaries', 'weekly_snapshot');
+              const snap = await getDoc(snapRef);
+              if (!snap.exists()) return null;
+              const data = snap.data() || {};
+              if (data.weekKey !== weekKey) return null;
+              return { studentId: sid, ...data };
+            } catch { return null; }
+          }));
+
+          signals = rows.filter(Boolean);
+        }
+      }
 
       // Transform to DIP display shape
       const transformed = signals
@@ -194,7 +227,9 @@ export function useAlertBus(classrooms = []) {
       where('dip', '==', true),
     );
 
+    let cancelled = false;
     const unsub = onSnapshot(alertsQuery, (snapshot) => {
+      if (cancelled) return;
       const docs = [];
       snapshot.forEach((d) => {
         docs.push({ id: d.id, ...(d.data() || {}) });
@@ -204,11 +239,18 @@ export function useAlertBus(classrooms = []) {
       setRefVersion((v) => v + 1);
     }, () => {
       // onSnapshot error — silently degrade
+      if (cancelled) return;
       rawSnapshotDocsRef.current = [];
       setBusAlerts([]);
     });
 
-    return () => { unsub(); };
+    return () => {
+      cancelled = true;
+      // Defer unsubscribe to next microtask so Firestore's internal watch
+      // stream finishes its state transition before we tear down the listener.
+      // Prevents "Unexpected state" assertion in SDK 11.x under StrictMode.
+      queueMicrotask(() => unsub());
+    };
   }, []);
 
   // Re-filter raw snapshot docs whenever refs or snapshot data change

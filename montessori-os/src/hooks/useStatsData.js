@@ -49,7 +49,9 @@ export const useStatsData = ({ user, role, manageableClassrooms = [], userClassr
         const snap = await getDocs(
           query(statsCacheRef, where('classroomId', '!=', null))
         );
-        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        docs = snap.docs
+          .filter(d => d.id.startsWith('classroom_'))
+          .map(d => ({ id: d.id, ...d.data() }));
       } else if (role === 'classroomadmin') {
         const ids = (manageableClassrooms || []).filter(Boolean);
         if (ids.length === 0) {

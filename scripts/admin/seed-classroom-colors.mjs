@@ -30,14 +30,18 @@ const CLASSROOM_COLORS = {
   aedon:            "#66BB6A", // green
   allstars:         "#EF5350", // red
   amazing:          "#FFA726", // orange
+  aravallis:        "#E91E63", // rose
   argus:            "#78909C", // blue-grey
   gulmohar:         "#EC407A", // pink
   himalayas:        "#8D6E63", // brown
+  lily:             "#CE93D8", // lavender
   nilgiris:         "#26C6DA", // cyan
+  orion:            "#5C6BC0", // indigo
   parijat:          "#FFCA28", // amber
   periwinkle:       "#7E57C2", // deep purple
   plumeria:         "#FF7043", // deep orange
   power:            "#9CCC65", // light green
+  sirius:           "#29B6F6", // sky blue
   vindhyas:         "#0097A7", // dark cyan
 };
 
