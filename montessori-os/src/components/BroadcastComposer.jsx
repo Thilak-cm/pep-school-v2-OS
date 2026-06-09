@@ -37,9 +37,17 @@ const LABEL_PRESETS = ['FROM OFFICE', 'ANNOUNCEMENT', 'REMINDER', 'URGENT'];
 
 // ── Helper: display name for a teacher ──────────────────────────────────────
 
-function teacherDisplayName(t) {
-  const name = [t.firstName, t.lastName].filter(Boolean).join(' ');
-  return name || t.email || t.id;
+function userDisplayName(u) {
+  if (u.displayName) return u.displayName;
+  if (u.name) return u.name;
+  const full = [u.firstName, u.lastName].filter(Boolean).join(' ');
+  if (full) return full;
+  // Derive from email prefix: "afrah@pepschoolv2.com" → "Afrah"
+  if (u.email) {
+    const prefix = u.email.split('@')[0].replace(/[._-]/g, ' ');
+    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+  return u.id;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -92,11 +100,11 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         // Non-critical
       }
 
-      // Load teachers for teacher picker
+      // Load all users for user picker
       try {
-        const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'teacher')));
+        const snap = await getDocs(collection(db, 'users'));
         const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
-        list.sort((a, b) => teacherDisplayName(a).localeCompare(teacherDisplayName(b)));
+        list.sort((a, b) => userDisplayName(a).localeCompare(userDisplayName(b)));
         setTeachers(list);
       } catch {
         // Non-critical
@@ -113,8 +121,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
     if (!teacherSearch.trim()) return teachers;
     const q = teacherSearch.toLowerCase();
     return teachers.filter(t =>
-      teacherDisplayName(t).toLowerCase().includes(q) ||
-      (t.email || '').toLowerCase().includes(q)
+      userDisplayName(t).toLowerCase().includes(q)
     );
   }, [teachers, teacherSearch]);
 
@@ -318,7 +325,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
   });
   const teacherChips = form.targetTeachers.map(id => {
     const t = teachers.find(tc => tc.id === id);
-    return t ? teacherDisplayName(t) : id;
+    return t ? userDisplayName(t) : id;
   });
 
   return (
@@ -531,7 +538,7 @@ export default function BroadcastComposer({ currentUser, userRole }) {
               fullWidth
               sx={{ justifyContent: 'space-between', textTransform: 'none', borderColor: 'var(--color-border)', color: 'var(--color-text)', py: 1.2 }}
             >
-              <span>Select Teachers</span>
+              <span>Select Users</span>
               <Chip size="small" label={form.targetTeachers.length || 'All'} sx={{ height: 22, fontSize: '0.75rem' }} />
             </Button>
             {teacherChips.length > 0 && (
@@ -664,14 +671,14 @@ export default function BroadcastComposer({ currentUser, userRole }) {
         maxWidth="xs"
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>Select Teachers</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Select Users</DialogTitle>
         <DialogContent sx={{ px: 1, py: 0 }}>
           {/* Search bar */}
           <Box sx={{ px: 1, pb: 1 }}>
             <TextField
               size="small"
               fullWidth
-              placeholder="Search teachers..."
+              placeholder="Search users..."
               value={teacherSearch}
               onChange={(e) => setTeacherSearch(e.target.value)}
               slotProps={{
@@ -693,13 +700,13 @@ export default function BroadcastComposer({ currentUser, userRole }) {
                       size="small"
                     />
                   </ListItemIcon>
-                  <ListItemText primary={teacherDisplayName(t)} />
+                  <ListItemText primary={userDisplayName(t)} />
                 </ListItemButton>
               </ListItem>
             ))}
             {filteredTeachers.length === 0 && (
               <Typography variant="body2" sx={{ p: 2, textAlign: 'center', color: 'var(--color-text-faint)' }}>
-                No teachers found
+                No users found
               </Typography>
             )}
           </List>

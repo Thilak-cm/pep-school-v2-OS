@@ -124,10 +124,10 @@ describe('BroadcastComposer — broadcast admin screen (PEP-307)', () => {
     );
   });
 
-  it('fetches teachers from users collection', () => {
+  it('fetches all users from users collection', () => {
     assert.ok(
-      source.includes("'teacher'") && source.includes('users'),
-      'Should fetch users with role teacher'
+      source.includes("'users'") && source.includes('getDocs'),
+      'Should fetch all users for the user picker'
     );
   });
 
